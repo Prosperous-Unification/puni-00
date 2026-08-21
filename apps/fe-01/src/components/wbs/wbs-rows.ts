@@ -10,6 +10,16 @@ export interface TreeRow extends WorkItemView {
    * {@link toTree}.
    */
   tagIds: string[];
+  /**
+   * Required here where {@link WorkItemView} has it optional, `tagIds`' rule.
+   *
+   * The default is `[]`, which since task 10.2 **is** this field's unstated
+   * state: an outgoing be-01's silence and a row nobody has labelled arrive at
+   * every surface as the same answer, which is the answer both of them mean. It
+   * defaulted to `null` while the field was a column and the sentence was the
+   * same one.
+   */
+  serviceIds: string[];
 }
 
 /**
@@ -21,7 +31,8 @@ export interface TreeRow extends WorkItemView {
  * from the list is kept at the root rather than dropped: losing a row silently
  * is worse than showing it in the wrong place.
  *
- * **`tagIds` is defaulted here**, and this is the one place it may be: the type
+ * **`tagIds` and `serviceId` are defaulted here**, and this is the one place they
+ * may be: the type
  * says it is a `string[]` and every surface reads `.length` on it without
  * checking, so the wire has to be made to match the type at the boundary rather
  * than at each of them.
@@ -34,7 +45,10 @@ export interface TreeRow extends WorkItemView {
  */
 export function toTree(flat: readonly WorkItemView[]): TreeRow[] {
   const rows = new Map<string, TreeRow>(
-    flat.map((item) => [item.id, { ...item, tagIds: item.tagIds ?? [], subRows: [] }]),
+    flat.map((item) => [
+      item.id,
+      { ...item, tagIds: item.tagIds ?? [], serviceIds: item.serviceIds ?? [], subRows: [] },
+    ]),
   );
   const roots: TreeRow[] = [];
   for (const item of flat) {

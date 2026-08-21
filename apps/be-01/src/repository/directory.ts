@@ -11,10 +11,14 @@ import type {
   PersonPatch,
   PersonWithTeams,
   PersonWritten,
+  Service,
   ServiceTeam,
   ServiceTeamWritten,
+  ServiceWritten,
   Tag,
   TagWritten,
+  TeamPatch,
+  TeamWithServices,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
 import {
@@ -24,9 +28,12 @@ import {
   project,
   projectTeamCapacity,
   role,
+  service,
   serviceTeam,
   tag,
+  teamService,
   workItem,
+  workItemService,
   workItemTag,
   workItemTeam,
 } from './schema';
@@ -48,6 +55,11 @@ function isDuplicateTeamName(err: unknown): boolean {
 /** The same translation as {@link isDuplicateTeamName}, for the tag name index. */
 function isDuplicateTagName(err: unknown): boolean {
   return err instanceof Error && err.message.includes('UNIQUE constraint failed: tag.name');
+}
+
+/** The same translation as {@link isDuplicateTeamName}, for the service name index. */
+function isDuplicateServiceName(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('UNIQUE constraint failed: service.name');
 }
 
 /** The same translation as {@link isDuplicateTeamName}, for the person name index. */
@@ -110,6 +122,16 @@ function usageRowsIn(
     .where(inArray(workItem.projectId, ids))
     .orderBy(asc(workItemTag.tagId))
     .all();
+  // And the services, for the same reason one line down: `directoryUsageOfService`
+  // reads the set off the row it is handed, so a row arriving without one would
+  // report a removal that touches nothing.
+  const serviced = reader
+    .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
+    .from(workItemService)
+    .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemService.serviceId))
+    .all();
   const teamsOf = new Map<string, string[]>();
   for (const each of joined) {
     teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
@@ -122,10 +144,15 @@ function usageRowsIn(
   for (const each of tagged) {
     tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
   }
+  const servicesOf = new Map<string, string[]>();
+  for (const each of serviced) {
+    servicesOf.set(each.workItemId, [...(servicesOf.get(each.workItemId) ?? []), each.serviceId]);
+  }
   const workItems = rows.map((row) => ({
     ...row,
     teamIds: teamsOf.get(row.id) ?? [],
     tagIds: tagsOf.get(row.id) ?? [],
+    serviceIds: servicesOf.get(row.id) ?? [],
   }));
   const projects = reader
     .select({ id: project.id, name: project.name })
@@ -215,11 +242,27 @@ export class DirectoryRepository implements DirectoryStore {
    *
    * Every other read of this table below is projected for the same reason.
    */
-  listTeams(): Promise<ServiceTeam[]> {
-    return this.db
+  async listTeams(): Promise<TeamWithServices[]> {
+    const teams = await this.db
       .select({ id: serviceTeam.id, name: serviceTeam.name })
       .from(serviceTeam)
       .orderBy(asc(serviceTeam.name));
+    // Two queries rather than a join, exactly as `listPeople` reads
+    // memberships: a join would repeat each team's row once per service it
+    // owns, and the caller would have to fold them back. The map is
+    // directory-sized on both axes.
+    const owned = await this.db
+      .select({ teamId: teamService.teamId, serviceId: teamService.serviceId })
+      .from(teamService)
+      .orderBy(asc(teamService.serviceId));
+    const servicesOf = new Map<string, string[]>();
+    for (const row of owned) {
+      servicesOf.set(row.teamId, [...(servicesOf.get(row.teamId) ?? []), row.serviceId]);
+    }
+    // A team owning nothing is the empty array rather than an absent field: the
+    // signal reads "no team here owns this service", and an undefined would
+    // make that sentence depend on which teams happened to have rows.
+    return teams.map((each) => ({ ...each, serviceIds: servicesOf.get(each.id) ?? [] }));
   }
 
   async addTeam(toAdd: ServiceTeam): Promise<ServiceTeam> {
@@ -266,13 +309,49 @@ export class DirectoryRepository implements DirectoryStore {
     return found;
   }
 
+  /** Every service in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
+  async listServices(): Promise<Service[]> {
+    return this.db
+      .select({ id: service.id, name: service.name })
+      .from(service)
+      .orderBy(asc(service.name));
+  }
+
   /**
-   * Renames one team, or reports the name being held or the row being gone.
+   * Adds a service, idempotently **by name**, and answers the row that is there
+   * — {@link DirectoryRepository.addTag}'s shape and every one of its reasons.
+   */
+  async addService(toAdd: Service): Promise<Service> {
+    await this.db.insert(service).values(toAdd).onConflictDoNothing();
+    const rows = await this.db
+      .select({ id: service.id, name: service.name })
+      .from(service)
+      .where(eq(service.name, toAdd.name))
+      .limit(1);
+    const found = rows.at(0);
+    if (found === undefined) throw new Error(`service vanished after insert: ${toAdd.name}`);
+    return found;
+  }
+
+  /**
+   * Renames one team and replaces the services it owns, or reports the name
+   * being held, the row being gone, or a service that is not there.
    *
-   * A refused rename writes nothing. The team carries no revision of its own —
+   * A refused patch writes nothing. The team carries no revision of its own —
    * it is global rather than a satellite of any project — so what tells an open
    * project about the new name is the event the service publishes after this
-   * commits, not a counter moved here.
+   * commits, not a counter moved here. **The ownership map moves no revision
+   * either, and that is the rule rather than an omission:** it labels no work
+   * item and the scheduler never reads it, so a plan rendered a second ago is
+   * still correct.
+   *
+   * **The services are validated before anything is written, inside the same
+   * transaction** — `patchPerson`'s rule and its reason: returning from a
+   * drizzle transaction callback *commits* it, so a refusal decided after the
+   * name had been set would answer `unknown_service` and leave the rename in the
+   * database. The ids are deduplicated here rather than trusted from the
+   * caller, because the primary key would turn a client naming a service twice
+   * into a 500 for a patch that means exactly what it says.
    *
    * Proof: with the `isDuplicateTeamName` branch removed, `refuses a name
    * another team holds, naming the survivor` fails with the raw
@@ -281,22 +360,62 @@ export class DirectoryRepository implements DirectoryStore {
    * `refuses a team that is not there` answers `ok` about a row nothing holds.
    * Both watched 2026-08-09.
    */
-  async renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten> {
+  async patchTeam(teamId: string, patch: TeamPatch): Promise<ServiceTeamWritten> {
     await Promise.resolve();
+    const wanted = patch.serviceIds === undefined ? null : [...new Set(patch.serviceIds)];
     try {
       return this.db.transaction((tx) => {
-        const rows = tx
-          .update(serviceTeam)
-          .set({ name })
+        const held = tx
+          .select({ id: serviceTeam.id, name: serviceTeam.name })
+          .from(serviceTeam)
           .where(eq(serviceTeam.id, teamId))
-          .returning({ id: serviceTeam.id, name: serviceTeam.name })
           .all();
-        const renamed = rows.at(0);
-        if (renamed === undefined) return { ok: false, reason: 'not_found' };
-        // Read here rather than afterwards: these are the very rows the rename
+        const team = held.at(0);
+        if (team === undefined) return { ok: false, reason: 'not_found' };
+        if (wanted !== null && wanted.length > 0) {
+          const found = tx
+            .select({ id: service.id })
+            .from(service)
+            .where(inArray(service.id, wanted))
+            .all();
+          if (found.length !== wanted.length) return { ok: false, reason: 'unknown_service' };
+        }
+        if (patch.name !== undefined) {
+          tx.update(serviceTeam).set({ name: patch.name }).where(eq(serviceTeam.id, teamId)).run();
+        }
+        if (wanted !== null) {
+          // Whole-set semantics: the rows that were there go, whichever they
+          // were. Deleting and re-inserting rather than diffing because the map
+          // has no payload beyond the pair — there is nothing in a surviving row
+          // worth keeping.
+          tx.delete(teamService).where(eq(teamService.teamId, teamId)).run();
+          if (wanted.length > 0) {
+            tx.insert(teamService)
+              .values(wanted.map((serviceId) => ({ teamId, serviceId })))
+              .run();
+          }
+        }
+        const rows = tx
+          .select({ id: serviceTeam.id, name: serviceTeam.name })
+          .from(serviceTeam)
+          .where(eq(serviceTeam.id, teamId))
+          .all();
+        const patched = rows.at(0);
+        if (patched === undefined) throw new Error(`team vanished mid-patch: ${teamId}`);
+        const serviceIds = tx
+          .select({ serviceId: teamService.serviceId })
+          .from(teamService)
+          .where(eq(teamService.teamId, teamId))
+          .orderBy(asc(teamService.serviceId))
+          .all();
+        // Read here rather than afterwards: these are the very rows the patch
         // is about, and a second read would answer for a directory that had
         // already moved on.
-        return { ok: true, team: renamed, projectIds: this.projectsLabelled(tx, teamId) };
+        return {
+          ok: true,
+          team: { ...patched, serviceIds: serviceIds.map((row) => row.serviceId) },
+          projectIds: this.projectsLabelled(tx, teamId),
+        };
       });
     } catch (err) {
       if (isDuplicateTeamName(err)) return { ok: false, reason: 'taken' };
@@ -330,6 +449,35 @@ export class DirectoryRepository implements DirectoryStore {
       });
     } catch (err) {
       if (isDuplicateTagName(err)) return { ok: false, reason: 'taken' };
+      throw err;
+    }
+  }
+
+  /**
+   * Renames one service — {@link DirectoryRepository.renameTag}'s shape exactly,
+   * including what it deliberately does **not** do.
+   *
+   * The work items are not bumped. A rename changes what a service is called,
+   * not which rows deliver it, so no journal entry is made stale by it and no
+   * undo has to refuse afterwards. What tells an open plan about the new name is
+   * the event the service publishes once this commits.
+   */
+  async renameService(serviceId: string, name: string): Promise<ServiceWritten> {
+    await Promise.resolve();
+    try {
+      return this.db.transaction((tx) => {
+        const rows = tx
+          .update(service)
+          .set({ name })
+          .where(eq(service.id, serviceId))
+          .returning({ id: service.id, name: service.name })
+          .all();
+        const renamed = rows.at(0);
+        if (renamed === undefined) return { ok: false, reason: 'not_found' };
+        return { ok: true, service: renamed, projectIds: this.projectsServiced(tx, serviceId) };
+      });
+    } catch (err) {
+      if (isDuplicateServiceName(err)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -539,6 +687,75 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /**
+   * What points at one service right now — a **fast path** for the
+   * confirmation, never the authority for it.
+   * {@link DirectoryRepository.removeService} decides.
+   *
+   * No `teamId` argument and so no capacity read, for {@link usageOfTag}'s
+   * reason: a service has no pool. The `team_service` rows the removal will also
+   * take are deliberately not read here either — losing an ownership claim about
+   * a service that is going is not an effect on any plan (design.md D7).
+   */
+  async usageOfService(serviceId: string): Promise<DirectoryUsageRows> {
+    await Promise.resolve();
+    return usageRowsIn(this.db, this.projectsServiced(this.db, serviceId), []);
+  }
+
+  /**
+   * Counts, decides and deletes in **one** transaction —
+   * {@link DirectoryRepository.removeTag}'s shape and its argument: the count is
+   * **itself** the decision, so a labelling written between an unconfirmed
+   * caller's own count and this statement refuses the removal rather than being
+   * deleted by it.
+   *
+   * There is no `UPDATE work_item SET service_id = null` here and that is the
+   * design, not an omission: the column's `ON DELETE SET NULL` clears it, which
+   * is the one place this dimension differs from the tag's cascade-of-rows. The
+   * `team_service` rows go the same way, on their own foreign key.
+   *
+   * The work items **are** bumped explicitly, because neither a `SET NULL` nor a
+   * cascade moves a revision, and a journal entry holding the old one must not
+   * undo against a row whose service has changed under it. `removeTag`'s
+   * argument, and the stale undo this repo has already shipped once for people.
+   */
+  async removeService(serviceId: string, cascade: boolean): Promise<DirectoryRemoved> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      // Off the join since task 10.2, `removeTag`'s read exactly. The column is
+      // not consulted: a row this release labelled has no `service_id` to find,
+      // so the old read would have bumped no revision and confirmed no usage for
+      // exactly the rows the removal actually empties.
+      const labelled = tx
+        .select({ id: workItem.id, projectId: workItem.projectId })
+        .from(workItemService)
+        .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
+        .where(eq(workItemService.serviceId, serviceId))
+        .all();
+      if (!cascade && labelled.length > 0) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: usageRowsIn(tx, projectsOf(labelled), []),
+        };
+      }
+      bumpWorkItems(
+        tx,
+        labelled.map((each) => each.id),
+      );
+      const removed = tx
+        .delete(service)
+        .where(eq(service.id, serviceId))
+        .returning({ id: service.id })
+        .all();
+      if (removed.length === 0) return { ok: false, reason: 'not_found' };
+      return {
+        ok: true,
+        removal: { workItemIds: labelled.map((each) => each.id), projectIds: projectsOf(labelled) },
+      };
+    });
+  }
+
   /** The same for a team: the projects it labels work in, the people in it, and its own row. */
   async usageOfTeam(teamId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
@@ -710,6 +927,27 @@ export class DirectoryRepository implements DirectoryStore {
         .from(workItemTag)
         .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
         .where(eq(workItemTag.tagId, tagId))
+        .all(),
+    );
+  }
+
+  /**
+   * {@link projectsTagged} for the third dimension: the projects holding a row
+   * that names this service.
+   *
+   * `projectsTagged` line for line since task 10.2. The sentence that stood here
+   * — "no join to read, the label is a column, so this is the only one of the
+   * three that asks `work_item` alone" — was the singleton's, and reading the
+   * column now would name the projects the *outgoing* release labelled and miss
+   * every row this one has written.
+   */
+  private projectsServiced(reader: Reader, serviceId: string): string[] {
+    return projectsOf(
+      reader
+        .select({ projectId: workItem.projectId })
+        .from(workItemService)
+        .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
+        .where(eq(workItemService.serviceId, serviceId))
         .all(),
     );
   }

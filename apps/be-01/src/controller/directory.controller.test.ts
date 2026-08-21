@@ -149,6 +149,13 @@ async function addTeam(name: string): Promise<string> {
   return team.id;
 }
 
+/** {@link addTeam}'s shape for the third dimension — the ownership map needs both. */
+async function addService(name: string): Promise<string> {
+  const { body } = await call('POST', '/api/services', { name });
+  const { service } = body as { service: { id: string } };
+  return service.id;
+}
+
 describe('GET /api/teams', () => {
   it('answers a team as an id and a name, and never the retired global size', async () => {
     // The one route the retired column could still reach the wire through, and
@@ -175,12 +182,14 @@ describe('GET /api/teams', () => {
     const { status, body } = await call('GET', '/api/teams');
 
     expect(status).toBe(200);
-    expect(body).toEqual({ teams: [{ id: platform, name: 'Platform' }] });
+    expect(body).toEqual({ teams: [{ id: platform, name: 'Platform', serviceIds: [] }] });
     // And by key, because a column added to this table later would arrive here
     // as `null` and `toEqual` says nothing about a field whose value is
-    // `undefined` on the side it is compared with.
+    // `undefined` on the side it is compared with. `serviceIds` is on the list
+    // deliberately — the ownership map ships whole on this row (D4) — and
+    // `size` is still not.
     const teams = (body as { teams: Record<string, unknown>[] }).teams;
-    expect(teams.map((each) => Object.keys(each).sort())).toEqual([['id', 'name']]);
+    expect(teams.map((each) => Object.keys(each).sort())).toEqual([['id', 'name', 'serviceIds']]);
   });
 });
 
@@ -192,9 +201,9 @@ describe('PATCH /api/teams/:id', () => {
 
     expect(renamed).toEqual({
       status: 200,
-      body: { team: { id: platform, name: 'Payments' } },
+      body: { team: { id: platform, name: 'Payments', serviceIds: [] } },
     });
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments', serviceIds: [] }]);
   });
 
   it('answers 409 taken with the surviving name', async () => {
@@ -231,7 +240,96 @@ describe('PATCH /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', serviceIds: [] }]);
+  });
+
+  it('sets the services a team owns, and answers the team with them', async () => {
+    const platform = await addTeam('Platform');
+    const payments = await addService('Payments');
+    const auth = await addService('Auth');
+
+    const owned = await call('PATCH', `/api/teams/${platform}`, {
+      serviceIds: [payments, auth],
+    });
+
+    expect(owned).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform', serviceIds: [auth, payments].sort() } },
+    });
+    // Read back through the store rather than trusted from the answer: the
+    // route could echo what it was sent and this is the assertion that says the
+    // map is in the database.
+    const teams = await store.listTeams();
+    expect(teams).toEqual([
+      { id: platform, name: 'Platform', serviceIds: [auth, payments].sort() },
+    ]);
+  });
+
+  it('replaces the whole owned set, and an empty array clears it', async () => {
+    const platform = await addTeam('Platform');
+    const payments = await addService('Payments');
+    const auth = await addService('Auth');
+    await call('PATCH', `/api/teams/${platform}`, { serviceIds: [payments, auth] });
+
+    // Whole-set, not additive: naming one service leaves that one owned and
+    // takes the other away. `PersonPatch.teamIds`' rule, one dimension over.
+    const narrowed = await call('PATCH', `/api/teams/${platform}`, { serviceIds: [auth] });
+    expect(narrowed).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform', serviceIds: [auth] } },
+    });
+
+    const cleared = await call('PATCH', `/api/teams/${platform}`, { serviceIds: [] });
+    expect(cleared).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform', serviceIds: [] } },
+    });
+  });
+
+  it('leaves the owned set alone when the patch does not name it', async () => {
+    const platform = await addTeam('Platform');
+    const payments = await addService('Payments');
+    await call('PATCH', `/api/teams/${platform}`, { serviceIds: [payments] });
+
+    // Absent and empty are different requests, and only the layers below the
+    // wire can tell them apart — a rename that quietly disowned everything is
+    // the bug this asserts against.
+    const renamed = await call('PATCH', `/api/teams/${platform}`, { name: 'Platform Team' });
+
+    expect(renamed).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform Team', serviceIds: [payments] } },
+    });
+  });
+
+  it('answers 404 for a service the directory does not hold, rename included', async () => {
+    const platform = await addTeam('Platform');
+    const payments = await addService('Payments');
+
+    // `unknown_service`'s status, on the directory's own routes this time — the
+    // work item patch answers the same 404 for the same sentence.
+    expect(
+      await call('PATCH', `/api/teams/${platform}`, {
+        name: 'Renamed',
+        serviceIds: [payments, crypto.randomUUID()],
+      }),
+    ).toEqual({ status: 404, body: { error: 'unknown_service' } });
+
+    // The whole patch, not the half of it that could have worked: a refusal
+    // that left the rename behind would be a state nothing can see and nobody
+    // asked for.
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', serviceIds: [] }]);
+  });
+
+  it('answers 422 to a patch naming neither a name nor services', async () => {
+    const platform = await addTeam('Platform');
+
+    // `/people/:id`'s rule: a no-op is almost certainly a client bug, and a 200
+    // would leave nothing on the wire to notice it by.
+    expect(await call('PATCH', `/api/teams/${platform}`, {})).toEqual({
+      status: 422,
+      body: { error: 'nothing_to_change' },
+    });
   });
 });
 
@@ -337,7 +435,7 @@ describe('DELETE /api/people/:id and /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', serviceIds: [] }]);
   });
 });
 
@@ -403,5 +501,161 @@ describe('PATCH /api/people/:id', () => {
 
     expect(res.status).toBe(401);
     expect(await store.listPeople()).toEqual([{ id: kat, name: 'Kat', teamIds: [platform] }]);
+  });
+});
+
+describe('the service routes', () => {
+  /** A service by name, through the route that creates them. */
+  async function addService(name: string): Promise<string> {
+    const { body } = await call('POST', '/api/services', { name });
+    const { service } = body as { service: { id: string } };
+    return service.id;
+  }
+
+  it('creates, lists by name, and renames', async () => {
+    const payments = await addService('Payments');
+    // Idempotent by name at the unique index, as the teams and the tags are:
+    // two people typing `Payments` at once both pass a check-then-insert.
+    expect(await addService('  Payments  ')).toBe(payments);
+    const auth = await addService('Auth');
+
+    // By name, not by insertion order — the picker reads them in this order.
+    expect(await call('GET', '/api/services')).toEqual({
+      status: 200,
+      body: {
+        services: [
+          { id: auth, name: 'Auth' },
+          { id: payments, name: 'Payments' },
+        ],
+      },
+    });
+
+    expect(await call('PATCH', `/api/services/${payments}`, { name: 'Billing' })).toEqual({
+      status: 200,
+      body: { service: { id: payments, name: 'Billing' } },
+    });
+  });
+
+  it('answers 409 taken with the surviving name, 422 for spaces, 404 for a dead id', async () => {
+    const payments = await addService('Payments');
+    const auth = await addService('Auth');
+
+    // The surviving name, for `/teams/:id`'s reason: the caller has to be able
+    // to say which `Payments` is on screen now.
+    expect(await call('PATCH', `/api/services/${auth}`, { name: 'Payments' })).toEqual({
+      status: 409,
+      body: { error: 'taken', name: 'Payments' },
+    });
+    expect(await call('PATCH', `/api/services/${auth}`, { name: '   ' })).toEqual({
+      status: 422,
+      body: { error: 'name_required' },
+    });
+    expect(
+      await call('PATCH', `/api/services/${crypto.randomUUID()}`, { name: 'Billing' }),
+    ).toEqual({ status: 404, body: { error: 'not_found' } });
+    expect(await call('POST', '/api/services', { name: ' ' })).toEqual({
+      status: 422,
+      body: { error: 'name_required' },
+    });
+
+    // Nothing above wrote: both rows are as they were created.
+    expect(await store.listServices()).toEqual([
+      { id: auth, name: 'Auth' },
+      { id: payments, name: 'Payments' },
+    ]);
+  });
+
+  it('answers 409 in_use naming the row that loses its label, then 204 on the cascade', async () => {
+    const payments = await addService('Payments');
+    const { body } = await call('POST', '/api/projects', { name: 'Rollout' });
+    const { project } = body as { project: { id: string } };
+    const created = await call('POST', `/api/projects/${project.id}/work-items`, {
+      parentId: null,
+      afterId: null,
+      name: 'Design',
+    });
+    const { id: workItemOf } = created.body as { id: string };
+    await call('PATCH', `/api/work-items/${workItemOf}`, { serviceIds: [payments] });
+
+    const refused = await call('DELETE', `/api/services/${payments}`);
+
+    // `label_removed` and **nothing beside it**. This assertion is design.md D7
+    // written as a payload: no `capacity_released`, no size, no second effect of
+    // any kind, and no mention of the ownership rows a cascade would also take.
+    //
+    // `label_removed` and not `label_nulled` since task 10.2 (10.5): the store is
+    // a join table, so a member goes rather than a column being nulled, and the
+    // word a client branches on had to move with the mechanism.
+    expect(refused).toEqual({
+      status: 409,
+      body: {
+        error: 'in_use',
+        usage: {
+          projects: [
+            {
+              id: project.id,
+              name: 'Rollout',
+              workItems: [
+                {
+                  id: workItemOf,
+                  number: '010',
+                  name: 'Design',
+                  effects: [{ kind: 'label_removed' }],
+                },
+              ],
+            },
+          ],
+          members: [],
+        },
+      },
+    });
+
+    expect(await call('DELETE', `/api/services/${payments}?cascade=true`)).toEqual({
+      status: 204,
+      body: null,
+    });
+    expect(await store.listServices()).toEqual([]);
+
+    // The work item is **still there**, unlabelled — `ON DELETE SET NULL`, seen
+    // from the route. A cascade that had taken the row with the label would
+    // have deleted somebody's plan to tidy a picker.
+    const tree = await call('GET', `/api/projects/${project.id}/work-items`);
+    const { workItems } = tree.body as { workItems: { id: string; serviceId: string | null }[] };
+    expect(workItems).toMatchObject([{ id: workItemOf, serviceId: null }]);
+  });
+
+  it('removes an unused service on the first press, and 404s the second', async () => {
+    // One clause fewer than a team's refusal and one fewer than a tag's: nobody
+    // belongs to a service, and the teams that own it are not counted either.
+    const payments = await addService('Payments');
+
+    expect(await call('DELETE', `/api/services/${payments}`)).toEqual({ status: 204, body: null });
+    expect(await call('DELETE', `/api/services/${payments}`)).toEqual({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+  });
+
+  it('answers 401 to every service route carrying no token', async () => {
+    const payments = await addService('Payments');
+    const unauthenticated = async (method: string, path: string, body?: unknown) =>
+      (
+        await app.handle(
+          new Request(`http://localhost${path}`, {
+            method,
+            ...(body === undefined
+              ? {}
+              : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+          }),
+        )
+      ).status;
+
+    expect([
+      await unauthenticated('GET', '/api/services'),
+      await unauthenticated('POST', '/api/services', { name: 'Auth' }),
+      await unauthenticated('PATCH', `/api/services/${payments}`, { name: 'Billing' }),
+      await unauthenticated('DELETE', `/api/services/${payments}`),
+    ]).toEqual([401, 401, 401, 401]);
+    expect(await store.listServices()).toEqual([{ id: payments, name: 'Payments' }]);
   });
 });

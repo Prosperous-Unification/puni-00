@@ -37,8 +37,15 @@ export function inMemoryWorkItems(
    * invented a team list would be answering a question it cannot know. Given
    * one, `patch` refuses an unknown team exactly as the repository does; without
    * one it cannot, and no test may assert that refusal through it.
+   *
+   * The **service** is checked the same way and against the same directory. It
+   * is checked here rather than left to a foreign key because this store has
+   * none: production reads `service` inside the patch's own transaction and
+   * answers `unknown_service`, and a fixture that accepted any id at all would
+   * let a route's 404 arm pass untested — which it did, for one chunk, and
+   * `work-item.controller.test.ts` said so out loud until this line existed.
    */
-  teams?: Pick<DirectoryStore, 'listTeams'>,
+  teams?: Pick<DirectoryStore, 'listTeams' | 'listServices'>,
 ): WorkItemStore {
   const byId = new Map<string, WorkItem>();
   /**
@@ -58,6 +65,14 @@ export function inMemoryWorkItems(
    * where the patch names one.
    */
   const tagsOf = new Map<string, readonly string[]>();
+  /**
+   * The service sets, `tagsOf`'s shape and for its reason: since task 10.2 the
+   * dimension is `work_item_service` and there is no column to derive it from.
+   * `work_item.service_id` is still on the row below and is still written by
+   * this fixture, exactly as the real store leaves it standing — and, exactly as
+   * the real store, nothing here reads it back.
+   */
+  const servicesOf = new Map<string, readonly string[]>();
 
   /** The join rows one write owes, as `WorkItemRepository` derives them. */
   const joinFor = (row: WorkItem): readonly string[] =>
@@ -80,6 +95,7 @@ export function inMemoryWorkItems(
             ...row,
             teamIds: teamsOf.get(row.id) ?? [],
             tagIds: tagsOf.get(row.id) ?? [],
+            serviceIds: servicesOf.get(row.id) ?? [],
           })),
       );
     },
@@ -100,6 +116,17 @@ export function inMemoryWorkItems(
         const held = await teams.listTeams();
         if (!held.some((each) => each.id === wanted)) return { ok: false, reason: 'unknown_team' };
       }
+      const wantedServices = patch.serviceIds;
+      if (teams !== undefined && wantedServices !== undefined && wantedServices.length > 0) {
+        const held = await teams.listServices();
+        // Every named id, and counted against the **distinct** ones — the real
+        // store's rule, mirrored so a repeated id passes here exactly as it
+        // passes there. One unknown member refuses the whole patch.
+        const distinct = new Set(wantedServices);
+        if ([...distinct].some((each) => !held.some((one) => one.id === each))) {
+          return { ok: false, reason: 'unknown_service' };
+        }
+      }
       const updated: WorkItem = {
         ...existing,
         name: patch.name ?? existing.name,
@@ -115,6 +142,14 @@ export function inMemoryWorkItems(
         priority: patch.priority === undefined ? existing.priority : patch.priority,
         serviceTeamId:
           patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
+        // **Left where it stands**, which is task 10.2's rule and the reverse of
+        // what this line used to do: the column is the outgoing release's copy
+        // and the join is the fact, so a patch moves the set and never this.
+        // Writing it from the patch would make the fixture laxer than the store
+        // in the direction that matters least and stricter in the one that
+        // matters most — a test could watch the column follow a set it cannot
+        // hold.
+        serviceId: existing.serviceId,
         // `null` is **back to one at a time**, not "no answer": the real column
         // is `NOT NULL` and would refuse a null outright, so a fixture that
         // stored one would be laxer than the schema it stands for and would let
@@ -141,6 +176,11 @@ export function inMemoryWorkItems(
       // Only where the patch names the label, as the repository's own
       // transaction does: a rename must leave the join alone.
       if (patch.serviceTeamId !== undefined) teamsOf.set(id, joinFor(updated));
+      // The service set, whole and deduplicated, only where the patch names the
+      // dimension — the real store's write, mirrored. `[]` is written as an
+      // empty set rather than a delete so a later read answers the same either
+      // way, which is what `listByProject`'s `?? []` above already means.
+      if (wantedServices !== undefined) servicesOf.set(id, [...new Set(wantedServices)]);
       return { ok: true, workItem: updated };
     },
     move(id, parentId, position, respaced) {
@@ -172,6 +212,7 @@ export function inMemoryWorkItems(
       for (const id of [...ids].reverse()) {
         byId.delete(id);
         teamsOf.delete(id);
+        servicesOf.delete(id);
       }
       return Promise.resolve();
     },

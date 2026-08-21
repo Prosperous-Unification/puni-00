@@ -1,3 +1,4 @@
+import { builtByNonOwner } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -458,6 +459,199 @@ describe('work item routes', () => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { priority: number | null }[] };
     expect(workItems[0]?.priority).toBe(3);
+  });
+
+  it('refuses a service that is not an id, and writes the one that is', async () => {
+    // The parse guard: a non-string is **400** — the body is malformed and no
+    // plan anywhere would take it. The other half, an id the directory no longer
+    // holds, is 404 and has its own test below.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    // A bare id is among them since task 10.2 and is the addition worth naming:
+    // the field takes a **list**, so the string that used to be the only legal
+    // value is now the client sending one id where a set belongs — accepted, it
+    // would write a join row per character.
+    for (const bad of [7, true, 'one-service-id', { id: 'a' }]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ serviceIds: bad }),
+      });
+      // The value is carried into the assertion so a failure names which of
+      // them got through rather than reporting `400 !== 200` four times.
+      expect([res.status, JSON.stringify(bad)]).toEqual([400, JSON.stringify(bad)]);
+      expect((await res.json()) as { error: string }).toEqual({
+        error: 'serviceIds_must_be_a_list_of_ids',
+      });
+    }
+
+    // Nothing was written by any of them, and the field is on the wire at all —
+    // an assertion of `toBeNull` alone would pass just as well against a route
+    // that has never heard of it.
+    const still = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await still.json()) as { workItems: { serviceIds: string[] }[] };
+    expect(workItems[0]).toHaveProperty('serviceIds', []);
+
+    // And a well-formed id goes through the parse, the service and the store to
+    // the row: without it the four refusals above would pass over a route that
+    // drops the field entirely. It caught exactly that — the in-memory fixture
+    // merged every field but this one.
+    //
+    // The service is **created through the directory** rather than invented,
+    // because since section 4 the store checks it: a random id is now the 404
+    // the next test is about, and asserting a 200 on one would be asserting the
+    // absence of the check.
+    const made = await send('/api/services', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Payments' }),
+    });
+    const { service } = (await made.json()) as { service: { id: string } };
+    const ok = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ serviceIds: [service.id] }),
+    });
+    expect(ok.status).toBe(200);
+    // Read back off the tree rather than off the response, and the change is
+    // task 10.2's: `PATCH` answers with the **row**, and the row's `service_id`
+    // is the outgoing release's column, which this release deliberately no
+    // longer writes. The tree is where the set lives, so the tree is what proves
+    // the write. Nothing on fe-01 reads the patch response — `api.patch` returns
+    // void — so the stale echo misleads no client; it is named in the task log
+    // as owed rather than fixed here.
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems: written } = (await tree.json()) as { workItems: { serviceIds: string[] }[] };
+    expect(written[0]).toHaveProperty('serviceIds', [service.id]);
+  });
+
+  it('answers 404 for a service the directory does not hold, and writes nothing', async () => {
+    // **Task 4.6, owed by section 3 and paid here.** `statusFor` maps
+    // `unknown_service` onto 404 beside `unknown_team` and `unknown_tag`, and
+    // until the directory could make a service that mapping was code no test
+    // over this route ran: the in-memory work item store took any id at all, so
+    // every patch naming a service came back 200. The refusal itself was already
+    // proved over real SQLite in `undo.test.ts`; what was missing was the
+    // **status** a client branches on, and this is it.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const res = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ serviceIds: [crypto.randomUUID()] }),
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'unknown_service' });
+
+    // 404 and **nothing written**: a refusal that had already emptied and
+    // rewritten the join would leave the row delivering a service the directory
+    // cannot name.
+    const still = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await still.json()) as { workItems: { serviceIds: string[] }[] };
+    expect(workItems[0]).toHaveProperty('serviceIds', []);
+  });
+
+  it('records a service the row’s team does not own, rather than refusing it', async () => {
+    // **Task 5.4.** The mismatch signals never block a write, and "we decided
+    // not to validate" is invisible in a diff — an absent refusal looks exactly
+    // like a refusal nobody has written yet. So the decision is asserted from
+    // the outside: the patch that creates a mismatch comes back **200**, and
+    // the mismatch is then readable from what the route stored.
+    //
+    // Dany's reason, 2026-08-20 23:18: the point is to "flag where teams build
+    // something they do not own". A plan that refuses to record it cannot flag
+    // it, and a tool that refuses what happened is a tool people work around.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const teamMade = await send('/api/teams', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Platform' }),
+    });
+    const { team } = (await teamMade.json()) as { team: { id: string } };
+    const auth = await send('/api/services', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Auth' }),
+    });
+    const { service: owns } = (await auth.json()) as { service: { id: string } };
+    const payments = await send('/api/services', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Payments' }),
+    });
+    const { service: doesNotOwn } = (await payments.json()) as { service: { id: string } };
+    await send(`/api/teams/${team.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ serviceIds: [owns.id] }),
+    });
+
+    /**
+     * The domain rule, run over what the route stored and what the directory
+     * answers — the same pair fe-01 will filter on, rather than a second copy
+     * of the rule written here.
+     */
+    const mismatchOf = async (workItemId: string): Promise<boolean> => {
+      const tree = await send(`/api/projects/${projectId}/work-items`, token);
+      const { workItems } = (await tree.json()) as {
+        workItems: { id: string; teamIds: string[]; serviceIds: string[] }[];
+      };
+      const stored = workItems.find((each) => each.id === workItemId);
+      const teams = await send('/api/teams', token);
+      const { teams: listed } = (await teams.json()) as {
+        teams: { id: string; serviceIds: string[] }[];
+      };
+      // The fold is gone, which is what task 10.2 named this line for: the tree
+      // carries `serviceIds` off the join, so the rule is handed the stored set
+      // rather than a set of nought or one built out of a column here.
+      return builtByNonOwner({
+        serviceIds: stored?.serviceIds ?? [],
+        teamIds: stored?.teamIds ?? [],
+        ownedServicesByTeam: new Map(listed.map((each) => [each.id, each.serviceIds])),
+      });
+    };
+
+    // The **owned** service first, so this case can tell a working ownership
+    // map from an absent one. Without it, `builtByNonOwner` below answers true
+    // whether the map came back right or came back empty — the over-broad
+    // report chunk 5's usage red exposed, one route over.
+    const owning = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ serviceTeamId: team.id, serviceIds: [owns.id] }),
+    });
+
+    expect(owning.status).toBe(200);
+    expect(await mismatchOf(id)).toBe(false);
+
+    const patched = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ serviceIds: [doesNotOwn.id] }),
+    });
+
+    expect(patched.status).toBe(200);
+
+    // And the mismatch is real in what came back, not merely unrefused: the row
+    // reads back carrying the service its team does not own, and the rule says
+    // so over the stored pair.
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as {
+      workItems: { id: string; teamIds: string[]; serviceIds: string[] }[];
+    };
+
+    expect(workItems.find((each) => each.id === id)).toMatchObject({
+      serviceIds: [doesNotOwn.id],
+      teamIds: [team.id],
+    });
+    expect(await mismatchOf(id)).toBe(true);
   });
 
   // C2's landmine test — `puts a capacity floor on the wire, which nothing this

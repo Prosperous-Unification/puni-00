@@ -95,6 +95,43 @@ const NOT_BEFORE_REASON = '20260818090000_add_not_before_reason';
  * mechanical half of the same check.
  */
 const TAG = '20260819120000_add_tag';
+/**
+ * The only migration so far that adds **two tables and a column** in one folder —
+ * the service directory, the team↔service ownership map, and
+ * `work_item.service_id`. So it appears in the ordering here, in the table
+ * lists, _and_ in the column cases at the bottom of this file.
+ *
+ * Stamped `20260821000000`, later than all twenty-two folders that were on disk
+ * when it was written. The stamps were listed and checked for a duplicate before
+ * the folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` in `migrate-down.test.ts` is the
+ * mechanical half of the same check.
+ */
+const SERVICE = '20260821000000_add_service';
+/**
+ * The newest. It widens the service dimension from the column the folder above
+ * added to a set, eight hours later — Dany, 2026-08-21, _"can be several
+ * services"_ — and it is the **only migration in this repo that seeds a table
+ * from data already on the box**, which is why it has cases about rows and not
+ * only about shapes.
+ *
+ * It drops nothing. `work_item.service_id` stays, unread by the release this
+ * arrives with and still selected by the one it arrives beside during a
+ * blue/green swap.
+ *
+ * Stamped `20260821080000`, later than all twenty-three folders on disk when it
+ * was written. The stamps were listed and checked for a duplicate before the
+ * folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` in `migrate-down.test.ts` is the
+ * mechanical half of the same check.
+ *
+ * The duplicate-stamp one-liner is deliberately **not** quoted here, and that is
+ * worth a line: its `sed` script ends in a slash-star-slash sequence that closes
+ * a block comment, so pasting it into this JSDoc made the whole file a syntax
+ * error — and bun reported that as fifty tests quietly not running rather than
+ * as a failure. `migration.sql` quotes it safely, in a `--` comment.
+ */
+const WORK_ITEM_SERVICE = '20260821080000_add_work_item_service';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -118,6 +155,16 @@ const ROLE_PROGRESS_TABLES = ['role_progress'] as const;
 // references `work_item`, so both reverse with the domain; `tag` itself
 // references nothing and reverses with them only because they arrived together.
 const TAG_TABLES = ['tag', 'work_item_tag'] as const;
+// Its own migration, and the first to add two tables *and* a column.
+// `team_service` references `service_team` and `service`, so it reverses with the
+// directory; `service` itself is referenced by a `work_item` column, which is why
+// the column is dropped before the table it points at.
+const SERVICE_TABLES = ['service', 'team_service'] as const;
+// Its own migration, reversed with the domain: it references `work_item` and
+// `service`, so it cannot outlive either. `TAG_TABLES`' `work_item_tag` half
+// with no vocabulary table beside it — the vocabulary arrived one migration
+// earlier, when this dimension held one value per row.
+const WORK_ITEM_SERVICE_TABLES = ['work_item_service'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -156,6 +203,8 @@ describe('the WBS domain migration', () => {
         ...ACTUAL_TABLES,
         ...ROLE_PROGRESS_TABLES,
         ...TAG_TABLES,
+        ...SERVICE_TABLES,
+        ...WORK_ITEM_SERVICE_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -177,6 +226,8 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -208,6 +259,8 @@ describe('the WBS domain migration', () => {
         ...ACTUAL_TABLES,
         ...ROLE_PROGRESS_TABLES,
         ...TAG_TABLES,
+        ...SERVICE_TABLES,
+        ...WORK_ITEM_SERVICE_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -491,6 +544,8 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -940,6 +995,8 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -1164,6 +1221,8 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -1442,6 +1501,8 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -1656,6 +1717,8 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
         TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
@@ -1914,7 +1977,13 @@ describe('the role progress migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([TAG, NOT_BEFORE_REASON, ROLE_PROGRESS]);
+      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
+        TAG,
+        NOT_BEFORE_REASON,
+        ROLE_PROGRESS,
+      ]);
 
       const after = openDatabase(db.path);
       try {
@@ -2151,7 +2220,12 @@ describe('the not-before reason migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([TAG, NOT_BEFORE_REASON]);
+      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
+        TAG,
+        NOT_BEFORE_REASON,
+      ]);
 
       const after = openDatabase(db.path);
       try {
@@ -2376,7 +2450,11 @@ describe('the tag migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([TAG]);
+      expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        WORK_ITEM_SERVICE,
+        SERVICE,
+        TAG,
+      ]);
       for (const t of TAG_TABLES) expect(tables(db.path)).not.toContain(t);
 
       const after = openDatabase(db.path);
@@ -2414,6 +2492,600 @@ describe('the tag migration', () => {
         again.close();
       }
       expect(labelCount(db.path)).toBe(1);
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the service migration', () => {
+  /**
+   * A plan with one work item delivered for a service, and a team that owns that
+   * service: a project, an item carrying `service_id`, two services, one team,
+   * and one ownership row. Enough to watch a `SET NULL` keep a row that a
+   * `CASCADE` would have taken, and enough to watch a rollback leave the plan
+   * alone.
+   */
+  function seeded(dbPath: string): void {
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      sqlite.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
+      sqlite.run("INSERT INTO service (id, name) VALUES ('s2', 'Search')");
+      sqlite.run("INSERT INTO service_team (id, name, size) VALUES ('t1', 'Platform', NULL)");
+      sqlite.run("INSERT INTO team_service (team_id, service_id) VALUES ('t1', 's1')");
+      sqlite.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_id, revision)' +
+          " VALUES ('w1', 'p', NULL, 10, 'Strip the roof', '', 's1', 0)",
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  function serviceOf(dbPath: string, itemId: string): string | null {
+    const sqlite = openDatabase(dbPath);
+    try {
+      return (
+        sqlite
+          .query<
+            { service_id: string | null },
+            [string]
+          >('SELECT service_id FROM work_item WHERE id = ?')
+          .get(itemId)?.service_id ?? null
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  function ownershipCount(dbPath: string): number {
+    const sqlite = openDatabase(dbPath);
+    try {
+      return (
+        sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM team_service').get()?.n ?? -1
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  it('creates the directory and its ownership map, and the directory carries no size', () => {
+    // The defining absence, asserted rather than described: a service has no pool
+    // and no size, so there is no column here for one and no per-project table
+    // beside it. Capacity belongs to the team — `service_team` — because capacity
+    // is spent by the people doing the work and not by the thing the work is for.
+    // If a later change gives a service a pool it has to delete this assertion to
+    // do it, and deleting it is the conversation.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      for (const t of SERVICE_TABLES) expect(tables(db.path)).toContain(t);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        const columns = sqlite
+          .query<{ name: string }, []>("SELECT name FROM pragma_table_info('service')")
+          .all()
+          .map((c) => c.name);
+        expect(columns).toEqual(['id', 'name']);
+        // No project column: `Payments` means `Payments` on every plan, which is
+        // what makes the directory one screen and an export column comparable
+        // across plans.
+        expect(columns).not.toContain('project_id');
+        expect(columns).not.toContain('size');
+        expect(tables(db.path)).not.toContain('project_service_capacity');
+
+        // The item's own service was a column on `work_item` and not a join
+        // table — one service per item, stated by the schema rather than by a
+        // comment — and this case used to assert `work_item_service` did not
+        // exist, saying so. It became many-valued eight hours later, the join
+        // table arrived in `20260821080000`, and deleting that assertion is
+        // exactly what the comment beside it said the widening would have to do.
+        // The column survives, because the outgoing release still selects it.
+        expect(
+          sqlite
+            .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_item')")
+            .all()
+            .map((c) => c.name),
+        ).toContain('service_id');
+        expect(tables(db.path)).toContain('work_item_service');
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a second service spelled exactly like the first', () => {
+    // What the unique index buys: a rename can answer `taken` with the surviving
+    // name instead of writing a second row that reads identically. Two services
+    // spelled the same are two answers to one question, and the second is
+    // unreachable in the directory.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
+        expect(() =>
+          sqlite.run("INSERT INTO service (id, name) VALUES ('s2', 'Payments')"),
+        ).toThrow(/UNIQUE/i);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('keeps the work items when a service is removed, and only nulls their label', () => {
+    // `ON DELETE SET NULL` and not `CASCADE`, which is the difference between
+    // removing a label and removing somebody's plan. It is also the arm that makes
+    // the directory's removal effect `label_nulled` rather than `label_removed`:
+    // a column is nulled, a set member is removed, and the two are different
+    // sentences on the confirmation screen.
+    //
+    // Watched red: `ON DELETE SET NULL` changed to `ON DELETE CASCADE` in
+    // migration.sql.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+      expect(serviceOf(db.path, 'w1')).toBe('s1');
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("DELETE FROM service WHERE id = 's1'");
+      } finally {
+        sqlite.close();
+      }
+
+      const after = openDatabase(db.path);
+      try {
+        // The item is still there. This is the assertion a `CASCADE` fails.
+        expect(
+          after.query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'").get()
+            ?.name,
+        ).toBe('Strip the roof');
+      } finally {
+        after.close();
+      }
+      expect(serviceOf(db.path, 'w1')).toBeNull();
+      // And the ownership statement goes with the service it was about, which is
+      // the other cascade and the one that *should* take rows.
+      expect(ownershipCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep deleting teams against the migrated schema', () => {
+    // The blue/green half. Two be-01 processes share one SQLite file while green
+    // migrates, the outgoing release knows nothing about `team_service`, and its
+    // plain `DELETE FROM service_team` must not hit a constraint it cannot see.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+      expect(ownershipCount(db.path)).toBe(1);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("DELETE FROM service_team WHERE id = 't1'");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(ownershipCount(db.path)).toBe(0);
+      // The service itself survives its owner: a team going away is not a
+      // statement about what the service is.
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM service WHERE id = 's1'").get()
+            ?.n,
+        ).toBe(1);
+      } finally {
+        after.close();
+      }
+      // And the item keeps its label, because the label was never the team's.
+      expect(serviceOf(db.path, 'w1')).toBe('s1');
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('seeds nothing: both tables empty and every work item unlabelled', () => {
+    // The no-backfill decision implemented rather than intended. Existing
+    // `service_team` rows are teams and they start owning nothing; nobody has ever
+    // stated a service on this server, so inventing one from a team name would be
+    // the tool asserting a fact nobody typed.
+    //
+    // The `work_item` arm needs a row that predates the column, which is what the
+    // rollback-then-forward does: the item is written while `service_id` does not
+    // exist, and comes back through the migration the way a real plan would.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run("INSERT INTO service_team (id, name, size) VALUES ('t1', 'Platform', NULL)");
+      } finally {
+        sqlite.close();
+      }
+
+      rollbackTo(db.path, FOLDER, TAG);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip the roof', '', 0)",
+        );
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        expect(after.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM service').get()?.n).toBe(
+          0,
+        );
+        expect(
+          after.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM team_service').get()?.n,
+        ).toBe(0);
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >('SELECT COUNT(*) AS n FROM work_item WHERE service_id IS NOT NULL')
+            .get()?.n,
+        ).toBe(0);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes both tables and the column away on the way back, and the plan survives the round trip', () => {
+    // The rollback, and then forward again — down, up, and the row that was never
+    // this migration's to hold is still there. What is lost is the labelling and
+    // the ownership map; what survives is the plan, because the dimensions share
+    // no row.
+    //
+    // The column is the part `add_tag` did not have: `work_item.service_id`
+    // references `service`, so it is dropped first, and if that order were wrong
+    // the rollback would leave a foreign key pointing at a table that is gone.
+    //
+    // The re-apply is the half that catches the bookkeeping: if `down.sql` dropped
+    // the rows and left the tables, or dropped the tables and left the
+    // `__drizzle_migrations` entry, this second `runMigrations` would either skip
+    // a table it believes is there or fail on `table service already exists`.
+    //
+    // Watched red: `DROP TABLE IF EXISTS team_service` struck from down.sql.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([WORK_ITEM_SERVICE, SERVICE]);
+      for (const t of SERVICE_TABLES) expect(tables(db.path)).not.toContain(t);
+
+      const after = openDatabase(db.path);
+      try {
+        // The column goes with the table it points at.
+        expect(
+          after
+            .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_item')")
+            .all()
+            .map((c) => c.name),
+        ).not.toContain('service_id');
+        // The indexes go with their tables rather than being left behind pointing
+        // at something that is gone.
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name = 'service_name' OR name = 'team_service_by_service')")
+            .get()?.n,
+        ).toBe(0);
+        // Untouched, and this is the whole claim of the down script: a plan that
+        // loses its services keeps every work item anybody typed, and the team
+        // that owned them is still a team.
+        expect(
+          after.query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'").get()
+            ?.name,
+        ).toBe('Strip the roof');
+        expect(
+          after.query<{ name: string }, []>("SELECT name FROM service_team WHERE id = 't1'").get()
+            ?.name,
+        ).toBe('Platform');
+      } finally {
+        after.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+      for (const t of SERVICE_TABLES) expect(tables(db.path)).toContain(t);
+      // Empty rather than restored: the rollback took the labelling and the map,
+      // and nothing replays them. The tables come back usable, which is what
+      // re-applying means.
+      expect(ownershipCount(db.path)).toBe(0);
+      expect(serviceOf(db.path, 'w1')).toBeNull();
+      const again = openDatabase(db.path);
+      try {
+        again.run("INSERT INTO service (id, name) VALUES ('s3', 'Billing')");
+        again.run("INSERT INTO team_service (team_id, service_id) VALUES ('t1', 's3')");
+        again.run("UPDATE work_item SET service_id = 's3' WHERE id = 'w1'");
+      } finally {
+        again.close();
+      }
+      expect(ownershipCount(db.path)).toBe(1);
+      expect(serviceOf(db.path, 'w1')).toBe('s3');
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the work-item-service migration', () => {
+  /**
+   * A plan whose one work item states a service, written **while the join table
+   * does not exist** — the shape of every plan on the live server the moment
+   * before this migration runs.
+   *
+   * It is seeded through the older column deliberately: the seed's whole claim is
+   * that it carries rows nobody wrote for it, and a fixture that inserted into
+   * `work_item_service` directly would be proving the table accepts a pair.
+   */
+  function seededOnTheColumn(dbPath: string): void {
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      sqlite.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
+      sqlite.run("INSERT INTO service (id, name) VALUES ('s2', 'Search')");
+      sqlite.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_id, revision)' +
+          " VALUES ('w1', 'p', NULL, 10, 'Strip the roof', '', 's1', 0)",
+      );
+      // The row that states nothing and inherits. It is the reason the seed
+      // filters on `IS NOT NULL`, and the reason that filter has a case.
+      sqlite.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_id, revision)' +
+          " VALUES ('w2', 'p', NULL, 20, 'Sand the beams', '', NULL, 0)",
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  function labelsOf(dbPath: string, itemId: string): string[] {
+    const sqlite = openDatabase(dbPath);
+    try {
+      return sqlite
+        .query<{ service_id: string }, [string]>(
+          'SELECT service_id FROM work_item_service WHERE work_item_id = ? ORDER BY service_id',
+        )
+        .all(itemId)
+        .map((r) => r.service_id);
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  /**
+   * Up to the migration before this one, so rows can be written the way the
+   * running release writes them, and then forward across it. `runMigrations`
+   * applies what is unapplied, so the second call runs this folder and nothing
+   * else.
+   */
+  function atTheColumnOnly(dbPath: string): void {
+    runMigrations(dbPath, FOLDER);
+    expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([WORK_ITEM_SERVICE]);
+  }
+
+  it('carries every stated service across, and gives the inheriting row nothing', () => {
+    // The seed, against rows that existed before the table did — which is every
+    // plan on the live server and the only situation the `INSERT … SELECT`
+    // exists for. A table created empty would have unlabelled all of them in the
+    // name of a wider type, and nothing downstream would have reported it: an
+    // item with no rows here **inherits**, so the plans would have gone quiet
+    // rather than gone wrong.
+    //
+    // Watched red: the `INSERT … SELECT` struck from migration.sql.
+    const db = tempDb();
+    try {
+      atTheColumnOnly(db.path);
+      seededOnTheColumn(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(labelsOf(db.path, 'w1')).toEqual(['s1']);
+      // Absence stays absence. Seeding `w2` with anything would be the migration
+      // inventing a label nobody stated, and blank means inherit.
+      expect(labelsOf(db.path, 'w2')).toEqual([]);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('leaves the column standing and still writable, for the release that is still reading it', () => {
+    // The blue/green rule, from the side that would break: two be-01 processes
+    // share one SQLite file while green migrates, and the outgoing release
+    // selects and writes `work_item.service_id` on every tree read and every
+    // patch. This migration is additive to the letter — it adds a table, seeds
+    // it, and touches nothing the running release names.
+    //
+    // Dropping the column is a later migration, once no running release names
+    // it. Whoever writes it deletes this case, and deleting it is the
+    // conversation.
+    const db = tempDb();
+    try {
+      atTheColumnOnly(db.path);
+      seededOnTheColumn(db.path);
+      runMigrations(db.path, FOLDER);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        expect(
+          sqlite
+            .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_item')")
+            .all()
+            .map((c) => c.name),
+        ).toContain('service_id');
+        // Still writable, not merely still declared: the outgoing release's
+        // patch has to keep succeeding for the length of the swap.
+        sqlite.run("UPDATE work_item SET service_id = 's2' WHERE id = 'w2'");
+        expect(
+          sqlite
+            .query<
+              { service_id: string | null },
+              []
+            >("SELECT service_id FROM work_item WHERE id = 'w2'")
+            .get()?.service_id,
+        ).toBe('s2');
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes a set member with the service, and the work item with neither', () => {
+    // Both cascades, and they answer different questions. `service_id` cascading
+    // is what `DELETE /api/services/:id?cascade=1` relies on to unlabel — the
+    // route counts first and refuses with 409 for the person pressing the
+    // button, not for the integrity of anything. `work_item_id` cascading is the
+    // blue/green rule again: the outgoing release's plain `DELETE FROM
+    // work_item` must not hit a constraint it cannot see.
+    const db = tempDb();
+    try {
+      atTheColumnOnly(db.path);
+      seededOnTheColumn(db.path);
+      runMigrations(db.path, FOLDER);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        sqlite.run("INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w1', 's2')");
+        expect(labelsOf(db.path, 'w1')).toEqual(['s1', 's2']);
+
+        // One service goes and takes one member of the set. The other stays,
+        // which is the half a single-valued store could not express at all.
+        sqlite.run("DELETE FROM service WHERE id = 's2'");
+        expect(labelsOf(db.path, 'w1')).toEqual(['s1']);
+        // And the work item is still there. Deleting a service must never delete
+        // somebody's plan — `ON DELETE SET NULL`'s claim on the column, and this
+        // table's cascade must not quietly widen it into a row delete.
+        expect(
+          sqlite.query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'").get()
+            ?.name,
+        ).toBe('Strip the roof');
+
+        sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
+        expect(labelsOf(db.path, 'w1')).toEqual([]);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('narrows back to the column on the way back, and forward again is a usable empty table', () => {
+    // The rollback round trip. What comes back is the **cardinality** rather
+    // than nothing: the column was never dropped, so a row that stated one
+    // service still states it after the reversal, out of the column it was
+    // seeded from. What does not survive is a row's second and later services,
+    // and nothing copies one of them back into a column that holds one id —
+    // choosing which would be the migration inventing somebody's answer.
+    //
+    // The re-apply is the half that catches the bookkeeping: if `down.sql`
+    // dropped the rows and left the table, or dropped the table and left the
+    // `__drizzle_migrations` entry, this second `runMigrations` would either skip
+    // a table it believes is there or fail on `table work_item_service already
+    // exists`.
+    //
+    // Watched red: `DROP TABLE IF EXISTS work_item_service` struck from down.sql.
+    const db = tempDb();
+    try {
+      atTheColumnOnly(db.path);
+      seededOnTheColumn(db.path);
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w1', 's2')");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([WORK_ITEM_SERVICE]);
+      for (const t of WORK_ITEM_SERVICE_TABLES) expect(tables(db.path)).not.toContain(t);
+
+      const after = openDatabase(db.path);
+      try {
+        // The index goes with the table it is on, rather than being left behind
+        // pointing at something that is gone.
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name = 'work_item_service_by_service'")
+            .get()?.n,
+        ).toBe(0);
+        // The narrowing, stated as an assertion rather than as a warning in the
+        // down script: `Payments` survives in the column, `Search` does not
+        // survive anywhere.
+        expect(
+          after
+            .query<
+              { service_id: string | null },
+              []
+            >("SELECT service_id FROM work_item WHERE id = 'w1'")
+            .get()?.service_id,
+        ).toBe('s1');
+        expect(
+          after.query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'").get()
+            ?.name,
+        ).toBe('Strip the roof');
+      } finally {
+        after.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+      for (const t of WORK_ITEM_SERVICE_TABLES) expect(tables(db.path)).toContain(t);
+      // Re-seeded rather than restored, and the difference is the point: the
+      // forward migration reads the column every time it runs, so what comes
+      // back is what the column still says — one service — and not the two the
+      // rollback narrowed away.
+      expect(labelsOf(db.path, 'w1')).toEqual(['s1']);
     } finally {
       db.cleanup();
     }

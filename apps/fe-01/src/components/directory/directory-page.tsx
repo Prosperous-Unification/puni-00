@@ -27,9 +27,12 @@ import {
   type DirectoryRefusal,
   directoryRefusalSentence,
   directoryRefusedWith,
+  type DirectoryRemoval,
   type DirectoryUsage,
+  type DirectoryWrite,
   httpDirectoryApi,
   type PersonView,
+  type ServiceView,
   type TagView,
   type TeamView,
 } from '@/lib/wbs-api';
@@ -44,9 +47,18 @@ export interface DirectoryPageProps {
   account?: ReactNode;
 }
 
+/**
+ * Which of the directory's four vocabularies a row belongs to.
+ *
+ * One name for what was three separate inline unions — `Confirming.kind`,
+ * `commitRename`'s parameter and `askToRemove`'s — the moment a fourth arm
+ * arrived. Two copies that agree are a fact; four are a chore.
+ */
+export type DirectoryKind = 'person' | 'team' | 'tag' | 'service';
+
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
-  kind: 'person' | 'team' | 'tag';
+  kind: DirectoryKind;
   id: string;
   name: string;
   usage: DirectoryUsage;
@@ -74,6 +86,18 @@ export interface EffectContext {
   /** The work item this effect is listed under. */
   workItemId: string;
   /**
+   * Which vocabulary the entry being removed belongs to.
+   *
+   * `label_removed` is the arm that needs it, and it needs it because be-01
+   * emits that **one** kind for two dimensions: a tag's labelling row and,
+   * since task 10.2, a service's. The payload carries no discriminator — the
+   * kind says what happened to the labelling row, not which vocabulary it was —
+   * so the confirmation reads it off the removal the reader actually asked for.
+   *
+   * Without this, removing a service confirmed with a sentence about tags.
+   */
+  removing: DirectoryKind;
+  /**
    * `010 Backend` for a row id, or null where the confirmation does not list
    * it.
    *
@@ -98,12 +122,17 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
     case 'label_nulled':
       return 'The service team label is cleared.';
     case 'label_removed':
-      // Its own sentence and not the team's, because nothing is *cleared*: a
-      // tag has no column to null, so what goes is the labelling row itself.
-      // And it says what a tag removal cannot do — no dates move — because the
-      // sentence beside it for a team says they may, and a reader comparing the
-      // two confirmations is entitled to the difference.
-      return 'The tag comes off this item. No dates move.';
+      // Its own sentence and not the team's, because nothing is *cleared*:
+      // neither dimension has a column to null, so what goes is the labelling
+      // row itself. And it says what these two removals cannot do — no dates
+      // move — because the sentence beside it for a team says they may, and a
+      // reader comparing the two confirmations is entitled to the difference.
+      //
+      // Named off `removing` rather than off the effect: `label_removed` is
+      // what be-01 sends for a tag **and** for a service, and a confirmation
+      // that answered "the tag comes off this item" to somebody removing
+      // `Payments` would be naming a dimension they never touched.
+      return `The ${on.removing === 'service' ? 'service' : 'tag'} comes off this item. No dates move.`;
     case 'capacity_released':
       // Two sentences from one arm, and the split is `fromId` against the row
       // it is listed under — be-01's own way of saying "inherited" without a
@@ -141,7 +170,7 @@ const TAP_SQUARE = 'h-11 w-11 shrink-0 p-0';
 const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_input]:px-2';
 
 /**
- * The directory: every person and every service team on this deployment.
+ * The directory: every person, team, tag and service on this deployment.
  *
  * It renders its own {@link AppHeader}, which is the contract
  * `openspec/changes/directory-page/` pins — the account and the navigation come
@@ -169,6 +198,8 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [tags, setTags] = useState<TagView[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [services, setServices] = useState<ServiceView[]>([]);
+  const [newService, setNewService] = useState('');
   const [problem, setProblem] = useState<DirectoryRefusal | null>(null);
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [busy, setBusy] = useState(false);
@@ -220,10 +251,11 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const read = useCallback(async () => {
     const generation = latestRead.current + 1;
     latestRead.current = generation;
-    const [foundPeople, foundTeams, foundTags] = await Promise.all([
+    const [foundPeople, foundTeams, foundTags, foundServices] = await Promise.all([
       directory.listPeople(),
       directory.listTeams(),
       directory.listTags(),
+      directory.listServices(),
     ]);
     // Proof: this line deleted, `and only the newest read may write the screen`
     // alone failed, on `expected null not to be null` — a superseded read
@@ -233,6 +265,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     setPeople(foundPeople);
     setTeams(foundTeams);
     setTags(foundTags);
+    setServices(foundServices);
   }, [directory]);
 
   const reportFailedRead = useCallback((thrown: unknown) => {
@@ -344,6 +377,48 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     renamed[entry.id] ?? entry.name;
 
   /**
+   * What renaming and removing mean for each vocabulary, in **one** place.
+   *
+   * `commitRename`, `askToRemove` and `confirmRemoval` each carried a copy of
+   * the same three-branch ternary over `kind`, and the copies agreed. A fourth
+   * arm is where that agreement stops being a fact about the code and becomes
+   * something somebody has to keep true in three places — the argument task 7.4
+   * settled for the export's three label cells, one screen over.
+   *
+   * The entry type is narrowed to `{ id; name }` on purpose: these two call
+   * sites read `ok` and `survivingName` and nothing else, and a person, a team,
+   * a tag and a service differ in ways no caller here looks at.
+   */
+  const writesFor: Record<
+    DirectoryKind,
+    {
+      rename: (id: string, name: string) => Promise<DirectoryWrite<{ id: string; name: string }>>;
+      remove: (id: string, cascade: boolean) => Promise<DirectoryRemoval>;
+    }
+  > = {
+    // A person's rename is a **patch** and so is a team's since 7.5 — both
+    // entities have a second field on the same route — while a tag and a
+    // service have nothing but a name. That difference is the reason this is a
+    // map rather than a naming convention.
+    person: {
+      rename: (id, name) => directory.patchPerson(id, { name }),
+      remove: (id, cascade) => directory.removePerson(id, cascade),
+    },
+    team: {
+      rename: (id, name) => directory.patchTeam(id, { name }),
+      remove: (id, cascade) => directory.removeTeam(id, cascade),
+    },
+    tag: {
+      rename: (id, name) => directory.renameTag(id, name),
+      remove: (id, cascade) => directory.removeTag(id, cascade),
+    },
+    service: {
+      rename: (id, name) => directory.renameService(id, name),
+      remove: (id, cascade) => directory.removeService(id, cascade),
+    },
+  };
+
+  /**
    * Sends the name typed over an entry's, if it says something different.
    *
    * A name of whitespace alone never leaves this page: the answer is the same
@@ -354,10 +429,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * alone, and says so` failed on `Unable to find role="alert"`, with
    * `patchPerson` having been called `{ name: '' }`. Watched 2026-08-09.
    */
-  function commitRename(
-    kind: 'person' | 'team' | 'tag',
-    entry: { id: string; name: string },
-  ): void {
+  function commitRename(kind: DirectoryKind, entry: { id: string; name: string }): void {
     const clean = nameShown(entry).trim();
     if (clean === '') {
       setProblem({ reason: 'refused', code: 'name_required' });
@@ -368,12 +440,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       return;
     }
     void attempt(async () => {
-      const written =
-        kind === 'person'
-          ? await directory.patchPerson(entry.id, { name: clean })
-          : kind === 'team'
-            ? await directory.renameTeam(entry.id, clean)
-            : await directory.renameTag(entry.id, clean);
+      const written = await writesFor[kind].rename(entry.id, clean);
       forgetDraft(entry.id);
       if (!written.ok) {
         setProblem({ reason: 'taken', survivingName: written.survivingName });
@@ -475,6 +542,27 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   }
 
   /**
+   * Adds a service — {@link submitNewTag}'s shape and its argument, one
+   * dimension over.
+   *
+   * The plan's own service cell cannot create one either (`service-split`
+   * task 7.1's non-goal): this page is where a reader sees the whole vocabulary
+   * at once and can rename `Payements` rather than living beside it.
+   */
+  function submitNewService(event: FormEvent): void {
+    event.preventDefault();
+    const clean = newService.trim();
+    if (clean === '') {
+      setProblem({ reason: 'refused', code: 'name_required' });
+      return;
+    }
+    void attempt(async () => {
+      await directory.addService(clean);
+      setNewService('');
+    });
+  }
+
+  /**
    * Asks for a removal **without** a cascade, which is always the first ask.
    *
    * be-01 removes an entry nothing points at outright and refuses one that is
@@ -487,14 +575,9 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
    * fault `phases-dialog` already knows. Watched 2026-08-09.
    */
-  function askToRemove(kind: 'person' | 'team' | 'tag', entry: { id: string; name: string }): void {
+  function askToRemove(kind: DirectoryKind, entry: { id: string; name: string }): void {
     void attempt(async () => {
-      const outcome =
-        kind === 'person'
-          ? await directory.removePerson(entry.id, false)
-          : kind === 'team'
-            ? await directory.removeTeam(entry.id, false)
-            : await directory.removeTag(entry.id, false);
+      const outcome = await writesFor[kind].remove(entry.id, false);
       if (outcome.ok) return;
       setConfirming({ kind, id: entry.id, name: entry.name, usage: outcome.usage });
     });
@@ -504,12 +587,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     if (confirming === null) return;
     const asked = confirming;
     void attempt(async () => {
-      const outcome =
-        asked.kind === 'person'
-          ? await directory.removePerson(asked.id, true)
-          : asked.kind === 'team'
-            ? await directory.removeTeam(asked.id, true)
-            : await directory.removeTag(asked.id, true);
+      const outcome = await writesFor[asked.kind].remove(asked.id, true);
       // A second `in_use` against a confirmed cascade is be-01 refusing what it
       // just described; there is nothing left to confirm against, so it is
       // raised rather than turned into a second dialog.
@@ -517,6 +595,33 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       setConfirming(null);
     });
   }
+
+  /**
+   * Sets exactly the services a team is responsible for — {@link setMemberships}
+   * one entity over, and a **full replacement** for its reason.
+   *
+   * This writes the ownership map and nothing else. It labels no work item, it
+   * moves no date and it is not the row's service: a team owning `Payments`
+   * says who is responsible for it, and a row delivering `Payments` says what
+   * that row is part of. The two meeting is exactly the *built by a non-owner*
+   * signal, which reads this map rather than being written into it.
+   */
+  function setOwnedServices(team: TeamView, serviceIds: readonly string[]): void {
+    void attempt(async () => {
+      const written = await directory.patchTeam(team.id, { serviceIds });
+      if (!written.ok) {
+        setProblem({ reason: 'taken', survivingName: written.survivingName });
+      }
+    });
+  }
+
+  /**
+   * The services a team owns, in the **directory's** order rather than the
+   * order somebody claimed them — {@link teamsOf}'s rule, so two teams owning
+   * the same pair list them the same way round.
+   */
+  const servicesOf = (team: TeamView): ServiceView[] =>
+    services.filter((service) => (team.serviceIds ?? []).includes(service.id));
 
   const membersOf = (team: TeamView): number =>
     people.filter((person) => person.teamIds.includes(team.id)).length;
@@ -687,28 +792,29 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
               ) : (
                 <ul className="flex flex-col gap-3">
                   {teams.map((team) => (
-                    <li key={team.id} className="flex items-center gap-2">
-                      <Input
-                        className={`${TAP} min-w-0 flex-1`}
-                        aria-label={`Name of ${team.name}`}
-                        value={nameShown(team)}
-                        disabled={busy}
-                        onChange={(event) => {
-                          const typed = event.currentTarget.value;
-                          setRenamed((current) => ({ ...current, [team.id]: typed }));
-                        }}
-                        onBlur={() => {
-                          commitRename('team', team);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
+                    <li key={team.id} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className={`${TAP} min-w-0 flex-1`}
+                          aria-label={`Name of ${team.name}`}
+                          value={nameShown(team)}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const typed = event.currentTarget.value;
+                            setRenamed((current) => ({ ...current, [team.id]: typed }));
+                          }}
+                          onBlur={() => {
                             commitRename('team', team);
-                          }
-                          if (event.key === 'Escape') forgetNameDraft(team.id);
-                        }}
-                      />
-                      {/*
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              commitRename('team', team);
+                            }
+                            if (event.key === 'Escape') forgetNameDraft(team.id);
+                          }}
+                        />
+                        {/*
                         No size box. How many of a team are at work at once is a
                         fact about one **plan** since `capacity-per-project`
                         (Dany, 2026-08-13: "The global number should not matter,
@@ -721,21 +827,108 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                         somewhere: a control that writes a value no schedule reads
                         is worse than no control at all. design.md D4 and D5.
                       */}
-                      <span className="text-muted-foreground shrink-0 text-sm">
-                        {count(membersOf(team), 'member')}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={TAP_SQUARE}
-                        aria-label={`Remove ${team.name}`}
-                        disabled={busy}
-                        onClick={() => {
-                          askToRemove('team', team);
-                        }}
-                      >
-                        <span aria-hidden="true">✕</span>
-                      </Button>
+                        <span className="text-muted-foreground shrink-0 text-sm">
+                          {count(membersOf(team), 'member')}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={TAP_SQUARE}
+                          aria-label={`Remove ${team.name}`}
+                          disabled={busy}
+                          onClick={() => {
+                            askToRemove('team', team);
+                          }}
+                        >
+                          <span aria-hidden="true">✕</span>
+                        </Button>
+                      </div>
+                      {/*
+                        **The ownership map, and the team row is where it is
+                        edited** — Dany, 2026-08-20 23:18: "one team can be
+                        responsible for several services - it must be
+                        configurable in the directory."
+
+                        On the team row rather than on the Services card,
+                        because a list of teams drawn under a service would read
+                        as a property of the service — and a service that
+                        "has" teams is one step from a service that schedules
+                        them, which decision 2 rules out.
+
+                        The person row's membership chips, reused as they stand:
+                        one picker adds one claim, the chips are the set, and
+                        the ✕ takes one off. What it deliberately does **not**
+                        carry is the person row's Delete/Backspace focus walk —
+                        see the code below.
+                      */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-muted-foreground shrink-0 text-sm">
+                          Responsible for
+                        </span>
+                        {servicesOf(team).map((service) => (
+                          <button
+                            key={service.id}
+                            type="button"
+                            aria-label={`${team.name} no longer owns ${service.name}`}
+                            className="border-input bg-background hover:bg-accent inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border px-3 text-sm"
+                            disabled={busy}
+                            onClick={() => {
+                              setOwnedServices(
+                                team,
+                                (team.serviceIds ?? []).filter((held) => held !== service.id),
+                              );
+                            }}
+                          >
+                            {service.name}
+                            <span aria-hidden="true">✕</span>
+                          </button>
+                        ))}
+                        {/*
+                          **No Delete/Backspace focus walk here**, stated rather
+                          than forgotten. Each chip is a button, so a keyboard
+                          removes one with Enter or Space; what is missing is
+                          the person row's move-to-the-neighbour afterwards,
+                          which needs `neighbourChip` and it is written against
+                          a person's own membership list. A second copy for a
+                          second dimension is the thing tasks 7.4 and 7.5 have
+                          twice folded rather than duplicated, and generalising
+                          it is its own change.
+                        */}
+                        <span className={`inline-flex min-w-40 flex-1 ${TAP_PICKER}`}>
+                          <CreatablePicker
+                            label={`Make ${team.name} responsible for a service`}
+                            // Only what it does **not** already own: offering a
+                            // service it holds is how a duplicate claim is sent.
+                            entries={services.filter(
+                              (service) => !(team.serviceIds ?? []).includes(service.id),
+                            )}
+                            value={null}
+                            placeholder="Add a service…"
+                            onChoose={(serviceId) => {
+                              setOwnedServices(team, [...(team.serviceIds ?? []), serviceId]);
+                            }}
+                            onCreate={(name) => {
+                              void attempt(async () => {
+                                const service = await directory.addService(name);
+                                const written = await directory.patchTeam(team.id, {
+                                  serviceIds: [...(team.serviceIds ?? []), service.id],
+                                });
+                                if (!written.ok) {
+                                  setProblem({
+                                    reason: 'taken',
+                                    survivingName: written.survivingName,
+                                  });
+                                }
+                              });
+                            }}
+                            onClear={() => {
+                              // Unreachable, `Add a team for …`'s reason: the ✕
+                              // is drawn for a chosen entry and this picker
+                              // holds none. The chips are what clears a claim.
+                            }}
+                          />
+                        </span>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -841,6 +1034,92 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
               </form>
             </CardContent>
           </Card>
+
+          {/*
+            Services: the third sibling, and it has the Tags card's shape for
+            the Tags card's reason — **no capacity column and no membership
+            chips**.
+
+            The absence is a different one again, and it is the point of putting
+            this card here rather than inside the Service teams card above.
+            Nobody belongs to a service and a service is not a pool: it is what
+            the work is *part of*, and who has the people is still a team. A
+            reader who sees two columns here and three above has been taught
+            Dany's 2026-08-20 23:16 ruling — service and team are independent —
+            by the screen rather than by a sentence.
+
+            Which services a team is **responsible for** is the one place the
+            two meet, and it is edited on the team row above (task 7.5's second
+            half), not here: an ownership map drawn on this card would read as a
+            property of the service.
+          */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Services</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 pt-4">
+              {services.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No services yet. Add the first one below — the plan&rsquo;s Services column
+                  appears once one exists.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {services.map((service) => (
+                    <li key={service.id} className="flex items-center gap-2">
+                      <Input
+                        className={`${TAP} min-w-0 flex-1`}
+                        aria-label={`Name of ${service.name}`}
+                        value={nameShown(service)}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const typed = event.currentTarget.value;
+                          setRenamed((current) => ({ ...current, [service.id]: typed }));
+                        }}
+                        onBlur={() => {
+                          commitRename('service', service);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitRename('service', service);
+                          }
+                          if (event.key === 'Escape') forgetNameDraft(service.id);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={TAP_SQUARE}
+                        aria-label={`Remove ${service.name}`}
+                        disabled={busy}
+                        onClick={() => {
+                          askToRemove('service', service);
+                        }}
+                      >
+                        <span aria-hidden="true">✕</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form className="flex items-center gap-2" onSubmit={submitNewService}>
+                <Input
+                  className={`${TAP} min-w-0 flex-1`}
+                  aria-label="New service"
+                  placeholder="Name"
+                  value={newService}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setNewService(event.currentTarget.value);
+                  }}
+                />
+                <Button type="submit" className={TAP} disabled={busy}>
+                  Add service
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </main>
 
@@ -883,6 +1162,11 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             <li key={`${workItem.id}:${effect.kind}`}>
                               {effectSentence(effect, {
                                 workItemId: workItem.id,
+                                // The dimension the reader asked to remove.
+                                // `label_removed` arrives for a tag and for a
+                                // service alike and says which of the two
+                                // nowhere, so the sentence takes it from here.
+                                removing: confirming.kind,
                                 // Named out of the **same project**, which is
                                 // the only list a row id in this payload can
                                 // mean: two projects may each hold a row

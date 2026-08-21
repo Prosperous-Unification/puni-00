@@ -5,6 +5,7 @@ import type {
   Person,
   PersonAdded,
   PersonWithTeams,
+  Service,
   ServiceTeam,
   Tag,
 } from '../repository';
@@ -34,14 +35,21 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
 export function inMemoryDirectory(): DirectoryStore {
   const teams = new Map<string, ServiceTeam>();
   const tags = new Map<string, Tag>();
+  const services = new Map<string, Service>();
   const people = new Map<string, Person>();
   const memberships = new Map<string, Set<string>>();
+  /** The ownership map, by team — `memberships`' shape, one dimension over. */
+  const owned = new Map<string, Set<string>>();
   const assignments = new Map<string, Assignment>();
   const key = (workItemId: string, roleId: string) => `${workItemId}::${roleId}`;
 
   return {
     listTeams: () =>
-      Promise.resolve([...teams.values()].sort((a, b) => a.name.localeCompare(b.name))),
+      Promise.resolve(
+        [...teams.values()]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((each) => ({ ...each, serviceIds: [...(owned.get(each.id) ?? [])].sort() })),
+      ),
     listTags: () =>
       Promise.resolve([...tags.values()].sort((a, b) => a.name.localeCompare(b.name))),
     // Idempotent by name, as the repository is at its unique index. The
@@ -88,23 +96,73 @@ export function inMemoryDirectory(): DirectoryStore {
       tags.delete(tagId);
       return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
     },
+    listServices: () =>
+      Promise.resolve([...services.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    // Idempotent by name, as the repository is at its unique index — `addTag`'s
+    // rule and its reason.
+    addService(toAdd) {
+      const already = [...services.values()].find((each) => each.name === toAdd.name);
+      if (already !== undefined) return Promise.resolve(already);
+      services.set(toAdd.id, toAdd);
+      return Promise.resolve(toAdd);
+    },
+    renameService(serviceId, name) {
+      const found = services.get(serviceId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const held = [...services.values()].some(
+        (each) => each.name === name && each.id !== serviceId,
+      );
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const renamed = { id: serviceId, name };
+      services.set(serviceId, renamed);
+      return Promise.resolve({ ok: true, service: renamed, projectIds: [] });
+    },
+    // Not modelled beyond the shape, for `usageOfTag`'s reason: this store holds
+    // no work items and no foreign keys, so neither the count that decides a
+    // removal nor the `ON DELETE SET NULL` that performs it can exist in it.
+    // Every behavioural claim about removing a service is asserted against real
+    // SQLite in `service/directory.service.test.ts`.
+    usageOfService: () => Promise.resolve(NOTHING_POINTS_AT_IT),
+    removeService(serviceId) {
+      if (!services.has(serviceId)) return Promise.resolve({ ok: false, reason: 'not_found' });
+      services.delete(serviceId);
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+    },
     addTeam(team) {
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);
       teams.set(team.id, team);
       return Promise.resolve(team);
     },
-    renameTeam(teamId, name) {
+    patchTeam(teamId, patch) {
       const found = teams.get(teamId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled: a fixture that let two `Platform`s exist
       // would let a caller's `taken` branch pass untested.
-      const held = [...teams.values()].some((each) => each.name === name && each.id !== teamId);
+      const held =
+        patch.name !== undefined &&
+        [...teams.values()].some((each) => each.name === patch.name && each.id !== teamId);
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
-      teams.set(teamId, { ...found, name });
+      // The foreign key, modelled, for the same reason: a fixture that accepted
+      // an ownership row about a service nothing holds would let a caller's
+      // `unknown_service` branch — and the 404 above it — pass untested. This is
+      // the strictness `unknown_team` already has one dimension over.
+      if (patch.serviceIds !== undefined) {
+        const unknown = patch.serviceIds.some((each) => !services.has(each));
+        if (unknown) return Promise.resolve({ ok: false, reason: 'unknown_service' });
+      }
+      const renamed = patch.name === undefined ? found : { ...found, name: patch.name };
+      teams.set(teamId, renamed);
+      // Whole-set replacement, exactly as the repository writes it: absent
+      // leaves the map alone, empty clears it.
+      if (patch.serviceIds !== undefined) owned.set(teamId, new Set(patch.serviceIds));
       // No project here to touch: these Maps hold no work items, so the
       // fixture can only ever honestly report the empty set.
-      return Promise.resolve({ ok: true, team: { ...found, name }, projectIds: [] });
+      return Promise.resolve({
+        ok: true,
+        team: { ...renamed, serviceIds: [...(owned.get(teamId) ?? [])].sort() },
+        projectIds: [],
+      });
     },
     listPeople: () =>
       Promise.resolve(

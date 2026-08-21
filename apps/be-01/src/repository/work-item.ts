@@ -21,9 +21,11 @@ import {
   dependency,
   estimate,
   roleProgress,
+  service,
   serviceTeam,
   tag,
   workItem,
+  workItemService,
   workItemTag,
   workItemTeam,
 } from './schema';
@@ -86,19 +88,26 @@ export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Three reads rather than a left join, and merged here: a join would return
-   * one row per (work item, team) pair times one per (work item, tag) pair, so
-   * the caller would be reassembling exactly these maps out of a result set that
-   * multiplies. One indexed read each, and both label reads are empty on most
-   * plans.
+   * A read per dimension rather than a left join, and merged here: a join would
+   * return one row per (work item, team) pair times one per (work item, tag)
+   * pair times one per (work item, service) pair, so the caller would be
+   * reassembling exactly these maps out of a result set that multiplies. One
+   * indexed read each, and all three label reads are empty on most plans.
    *
-   * **Three, and not one more per dimension the model ever gains**: the shape is
-   * a read plus a `setOf` per dimension, which is linear in the dimensions and
-   * flat in the rows. What it must never become is a read per row.
+   * **One per dimension, and not one more per row**: the shape is a read plus a
+   * `setOf` per dimension, which is linear in the dimensions and flat in the
+   * rows. What it must never become is a read per row.
    *
-   * Ordered by label id in both dimensions, which is what makes two reads of an
+   * Four since task 10.2, and the sentence that stood here — "still three, and
+   * that is the point of storing it as a column" — was true only while a row
+   * delivered one service. It delivers a set now, so the fourth read is the
+   * price of the fact being multi-valued, and it is the same price the other
+   * two joins pay: one indexed read, not one per row.
+   *
+   * Ordered by label id in every dimension, which is what makes two reads of an
    * unchanged plan answer the same arrays — design.md D6, and the property
-   * `EffectiveTeams.teamIds` and `EffectiveTags.tagIds` both document.
+   * `EffectiveTeams.teamIds`, `EffectiveTags.tagIds` and
+   * `EffectiveServices.serviceIds` all document.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
     const rows = await this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
@@ -114,6 +123,17 @@ export class WorkItemRepository implements WorkItemStore {
       .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(workItemTag.tagId));
+    // The third dimension's join, read exactly as the two above it. `service_id`
+    // is still on the row this `select` returns and is still ignored here: the
+    // column belongs to the release that is still running (design D2), and a
+    // reader that took it would answer with one service on a row that delivers
+    // three.
+    const serviced = await this.db
+      .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
+      .from(workItemService)
+      .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemService.serviceId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
@@ -122,10 +142,15 @@ export class WorkItemRepository implements WorkItemStore {
     for (const each of tagged) {
       tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
     }
+    const servicesOf = new Map<string, string[]>();
+    for (const each of serviced) {
+      servicesOf.set(each.workItemId, [...(servicesOf.get(each.workItemId) ?? []), each.serviceId]);
+    }
     return rows.map((row) => ({
       ...row,
       teamIds: teamsOf.get(row.id) ?? [],
       tagIds: tagsOf.get(row.id) ?? [],
+      serviceIds: servicesOf.get(row.id) ?? [],
     }));
   }
 
@@ -194,6 +219,11 @@ export class WorkItemRepository implements WorkItemStore {
       patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
+      // Proof: this line deleted, so a patch naming only the service takes the
+      // no-field branch, writes nothing and answers `ok` with the row it found
+      // — every face reporting a write that never happened, which is the tag
+      // line's own red one dimension over. Watched 2026-08-21; see the log.
+      patch.serviceIds === undefined &&
       patch.maxParallel === undefined &&
       // Proof: this line missing is how the tag write path was first written,
       // and all six cases in `a tag set is undone whole, which a scalar habit
@@ -224,7 +254,14 @@ export class WorkItemRepository implements WorkItemStore {
     // written below, in this same transaction.
     // It is bound rather than discarded because the transaction below writes it:
     // one destructure both keeps it out of the `SET` and names the set to write.
-    const { maxParallel, tagIds: wantedTags, ...fields } = patch;
+    //
+    // `serviceIds` joins it since task 10.2, and its column-shaped predecessor
+    // came off this line the other way round: `serviceId` was spread into the
+    // `SET` because it *was* a column. There is still a `work_item.service_id`
+    // and it must not be reached by this `SET` any more — the field naming it is
+    // gone from the patch, so the only way one could arrive is a caller inventing
+    // it, and drizzle would refuse that.
+    const { maxParallel, tagIds: wantedTags, serviceIds: wantedServices, ...fields } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
@@ -276,6 +313,37 @@ export class WorkItemRepository implements WorkItemStore {
           .where(eq(serviceTeam.id, wanted))
           .all();
         if (held.length === 0) return { ok: false, reason: 'unknown_team' };
+      }
+      // The third dimension's, in the same shape and the same transaction, and
+      // read against the set rather than the column since task 10.2.
+      //
+      // The argument for reading it here got *stronger* with the join table, and
+      // the comment that stood here said the opposite: while the column carried
+      // the fact, its own foreign key would have answered `FOREIGN KEY
+      // constraint failed` for an unknown id, so this read only made the answer
+      // readable. `work_item_service.service_id` cascades instead, so a service
+      // removed between a precheck and this write leaves nothing to catch on the
+      // way in — the same hole `unknown_tag` is read for, one dimension over.
+      //
+      // The whole patch is refused, rename included: a request naming a service
+      // that is gone is out of date about the thing it is editing, and writing
+      // half of it would leave the caller to work out which half.
+      //
+      // An empty set names nothing and so can name nothing missing, which is why
+      // the read is skipped for it rather than run against `IN ()` — SQLite
+      // refuses that, and the tag arm below has the same guard for it.
+      if (wantedServices !== undefined && wantedServices.length > 0) {
+        const held = tx
+          .select({ id: service.id })
+          .from(service)
+          .where(inArray(service.id, [...wantedServices]))
+          .all();
+        // Counted against the **distinct** ids asked for, `unknown_tag`'s rule:
+        // a payload naming one service twice is one service, and the raw length
+        // would refuse a request whose only fault is repetition.
+        if (held.length < new Set(wantedServices).size) {
+          return { ok: false, reason: 'unknown_service' };
+        }
       }
       // The other dimension's refusal, read in this transaction for
       // `unknown_team`'s reason and one of its own: `work_item_tag.tag_id`
@@ -343,6 +411,26 @@ export class WorkItemRepository implements WorkItemStore {
         if (distinct.length > 0) {
           tx.insert(workItemTag)
             .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .run();
+        }
+      }
+      // The service set, written exactly as the tag set above and for its
+      // reasons: the whole set, `[]` written by the delete alone, deduplicated
+      // because the primary key would refuse the repeat.
+      //
+      // `work_item.service_id` is deliberately **not** written beside it, and
+      // that is the one line that makes the join authoritative (design D2 as
+      // amended). The team arm above keeps its column in step because the
+      // outgoing release reads that column to schedule with; nothing schedules
+      // on a service, so the stale `service_id` is read by no release that
+      // matters and a write here could only disagree with the set — one row's
+      // worth of a fact that now has many.
+      if (wantedServices !== undefined) {
+        tx.delete(workItemService).where(eq(workItemService.workItemId, id)).run();
+        const distinct = [...new Set(wantedServices)];
+        if (distinct.length > 0) {
+          tx.insert(workItemService)
+            .values(distinct.map((serviceId) => ({ workItemId: id, serviceId })))
             .run();
         }
       }

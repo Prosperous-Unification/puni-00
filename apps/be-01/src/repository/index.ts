@@ -235,6 +235,24 @@ export interface WorkItem {
   /** The service or team this work is labelled with, or null. */
   serviceTeamId: string | null;
   /**
+   * Which service delivers this work, or null for "nobody has said".
+   *
+   * A column and not a set (design.md D2): one service per item. Nothing to do
+   * with {@link serviceTeamId} above it, whose name is a leftover — that one is
+   * a **team**, and it keeps the name for one release because blue and green
+   * share one SQLite file mid-swap (D9).
+   *
+   * Null is _unstated_ and inherits, exactly as an empty `teamIds` or `tagIds`
+   * does; see `effectiveServicesOf` in `libs/domain` for the walk. There is no
+   * third "deliberately no service" state.
+   *
+   * On {@link WorkItem} rather than {@link LabelledWorkItem} because it is
+   * stored in the row: a restore that dropped it would bring a subtree back
+   * unlabelled, and the label would have been lost by the undo that was
+   * supposed to preserve it.
+   */
+  serviceId: string | null;
+  /**
    * How many people may be on this work item at once — an integer of 1 or
    * more, never null, because 1 and unset are the same fact.
    *
@@ -281,6 +299,22 @@ export interface LabelledWorkItem extends WorkItem {
    * the fact.
    */
   tagIds: readonly string[];
+  /**
+   * What this row delivers, 0..n, off `work_item_service` and **never**
+   * `work_item.service_id`.
+   *
+   * Here from task 10.2, where the third dimension stopped being a column: the
+   * comment this replaces argued the field would be a second declaration of the
+   * fact the row already carried, and that argument died with the join table.
+   * {@link WorkItem.serviceId} is still declared and still written by the
+   * outgoing release, and is read by nothing in this one (design D2) — so this
+   * is now the only place a reader may learn what a row delivers.
+   *
+   * Ordered by service id, `teamIds`' rule and for its reason: two reads of an
+   * unchanged plan answer the same array. Empty means the row states nothing and
+   * inherits; see `effectiveServicesOf` in `libs/domain`.
+   */
+  serviceIds: readonly string[];
 }
 
 /**
@@ -311,6 +345,33 @@ export interface Tag {
  */
 export type TagWritten =
   | { ok: true; tag: Tag; projectIds: readonly string[] }
+  | { ok: false; reason: 'taken' | 'not_found' };
+
+/**
+ * One service in the global directory: an id and a name, and nothing else.
+ *
+ * {@link Tag}'s two columns, and for a different reason than the tag's. A tag
+ * has no size because nothing about a tag is ever spent; a service has none
+ * because a service is not a pool either — it is what the work is part of, and
+ * who has the people is {@link ServiceTeam}, whose name is a leftover. The
+ * ownership between the two is `team_service`, read through
+ * {@link DirectoryStore} and never a column here.
+ */
+export interface Service {
+  id: string;
+  name: string;
+}
+
+/**
+ * What a service rename answered — {@link TagWritten}'s shape, one dimension
+ * over, and the same reading of each arm.
+ *
+ * `projectIds` is every project holding a work item that names the service,
+ * read inside the rename's own transaction so the events published after it
+ * name the plans that were labelled when it happened.
+ */
+export type ServiceWritten =
+  | { ok: true; service: Service; projectIds: readonly string[] }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 export interface WorkItemPatch {
@@ -347,6 +408,29 @@ export interface WorkItemPatch {
   priority?: number | null;
   /** `null` takes the label off. Never constrains who may be assigned the work. */
   serviceTeamId?: string | null;
+  /**
+   * Which services deliver this work, as the **whole** set. Absent leaves the
+   * dimension alone, like every other field here; `[]` is the one spelling of
+   * taking the label off, and puts the row back to inheriting its ancestors'.
+   *
+   * A **set, replaced whole**, which is {@link tagIds}'s rule and no longer the
+   * inverse of it — the scalar this replaces was the column's shape, and task
+   * 10.2 took the column out of the read path. There is no `null` arm any more:
+   * a set has an empty spelling, so the second spelling of "no service" that
+   * `null` used to be would now be two ways to say one thing.
+   *
+   * Deduplicated by the store on the way in — the join's primary key would
+   * refuse a repeated pair, and a payload naming one service twice is a client
+   * being untidy rather than a request that means anything else.
+   *
+   * An id the directory no longer holds refuses the **whole** patch with
+   * `unknown_service`, decided **inside the transaction that performs the
+   * update** — {@link serviceTeamId}'s argument, plus `work_item_tag`'s: the
+   * join cascades, so a service removed between a precheck and this write
+   * leaves nothing for a foreign key to catch and the insert would answer a 500
+   * where the honest answer names the service.
+   */
+  serviceIds?: readonly string[];
   /**
    * How many people may be on this work item at once — an integer of 1 to
    * 1000, or `null` to put it back to one at a time.
@@ -412,6 +496,13 @@ export interface WorkItemPatch {
  * a label is gone has to know **which** picker to reopen, and the two
  * dimensions are independent everywhere else in this model.
  *
+ * `unknown_service` is the third dimension's, and a third reason for the same
+ * reason: three pickers now, and "a label is gone" would leave a reader opening
+ * all of them. `work_item.service_id` has `ON DELETE SET NULL`, so unlike the
+ * tag it *would* be caught by the column's own foreign key — as a raw
+ * `FOREIGN KEY constraint failed`, which is a 500 where the honest answer names
+ * the service.
+ *
  * `not_before_reason_needs_a_date` is decided in the same transaction and for a
  * version of the same reason: the rule is about the row **as it will stand**, so
  * it has to be asked against the stored date and the patch's together, and a
@@ -425,7 +516,12 @@ export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
   | {
       ok: false;
-      reason: 'not_found' | 'unknown_team' | 'unknown_tag' | 'not_before_reason_needs_a_date';
+      reason:
+        | 'not_found'
+        | 'unknown_team'
+        | 'unknown_tag'
+        | 'unknown_service'
+        | 'not_before_reason_needs_a_date';
     };
 
 /**
@@ -685,6 +781,35 @@ export interface ServiceTeam {
   name: string;
 }
 
+/**
+ * A team and the services it is **responsible for** — the ownership map, read
+ * on the team's own row.
+ *
+ * {@link PersonWithTeams}' shape one dimension over, and the resemblance stops
+ * at the shape: a person's `teamIds` says who they work with, and a team's
+ * `serviceIds` says what it is accountable for. Neither labels a work item.
+ *
+ * Empty means a team that owns nothing, which is every team the day this ships
+ * — the map starts with no data by design, because nothing may invent who owns
+ * what.
+ */
+export interface TeamWithServices extends ServiceTeam {
+  serviceIds: string[];
+}
+
+/**
+ * A change to one team: a new name, a new owned set, or both.
+ *
+ * `serviceIds` is a **full replacement**, exactly as {@link PersonPatch}'
+ * `teamIds` is, so an absent field and an empty array mean different things:
+ * absent leaves the map alone, empty makes the team own nothing. A patch
+ * naming neither is refused rather than answered as a no-op.
+ */
+export interface TeamPatch {
+  name?: string;
+  serviceIds?: readonly string[];
+}
+
 /** Somebody who does work. Not an account on this tool. */
 export interface Person {
   id: string;
@@ -724,9 +849,21 @@ export type DirectoryWriteRefusal = 'not_found' | 'taken';
  */
 export type TouchedProjects = readonly string[];
 
+/**
+ * What a team patch answered.
+ *
+ * The team comes back **with its owned set**, for {@link PersonWritten}'s
+ * reason: the caller has just replaced it, and a client that had to re-read the
+ * directory to see what it wrote would render the set it sent rather than the
+ * set that is there.
+ *
+ * `unknown_service` refuses the **whole** patch, rename included —
+ * `team_service.service_id` is a foreign key, so the alternative is a raw
+ * constraint failure, and a half-applied patch is not an observable state.
+ */
 export type ServiceTeamWritten =
-  | { ok: true; team: ServiceTeam; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal };
+  | { ok: true; team: TeamWithServices; projectIds: TouchedProjects }
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_service' };
 
 /**
  * A change to one person: a new name, a new set of memberships, or both.
@@ -937,7 +1074,37 @@ export interface DirectoryStore {
    * the labelling — all in one transaction, bumping every row that lost one.
    */
   removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved>;
-  listTeams(): Promise<ServiceTeam[]>;
+  /** Every service in the global directory, by name. */
+  listServices(): Promise<Service[]>;
+  /**
+   * Adds a service idempotently **by name**, answering the row that is there —
+   * {@link DirectoryStore.addTag}'s rule and its reason.
+   */
+  addService(toAdd: Service): Promise<Service>;
+  /** Renames one service, refusing a name another service holds. */
+  renameService(serviceId: string, name: string): Promise<ServiceWritten>;
+  /**
+   * What points at one service right now — a fast path for the confirmation,
+   * never the authority for it. {@link DirectoryStore.removeService} decides.
+   */
+  usageOfService(serviceId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what names the service, refuses an unconfirmed removal that would
+   * unlabel anything, and otherwise deletes the service — letting
+   * `work_item.service_id`'s `ON DELETE SET NULL` clear the column and
+   * `team_service`'s cascade take the ownership rows — all in one transaction,
+   * bumping every row that lost its label.
+   */
+  removeService(serviceId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * Every team with the services it owns — the ownership map ships **whole**,
+   * on the row where it is edited (design D4).
+   *
+   * One read rather than a second endpoint because both mismatch signals need
+   * the map per row, and a client that had to ask twice would render a tree
+   * against a map from a moment ago.
+   */
+  listTeams(): Promise<TeamWithServices[]>;
   /**
    * Adds a team, or returns the one that already has that name.
    *
@@ -947,13 +1114,18 @@ export interface DirectoryStore {
    */
   addTeam(team: ServiceTeam): Promise<ServiceTeam>;
   /**
-   * Renames one team, or says why it could not.
+   * Renames one team and replaces the services it owns, in **one** transaction,
+   * or says why it could not.
    *
-   * Refused by the unique index rather than by asking first, exactly as
-   * {@link DirectoryStore.addTeam} is: two clients renaming towards `Platform`
-   * at the same moment both pass a check-then-update.
+   * A rename is refused by the unique index rather than by asking first,
+   * exactly as {@link DirectoryStore.addTeam} is: two clients renaming towards
+   * `Platform` at the same moment both pass a check-then-update. The owned set
+   * is validated **before** anything is written, for
+   * {@link DirectoryStore.patchPerson}'s reason: returning from a drizzle
+   * transaction callback commits it, so a refusal decided after the name had
+   * been set would answer `unknown_service` and leave the rename behind.
    */
-  renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
+  patchTeam(teamId: string, patch: TeamPatch): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
   /**
    * Adds a person, or returns the one with that name, joining them to

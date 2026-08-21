@@ -82,6 +82,7 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     startNoEarlierThan: null,
     startNoEarlierThanReason: null,
     serviceTeamId: null,
+    serviceId: null,
     maxParallel: 1,
     revision: 0,
   };
@@ -128,6 +129,102 @@ function joinTeam(workItemId: string, teamId: string): void {
     db.close();
   }
 }
+
+/**
+ * A service in the global directory, written directly because the directory's
+ * own write path for services does not exist until section 4.
+ *
+ * Directly rather than through a repository for the same reason {@link joinTeam}
+ * is: the read is what is under test here, and a write path that does not exist
+ * yet cannot be the thing that sets it up.
+ */
+function service(name: string): string {
+  const id = crypto.randomUUID();
+  const db = openDatabase(dbPath);
+  try {
+    db.run('INSERT INTO service (id, name) VALUES (?, ?)', [id, name]);
+  } finally {
+    db.close();
+  }
+  return id;
+}
+
+/**
+ * The services on a row, written directly into the join.
+ *
+ * The column is deliberately untouched by this helper since task 10.2 — a test
+ * that seeded `work_item.service_id` would be seeding the outgoing release's
+ * copy and then asserting this release reads it, which is the one thing D2 says
+ * it must not do.
+ */
+function labelServices(workItemId: string, serviceIds: readonly string[]): void {
+  const db = openDatabase(dbPath);
+  try {
+    db.run('DELETE FROM work_item_service WHERE work_item_id = ?', [workItemId]);
+    for (const serviceId of serviceIds) {
+      db.run('INSERT INTO work_item_service (work_item_id, service_id) VALUES (?, ?)', [
+        workItemId,
+        serviceId,
+      ]);
+    }
+  } finally {
+    db.close();
+  }
+}
+
+describe('the services on the row', () => {
+  it('reads every service on the row back, in one order', async () => {
+    // Task 10.2: the dimension is `work_item_service` and `listByProject` reads
+    // it as a fourth indexed query — the tag join's shape. Two services, because
+    // one would pass just as well against a read that took the first row and
+    // stopped, which is exactly what the column it replaced did.
+    //
+    // Ordered by service id and asserted sorted for `teamIds`' reason: two reads
+    // of an unchanged plan must answer the same array (D6).
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const payments = service('Payments');
+    const billing = service('Billing');
+    labelServices(strip.id, [payments, billing]);
+
+    const read = await repo.listByProject(projectId);
+
+    expect(read.at(0)?.serviceIds).toEqual([payments, billing].sort());
+  });
+
+  it('leaves a work item nobody labelled on an empty set, which is the state that inherits', async () => {
+    // Empty is _unstated_, one spelling, exactly as the empty team set is. The
+    // reading that turns it into an inherited service is `effectiveServicesOf`'s
+    // and is deliberately not stored here.
+    await repo.insert(row(null, 10, 'Strip'), []);
+
+    expect((await repo.listByProject(projectId)).at(0)?.serviceIds).toEqual([]);
+  });
+
+  it('keeps the row when one of its services is removed, and loses only that member', async () => {
+    // The cascade on `work_item_service.service_id`, seen from the read side
+    // rather than from the migration: deleting a service must lose that label
+    // and never the plan — and, since the row carries a set, never the other
+    // services either. The second service is what makes this case say more than
+    // the column's version of it could.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const payments = service('Payments');
+    const billing = service('Billing');
+    labelServices(strip.id, [payments, billing]);
+
+    const db = openDatabase(dbPath);
+    try {
+      db.run('DELETE FROM service WHERE id = ?', [payments]);
+    } finally {
+      db.close();
+    }
+
+    const read = await repo.listByProject(projectId);
+    expect(read.map((each) => each.name)).toEqual(['Strip']);
+    expect(read.at(0)?.serviceIds).toEqual([billing]);
+  });
+});
 
 describe('the team set beside the column', () => {
   it('reads back every team a work item is joined to, in one order', async () => {

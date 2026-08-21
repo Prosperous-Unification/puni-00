@@ -508,6 +508,13 @@ export type WorkItemRefusal =
    */
   | 'unknown_tag'
   /**
+   * A service the directory no longer holds, decided inside the write's own
+   * transaction — see {@link WorkItemPatch.serviceIds}. The third picker, and a
+   * third reason on purpose: told only that "a label is gone", a reader has
+   * three pickers to reopen and no way to choose.
+   */
+  | 'unknown_service'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
@@ -714,6 +721,12 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // priority the undone patch had written; watched 2026-08-11.
   if (patch.priority !== undefined) named.push('priority');
   if (patch.serviceTeamId !== undefined) named.push('serviceTeamId');
+  // Proof: this line deleted, so a patch naming only the service journals
+  // nothing, and `puts a replaced service back` failed at its `expectDone` on
+  // `refused: stale_undo — “Strip the roof” has changed since then`: the undo
+  // reached past the unjournalled write to an entry that write had already made
+  // stale. The tag line's own red, one dimension over. Watched 2026-08-21.
+  if (patch.serviceIds !== undefined) named.push('serviceIds');
   // Proof: this line deleted, so a patch naming only a parallelism journals
   // nothing at all, and all three parallelism undo tests — `puts a replaced
   // parallelism back, and leaves one a rename did not name`, `takes a first
@@ -768,6 +781,28 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   }
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
+  // **The whole prior set**, the rule below it and no longer its inverse. The
+  // comment that stood here argued the opposite at length — a column has exactly
+  // one prior value, so wrapping it in an array would journal a shape the patch
+  // cannot take — and task 10.2 ended that argument by making the join table the
+  // store. The patch takes a set now, so the undo restores a set.
+  //
+  // `[]` is a legal before-value and means the row stated no service of its own:
+  // the inverse of labelling it is taking the label off, which is the empty set
+  // rather than an absent field. Absent would leave behind the label the undo
+  // exists to remove.
+  //
+  // The scalar habit is what this loses data to, and it is the *tags* fault one
+  // dimension over rather than the throw the column used to give: journal one
+  // member of a two-service row and the undo reports success while restoring
+  // half the fact. This line arrived with 10.2's type change, which left no
+  // compiling way to keep the scalar; **task 10.3 drove the red that makes it a
+  // rule rather than a shape** — written as `before.serviceIds.slice(0, 1)`,
+  // `puts a replaced service set back, whole` in `undo.test.ts` fails alone (76
+  // pass, 1 fail over that file) on a restored set holding one of the row's two
+  // services, while every one-service case beside it stays green. Watched
+  // 2026-08-21.
+  if (patch.serviceIds !== undefined) out.serviceIds = before.serviceIds;
   // **The whole prior set, and this is the seam a scalar habit loses data at.**
   // A set-valued field's inverse cannot be a member of the set or a delta
   // against it: undoing "these three tags" has to restore the two that were
@@ -1253,6 +1288,16 @@ export class WorkItemService {
       startNoEarlierThanReason: null,
       priority: null,
       serviceTeamId: null,
+      // Unlabelled, in the third dimension as in the other two: a new row states
+      // nothing and therefore inherits whatever its parent is delivering. The
+      // alternative — copying the parent's service down on create — is the
+      // stored-versus-effective bug this repo has shipped twice.
+      //
+      // The **column**, which since task 10.2 is read by the outgoing release
+      // alone; the set a reader of this release sees is the absence of any
+      // `work_item_service` row, and a create writes none. Both spell the same
+      // unlabelled row, which is the whole point of leaving the column standing.
+      serviceId: null,
       // One at a time, which is what every work item has always done and what
       // the column's `DEFAULT 1` says for every row that predates it.
       maxParallel: 1,
@@ -2612,15 +2657,23 @@ export class WorkItemService {
       case 'patch': {
         const written = await this.opts.workItems.patch(command.workItemId, command.patch);
         if (!written.ok) {
-          // The label's team was removed after the command ran, or the row was.
-          // Either way the state this entry describes is gone, and putting the
-          // dead id back is exactly what the guarded path exists to refuse.
+          // The label's team or service was removed after the command ran, or
+          // the row was. Either way the state this entry describes is gone, and
+          // putting the dead id back is exactly what the guarded path exists to
+          // refuse.
+          //
+          // The service gets its own sentence for the reason it gets its own
+          // reason code: three dimensions can each be the one that went, and
+          // "the work item is no longer there" would be a false sentence about
+          // a row still on screen.
           return {
             ok: false,
             detail:
               written.reason === 'unknown_team'
                 ? 'that service team is no longer in the directory.'
-                : 'the work item is no longer there.',
+                : written.reason === 'unknown_service'
+                  ? 'that service is no longer in the directory.'
+                  : 'the work item is no longer there.',
           };
         }
         return { ok: true, detail: null };

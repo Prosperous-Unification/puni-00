@@ -68,6 +68,20 @@ function fakeApi(): ProjectApi & {
   stack: { undoable: boolean; redoable: boolean };
   stackCalls: ('undo' | 'redo')[];
   answerStackWith: (answer: UndoResult) => void;
+  /**
+   * The three service writes this fake models directly rather than through
+   * {@link ProjectApi}.
+   *
+   * There is no service CRUD on this client yet — task 7.5. A fixture that needs
+   * a labelled row writes the set straight onto the view, which since task 10.2
+   * is what be-01 sends: `serviceIds` off the join, no column anywhere on the
+   * wire.
+   */
+  addService: (name: string) => { id: string; name: string };
+  labelWithService: (workItemId: string, serviceIds: readonly string[]) => void;
+  ownService: (teamId: string, serviceId: string) => void;
+  /** The same write undone, for the map emptying under a ticked signal. */
+  disownService: (teamId: string, serviceId: string) => void;
 } {
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
@@ -75,7 +89,16 @@ function fakeApi(): ProjectApi & {
   let seq = -1;
   let estimateMethod: EstimateMethod = 'pert';
   let startDate: string | null = null;
-  const teams: { id: string; name: string }[] = [];
+  /**
+   * `serviceIds` present and empty on every team, never absent — be-01 sends
+   * the ownership map whole ({@link TeamView.serviceIds}) and a fake that left
+   * it off would hand the table an `undefined` it can never see in production.
+   * This file's `typecheck` target does not cover the spec tsconfig, so the
+   * shape is kept here by hand rather than by the compiler.
+   */
+  const teams: { id: string; name: string; serviceIds: string[] }[] = [];
+  /** The global service directory, in the order it was added. */
+  const services: { id: string; name: string }[] = [];
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
   /**
@@ -194,6 +217,37 @@ function fakeApi(): ProjectApi & {
     answerStackWith(answer: UndoResult) {
       stackAnswer = answer;
     },
+    addService(name: string) {
+      // Idempotent by name, as `addTeam` is and as be-01's unique
+      // `service_name` makes it: two `Billing`s is not a state the directory
+      // can be in, so it must not be one this fake can be in either.
+      const already = services.find((s) => s.name === name);
+      if (already !== undefined) return already;
+      const service = { id: `service${String(services.length + 1)}`, name };
+      services.push(service);
+      return service;
+    },
+    labelWithService(workItemId: string, serviceIds: readonly string[]) {
+      const row = rows.find((r) => r.id === workItemId);
+      if (row !== undefined) row.serviceIds = [...serviceIds];
+      // Through `renumber` like every other write here, so the next `tree`
+      // read carries a fresh sequence and the table does not discard it.
+      renumber();
+    },
+    disownService(teamId: string, serviceId: string) {
+      const team = teams.find((t) => t.id === teamId);
+      if (team === undefined) return;
+      team.serviceIds = team.serviceIds.filter((each) => each !== serviceId);
+    },
+    ownService(teamId: string, serviceId: string) {
+      const team = teams.find((t) => t.id === teamId);
+      // Silent on an unknown team rather than throwing: be-01 refuses that
+      // write with `unknown_team`, and a fixture that threw instead would make
+      // a typo in a case look like a bug in the table.
+      if (team !== undefined && !team.serviceIds.includes(serviceId)) {
+        team.serviceIds.push(serviceId);
+      }
+    },
     listProjects: () =>
       Promise.resolve([
         {
@@ -279,14 +333,15 @@ function fakeApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    listTeams: () => Promise.resolve([...teams]),
+    listTeams: () => Promise.resolve(teams.map((t) => ({ ...t, serviceIds: [...t.serviceIds] }))),
     listTags: () => Promise.resolve([]),
+    listServices: () => Promise.resolve([...services]),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
       // is not in the list" must not be able to make two `Platform`s.
       const already = teams.find((t) => t.name === name);
       if (already !== undefined) return Promise.resolve(already);
-      const team = { id: `team${String(teams.length + 1)}`, name };
+      const team = { id: `team${String(teams.length + 1)}`, name, serviceIds: [] };
       teams.push(team);
       return Promise.resolve(team);
     },
@@ -7348,6 +7403,7 @@ describe('dependencies in the table — cross-review findings', () => {
     setStartDate: () => Promise.resolve(),
     listTeams: () => Promise.resolve([]),
     listTags: () => Promise.resolve([]),
+    listServices: () => Promise.resolve([]),
     addTeam: () => Promise.reject(new Error('not_in_these_tests')),
     listPeople: () => Promise.resolve([]),
     addPerson: () => Promise.reject(new Error('not_in_these_tests')),
@@ -8040,6 +8096,7 @@ describe('the chart under a plan being edited', () => {
       setStartDate: () => Promise.resolve(),
       listTeams: () => Promise.resolve([]),
       listTags: () => Promise.resolve([]),
+      listServices: () => Promise.resolve([]),
       addTeam: () => Promise.reject(new Error('not_in_these_tests')),
       listPeople: () => Promise.resolve([]),
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
@@ -12682,6 +12739,406 @@ describe('narrowing the plan by facet', () => {
   });
 });
 
+describe('narrowing the plan by service, and by the two mismatch signals', () => {
+  /**
+   * The faceted plan again with the third dimension on it, and the directory
+   * facts the two signals are asked against:
+   *
+   * ```
+   * 010     Strip the walls   team Billing, service Checkout, Ada on Dev
+   *  010.1   Sockets          inherits both
+   *   010.1.1 Back boxes      team Wiring, inherits Checkout
+   *  010.2   Skirting         inherits both
+   * 020     Paint             nothing
+   *  020.1   Undercoat        nothing
+   * ```
+   *
+   * `Wiring` owns `Checkout` and `Billing` owns nothing, so `010` is built by a
+   * non-owner and `010.1.1` — the row whose own team is the owner — is not.
+   * Ada belongs to `Wiring` and is on `010`, whose effective team is `Billing`,
+   * so she is assigned outside it. Both facts are deliberately **not** true of
+   * every row: a signal that flagged the whole plan would pass a test that only
+   * counted flags.
+   *
+   * Two services in the directory and one on the plan, the same trap the team
+   * facet's fixture sets: the control must offer what the plan carries, not
+   * what the deployment knows about.
+   */
+  async function aServicedPlan(): Promise<
+    ReturnType<typeof fakeApi> & {
+      checkout: string;
+      ledger: string;
+      strip: string;
+      billing: string;
+      wiring: string;
+    }
+  > {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const back = await api.create('p1', {
+      parentId: sockets.id,
+      afterId: null,
+      name: 'Back boxes',
+    });
+    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+
+    const billing = await api.addTeam('Billing');
+    const wiring = await api.addTeam('Wiring');
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patch(back.id, { serviceTeamId: wiring.id });
+
+    const checkout = api.addService('Checkout');
+    // In the directory and on no row — what the facet must not offer. One case
+    // below puts it on `Strip` as a **second** service, and does so itself
+    // rather than here, so every other case keeps the unlabelled `Ledger` this
+    // fixture exists to offer.
+    const ledger = api.addService('Ledger');
+    api.labelWithService(strip.id, [checkout.id]);
+
+    const ada = await api.addPerson('Ada', [wiring.id]);
+    await api.assign(strip.id, DEV.id, ada.id);
+
+    return Object.assign(api, {
+      checkout: checkout.id,
+      // The unlabelled service and the labelled row, handed back so the
+      // two-service case can state its own labelling without this fixture
+      // carrying it for every other case.
+      ledger: ledger.id,
+      strip: strip.id,
+      billing: billing.id,
+      wiring: wiring.id,
+    });
+  }
+
+  /** Draw it, and wait for the six rows the fixture builds. */
+  async function shown(api: ProjectApi): Promise<void> {
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    fireEvent.click(screen.getByText(/^Filters/));
+  }
+
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  itDom(
+    'offers the services the plan carries, by name, and not the rest of the directory',
+    async () => {
+      const api = await aServicedPlan();
+      await shown(api);
+
+      expect(screen.getByLabelText('Service Checkout')).toBeInTheDocument();
+      // `Ledger` is in the directory and on nothing here. Offering it would be a
+      // box that provably empties the table — `optionsFor`'s whole argument.
+      expect(screen.queryByLabelText('Service Ledger')).toBeNull();
+    },
+  );
+
+  itDom('finds a row by the second service it delivers, which is task 10.2', async () => {
+    // **The case 10.2's watched red drives, and it is the only one that can.**
+    // Every other service case on this surface states one service per row, and a
+    // row with one member reads identically through a set and through the
+    // singleton fold the store used to force — so a fold left in would pass all
+    // of them.
+    //
+    // `Strip` delivers `Checkout` **and** `Ledger`. Ticking `Ledger` must find
+    // it. Injected on h2puni and watched red, chunk 15: the deleted `.map` in
+    // `wbs-table.tsx` restored as `serviceIds.slice(0, 1)` — **1 fail, this
+    // case, 1558 pass**. It failed one step earlier than written above:
+    // `Unable to find a label with the text of: Service Ledger`. The facet is
+    // built from the effective reading, so a fold does not merely narrow to
+    // nothing — the second service never becomes a facet value at all, and the
+    // box a user would tick is not on screen.
+    const api = await aServicedPlan();
+    api.labelWithService(api.strip, [api.checkout, api.ledger]);
+    await shown(api);
+
+    tick('Service Ledger');
+
+    // The whole branch, because the three rows under `Strip` inherit both of its
+    // services — the set is inherited whole, not by its first member.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+  });
+
+  itDom('keeps the rows that inherit a ticked service, which is task 6.2', async () => {
+    // **The case 6.2's watched red drives.** Only `010` states `Checkout`; the
+    // three rows under it answer to it through `effectiveServicesOf`, and
+    // `020`/`020.1` do not. Point the predicate at `row.serviceIds` — the row's
+    // own stated set, a column until task 10.2 — instead of the effective reading and this drops to
+    // `['010']`, which is why the fault could not be observed until a control
+    // existed to tick. Injected on h2puni and watched red, chunk 9.
+    const api = await aServicedPlan();
+    await shown(api);
+
+    tick('Service Checkout');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+    expect(screen.getByLabelText('Name of 010.2').dataset['match']).toBe('true');
+  });
+
+  itDom(
+    'stands both signal boxes down, with the reason, while the directory says nothing',
+    async () => {
+      // The design's first risk. A deployment ships with an empty ownership map
+      // and nobody in a team, and in that state both signals answer `false` for
+      // every row — which is "nobody has said", not "nothing is wrong". An
+      // enabled box answering the second question is how a reader concludes the
+      // feature is broken.
+      const api = fakeApi();
+      await api.create('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+      render(<WbsTable projectId="p1" api={api} />);
+      await waitFor(() => {
+        expect(numbersOnScreen()).toEqual(['010']);
+      });
+      fireEvent.click(screen.getByText(/^Filters/));
+
+      const owner = screen.getByLabelText('Built by non-owner only');
+      const outside = screen.getByLabelText('Assigned outside the team only');
+      expect(owner).toBeDisabled();
+      expect(outside).toBeDisabled();
+      // Followed by hand rather than through `toHaveAccessibleDescription`:
+      // jest-dom computes that through `dom-accessibility-api`, and a matcher
+      // that quietly answers `''` on both boxes would pass this test in either
+      // state. `describedBy` fails loudly instead — a missing attribute or a
+      // dangling id throws here rather than reading as an empty description.
+      const describedBy = (box: HTMLElement): string => {
+        const id = box.getAttribute('aria-describedby');
+        expect(id).toBeTruthy();
+        const said = document.getElementById(id!);
+        expect(said).not.toBeNull();
+        return said?.textContent ?? '';
+      };
+      expect(describedBy(owner)).toMatch(/No team owns a service yet/);
+      expect(describedBy(outside)).toMatch(/Nobody belongs to a team yet/);
+      // Mouse readers get the same sentence, and it is the only place a hint
+      // fits at this panel width.
+      expect(owner.closest('label')).toHaveAttribute(
+        'title',
+        expect.stringMatching(/No team owns/),
+      );
+    },
+  );
+
+  itDom('takes teams from a be-01 that has never heard of services', async () => {
+    // The blue/green window, and this one is not hypothetical: three fixtures
+    // in this repo already answer `listTeams` with `{ id, name }`, and the
+    // first version of `ownershipKnown` threw `Cannot read properties of
+    // undefined (reading 'length')` on all of them — a white screen for the
+    // length of a deploy, in the render, not in a test-only shape.
+    const api = await aServicedPlan();
+    const older: ProjectApi = {
+      ...api,
+      listTeams: () =>
+        Promise.resolve([
+          { id: api.billing, name: 'Billing' },
+          { id: api.wiring, name: 'Wiring' },
+        ]),
+    };
+    await shown(older);
+
+    // Drawn at all is most of the claim; the box is down because a server that
+    // has never heard of services cannot have been told who owns one.
+    expect(screen.getByLabelText('Built by non-owner only')).toBeDisabled();
+  });
+
+  itDom('narrows to the rows a non-owner is building, and not to every labelled row', async () => {
+    const api = await aServicedPlan();
+    api.ownService(api.wiring, api.checkout);
+    await shown(api);
+
+    tick('Built by non-owner only');
+
+    // `010.1.1` carries `Wiring` itself and `Wiring` owns `Checkout`, so the
+    // row nearest the fault is the one **not** flagged. Without it in the
+    // fixture this assertion would pass over a signal that flagged everything
+    // wearing a service — chunk 5's over-broad-usage lesson, one dimension on.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+  });
+
+  itDom('narrows to the rows somebody outside the team is on', async () => {
+    const api = await aServicedPlan();
+    await shown(api);
+
+    tick('Assigned outside the team only');
+
+    // Ada is in `Wiring` and `010`'s effective team is `Billing`. The rows
+    // under it inherit the team but not the assignee — `row.assignees` is the
+    // row's own — so one row answers, not the branch.
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('marks the service cell of a row a non-owner is building, and says why', async () => {
+    // **Task 7.2's first marker.** The facet cases above prove the rule; this
+    // proves it reaches the cell it is about, with the sentence on it. A mark
+    // that cannot say why is a mystery rather than a signal — 7.2's own words,
+    // and the reason the whole string is asserted rather than its presence.
+    const api = await aServicedPlan();
+    api.ownService(api.wiring, api.checkout);
+    await shown(api);
+
+    const said =
+      'Built by a non-owner: Billing does not own Checkout.' +
+      ' Nothing is blocked — the plan is recording this, not refusing it.';
+    const mark = rowFor('010').querySelector('[data-mismatch="service"]');
+    expect(mark?.getAttribute('title')).toBe(said);
+    // The same sentence to a reader with no pointer. `role="img"` and a label
+    // rather than a `title` alone, which reaches a mouse only.
+    expect(mark?.getAttribute('aria-label')).toBe(said);
+    expect(mark?.getAttribute('role')).toBe('img');
+    // `010.1.1` states `Wiring` itself, and `Wiring` owns `Checkout`: the row
+    // nearest the fault is the one **not** marked. Without it this case would
+    // pass over a marker that landed on every row wearing a service — chunk
+    // 5's over-broad-usage lesson, on a third surface.
+    expect(rowFor('010.1.1').querySelector('[data-mismatch="service"]')).toBeNull();
+    // And it is the **effective** reading: `010.1` states no service of its own
+    // and is marked, because what it inherits is what it is delivering.
+    expect(rowFor('010.1').querySelector('[data-mismatch="service"]')).not.toBeNull();
+  });
+
+  itDom('names every offending service, and only the offending ones', async () => {
+    // **The case the scope change needs and the only one that can drive it.**
+    // Three services on the row, one of them owned: a sentence built from the
+    // row's whole set names `Checkout` — which the team *does* own — and a
+    // sentence taking the first offender names `Ledger` and drops `Search`.
+    // Every other marker case here has one service, and one service reads
+    // identically through either fault.
+    const api = await aServicedPlan();
+    const search = api.addService('Search');
+    api.labelWithService(api.strip, [api.checkout, api.ledger, search.id]);
+    api.ownService(api.billing, api.checkout);
+    await shown(api);
+
+    const said = rowFor('010').querySelector('[data-mismatch="service"]')?.getAttribute('title');
+    expect(said).toContain('Billing does not own Ledger and Search.');
+    // Said out loud, because it is half the claim: the owned service is not in
+    // the sentence, so a reader is sent to the two that need looking at.
+    expect(said).not.toContain('Checkout');
+  });
+
+  itDom('marks the assignee on a folded role, which is where every plan starts', async () => {
+    // **Task 7.2's second marker, on the surface that is on screen by default.**
+    // `unfoldedRoles` starts empty, so a marker living only in the unfolded `by`
+    // column would be absent from every plan nobody has unfolded — the same
+    // hiding this cell already refuses for a complaint.
+    const api = await aServicedPlan();
+    await shown(api);
+
+    const said =
+      'Assigned outside the team: Ada is not in Billing.' +
+      ' Nothing is blocked — the plan is recording this, not refusing it.';
+    const final = rowFor('010').querySelector('[data-final="role-dev"]');
+    const mark = final?.querySelector('[data-mismatch="assignee"]');
+    expect(mark?.getAttribute('aria-label')).toBe(said);
+    // **No native `title` here**, unlike the service cell's mark: this cell's
+    // one hint is its card, and a tooltip raced it over the same pixels
+    // (2026-08-09). So the sentence moves to the card rather than being
+    // dropped, and both halves of that are asserted.
+    expect(mark?.getAttribute('title')).toBeNull();
+    fireEvent.mouseEnter(final as HTMLElement);
+    expect(screen.getByRole('tooltip').textContent).toContain('Ada is not in Billing');
+    // The team is inherited down the branch and the assignee is not, so the
+    // rows under `010` carry no mark. Absence flagging nothing, on screen.
+    expect(rowFor('010.1').querySelector('[data-mismatch="assignee"]')).toBeNull();
+  });
+
+  itDom('keeps the assignee mark when the role is unfolded, with its own sentence', async () => {
+    // The other half of the same claim: unfolding moves the assignee into a
+    // column of its own, and a marker that lived only on the folded cell would
+    // vanish exactly when somebody looked closer.
+    const api = await aServicedPlan();
+    await shown(api);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unfold Dev estimates' }));
+
+    const cell = screen.getByLabelText('Dev assignee for 010').closest('td');
+    const mark = cell?.querySelector('[data-mismatch="assignee"]');
+    // A `title` here, where the folded cell has none: this column has no card
+    // to fight, so the pointer gets the sentence the way the service cell's
+    // does.
+    expect(mark?.getAttribute('title')).toContain('Ada is not in Billing');
+  });
+
+  itDom('marks the phase nobody named, where the assumption puts them on it', async () => {
+    // **The surface every other assignee case here walks straight past.** Ada is
+    // named on Dev alone, so `doesEveryPhase` puts her on QA as an assumption,
+    // and a phase the plan says she is doing is work assigned to her.
+    //
+    // Written during chunk 17's injection round, which is also how the branch
+    // that used to serve it got deleted: `assigneeOn` carried a special arm for
+    // the assumed case, F4 forced it off, and every case stayed green — because
+    // an assumption is the row's own single stated assignee, so the ordinary
+    // path had been answering it all along. The arm went; this case stays,
+    // because nothing else asserts an assumed phase is marked at all.
+    const api = await aServicedPlan();
+    await shown(api);
+
+    const qa = rowFor('010').querySelector('[data-final="role-qa"]');
+    const mark = qa?.querySelector('[data-mismatch="assignee"]');
+    // The same sentence as the named phase beside it. A phase the plan says she
+    // is doing is work assigned to her, and a marker that went quiet exactly
+    // where nobody has looked at the assignment would be quiet where it is most
+    // needed.
+    expect(mark?.getAttribute('aria-label')).toContain('Ada is not in Billing');
+  });
+
+  itDom('leaves a ticked signal live after somebody empties the map under it', async () => {
+    // Ticked wins. Somebody in the directory clears the last owned service
+    // while this reader is filtered by the signal: the map arrives empty on the
+    // next refetch and the box would go down with the tick still in force — a
+    // filter nobody can leave, an empty table and a greyed-out control that
+    // emptied it. It stays live so it can be turned off, and turning it off
+    // puts the plan back.
+    const api = await aServicedPlan();
+    api.ownService(api.wiring, api.checkout);
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    fireEvent.click(screen.getByText(/^Filters/));
+
+    tick('Built by non-owner only');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+
+    // Somebody else's directory edit, arriving the way every other one does.
+    api.disownService(api.wiring, api.checkout);
+    notify();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Built by non-owner only')).toBeChecked();
+    });
+
+    const owner = screen.getByLabelText('Built by non-owner only');
+    expect(owner).not.toBeDisabled();
+    // **And the answer went the other way, which is the finding.** An empty
+    // ownership map does not make the signal quiet: `builtByNonOwner` asks
+    // whether one of the row's teams owns the service, and with nobody owning
+    // anything the answer is "no" for every labelled row. Four of the six here
+    // — the whole branch under `010`, `010.1.1` included, because `Wiring` has
+    // just stopped owning `Checkout` too. That is the marker-on-most-of-a-plan
+    // failure `label-mismatch.ts` argues against, arriving through the
+    // directory rather than through the rule, and it is the real reason the box
+    // is stood down while the map is empty.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+    fireEvent.click(owner);
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+  });
+});
+
 describe('saved views, per browser', () => {
   /**
    * Where this browser remembers `p1`'s saved views — the key F4 writes.
@@ -13109,5 +13566,172 @@ describe('what the filter says it dropped, and what it exports', () => {
     expect(text).toContain('Strip the walls');
     expect(text).toContain('Paint');
     expect(text).not.toContain('Scope');
+  });
+});
+
+describe('the service cell', () => {
+  /**
+   * The fixture the facet cases use, one file down: two services in the
+   * directory, `Checkout` on `010`, and three rows under it that state none of
+   * their own. That is the whole of what this cell has to say — what a row is,
+   * and what it inherits when it says nothing.
+   */
+  async function aServicedPlan(): Promise<ReturnType<typeof fakeApi> & { checkout: string }> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const checkout = api.addService('Checkout');
+    api.addService('Ledger');
+    api.labelWithService(strip.id, [checkout.id]);
+    return Object.assign(api, { checkout: checkout.id });
+  }
+
+  const drawn = async (api: ProjectApi): Promise<void> => {
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+  };
+
+  itDom('says what a row is, and what its children inherit when they say nothing', async () => {
+    const api = await aServicedPlan();
+    await drawn(api);
+
+    // The row's own, as a chip rather than as the picker's value — task 10.4's
+    // control change. The box beside the chip is the *add* box and holds
+    // nothing, which is what `own.length > 0 ? 'add'` says.
+    expect(screen.getByLabelText('Remove Checkout from 010')).toBeTruthy();
+    expect(screen.getByLabelText('Services for 010')).toHaveAttribute('placeholder', 'add');
+    // The child's, as placeholder ink that is shown and not stored — `↳` for
+    // the inheritance, the same glyph and the same bargain the Team cell makes
+    // at 120px. Inheritance did not change with the widening: blank still means
+    // inherit, and a row with a chip of its own inherits nothing.
+    const child = screen.getByLabelText('Services for 010.1');
+    expect(child).toHaveValue('');
+    expect(child).toHaveAttribute('placeholder', '↳ Checkout');
+    // A marker that cannot say where it came from is a mystery, not a signal.
+    expect(child).toHaveAttribute(
+      'title',
+      expect.stringMatching(/Checkout — inherited from 010 Strip the walls/),
+    );
+  });
+
+  itDom('shows every service a row states, and takes one off without the rest', async () => {
+    // **Task 10.4's own case, and the one a single-select could not pass.** The
+    // store has been a set since 10.2 and the cell read `serviceIds[0]` until
+    // now, so a row carrying two services showed one of them and any edit sent
+    // that one back — the second was invisible on screen and lost on the next
+    // choice.
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const checkout = api.addService('Checkout');
+    // `addService` is idempotent by name, so this is the same `Ledger` the
+    // shared fixture makes rather than a second one.
+    const ledger = api.addService('Ledger');
+    api.labelWithService(strip.id, [checkout.id, ledger.id]);
+
+    const patches: unknown[] = [];
+    const watched: ProjectApi = {
+      ...api,
+      patch: async (id, patch) => {
+        patches.push({ id, patch });
+        return api.patch(id, patch);
+      },
+    };
+    await drawn(watched);
+
+    // Both on screen, each removable on its own.
+    expect(screen.getByLabelText('Remove Checkout from 010')).toBeTruthy();
+    expect(screen.getByLabelText('Remove Ledger from 010')).toBeTruthy();
+
+    // Removing one sends **the set as it will stand**, not the member removed —
+    // a delta has no inverse the undo journal could carry (task 10.3).
+    fireEvent.click(screen.getByLabelText('Remove Checkout from 010'));
+    await waitFor(() => {
+      expect(patches).toHaveLength(1);
+    });
+    expect(patches[0]).toMatchObject({ patch: { serviceIds: [ledger.id] } });
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Remove Checkout from 010')).toBeNull();
+    });
+    expect(screen.getByLabelText('Remove Ledger from 010')).toBeTruthy();
+  });
+
+  itDom(
+    'sends the service the picker chose, and the empty set when the last chip goes',
+    async () => {
+      const api = await aServicedPlan();
+      const patches: unknown[] = [];
+      const watched: ProjectApi = {
+        ...api,
+        patch: async (id, patch) => {
+          patches.push({ id, patch });
+          return api.patch(id, patch);
+        },
+      };
+      await drawn(watched);
+
+      // Choosing on the child, which had none: the id goes out, as the whole set
+      // it will stand as — one member here because the child had nothing.
+      const child = screen.getByLabelText('Services for 010.1');
+      fireEvent.change(child, { target: { value: 'Ledger' } });
+      fireEvent.click(await screen.findByText('Ledger'));
+      await waitFor(() => {
+        expect(patches).toHaveLength(1);
+      });
+
+      // Taking the last one off the parent, which had one. **`[]`, not an omitted
+      // field.** An absent `serviceIds` is "no opinion" to the patch and would
+      // leave `Checkout` standing — the cell would appear to clear and the next
+      // refetch would put the label back. The empty array is the one spelling of
+      // taking the label off since task 10.2; the `null` this asserted was the
+      // column's.
+      //
+      // Through the **chip**, not through a Clear button: since task 10.4 this box
+      // holds no value, and `CreatablePicker` draws its ✕ only for a box that
+      // does. This case is what found that — written against `Clear Services for
+      // 010` it failed on `Unable to find a label with the text of`, which is why
+      // the cell passes no `onClear` and says so.
+      fireEvent.click(screen.getByLabelText('Remove Checkout from 010'));
+      await waitFor(() => {
+        expect(patches).toHaveLength(2);
+      });
+      expect(patches[1]).toMatchObject({ patch: { serviceIds: [] } });
+    },
+  );
+
+  itDom('is not a column at all on a deployment that has never made a service', async () => {
+    // `CONDITIONAL_COLUMNS`' whole bargain: 120px is only spent where somebody
+    // has opted into the dimension. Keyed on the **directory**, not on this
+    // plan's rows — a plan nobody has labelled still needs the cell to put a
+    // first service in, which is why the assertion below uses a fixture with a
+    // service in the directory and none on the row.
+    const bare = fakeApi();
+    await bare.create('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+    render(<WbsTable projectId="p1" api={bare} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    expect(screen.queryByLabelText('Services for 010')).toBeNull();
+
+    cleanup();
+
+    const stocked = fakeApi();
+    await stocked.create('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+    stocked.addService('Checkout');
+    render(<WbsTable projectId="p1" api={stocked} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    expect(screen.getByLabelText('Services for 010')).toHaveValue('');
   });
 });

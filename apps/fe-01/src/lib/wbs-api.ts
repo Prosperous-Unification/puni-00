@@ -272,6 +272,36 @@ export interface WorkItemView {
    */
   tagIds?: string[];
   /**
+   * What this work item delivers, by service id — the whole set, empty where
+   * nobody has said.
+   *
+   * **A list, as the two dimensions above are**, since task 10.2 replaced the
+   * column with `work_item_service` (design.md D2 as amended): a row delivers as
+   * many services as somebody states. Empty is _unstated_ and takes the
+   * ancestor's answer; `effectiveServicesOf` in `libs/domain` is the reading, and
+   * it is the same walk `teamIds` and `tagIds` use, now with no conversion at
+   * either edge — the two singleton folds this field used to force are deleted.
+   *
+   * **Independent of `teamIds` and `tagIds` in every respect** — a row states
+   * any of the three, all of them or none, and inheriting one says nothing about
+   * the others. What relates a service to a team is the directory's ownership
+   * map ({@link TeamView.serviceIds}), which labels no work item at all.
+   *
+   * **Nothing that computes a date reads this**, `tagIds`' rule and for its
+   * reason: a team is a pool the scheduler spends, a service is what is being
+   * delivered, and be-01 asserts the empty diff on a plan where a sized team
+   * really does decide dates.
+   *
+   * **Optional on the wire, and required on a `TreeRow`** — `tagIds`' swap
+   * window, argued there. `undefined` here is "the be-01 that answered has never
+   * heard of services"; `toTree` folds it to `[]`, which is the one place it may,
+   * because every surface above reads a `string[]` and is right to. The
+   * distinction the singleton drew between `undefined` and `null` is gone with
+   * the null: absent and empty were only ever different to a reader who could do
+   * nothing with the difference.
+   */
+  serviceIds?: string[];
+  /**
    * Who does this work, by role id.
    *
    * `string | undefined` rather than `string`: a role nobody is assigned to is
@@ -360,6 +390,31 @@ export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: R
 export interface TeamView {
   id: string;
   name: string;
+  /**
+   * The services this team is **responsible for** — the ownership map, shipped
+   * whole (design D4).
+   *
+   * Not a label on any work item and not inherited: it is directory data about
+   * the team itself, edited on the team's own row. The client needs the map per
+   * row anyway to filter on **built by a non-owner** without a round trip, so
+   * be-01 sends the map rather than a derived flag — a flag would be a second
+   * copy of a rule the client already has to hold, and the copy nobody looks at
+   * is the one that drifts.
+   *
+   * Empty means a team that owns nothing, which is every team until somebody
+   * fills the map in: it ships with no data, because nothing may invent who owns
+   * what.
+   *
+   * **Optional on the wire, for the blue/green window and nothing else** —
+   * `WorkItemView.serviceIds`' rule one level up. `undefined` is "the be-01 that
+   * answered has never heard of services", which a browser holding the new
+   * bundle against the old server sees for the length of a deploy; `[]` is "it
+   * has, and this team owns none". They are the same thing to every reader here,
+   * so `WbsTable` folds the first into the second in the one place it may
+   * (`ownedServicesByTeam`) and nothing below that has to know. A crash in that
+   * window is what this costs a line to avoid.
+   */
+  serviceIds?: string[];
 }
 
 /**
@@ -372,6 +427,27 @@ export interface TeamView {
  * page renders tags with no capacity column has learned the model rule.
  */
 export interface TagView {
+  id: string;
+  name: string;
+}
+
+/**
+ * One service in the global directory — {@link TagView}'s two columns, and for
+ * a different absence again.
+ *
+ * A tag has no size because nothing about a tag is spent. A service has none
+ * because a service is not a pool either: it is what the work is *part of*, and
+ * who has the people is still {@link TeamView}, whose ownership of services is
+ * {@link TeamView.serviceIds} and not a column here.
+ *
+ * **Read-only on this client so far.** Adding, renaming and removing a service
+ * are the directory page's, and that card is task 7.5; the list arrived early
+ * because the filter's service facet cannot name what it offers without it
+ * (task 6.3). A reader who notices `listServices` standing alone where the tags
+ * have four methods has read the order the change is being built in, not a gap
+ * in the API.
+ */
+export interface ServiceView {
   id: string;
   name: string;
 }
@@ -535,6 +611,29 @@ export interface PersonPatch {
 }
 
 /**
+ * The parts of a team a patch may change.
+ *
+ * {@link PersonPatch}'s shape and its rule about absence, one entity over: an
+ * absent `serviceIds` leaves the **ownership map** alone and an empty one makes
+ * a team that owns nothing. be-01 tells those two apart inside its own write
+ * transaction, so this type must not collapse them into one array with a
+ * default.
+ *
+ * `serviceIds` is the whole set as it will stand, not a delta — it is the same
+ * full-replacement bargain `teamIds` makes, and for the same reason: a delta
+ * needs the client to know what it is diffing against, and this page redraws
+ * from a directory somebody else may have changed.
+ *
+ * This is directory data **about a team**, not a label on anybody's work: it
+ * says which services the team is responsible for, which is what makes a row
+ * built by a non-owner nameable at all (Dany, 2026-08-20 23:18).
+ */
+export interface TeamPatch {
+  name?: string;
+  serviceIds?: readonly string[];
+}
+
+/**
  * The deployment's directory, and everything the directory page does to it.
  *
  * Separate from {@link ProjectApi} because it belongs to no project: these four
@@ -546,6 +645,8 @@ export interface DirectoryApi {
   listTeams(): Promise<TeamView[]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<TagView[]>;
+  /** Every service in the global directory, by name. */
+  listServices(): Promise<ServiceView[]>;
   addTag(name: string): Promise<TagView>;
   renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
@@ -554,12 +655,40 @@ export interface DirectoryApi {
    * 409-then-confirm gesture.
    */
   removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoval>;
+  /**
+   * Adds a service — `addTag`'s shape and its non-goal: the plan's own service
+   * cell deliberately cannot create one, so a typo made in a cell cannot become
+   * a second spelling of something the vocabulary already holds.
+   */
+  addService(name: string): Promise<ServiceView>;
+  renameService(serviceId: string, name: string): Promise<DirectoryWrite<ServiceView>>;
+  /**
+   * Removes a service — `removeTag`'s shape exactly, and since task 10.2 that
+   * is literal rather than analogous: the removal takes labelling **rows** off
+   * `work_item_service` and nulls no column, so its usage arrives as
+   * `label_removed` like a tag's and not as the `label_nulled` a team's does.
+   *
+   * The `team_service` rows it also takes are deliberately **absent** from that
+   * usage (design.md D7): losing an ownership claim about a service that is
+   * going is not an effect on any plan.
+   */
+  removeService(serviceId: string, cascade: boolean): Promise<DirectoryRemoval>;
   /** Adds a person; no teams means a **free agent**. Idempotent by name at be-01. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
   addTeam(name: string): Promise<TeamView>;
   /** Renames a person, or sets exactly the teams they belong to, or both. */
   patchPerson(id: string, patch: PersonPatch): Promise<DirectoryWrite<PersonView>>;
-  renameTeam(id: string, name: string): Promise<DirectoryWrite<TeamView>>;
+  /**
+   * Renames a team, or sets exactly the services it is responsible for, or
+   * both — `patchPerson`'s shape, and **one** spelling for the one route
+   * be-01 offers.
+   *
+   * It was `renameTeam(id, name)` until task 7.5's ownership picker needed the
+   * other field. A second method beside it would have been two ways to write
+   * `PATCH /api/teams/:id`, which is how a page and a picker come to disagree
+   * about what a team is — this client's own standing argument.
+   */
+  patchTeam(id: string, patch: TeamPatch): Promise<DirectoryWrite<TeamView>>;
   /**
    * Removes a person, or answers the **directory usage** that would go with
    * them.
@@ -854,12 +983,35 @@ export interface ProjectApi {
        * transaction. At most 50 ids.
        */
       tagIds?: readonly string[];
+      /**
+       * The services this row delivers, **whole**: the set as it will stand, not
+       * a delta against the one that is there.
+       *
+       * No `null` arm, and `tagIds`' rule rather than its own since task 10.2:
+       * the store is `work_item_service` and not a nullable column (D2 as
+       * amended), so "no services" is the empty array and a null would be a
+       * second spelling of it. Absent leaves the dimension alone — which is why
+       * the cell that clears it sends `[]` rather than omitting the field.
+       *
+       * Refused with a 404 (`unknown_service`) for an id the directory does not
+       * carry — the **whole** patch, rename included — decided inside be-01's own
+       * write transaction, `unknown_tag`'s rule one dimension over. At most 10
+       * ids.
+       */
+      serviceIds?: readonly string[];
     },
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
   listTeams(): Promise<TeamView[]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<TagView[]>;
+  /**
+   * Every service in the global directory. **Read-only here on purpose**, which
+   * is not `DirectoryApi`'s state of affairs but this interface's rule: a plan
+   * page reads the vocabulary to fill its picker and its facet, and the
+   * directory page is the one surface that changes it.
+   */
+  listServices(): Promise<ServiceView[]>;
   addTag(name: string): Promise<TagView>;
   renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
@@ -1165,7 +1317,7 @@ async function writeDirectoryAt<T>(
   path: string,
   token: string,
   init: RequestInit,
-  key: 'person' | 'team' | 'tag',
+  key: 'person' | 'team' | 'tag' | 'service',
 ): Promise<DirectoryWrite<T>> {
   const res = await fetch(path, { ...init, headers: auth(token) });
   const text = await res.text();
@@ -1176,7 +1328,7 @@ async function writeDirectoryAt<T>(
     }
   }
   if (!res.ok) throw new Error(refusalCodeIn(text, res.status));
-  const body = JSON.parse(text) as Partial<Record<'person' | 'team' | 'tag', T>>;
+  const body = JSON.parse(text) as Partial<Record<'person' | 'team' | 'tag' | 'service', T>>;
   const entry = body[key];
   if (entry === undefined) throw new Error('unexpected_response');
   return { ok: true, entry };
@@ -1364,7 +1516,7 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
 /**
  * The deployment's directory over HTTP.
  *
- * The one spelling of these eight calls. `httpProjectApi`'s four directory
+ * The one spelling of these calls. `httpProjectApi`'s four directory
  * methods delegate here rather than repeating the paths, because two copies of
  * `/api/people` is how a page and a picker come to disagree about what a person
  * is.
@@ -1401,11 +1553,11 @@ export function httpDirectoryApi(token: string): DirectoryApi {
         'person',
       );
     },
-    renameTeam(id, name) {
+    patchTeam(id, patch) {
       return writeDirectoryAt<TeamView>(
         `/api/teams/${id}`,
         token,
-        { method: 'PATCH', body: JSON.stringify({ name }) },
+        { method: 'PATCH', body: JSON.stringify(patch) },
         'team',
       );
     },
@@ -1414,6 +1566,31 @@ export function httpDirectoryApi(token: string): DirectoryApi {
     async listTags() {
       const body = await send<{ tags: TagView[] }>('/api/tags', token);
       return body.tags;
+    },
+    // The service half, and it is the tag half with the word changed —
+    // `/api/services` is global exactly as `/api/tags` is, with no project in
+    // any of these four paths.
+    async listServices() {
+      const body = await send<{ services: ServiceView[] }>('/api/services', token);
+      return body.services;
+    },
+    async addService(name) {
+      const body = await send<{ service: ServiceView }>('/api/services', token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.service;
+    },
+    renameService(id, name) {
+      return writeDirectoryAt<ServiceView>(
+        `/api/services/${id}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ name }) },
+        'service',
+      );
+    },
+    removeService(id, cascade) {
+      return removeDirectoryAt(`/api/services/${id}${cascade ? '?cascade=true' : ''}`, token);
     },
     async addTag(name) {
       const body = await send<{ tag: TagView }>('/api/tags', token, {
@@ -1500,6 +1677,7 @@ export function httpProjectApi(token: string): ProjectApi {
     listTeams: () => directory.listTeams(),
     addTeam: (name) => directory.addTeam(name),
     listTags: () => directory.listTags(),
+    listServices: () => directory.listServices(),
     addTag: (name) => directory.addTag(name),
     renameTag: (tagId, name) => directory.renameTag(tagId, name),
     removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),

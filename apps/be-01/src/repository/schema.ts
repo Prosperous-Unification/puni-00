@@ -267,6 +267,49 @@ export const workItem = sqliteTable(
      */
     serviceTeamId: text('service_team_id'),
     /**
+     * The one service this work is delivered for, or null — the third label
+     * dimension, beside teams and tags.
+     *
+     * Dany, 2026-08-20: _"I need to have service and team as separate
+     * entities"_, and _"Let service and teams be independent"_. So this is not
+     * read through {@link workItemTeam}: a row states its team and its service
+     * separately, and either may be blank. {@link service} is what it points at.
+     *
+     * **Superseded by {@link workItemService}, and still here on purpose.** This
+     * column was the dimension's first store, chosen so the schema stated the
+     * cardinality rather than a comment stating it — one service per item. Dany
+     * widened that to a set on 2026-08-21 (_"can be several services"_), the same
+     * argument then pointed straight at the join table it had rejected, and
+     * `20260821080000_add_work_item_service` seeded one from this column. The
+     * paragraph that made the widening cost a read instead of a redesign was the
+     * one saying the **domain** reading was set-shaped all along:
+     * `effectiveServicesOf` handed the shared walk a singleton, so nothing about
+     * the inheritance had to move.
+     *
+     * It survives the widening because blue and green share one SQLite file
+     * during a swap and the outgoing release still selects and writes it.
+     * Dropping it is a later migration, once no running release names it — the
+     * same additive rule {@link serviceTeam}'s wrong name follows (design.md D2,
+     * amended, and D9).
+     *
+     * **`ON DELETE SET NULL`, never `CASCADE`: deleting a service must not
+     * delete work items.** It is also what makes the directory's removal effect
+     * `label_nulled` rather than `label_removed` — a column is nulled, a set
+     * member is removed, and `directory-usage.ts` already tells those two
+     * sentences apart. That is still the true sentence while this column is the
+     * one a reader is told about; it becomes `label_removed` when the read moves
+     * to {@link workItemService} (tasks 10.2 and 10.5), not before.
+     *
+     * **Blank means inherit**, exactly as it does for teams and tags: a row with
+     * no service takes its nearest ancestor's, and a row with one overrides it.
+     * There is no third "deliberately none" state.
+     *
+     * **Nothing a date reads.** `service/schedule.ts` has an empty diff in the
+     * change that adds this column: a service is a grouping and reporting fact,
+     * with no pool and no size anywhere beside it.
+     */
+    serviceId: text('service_id').references(() => service.id, { onDelete: 'set null' }),
+    /**
      * How many people may be on this work item at once — 1 or more, never
      * null.
      *
@@ -728,6 +771,173 @@ export const workItemTag = sqliteTable(
 );
 
 export type WorkItemTagRow = typeof workItemTag.$inferSelect;
+
+/**
+ * What a work item is delivered **for** — `Payments`, `Search`, `Billing`.
+ *
+ * Dany, 2026-08-20: _"I need to have service and team as separate entities"_,
+ * and, asked how the two relate, _"Let service and teams be independent"_. Until
+ * this table the directory's one entity was literally called `service_team` and
+ * answered both questions with one row; this is the second question given its
+ * own table.
+ *
+ * **The name trap, and it is real for one release: {@link serviceTeam} means
+ * _team_ and this means _service_.** No rename here — blue and green share one
+ * SQLite file during a swap and the outgoing release selects `service_team` on
+ * every tree read, so renaming it would break the release still running while
+ * this one boots. R2-6 does the rename once no running release reads the old
+ * name (`service-split`'s design.md D9).
+ *
+ * **What this table is not, and the absences are the design.** Not a pool: no
+ * `size` column here and no per-project table beside it, so nothing anywhere can
+ * ask how many of a service may be at work at once — {@link serviceTeam} is
+ * where capacity lives, because capacity is spent by the people doing the work
+ * and not by the thing the work is for. **Not anything a date reads**:
+ * `service/schedule.ts` has an empty diff in the change that adds this, watched
+ * by a test that wires the scheduler to a service and shows every downstream
+ * date move. Not a tag either — {@link tag} stayed general-purpose, and what
+ * makes a service more than a label is {@link teamService} below.
+ *
+ * **Global — no project column**, mirroring {@link serviceTeam} and {@link tag}
+ * exactly. `Payments` means `Payments` in every plan, which is what lets an
+ * export column mean the same thing across plans.
+ *
+ * `name` is `NOT NULL` with a unique index on it, and the index is what lets a
+ * rename answer `taken` with the surviving name rather than writing a second row
+ * that reads identically. Unique at the database rather than only in the
+ * service: two people creating `Payments` at the same moment both pass a
+ * check-then-insert, and only a constraint stops the second.
+ */
+export const service = sqliteTable(
+  'service',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('service_name').on(t.name)],
+);
+
+export type ServiceRow = typeof service.$inferSelect;
+
+/**
+ * Which services one team is **responsible for** — several, and this is the fact
+ * that makes a service more than a label.
+ *
+ * Dany, 2026-08-20: _"one team can be responsible for several services - it must
+ * be configurable in the directory. It will help in the future to flag where
+ * teams build something they do not own."_ So this is directory data about teams
+ * and services themselves. It labels no work item, and the flagging it enables
+ * is a **signal** computed on read — a row whose effective team and effective
+ * service are both stated, where the service is not in that team's owned set —
+ * never a validation and never a block.
+ *
+ * The pair is the primary key because the pair is the fact: "Platform owns
+ * Payments" is either stated or not, and a second row saying it again would be a
+ * second answer to one question. {@link workItemTeam}'s shape, two tables up.
+ *
+ * **Both sides cascade**, carrying {@link workItemTag}'s argument unchanged:
+ * blue and green share one SQLite file during a swap, the outgoing release knows
+ * nothing about this table, and its plain `DELETE FROM service_team` must not
+ * hit a constraint it cannot see. `DELETE /api/services/:id` still counts what
+ * it would unlabel and still refuses with 409 unless `?cascade=1` — but the
+ * rows **this** table loses are deliberately not in that count, because an
+ * ownership statement about a service that is being deleted is not a loss a
+ * person needs to weigh (`service-split`'s design.md D7).
+ *
+ * **Not a capacity, and not a scheduling input.** Nothing here bounds anything,
+ * and no date reads it: a team owning three services is not thereby three times
+ * as busy.
+ *
+ * Indexed by `service_id`, because the directory asks "what would removing this
+ * service touch" and the primary key answers only the other direction —
+ * {@link workItemTag}'s `work_item_tag_by_tag`, one dimension over.
+ */
+export const teamService = sqliteTable(
+  'team_service',
+  {
+    teamId: text('team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => service.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.teamId, t.serviceId] }),
+    index('team_service_by_service').on(t.serviceId),
+  ],
+);
+
+export type TeamServiceRow = typeof teamService.$inferSelect;
+
+/**
+ * Which services one work item is delivered for — **several**, and independently
+ * of its teams and its tags.
+ *
+ * Dany, 2026-08-21: _"can be several services."_ {@link workItem.serviceId} was
+ * this dimension's first store and held exactly one; this table is the same fact
+ * widened, and it is {@link workItemTag} line for line because the cardinality is
+ * now the same.
+ *
+ * **The column above is still there and is not read here.** Blue and green share
+ * one SQLite file during a swap: the outgoing release selects
+ * `work_item.service_id` on every tree read and writes it on every patch, so the
+ * migration that adds this table leaves the column standing and merely stops
+ * being interested in it. Dropping it is a later migration, once no running
+ * release names it — the additive rule `service_team`'s surviving name already
+ * follows (`service-split`'s design.md D2 and D9).
+ *
+ * **Seeded from that column, so the widening loses nothing.** Every row with a
+ * stated service arrives here carrying it, and the set the reader gets after the
+ * migration is the singleton it got before. A migration that created this table
+ * empty would have unlabelled every plan on the box in the name of a wider type.
+ *
+ * The pair is the primary key because the pair is the fact: "this work item is
+ * delivered for Payments" is either stated or not, and a second row saying it
+ * again would be a second answer to one question.
+ *
+ * **Both sides cascade**, and each side's reason is {@link workItemTag}'s
+ * unchanged. `work_item_id`: the outgoing release's plain `DELETE FROM work_item`
+ * must not hit a constraint it cannot see. `service_id`: a service is a label,
+ * deleting the label should take the labelling with it, and there is nothing to
+ * count that the label itself was not — `DELETE /api/services/:id` still counts
+ * what it would unlabel and still refuses with 409 unless `?cascade=1`, for the
+ * person pressing the button rather than for the integrity of anything.
+ *
+ * The cascade is also the one behaviour that changes for a reader on the day this
+ * lands: {@link workItem.serviceId} nulls on a service delete
+ * (`ON DELETE SET NULL`) and a row here is _removed_, so the directory's effect
+ * kind becomes `label_removed` — with the read path, not with this table, since
+ * until then it is the column a reader is told about (tasks 10.2 and 10.5).
+ *
+ * **Inheritance is not stored here**, exactly as it is not stored for teams or
+ * tags: a work item with no rows in this table inherits its nearest ancestor's
+ * services, one with rows overrides them, and `effectiveServicesOf` computes that
+ * on every read. Blank means inherit; there is no third "deliberately none"
+ * state.
+ *
+ * Indexed by `service_id`, because the directory asks "what would removing this
+ * service touch" of every project at once and the primary key answers only the
+ * other direction — {@link workItemTag}'s `work_item_tag_by_tag`, one dimension
+ * over.
+ */
+export const workItemService = sqliteTable(
+  'work_item_service',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => service.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.serviceId] }),
+    index('work_item_service_by_service').on(t.serviceId),
+  ],
+);
+
+export type WorkItemServiceRow = typeof workItemService.$inferSelect;
 
 /**
  * How many of one team may be at work at once **on one project's plan**.
