@@ -84,6 +84,18 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   services: ServiceView[];
   /** The directory's tags, arranged the way {@link services} is. */
   tags: TagView[];
+  /**
+   * The directory's people, arranged the way {@link teams} is — and it is the
+   * **membership** on them that matters here, not the names.
+   *
+   * Exposed for the `assigned outside the team` control: this fake's one person
+   * belongs to no team, so every assignment onto a labelled row provokes that
+   * signal, and a case meaning to show the signal *absent* has no way to say so
+   * without putting them in a team. Without this, "the directory has no
+   * quarrel" is a claim only half of which can be arranged, which is a control
+   * that passes for the wrong reason.
+   */
+  people: PersonView[];
 } {
   const rows: WorkItemView[] = [];
   const roleList: RoleView[] = [{ ...DEV }, { ...QA }];
@@ -119,6 +131,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     teams,
     services,
     tags,
+    people,
     tree: () =>
       Promise.resolve({
         workItems: rows.map(view),
@@ -1040,6 +1053,118 @@ describe('what a card says about capacity', () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(['Billing', 'regulatory', 'Payments']);
   });
 
+  /**
+   * The narrow-width sibling of `wbs-table.test.tsx`'s two marker cases, which
+   * assert the same two sentences at `LAPTOP` (`marks the service cell of a row
+   * a non-owner is building` and `marks the assignee on a folded role`).
+   *
+   * Filed as `phone-mismatch-markers` off a Browser Use Cloud walk of dev on
+   * 2026-08-22: at 390px both markers were counted in the DOM and there were
+   * **none** — 0 `[title]` matching either sentence, 0 `△` in `innerText` —
+   * against 2 and 2 on the same rows at desktop width, while the card went on
+   * printing the team and the service that constitute the mismatch. The
+   * `serviceLabel` prop's own JSDoc had recorded the gap as a deliberate
+   * both-or-neither decision; this is the both.
+   *
+   * `Kat` is the fake's one person and belongs to no team, so a row carrying a
+   * team is a row she is assigned outside of; `Billing` owns nothing, so a row
+   * delivering `Payments` is built by a non-owner. One row provokes both, which
+   * is what the pairing rule needs asserted together.
+   */
+  const mismatchesOnCard = (): HTMLElement[] => [
+    ...document.querySelectorAll<HTMLElement>('[data-card-mismatch]'),
+  ];
+
+  const aMismatchedPlan = async (howMany = 1): Promise<void> => {
+    await aPlan((rows, teams, api) => {
+      teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
+      api.services.push({ id: 's1', name: 'Payments' });
+      rows[0].serviceTeamId = 't1';
+      rows[0].teamIds = ['t1'];
+      rows[0].serviceIds = ['s1'];
+      void api.assign(rows[0].id, DEV.id, 'p1');
+    }, howMany);
+  };
+
+  itDom('says both mismatch signals on a card, in the sentences the table hovers', async () => {
+    await aMismatchedPlan();
+
+    expect(mismatchesOnCard().map((each) => each.getAttribute('data-card-mismatch'))).toEqual([
+      'service',
+      'assignee',
+    ]);
+    // The whole sentence, not its presence: the sentence *is* the signal, and a
+    // phone that drew a mark it could not explain would be the mystery 7.2
+    // forbids. The same two strings `wbs-table.test.tsx` asserts on the table.
+    expect(mismatchesOnCard()[0]?.textContent).toBe(
+      '△Built by a non-owner: Billing does not own Payments.' +
+        ' Nothing is blocked — the plan is recording this, not refusing it.',
+    );
+    expect(mismatchesOnCard()[1]?.textContent).toBe(
+      '△Assigned outside the team: Kat is not in Billing.' +
+        ' Nothing is blocked — the plan is recording this, not refusing it.',
+    );
+  });
+
+  itDom(
+    'prints the sentence rather than hiding it in a title, which a phone cannot open',
+    async () => {
+      // The breakpoint's own decision and the reason this task existed: the
+      // table's mark carries its words in `title` + `aria-label`, and a `title`
+      // reaches a pointer only. There is no pointer here. So the words are text —
+      // asserted as *absence of a title anywhere on the block*, because a copy
+      // left in one would let the visible text be deleted later and the case
+      // still pass on the tooltip.
+      await aMismatchedPlan();
+
+      for (const each of mismatchesOnCard()) expect(each.getAttribute('title')).toBeNull();
+      expect(document.querySelector('[data-card-mismatches]')?.getAttribute('title')).toBeNull();
+      // The glyph is decoration now that the sentence beside it is the accessible
+      // name; a screen reader announcing the triangle first would read it out.
+      expect(mismatchesOnCard()[0]?.querySelector('[aria-hidden]')?.textContent).toBe('△');
+    },
+  );
+
+  itDom('marks nothing on a row the directory has no quarrel with', async () => {
+    // The control, and it is what makes the two cases above findings rather
+    // than counted flags: the identical arrangement — same team, same service,
+    // same assignee — with `Billing` owning `Payments` and `Kat` in `Billing`
+    // provokes neither signal. A block that rendered unconditionally would put
+    // a sentence on every card of a plan, which is the marker-covers-everything
+    // failure `label-mismatch.ts` spends three paragraphs refusing.
+    //
+    // **Both halves have to be cleared and the first version cleared one.** It
+    // owned the service and left Kat in no team, so the card still carried the
+    // assignee sentence and the case passed only while an injection had the
+    // whole block struck. Watched 2026-08-22: with the dedup injected off, this
+    // failed on `expected <ul> to be null` — a control reddening for a fault it
+    // was not about is a control asserting nothing.
+    await aPlan((rows, teams, api) => {
+      teams.push({ id: 't1', name: 'Billing', serviceIds: ['s1'] });
+      api.services.push({ id: 's1', name: 'Payments' });
+      api.people[0].teamIds = ['t1'];
+      rows[0].serviceTeamId = 't1';
+      rows[0].teamIds = ['t1'];
+      rows[0].serviceIds = ['s1'];
+      void api.assign(rows[0].id, DEV.id, 'p1');
+    });
+
+    expect(document.querySelector('[data-card-mismatches]')).toBeNull();
+    expect(mismatchesOnCard()).toEqual([]);
+  });
+
+  itDom('says one outsider once, however many phases the plan puts them on', async () => {
+    // Kat is named on Dev alone, so `doesEveryPhase` assumes her onto QA too and
+    // `assigneeOn` answers with the same sentence for both roles. Two roles,
+    // one fact, one line — 390px of card is not where the same words get
+    // printed twice, and a signal repeated is a signal a reader stops reading.
+    await aMismatchedPlan();
+
+    expect(
+      mismatchesOnCard().filter((each) => each.getAttribute('data-card-mismatch') === 'assignee'),
+    ).toHaveLength(1);
+  });
+
   itDom('names the band on a card, in its own colour', async () => {
     // The cards are the only face some readers have — a phone shows no table and
     // no chart — so this is where Dany's "ui must display differently for
@@ -1336,6 +1461,7 @@ function renderCards(
       teamLabel={() => ({ state: 'none' })}
       tagLabel={() => ({ state: 'none' })}
       serviceLabel={() => ({ state: 'none' })}
+      nonOwner={() => null}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
       showDay={(days) => String(days)}
       rowActions={rowActions}
