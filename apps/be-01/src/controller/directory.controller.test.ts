@@ -14,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleMeasureRepository } from '../repository/role-measure';
 import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -74,6 +75,7 @@ beforeEach(async () => {
       projects,
       estimates: new EstimateRepository(db),
       actuals: new ActualRepository(db),
+      measures: new RoleMeasureRepository(db),
       progress: new RoleProgressRepository(db),
       dependencies: new DependencyRepository(db),
       directory: store,
@@ -346,6 +348,23 @@ describe('POST /api/people into teams', () => {
     // without the validation this request is a raw constraint failure — a 500.
     expect(await store.listPeople()).toEqual([]);
   });
+
+  it('answers a kind for a person nobody has patched, on the create and on the list', async () => {
+    // The read half of `kind`: 4.4 proved a `PATCH` can set it, and this proves
+    // a client never has to patch to *see* one. Both the create's own body and
+    // the list, because `POST` answers the row it wrote while `GET` re-reads —
+    // a default that only appeared on one of them would send a client's
+    // `?? 'person'` fallback back into the fe.
+    const created = await call('POST', '/api/people', { name: 'Kat', teamIds: [] });
+
+    expect(created.status).toBe(200);
+    expect(created.body).toMatchObject({ person: { name: 'Kat', kind: 'person' } });
+
+    const listed = await call('GET', '/api/people');
+
+    expect(listed.status).toBe(200);
+    expect(listed.body).toMatchObject({ people: [{ name: 'Kat', kind: 'person' }] });
+  });
 });
 
 describe('DELETE /api/people/:id and /api/teams/:id', () => {
@@ -452,7 +471,7 @@ describe('PATCH /api/people/:id', () => {
 
     expect(patched).toEqual({
       status: 200,
-      body: { person: { id: kat, name: 'Katrin', teamIds: [payments] } },
+      body: { person: { id: kat, name: 'Katrin', kind: 'person', teamIds: [payments] } },
     });
   });
 
@@ -466,7 +485,9 @@ describe('PATCH /api/people/:id', () => {
         teamIds: [crypto.randomUUID()],
       }),
     ).toEqual({ status: 404, body: { error: 'unknown_team' } });
-    expect(await store.listPeople()).toEqual([{ id: kat, name: 'Kat', teamIds: [platform] }]);
+    expect(await store.listPeople()).toEqual([
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform] },
+    ]);
   });
 
   it('answers 422 to a patch that names nothing to change', async () => {
@@ -476,6 +497,38 @@ describe('PATCH /api/people/:id', () => {
       status: 422,
       body: { error: 'nothing_to_change' },
     });
+  });
+
+  it('marks a person an agent, and marks them back', async () => {
+    const kat = await addPerson('Kat', []);
+
+    expect(await call('PATCH', `/api/people/${kat}`, { kind: 'agent' })).toEqual({
+      status: 200,
+      body: { person: { id: kat, name: 'Kat', kind: 'agent', teamIds: [] } },
+    });
+    // Patching it back is the whole undo — the directory journals nothing, and
+    // `plan_event` is a plan's history, so it cannot hold this. tasks.md 4.4.
+    expect(await call('PATCH', `/api/people/${kat}`, { kind: 'person' })).toEqual({
+      status: 200,
+      body: { person: { id: kat, name: 'Kat', kind: 'person', teamIds: [] } },
+    });
+  });
+
+  it('answers 400 invalid_kind for a kind outside the set, rename included', async () => {
+    // The refusal is only reachable because the route's schema takes a
+    // `t.String()`: a union of the two kinds would have Elysia answer first,
+    // with its own body, and `invalid_kind` would never be sent by the API that
+    // exists to send it. The name beside it proves the check runs before the
+    // write rather than after.
+    const kat = await addPerson('Kat', []);
+
+    expect(await call('PATCH', `/api/people/${kat}`, { name: 'Katrin', kind: 'robot' })).toEqual({
+      status: 400,
+      body: { error: 'invalid_kind' },
+    });
+    expect(await store.listPeople()).toEqual([
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [] },
+    ]);
   });
 
   it('answers 409 taken with the surviving name', async () => {
@@ -500,7 +553,9 @@ describe('PATCH /api/people/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listPeople()).toEqual([{ id: kat, name: 'Kat', teamIds: [platform] }]);
+    expect(await store.listPeople()).toEqual([
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform] },
+    ]);
   });
 });
 

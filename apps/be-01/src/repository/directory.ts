@@ -6,8 +6,8 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
-  Person,
   PersonAdded,
+  PersonInsert,
   PersonPatch,
   PersonWithTeams,
   PersonWritten,
@@ -92,7 +92,7 @@ type Reader = Pick<SQLiteBunDatabase, 'select'>;
 function usageRowsIn(
   reader: Reader,
   projectIds: readonly string[],
-  members: readonly Person[],
+  members: readonly { id: string; name: string }[],
   /**
    * The team being removed, or null for a person's usage. Read here rather than
    * handed in as a number, because what the confirmation needs is one number
@@ -508,7 +508,7 @@ export class DirectoryRepository implements DirectoryStore {
    * not even JSON — the raw constraint failure this replaces; watched
    * 2026-08-09.
    */
-  async addPerson(toAdd: Person, teamIds: readonly string[]): Promise<PersonAdded> {
+  async addPerson(toAdd: PersonInsert, teamIds: readonly string[]): Promise<PersonAdded> {
     await Promise.resolve();
     const wanted = [...new Set(teamIds)];
     return this.db.transaction((tx) => {
@@ -537,7 +537,8 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * Renames a person and replaces their memberships in one transaction.
+   * Renames a person, marks them a person or an agent, and replaces their
+   * memberships, in one transaction.
    *
    * **The teams are validated before anything is written, inside the same
    * transaction.** Returning from a drizzle transaction callback *commits* it,
@@ -575,8 +576,15 @@ export class DirectoryRepository implements DirectoryStore {
             .all();
           if (found.length !== wanted.length) return { ok: false, reason: 'unknown_team' };
         }
-        if (patch.name !== undefined) {
-          tx.update(person).set({ name: patch.name }).where(eq(person.id, personId)).run();
+        // One `set`, not one per field: two updates would be two revisions of
+        // the same row for a patch the caller sent as one thing, and the second
+        // would have to be skipped when only the first field was named anyway.
+        const columns = {
+          ...(patch.name === undefined ? {} : { name: patch.name }),
+          ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+        };
+        if (Object.keys(columns).length > 0) {
+          tx.update(person).set(columns).where(eq(person.id, personId)).run();
         }
         if (wanted !== null) {
           tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
@@ -953,7 +961,7 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /** The people in one team, by name, which is the order a confirmation reads them in. */
-  private membersOf(reader: Reader, teamId: string): Person[] {
+  private membersOf(reader: Reader, teamId: string): { id: string; name: string }[] {
     return reader
       .select({ id: person.id, name: person.name })
       .from(person)

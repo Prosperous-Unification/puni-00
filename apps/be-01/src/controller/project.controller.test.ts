@@ -12,6 +12,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { testHistoryService } from '../testing/history-fixture';
+import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -26,6 +27,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     projects: projectStore,
     estimates: inMemoryEstimates(workItemStore),
     actuals: inMemoryActuals(workItemStore),
+    measures: inMemoryMeasures(workItemStore),
     progress: inMemoryProgress(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),

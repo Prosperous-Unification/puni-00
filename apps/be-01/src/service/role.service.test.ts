@@ -15,6 +15,7 @@ import { DrizzleEventLogRepo } from '../repository/event-log';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleMeasureRepository } from '../repository/role-measure';
 import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -49,6 +50,7 @@ let roleStore: RoleRepository;
 let projectStore: ProjectRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
+let measures: RoleMeasureRepository;
 let progressStore: RoleProgressRepository;
 let directory: DirectoryRepository;
 let broadcast: RecordingBroadcaster;
@@ -92,6 +94,7 @@ beforeEach(async () => {
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
   actuals = new ActualRepository(db);
+  measures = new RoleMeasureRepository(db);
   progressStore = new RoleProgressRepository(db);
   directory = new DirectoryRepository(db);
   broadcast = recordingBroadcaster();
@@ -254,8 +257,47 @@ describe('RoleService.remove', () => {
         estimates: 2,
         actuals: 0,
         progress: 0,
+        measures: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: null, assumedAfter: ada.id }],
+      },
+    });
+    expect(await roleStore.findById(qaId)).not.toBeNull();
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('carries the figures that are not days into the refusal it shows a person', async () => {
+    // `inUseFrom` is the one place both readings — the fast path's and the
+    // transaction's — are turned into the numbers somebody consents to. A count
+    // that stopped at the repository would leave this role looking free: no
+    // estimate, no recorded day, nobody assigned, and two figures that go.
+    await measures.set({
+      workItemId: 'strip',
+      roleId: qaId,
+      metric: 'token_estimate',
+      value: 8000,
+      recordedAt: 1000,
+    });
+    await measures.set({
+      workItemId: 'strip',
+      roleId: qaId,
+      metric: 'token_actual',
+      value: 9500,
+      recordedAt: 2000,
+    });
+
+    const outcome = await roles.remove(projectId, qaId, ownerId, false);
+
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'in_use',
+      inUse: {
+        estimates: 0,
+        actuals: 0,
+        progress: 0,
+        measures: 2,
+        assignments: 0,
+        assumedAssignees: [],
       },
     });
     expect(await roleStore.findById(qaId)).not.toBeNull();
@@ -380,6 +422,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates: vanishing,
       actuals: new ActualRepository(db),
+      measures: new RoleMeasureRepository(db),
       progress: new RoleProgressRepository(db),
       directory: vanishingToo,
       capacity: inMemoryCapacity(),
@@ -421,6 +464,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates,
       actuals,
+      measures,
       progress: progressStore,
       directory,
       capacity: inMemoryCapacity(),

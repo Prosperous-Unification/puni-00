@@ -8,6 +8,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -33,6 +34,7 @@ beforeEach(async () => {
     projects,
     estimates: inMemoryEstimates(workItems),
     actuals: inMemoryActuals(workItems),
+    measures: inMemoryMeasures(workItems),
     progress: inMemoryProgress(workItems),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),

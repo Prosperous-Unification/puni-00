@@ -152,6 +152,54 @@ describe('DirectoryRepository', () => {
     expect((await repo.listPeople())[0]?.teamIds).toEqual([]);
   });
 
+  it('adds an agent when the insert names one, and a person when it names nothing', async () => {
+    // The two halves of `PersonInsert`'s asymmetry, in one case because they are
+    // one claim: the kind may be omitted going in, and never comes back absent.
+    const bot = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Claire', kind: 'agent' }, []),
+    );
+    const human = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
+
+    expect(bot.kind).toBe('agent');
+    expect(human.kind).toBe('person');
+
+    // And read back through the list, not just off the insert's own answer —
+    // `addPerson` returns the row it re-selected, but a default applied by the
+    // column is only proven by a second read.
+    const people = await repo.listPeople();
+
+    expect(people.map((each) => [each.name, each.kind])).toEqual([
+      ['Ada', 'person'],
+      ['Claire', 'agent'],
+    ]);
+  });
+
+  it('writes a name and a kind in one update, and a kind alone in one too', async () => {
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const ada = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id]),
+    );
+
+    const both = await repo.patchPerson(ada.id, { name: 'Ada L', kind: 'agent' });
+
+    expect(both).toEqual({
+      ok: true,
+      person: { id: ada.id, name: 'Ada L', kind: 'agent', teamIds: [platform.id] },
+      projectIds: [],
+    });
+
+    // A patch naming only the kind still writes: the store must not read an
+    // absent `name` as "nothing to do" — deciding that is the service's job,
+    // and here it would silently drop the only field the caller sent.
+    const kindOnly = await repo.patchPerson(ada.id, { kind: 'person' });
+
+    expect(kindOnly).toEqual({
+      ok: true,
+      person: { id: ada.id, name: 'Ada L', kind: 'person', teamIds: [platform.id] },
+      projectIds: [],
+    });
+  });
+
   it('holds one assignee per role, replacing rather than adding', async () => {
     const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
     const grace = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));

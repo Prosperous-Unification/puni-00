@@ -5,11 +5,14 @@ import type {
   Assignment,
   EstimateKey,
   FrozenNumber,
+  MeasureKey,
+  MeasureMetric,
   ProgressKey,
   Reparented,
   StoredActual,
   StoredDependency,
   StoredEstimate,
+  StoredMeasure,
   StoredProgress,
   WorkItem,
   WorkItemPatch,
@@ -48,6 +51,17 @@ export type CompensatingCommand =
    */
   | { do: 'set_actual'; workItemId: string; roleId: string; days: number }
   | { do: 'clear_actual'; workItemId: string; roleId: string }
+  /**
+   * A figure in a unit that is not days — tokens estimated, tokens spent, hours
+   * spent — carrying the `metric` because that is part of the row's identity
+   * rather than a property of it. A `set_measure` that dropped it would put the
+   * number back under whichever metric happened to be read first.
+   *
+   * `recordedAt` is **not** carried, for `set_actual`'s reason exactly: an undo
+   * is somebody recording the figure again, now.
+   */
+  | { do: 'set_measure'; workItemId: string; roleId: string; metric: MeasureMetric; value: number }
+  | { do: 'clear_measure'; workItemId: string; roleId: string; metric: MeasureMetric }
   /**
    * Where the work has got to, as one of the two states a role may be **stored**
    * in. There is no `set_progress` carrying `not_started`: the way to say that
@@ -110,6 +124,18 @@ export interface DeleteSubtree {
    * branch's.
    */
   setProgress: StoredProgress[];
+  /**
+   * Figures in every unit that is not days, handed **up** to the surviving
+   * parent, at the same moment and by the same rule as
+   * {@link DeleteSubtree.setActuals}.
+   *
+   * The branch's folded totals rather than its rows, per metric, each carrying
+   * the newest `recordedAt` in the branch for that metric and role — the
+   * parent's figure is now the whole branch's. A metric nobody recorded
+   * anywhere in the branch contributes nothing here, because the absence of a
+   * row is how "nobody has said" is spelled in every unit.
+   */
+  setMeasures: StoredMeasure[];
 }
 
 /**
@@ -150,6 +176,18 @@ export interface RestoreSubtree {
    * whose copies nobody has ever worked on or spoken about.
    */
   progress: StoredProgress[];
+  /**
+   * The tokens and hours recorded against the rows being restored, put back
+   * with them.
+   *
+   * Empty for the restore a **create** is the inverse of, except in the one
+   * case the two figures beside it name: a leaf that gains its first child
+   * hands everything it holds down, measures with actuals, so undoing that
+   * create has to hand them back up. Empty for a **duplicate**, whose copies
+   * nobody has ever spent a token or an hour on — see
+   * {@link SubtreeCopy.measures}.
+   */
+  measures: StoredMeasure[];
   assignments: Assignment[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
@@ -173,6 +211,16 @@ export interface RestoreSubtree {
   removedActuals: ActualKey[];
   /** Statements to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
   removedProgress: ProgressKey[];
+  /**
+   * Figures to take off the surviving parent, for
+   * {@link RestoreSubtree.removedEstimates}' reason, one key per metric.
+   *
+   * The metric is part of the key because it is part of the row's identity: a
+   * pair may hold a token estimate the delete handed up and an hours fact it
+   * did not, and taking the pair away wholesale would delete a figure this
+   * restore never wrote.
+   */
+  removedMeasures: MeasureKey[];
 }
 
 /** What a journalled command did, in the words an undo says back. */
@@ -219,6 +267,8 @@ const COMMANDS = [
   'clear_estimate',
   'set_actual',
   'clear_actual',
+  'set_measure',
+  'clear_measure',
   'set_progress',
   'clear_progress',
   'assign',
@@ -306,6 +356,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_estimate':
     case 'set_actual':
     case 'clear_actual':
+    case 'set_measure':
+    case 'clear_measure':
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
@@ -324,6 +376,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.setEstimates.map((each) => each.workItemId),
         ...command.setActuals.map((each) => each.workItemId),
         ...command.setProgress.map((each) => each.workItemId),
+        ...command.setMeasures.map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
@@ -332,6 +385,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.removedEstimates.map((each) => each.workItemId),
         ...command.removedActuals.map((each) => each.workItemId),
         ...command.removedProgress.map((each) => each.workItemId),
+        ...command.removedMeasures.map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
   }
@@ -364,6 +418,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'clear_estimate':
     case 'set_actual':
     case 'clear_actual':
+    case 'set_measure':
+    case 'clear_measure':
     case 'set_progress':
     case 'clear_progress':
     case 'assign':

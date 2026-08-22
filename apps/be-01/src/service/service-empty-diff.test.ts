@@ -14,6 +14,7 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
+import { RoleMeasureRepository } from '../repository/role-measure';
 import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -131,6 +132,7 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: new EstimateRepository(db),
     actuals: new ActualRepository(db),
+    measures: new RoleMeasureRepository(db),
     progress: new RoleProgressRepository(db),
     directory: directoryStore,
     capacity: capacityStore,

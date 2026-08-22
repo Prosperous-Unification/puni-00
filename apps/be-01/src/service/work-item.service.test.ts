@@ -5,6 +5,7 @@ import type {
   ActualStore,
   CapacityStore,
   EstimateStore,
+  MeasureStore,
   Project,
   ProjectStore,
   RoleProgressStore,
@@ -17,6 +18,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -42,6 +44,7 @@ let directory: ReturnType<typeof inMemoryDirectory>;
 let capacity: CapacityStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
+let measures: MeasureStore;
 let progress: RoleProgressStore;
 let broadcast: RecordingBroadcaster;
 
@@ -52,6 +55,7 @@ beforeEach(async () => {
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   actuals = inMemoryActuals(workItems);
+  measures = inMemoryMeasures(workItems);
   progress = inMemoryProgress(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
@@ -61,6 +65,7 @@ beforeEach(async () => {
     projects,
     estimates,
     actuals,
+    measures,
     progress,
     dependencies,
     directory,
@@ -69,6 +74,7 @@ beforeEach(async () => {
       workItems,
       estimates,
       actuals,
+      measures,
       progress,
       dependencies,
       directory,
@@ -443,6 +449,7 @@ describe('dependencies', () => {
       projects,
       estimates: inMemoryEstimates(workItems),
       actuals: inMemoryActuals(workItems),
+      measures: inMemoryMeasures(workItems),
       progress: inMemoryProgress(workItems),
       dependencies: broken,
       journal: inMemoryCommandJournal(),
@@ -1691,6 +1698,7 @@ describe('the slices the schedule placed, on the wire', () => {
       projects: shifting,
       estimates,
       actuals,
+      measures,
       progress,
       dependencies,
       directory,
@@ -1700,6 +1708,7 @@ describe('the slices the schedule placed, on the wire', () => {
         workItems,
         estimates,
         actuals,
+        measures,
         progress,
         dependencies,
         directory,

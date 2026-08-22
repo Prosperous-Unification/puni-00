@@ -130,6 +130,41 @@ const SERVICE = '20260821000000_add_service';
  * was written, checked for a duplicate before the folder existed.
  */
 const WORK_ITEM_SERVICE = '20260821080000_add_work_item_service';
+/**
+ * The newest. A table of its own referencing `work_item` and `role` again, so it
+ * reverses ahead of the domain that holds both — `ACTUAL`'s place for `ACTUAL`'s
+ * reason.
+ *
+ * Stamped `20260821140000`, later than every folder on disk when it was written
+ * **and** later than the two `change/service-split` added, which it was stamped
+ * against while that branch was still in review. It merged first (`04d644e`),
+ * this branch was rebased onto it, and the two folders are the two above — so
+ * the guess the stamp was written on is now a fact on disk, and a stamp sorting
+ * before them would have applied out of order on any database that took that
+ * release. The duplicate check is `refuses a folder set that shares one stamp
+ * between two migrations`.
+ *
+ * It was the newest when it was written. `PERSON_KIND` is now above it, so this
+ * constant has moved into the *one before the newest* half of `does nothing when
+ * the target is already the newest applied` — the half that answers with what is
+ * newer than it, and the one a shared stamp would silently empty.
+ */
+const ROLE_MEASURE = '20260821140000_add_role_measure';
+/**
+ * The newest, and the only migration in this change that alters a table rather
+ * than adding one: `person.kind`, by `ALTER TABLE … ADD COLUMN` with a
+ * column-level `CHECK`.
+ *
+ * It reverses by `DROP COLUMN`, which SQLite documents as unavailable while a
+ * constraint names the column and which bun's SQLite 3.53.0 performs anyway,
+ * taking the `CHECK` with it. That is verified here rather than trusted — the
+ * rollback cases assert the original DDL, the rows, the memberships and the
+ * `person_name` unique index — so a future SQLite that enforces the documented
+ * restriction fails this suite instead of failing a deploy.
+ *
+ * Stamped `20260821150000`, later than every folder on disk.
+ */
+const PERSON_KIND = '20260821150000_add_person_kind';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -224,6 +259,8 @@ describe('readMigrationFolders', () => {
       TAG,
       SERVICE,
       WORK_ITEM_SERVICE,
+      ROLE_MEASURE,
+      PERSON_KIND,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -321,11 +358,15 @@ describe('rollbackTo, against a real database', () => {
         TAG,
         SERVICE,
         WORK_ITEM_SERVICE,
+        ROLE_MEASURE,
+        PERSON_KIND,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        PERSON_KIND,
+        ROLE_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
@@ -396,6 +437,8 @@ describe('rollbackTo, against a real database', () => {
         TAG,
         SERVICE,
         WORK_ITEM_SERVICE,
+        ROLE_MEASURE,
+        PERSON_KIND,
       ]);
     } finally {
       db.cleanup();
@@ -409,6 +452,8 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        PERSON_KIND,
+        ROLE_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
@@ -462,7 +507,10 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([]);
+      // And the one before it still answers with exactly what is newer than it,
+      // which is the half of this case a shared stamp would silently empty.
+      expect(rollbackTo(db.path, FOLDER, ROLE_MEASURE)).toEqual([PERSON_KIND]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

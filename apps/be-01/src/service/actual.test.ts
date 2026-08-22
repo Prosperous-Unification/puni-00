@@ -4,6 +4,7 @@ import type {
   ActualStore,
   CommandJournalStore,
   EstimateStore,
+  MeasureStore,
   Project,
   ProjectStore,
   RoleProgressStore,
@@ -17,6 +18,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -34,6 +36,7 @@ let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
+let measures: MeasureStore;
 let progress: RoleProgressStore;
 let journal: CommandJournalStore & { events: { kind: string; roleId: string | null }[] };
 let service: WorkItemService;
@@ -45,6 +48,7 @@ beforeEach(async () => {
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   actuals = inMemoryActuals(workItems);
+  measures = inMemoryMeasures(workItems);
   progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
@@ -65,6 +69,7 @@ beforeEach(async () => {
     projects,
     estimates,
     actuals,
+    measures,
     progress,
     dependencies,
     directory,
@@ -74,6 +79,7 @@ beforeEach(async () => {
       workItems,
       estimates,
       actuals,
+      measures,
       progress,
       dependencies,
       directory,

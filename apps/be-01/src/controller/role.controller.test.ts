@@ -14,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleMeasureRepository } from '../repository/role-measure';
 import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -45,6 +46,7 @@ let app: ReturnType<typeof buildApp>;
 let roleStore: RoleRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
+let measures: RoleMeasureRepository;
 let progressStore: RoleProgressRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
@@ -62,6 +64,7 @@ beforeEach(() => {
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
   actuals = new ActualRepository(db);
+  measures = new RoleMeasureRepository(db);
   progressStore = new RoleProgressRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
@@ -79,6 +82,7 @@ beforeEach(() => {
       projects,
       estimates,
       actuals,
+      measures,
       progress: progressStore,
       dependencies: new DependencyRepository(db),
       directory,
@@ -280,6 +284,7 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
         estimates: 1,
         actuals: 0,
         progress: 0,
+        measures: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },

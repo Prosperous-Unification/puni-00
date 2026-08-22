@@ -21,7 +21,8 @@ import type {
   EstimateStore,
   JournalEntry,
   LabelledWorkItem,
-  Person,
+  MeasureMetric,
+  MeasureStore,
   PriorityBandStore,
   Project,
   ProjectStore,
@@ -30,6 +31,7 @@ import type {
   RoleProgressStore,
   StoredActual,
   StoredEstimate,
+  StoredMeasure,
   StoredProgress,
   SubtreeStore,
   TeamCapacity,
@@ -39,6 +41,7 @@ import type {
   WorkItemStore,
 } from '../repository';
 import { isForeignKeyViolation } from '../repository/constraint';
+import { MEASURE_METRICS } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
@@ -61,6 +64,7 @@ import {
   rollUp,
   rollUpActuals,
   rollUpItemStates,
+  rollUpMeasures,
   rollUpProgress,
   workedRolesOf,
 } from './roll-up';
@@ -382,6 +386,33 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   estimates: Record<string, Days>;
   /** True when the estimates above are sums and therefore not editable here. */
   rolledUp: boolean;
+  /**
+   * The figures that are not days: **metric first, then role**, its own if it is
+   * a leaf and the sum of its descendants' if it is not.
+   *
+   * Nested rather than flat because the primary key is a triple and a flat
+   * `Record<string, number>` would have to spell the other two into one string —
+   * `token_actual:role-dev` — which every reader would then have to take apart
+   * again. Metric outermost because that is the axis a reader picks first: a
+   * column of tokens and a column of hours are two columns, and the roles inside
+   * each are the same roles.
+   *
+   * **A metric nobody has recorded anywhere below is absent, not `{}`.** The
+   * distinction is the one this whole table is built on, one level up from where
+   * `estimates` and `actuals` make it: an empty object under `hours_actual` says
+   * "somebody looked at the hours on this row" and absence says nobody has. So a
+   * work item nobody has recorded anything against is `{}` here — no metrics at
+   * all — rather than three empty objects, and a face rendering a missing metric
+   * as `0` is inventing a statement.
+   *
+   * Absence is per metric and per role both: a pair holding a `token_actual` and
+   * nothing else puts that pair under `token_actual` and leaves it out of
+   * `hours_actual` entirely. See {@link rollUpMeasures}.
+   *
+   * Reported and never planned with, exactly as `actuals` is: it reaches no
+   * scheduling function. R6's rule, one table over.
+   */
+  measures: Record<string, Record<string, number>>;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**
@@ -485,6 +516,18 @@ export type WorkItemRefusal =
    */
   | 'unknown_role'
   /**
+   * A figure in a unit this release does not keep — anything outside
+   * {@link MEASURE_METRICS}.
+   *
+   * A **404** and not a 400, which is the one refusal in `token-tracking` that
+   * is not cloned from the actual pair. The metric is in the path, and it names
+   * a thing: `/measures/tokens_estimate/role-dev` is a request for a figure that
+   * does not exist in the same way a work item id nobody holds does not exist.
+   * A 400 would say the request was malformed, and it is not — it is
+   * well-formed about a unit this release has never heard of.
+   */
+  | 'unknown_metric'
+  /**
    * A person the directory no longer holds, decided inside the write's own
    * transaction — see {@link AssignmentWritten}. Without it the same
    * out-of-date picker reaches `assignment.person_id` and answers 500.
@@ -534,6 +577,34 @@ export type WorkItemRefusal =
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
+/**
+ * Whether this release keeps figures in the unit a caller named.
+ *
+ * A function rather than an inline `includes`, because both write methods ask
+ * and both must answer the same way; and it narrows, so the `MeasureMetric`
+ * reaching the store is checked rather than asserted. The value arrives from a
+ * URL path, so it is genuinely `string` no matter what the signature says.
+ */
+function holdsMetric(metric: string): metric is MeasureMetric {
+  return (MEASURE_METRICS as readonly string[]).includes(metric);
+}
+
+/**
+ * What each metric is called in a sentence somebody reads in the plan's
+ * history.
+ *
+ * "record 12000 tokens" is not what these say: the label names the **unit**,
+ * never the figure, for {@link quoteName}'s reason turned to numbers — a
+ * history row is read long after the write, and the figure it quoted may have
+ * been corrected twice since. The row's own before-state carries the number for
+ * anybody who wants it.
+ */
+const MEASURE_LABELS: Record<MeasureMetric, string> = {
+  token_estimate: 'estimated tokens',
+  token_actual: 'tokens spent',
+  hours_actual: 'hours spent',
+};
+
 export interface CreateWorkItem {
   parentId: string | null;
   afterId: string | null;
@@ -560,6 +631,16 @@ export interface WorkItemServiceOptions {
    * the day this ships, so the mistake would be invisible for a week.
    */
   actuals: ActualStore;
+  /**
+   * Where the figures that are not days are kept — tokens estimated, tokens
+   * spent, hours spent.
+   *
+   * Required rather than optional, for {@link WorkItemServiceOptions.actuals}'
+   * reason exactly: a service built without one would answer every read with no
+   * measures at all, which is the true answer for every plan on the day this
+   * ships and therefore an invisible mistake for a week.
+   */
+  measures: MeasureStore;
   /**
    * Where each role says its work on a work item has got to.
    *
@@ -968,8 +1049,16 @@ export class WorkItemService {
      * only ever added, so a person created between the two reads is one this
      * list has and no assignment names; the other order would hand out an
      * assignment to somebody unnamed.
+     *
+     * Typed as the two columns it is, not as a `Person`. The builder has always
+     * mapped to `{ id, name }` — "the names, not the whole directory" above is
+     * that decision — and while `Person.kind` was optional, TypeScript accepted
+     * a projection where a whole person was declared. Narrowing `kind` made the
+     * mismatch a compile error, which is the type telling the truth rather than
+     * a new rule: a chart that wanted to paint agents differently would read
+     * `kind` off `/api/people`, the payload that answers who exists.
      */
-    assignedPeople: Person[];
+    assignedPeople: { id: string; name: string }[];
     /**
      * How many of each team this project may have at work at once, for the teams
      * it has stated a number about.
@@ -1029,6 +1118,10 @@ export class WorkItemService {
     // estimate of 5 is "overran by 3" or "is 3 over so far", and until this row
     // says which, a variance is a figure nobody can act on.
     const stated = await this.opts.progress.listByProject(projectId);
+    // One read for all three metrics, filtered per metric inside the fold. The
+    // store's `listByProject` takes no metric for exactly this call site — see
+    // {@link MeasureStore}.
+    const measured = await this.opts.measures.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
     const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     // The names for the ids just read, on this read rather than on a client's
@@ -1048,6 +1141,14 @@ export class WorkItemService {
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
     const recordedTotals = rollUpActuals(rows, recorded);
+    // Three folds over a tree already in memory, one per metric, because adding
+    // a token to an hour is the thing `rollUpMeasures` exists to make
+    // impossible. Built as a map of metric to the whole fold rather than as a
+    // per-row object here, so the recursion runs once per metric for the project
+    // instead of once per metric per row.
+    const measuredTotals = new Map(
+      MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
+    );
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
     // Which roles have work on each leaf: the ones with an estimate, the ones
     // with a recorded day, and the ones somebody has already spoken about.
@@ -1189,6 +1290,16 @@ export class WorkItemService {
         // saying somebody stated the work took no time. See `actual` in
         // `schema.ts`.
         actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
+        // The figures that are not days, metric first. A metric with no roles
+        // under this row is **struck from the object** rather than carried as
+        // `{}`, which is the same absence rule one level up: an empty object
+        // would say somebody looked at that unit on this row.
+        measures: Object.fromEntries(
+          [...measuredTotals]
+            .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
+            .filter(([, byRole]) => byRole.size > 0)
+            .map(([metric, byRole]) => [metric, Object.fromEntries(byRole)]),
+        ),
         // Where each role's work on this row has got to: its own if it is a
         // leaf, `agree` across its descendants' if it is not.
         //
@@ -1346,10 +1457,21 @@ export class WorkItemService {
         : (await this.opts.progress.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The tokens and hours go down with the days, in every metric at once —
+    // `moveAll` takes no metric because a leaf gaining a child stops holding
+    // figures in all of them together. Read before the move, like the other
+    // three; afterwards they are the child's.
+    const measuredHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.measures.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id);
       await this.opts.progress.moveAll(gainsFirstChild, workItem.id);
+      await this.opts.measures.moveAll(gainsFirstChild, workItem.id);
     }
     await this.announceTree(projectId);
     await this.record(projectId, actorId, 'create', `add ${quoteName(workItem.name)}`, {
@@ -1361,6 +1483,7 @@ export class WorkItemService {
         estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         assignments: [],
         internalDependencies: [],
         externalDependencies: [],
@@ -1375,6 +1498,14 @@ export class WorkItemService {
         removedProgress: statedHandedDown.map((each) => ({
           workItemId: each.workItemId,
           roleId: each.roleId,
+        })),
+        // The metric rides along, unlike the three above: these keys are
+        // triples, and a pair here would take every figure off the parent
+        // rather than the ones this create handed down.
+        removedMeasures: measuredHandedDown.map((each) => ({
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+          metric: each.metric,
         })),
       },
       inverse: {
@@ -1394,6 +1525,10 @@ export class WorkItemService {
         // create makes the parent a leaf again, and a leaf reports what it
         // holds — including whether its work is finished.
         setProgress: statedHandedDown,
+        // And the figures that are not days, back on the row they came from.
+        // Undoing this create makes the parent a leaf again, and a leaf reports
+        // what it holds — in every unit, not the one the scheduler reads.
+        setMeasures: measuredHandedDown,
       },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
@@ -1645,6 +1780,18 @@ export class WorkItemService {
     const copiedEstimates = stored
       .filter((each) => inside.has(each.workItemId))
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
+    // **The one collection a duplicate filters by metric rather than taking
+    // whole or leaving whole**, and the first place the single discriminated
+    // table costs something rather than saving it. A `token_estimate` is a
+    // description of the work, so it copies for the days estimate's reason: a
+    // copy planned in days and not in tokens is half-planned, and the reader can
+    // see the gap. `token_actual` and `hours_actual` are records of what one
+    // particular piece of work cost, so they do not copy for the actuals'
+    // reason. Every other structural rule in this file applies to a table;
+    // this one applies to rows inside one. Design D1, D8.
+    const copiedMeasures = (await this.opts.measures.listByProject(workItem.projectId))
+      .filter((each) => inside.has(each.workItemId) && each.metric === 'token_estimate')
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedAssignments = assigned.map((each) => ({
       ...each,
       workItemId: copyOf(each.workItemId),
@@ -1675,11 +1822,14 @@ export class WorkItemService {
       // the moment it appears — work nobody has started, drawn as work nobody
       // needs to do. See `design.md` P4.
       progress: [],
+      // The token plan and neither record — see {@link copiedMeasures} above.
+      measures: copiedMeasures,
       assignments: copiedAssignments,
       dependencies: copiedEdges,
       removedEstimates: [],
       removedActuals: [],
       removedProgress: [],
+      removedMeasures: [],
     });
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
@@ -1704,12 +1854,17 @@ export class WorkItemService {
           // Empty for the write's reason above: a redo of a duplication puts
           // back the copy that was made, and nobody ever said a word about it.
           progress: [],
+          // The same half of the table the write above put down: a redo of a
+          // duplication puts back the copy that was made, token plan and all,
+          // and no tokens or hours were ever spent on it.
+          measures: copiedMeasures,
           assignments: copiedAssignments,
           internalDependencies: copiedEdges,
           externalDependencies: [],
           removedEstimates: [],
           removedActuals: [],
           removedProgress: [],
+          removedMeasures: [],
         },
         inverse: {
           do: 'delete_subtree',
@@ -1720,6 +1875,7 @@ export class WorkItemService {
           setEstimates: [],
           setActuals: [],
           setProgress: [],
+          setMeasures: [],
         },
         // Every copied row, all of them at 0. Anything typed into the copy
         // moves one of these and the undo refuses rather than throwing away
@@ -1759,6 +1915,10 @@ export class WorkItemService {
     // left to read and the restore would put the branch back reading as work
     // nobody had started.
     const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade the two above name,
+    // and in every metric at once: one read feeds three folds, which is what
+    // `listByProject` takes no metric for.
+    const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
 
     if (children.length === 0 || strategy === 'cascade') {
@@ -1802,6 +1962,13 @@ export class WorkItemService {
       // the parent's reading is now the whole branch's, and the day it was last
       // spoken about is the honest answer to "when was this said".
       const statedHandedUp: StoredProgress[] = [];
+      // And the figures that are not days, folded per metric — the same argument
+      // the actuals make, three times, because `rollUpMeasures` takes one metric
+      // at a time so that a token and an hour can never be added together. A
+      // metric nobody recorded anywhere in the branch folds to nothing and is
+      // written nowhere: absence is per metric, and the hand-up is not the place
+      // that rule stops holding.
+      const measuredHandedUp: StoredMeasure[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
         const totals = rollUp(rows, storedEstimates);
         for (const [roleId, days] of totals.get(id) ?? []) {
@@ -1827,10 +1994,31 @@ export class WorkItemService {
             .reduce((newest, each) => Math.max(newest, each.statedAt), 0);
           statedHandedUp.push({ workItemId: parentId, roleId, state, statedAt: latest });
         }
+        const measuredInside = storedMeasures.filter((each) => inside.has(each.workItemId));
+        for (const metric of MEASURE_METRICS) {
+          for (const [roleId, value] of rollUpMeasures(rows, storedMeasures, metric).get(id) ??
+            []) {
+            // The newest stamp **in this metric**, not the newest in the branch.
+            // A pair whose hours were recorded this morning and whose tokens
+            // were recorded a fortnight ago hands up two figures, and the token
+            // one did not become a fortnight newer by being summed.
+            const latest = measuredInside
+              .filter((each) => each.roleId === roleId && each.metric === metric)
+              .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
+            measuredHandedUp.push({
+              workItemId: parentId,
+              roleId,
+              metric,
+              value,
+              recordedAt: latest,
+            });
+          }
+        }
       }
       for (const each of handedUp) await this.opts.estimates.set(each);
       for (const each of recordedHandedUp) await this.opts.actuals.set(each);
       for (const each of statedHandedUp) await this.opts.progress.set(each);
+      for (const each of measuredHandedUp) await this.opts.measures.set(each);
       const cut = allEdges.filter(
         (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
       );
@@ -1855,6 +2043,7 @@ export class WorkItemService {
           setEstimates: handedUp,
           setActuals: recordedHandedUp,
           setProgress: statedHandedUp,
+          setMeasures: measuredHandedUp,
         },
         inverse: {
           do: 'restore_subtree',
@@ -1872,6 +2061,11 @@ export class WorkItemService {
           // branch reading as work nobody has started — the plan looks whole and
           // a fortnight of finished work is unfinished again.
           progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+          // Every token and hour recorded anywhere in the branch, put back where
+          // it was recorded. Without this an undo of a delete answers `ok` and
+          // returns the branch with its days and none of its tokens — the plan
+          // looks whole and the record of what the work cost to run is gone.
+          measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
           assignments: doomedAssignments,
           internalDependencies: cut.filter(
             (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -1890,6 +2084,11 @@ export class WorkItemService {
           removedProgress: statedHandedUp.map((each) => ({
             workItemId: each.workItemId,
             roleId: each.roleId,
+          })),
+          removedMeasures: measuredHandedUp.map((each) => ({
+            workItemId: each.workItemId,
+            roleId: each.roleId,
+            metric: each.metric,
           })),
         },
         // Two deliberate absences. The deleted rows are not here — nothing can
@@ -1936,6 +2135,7 @@ export class WorkItemService {
         // below is not becoming a leaf and nothing is handed anywhere.
         setActuals: [],
         setProgress: [],
+        setMeasures: [],
       },
       inverse: {
         do: 'restore_subtree',
@@ -1961,12 +2161,18 @@ export class WorkItemService {
         // becomes representable. Written from the same source as the two figures
         // beside it rather than hard-coded, so it stays true if that ever changes.
         progress: storedProgress.filter((each) => each.workItemId === id),
+        // The promoted row's own tokens and hours — it had children, so it holds
+        // none, and this is the empty list every time until a promotion of a
+        // leaf becomes representable. Written from the same source as the three
+        // beside it rather than hard-coded, so it stays true if that changes.
+        measures: storedMeasures.filter((each) => each.workItemId === id),
         assignments: deletedAssignments,
         internalDependencies: [],
         externalDependencies: cut,
         removedEstimates: [],
         removedActuals: [],
         removedProgress: [],
+        removedMeasures: [],
       },
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
@@ -2250,6 +2456,122 @@ export class WorkItemService {
         {
           forward: { do: 'clear_actual', workItemId: id, roleId },
           inverse: { do: 'set_actual', workItemId: id, roleId, days: before },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Writes one figure in one unit that is not days — tokens estimated, tokens
+   * spent, hours spent — for one role on one work item.
+   *
+   * Guarded exactly as {@link WorkItemService.setActual} is, plus **one refusal
+   * that pair does not have**: a `metric` outside {@link MEASURE_METRICS} is
+   * `unknown_metric`, which the controller answers 404 to. See
+   * {@link WorkItemRefusal} for why it is not a 400.
+   *
+   * The check is here rather than left to the database, even though the column
+   * carries a `CHECK`: a constraint failure is a 500, and a client asking for a
+   * unit this release does not keep is out of date rather than broken.
+   *
+   * **Nothing about this reaches the schedule**, for
+   * {@link WorkItemService.setActual}'s reason and one more of its own: the
+   * engine plans in days against team capacity, and tokens are not a
+   * substitutable unit of it. `design.md` D3, watched by the empty-diff cases.
+   *
+   * **Nobody types these.** Dany, 2026-08-21: tokens are set by the LLM doing
+   * the work, through this route and later through MCP — so this method is the
+   * product surface, not a cell in a grid.
+   */
+  async setMeasure(
+    id: string,
+    actorId: string,
+    roleId: string,
+    /**
+     * `string`, not {@link MeasureMetric}, and that is the honest type: this
+     * value arrives as a path segment, so the caller genuinely has a string and
+     * a narrower signature would only move the assertion to the route — where
+     * `unknown_metric` would then be unreachable through the API it exists for.
+     * {@link holdsMetric} narrows it here, once, for both methods.
+     */
+    metric: string,
+    value: number,
+  ): Promise<WorkItemOutcome<null>> {
+    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.result;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
+    const before = await this.storedMeasure(workItem.projectId, id, roleId, metric);
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.measures.set({ workItemId: id, roleId, metric, value, recordedAt: this.now() }),
+    );
+    if (written === null) return { ok: false, reason: 'unknown_role' };
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'measure',
+      `record ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_measure', workItemId: id, roleId, metric, value },
+        // The figure that was there **in this metric**, or its absence. The
+        // inverse of a first recording is `clear_measure` and never
+        // `set_measure 0`, for the reason `set_actual` gives: zero is somebody
+        // saying the work cost nothing, and this table must never hold it as a
+        // stand-in for nobody having said. verify.md F7 watches it.
+        inverse:
+          before === null
+            ? { do: 'clear_measure', workItemId: id, roleId, metric }
+            : { do: 'set_measure', workItemId: id, roleId, metric, value: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Takes one recorded figure back off one work item for one role, in one
+   * metric, leaving that pair's other metrics alone.
+   *
+   * Idempotent and not refused on a rolled-up row, exactly as
+   * {@link WorkItemService.clearActual} is and for its reasons. A missing
+   * **work item** is still `not_found`, and a metric outside the set is still
+   * `unknown_metric` — a clear of a unit that does not exist is not the state
+   * the caller asked for, it is a caller who believes in a unit this release
+   * has never kept.
+   */
+  async clearMeasure(
+    id: string,
+    actorId: string,
+    roleId: string,
+    /** `string` for {@link WorkItemService.setMeasure}'s reason. */
+    metric: string,
+  ): Promise<WorkItemOutcome<null>> {
+    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before = await this.storedMeasure(workItem.projectId, id, roleId, metric);
+    await this.opts.measures.remove(id, roleId, metric);
+    await this.announceWorkItem(workItem.projectId, id);
+    // Nothing was stored in this metric, so nothing changed and there is
+    // nothing to put back — `clearActual`'s skip, per metric.
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'clear_measure',
+        `clear the recorded ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_measure', workItemId: id, roleId, metric },
+          inverse: { do: 'set_measure', workItemId: id, roleId, metric, value: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2733,6 +3055,35 @@ export class WorkItemService {
       case 'clear_actual':
         await this.opts.actuals.remove(command.workItemId, command.roleId);
         return { ok: true, detail: null };
+      case 'set_measure': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
+        }
+        // The phase the figure was recorded against has been removed since.
+        // `role_measure.role_id` is a foreign key, so putting the number back
+        // would be a constraint error on a key somebody pressed to be safe.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        }
+        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+          this.opts.measures.set({
+            workItemId: command.workItemId,
+            roleId: command.roleId,
+            metric: command.metric,
+            value: command.value,
+            // Now, not the stamp the row carried — `set_actual`'s reading of
+            // `recordedAt`, and the same one `compensating.ts` states.
+            recordedAt: this.now(),
+          }),
+        );
+        if (restored === null)
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'clear_measure':
+        await this.opts.measures.remove(command.workItemId, command.roleId, command.metric);
+        return { ok: true, detail: null };
       case 'set_progress': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
@@ -2875,6 +3226,10 @@ export class WorkItemService {
     // that put back the figures and not the reading would leave the surviving
     // parent reporting a finished branch's work as work nobody has started.
     for (const each of command.setProgress) await this.opts.progress.set(each);
+    // And the figures that are not days, per metric as they were folded. A
+    // re-applied delete that handed up the days and not the tokens would leave
+    // the surviving parent reporting a fortnight of work that cost nothing.
+    for (const each of command.setMeasures) await this.opts.measures.set(each);
     return { ok: true, detail: null };
   }
 
@@ -2932,11 +3287,13 @@ export class WorkItemService {
       estimates: command.estimates,
       actuals: command.actuals,
       progress: command.progress,
+      measures: command.measures,
       assignments: command.assignments,
       dependencies: command.internalDependencies,
       removedEstimates: command.removedEstimates,
       removedActuals: command.removedActuals,
       removedProgress: command.removedProgress,
+      removedMeasures: command.removedMeasures,
     });
 
     // The edges that leave the branch, one at a time and through the same
@@ -3141,6 +3498,27 @@ export class WorkItemService {
       (each) => each.workItemId === workItemId && each.roleId === roleId,
     );
     return found?.days ?? null;
+  }
+
+  /**
+   * One work item's recorded figure in one metric for one role, or null when it
+   * holds none in that metric.
+   *
+   * Null rather than 0, on {@link WorkItemService.storedActual}'s reading and
+   * per metric: a pair holding a token estimate and no hours has said one thing
+   * and not the other, and an undo of the hours must put back the absence
+   * rather than a zero beside a real figure.
+   */
+  private async storedMeasure(
+    projectId: string,
+    workItemId: string,
+    roleId: string,
+    metric: MeasureMetric,
+  ): Promise<number | null> {
+    const found = (await this.opts.measures.listByProject(projectId)).find(
+      (each) => each.workItemId === workItemId && each.roleId === roleId && each.metric === metric,
+    );
+    return found?.value ?? null;
   }
 
   /**

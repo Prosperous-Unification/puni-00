@@ -1,5 +1,19 @@
 import type { EstimateMethod, IsoDate, PriorityBand, RoleState } from '@wbs/domain';
 
+import type { MeasureMetric, PersonKind } from './schema';
+
+/**
+ * Re-exported as types, and deliberately not as values.
+ *
+ * The interfaces below name both, so every caller of a store already needs
+ * them; making them reachable through this module rather than through
+ * `schema.ts` keeps the service layer's imports pointing at the seam it talks
+ * to. The **constants** stay in `schema.ts`: this file is type-only, and a value
+ * re-export here would pull drizzle into everything that imports a store
+ * interface.
+ */
+export type { MeasureMetric, PersonKind } from './schema';
+
 export interface Example {
   id: string;
   label: string;
@@ -120,6 +134,24 @@ export interface RoleUsageRows {
    * and one stated row is `in_use`.
    */
   progress: number;
+  /**
+   * How many figures in the units that are not days this role holds — a count
+   * of **rows**, so one pair holding a token estimate and an hours fact counts
+   * two, for {@link RoleUsageRows.estimates}' reason.
+   *
+   * Counted separately and counted **at all** for {@link RoleUsageRows.actuals}'
+   * reason in a third table: `token_actual` and `hours_actual` are records of
+   * work that has already happened, and a removal that took them silently would
+   * delete the only account of what a role's work cost. `token_estimate` is
+   * counted with them rather than with the day-estimates because they share a
+   * table and a key, and a count that split one table by its discriminator
+   * would be reporting a schema rather than a loss.
+   *
+   * Rows rather than pairs because the primary key is the triple: two of the
+   * three metrics on one pair are two separate statements somebody made, and
+   * "1 figure" for them would understate what the cascade takes.
+   */
+  measures: number;
   assignments: readonly Assignment[];
 }
 
@@ -128,8 +160,10 @@ export interface RoleRemoval {
   estimates: number;
   actuals: number;
   progress: number;
+  /** Rows, not pairs — {@link RoleUsageRows.measures}. */
+  measures: number;
   assignments: number;
-  /** Every work item that lost an estimate, an actual, a state or an assignment, and whose revision therefore moved. */
+  /** Every work item that lost an estimate, an actual, a state, a figure or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];
 }
 
@@ -646,7 +680,7 @@ export interface ActualKey {
 /**
  * Reading and writing the days actually spent.
  *
- * Deliberately the same five methods as {@link EstimateStore}, in the same
+ * Deliberately the same four methods as {@link EstimateStore}, in the same
  * order, doing the same things to a table with the same key. Actuals follow
  * estimates through every structural change — the hand-down when a leaf gains
  * its first child, the hand-up when a parent loses its last, the copy a
@@ -740,6 +774,81 @@ export interface RoleProgressStore {
   moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
 }
 
+/**
+ * What one role's work on one work item cost in one unit that is not days, and
+ * when somebody said so.
+ *
+ * `metric` is part of the identity rather than a property of it: the same pair
+ * holding a token estimate, a token fact and an hours fact is three of these,
+ * and each is absent on its own. See {@link roleMeasure} in `schema.ts` and
+ * `openspec/changes/token-tracking/design.md` D1.
+ */
+export interface StoredMeasure {
+  workItemId: string;
+  roleId: string;
+  metric: MeasureMetric;
+  /** The figure itself — tokens or hours, in whatever `metric` says. */
+  value: number;
+  /** When the number was typed, in epoch milliseconds. */
+  recordedAt: number;
+}
+
+/** One measure row's whole identity: the triple its primary key is. */
+export interface MeasureKey {
+  workItemId: string;
+  roleId: string;
+  metric: MeasureMetric;
+}
+
+/**
+ * Reading and writing the figures that are not days.
+ *
+ * Deliberately the same four methods as {@link ActualStore}, in the same order,
+ * doing the same things to a table whose key is that one's with a third column
+ * on the end — and for the reason that store gives for being a copy of
+ * {@link EstimateStore}. Measures follow their work item through every
+ * structural change: the hand-down when a leaf gains its first child, the
+ * hand-up when a parent loses its last, the restore an undo runs. The failure
+ * this shape prevents is the one where estimates and actuals follow a subtree
+ * and the tokens quietly do not.
+ *
+ * **The third key column reaches exactly one of these four.** {@link remove}
+ * names one row, so it takes the metric; {@link set} carries it in the record.
+ * {@link listByProject} and {@link moveAll} name no row and take none — the
+ * first because the roll-up folds all three metrics from one read, the second
+ * because a leaf gaining a child stops holding figures in every unit at once.
+ */
+export interface MeasureStore {
+  /** Every measure in the project, in role order within each work item and metric order within each pair. */
+  listByProject(projectId: string): Promise<StoredMeasure[]>;
+  /**
+   * Writes one work item's figure in one metric for one role, replacing any
+   * earlier one in that metric and leaving the pair's other metrics alone.
+   */
+  set(measure: StoredMeasure): Promise<void>;
+  /**
+   * Takes away one work item's figure in one metric for one role, leaving every
+   * other metric on that pair, every other role on that work item and that role
+   * on every other work item alone.
+   *
+   * Removing one that is not stored is not an error, for
+   * {@link EstimateStore.remove}'s reason: the state asked for is the state
+   * left. What it leaves behind is nobody having said, which is the absence of a
+   * row and never a stored zero.
+   */
+  remove(workItemId: string, roleId: string, metric: MeasureMetric): Promise<void>;
+  /**
+   * Moves every measure in every metric from one work item to another, exactly
+   * as {@link ActualStore.moveAll} does and at the same call sites.
+   *
+   * A leaf that gains its first child stops holding figures of its own — its
+   * numbers become the sum of what is below it — so a measure left behind would
+   * be a row no reader can see and no writer can reach: invisible, not zero, and
+   * back on screen if the child is ever deleted.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
 /** A finish-to-start edge as it is stored: either end may be a parent. */
 export interface StoredDependency {
   id: string;
@@ -810,10 +919,49 @@ export interface TeamPatch {
   serviceIds?: readonly string[];
 }
 
-/** Somebody who does work. Not an account on this tool. */
+/**
+ * Somebody who does work. Not an account on this tool.
+ *
+ * `kind` is **required, because every row read back carries one**: the column is
+ * `NOT NULL DEFAULT 'person'` and the migration wrote `person` onto every row
+ * that predates it, so there is no person in the database without a kind and no
+ * read path that could produce one. It was optional between 2.1 and this
+ * narrowing only because making it required means a separate input type for the
+ * insert, which is {@link PersonInsert}.
+ *
+ * It is declared at all because it *arrives* at all: `DirectoryRepository`
+ * spreads the Drizzle row, so `kind` reached the API response the moment the
+ * column existed, and a type that denied it would have been a lie TypeScript
+ * cannot catch — excess properties survive a spread. Required is the stronger
+ * form of the same argument: a caller that reads a person and renders `kind`
+ * now needs no `?? 'person'` fallback, and a fallback is where the two spellings
+ * of "unknown kind" would have started to diverge.
+ */
 export interface Person {
   id: string;
   name: string;
+  kind: PersonKind;
+}
+
+/**
+ * What an insert of a person may name, which is **not** what a read of one
+ * carries: `kind` is optional here and required on {@link Person}.
+ *
+ * The asymmetry is the column's, not a convenience. `NOT NULL DEFAULT 'person'`
+ * means a two-column insert is a legal insert — that is exactly what lets the
+ * outgoing release keep writing people across a blue/green swap — while every
+ * row that comes back out has a kind whether or not anybody sent one.
+ *
+ * `kind` is on the type rather than left off because the table takes it, not
+ * because a caller sends it today: `DirectoryService.addPerson` omits it, and
+ * the API's way to make an agent is `PATCH /people/:id` (4.4). A store method is
+ * the table's contract, and `adds an agent when the insert names one` in
+ * `directory.test.ts` holds the store to it.
+ */
+export interface PersonInsert {
+  id: string;
+  name: string;
+  kind?: PersonKind;
 }
 
 /** A person and the teams they belong to — empty means a free agent. */
@@ -871,10 +1019,19 @@ export type ServiceTeamWritten =
  * `teamIds` is a **full replacement**, so an absent field and an empty array
  * mean different things: absent leaves the memberships alone, empty makes the
  * person a free agent.
+ *
+ * `kind` is how a person becomes an agent and back again, and patching it back
+ * is the **only** undo it has: the directory journals nothing — no call to
+ * `record` anywhere in `directory.service.ts` — and it cannot, because
+ * `plan_event.project_id` is `NOT NULL REFERENCES project(id) ON DELETE
+ * CASCADE` while the directory belongs to no project. A person's history would
+ * have to be filed under an invented project and would vanish with it.
+ * `openspec/changes/token-tracking/tasks.md` 4.4 carries the whole argument.
  */
 export interface PersonPatch {
   name?: string;
   teamIds?: readonly string[];
+  kind?: PersonKind;
 }
 
 export type PersonWritten =
@@ -921,8 +1078,14 @@ export interface DirectoryUsageRows {
    * People whose membership the removal would drop, **other than the entity
    * being removed**. Empty for a person: their own memberships name nobody
    * else and go with them, so they force no confirmation.
+   *
+   * Named rather than {@link Person}, the shape `projects` and `roles` above
+   * already use: the confirmation prints who loses the membership, and
+   * `directory-usage.ts` narrows this to `{ id, name }` before it leaves the
+   * service. Widening it to a whole person would mean reading a `kind` column
+   * to satisfy a type, which is the tail wagging the query.
    */
-  members: readonly Person[];
+  members: readonly { id: string; name: string }[];
   /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
@@ -1131,8 +1294,11 @@ export interface DirectoryStore {
    * Adds a person, or returns the one with that name, joining them to
    * `teamIds` — the person and every membership in **one** transaction, with
    * the teams read inside it. See {@link PersonAdded}.
+   *
+   * Takes a {@link PersonInsert} rather than a {@link Person}: the kind may be
+   * omitted on the way in and never is on the way out.
    */
-  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<PersonAdded>;
+  addPerson(toAdd: PersonInsert, teamIds: readonly string[]): Promise<PersonAdded>;
   /**
    * Renames a person and replaces their memberships, in **one** transaction.
    *
@@ -1239,6 +1405,25 @@ export interface SubtreeCopy {
    * delete took, and the statements went with the rows.
    */
   progress: readonly StoredProgress[];
+  /**
+   * The tokens and hours on the rows being written, in every metric that may be
+   * on them.
+   *
+   * **The one field here a duplication fills selectively, and the first place
+   * the single discriminated table costs something.** Every other collection on
+   * this interface is copied whole or not at all, because each names one kind of
+   * thing; this one names three, and the copy rule's line is drawn through the
+   * middle of it. `token_estimate` is a description of work and copies for
+   * {@link SubtreeCopy.estimates}' reason exactly — a duplicate that carried the
+   * days plan and not the token plan would be half-planned in a way the reader
+   * can see. `token_actual` and `hours_actual` are records of what a particular
+   * piece of work cost, and do not copy for {@link SubtreeCopy.actuals}' reason
+   * exactly. See `openspec/changes/token-tracking/design.md` D1 and D8.
+   *
+   * Non-empty in every metric for a **restore**: an undo of a delete has to put
+   * back what the delete took, and the measures went with the rows.
+   */
+  measures: readonly StoredMeasure[];
   assignments: readonly Assignment[];
   /** Only the edges with both ends inside the subtree, remapped to the copies. */
   dependencies: readonly StoredDependency[];
@@ -1256,6 +1441,15 @@ export interface SubtreeCopy {
   removedActuals: readonly ActualKey[];
   /** Statements to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
   removedProgress: readonly ProgressKey[];
+  /**
+   * Figures to take off a work item **outside** `rows`, for
+   * {@link SubtreeCopy.removedEstimates}' reason, one key per metric.
+   *
+   * Keyed by the triple rather than the pair, because the row's identity is the
+   * triple: the parent may hold a figure in a metric this restore is not
+   * putting back, and taking the pair away wholesale would delete it.
+   */
+  removedMeasures: readonly MeasureKey[];
 }
 
 /** One estimate row's whole identity: the pair its primary key is. */

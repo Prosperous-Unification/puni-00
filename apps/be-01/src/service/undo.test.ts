@@ -14,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
+import { RoleMeasureRepository } from '../repository/role-measure';
 import { RoleProgressRepository } from '../repository/role-progress';
 import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
@@ -49,6 +50,7 @@ let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
+let measureStore: RoleMeasureRepository;
 let progressStore: RoleProgressRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
@@ -78,6 +80,7 @@ beforeEach(async () => {
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   actualStore = new ActualRepository(db);
+  measureStore = new RoleMeasureRepository(db);
   progressStore = new RoleProgressRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
@@ -97,6 +100,7 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: estimateStore,
     actuals: actualStore,
+    measures: measureStore,
     progress: progressStore,
     directory: directoryStore,
     capacity: inMemoryCapacity(),
@@ -592,6 +596,56 @@ describe('undoing each kind of change', () => {
     expect(back).toHaveLength(2);
     expect(back.every((each) => each.roleId === dev())).toBe(true);
   });
+
+  it('restores every token and hour recorded in a deleted branch, against the real cascade', async () => {
+    // Here rather than beside the other measure cases for the reason the two
+    // above give, one table over: `role_measure.work_item_id` cascades, so the
+    // rows are genuinely gone after the delete and can only come back from the
+    // command. The in-memory store's rows survive the deletion in an array and
+    // reappear with the row, so a case written there passes with the restore's
+    // `measures` replaced by `[]`. That is `actual-days`' F9a a third time, and
+    // it is being applied rather than rediscovered.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const switches = await child(strip, 'Switches', sockets);
+    await workItems.setMeasure(sockets, ownerId, dev(), 'token_actual', 15_400);
+    await workItems.setMeasure(sockets, ownerId, dev(), 'hours_actual', 3);
+    await workItems.setMeasure(switches, ownerId, dev(), 'token_estimate', 12_000);
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await measureStore.listByProject(projectId)).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    // Keyed by the **triple**, not the pair, and that is what this case is for
+    // beyond the cascade: two of these three rows share a work item and a role
+    // and differ only in metric, so a restore that keyed by the pair puts one
+    // row back and loses the other in silence. Ordering is not asserted, for
+    // the reason the actual case above gives — `listByProject` orders by a UUID.
+    const back = await measureStore.listByProject(projectId);
+    const byKey = new Map(back.map((each) => [`${each.workItemId}/${each.metric}`, each.value]));
+    expect(byKey.get(`${sockets}/token_actual`)).toBe(15_400);
+    expect(byKey.get(`${sockets}/hours_actual`)).toBe(3);
+    expect(byKey.get(`${switches}/token_estimate`)).toBe(12_000);
+    expect(back).toHaveLength(3);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  // **The case that would pin `removedMeasures`' triple key is not here, because
+  // no reachable path distinguishes it — and that is worth writing down rather
+  // than leaving as a gap somebody fills badly later.** It was written and
+  // watched: a parent holding an `hours_actual` of its own, gaining a child that
+  // hands up a `token_actual`, then the delete undone — and it fails on its own
+  // setup, not on the code. The hand-down empties the parent the moment it gains
+  // the child, `setMeasure` refuses a work item that has children, and if
+  // somebody records on the parent during the window when it is briefly a leaf
+  // again, the undo refuses on the revision. So at restore time everything the
+  // parent holds came from the hand-up, and a `where` keyed by the pair deletes
+  // exactly the set the triple does. The triple is kept because it is right by
+  // construction and free; the honest status is that nothing observable would go
+  // red if it were wrong. Pinning it needs a case at the repository seam, where
+  // `insertSubtree` can be handed a `removedMeasures` naming one metric of a pair
+  // that holds two — filed in verify.md's Owed.
 
   it('takes back the statement a deletion handed up to the parent', async () => {
     // The mirror of the recorded-days case below it. The parent has no children
