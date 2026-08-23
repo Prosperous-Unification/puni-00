@@ -31,14 +31,29 @@ function shownDay(day: string): {
   return { box: screen.getByLabelText<HTMLInputElement>('Starts'), sent, exits };
 }
 
+/**
+ * A year typed digit by digit, as the browser delivers it: a `keydown` for
+ * the digit, then the `change` that digit completed.
+ *
+ * The keydowns are the point. `DateField` sends a `change` with no key behind
+ * it at once, because that is a day picked from the calendar; the four dates
+ * below are the year-`0002` fault, and every one of them arrives behind a
+ * keystroke. A version of this helper that fired the changes alone would be
+ * asking the component about a gesture nobody performs.
+ */
+function typeSegments(box: HTMLInputElement, partials: string[]): void {
+  for (const partial of partials) {
+    fireEvent.keyDown(box, { key: partial.slice(3, 4) });
+    fireEvent.change(box, { target: { value: partial } });
+  }
+}
+
 describe('a date field holds what is being typed into it', () => {
   itDom('sends nothing while the box has the focus, however many segments land', () => {
     const { box, sent } = shownDay('');
     box.focus();
 
-    for (const partial of ['0002-08-17', '0020-08-17', '0202-08-17', '2026-08-17']) {
-      fireEvent.change(box, { target: { value: partial } });
-    }
+    typeSegments(box, ['0002-08-17', '0020-08-17', '0202-08-17', '2026-08-17']);
 
     expect(sent).toEqual([]);
   });
@@ -46,7 +61,7 @@ describe('a date field holds what is being typed into it', () => {
   itDom('sends the one date that was typed, on the way out', () => {
     const { box, sent } = shownDay('');
     box.focus();
-    fireEvent.change(box, { target: { value: '2026-08-17' } });
+    typeSegments(box, ['2026-08-17']);
 
     fireEvent.blur(box);
 
@@ -159,7 +174,7 @@ describe('how an edit ends', () => {
     // on `expected [] to deeply equal [ 'cancel' ]`. Watched, 2026-08-09.
     const { box, sent, exits } = shownDay('2026-06-01');
     box.focus();
-    fireEvent.change(box, { target: { value: '2026-07-01' } });
+    typeSegments(box, ['2026-07-01']);
 
     fireEvent.keyDown(box, { key: 'Escape' });
 
@@ -173,7 +188,7 @@ describe('how an edit ends', () => {
     // reading what be-01 holds rather than the day nobody saved.
     const { box } = shownDay('2026-06-01');
     box.focus();
-    fireEvent.change(box, { target: { value: '2026-07-01' } });
+    typeSegments(box, ['2026-07-01']);
 
     fireEvent.keyDown(box, { key: 'Escape' });
 
@@ -191,7 +206,7 @@ describe('how an edit ends', () => {
     // arrives.
     const { box, sent, exits } = shownDay('2026-06-01');
     box.focus();
-    fireEvent.change(box, { target: { value: '2026-07-01' } });
+    typeSegments(box, ['2026-07-01']);
     fireEvent.keyDown(box, { key: 'Escape' });
 
     fireEvent.blur(box);
@@ -202,9 +217,66 @@ describe('how an edit ends', () => {
     // And the field is editable again straight after: abandoning one edit does
     // not abandon the next.
     box.focus();
-    fireEvent.change(box, { target: { value: '2026-07-02' } });
+    typeSegments(box, ['2026-07-02']);
     fireEvent.blur(box);
     expect(sent).toEqual(['2026-07-02']);
+  });
+});
+
+describe('a day picked from the calendar', () => {
+  // What makes a pick a pick, here and in the component: a `change` with **no
+  // `keydown` in the box since the focus arrived**. jsdom has no calendar popup
+  // and never will, so what these two cases check is that the rule branches on
+  // the key — not that Chrome's picker really delivers none. That half is a
+  // browser's to answer and `e2e/keyboard.spec.ts` asks it, with the typing
+  // half beside it so the pair cannot drift apart.
+
+  itDom('is sent the moment it lands, without waiting for the field to be left', () => {
+    // The bug this exists for: the project start date is the calendar the whole
+    // Gantt is drawn against, and “saved when you move on” read as a chart that
+    // ignores the reader (`wbs-gantt-stale-on-start-date`, chunk 2 — the table
+    // was stale too, and nothing had left the browser).
+    //
+    // Proof: the `onChange` handler removed from `date-field.tsx`, this fails
+    // on `expected [] to deeply equal [ '2026-09-07' ]`.
+    const { box, sent } = shownDay('2026-06-01');
+    box.focus();
+
+    fireEvent.change(box, { target: { value: '2026-09-07' } });
+
+    expect(sent).toEqual(['2026-09-07']);
+  });
+
+  itDom('is not taken back by Escape, because a pick is finished the moment it is sent', () => {
+    // **The limit of the exception, pinned so that re-adding an undo has to be
+    // a decision rather than an accident.** An Escape branch that restored the
+    // day held at focus *and sent it* was written on 2026-08-23 and deleted the
+    // same day: a browser cannot reach it. The toolbar disables its controls
+    // for the write's window and disabling a focused input drops the focus out
+    // of it, so after a pick the Escape goes to `<body>` and this component
+    // never sees the key. Two `e2e/keyboard.spec.ts` cases measured exactly
+    // that, reading `1 Jul` and `2026-09-09` where the undo claimed otherwise.
+    //
+    // What jsdom can still say is what the code does *if* the key did arrive,
+    // and this is it: the box goes back to the day the server agreed, which
+    // after a pick is the picked day, and nothing more is sent.
+    //
+    // Proof: `node.value = agreed.current` changed back to a `heldAtFocus`
+    // restore-and-commit, this fails on `expected [ '2026-09-07',
+    // '2026-06-01' ] to deeply equal [ '2026-09-07' ]`.
+    const { box, sent } = shownDay('2026-06-01');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-09-07' } });
+
+    fireEvent.keyDown(box, { key: 'Escape' });
+
+    expect(sent).toEqual(['2026-09-07']);
+    expect(box.value).toBe('2026-09-07');
+
+    // And the blur Escape causes has nothing left to send either: the box and
+    // the server agree on the picked day.
+    fireEvent.blur(box);
+    expect(sent).toEqual(['2026-09-07']);
   });
 });
 
