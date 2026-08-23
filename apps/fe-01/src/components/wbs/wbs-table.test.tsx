@@ -1782,16 +1782,37 @@ describe('the plan on a calendar', () => {
     const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
     const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
     await api.addDependency(paint.id, strip.id);
+    // Five days on `Strip`'s Dev and a **Tuesday** start, so the day this cell
+    // names is neither the plan's start date nor a count of calendar days: the
+    // fifth working day from Tuesday 1 Sep is Monday 7 Sep.
+    await api.setEstimate(strip.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
+    // `020` gets an estimate of its own too, so the row under test owns a real
+    // slice rather than an empty one. It does not move the day this cell shows,
+    // and the assertion below says why.
+    await api.setEstimate(paint.id, DEV.id, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await api.setStartDate('p1', '2026-09-01');
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 020');
 
+    // The whole title through the real call site, day and sentence, spelled out
+    // dash and all for the same reason the calendar case above is: this cell now
+    // joins ` — ` twice, and `e2e/gantt.spec.ts:218` splits on it.
+    //
+    // `finishes 7 Sep` is the part that proves something, and the leading
+    // `2026-09-01` is not: this fake gives EVERY row `dates: { startsOn:
+    // startDate }` (see `tree()`), so the day in front is a constant and would
+    // read `2026-09-01` whatever the row waited for. The day inside the sentence
+    // is computed here and nowhere else — five working days from a **Tuesday**
+    // start is Monday the 7th, not the 5th — and `<WbsTable>` is the only thing
+    // that hands `startFloorByRow` a calendar, so a stubbed or forgotten second
+    // argument is invisible to every unit test of the function itself.
     expect(rowFor('020').querySelector('[data-start]')?.getAttribute('title')).toBe(
-      'Waits for a dependency’s first estimated role',
+      '2026-09-01 — Waits for Strip (Dev) — finishes 7 Sep',
     );
     // Not the successor's own sentence on the row it waits for: the two cells
     // answer for themselves, which a single shared string would hide.
     expect(rowFor('010').querySelector('[data-start]')?.getAttribute('title')).toBe(
-      'Starts with the project',
+      '2026-09-01 — Starts with the project',
     );
   });
 
