@@ -728,6 +728,67 @@ describe('the WBS table', () => {
     });
   });
 
+  /**
+   * A planner typing out a backlog clicks faster than the round trip, and every
+   * click has to become a row.
+   *
+   * Measured on dev by `wbs-e2e-planning-qa`, with trusted mouse events and the
+   * button re-measured before every click: **6 clicks at 350ms produced 3 rows,
+   * 4 clicks at 1500ms produced 4** — counted as `tbody tr` after a four-second
+   * settle, so not a render race in the counter. The lost clicks are silent:
+   * no toast, nothing queued, and the rows the planner thinks they made are
+   * simply not there.
+   *
+   * **be-01 is not the one refusing.** `create` sends `{parentId, afterId,
+   * name}` and carries no revision at all, so there is no stale-revision
+   * conflict to lose the second write to — the drop happens on this client,
+   * which is why this test lives here rather than on the route.
+   *
+   * The write is held open on purpose rather than left to timing. That is the
+   * whole window under test: what a click does while the last one is still
+   * being answered.
+   */
+  itDom('makes a row for every click on Add work item, including the ones mid-write', async () => {
+    const api = fakeApi();
+    const inFlight: (() => void)[] = [];
+    // Everything else answers at once; only the create waits, so the busy
+    // window is exactly one call wide and nothing else in the table is slowed.
+    const slow: ProjectApi = {
+      ...api,
+      create: async (projectId, input) => {
+        await new Promise<void>((resolve) => {
+          inFlight.push(resolve);
+        });
+        return api.create(projectId, input);
+      },
+    };
+    render(<WbsTable projectId="p1" api={slow} />);
+    await screen.findByRole('button', { name: 'Add work item' });
+
+    for (let i = 0; i < 6; i += 1) click('Add work item');
+
+    // Answering is a loop rather than one release, because a serialised burst
+    // sends its next write only once the last is answered — so waiting for a
+    // write to appear, answering it, and waiting again is what a network doing
+    // its job looks like from here. A client that dropped the other five runs
+    // out of writes to answer and leaves the loop early, which is the shape of
+    // the failure rather than a timeout.
+    for (let answered = 0; answered < 6; answered += 1) {
+      try {
+        await waitFor(() => {
+          expect(inFlight.length).toBeGreaterThan(0);
+        });
+      } catch {
+        break;
+      }
+      for (const release of inFlight.splice(0)) release();
+    }
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040', '050', '060']);
+    });
+  });
+
   itDom('outdents with shift-tab', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -10475,13 +10536,14 @@ describe('failures you can see', () => {
 
 describe('a click made while a save is in flight', () => {
   itDom('says the toolbar is busy, and marks the controls the wait holds back', async () => {
-    // The drop is real and stays real: `Add work item` is `disabled={busy}` for
-    // the whole of a write *and* the refetch after it, and a click that lands
-    // in that window goes nowhere. Reproduced on demand in Chrome on
-    // 2026-08-09 — a ⌘+Enter and an immediate click produced a PATCH, two GETs
-    // and **no POST at all**, with no cursor change and no message. Queuing the
-    // click is a design decision nobody has made; making the drop *visible* is
-    // this.
+    // What the wait looks like, now that it no longer eats what arrives during
+    // it. The drop *was* real — reproduced in Chrome on 2026-08-09, a ⌘+Enter
+    // and an immediate click producing a PATCH, two GETs and **no POST at
+    // all** — and this test was written to make it visible because "queuing
+    // the click is a design decision nobody has made". It has been made, on
+    // 2026-08-23, after dev measured 6 clicks at 350ms producing 3 rows: `Add
+    // work item` queues, so it is the one toolbar write that is **not**
+    // `disabled={busy}`. The affordance is what stayed.
     //
     // Proof: `aria-busy={busy}` pinned to `false` on the toolbar, this failed
     // on `expected 'false' to be 'true'`; and `busyAffordance(busy)` dropped
@@ -10502,7 +10564,13 @@ describe('a click made while a save is in flight', () => {
     await waitFor(() => {
       expect(toolbar.getAttribute('aria-busy')).toBe('true');
     });
-    expect(add).toHaveProperty('disabled', true);
+    // Takeable throughout, unlike `Freeze all` beside it: the click is queued
+    // rather than refused, which is the whole of `add-item-drops-clicks`.
+    expect(add).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: 'Freeze numbering' })).toHaveProperty(
+      'disabled',
+      true,
+    );
     expect(add.style.cursor).toBe('progress');
     expect(add.hasAttribute('data-busy')).toBe(true);
 
