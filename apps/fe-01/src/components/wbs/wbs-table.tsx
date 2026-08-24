@@ -4079,13 +4079,38 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   };
 
   /**
-   * Forgets every width **and** the panel height for this project, so each
-   * returns to what is resolved for it **now** — the columns to the frame
-   * layout's answer, the panel to its default share.
+   * Forgets the Gantt's own settings for this project — the dragged panel
+   * height, the picked day scale and the hidden row-name labels — so each
+   * returns to what is resolved for it **now**: the panel to its default
+   * share, the scale back to {@link DAY_PX} (Days), the labels to shown.
    *
-   * Forgotten, never frozen. Storing either as it stands would turn a reset
-   * into a rename of today's defaults, and a column whose default had moved
-   * since — `not-before` is 56px or 84px — would come back to the wrong one.
+   * The width half of a layout reset stays in {@link resetLayout}, which
+   * delegates here: a phone card has a chart height, a scale and row names
+   * but no columns to widen, so this half is the one the Plan actions sheet
+   * carries, and a width override is nothing a card can forget.
+   *
+   * Forgotten, never frozen — storing any of the three as it stands would
+   * turn a reset into a rename of today's defaults.
+   */
+  function resetGanttSettings(): void {
+    setGanttHeightPx(null);
+    forgetGanttHeight(projectId);
+    setGanttDayPx(DAY_PX);
+    forgetGanttDayPx(projectId);
+    setGanttLabelsShown(true);
+    forgetGanttLabels(projectId);
+  }
+
+  /**
+   * Forgets the column widths **and** the Gantt settings for this project, so
+   * each returns to what is resolved for it **now** — the columns to the frame
+   * layout's answer, the chart to its default share, the scale to Days, the
+   * labels to shown.
+   *
+   * Forgotten, never frozen. Storing either half as it stands would turn a
+   * reset into a rename of today's defaults, and a column whose default had
+   * moved since — `not-before` is 56px or 84px — would come back to the wrong
+   * one.
    *
    * Proof: the height half deleted, `one reset forgets the widths and the
    * height together` (wbs-table.test.tsx) failed on `expected '500' to be
@@ -4095,12 +4120,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   function resetLayout(): void {
     setWidthOverrides(new Map());
     forgetWidthOverrides(projectId);
-    setGanttHeightPx(null);
-    forgetGanttHeight(projectId);
-    setGanttDayPx(DAY_PX);
-    forgetGanttDayPx(projectId);
-    setGanttLabelsShown(true);
-    forgetGanttLabels(projectId);
+    resetGanttSettings();
   }
 
   /**
@@ -9899,6 +9919,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               </ModalHeader>
               <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
                 {toolbarControls}
+                {(ganttHeightPx !== null || ganttDayPx !== DAY_PX || !ganttLabelsShown) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    title="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
+                    onClick={resetGanttSettings}
+                  >
+                    Reset layout
+                  </Button>
+                )}
               </div>
             </ModalContent>
           </Modal>
@@ -9917,10 +9948,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             The layout reset, and the whole of why it is **here** — the
             toolbar row's own child — rather than in `toolbarControls`: that
             array is rendered both in this row and in the Plan actions sheet,
-            so a control put there reaches the phone by construction — and a
-            phone is drawing cards, which have no columns to widen. This row
-            is rendered only when the sheet is not, so the sheet cannot see
-            it.
+            so a control put there reaches the phone by construction. The
+            width half stays here because a phone card has no columns to
+            widen; the sheet instead carries its own Gantt-only reset, for
+            the height, day scale and row-name labels a card does have.
 
             Offered only while there is something to forget — a dragged
             column or a dragged chart edge. A control that provably does
