@@ -1258,7 +1258,21 @@ function CardDependsField({
         plan, and a sheet sized to its two lines of chrome would open at the
         height of an empty box and jump.
       */}
-      <ModalContent side="bottom" className="min-h-[60vh]">
+      {/*
+        `overflow-y-hidden` where every other sheet lets the surface scroll: on
+        a forty-row plan the offered list alone is taller than the phone, and a
+        scrolling surface takes the search box with it — measured on dev at
+        390×844, the input sat at top=-1136px once the reader reached the last
+        candidate, so narrowing a second search meant scrolling the whole way
+        back. Here the surface is a fixed column — header, the waits, the box —
+        and only the candidate list below scrolls (`min-h-0 flex-1
+        overflow-y-auto` on the `<ul>`), so the box and the waits already taken
+        stay under the reader's thumb at any depth.
+
+        The twMerge conflict with the surface's own `overflow-y-auto` resolves
+        this way because `className` is `cn`'s last argument.
+      */}
+      <ModalContent side="bottom" className="min-h-[60vh] overflow-y-hidden">
         <ModalHeader>
           <ModalTitle>Depends on for {row.number}</ModalTitle>
           <ModalDescription>
@@ -1266,9 +1280,20 @@ function CardDependsField({
             as you tap.
           </ModalDescription>
         </ModalHeader>
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {waits.length > 0 && (
-            <ul aria-label={`Waits for, on ${row.number}`} className="flex flex-col gap-1">
+            // Bounded on purpose: the surface no longer scrolls, so a row
+            // with many waits must not push the box or the candidate list
+            // out of the clipped surface — past `max-h-56` the waits scroll
+            // inside their own region. 56 = 14rem fits the four-wait shape
+            // the fault was found in (4 × the 44px tap floor + gaps) without
+            // clipping it. `shrink-0` because `overflow-y-auto` zeroes the
+            // flex minimum — without it the column splits the squeeze between
+            // this list and the candidates and clips the waits to a row.
+            <ul
+              aria-label={`Waits for, on ${row.number}`}
+              className="flex max-h-56 shrink-0 flex-col gap-1 overflow-y-auto"
+            >
               {waits.map((each) => (
                 <li
                   key={each.id}
@@ -1298,7 +1323,9 @@ function CardDependsField({
               ))}
             </ul>
           )}
-          <label className="flex flex-col gap-1 text-sm">
+          {/* `shrink-0`: the box is the control the whole fix is for, so it
+              never gives height back to the flex column. */}
+          <label className="flex shrink-0 flex-col gap-1 text-sm">
             <span>Add another</span>
             {/*
               The cell id the table's own box carries — `rowId::depends`, one
@@ -1324,13 +1351,21 @@ function CardDependsField({
             />
           </label>
           {offered.length === 0 ? (
-            <p data-card-depends-empty className="text-muted-foreground m-0 text-sm">
+            <p data-card-depends-empty className="text-muted-foreground m-0 shrink-0 text-sm">
               {typed.trim() === ''
                 ? 'There is nothing else in this plan to wait for.'
                 : `No other row matches “${typed}”.`}
             </p>
           ) : (
-            <ul aria-label={`Rows ${row.number} could wait for`} className="flex flex-col gap-1">
+            <ul
+              aria-label={`Rows ${row.number} could wait for`}
+              // The sheet's one scroll region — the comment on `ModalContent`
+              // above. `min-h-0` is what lets a flex child shrink below its
+              // content height; without it the list still outgrows the surface
+              // and the surface's hidden overflow clips the last rows with no
+              // scroll to reach them.
+              className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
+            >
               {offered.map((entry) => (
                 <li key={entry.id}>
                   <button
