@@ -2,7 +2,8 @@
 
 WBS uses standard OIDC discovery, Authorization Code + PKCE, RS256/JWKS token
 verification, and provider-neutral claims. The provider is configuration, not
-code: Keycloak is the local acceptance provider and Okta uses the same contract.
+code: Keycloak is the local acceptance provider, Auth0 is the dev provider, and
+the historical Okta setup uses the same contract.
 
 ## Shared provider contract
 
@@ -120,9 +121,68 @@ Verified on h2puni, 2026-08-24, against Keycloak 26.3 and branch
 `change/okta-auth-identity` at `649cc3a`: fe-01 signed in, cookie API 200,
 WebSocket open, and standalone MCP initialize 200.
 
-## Okta mapping
+## Auth0 mapping
 
-No code change is needed. Put the real values in the off-repo deployment env:
+No provider-specific code is required. The dev tenant is
+`dev-fzwagvg246jhid6a.us.auth0.com`; configure discovery from that tenant and
+preserve the exact issuer, including its trailing slash:
+`https://dev-fzwagvg246jhid6a.us.auth0.com/`.
+
+Pass the issuer URL itself, not the literal
+`/.well-known/openid-configuration` endpoint. That keeps the discovery
+metadata's issuer-equality check enabled.
+
+```dotenv
+NODE_ENV=development
+AUTH_MODE=oidc
+AUTH_ISSUER_DISCOVERY_URL=https://dev-fzwagvg246jhid6a.us.auth0.com/
+AUTH_CLIENT_ID=<WBS Tool (dev) client ID>
+AUTH_CLIENT_SECRET=<WBS Tool (dev) client secret>
+AUTH_REDIRECT_URI=https://dev.wbs.bulletpoints.club/api/auth/okta/callback
+AUTH_SCOPE=openid profile email offline_access
+AUTH_AUDIENCE=https://wbs.bulletpoints.club/api
+AUTH_GROUPS_CLAIM=wbs_groups
+```
+
+The Auth0 application is a Regular Web Application with Authorization Code +
+PKCE and rotating refresh-token grants. Its callback remains
+`https://dev.wbs.bulletpoints.club/api/auth/okta/callback`; `okta` is a
+historical route name, not a provider dependency. Request `offline_access` and
+the audience `https://wbs.bulletpoints.club/api`. Without that audience Auth0
+returns an opaque user-info token instead of the RS256 JWT that WBS verifies.
+
+The post-login Action maps Auth0 roles into the environment-prefixed group
+claims WBS consumes. For example, `wbs-editor` becomes `dev:wbs:editor`:
+
+```js
+exports.onExecutePostLogin = async (event, api) => {
+  const groups = (event.authorization?.roles ?? []).map((r) => 'dev:' + r.replace(/-/g, ':'));
+  api.idToken.setCustomClaim('wbs_groups', groups);
+  api.accessToken.setCustomClaim('wbs_groups', groups);
+  api.idToken.setCustomClaim('studio_groups', groups);
+  api.accessToken.setCustomClaim('studio_groups', groups);
+};
+```
+
+This is the dev tenant's deployed Action, so `dev:` is intentional. A production
+tenant must emit `prod:` instead; WBS matches the environment prefix exactly and
+would otherwise issue a session with no scopes. The Action writes the same role
+array to both claims; each app ignores values for the other app segment.
+
+Assign the WBS roles to each user and require `email_verified=true` before
+first-login linking. Real dev credentials live only in
+`/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The prior
+Okta values are retained only in `oidc-dev.env.okta.bak` until the trial expires
+on 2026-09-22; delete that backup after the expiry.
+
+As of 2026-08-24, discovery and the real Auth0 Universal Login page are verified.
+Credentialed callback acceptance (`/api/auth/me`, WebSocket, MCP, and the emitted
+editor scope) remains pending TASK-110's password-login path.
+
+## Historical Okta mapping
+
+No code change is needed to reproduce the prior Okta configuration. Its mapping
+was:
 
 ```dotenv
 NODE_ENV=development
@@ -143,9 +203,10 @@ environment prefix; production uses `prod:wbs:*`, development uses
 `dev:wbs:*`. Do not use the org authorization server if it cannot mint the
 custom audience and groups claim required by WBS.
 
-Real dev credentials live only in `/home/puni1/wbs-dev/oidc-dev.env` on the
-deployment host (mode 600). Never copy them into the repository, logs, tests,
-or issue text.
+The archived dev values live only in
+`/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the deployment host (mode 600)
+until 2026-09-22. Never copy them into the repository, logs, tests, or issue
+text.
 
 ## Local bypass
 
