@@ -213,3 +213,45 @@ text.
 For ordinary local development without an IdP, use `AUTH_MODE=local` with
 `NODE_ENV=development`. It supplies the fixed local identity and issues no OIDC
 cookie. Startup refuses `AUTH_MODE=local` when `NODE_ENV=production`.
+
+## Password login
+
+Password login runs inside `AUTH_MODE=oidc`; it is a second route to the same
+session, not a separate identity mechanism. A successful `POST /api/auth/login`
+issues the same hardened `__Host-wbs_access` HttpOnly cookie as the OIDC
+callback. `/api/auth/me` and gw-01 WebSocket upgrades therefore see the same
+identity kind regardless of the sign-in route.
+
+Both flags parse strictly as literal `true` or `false`:
+
+```dotenv
+AUTH_PASSWORD_LOGIN=true
+AUTH_PASSWORD_REGISTER=false
+```
+
+`AUTH_PASSWORD_LOGIN` defaults to `true`; production may set it to `false`.
+`AUTH_PASSWORD_REGISTER` defaults to `false`, so `POST /api/auth/register`
+continues to return 404 in OIDC mode unless registration is explicitly enabled.
+Startup refuses registration enabled while password login is disabled, because
+that combination would create a session cookie the application then rejects.
+
+The users table has no per-user role or scope column. Password identities
+therefore receive the same scopes as `AUTH_MODE=local`: `read`, `write`, and
+`editor`. No separate role system is implied.
+
+Failed logins use bounded fixed-window counters keyed separately by normalized
+username and client IP. Either key blocks after five failures for 60 seconds.
+The bounded counter fails closed when it reaches capacity instead of evicting a
+live lock. Enabled registration counts every attempt against the same IP limit
+because password hashing is expensive even when registration succeeds.
+
+Password verification uses the same bounded Argon2 cost for unknown,
+OIDC-only, oversized, and wrong-password cases; they return the same
+`invalid_credentials` response. In OIDC mode, password session creation also
+requires the exact application `Origin` and the trusted edge's
+`X-Forwarded-For` value. Session JWTs stay only in the hardened HttpOnly cookie,
+including when registration is explicitly enabled.
+
+QA credentials live only in `/home/puni1/wbs-dev/qa-accounts.env` on the
+deployment host, with mode 600, as `QA_USER` and `QA_PASS`. Never copy their
+values into the repository, logs, tests, or issue text.

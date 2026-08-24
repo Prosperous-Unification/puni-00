@@ -8,6 +8,50 @@ async function makeToken(secret: Uint8Array, sub = 'user-1'): Promise<string> {
 }
 
 describe('JwtVerifier', () => {
+  it('routes OIDC tokens to the primary and password tokens to the local key', async () => {
+    const current = await generateSecret('HS256');
+    const primaryCalls: string[] = [];
+    const verifier = new JwtVerifier({
+      current,
+      primary: {
+        verify: (token) => {
+          primaryCalls.push(token);
+          return token === 'oidc-access-token'
+            ? Promise.resolve({ sub: 'oidc-user' })
+            : Promise.reject(new Error('not an OIDC token'));
+        },
+      },
+    } as ConstructorParameters<typeof JwtVerifier>[0]);
+
+    expect(await verifier.verify('oidc-access-token')).toEqual({ sub: 'oidc-user' });
+    expect((await verifier.verify(await makeToken(current, 'password-user'))).sub).toBe(
+      'password-user',
+    );
+    expect(primaryCalls).toEqual(['oidc-access-token']);
+  });
+
+  it('propagates an OIDC verifier outage instead of disguising it as a local rejection', async () => {
+    const current = await generateSecret('HS256');
+    const outage = new Error('JWKS endpoint unavailable');
+    const verifier = new JwtVerifier({
+      current,
+      primary: { verify: () => Promise.reject(outage) },
+    });
+    const oidcShaped = [
+      Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url'),
+      Buffer.from(JSON.stringify({ sub: 'oidc-user' })).toString('base64url'),
+      'signature',
+    ].join('.');
+
+    let caught: unknown;
+    try {
+      await verifier.verify(oidcShaped);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBe(outage);
+  });
+
   it('accepts a CURRENT-signed token', async () => {
     const cur = (await generateSecret('HS256')) as Uint8Array;
     const verifier = new JwtVerifier({ current: cur });

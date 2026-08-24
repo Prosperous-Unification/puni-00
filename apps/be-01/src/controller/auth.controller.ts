@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import {
+  booleanFlagOf,
   browserOidcClientFromEnv,
   InMemoryOidcTransactionStore,
   InMemoryTokenStore,
@@ -13,7 +14,8 @@ import {
 import { Elysia, t } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
-import type { AuthService } from '../service/auth.service';
+import { type AuthService, TOKEN_TTL_SECONDS } from '../service/auth.service';
+import { LoginThrottle } from '../service/login-throttle';
 
 export interface OidcRouteOptions {
   appOrigin: string;
@@ -22,6 +24,8 @@ export interface OidcRouteOptions {
   groupsClaim: string;
   mode: 'oidc';
   now?: () => number;
+  passwordLoginEnabled?: boolean;
+  passwordRegisterEnabled?: boolean;
   random?: () => string;
   redirectUri: string;
   tokens: TokenStore;
@@ -50,12 +54,19 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
   ) {
     throw new Error('AUTH_REDIRECT_URI must use the mounted /api/auth/okta/callback route');
   }
+  const passwordLoginEnabled = booleanFlagOf(env, 'AUTH_PASSWORD_LOGIN', true);
+  const passwordRegisterEnabled = booleanFlagOf(env, 'AUTH_PASSWORD_REGISTER', false);
+  if (passwordRegisterEnabled && !passwordLoginEnabled) {
+    throw new Error('AUTH_PASSWORD_REGISTER=true requires AUTH_PASSWORD_LOGIN=true');
+  }
   return {
     appOrigin: redirectUri.origin,
     client: browserOidcClientFromEnv(env),
     groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
     groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
     mode: 'oidc',
+    passwordLoginEnabled,
+    passwordRegisterEnabled,
     random: () => randomBytes(32).toString('base64url'),
     redirectUri: redirectUri.href,
     tokens: new InMemoryTokenStore(),
@@ -76,23 +87,40 @@ const credentials = t.Object({
 });
 
 /**
- * Registration and login both return the same token shape, so the front end
- * has one code path for "I am now signed in". The token is what gw-01 accepts
- * on the WebSocket, which is why login and the realtime connection cannot
- * drift apart: there is exactly one issuer.
+ * Registration and login return one session shape. OIDC mode keeps its JWT in
+ * the HttpOnly cookie and returns an empty token field so page JavaScript never
+ * receives the credential; local mode retains the bearer response for tools.
  */
 export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
+  const passwordThrottle = new LoginThrottle({ now: oidc?.now });
   // `/api` is part of the mount, not stripped by the edge: Caddy passes the
   // prefix through with `handle`, matching smokeController. A bare `/auth`
   // here answers in unit tests and 404s behind the proxy.
   const controller = new Elysia({ prefix: '/api/auth' })
     .post(
       '/register',
-      async ({ body, set }) => {
-        if (oidc !== undefined) {
+      async ({ body, request, set }) => {
+        if (oidc !== undefined && oidc.passwordRegisterEnabled !== true) {
           set.status = 404;
           return { error: 'not_found' };
         }
+        if (oidc !== undefined && request.headers.get('origin') !== oidc.appOrigin) {
+          set.status = 403;
+          return { error: 'invalid_origin' };
+        }
+        const clientIp = clientIpOf(request);
+        if (oidc !== undefined && clientIp === null) {
+          set.status = 400;
+          return { error: 'invalid_client' };
+        }
+        const throttleIp = clientIp ?? 'local-direct';
+        if (!passwordThrottle.canAttempt(body.username, throttleIp)) {
+          set.status = 429;
+          return { error: 'rate_limited' };
+        }
+        // Registration is an expensive password hash even when it succeeds.
+        // Count every attempt so rotating usernames cannot turn it into a CPU sink.
+        passwordThrottle.recordFailure(body.username, throttleIp);
         const outcome = await auth.register(body.username, body.password);
         if (!outcome.ok) {
           // 409 for a taken name, 400 for a malformed one: the front end shows
@@ -101,21 +129,53 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
           set.status = outcome.reason === 'taken' ? 409 : 400;
           return { error: outcome.reason };
         }
+        if (oidc !== undefined) {
+          set.headers['set-cookie'] = cookie(
+            '__Host-wbs_access',
+            outcome.result.token,
+            TOKEN_TTL_SECONDS,
+          );
+          return { token: '', user: outcome.result.user };
+        }
         return outcome.result;
       },
       { body: credentials },
     )
     .post(
       '/login',
-      async ({ body, set }) => {
-        if (oidc !== undefined) {
+      async ({ body, request, set }) => {
+        if (oidc?.passwordLoginEnabled === false) {
           set.status = 404;
           return { error: 'not_found' };
         }
+        if (oidc !== undefined && request.headers.get('origin') !== oidc.appOrigin) {
+          set.status = 403;
+          return { error: 'invalid_origin' };
+        }
+        const clientIp = clientIpOf(request);
+        if (oidc !== undefined && clientIp === null) {
+          set.status = 400;
+          return { error: 'invalid_client' };
+        }
+        const throttleIp = clientIp ?? 'local-direct';
+        if (!passwordThrottle.canAttempt(body.username, throttleIp)) {
+          set.status = 429;
+          return { error: 'invalid_credentials' };
+        }
         const outcome = await auth.login(body.username, body.password);
         if (!outcome.ok) {
+          passwordThrottle.recordFailure(body.username, throttleIp);
           set.status = 401;
           return { error: 'invalid_credentials' };
+        }
+        passwordThrottle.recordSuccess(body.username);
+        if (oidc !== undefined) {
+          set.headers['set-cookie'] = cookie(
+            '__Host-wbs_access',
+            outcome.result.token,
+            TOKEN_TTL_SECONDS,
+          );
+          return { token: '', user: outcome.result.user };
         }
         return outcome.result;
       },
@@ -228,6 +288,18 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
       if (record !== null) await oidc.client.revoke(record.refreshToken);
       return emptyResponse(204, clearSession());
     });
+}
+
+function clientIpOf(request: Request): string | null {
+  // The single trusted Caddy edge appends the network peer. Any left-side
+  // values may have been supplied by the client and cannot identify it.
+  const forwarded = request.headers
+    .get('x-forwarded-for')
+    ?.split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .at(-1);
+  return forwarded ?? null;
 }
 
 export function hasInvalidCookieOrigin(request: Request, appOrigin: string): boolean {
