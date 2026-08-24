@@ -18,6 +18,7 @@ import {
   type PickableEntry,
   PickerList,
   type PickerOption,
+  pickerOptionId,
 } from './creatable-picker';
 import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
 import { type CellElement, cellKey } from './editable-grid';
@@ -1763,6 +1764,13 @@ export function PlanCards({
                         role="combobox"
                         aria-expanded={options.length > 0}
                         aria-controls={options.length > 0 ? listId : undefined}
+                        // Which line Enter takes, for a reader who cannot see
+                        // the highlight — the table's folded cell carries the
+                        // same attribute; the two must not disagree. Cleared
+                        // with `aria-controls` when the list closes.
+                        aria-activedescendant={
+                          options.length > 0 ? pickerOptionId(listId, 0) : undefined
+                        }
                         aria-autocomplete="list"
                         aria-invalid={problem !== null}
                         title={problem ?? undefined}
