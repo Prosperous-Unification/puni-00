@@ -2,7 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
-import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import { AuthService } from '../service/auth.service';
+import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -103,6 +104,37 @@ describe('POST /api/auth/login', () => {
 });
 
 describe('GET /api/auth/me', () => {
+  it('returns the fixed development identity without a token in local mode', async () => {
+    const users = inMemoryUsers();
+    const local = new AuthService({
+      users,
+      identities: users,
+      jwtKey: TEST_JWT_KEY,
+      localIdentity: {
+        id: 'local-dev',
+        username: 'local-dev',
+        scopes: ['read', 'write', 'editor'],
+      },
+    });
+    const res = await buildApp({
+      directory: testDirectoryService(),
+      capacity: testCapacityService(),
+      priorityBands: testPriorityBandService(),
+      history: testHistoryService(),
+      auth: local,
+      projects: testProjectService(),
+      workItems: testWorkItemService(),
+      roles: testRoleService(),
+      replay: testReplay().replay,
+      probeDatabase: () => 'ok',
+      internalAuthSecret: TEST_SECRET,
+      migrationsApplied: true,
+    }).handle(new Request('http://localhost/api/auth/me'));
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { user: { username: string } }).user.username).toBe('local-dev');
+  });
+
   it('resolves the caller from a bearer token', async () => {
     const a = app();
     const reg = await a.handle(
@@ -174,20 +206,18 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(401);
   });
 
-  it('accepts x-wbs-token, the header the edge cannot collide with', async () => {
+  it('rejects the retired x-wbs-token header', async () => {
     const a = app();
     const reg = await a.handle(
       json('/api/auth/register', { username: 'ada', password: 'lovelace99' }),
     );
     const { token } = (await reg.json()) as { token: string };
-    // Regression: dev's basic auth owns the Authorization header on every path
-    // but /ws, so a Bearer token sent there is a 401 from Caddy, not from
-    // be-01. Verified live on dev before this header existed.
+    // Proof: restoring the x-wbs-token branch in tokenFromHeaders makes this
+    // request authenticate and changes the expected 401 into 200.
     const res = await a.handle(
       new Request('http://localhost/api/auth/me', { headers: { 'x-wbs-token': token } }),
     );
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { user: { username: string } }).user.username).toBe('ada');
+    expect(res.status).toBe(401);
   });
 
   it('rejects a missing header', async () => {

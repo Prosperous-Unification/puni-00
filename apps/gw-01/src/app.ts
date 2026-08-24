@@ -15,6 +15,20 @@ import { SubscriptionMap } from './service/subscription-map';
 /** Short: `/health` is polled, and a slow answer is as useless as no answer. */
 const HEALTH_PROBE_TIMEOUT_MS = 2_000;
 
+function cookieValue(raw: string | null, name: string): string | null {
+  for (const part of (raw ?? '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator > 0 && part.slice(0, separator).trim() === name) {
+      try {
+        return decodeURIComponent(part.slice(separator + 1));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * What the `/ws` handlers keep on a connection for its whole life.
  *
@@ -41,7 +55,7 @@ interface WsConnection {
    * Never rejects: a token that fails here is already handled inside it.
    */
   joined: Promise<void>;
-  query?: { token?: string };
+  query?: { localIdentity?: string; token?: string };
 }
 
 export interface AppOptions {
@@ -51,6 +65,15 @@ export interface AppOptions {
   previousJwtKey?: string;
   version?: string;
   fetchImpl?: typeof fetch;
+  /**
+   * The browser origin allowed to open an OIDC cookie-authenticated socket.
+   *
+   * Absent in local mode, where the development client still supplies its
+   * short-lived token in the query string.
+   */
+  appOrigin?: string;
+  /** Fixed cookie-free identity accepted only by explicit local-mode boot. */
+  localIdentity?: string;
   /**
    * The token verifier, in place of the one built from `jwtKey`.
    *
@@ -118,8 +141,27 @@ export function buildApp(opts: AppOptions) {
       })
       .get('/metrics/snapshot', () => metrics.counters)
       .ws('/ws', {
-        async beforeHandle({ query, set }) {
-          const token = (query as { token?: string }).token;
+        async beforeHandle({ query, request, set }) {
+          const wsQuery = query as { localIdentity?: string; token?: string };
+          if (opts.localIdentity !== undefined) {
+            // Proof: without this production upgrade branch, the local-mode
+            // browser gate closes /ws as `missing token` and both peer-edit
+            // cases fail after their PATCH returns 200. Watched 2026-08-24.
+            wsQuery.localIdentity = opts.localIdentity;
+            return undefined;
+          }
+          if (opts.appOrigin !== undefined && request.headers.get('origin') !== opts.appOrigin) {
+            // Proof: delete this comparison and "refuses a valid cookie
+            // presented by a foreign origin" opens a real socket. Watched
+            // 2026-08-24.
+            set.status = 403;
+            return { error: 'invalid origin' };
+          }
+
+          const token =
+            opts.appOrigin === undefined
+              ? wsQuery.token
+              : cookieValue(request.headers.get('cookie'), '__Host-wbs_access');
           if (!token) {
             set.status = 401;
             return { error: 'missing token' };
@@ -130,6 +172,7 @@ export function buildApp(opts: AppOptions) {
             set.status = 401;
             return { error: 'invalid token' };
           }
+          wsQuery.token = token;
           return undefined;
         },
         async open(ws) {
@@ -151,12 +194,15 @@ export function buildApp(opts: AppOptions) {
             // mean trusting a value this handler never saw. Same verifier, same
             // key, so a token that reached open cannot fail — but if it does,
             // the socket joins nobody and simply has no presence.
-            const token = conn.query?.token;
-            if (token === undefined) return;
             try {
-              const claims = await verifier.verify(token);
-              const username =
-                typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+              const localIdentity = conn.query?.localIdentity;
+              let username = localIdentity;
+              if (username === undefined) {
+                const token = conn.query?.token;
+                if (token === undefined) return;
+                const claims = await verifier.verify(token);
+                username = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+              }
               // A join puts the connection in no project — it has not said which
               // one it is looking at yet, and until it subscribes it belongs to
               // nothing (see {@link Presence}). The broadcast is what hands the

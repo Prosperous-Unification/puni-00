@@ -4,23 +4,29 @@ import {
   browserOidcClientFromEnv,
   InMemoryOidcTransactionStore,
   InMemoryTokenStore,
+  oidcIdentityFromClaims,
+  oidcTokenVerifierFromEnv,
   type OidcTransactionStore,
   type TokenStore,
+  type TokenVerifier,
 } from '@wbs/auth';
 import { Elysia, t } from 'elysia';
 
-import { tokenFromHeaders } from '../middleware/authenticated';
+import { userFromHeaders } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
 
 export interface OidcRouteOptions {
   appOrigin: string;
   client: ReturnType<typeof browserOidcClientFromEnv>;
+  groupPrefix: string;
+  groupsClaim: string;
   mode: 'oidc';
   now?: () => number;
   random?: () => string;
   redirectUri: string;
   tokens: TokenStore;
   transactions: OidcTransactionStore;
+  verifier: TokenVerifier;
 }
 
 export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>): OidcRouteOptions {
@@ -47,11 +53,14 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
   return {
     appOrigin: redirectUri.origin,
     client: browserOidcClientFromEnv(env),
+    groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
+    groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
     mode: 'oidc',
     random: () => randomBytes(32).toString('base64url'),
     redirectUri: redirectUri.href,
     tokens: new InMemoryTokenStore(),
     transactions: new InMemoryOidcTransactionStore({ ttlMs: 300_000 }),
+    verifier: oidcTokenVerifierFromEnv(env),
   };
 }
 
@@ -80,6 +89,10 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
     .post(
       '/register',
       async ({ body, set }) => {
+        if (oidc !== undefined) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
         const outcome = await auth.register(body.username, body.password);
         if (!outcome.ok) {
           // 409 for a taken name, 400 for a malformed one: the front end shows
@@ -95,6 +108,10 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
     .post(
       '/login',
       async ({ body, set }) => {
+        if (oidc !== undefined) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
         const outcome = await auth.login(body.username, body.password);
         if (!outcome.ok) {
           set.status = 401;
@@ -105,12 +122,7 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
       { body: credentials },
     )
     .get('/me', async ({ headers, set }) => {
-      const token = tokenFromHeaders(headers);
-      if (token === null) {
-        set.status = 401;
-        return { error: 'missing_token' };
-      }
-      const user = await auth.authenticate(token);
+      const user = await userFromHeaders(auth, headers);
       if (user === null) {
         set.status = 401;
         return { error: 'invalid_token' };
@@ -156,6 +168,20 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
         state,
         verifier: transaction.verifier,
       });
+      if (tokenSet.idTokenClaims === undefined) {
+        return emptyResponse(401, [clear('__Host-wbs_oidc')]);
+      }
+      let identity;
+      try {
+        identity = oidcIdentityFromClaims(tokenSet.idTokenClaims, {
+          groupPrefix: oidc.groupPrefix,
+          groupsClaim: oidc.groupsClaim,
+        });
+      } catch {
+        return emptyResponse(401, [clear('__Host-wbs_oidc')]);
+      }
+      const account = await auth.resolveOidcIdentity(identity);
+      if (account === null) return emptyResponse(409, [clear('__Host-wbs_oidc')]);
       const correlation = random();
       if (tokenSet.refreshToken !== undefined) {
         oidc.tokens.save({

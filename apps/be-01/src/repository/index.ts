@@ -28,7 +28,10 @@ export interface ExampleRepo {
 export interface User {
   id: string;
   username: string;
-  passwordHash: string;
+  passwordHash: string | null;
+  email?: string | null;
+  idpIssuer?: string | null;
+  idpSub?: string | null;
   createdAt: number;
 }
 
@@ -37,6 +40,21 @@ export interface UserStore {
   create(user: User): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
+}
+
+export interface OidcAccountIdentity {
+  issuer: string;
+  subject: string;
+  email: string | null;
+  emailVerified: boolean;
+}
+
+export interface OidcIdentityStore {
+  /** Returns null when an existing email belongs to a different federated identity. */
+  resolveOidcIdentity(
+    identity: OidcAccountIdentity,
+    create: { id: string; createdAt: number },
+  ): Promise<User | null>;
 }
 
 export interface Project {
@@ -48,6 +66,8 @@ export interface Project {
   estimateMethod: EstimateMethod;
   /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
   startDate: IsoDate | null;
+  /** The external solution this plan implements, or null when it is standalone. */
+  solutionRef: { slug: string; url: string } | null;
   /**
    * How many times this project has been written to. Moves on its own stored
    * fields and on its roles; never on a work item beneath it, and never on
@@ -236,6 +256,8 @@ export interface ProjectPatch {
   estimateMethod?: EstimateMethod;
   /** `null` takes the plan back off the calendar. */
   startDate?: IsoDate | null;
+  /** `null` detaches the plan from its external solution. */
+  solutionRef?: { slug: string; url: string } | null;
 }
 
 export interface WorkItem {
@@ -1687,6 +1709,7 @@ export interface ProjectStore {
    */
   create(project: Project, roles: readonly Role[]): Promise<Project>;
   findById(id: string): Promise<Project | null>;
+  findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;
   /**

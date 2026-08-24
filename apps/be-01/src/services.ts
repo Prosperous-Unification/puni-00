@@ -17,7 +17,7 @@ import { RoleMeasureRepository } from './repository/role-measure';
 import { RoleProgressRepository } from './repository/role-progress';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
-import { AuthService } from './service/auth.service';
+import { AuthService, type AuthServiceOptions } from './service/auth.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
@@ -52,6 +52,8 @@ export interface ServicesOptions {
   jwtKey: string;
   gwUrl: string;
   internalAuthSecret: string;
+  oidc?: AuthServiceOptions['oidc'];
+  localIdentity?: AuthServiceOptions['localIdentity'];
 }
 
 export interface BeServices {
@@ -80,6 +82,7 @@ export interface BeServices {
  */
 export function buildServices(opts: ServicesOptions): BeServices {
   const projectStore = new ProjectRepository(opts.db);
+  const userStore = new UserRepository(opts.db);
   const directoryStore = new DirectoryRepository(opts.db);
   const capacityStore = new CapacityRepository(opts.db);
   const priorityBandStore = new PriorityBandRepository(opts.db);
@@ -114,8 +117,11 @@ export function buildServices(opts: ServicesOptions): BeServices {
 
   return {
     auth: new AuthService({
-      users: new UserRepository(opts.db),
+      users: userStore,
+      identities: userStore,
       jwtKey: opts.jwtKey,
+      oidc: opts.oidc,
+      localIdentity: opts.localIdentity,
     }),
     projects: new ProjectService({ projects: projectStore }),
     // The same broadcaster again: a capacity event takes its place in the

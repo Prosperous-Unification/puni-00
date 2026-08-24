@@ -49,12 +49,10 @@ const TEN_LINES = [
  * Through the UI, like the other browser gates: the box being measured is one
  * somebody has typed into, sized by the same render path a real session takes.
  */
-async function seedRows(page: Page, account: string, rows: number): Promise<void> {
+async function seedRows(page: Page, _account: string, rows: number): Promise<void> {
+  void _account;
   await page.goto('/');
-  await page.getByRole('button', { name: 'Need an account? Register' }).click();
-  await page.getByLabel('Username').fill(account);
-  await page.getByLabel('Password').fill('name-cell-gate-password');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
   await page.getByRole('button', { name: 'New project' }).click();
   const addRow = page.getByRole('button', { name: 'Add work item' });
@@ -121,19 +119,16 @@ const linesHidden = (box: CellBox): number =>
  * One edit by somebody else, made the way somebody else makes it: a request to
  * be-01 from outside this page's own UI, which gw-01 then tells the page about.
  *
- * The same fixture `mobile.spec.ts` uses, and it borrows this session's token
- * out of `localStorage` for the same reason: what is being measured is what
+ * The same fixture `mobile.spec.ts` uses. Its same-origin request carries the
+ * page's httpOnly session cookie because what is being measured is what
  * arrives at *this* page, not who sent it.
  */
 async function aPeerRenames(page: Page, workItemId: string, name: string): Promise<void> {
   const status = await page.evaluate(
     async ([id, newName]) => {
-      const raw = localStorage.getItem('wbs.session');
-      if (raw === null) throw new Error('no session to borrow a token from');
-      const session = JSON.parse(raw) as { token: string };
       const res = await fetch(`/api/work-items/${id}`, {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json', 'x-wbs-token': session.token },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: newName }),
       });
       return res.status;
