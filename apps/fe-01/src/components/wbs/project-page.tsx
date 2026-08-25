@@ -50,6 +50,57 @@ function rememberProject(id: string | null): void {
   else localStorage.setItem(PROJECT_KEY, id);
 }
 
+/** The current viewport rectangle of an option while it remains visible in its listbox. */
+function projectOptionAnchor(id: string | null, listbox: HTMLElement | null): AnchorRect | null {
+  if (id === null || listbox === null) return null;
+  const option = document.getElementById(`project-option-${id}`);
+  if (option === null) return null;
+  const box = option.getBoundingClientRect();
+  const list = listbox.getBoundingClientRect();
+  if (box.bottom <= list.top || box.top >= list.bottom) return null;
+  return { left: box.left, top: box.top, bottom: box.bottom };
+}
+
+/**
+ * The portalled project preview, isolated so scroll remeasurement does not
+ * rerender the page's table.
+ */
+function ProjectOptionCard({
+  entry,
+  now,
+}: {
+  entry: ProjectListEntry | undefined;
+  now: Date;
+}): ReactNode {
+  const id = entry?.id ?? null;
+  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+  useLayoutEffect(() => {
+    const listbox = document.getElementById('project-options');
+    const remeasure = () => {
+      setAnchor(projectOptionAnchor(id, listbox));
+    };
+    remeasure();
+    listbox?.addEventListener('scroll', remeasure);
+    return () => {
+      listbox?.removeEventListener('scroll', remeasure);
+    };
+  }, [id]);
+
+  if (entry === undefined || anchor === null) return null;
+  const meta = projectCardMeta(entry, now);
+  return (
+    <HoverCard anchor={anchor} label={entry.name}>
+      <div className="font-medium break-words">{entry.name}</div>
+      <div className="text-muted-foreground">
+        {meta.ownership}
+        {entry.restricted ? ' · Restricted' : ''}
+      </div>
+      <div className="text-muted-foreground">{meta.start}</div>
+      <div className="text-muted-foreground">{meta.lastOpened}</div>
+    </HoverCard>
+  );
+}
+
 /**
  * Picks a project, remembers the pick, renames it, then hands it to the table.
  *
@@ -258,21 +309,6 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
    */
   const cardId = listOpen ? (hoveredId ?? highlighted?.id ?? null) : null;
   const cardEntry = cardId === null ? undefined : entries.find((entry) => entry.id === cardId);
-  const cardMeta = cardEntry === undefined ? null : projectCardMeta(cardEntry, now);
-  const [cardAnchor, setCardAnchor] = useState<AnchorRect | null>(null);
-  useLayoutEffect(() => {
-    if (cardId === null) {
-      setCardAnchor(null);
-      return;
-    }
-    const node = document.getElementById(`project-option-${cardId}`);
-    if (node === null) {
-      setCardAnchor(null);
-      return;
-    }
-    const box = node.getBoundingClientRect();
-    setCardAnchor({ left: box.left, top: box.top, bottom: box.bottom });
-  }, [cardId]);
 
   /** Takes a project: selects it, remembers it, and closes the picker. */
   const choose = (id: string) => {
@@ -473,17 +509,15 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
                 ))}
               </ul>
             )}
-            {cardEntry !== undefined && cardAnchor !== null && cardMeta !== null && (
-              <HoverCard anchor={cardAnchor} label={cardEntry.name}>
-                <div className="font-medium break-words">{cardEntry.name}</div>
-                <div className="text-muted-foreground">
-                  {cardMeta.ownership}
-                  {cardEntry.restricted ? ' · Restricted' : ''}
-                </div>
-                <div className="text-muted-foreground">{cardMeta.start}</div>
-                <div className="text-muted-foreground">{cardMeta.lastOpened}</div>
-              </HoverCard>
-            )}
+            {/*
+              The card owns its scroll listener and anchor state: a wheel tick
+              repositions this small child, not the WBS table below the header.
+              Off-list options answer no anchor, so a keyboard highlight cannot
+              leave a portal floating outside the listbox. Proof: the two scroll
+              regressions in `project-page.test.tsx` failed on a parent rerender
+              and a still-mounted off-list card. Watched 2026-08-24.
+            */}
+            <ProjectOptionCard entry={cardEntry} now={now} />
           </span>
           {selectedProject !== undefined && (
             <Button
