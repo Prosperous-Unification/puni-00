@@ -706,6 +706,143 @@ test.describe('the plan on a phone, measured by a browser', () => {
   });
 
   /**
+   * The sheet must not cover the card it is editing.
+   *
+   * `wbs-card-priority-qa`'s defect, measured on dev at 28 rows (2026-08-23):
+   * the last card's `priority…` trigger sat at y=469–513 and the sheet it
+   * opened at y=291–844 — the whole control underneath its own sheet. The
+   * scroll room this case adds (`useTriggerAboveSheet` in `plan-cards.tsx`)
+   * is padding at the bottom of the `[data-plan-cards]` scroller, taken off
+   * again on close.
+   *
+   * The rows are made through be-01 rather than through the sheet: 28 rows,
+   * at ~two UI gestures each, would put the measurement behind half a minute
+   * of fixture, and what is being measured is the geometry — the fixture is
+   * only in the way of it. `afterId` is chained so the list reads in order
+   * rather than reversed.
+   */
+  test('the priority sheet keeps the card it edits above it, also at the end of a list', async ({
+    page,
+  }) => {
+    const cards = page.locator('[data-plan-cards] > article');
+    const fixtureRows = await cards.count();
+    await page.evaluate(async (count: number) => {
+      const projectId = window.localStorage.getItem('wbs.project');
+      if (projectId === null) throw new Error('no wbs.project in localStorage');
+      let afterId: string | null = null;
+      for (let each = 0; each < count; each += 1) {
+        const res = await fetch(`/api/projects/${projectId}/work-items`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ afterId }),
+        });
+        if (!res.ok) throw new Error(`create refused: ${String(res.status)}`);
+        afterId = ((await res.json()) as { id: string }).id;
+      }
+    }, 28);
+    // The creates went straight to be-01, so nothing here measures a long
+    // list until the SPA has actually rendered one: without the count wait
+    // the case below could be reading the fixture's own rows.
+    await expect(cards).toHaveCount(fixtureRows + 28);
+
+    const scroller = page.locator('[data-plan-cards]');
+    const sheet = page.getByRole('dialog', { name: /Priority for \d+/ });
+    const viewport = page.viewportSize();
+
+    // One card, opened and measured: the trigger stays above the sheet it
+    // opened, the sheet stays fully on screen with its controls reachable,
+    // nothing goes sideways, and the close hands the pre-open scroll
+    // position back.
+    const expectAboveSheet = async (index: number): Promise<void> => {
+      const card = cards.nth(index);
+      await expect(card).toBeVisible();
+      const trigger = card.locator('[data-card-priority-field]');
+      // The reader has to be looking at the card to tap it, so scroll it
+      // into view BEFORE capturing the offset the close must hand back:
+      // Playwright's click scrolls an off-screen trigger into view itself,
+      // and an offset captured before that auto-scroll measures a position
+      // the card was never read from (measured as a 13089px phantom drift
+      // on the close assertion — the guard had restored its own capture
+      // exactly).
+      await trigger.evaluate((el) => {
+        el.scrollIntoView({ block: 'center' });
+      });
+      const scrollBefore = await scroller.evaluate((el) => el.scrollTop);
+
+      await trigger.click();
+      await expect(sheet).toBeVisible();
+      await expect(sheet.locator('[data-card-priority-save]')).toBeVisible();
+      // The guard is async by design — it measures on animation frames,
+      // because Radix mounts its portal from an internal effect after the
+      // click and an open animation settles after that. Poll the geometry
+      // until the guard lands rather than racing it (measured from the
+      // layout gate: `toBeVisible` then one `boundingBox` snapshot caught
+      // the trigger 222px under the sheet on pass 1).
+      interface Box {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+      const guardedBox = async (): Promise<{ trig: Box; sheet: Box }> => {
+        const trig = await trigger.boundingBox();
+        const sh = await sheet.boundingBox();
+        if (trig === null || sh === null) throw new Error('no box to measure');
+        return { trig, sheet: sh };
+      };
+      await expect
+        .poll(
+          async () => {
+            const { trig, sheet: sh } = await guardedBox();
+            return sh.y - (trig.y + trig.height);
+          },
+          // The guard's own retry budget is ~10s; headless CI under load
+          // has made Radix's portal mount take most of it.
+          { timeout: 15000, message: 'the guard has not landed' },
+        )
+        .toBeGreaterThan(0);
+
+      const { trig: where, sheet: sheetBox } = await guardedBox();
+      if (viewport === null) {
+        throw new Error('the viewport has no size to measure against');
+      }
+      expect(
+        where.y + where.height,
+        'the edited card stayed above the sheet it opened',
+      ).toBeLessThan(sheetBox.y);
+      expect(sheetBox.y, 'the sheet top is on screen').toBeGreaterThanOrEqual(0);
+      expect(sheetBox.y + sheetBox.height, 'the sheet bottom is on screen').toBeLessThanOrEqual(
+        viewport.height,
+      );
+      expect(sheetBox.x, 'the sheet left edge is on screen').toBeGreaterThanOrEqual(0);
+      expect(sheetBox.x + sheetBox.width, 'the sheet right edge is on screen').toBeLessThanOrEqual(
+        viewport.width,
+      );
+      const horizontalOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(horizontalOverflow, 'the guard added no horizontal overflow').toBeLessThanOrEqual(0);
+
+      await page.keyboard.press('Escape');
+      await expect(sheet).toBeHidden();
+      // The close puts the reader back where the list was — the pre-open
+      // offset itself, within a pixel, not merely "the trigger is visible
+      // somewhere".
+      const scrollAfter = await scroller.evaluate((el) => el.scrollTop);
+      expect(Math.abs(scrollAfter - scrollBefore), 'page position preserved').toBeLessThanOrEqual(
+        1,
+      );
+    };
+
+    // The end of the list is where the defect lives: the last card has no
+    // trailing room of its own, and the penultimate is the off-by-one next
+    // to it — the criterion names both.
+    const total = await cards.count();
+    await expectAboveSheet(total - 1);
+    await expectAboveSheet(total - 2);
+  });
+
+  /**
    * The last of `card-field-pickers`' four fields, and the only one that edits a
    * **set** — so the round trip has to cover both directions: an edge taken on
    * and the same edge taken off, each surviving a reload.

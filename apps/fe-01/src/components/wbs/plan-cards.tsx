@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 
 import {
   Modal,
@@ -905,6 +905,186 @@ function CardNotBeforeField({
 }
 
 /**
+ * Keeps the control that opened a bottom sheet on the visible side of it.
+ *
+ * The cards scroll themselves (`overflow-y-auto` on `[data-plan-cards]`), and a
+ * bottom sheet is `position: fixed` above the page — so a trigger near the end
+ * of a long list sits *underneath* its own sheet, fully hidden: the measured
+ * case (`wbs-card-priority-qa`, 2026-08-23, 28 rows at 390x844) had the
+ * trigger at y=469-513 with the sheet at y=291-844. `scrollIntoView` cannot
+ * help on its own there: the last cards are already at the scroll end, so
+ * there is no room left to bring them up.
+ *
+ * So for as long as the sheet is open the list gets that much trailing room
+ * (the sheet's own height plus the gap, as padding at the bottom of the
+ * scroller) and the trigger is scrolled to just above the sheet's top. On
+ * close -- Escape, a tap away, a landed write -- the padding comes off and
+ * the scroll position the reader had before the tap is put back, clamped to
+ * what the list still holds.
+ *
+ * The mechanics, each one a measured fault rather than a mannerism:
+ *
+ * - **The sheet is found by polling frames, bounded.** Radix mounts its
+ *   portal from an internal effect *after* this one runs, so measuring in
+ *   the effect body finds no sheet at all. The loop stops after two
+ *   seconds' worth of frames: a sheet that never mounts (a broken portal,
+ *   jsdom's zero rects) is a stopped loop, not a hot one.
+ * - **Only a visible, laid-out sheet counts.** A closing sheet still in the
+ *   DOM, or one mounted but not yet laid out, measures a zero height and
+ *   would scroll the trigger by a nonsense amount. The last *visible*
+ *   candidate is this field's sheet, because one modal is open at a time.
+ * - **The measurement waits for the open animation to settle.** The rect
+ *   has to read identically on two consecutive frames before it is trusted
+ *   -- a sheet still sliding up would be measured too low, and the trigger
+ *   left underneath it.
+ * - **The padding is the sheet's height *plus the gap*.** Room of exactly
+ *   the sheet's height can move the trigger flush with the sheet's top and
+ *   no further; the gap has to be in the room for the gap to be in the
+ *   result.
+ * - **Scroll writes are forced instant.** An inherited `scroll-behavior:
+ *   smooth` would animate them, and the close would race the animation.
+ * - **The guard follows the sheet while it is open.** Rotation, browser
+ *   chrome, or the keyboard the number box raises all change the sheet's
+ *   geometry after the first measurement, so a `ResizeObserver` and the
+ *   viewport's resize re-run the placement until close.
+ * - **The restore belongs to this open only.** It lives in this effect
+ *   invocation's own closure, not a ref, so a fast close-then-reopen can
+ *   never re-apply the previous card's scroll position.
+ * - **`data-state` is the close's only trusted sign — focus is not.** Radix
+ *   flips the sheet's `data-state` to `closed` when the close starts and
+ *   keeps the element mounted through the exit animation (`Presence`), so a
+ *   `ResizeObserver` tick in that window finds `data-state !== 'open'` and
+ *   re-places nothing. Focus is unusable for the same job: the focus trap
+ *   moves focus INTO the sheet on open and back to the trigger on close —
+ *   an earlier version disengaged on the trigger's blur, which fired on
+ *   open and killed the guard outright (gate 4: the trigger 222px under the
+ *   sheet, measured), while the 13089px "close race" that had motivated it
+ *   turned out to be a test artifact (Playwright's click auto-scrolls the
+ *   trigger into view AFTER the spec captured its scroll offset — the guard
+ *   was restoring exactly what it had captured).
+ */
+function useTriggerAboveSheet(open: boolean) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    /** The gap between the trigger's bottom and the sheet's top, in px. */
+    const GAP = 8;
+    /** Ten seconds of frames at 60fps: the retry budget for a sheet that
+     *  never appears. Headless CI under load mounts Radix's portal in
+     *  seconds, not frames — 120 frames was measured too small there (the
+     *  e2e poll timed out with the guard never landing). */
+    const MAX_FRAMES = 600;
+    let frame = 0;
+    let frames = 0;
+    /** The restore this open owes -- a local, so a later open cannot see it. */
+    let restore: (() => void) | null = null;
+    /** The previous frame's sheet rect; the current one must match it. */
+    let settled: { top: number; height: number } | null = null;
+
+    /** The most recently mounted bottom sheet that is actually on screen. */
+    const visibleSheet = (): HTMLElement | null => {
+      const sheets = Array.from(document.querySelectorAll('[data-modal-surface="bottom"]')).filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      );
+      for (let each = sheets.length - 1; each >= 0; each -= 1) {
+        const candidate = sheets[each];
+        if (candidate.getAttribute('data-state') !== 'open') continue;
+        const rect = candidate.getBoundingClientRect();
+        if (rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight) {
+          return candidate;
+        }
+      }
+      return null;
+    };
+
+    /** Pads the list, moves the trigger above the sheet, and owns the undo. */
+    const applyGuard = (trigger: HTMLElement, container: HTMLElement, sheet: HTMLElement): void => {
+      const before = {
+        scrollTop: container.scrollTop,
+        paddingBottom: container.style.paddingBottom,
+        scrollBehavior: container.style.scrollBehavior,
+      };
+      // Direct `scrollTop` writes have to land now, not animate.
+      container.style.scrollBehavior = 'auto';
+      const place = (): void => {
+        // Radix's close animation keeps the element mounted while it exits
+        // (Presence), and re-placing on a `data-state="closed"` sheet would
+        // fight the restore about to run below. `data-state` flips with the
+        // close itself, ahead of this hook's `open=false` cleanup, so it is
+        // the close's observable sign.
+        if (sheet.getAttribute('data-state') !== 'open') {
+          return;
+        }
+        const rect = sheet.getBoundingClientRect();
+        if (rect.height <= 0) return;
+        // The scroll room has to exist before the trigger can be moved into
+        // it -- and the gap is part of the room, or the worst-case row ends
+        // flush against the sheet instead of above it.
+        container.style.paddingBottom = `${String(rect.height + GAP)}px`;
+        const overhang = trigger.getBoundingClientRect().bottom + GAP - rect.top;
+        if (overhang > 0) container.scrollTop += overhang;
+      };
+      place();
+      // The sheet's size can still change while it is open -- rotation,
+      // browser chrome, the keyboard the number box raises -- and the guard
+      // moves with it.
+      const observer = new ResizeObserver(place);
+      observer.observe(sheet);
+      window.addEventListener('resize', place);
+      window.visualViewport?.addEventListener('resize', place);
+      restore = () => {
+        observer.disconnect();
+        window.removeEventListener('resize', place);
+        window.visualViewport?.removeEventListener('resize', place);
+        container.style.paddingBottom = before.paddingBottom;
+        // The position the reader had, clamped to what the list still
+        // holds -- a shorter list after the padding comes off would
+        // otherwise leave the browser to clamp it, which is a jump rather
+        // than a place. Still under `scroll-behavior: auto`, so the write
+        // lands before the hand-back below it.
+        container.scrollTop = Math.min(
+          before.scrollTop,
+          Math.max(0, container.scrollHeight - container.clientHeight),
+        );
+        container.style.scrollBehavior = before.scrollBehavior;
+      };
+    };
+
+    /** One measurement pass; true once the guard has been applied. */
+    const tryNow = (): boolean => {
+      const trigger = triggerRef.current;
+      if (trigger === null) return false;
+      const sheet = visibleSheet();
+      if (sheet === null) return false;
+      const container = trigger.closest('[data-plan-cards]');
+      if (!(container instanceof HTMLElement)) return false;
+      const rect = sheet.getBoundingClientRect();
+      if (settled?.top !== rect.top || settled.height !== rect.height) {
+        // The open animation is still moving the sheet (or has only just
+        // stopped): trust the rect once two frames agree on it.
+        settled = { top: rect.top, height: rect.height };
+        return false;
+      }
+      applyGuard(trigger, container, sheet);
+      return true;
+    };
+
+    const spin = (): void => {
+      frames += 1;
+      if (tryNow()) return;
+      if (frames < MAX_FRAMES) frame = requestAnimationFrame(spin);
+    };
+    frame = requestAnimationFrame(spin);
+    return () => {
+      cancelAnimationFrame(frame);
+      restore?.();
+      restore = null;
+    };
+  }, [open]);
+  return triggerRef;
+}
+
+/**
  * The priority on a card — the chip the header has always drawn, now the
  * control that sets it.
  *
@@ -960,6 +1140,7 @@ function CardPriorityField({
   setPriority: (row: TreeRow, typed: string) => Promise<CommitOutcome>;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useTriggerAboveSheet(open);
   // The draft, seeded from the row on every open through the `key` below —
   // `CardNotBeforeField`'s bargain and its reason: a controlled box fed from
   // the row would be overwritten by a refetch mid-keystroke, and an
@@ -981,6 +1162,7 @@ function CardPriorityField({
     >
       <ModalTrigger asChild>
         <button
+          ref={triggerRef}
           type="button"
           data-card-priority-field
           // The table cell's own accessible name, so one plan read on two faces
