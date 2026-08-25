@@ -16,9 +16,20 @@ import type { McpOAuthHandler } from './http';
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
 const TTL_MS = 300_000;
+const UNPROVEN_CLIENT_TTL_MS = 600_000;
+const ACTIVE_CLIENT_TTL_MS = 86_400_000;
+const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
+const MAX_STATE_BYTES = 512;
+const MAX_REDIRECT_URIS = 10;
+const MAX_REDIRECT_URI_BYTES = 512;
 
 interface ClientRecord {
+  proven: boolean;
+  promotionReserved: boolean;
   redirectUris: readonly string[];
+  source: string;
+  expiresAt: number;
+  unprovenExpiresAt: number;
 }
 
 interface Transaction {
@@ -57,6 +68,15 @@ interface Options {
   random?: () => string;
   signingKeys?: { privateKey: KeyObject; publicKey: KeyObject };
   verifyUpstream?: TokenVerifier['verify'];
+  clientLimit?: number;
+  clientSourceLimit?: number;
+  provenClientSourceLimit?: number;
+  clientTtlMs?: number;
+  grantLimit?: number;
+  activeClientTtlMs?: number;
+  sessionLimit?: number;
+  transactionLimit?: number;
+  transactionLimitPerClient?: number;
 }
 
 type UpstreamClient = Pick<BrowserOidcClient, 'authorizationUrl' | 'exchange'>;
@@ -78,6 +98,15 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly publicKey: KeyObject;
   private readonly verifyUpstream: TokenVerifier['verify'];
 
+  private readonly clientLimit: number;
+  private readonly clientSourceLimit: number;
+  private readonly provenClientSourceLimit: number;
+  private readonly clientTtlMs: number;
+  private readonly activeClientTtlMs: number;
+  private readonly grantLimit: number;
+  private readonly sessionLimit: number;
+  private readonly transactionLimit: number;
+  private readonly transactionLimitPerClient: number;
   constructor(
     config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
     private readonly upstream: UpstreamClient,
@@ -96,6 +125,15 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.publicKey = keys.publicKey;
     this.verifyUpstream =
       options.verifyUpstream ?? (() => Promise.reject(new Error('upstream verifier is required')));
+    this.clientLimit = Math.max(1, options.clientLimit ?? 1_000);
+    this.clientSourceLimit = Math.max(1, options.clientSourceLimit ?? 20);
+    this.provenClientSourceLimit = Math.max(1, options.provenClientSourceLimit ?? 100);
+    this.clientTtlMs = Math.max(1, options.clientTtlMs ?? UNPROVEN_CLIENT_TTL_MS);
+    this.activeClientTtlMs = Math.max(1, options.activeClientTtlMs ?? ACTIVE_CLIENT_TTL_MS);
+    this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
+    this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
+    this.transactionLimit = Math.max(1, options.transactionLimit ?? 1_000);
+    this.transactionLimitPerClient = Math.max(1, options.transactionLimitPerClient ?? 5);
   }
 
   async response(request: Request): Promise<Response | undefined> {
@@ -183,16 +221,45 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (
       !Array.isArray(redirectUris) ||
       redirectUris.length === 0 ||
+      redirectUris.length > MAX_REDIRECT_URIS ||
+      redirectUris.some(
+        (value) => typeof value !== 'string' || bytes(value) > MAX_REDIRECT_URI_BYTES,
+      ) ||
       !redirectUris.every(isRedirect)
     ) {
       return oauthError('invalid_redirect_uri');
     }
+    this.cleanup();
+    const source = sourceOf(request);
+    const sourceClients = [...this.clients.values()].filter(
+      (client) => client.source === source && !client.proven && !client.promotionReserved,
+    );
+    const provenSourceClients = [...this.clients.values()].filter(
+      (client) => client.source === source && (client.proven || client.promotionReserved),
+    );
+    if (
+      this.clients.size >= this.clientLimit ||
+      sourceClients.length >= this.clientSourceLimit ||
+      provenSourceClients.length >= this.provenClientSourceLimit
+    ) {
+      return oauthError('temporarily_unavailable', undefined, 429);
+    }
+    const issuedAt = this.now();
+    const expiresAt = issuedAt + this.clientTtlMs;
     const clientId = this.random();
-    this.clients.set(clientId, { redirectUris });
+    this.clients.set(clientId, {
+      proven: false,
+      promotionReserved: false,
+      redirectUris,
+      source,
+      expiresAt,
+      unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
+    });
     return Response.json(
       {
         client_id: clientId,
-        client_id_issued_at: Math.floor(this.now() / 1000),
+        client_id_expires_at: Math.floor(expiresAt / 1000),
+        client_id_issued_at: Math.floor(issuedAt / 1000),
         redirect_uris: redirectUris,
         token_endpoint_auth_method: 'none',
       },
@@ -205,24 +272,47 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const clientId = params.get('client_id') ?? '';
     const redirectUri = params.get('redirect_uri') ?? '';
     const challenge = params.get('code_challenge') ?? '';
+    this.cleanup();
+    const client = this.clients.get(clientId);
     const scope = params.get('scope') ?? 'wbs:read';
     const scopes = scope.split(' ').filter(Boolean);
+    const state = params.get('state');
     if (
+      bytes(url.search) > MAX_AUTHORIZATION_QUERY_BYTES ||
+      params.getAll('scope').length > 1 ||
+      params.getAll('state').length > 1 ||
+      (state !== null && bytes(state) > MAX_STATE_BYTES) ||
       params.get('response_type') !== 'code' ||
       params.get('code_challenge_method') !== 'S256' ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(challenge) ||
       scopes.length === 0 ||
       scopes.some((value) => !SCOPES.has(value)) ||
-      !this.clients.get(clientId)?.redirectUris.includes(redirectUri)
+      !client?.redirectUris.includes(redirectUri)
     ) {
       return oauthError('invalid_request');
     }
 
-    this.cleanup();
+    if (!client.proven && this.now() + TTL_MS * 2 > client.unprovenExpiresAt) {
+      return oauthError('temporarily_unavailable', undefined, 429);
+    }
+
     const browserBinding = this.random();
     const upstreamState = this.random();
     const nonce = this.random();
     const verifier = this.random();
+    const clientTransactions = [...this.transactions.values()].filter(
+      (transaction) => transaction.clientId === clientId,
+    );
+    if (
+      this.transactions.size >= this.transactionLimit ||
+      clientTransactions.length >= this.transactionLimitPerClient
+    ) {
+      return oauthError('temporarily_unavailable', undefined, 429);
+    }
+    const activeFlowExpiry = Math.max(client.expiresAt, this.now() + TTL_MS * 2);
+    client.expiresAt = client.proven
+      ? activeFlowExpiry
+      : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
     this.transactions.set(browserBinding, {
       browserBinding,
       clientId,
@@ -231,7 +321,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       nonce,
       redirectUri,
       scope,
-      state: params.get('state') ?? undefined,
+      state: state ?? undefined,
       upstreamState,
       verifier,
     });
@@ -277,6 +367,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       .map((scope) => `wbs:${scope}`)
       .filter((scope) => requested.has(scope));
     if (!scopes.includes('wbs:read')) return oauthError('access_denied', clearCookie());
+    this.cleanup();
+    if (this.grants.size >= this.grantLimit) {
+      return oauthError('temporarily_unavailable', clearCookie(), 429);
+    }
     const code = this.random();
     this.grants.set(code, {
       clientId: transaction.clientId,
@@ -297,11 +391,14 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async token(request: Request): Promise<Response> {
     const form = await request.formData();
     const code = stringField(form, 'code');
+    this.cleanup();
     const grant = code === undefined ? undefined : this.grants.get(code);
-    if (code !== undefined) this.grants.delete(code);
+    const client = grant === undefined ? undefined : this.clients.get(grant.clientId);
     const verifier = stringField(form, 'code_verifier');
     if (
+      code === undefined ||
       grant === undefined ||
+      client === undefined ||
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
       stringField(form, 'client_id') !== grant.clientId ||
@@ -310,27 +407,57 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
       challengeOf(verifier) !== grant.codeChallenge
     ) {
+      if (code !== undefined) this.grants.delete(code);
       return oauthError('invalid_grant');
+    }
+
+    if (this.sessions.size >= this.sessionLimit) {
+      return oauthError('temporarily_unavailable', undefined, 429);
+    }
+
+    let reservedPromotion = false;
+    if (!client.proven) {
+      const provenSourceClients = [...this.clients.values()].filter(
+        (candidate) =>
+          candidate.source === client.source && (candidate.proven || candidate.promotionReserved),
+      );
+      if (client.promotionReserved || provenSourceClients.length >= this.provenClientSourceLimit) {
+        return oauthError('temporarily_unavailable', undefined, 429);
+      }
+      client.promotionReserved = true;
+      reservedPromotion = true;
     }
 
     const jti = this.random();
     const expiresAt = this.now() + TTL_MS;
-    const token = await new SignJWT({
-      [this.groupsClaim]: grant.scopes.map((scope) => `${this.groupPrefix}:${scope}`),
-      scope: grant.scope,
-    })
-      .setProtectedHeader({ alg: 'RS256', kid: 'mcp-01-ephemeral', typ: 'JWT' })
-      .setIssuer(this.issuer)
-      .setAudience(this.audience)
-      .setSubject(grant.subject)
-      .setJti(jti)
-      .setIssuedAt(Math.floor(this.now() / 1000))
-      .setExpirationTime(Math.floor(expiresAt / 1000))
-      .sign(this.privateKey);
+    this.grants.delete(code);
     this.sessions.set(jti, {
       expiresAt,
       upstreamAccessToken: grant.upstreamAccessToken,
     });
+    let token: string;
+    try {
+      token = await new SignJWT({
+        [this.groupsClaim]: grant.scopes.map((scope) => `${this.groupPrefix}:${scope}`),
+        scope: grant.scope,
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'mcp-01-ephemeral', typ: 'JWT' })
+        .setIssuer(this.issuer)
+        .setAudience(this.audience)
+        .setSubject(grant.subject)
+        .setJti(jti)
+        .setIssuedAt(Math.floor(this.now() / 1000))
+        .setExpirationTime(Math.floor(expiresAt / 1000))
+        .sign(this.privateKey);
+    } catch (error) {
+      this.sessions.delete(jti);
+      this.grants.set(code, grant);
+      if (reservedPromotion) client.promotionReserved = false;
+      throw error;
+    }
+    client.proven = true;
+    client.promotionReserved = false;
+    client.expiresAt = this.now() + this.activeClientTtlMs;
     return Response.json({
       access_token: token,
       expires_in: TTL_MS / 1000,
@@ -375,6 +502,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const now = this.now();
     for (const [binding, transaction] of this.transactions) {
       if (transaction.expiresAt <= now) this.transactions.delete(binding);
+    }
+    for (const [clientId, client] of this.clients) {
+      if (client.expiresAt <= now) this.clients.delete(clientId);
     }
     for (const [code, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(code);
@@ -425,12 +555,29 @@ function isRedirect(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   try {
     const url = new URL(value);
-    return (
-      url.protocol === 'https:' && url.username === '' && url.password === '' && url.hash === ''
-    );
+    if (url.username !== '' || url.password !== '' || url.hash !== '') return false;
+    const isClaudeConnector =
+      url.protocol === 'https:' &&
+      url.port === '' &&
+      (url.hostname === 'claude.ai' || url.hostname === 'claude.com') &&
+      url.pathname === '/api/mcp/auth_callback' &&
+      url.search === '';
+    const isLoopback =
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]');
+    return isClaudeConnector || isLoopback;
   } catch {
     return false;
   }
+}
+
+function bytes(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function sourceOf(request: Request): string {
+  const source = request.headers.get('x-forwarded-for')?.split(',', 1)[0]?.trim();
+  return source === undefined || source === '' ? 'unknown' : source;
 }
 
 function cookieOf(request: Request, name: string): string | undefined {
@@ -453,9 +600,9 @@ function redirect(location: string, setCookie: string): Response {
   return new Response(null, { headers: { location, 'set-cookie': setCookie }, status: 302 });
 }
 
-function oauthError(error: string, setCookie?: string): Response {
+function oauthError(error: string, setCookie?: string, status = 400): Response {
   return Response.json(
     { error },
-    { headers: setCookie === undefined ? undefined : { 'set-cookie': setCookie }, status: 400 },
+    { headers: setCookie === undefined ? undefined : { 'set-cookie': setCookie }, status },
   );
 }

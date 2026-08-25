@@ -44,6 +44,7 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/be-01/project.json',
   'apps/gw-01/project.json',
   'apps/fe-01/project.json',
+  'apps/mcp-01/project.json',
   'apps/fe-01/vite.config.ts',
   // TypeScript config is read once, at process start. A moved path alias
   // resolves against the old mapping in three already-running processes while
@@ -53,6 +54,7 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/be-01/tsconfig.json',
   'apps/gw-01/tsconfig.json',
   'apps/fe-01/tsconfig.json',
+  'apps/mcp-01/tsconfig.json',
   // A library's project.json can change what its serve-time build resolves to,
   // and the Nx supervisor read the project graph at startup like the rest.
   // Listed per library rather than as `libs`, which would restart on every
@@ -104,6 +106,12 @@ export function needsRestart(before: Fingerprint, after: Fingerprint): boolean {
   return false;
 }
 
+export async function assertMcpEnv(path = `${SRC}/apps/mcp-01/.env`): Promise<void> {
+  if (!(await Bun.file(path).exists())) {
+    throw new Error(`missing ${path}; seed the gitignored mcp-01 environment before deploying`);
+  }
+}
+
 /** sha256 of a file, or of a directory's recursive listing plus contents. */
 async function hashPath(path: string): Promise<string> {
   try {
@@ -120,7 +128,8 @@ async function fingerprint(paths: readonly string[] = RESTART_PATHS): Promise<Fi
   return Object.fromEntries(entries);
 }
 
-export async function sync(sha: string): Promise<void> {
+export async function sync(sha: string, options: { mcpEnvPath?: string } = {}): Promise<void> {
+  await assertMcpEnv(options.mcpEnvPath);
   const before = await fingerprint();
   const containerBefore = await fingerprint(RECREATE_PATHS);
 

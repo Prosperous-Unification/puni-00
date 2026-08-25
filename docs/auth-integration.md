@@ -179,6 +179,59 @@ As of 2026-08-24, discovery and the real Auth0 Universal Login page are verified
 Credentialed callback acceptance (`/api/auth/me`, WebSocket, MCP, and the emitted
 editor scope) remains pending TASK-110's password-login path.
 
+### Auth0-backed MCP on dev
+
+`mcp-01` reuses the WBS Auth0 client and secret. Its deployment-only keys live
+in `/home/puni1/wbs-dev/src/apps/mcp-01/.env` (mode 600):
+
+```dotenv
+PORT=3300
+MCP_AUTH_MODE=standalone
+WBS_API_URL=http://localhost:3100
+MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp
+```
+
+Add this byte-exact Auth0 callback without replacing the browser callback:
+`https://dev.wbs.bulletpoints.club/mcp/oauth/callback`. Dynamic registration
+accepts only the Claude connector callback on `claude.ai`/`claude.com` or an
+HTTP(S) loopback callback for tools such as MCP Inspector. Unproven clients
+expire after 10 minutes of DCR inactivity. Starting authorization can extend an
+unproven client only to an absolute 20-minute lifetime, and a new flow is
+refused with 429 when that ceiling cannot cover the browser and code-exchange
+window; a successful exchange promotes the client to 24 hours. Registration is
+capped at 20 unproven and 100 proven clients per forwarding source plus 1,000
+globally; pending authorization is capped at five per client and 1,000 globally;
+unredeemed grants and live sessions are each capped at 1,000 globally. New
+requests at capacity return 429 and never evict another connector's state. A
+session-capacity refusal preserves the valid grant for retry until its five-
+minute expiry. Claude users share Anthropic's forwarding egress, so a burst
+above the per-source limits can return 429 until the oldest state expires.
+
+Before cutover, the absent `/home/puni1/wbs-dev/state/mcp-exposure` marker makes
+the MCP public probe skip. Cutover atomically writes `enabled` to that mode-600
+marker. Every later deploy reads it before snapshotting devsync and must pass
+the semantic MCP probe; malformed or unreadable state fails the deploy.
+The probe requires Bun and verifies both RFC 9728 resource-metadata locations,
+the RFC 8414 authorization-server metadata, and the unauthenticated challenge.
+
+Cut over in this order:
+
+1. Before merging, seed `/home/puni1/wbs-dev/src/apps/mcp-01/.env` with the four
+   keys above and mode 600; the preflight deliberately blocks every dev deploy
+   until this exists.
+2. Merge the reviewed PR and let devsync start `mcp-01`; verify port 3300.
+3. Add the exact Auth0 callback above.
+4. Back up the live Caddy file, install the reviewed candidate, and validate it
+   with the running Caddy version before reload.
+5. Reload, then persist the successful cutover before its health check:
+   `printf 'enabled\n' | install -m 600 /dev/stdin /home/puni1/wbs-dev/state/mcp-exposure`.
+6. Run `bin/dev-deploy.sh` and verify the four MCP discovery/resource paths
+   plus the existing app/API/WS probes. Do not pass a one-run environment flag;
+   the persistent marker is the assertion.
+7. If validation, reload, or any probe fails, restore the Caddy backup, reload,
+   move the marker out of the state path, verify the original app/API/WS routes,
+   and remove the added Auth0 callback.
+
 ## Historical Okta mapping
 
 No code change is needed to reproduce the prior Okta configuration. Its mapping

@@ -38,6 +38,15 @@ fi
 
 echo "[dev-deploy] $BRANCH @ ${SHA:0:8} -> dev"
 
+# This checker is streamed from the triggering checkout before the live tree's
+# old sync.ts is copied. The first deployment that introduces mcp-01 therefore
+# cannot bypass its environment prerequisite. Its one-byte result comes from a
+# persistent h2puni marker, so every post-cutover deploy runs semantic MCP health.
+MCP_EXPOSURE_EXPECTED=$(ssh h2puni \
+  "bash -s -- /home/puni1/wbs-dev/src/apps/mcp-01/.env /home/puni1/wbs-dev/state/mcp-exposure" \
+  < "$(dirname "${BASH_SOURCE[0]}")/dev-mcp-preflight.sh")
+export MCP_EXPOSURE_EXPECTED
+
 # Run sync from a snapshot outside the checkout it is about to reset.
 #
 # Running it in place means the process rewrites its own source mid-run, and a
@@ -120,6 +129,13 @@ if [ "$identity" = '{"error":"missing_token"}' ]; then
   printf '[dev-deploy] %-28s %s\n' 'be (auth routes mounted)' 'ok'
 else
   printf '[dev-deploy] %-28s %s FAIL\n' 'be (auth routes mounted)' "$identity" >&2
+  fail=1
+fi
+
+# MCP health is semantic, not a status-code probe: discovery must name the
+# canonical resource and authorization server, and an anonymous tool request
+# must return the RFC 9728 challenge that sends the client back to metadata.
+if ! "$(dirname "${BASH_SOURCE[0]}")/dev-mcp-probe.sh" https://dev.wbs.bulletpoints.club; then
   fail=1
 fi
 

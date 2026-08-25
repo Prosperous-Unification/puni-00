@@ -201,3 +201,83 @@ Fresh h2puni review evidence on the rebased head:
 The branch may merge only after rebased `gate` and `pixels` checks pass. The
 merge then recreates dev under OIDC, followed by real Okta login/API/WS and one
 zero-manual Claude MCP tool call before this change is archived.
+
+## 14. Dev MCP exposure plan — 2026-08-24
+
+The deployment review restructured task 6.3 around two routing invariants:
+Caddy preserves `/mcp`, and it sends only the three exact RFC well-known paths
+to mcp-01. The existing automated MCP suite already covers DCR, PKCE, one-use
+authorization grants, audience-bound local tokens, and server-side upstream
+token mapping (80/80 baseline on h2puni); deployment adds metadata and challenge
+assertions rather than duplicating those protocol tests.
+
+The OpenAI drafting seat and Gemini review participated. The required Fable 5
+planning seat returned no verdict because its monthly usage window was
+exhausted; Opus was not substituted. Public exposure remains unapplied.
+
+## 15. Dev MCP exposure implementation — 2026-08-25
+
+**State:** exact implementation head `fd3640a5` plus this verification-only
+successor. Public Caddy and the Auth0 callback remain unapplied pending
+main-session exposure approval.
+
+### Failure proofs
+
+| Check                  | Fault observed before implementation                                     | Final behavior                                                         |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| DCR capacity           | second anonymous registration evicted the live connector                 | new registration returns 429; live connector still authorizes          |
+| authorize capacity     | second anonymous authorize evicted the in-flight login                   | new authorize returns 429; original callback still completes           |
+| query bounds           | 514-byte Unicode state and repeated scope both reached Auth0             | both return `invalid_request` before upstream authorization            |
+| retained redirects     | 11 loopback redirects and a query-bearing Claude callback registered     | both return `invalid_redirect_uri`                                     |
+| DCR-to-token lifetime  | unrelated cleanup removed a client after Auth0 issued its code           | active authorization extends the client through token exchange         |
+| absolute client life   | repeated authorize renewed an unproven client beyond 20 minutes          | cleanup removes it at the absolute ceiling                             |
+| late authorize window  | authorize started a flow whose client expired before token exchange      | returns 429 before sending the user to Auth0                           |
+| anonymous source cap   | one source could consume every short-lived client slot                   | source capped at 20 unproven clients; another source still registers   |
+| proven source cap      | two admitted anonymous clients both promoted past a proven cap of 1      | second promotion returns 429; its grant stays retryable                |
+| concurrent promotion   | two concurrent token signings both observed a free slot and returned 200 | one reserves the slot; results are 200 and 429                         |
+| grant capacity         | completed callbacks retained grants past the configured limit            | callback returns 429; the existing grant still exchanges               |
+| session capacity       | token exchanges retained sessions past the configured limit              | returns 429; live session survives and blocked grant remains retryable |
+| edge source trust      | partitions depended on Caddy's version-specific XFF default              | MCP proxy overwrites XFF with `{remote_host}`                          |
+| first-deploy preflight | checker did not exist; three production-path cases failed with exit 127  | missing/incomplete/non-600 env fails before old `sync.ts` is copied    |
+| persistent health      | no checker existed; absent, enabled, and malformed state all failed      | absent prints 0 pre-cutover, enabled prints 1, malformed fails closed  |
+| Caddy superset         | each isolated mutation removed WS, drain, API, SPA, or logging           | all five mutations are refused by the candidate contract               |
+
+Across the OAuth capacity and lifecycle chunks, each new regression was watched
+red before its fix; the file now passes 24/24. The preflight file was watched at
+0/3 before its script existed and 3/3 after. The Caddy contract performs five
+isolated in-test mutations; each makes the superset predicate false.
+
+### Exact-head gate
+
+h2puni, Bun 1.3.14, exact implementation head `fd3640a5` plus this
+documentation-only successor:
+
+- `bunx nx format:check --all`: clean.
+- `bunx nx run-many -t test lint typecheck build --parallel=2`: all targets
+  across 23 projects green except the two shell build targets whose only h2puni
+  failure is the host's absent `shellcheck`; 1,815 Bun tests and 1,750 Vitest
+  tests passed, 0 failed. A separate fresh run through the pinned
+  `koalaman/shellcheck:stable` container passed `dev-deploy.sh`,
+  `dev-mcp-preflight.sh`, and `dev-mcp-probe.sh`.
+- Targeted current behavior: mcp-01 99/99; tool-devsync 26/26; Caddy contract
+  4/4; lint and typecheck clean.
+- `caddy:2-alpine` v2.11.4 reports `Valid configuration` for the candidate.
+- The production preflight against the live mode-600 MCP env and absent
+  pre-cutover marker printed `0`; it read no secret value.
+- No migration file changed; migration up/down is not applicable.
+
+### Review and deployment boundary
+
+Opus 5 (`anthropic/claude-opus-5`) reviewed the complete rebased diff through
+`64e6526f` and returned PASS with 0 Critical / 0 Important findings. Its Minor
+notes were non-blocking hardening and documented dev-scale trade-offs, not
+release defects. Direct Gemini was temporarily overloaded; the required
+fallback `openrouter/google/gemini-3.1-pro-preview` reviewed the same complete
+diff and returned PASS with 0 Critical / 0 Important findings. GitHub `gate`
+and `pixels` both passed at the earlier pre-promotion-fix head; fresh checks are
+required at this documentation successor. The main-session
+review independently re-ran the grant/session/query/late-window watched reds,
+the Caddy source-trust red, the full h2puni gate, ShellCheck, and Caddy
+validation. Merge, Auth0 callback application, Caddy reload, persistent marker
+creation, and real zero-manual connector acceptance remain deliberately
+unapplied until that review completes the cutover.
