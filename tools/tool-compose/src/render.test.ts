@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -84,4 +84,59 @@ describe('site.caddy.tmpl', () => {
     expect(tmpl).not.toContain('handle_path /api');
     expect(tmpl).toContain('handle /api/*');
   });
+});
+
+// TASK-160. The rendered site config is written wholesale by every blue/green
+// swap over BOTH vhosts, so a per-vhost `log { output file … }` block here is
+// not a style preference — it is the leak TASK-159 closed reopening itself on
+// the next swap, silently, with a config Caddy accepts happily.
+describe('site.caddy.tmpl access logging', () => {
+  const tmpl = readFileSync(join(TEMPLATES, 'site.caddy.tmpl'), 'utf8');
+
+  it('imports the one shared access-log snippet', () => {
+    expect(tmpl).toContain('import access-log');
+  });
+
+  it('never defines an access-log output of its own', () => {
+    expect(tmpl).not.toContain('output file /var/log/caddy');
+    expect(tmpl).not.toMatch(/^\s*log\s*\{/m);
+  });
+});
+
+// TASK-160. The template was the reported carrier; two more were found only by
+// grepping, and a third — deploy/compose/site-dev.caddy.candidate, the staged
+// replacement for the very vhost the 10,901 JWTs came from — was found only by
+// a reviewer, because the first grep ran against a stale checkout. A sweep is
+// cheaper than remembering to grep. Every Caddy site file this repo ships must
+// import the shared filter rather than open the log itself; the only file
+// allowed to name the output is the snippet that defines it.
+describe('no vhost this repo ships opens the access log itself', () => {
+  const DEPLOY = join(import.meta.dir, '../../../deploy/compose');
+  const SNIPPET = 'log-redact.caddy';
+
+  const caddyFiles = readdirSync(DEPLOY).filter((f) => f.includes('.caddy'));
+
+  it('finds the site files to check (a passing empty sweep proves nothing)', () => {
+    expect(caddyFiles).toContain(SNIPPET);
+    expect(caddyFiles.length).toBeGreaterThan(1);
+  });
+
+  for (const file of caddyFiles) {
+    if (file === SNIPPET) continue;
+    it(`${file} imports access-log instead of defining an output`, () => {
+      const text = readFileSync(join(DEPLOY, file), 'utf8');
+      // Unconditional: `log unredacted { output file … }` is valid Caddy, and a
+      // named logger would slip past a check that only looks for a bare `log {`.
+      // Naming the shared file at all, under any logger name, is the defect.
+      expect(text).not.toContain('output file /var/log/caddy');
+      // `log` optionally takes a logger name before its block.
+      const definesLogging = /^\s*log(\s+\S+)?\s*\{/m.test(text);
+      if (!definesLogging && !text.includes('import access-log')) {
+        // A site file with no logging at all is fine — registry.caddy is one.
+        return;
+      }
+      expect(text).toContain('import access-log');
+      expect(definesLogging).toBeFalse();
+    });
+  }
 });

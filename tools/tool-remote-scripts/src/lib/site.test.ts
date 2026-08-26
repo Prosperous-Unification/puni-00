@@ -1,3 +1,4 @@
+import { renderTemplate, siteCaddyTmpl } from '@wbs/tool-compose';
 import { describe, expect, it } from 'bun:test';
 
 import { routedColorFor, routedColorFromAdminConfig, siteContext } from './site';
@@ -173,5 +174,24 @@ describe('routedColorFromAdminConfig', () => {
     expect(() => routedColorFromAdminConfig('be', 'wbs.bulletpoints.club', 'not json')).toThrow(
       /not valid JSON/,
     );
+  });
+});
+
+// TASK-160. `siteContext` feeds `site.caddy.tmpl`, and the result is what a
+// swap writes over /home/puni1/wbs/caddy/site{,-dev}.caddy. Asserting on the
+// fully rendered text — not on the template file — is what catches a log block
+// arriving from either side of the render.
+describe('rendered site.caddy access logging', () => {
+  const rendered = renderTemplate(
+    siteCaddyTmpl,
+    siteContext({ be: 'green', gw: 'blue', fe: null }, 'dev.wbs.bulletpoints.club'),
+  );
+
+  it('imports the shared, query-redacting access-log snippet', () => {
+    expect(rendered).toContain('import access-log');
+  });
+
+  it('carries no access-log output block of its own', () => {
+    expect(rendered).not.toContain('output file /var/log/caddy');
   });
 });
