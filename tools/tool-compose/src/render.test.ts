@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-import { renderAll, renderTemplate } from './render';
+import { previewContext, renderAll, renderTemplate } from './render';
 
 const TEMPLATES = join(import.meta.dir, 'templates');
 
@@ -23,6 +23,12 @@ describe('renderTemplate', () => {
   });
 });
 
+describe('previewContext', () => {
+  it('supplies an empty MCP route block for the build preview', () => {
+    expect(previewContext({})).toMatchObject({ MCP_ROUTES: '' });
+  });
+});
+
 describe('renderAll', () => {
   it('renders all .tmpl files under templates/ into outDir', async () => {
     const outDir = await mkdtemp(join(tmpdir(), 'tool-compose-'));
@@ -37,6 +43,7 @@ describe('renderAll', () => {
         BE_ROUTE: 'reverse_proxy be-01-green:3100',
         GW_ROUTE: 'reverse_proxy gw-01-blue:3200',
         FE_ROUTE: 'reverse_proxy fe-01-green:80',
+        MCP_ROUTES: '',
         ENV_FILES:
           '    env_file:\n      - /home/puni1/wbs/be-01.env\n      - /home/puni1/wbs/be-01.secrets.env\n',
         VOLUMES: '    volumes:\n      - /home/puni1/wbs/data:/data\n',
@@ -64,6 +71,7 @@ describe('site.caddy.tmpl', () => {
       BE_ROUTE: 'reverse_proxy be-01-green:3100',
       GW_ROUTE: 'reverse_proxy gw-01-blue:3200 {\n\t\t\tstream_close_delay 310s\n\t\t}',
       FE_ROUTE: 'reverse_proxy fe-01-green:80',
+      MCP_ROUTES: '',
     });
     expect(out).toContain('be-01-green:3100');
     expect(out).toContain('gw-01-blue:3200');

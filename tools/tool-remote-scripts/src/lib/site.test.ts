@@ -1,7 +1,12 @@
 import { renderTemplate, siteCaddyTmpl } from '@wbs/tool-compose';
 import { describe, expect, it } from 'bun:test';
 
-import { routedColorFor, routedColorFromAdminConfig, siteContext } from './site';
+import {
+  mcpExposureEnabled,
+  routedColorFor,
+  routedColorFromAdminConfig,
+  siteContext,
+} from './site';
 
 describe('routedColorFor', () => {
   const rendered = [
@@ -193,5 +198,85 @@ describe('rendered site.caddy access logging', () => {
 
   it('carries no access-log output block of its own', () => {
     expect(rendered).not.toContain('output file /var/log/caddy');
+  });
+});
+
+// TASK-160. A swap rewrites the complete dev vhost. Once the persistent
+// exposure marker says the reviewed MCP surface is live, rendering only the
+// generic app/API/WS routes silently removes that surface on the next swap.
+describe('rendered dev site.caddy MCP exposure', () => {
+  const rendered = (mcpExposed: boolean) =>
+    renderTemplate(
+      siteCaddyTmpl,
+      siteContext(
+        { be: 'green', gw: 'blue', fe: 'green' },
+        'dev.wbs.bulletpoints.club',
+        mcpExposed,
+      ),
+    );
+
+  it('preserves the reviewed MCP routes after exposure is enabled', () => {
+    const exposed = rendered(true);
+    expect(
+      [...exposed.matchAll(/^\s*handle\s+(\/mcp\*|\/\.well-known\/\S+)\s*\{/gm)].map(
+        (match) => match[1],
+      ),
+    ).toEqual([
+      '/mcp*',
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+      '/.well-known/oauth-authorization-server/mcp/oauth',
+    ]);
+    expect(exposed).toMatch(
+      /handle\s+\/mcp\*\s*\{[\s\S]*?request_body\s*\{\s*max_size\s+64KB\s*\}[\s\S]*?reverse_proxy\s+wbs-dev-src:3300\s*\{[\s\S]*?header_up\s+X-Forwarded-For\s+\{remote_host\}/,
+    );
+    for (const route of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+      '/.well-known/oauth-authorization-server/mcp/oauth',
+    ]) {
+      const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      expect(exposed).toMatch(
+        new RegExp(`handle\\s+${escaped}\\s*\\{\\s*reverse_proxy\\s+wbs-dev-src:3300`),
+      );
+    }
+  });
+
+  it('keeps MCP routes absent before exposure is enabled', () => {
+    expect(rendered(false)).not.toMatch(/^\s*handle\s+(\/mcp|\/\.well-known\/)/m);
+  });
+
+  it('treats only the persistent enabled marker as exposed', () => {
+    expect(mcpExposureEnabled(null)).toBeFalse();
+    expect(mcpExposureEnabled('enabled\n')).toBeTrue();
+    expect(() => mcpExposureEnabled('disabled\n')).toThrow(/malformed MCP exposure state/);
+  });
+
+  /**
+   * The marker is the cutover decision, so "does it look enabled?" is not the
+   * question — "is it exactly enabled?" is. Each rejected value below kills a
+   * different plausible loosening: `'enabled '` kills a `.trim()`,
+   * `'enabled-extra'` and `'enabledx'` kill a `.startsWith`, `' enabled'` kills
+   * a `.includes`, and `''` kills reading an empty marker as an absent one.
+   * Without them the check passes vacuously against any of those rewrites.
+   */
+  it('accepts an exact marker with or without trailing newlines', () => {
+    expect(mcpExposureEnabled('enabled')).toBeTrue();
+    expect(mcpExposureEnabled('enabled\n\n')).toBeTrue();
+  });
+
+  it('refuses every value that merely resembles the enabled marker', () => {
+    for (const raw of [
+      '',
+      '\n',
+      'enabled ',
+      ' enabled',
+      'enabled-extra',
+      'enabledx',
+      'ENABLED',
+      'enabled\nstray',
+    ]) {
+      expect(() => mcpExposureEnabled(raw)).toThrow(/malformed MCP exposure state/);
+    }
   });
 });

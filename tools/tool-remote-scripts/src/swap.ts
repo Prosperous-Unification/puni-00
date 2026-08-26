@@ -28,6 +28,7 @@ import {
   CURRENT_ENV,
   deriveTierSecrets,
   EDGE_CONTAINER,
+  type EnvLayout,
   grantAliasCommands,
   manifestInspectArgs,
   migrateDownCommand,
@@ -49,7 +50,7 @@ import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
-import { routedColorFromAdminConfig, siteContext } from './lib/site';
+import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
@@ -66,6 +67,37 @@ const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? CURRENT_ENV.siteAddress;
 // directory, so the site file is the single environment-varying path that does
 // not live under the environment's own root. lib/env.ts states that exception.
 const SITE_CADDY_PATH = CURRENT_ENV.siteCaddyPath;
+
+/**
+ * Whether this environment's reviewed public MCP surface is enabled.
+ *
+ * Three outcomes, all fail-closed and all reached before `writeAtomic`: prod
+ * never reads a marker at all, an absent dev marker is pre-cutover, and
+ * anything present that is not exactly `enabled` — including a file that
+ * cannot be read — stops the swap rather than rewriting the vhost without
+ * knowing what it is allowed to serve.
+ *
+ * `layout` is a required parameter rather than a direct `CURRENT_ENV` read so
+ * a test can drive it: `CURRENT_ENV` is frozen at import, so nothing else can
+ * reach the environment branch, the ENOENT tolerance, or the unreadable-file
+ * refusal. Required rather than `= CURRENT_ENV` (the shape `containerName` and
+ * `tierEnvFiles` use in lib/docker.ts) because those have many call sites and
+ * this has exactly one: a default here would be a production path no test ever
+ * takes, so a mutation to the default would leave the whole suite green.
+ */
+export async function readMcpExposure(layout: EnvLayout): Promise<boolean> {
+  if (layout.env !== 'dev') return false;
+  const path = `${layout.stateDir}/mcp-exposure`;
+  try {
+    return mcpExposureEnabled(await Bun.file(path).text());
+  } catch (e: unknown) {
+    if (isFileAbsent(e)) return false;
+    throw new Error(
+      `cannot read ${path}; refusing to rewrite the dev vhost without its exposure state ` +
+        `(${e instanceof Error ? e.message : String(e)})`,
+    );
+  }
+}
 
 // fe-01 is a static Caddy server with no /health route; design decision 5's
 // health gate for it is "fetch / and assert 200 + a non-empty body" instead.
@@ -696,7 +728,10 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // to green, which is exactly the window abortSwap exists to close.
           const colors = await liveRoutedColors();
           colors[tier] = to;
-          const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
+          const rendered = renderTemplate(
+            siteCaddyTmpl,
+            siteContext(colors, SITE_ADDRESS, await readMcpExposure(CURRENT_ENV)),
+          );
           // Captured before the write, so abortSwap can put the file back
           // exactly as it found it.
           siteTextBefore = await readSiteCaddy();
