@@ -128,6 +128,12 @@ import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
 import { PrioritiesDialog } from './priorities-dialog';
 import { PriorityCell, priorityTyped } from './priority-cell';
+import {
+  REFERENCE_SET_ADD_CLASS,
+  REFERENCE_SET_CHIP_CLASS,
+  REFERENCE_SET_STRIP_STYLE,
+  ReferenceSetStrip,
+} from './reference-set-field';
 import { printedDay, shortIsoDate } from './short-date';
 import {
   CARET_GUTTER_PX,
@@ -5969,11 +5975,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     focusCellAt(cell, 'all');
   }, [editingNotBefore]);
 
-  /** Labels a work item with a team, or takes the label off. */
+  /** Replaces a work item's own team set, whole. */
   const setTeamOf = useCallback(
-    (id: string, serviceTeamId: string | null) => {
-      void run(() => api.patch(id, { serviceTeamId }));
-    },
+    (id: string, teamIds: readonly string[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { teamIds: [...teamIds] })),
     [api, run],
   );
 
@@ -5994,9 +5999,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * that carried two.
    */
   const setServicesOf = useCallback(
-    (id: string, serviceIds: readonly string[]) => {
-      void run(() => api.patch(id, { serviceIds: [...serviceIds] }));
-    },
+    (id: string, serviceIds: readonly string[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { serviceIds: [...serviceIds] })),
     [api, run],
   );
 
@@ -6009,44 +6013,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * before-value, and be-01 refuses to guess at a delta.
    */
   const setTagsOf = useCallback(
-    (id: string, tagIds: readonly string[]) => {
-      void run(() => api.patch(id, { tagIds: [...tagIds] }));
-    },
+    (id: string, tagIds: readonly string[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { tagIds: [...tagIds] })),
     [api, run],
   );
 
-  /** Adds a team nobody had yet and labels the work item with it, in one go. */
+  /** Adds a team nobody had yet and appends it to the work item's whole set. */
   const createTeamFor = useCallback(
-    (id: string, name: string) => {
-      void run(async () => {
+    (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
+      run(async () => {
         // be-01 is idempotent by name, so two browsers typing `Platform` at
         // once end up on one team rather than two.
         const team = await api.addTeam(name);
-        await api.patch(id, { serviceTeamId: team.id });
-      });
-    },
+        await api.patch(id, { teamIds: [...current, team.id] });
+      }),
     [api, run],
   );
 
   /** Adds a service nobody had yet and labels the work item with it, in one go. */
   const createServiceFor = useCallback(
-    (id: string, name: string, current: readonly string[]) => {
-      void run(async () => {
+    (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
+      run(async () => {
         const service = await api.addService(name);
         await api.patch(id, { serviceIds: [...current, service.id] });
-      });
-    },
+      }),
     [api, run],
   );
 
   /** Adds a tag nobody had yet and labels the work item with it, in one go. */
   const createTagFor = useCallback(
-    (id: string, name: string, current: readonly string[]) => {
-      void run(async () => {
+    (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
+      run(async () => {
         const tag = await api.addTag(name);
         await api.patch(id, { tagIds: [...current, tag.id] });
-      });
-    },
+      }),
     [api, run],
   );
 
@@ -7012,14 +7012,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               */}
                 <span
                   data-depends-strip={row.original.id}
+                  data-reference-strip=""
                   style={{
-                    display: 'flex',
+                    ...REFERENCE_SET_STRIP_STYLE,
                     // Wrapping is for the chips, and only for them. See the
                     // block above: an empty cell has nothing to wrap, and the
                     // wrap is what made it two lines tall the moment it was
                     // clicked into.
                     flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
-                    alignItems: 'center',
                     gap: 2,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -7063,6 +7063,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   <button
                     type="button"
                     data-dep-add={row.original.id}
+                    data-reference-add=""
+                    className={REFERENCE_SET_ADD_CLASS}
                     // Not `Add a dependency to 020` — that is the box's own
                     // label, and two controls in one cell answering to one name
                     // is a reader told the same thing twice with no way to tell
@@ -7175,6 +7177,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     <button
                       key={id}
                       type="button"
+                      data-reference-chip={id}
+                      className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
                       aria-label={`Stop ${row.original.number} waiting for ${number}`}
                       title="Remove this dependency"
                       // Out of the tab order while the strip is clipped: a
@@ -7558,6 +7562,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ? live.current.depHover.pillId
                         : null
                     }
+                    onPointEntry={(pillId) => {
+                      live.current.setDepHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === pillId
+                          ? current
+                          : { rowId: row.original.id, pillId },
+                      );
+                    }}
+                    onPointerOutside={() => {
+                      live.current.setDepHover((current) =>
+                        current?.rowId === row.original.id ? null : current,
+                      );
+                      live.current.setHoveredCell((current) =>
+                        current === dependsCell ? null : current,
+                      );
+                    }}
                   />
                 )}
               </span>
@@ -7628,8 +7647,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // the row, its answer changes with it.
             const inherited = live.current.effectiveTeamLabelOf(row.original);
             return (
-              <CreatablePicker
+              <ReferenceSetStrip
                 label={`Service or team for ${row.original.number}`}
+                addLabel={`Add a team to ${row.original.number}`}
                 placeholder={
                   inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
                 }
@@ -7638,17 +7658,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
                     : undefined
                 }
-                entries={live.current.teams}
-                value={row.original.teamIds.at(0) ?? null}
-                onChoose={(id) => {
-                  live.current.setTeamOf(row.original.id, id);
-                }}
-                onCreate={(name) => {
-                  live.current.createTeamFor(row.original.id, name);
-                }}
-                addButtonLabel={`Add a team to ${row.original.number}`}
-                onClear={() => {
-                  live.current.setTeamOf(row.original.id, null);
+                adapter={{
+                  kind: 'team',
+                  entries: live.current.teams,
+                  ownIds: row.original.teamIds,
+                  inheritedLabel: inherited.state === 'inherited' ? inherited.name : undefined,
+                  replace: (teamIds) => live.current.setTeamOf(row.original.id, teamIds),
+                  create: (name, current) =>
+                    live.current.createTeamFor(row.original.id, name, current),
                 }}
                 gridCell={{
                   dataCell: cellKey(row.original.id, 'team'),
@@ -7676,88 +7693,46 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // `↳` for the inheritance.
             const inherited = live.current.effectiveTagLabelOf(row.original);
             const own = row.original.tagIds;
-            const named = (id: string): string =>
-              live.current.tags.find((each) => each.id === id)?.name ?? id;
             return (
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
-                {/*
-                One chip per tag the row states, each with its own ✕. A set is
-                edited a member at a time on screen and written whole on the
-                wire — `setTagsOf` sends the set as it will stand, because a
-                delta has no inverse the journal could carry.
-              */}
-                {own.map((tagId) => (
-                  <button
-                    key={tagId}
-                    type="button"
-                    data-tag-chip={tagId}
-                    className="bg-muted flex max-w-full items-center gap-0.5 rounded px-1 text-xs"
-                    aria-label={`Remove ${named(tagId)} from ${row.original.number}`}
-                    onClick={() => {
-                      live.current.setTagsOf(
-                        row.original.id,
-                        own.filter((each) => each !== tagId),
-                      );
-                    }}
-                  >
-                    <span className="truncate">{named(tagId)}</span>
-                    <span aria-hidden>✕</span>
-                  </button>
-                ))}
-                <CreatablePicker
-                  label={`Tags for ${row.original.number}`}
-                  placeholder={
-                    own.length > 0
-                      ? 'add'
-                      : inherited.state === 'inherited'
-                        ? `↳ ${inherited.names.join(', ')}`
-                        : 'search'
-                  }
-                  title={
-                    own.length === 0 && inherited.state === 'inherited'
-                      ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
-                      : undefined
-                  }
-                  // Only the tags this row does not already carry: a picker
-                  // offering one that is already a chip beside it can only mean
-                  // "add it twice", which the store deduplicates and the primary
-                  // key refuses.
-                  entries={live.current.tags.filter((each) => !own.includes(each.id))}
-                  // Always null: this box adds a member, it does not show the
-                  // set. What the row carries is the chips to its left.
-                  value={null}
-                  onChoose={(id) => {
-                    live.current.setTagsOf(row.original.id, [...own, id]);
-                  }}
-                  onCreate={(name) => {
-                    live.current.createTagFor(row.original.id, name, own);
-                  }}
-                  // Dany, 2026-08-23: tag cells now search-or-add like Teams and
-                  // Services — `onCreate` above. Since `configurable-columns`
-                  // the column is on screen by default, so the first tag can be
-                  // made here as well as on the directory page.
-                  addButtonLabel={`Add a tag to ${row.original.number}`}
-                  onClear={
-                    own.length === 0
-                      ? undefined
-                      : () => {
-                          live.current.setTagsOf(row.original.id, []);
-                        }
-                  }
-                  gridCell={{
-                    dataCell: cellKey(row.original.id, 'tag'),
-                    onTabKey: (e) => {
-                      live.current.onTabKey(e, row.original.id, 'tag');
-                    },
-                    onCommandKey: (e) => {
-                      live.current.onCommandKey(e, row.original, 'tag');
-                    },
-                    onAltMove: (e) => {
-                      live.current.onAltMove(e, row.original, 'tag');
-                    },
-                  }}
-                />
-              </span>
+              <ReferenceSetStrip
+                label={`Tags for ${row.original.number}`}
+                addLabel={`Add a tag to ${row.original.number}`}
+                removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
+                placeholder={
+                  own.length > 0
+                    ? 'add'
+                    : inherited.state === 'inherited'
+                      ? `↳ ${inherited.names.join(', ')}`
+                      : 'search'
+                }
+                title={
+                  own.length === 0 && inherited.state === 'inherited'
+                    ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
+                    : undefined
+                }
+                adapter={{
+                  kind: 'tag',
+                  entries: live.current.tags,
+                  ownIds: own,
+                  inheritedLabel:
+                    inherited.state === 'inherited' ? inherited.names.join(', ') : undefined,
+                  replace: (tagIds) => live.current.setTagsOf(row.original.id, tagIds),
+                  create: (name, current) =>
+                    live.current.createTagFor(row.original.id, name, current),
+                }}
+                gridCell={{
+                  dataCell: cellKey(row.original.id, 'tag'),
+                  onTabKey: (e) => {
+                    live.current.onTabKey(e, row.original.id, 'tag');
+                  },
+                  onCommandKey: (e) => {
+                    live.current.onCommandKey(e, row.original, 'tag');
+                  },
+                  onAltMove: (e) => {
+                    live.current.onAltMove(e, row.original, 'tag');
+                  },
+                }}
+              />
             );
           },
         }),
@@ -7785,8 +7760,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // then a control that could not express what the row already held.
             const inherited = live.current.effectiveServiceLabelOf(row.original);
             const own = row.original.serviceIds;
-            const named = (id: string): string =>
-              live.current.services.find((each) => each.id === id)?.name ?? id;
             // Task 7.2's first marker, on the cell its signal is about. The
             // **effective** reading, so a leaf inheriting a service it is not
             // owned to build is marked where the inheritance put the service —
@@ -7796,44 +7769,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             const nonOwner = live.current.nonOwnerNoteOf(row.original);
             return (
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
-                {/*
-                One chip per service the row states, each removable on its own.
-                A set is edited a member at a time on screen and written whole on
-                the wire — `setServicesOf` sends the set as it will stand,
-                because a delta has no inverse the undo journal could carry
-                (design D6, and task 10.3's red).
-
-                `named` falls back to the id, which is why `ServiceLabel` no
-                longer needs an `unresolved` arm: a service the directory has not
-                caught up with is on screen as an id rather than missing from a
-                cell that then claims the row has none.
-              */}
-                {own.map((serviceId) => (
-                  <button
-                    key={serviceId}
-                    type="button"
-                    data-service-chip={serviceId}
-                    className="bg-muted flex max-w-full items-center gap-0.5 rounded px-1 text-xs"
-                    aria-label={`Remove ${named(serviceId)} from ${row.original.number}`}
-                    onClick={() => {
-                      live.current.setServicesOf(
-                        row.original.id,
-                        own.filter((each) => each !== serviceId),
-                      );
-                    }}
-                  >
-                    <span className="truncate">{named(serviceId)}</span>
-                    <span aria-hidden>✕</span>
-                  </button>
-                ))}
-                {/*
-                  After the chips and before the box, not at the end of the
-                  cell: it is about the services on screen to its left, and the
-                  picker is a search box that stays where it has always been.
-                */}
                 {nonOwner !== null && <MismatchMark kind="service" note={nonOwner} />}
-                <CreatablePicker
+                <ReferenceSetStrip
                   label={`Services for ${row.original.number}`}
+                  addLabel={`Add a service to ${row.original.number}`}
+                  removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
                   placeholder={
                     own.length > 0
                       ? 'add'
@@ -7846,35 +7786,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no service of its own.`
                       : undefined
                   }
-                  // Only the services this row does not already carry: offering
-                  // one that is a chip beside it can only mean "add it twice",
-                  // which be-01 deduplicates and the join's primary key refuses.
-                  entries={live.current.services.filter((each) => !own.includes(each.id))}
-                  // Always null: this box adds a member, it does not show the
-                  // set. What the row carries is the chips to its left.
-                  value={null}
-                  onChoose={(id) => {
-                    live.current.setServicesOf(row.original.id, [...own, id]);
+                  adapter={{
+                    kind: 'service',
+                    entries: live.current.services,
+                    ownIds: own,
+                    inheritedLabel:
+                      inherited.state === 'inherited' ? inherited.names.join(', ') : undefined,
+                    replace: (serviceIds) =>
+                      live.current.setServicesOf(row.original.id, serviceIds),
+                    create: (name, current) =>
+                      live.current.createServiceFor(row.original.id, name, current),
                   }}
-                  onCreate={(name) => {
-                    live.current.createServiceFor(row.original.id, name, own);
-                  }}
-                  // Dany, 2026-08-23: service cells now search-or-add like Teams
-                  // and Tags — `onCreate` above. Since `configurable-columns`
-                  // the column is hidden by default and shown from the Columns
-                  // control; once shown, the first service can be made here.
-                  addButtonLabel={`Add a service to ${row.original.number}`}
-                  // **No `onClear`, and that is a correction rather than an
-                  // omission.** The tag cell beside this one passes one, and it
-                  // is dead: `CreatablePicker` renders its ✕ only while
-                  // `chosen !== undefined`, and a box whose `value` is always
-                  // `null` never has one. Taking the last service off is done by
-                  // removing its chip — the gesture that is actually on screen —
-                  // and the case asserts that `[]` goes out that way. Copying
-                  // the dead prop here would have made a second surface claim an
-                  // affordance neither of them has. Found 2026-08-21 when a case
-                  // written against `Clear Services for 010` could not find the
-                  // button.
                   gridCell={{
                     dataCell: cellKey(row.original.id, 'service'),
                     onTabKey: (e) => {
@@ -9292,6 +9214,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         setHoveredCell(dependsCell);
       },
       onMouseLeave: () => {
+        // The open dependency card owns dismissal through its document
+        // pointer bridge. Clearing here would unmount the row targets while
+        // the pointer is crossing the card's passive padding. The bridge sees
+        // the next real pointer position and clears if it is outside; a
+        // `relatedTarget` is deliberately not required because passive card
+        // pixels hit-test through to the plan and Chromium may report that
+        // boundary as a leave with no related node.
+        if (dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id) return;
+
         // Leaving the cell clears the dependency hover outright — with the
         // same-cell guard `hoveredCell`'s clear uses, because a leave lands
         // after the next cell's enter.
@@ -9431,6 +9362,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // moment is the skew `layOutGantt` throws on.
     roles: chartRead.roles,
     personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+    teamNames: new Map(teams.map((team) => [team.id, team.name])),
     // The ladder the chart names its priorities with. Off the same state the
     // table's cells read, so a bar's cap and its row's digits are one colour.
     priorityBands,
@@ -10383,11 +10315,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // team chosen on a phone reaches be-01 by the path a team chosen on a
           // laptop reaches it by.
           teams={teams}
-          setTeam={(row, teamId) => {
-            setTeamOf(row.id, teamId);
+          setTeams={(row, teamIds) => {
+            return setTeamOf(row.id, teamIds);
           }}
-          createTeam={(row, name) => {
-            createTeamFor(row.id, name);
+          createTeam={(row, name, currentTeamIds) => {
+            return createTeamFor(row.id, name, currentTeamIds);
           }}
           // The `not-before` cell's own question and its own writer, handed to
           // the face that had neither. `hasCalendar` is the cell's `noCalendar`
@@ -10415,18 +10347,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           tagLabel={effectiveTagLabelOf}
           tags={tags}
           setTags={(row, tagIds) => {
-            setTagsOf(row.id, tagIds);
+            return setTagsOf(row.id, tagIds);
           }}
           createTag={(row, name, current) => {
-            createTagFor(row.id, name, current);
+            return createTagFor(row.id, name, current);
           }}
           serviceLabel={effectiveServiceLabelOf}
           services={services}
           setServices={(row, serviceIds) => {
-            setServicesOf(row.id, serviceIds);
+            return setServicesOf(row.id, serviceIds);
           }}
           createService={(row, name, current) => {
-            createServiceFor(row.id, name, current);
+            return createServiceFor(row.id, name, current);
           }}
           // The same sentence the Services cell's `△` carries, handed to the
           // face that had none. Not a card-shaped copy of the rule: one memo

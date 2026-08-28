@@ -351,6 +351,24 @@ const luminance = (page: Page, colour: string): Promise<number> =>
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   }, colour);
 
+/** Points at the cell's own left padding, never at a chip that narrows the tint. */
+async function hoverPassiveDependsCell(page: Page, number: string): Promise<void> {
+  const cell = page
+    .getByLabel(`Add a dependency to ${number}`)
+    .locator('xpath=ancestor::td[@data-column="depends"]');
+  const box = await cell.boundingBox();
+  if (box === null) throw new Error(`the Depends on cell for ${number} has no box`);
+  const point = { x: box.x + 2, y: box.y + box.height / 2 };
+  expect(
+    await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit !== null && hit.closest('button, [data-reference-chip]') === null;
+    }, point),
+    `the passive point in ${number}'s Depends on cell lands on a chip`,
+  ).toBe(true);
+  await page.mouse.move(point.x, point.y);
+}
+
 test.describe('hovering a dependency lights the rows it names', () => {
   /** A third row, waiting for the two the shared seed made. */
   async function seed030WaitingForBoth(page: Page): Promise<void> {
@@ -367,6 +385,28 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await page.mouse.move(0, 0);
   }
 
+  /** A top-row owner whose card has three reachable dependency rows. */
+  async function seed010WaitingForThree(page: Page): Promise<void> {
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    await addRow.click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    await page.getByLabel('Name of 030').fill('Price the replacement racks');
+    await page.getByLabel('Name of 030').blur();
+    await addRow.click();
+    await expect(page.getByLabel('Name of 040')).toBeVisible();
+    await page.getByLabel('Name of 040').fill('Order the installation crew');
+    await page.getByLabel('Name of 040').blur();
+
+    const depends = page.getByLabel('Add a dependency to 010');
+    await depends.click();
+    await depends.fill('020, 030, 040');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 010 waiting for / })).toHaveCount(3);
+    await page.getByLabel('Name of 010').click();
+    await page.getByLabel('Name of 010').blur();
+    await page.mouse.move(0, 0);
+  }
+
   test('the cell lights every dependency’s row, and dark again on leaving', async ({ page }) => {
     await seed030WaitingForBoth(page);
     // The rest colours differ (banding), which is what makes the equality at
@@ -374,7 +414,7 @@ test.describe('hovering a dependency lights the rows it names', () => {
     const rest010 = await settledRowBg(page, '010');
     const rest020 = await settledRowBg(page, '020');
 
-    await page.getByLabel('Add a dependency to 030').hover();
+    await hoverPassiveDependsCell(page, '030');
 
     await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
     await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
@@ -426,11 +466,127 @@ test.describe('hovering a dependency lights the rows it names', () => {
     expect(await emphasised.evaluate((line) => getComputedStyle(line).fontWeight)).toBe('400');
     expect(await bgOf(other)).toBe(TRANSPARENT);
 
-    // Off the pill onto the cell's input area: the light widens back to every
-    // dependency — the browser's own leave, `relatedTarget` and all.
-    await page.getByLabel('Add a dependency to 030').hover();
+    // Off the pill onto the cell's passive owner area: the light widens back
+    // to every dependency — the browser's own leave, `relatedTarget` and all.
+    // The input itself may be clipped behind a full strip at rest.
+    await hoverPassiveDependsCell(page, '030');
     await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
     await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+  });
+
+  test('travels through passive card space to the third row and leaves empty padding click-through', async ({
+    page,
+  }) => {
+    await seed010WaitingForThree(page);
+    const owner = page.getByLabel('Add a dependency to 010');
+    const card = page.getByRole('tooltip', { name: 'What 010 waits for' });
+    const third = card.getByText('040 - Order the installation crew', { exact: true });
+
+    await owner.hover();
+    expect(await cardsOpen(page), 'the owner did not open its dependency card').toBe(1);
+    await expect(card.locator('[data-depends-card-target]')).toHaveCount(3);
+
+    const ownerBox = await boxOf(owner, 'the dependency owner');
+    const cardBox = await boxOf(card, 'the dependency card');
+    const thirdBox = await boxOf(third, 'the third dependency row');
+    const passive = { x: thirdBox.x + thirdBox.width / 2, y: cardBox.y + 4 };
+    const passiveProbe = await page.evaluate(
+      ({ point, cardSelector, targetSelector }) => {
+        const cardNode = document.querySelector(cardSelector);
+        const hit = document.elementFromPoint(point.x, point.y);
+        return {
+          insideCard:
+            cardNode instanceof HTMLElement &&
+            point.x >= cardNode.getBoundingClientRect().left &&
+            point.x <= cardNode.getBoundingClientRect().right &&
+            point.y >= cardNode.getBoundingClientRect().top &&
+            point.y <= cardNode.getBoundingClientRect().bottom,
+          hitsTarget: hit instanceof Element && hit.closest(targetSelector) !== null,
+        };
+      },
+      {
+        point: passive,
+        cardSelector: '[aria-label="What 010 waits for"]',
+        targetSelector: '[data-depends-card-target]',
+      },
+    );
+    expect(passiveProbe.insideCard, 'the bridge point is outside the card').toBe(true);
+    expect(passiveProbe.hitsTarget, 'the bridge point is not passive padding').toBe(false);
+
+    await page.mouse.move(ownerBox.x + ownerBox.width / 2, ownerBox.y + ownerBox.height / 2);
+    await page.mouse.move(passive.x, passive.y);
+    expect(await cardsOpen(page), 'the card closed while crossing passive padding').toBe(1);
+    await page.mouse.move(thirdBox.x + thirdBox.width / 2, thirdBox.y + thirdBox.height / 2);
+
+    expect(
+      await third.evaluate((line) => {
+        const box = line.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return hit !== null && line.contains(hit);
+      }),
+      'the third dependency row target does not own its painted pixels',
+    ).toBe(true);
+
+    await expect(rowOf(page, '040')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).not.toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '030')).not.toHaveAttribute('data-dep-lit', 'true');
+    expect(await bgOf(third), 'the third card line has no tint').not.toBe(TRANSPARENT);
+    expect(await bgOf(card.getByText('020 - Draft the replacement layout', { exact: true }))).toBe(
+      TRANSPARENT,
+    );
+
+    for (const staleEvent of ['scroll', 'resize', 'pointercancel'] as const) {
+      if (staleEvent === 'scroll') {
+        await page.locator('[data-table-frame]').dispatchEvent('scroll');
+      } else if (staleEvent === 'resize') {
+        await page.setViewportSize({ width: 1279, height: 899 });
+      } else {
+        await page.evaluate(() => {
+          document.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }));
+        });
+      }
+      await expect(card).toHaveCount(0);
+      await expect(rowOf(page, '040')).not.toHaveAttribute('data-dep-lit', 'true');
+      await owner.hover();
+      await third.hover();
+      await expect(rowOf(page, '040')).toHaveAttribute('data-dep-lit', 'true');
+    }
+
+    const underneath = page.getByRole('button', { name: 'Make 020 wait for something' });
+    const underneathBox = await boxOf(underneath, 'the action under the card padding');
+    const clickPoint = {
+      x: underneathBox.x + underneathBox.width / 2,
+      y: underneathBox.y + underneathBox.height / 2,
+    };
+    const clickProbe = await page.evaluate(
+      ({ point }) => {
+        const hit = document.elementFromPoint(point.x, point.y);
+        const button = document.querySelector('[aria-label="Make 020 wait for something"]');
+        const cardNode = document.querySelector('[aria-label="What 010 waits for"]');
+        return {
+          hitsButton: hit !== null && button instanceof HTMLElement && button.contains(hit),
+          hitsCardTarget:
+            hit instanceof Element && hit.closest('[data-depends-card-target]') !== null,
+          insideCard:
+            cardNode instanceof HTMLElement &&
+            point.x >= cardNode.getBoundingClientRect().left &&
+            point.x <= cardNode.getBoundingClientRect().right &&
+            point.y >= cardNode.getBoundingClientRect().top &&
+            point.y <= cardNode.getBoundingClientRect().bottom,
+        };
+      },
+      { point: clickPoint },
+    );
+    expect(clickProbe.insideCard, 'the underlying action is not covered by the card').toBe(true);
+    expect(clickProbe.hitsCardTarget, 'a dependency row swallowed the empty-card click').toBe(
+      false,
+    );
+    expect(clickProbe.hitsButton, 'the empty card area intercepted the underlying action').toBe(
+      true,
+    );
+
+    await page.mouse.click(clickPoint.x, clickPoint.y);
+    await expect(page.getByLabel('Add a dependency to 020')).toBeFocused();
   });
 
   test('the tint moves the same way on both surfaces, in both palettes', async ({ page }) => {

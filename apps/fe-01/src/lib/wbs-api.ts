@@ -102,6 +102,8 @@ export interface SliceView {
   critical: boolean;
   boundBy: ScheduleFloorView;
   resourcePredecessorId: string | null;
+  /** The team pool that set a capacity floor, or null for every other floor. */
+  capacityTeamId: string | null;
   /**
    * How many of its team's slots this slice held while it ran — the
    * **effective** width be-01 scheduled with.
@@ -1033,6 +1035,14 @@ export interface ProjectApi {
        */
       maxParallel?: number | null;
       serviceTeamId?: string | null;
+      /**
+       * The teams this row states, as one whole replacement set.
+       *
+       * `[]` removes the row's own team labels and absent leaves them alone.
+       * The legacy scalar arm above remains for old callers; a request must
+       * never send both arms together. At most 10 ids.
+       */
+      teamIds?: readonly string[];
       /**
        * The tags this row will carry, **whole** — the set as it will stand,
        * never a member to add or a delta to apply.

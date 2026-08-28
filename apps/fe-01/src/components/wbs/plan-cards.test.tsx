@@ -295,6 +295,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         name?: string;
         notes?: string;
         serviceTeamId?: string | null;
+        teamIds?: string[];
         tagIds?: string[];
         serviceIds?: string[];
         startNoEarlierThan?: string | null;
@@ -314,6 +315,10 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       if (patch.serviceTeamId !== undefined) {
         row.serviceTeamId = patch.serviceTeamId;
         row.teamIds = patch.serviceTeamId === null ? [] : [patch.serviceTeamId];
+      }
+      if (patch.teamIds !== undefined) {
+        row.teamIds = [...patch.teamIds];
+        row.serviceTeamId = [...patch.teamIds].sort().at(0) ?? null;
       }
       if (patch.tagIds !== undefined) row.tagIds = [...patch.tagIds];
       if (patch.serviceIds !== undefined) row.serviceIds = [...patch.serviceIds];
@@ -513,6 +518,27 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   widthIs(LAPTOP);
+});
+
+describe('the plan-card ProjectApi fake', () => {
+  it('round trips whole team sets and retains the legacy scalar arm', async () => {
+    const api = fakeApi();
+    const created = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+
+    await api.patch(created.id, { teamIds: ['team-b', 'team-a'] });
+
+    expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
+      teamIds: ['team-b', 'team-a'],
+      serviceTeamId: 'team-a',
+    });
+
+    await api.patch(created.id, { serviceTeamId: 'team-c' });
+
+    expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
+      teamIds: ['team-c'],
+      serviceTeamId: 'team-c',
+    });
+  });
 });
 
 describe('the plan on a phone', () => {
@@ -2310,8 +2336,9 @@ describe('setting a card’s team', () => {
   async function aPhonePlan(
     arrange: (rows: WorkItemView[], teams: TeamView[]) => void,
     howMany = 1,
+    options: { refusePatch?: boolean } = {},
   ): Promise<ReturnType<typeof fakeApi>> {
-    const api = fakeApi();
+    const api = fakeApi(options);
     for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
     arrange(api.rows, api.teams);
     widthIs(PHONE);
@@ -2344,6 +2371,77 @@ describe('setting a card’s team', () => {
     expect(screen.getByRole('button', { name: 'Add a team to 010' })).toBeInTheDocument();
   });
 
+  itDom('opens the shared phone sheet with every selected team removable', async () => {
+    await aPhonePlan((rows, teams) => {
+      teams.push({ id: 't1', name: 'Billing' }, { id: 't2', name: 'Platform' });
+      rows[0].serviceTeamId = 't1';
+      rows[0].teamIds = ['t1', 't2'];
+    });
+
+    fireEvent.click(teamFields()[0]);
+
+    expect(document.querySelector('[data-reference-set="team"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Billing from 010' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Platform from 010' })).toBeInTheDocument();
+  });
+
+  itDom('keeps the shared sheet and typed team open when the write is refused', async () => {
+    await aPhonePlan(
+      (_rows, teams) => {
+        teams.push({ id: 't1', name: 'Billing' });
+      },
+      1,
+      { refusePatch: true },
+    );
+
+    fireEvent.click(teamFields()[0]);
+    const box = await screen.findByRole<HTMLInputElement>('combobox', {
+      name: 'Service or team for 010',
+    });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Billing' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(box).toHaveValue('Billing');
+    });
+    expect(document.querySelector('[data-reference-set="team"]')).toBeInTheDocument();
+  });
+
+  itDom('blocks a pending team double tap and closes after it lands', async () => {
+    const api = fakeApi();
+    await api.create('p1', { parentId: null });
+    api.teams.push({ id: 't1', name: 'Billing' });
+    let patchCalls = 0;
+    let land: (() => void) | undefined;
+    api.patch = async () => {
+      patchCalls += 1;
+      await new Promise<void>((resolve) => {
+        land = resolve;
+      });
+    };
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    fireEvent.click(teamFields()[0]);
+    const box = await screen.findByRole('combobox', { name: 'Service or team for 010' });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Billing' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(patchCalls).toBe(1);
+    });
+    act(() => {
+      land?.();
+    });
+    await waitFor(() => {
+      expect(document.querySelector('[data-reference-set="team"]')).toBeNull();
+    });
+  });
+
   itDom(
     'labels the row with the team the first line offers, not the one typed inside',
     async () => {
@@ -2363,7 +2461,7 @@ describe('setting a card’s team', () => {
       fireEvent.keyDown(box, { key: 'Enter' });
 
       await waitFor(() => {
-        expect(api.patched.at(-1)).toEqual({ id: api.rows[0]?.id, serviceTeamId: 't2' });
+        expect(api.patched.at(-1)).toEqual({ id: api.rows[0]?.id, teamIds: ['t2'] });
       });
       // And the card now says so, which is the half a patch alone does not prove.
       await waitFor(() => {
@@ -2420,10 +2518,10 @@ describe('setting a card’s team', () => {
     fireEvent.click(teamFields()[1]);
     const box = await screen.findByRole('combobox', { name: 'Service or team for 020' });
     fireEvent.focus(box);
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Service or team for 020' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Platform from 020' }));
 
     await waitFor(() => {
-      expect(api.patched.at(-1)).toEqual({ id: api.rows[1]?.id, serviceTeamId: null });
+      expect(api.patched.at(-1)).toEqual({ id: api.rows[1]?.id, teamIds: [] });
     });
     await waitFor(() => {
       const cards = [...document.querySelectorAll<HTMLElement>('[data-card-team]')];

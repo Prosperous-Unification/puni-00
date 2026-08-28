@@ -154,6 +154,12 @@ const namesByPosition = async (parentId: string | null): Promise<string[]> =>
     .sort((a, b) => a.position - b.position)
     .map((row) => row.name);
 
+const teamIdsOf = async (id: string): Promise<readonly string[]> => {
+  const row = (await rows()).find((each) => each.id === id);
+  if (row === undefined) throw new Error(`${id} is not a row of this project`);
+  return row.teamIds;
+};
+
 const edges = async (): Promise<[string, string][]> =>
   (await dependencyStore.listByProject(projectId)).map((edge) => [
     edge.predecessorId,
@@ -529,6 +535,60 @@ describe('undoing each kind of change', () => {
     expect(await edges()).toEqual([[sockets, switches]]);
   });
 
+  it('restores every team membership through delete undo and redo', async () => {
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
+    const design = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Design' });
+    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const stripTeams = [backend.id, design.id].sort();
+    const socketTeams = [design.id, platform.id].sort();
+    await workItems.patch(strip, ownerId, { teamIds: [...stripTeams].reverse() });
+    await workItems.patch(sockets, ownerId, { teamIds: [...socketTeams].reverse() });
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await rows()).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+    expect(await teamIdsOf(strip)).toEqual(stripTeams);
+    expect(await teamIdsOf(sockets)).toEqual(socketTeams);
+
+    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('delete “Strip”');
+    expect(await rows()).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+    expect(await teamIdsOf(strip)).toEqual(stripTeams);
+    expect(await teamIdsOf(sockets)).toEqual(socketTeams);
+  });
+
+  it('restores a legacy singleton delete journal that has no teamIds', async () => {
+    const strip = await root('Strip');
+    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
+    await workItems.patch(strip, ownerId, { serviceTeamId: backend.id });
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+
+    const entry = await nextUndoable();
+    if (entry === null) throw new Error('delete wrote no journal entry');
+    const inverse = entry.inverse as {
+      do: string;
+      rows: Record<string, unknown>[];
+    };
+    expect(inverse.do).toBe('restore_subtree');
+    for (const row of inverse.rows) Reflect.deleteProperty(row, 'teamIds');
+    const db = openDatabase(path);
+    try {
+      db.run('UPDATE command_journal SET inverse = ? WHERE id = ?', [
+        JSON.stringify(inverse),
+        entry.id,
+      ]);
+    } finally {
+      db.close();
+    }
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+    expect(await teamIdsOf(strip)).toEqual([backend.id]);
+  });
+
   it('restores every day recorded in a deleted branch, against the real cascade', async () => {
     // Against real SQLite, and that is the point of putting this here rather
     // than beside the other actual cases: `actual.work_item_id` cascades, so the
@@ -796,6 +856,24 @@ describe('undoing each kind of change', () => {
 
     expect(await namesByPosition(null)).toEqual(['Strip']);
     expect(await found(copy.result.id)).toBeNull();
+  });
+
+  it('restores every team membership when a duplicate is redone', async () => {
+    const strip = await root('Strip');
+    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
+    const design = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Design' });
+    const expected = [backend.id, design.id].sort();
+    await workItems.patch(strip, ownerId, { teamIds: [...expected].reverse() });
+
+    const copy = await workItems.duplicate(strip, ownerId);
+    if (!copy.ok) throw new Error('duplicate refused');
+    expect(await teamIdsOf(copy.result.id)).toEqual(expected);
+
+    expect(expectDone(await undone())).toBe('duplicate “Strip”');
+    expect(await found(copy.result.id)).toBeNull();
+
+    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('duplicate “Strip”');
+    expect(await teamIdsOf(copy.result.id)).toEqual(expected);
   });
 });
 
@@ -1299,6 +1377,35 @@ describe('what an undo leaves in the plan’s history', () => {
 
     expect((await allEntries()).map((each) => each.kind)).toEqual(['create', 'estimate']);
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'estimate', 'create']);
+  });
+});
+
+describe('a team set is undone whole, which a scalar habit would not do', () => {
+  async function teamNamed(name: string): Promise<string> {
+    return (await directoryStore.addTeam({ id: crypto.randomUUID(), name })).id;
+  }
+
+  async function teamsOn(id: string): Promise<readonly string[]> {
+    return (await rows()).find((row) => row.id === id)?.teamIds ?? [];
+  }
+
+  it('journals a teamIds-only patch and restores the complete prior set', async () => {
+    // Break caught: omitting teamIds from fieldsOf skips the journal entirely;
+    // restoring only the scalar projection silently loses the second member.
+    const id = await root('Strip the roof');
+    const backend = await teamNamed('Backend');
+    const design = await teamNamed('Design');
+    const platform = await teamNamed('Platform');
+
+    await workItems.patch(id, ownerId, { teamIds: [backend, design] });
+    await workItems.patch(id, ownerId, { teamIds: [platform] });
+    expect(await teamsOn(id)).toEqual([platform]);
+
+    expectDone(await undone());
+    expect([...(await teamsOn(id))].sort()).toEqual([backend, design].sort());
+
+    expectDone(await workItems.redo(projectId, ownerId));
+    expect(await teamsOn(id)).toEqual([platform]);
   });
 });
 

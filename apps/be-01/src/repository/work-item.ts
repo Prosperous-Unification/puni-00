@@ -65,10 +65,13 @@ function mergedNotBefore(
  * request carries the set, and the column becomes the derived copy — and R2-6
  * deletes the column and this function with it.
  */
-function joinRowsFor(rows: readonly WorkItem[]): { workItemId: string; teamId: string }[] {
-  return rows.flatMap((row) =>
-    row.serviceTeamId === null ? [] : [{ workItemId: row.id, teamId: row.serviceTeamId }],
-  );
+function joinRowsFor(
+  rows: readonly (WorkItem & { teamIds?: readonly string[] })[],
+): { workItemId: string; teamId: string }[] {
+  return rows.flatMap((row) => {
+    const teamIds = row.teamIds ?? (row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+    return [...new Set(teamIds)].sort().map((teamId) => ({ workItemId: row.id, teamId }));
+  });
 }
 
 /**
@@ -220,6 +223,7 @@ export class WorkItemRepository implements WorkItemStore {
       patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
+      patch.teamIds === undefined &&
       // Proof: this line deleted, so a patch naming only the service takes the
       // no-field branch, writes nothing and answers `ok` with the row it found
       // — every face reporting a write that never happened, which is the tag
@@ -262,10 +266,18 @@ export class WorkItemRepository implements WorkItemStore {
     // and it must not be reached by this `SET` any more — the field naming it is
     // gone from the patch, so the only way one could arrive is a caller inventing
     // it, and drizzle would refuse that.
-    const { maxParallel, tagIds: wantedTags, serviceIds: wantedServices, ...fields } = patch;
+    const {
+      maxParallel,
+      teamIds: wantedTeams,
+      tagIds: wantedTags,
+      serviceIds: wantedServices,
+      ...fields
+    } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
+      const normalizedTeams =
+        wantedTeams === undefined ? undefined : [...new Set(wantedTeams)].sort();
       // The not-before pair as the row will stand, and the one pair it may not
       // stand in. Asked here rather than at the service for `unknown_team`'s
       // reason below it: a check one statement earlier is a check with a
@@ -305,6 +317,16 @@ export class WorkItemRepository implements WorkItemStore {
         }
       }
       const wanted = patch.serviceTeamId;
+      if (normalizedTeams !== undefined && normalizedTeams.length > 0) {
+        const held = tx
+          .select({ id: serviceTeam.id })
+          .from(serviceTeam)
+          .where(inArray(serviceTeam.id, normalizedTeams))
+          .all();
+        if (held.length !== normalizedTeams.length) {
+          return { ok: false, reason: 'unknown_team' };
+        }
+      }
       // `null` takes the label off and names no team, so there is nothing to
       // read; only a non-null id can be one the directory has lost.
       if (wanted !== undefined && wanted !== null) {
@@ -370,7 +392,13 @@ export class WorkItemRepository implements WorkItemStore {
       }
       const rows = tx
         .update(workItem)
-        .set({ ...written, revision: bumpedWorkItem })
+        .set({
+          ...written,
+          ...(normalizedTeams === undefined
+            ? {}
+            : { serviceTeamId: normalizedTeams.at(0) ?? null }),
+          revision: bumpedWorkItem,
+        })
         .where(eq(workItem.id, id))
         .returning()
         .all();
@@ -389,7 +417,14 @@ export class WorkItemRepository implements WorkItemStore {
       // removed: `empties the join when the label is taken off` failed with the
       // old row still standing — 15 pass / 1 fail, a label the scheduler still
       // spends slots on and no screen shows.
-      if (wanted !== undefined) {
+      if (normalizedTeams !== undefined) {
+        tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
+        if (normalizedTeams.length > 0) {
+          tx.insert(workItemTeam)
+            .values(normalizedTeams.map((teamId) => ({ workItemId: id, teamId })))
+            .run();
+        }
+      } else if (wanted !== undefined) {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (wanted !== null)
           tx.insert(workItemTeam).values({ workItemId: id, teamId: wanted }).run();
@@ -560,7 +595,11 @@ export class SubtreeRepository implements SubtreeStore {
       // One statement per row rather than one multi-row insert: a child
       // referencing a parent in the same `VALUES` list depends on the order
       // SQLite evaluates it in, which is not a contract worth resting a tree on.
-      for (const row of copy.rows) tx.insert(workItem).values(row).run();
+      for (const row of copy.rows) {
+        const stored = { ...row };
+        Reflect.deleteProperty(stored, 'teamIds');
+        tx.insert(workItem).values(stored).run();
+      }
       // The teams the copied rows carry, in the same transaction as the rows.
       // A duplicated branch draws from the pools the original drew from, and a
       // restored one comes back on the pool it left — the join rows of a

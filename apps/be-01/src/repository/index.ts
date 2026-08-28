@@ -465,6 +465,12 @@ export interface WorkItemPatch {
   /** `null` takes the label off. Never constrains who may be assigned the work. */
   serviceTeamId?: string | null;
   /**
+   * The row's whole own team set. Absent leaves it alone and `[]` makes it
+   * unstated. Kept beside `serviceTeamId` for one compatibility release; the
+   * controller refuses requests that name both.
+   */
+  teamIds?: readonly string[];
+  /**
    * Which services deliver this work, as the **whole** set. Absent leaves the
    * dimension alone, like every other field here; `[]` is the one spelling of
    * taking the label off, and puts the row back to inheriting its ancestors'.
@@ -1382,7 +1388,7 @@ export interface SubtreeCopy {
    * `work_item.id`, so any other order is refused by the database rather than
    * silently reordered.
    */
-  rows: readonly WorkItem[];
+  rows: readonly (WorkItem & { teamIds?: readonly string[] })[];
   /** Existing siblings of the copied root whose positions the placement moved. */
   respaced: readonly Repositioned[];
   /**

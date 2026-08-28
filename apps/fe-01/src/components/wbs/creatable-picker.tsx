@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 
 import { commandChordIn, escapesAnOpenList } from './keyboard-bindings';
 
@@ -166,7 +166,9 @@ export interface CreatablePickerProps {
   entries: readonly PickableEntry[];
   /** The chosen entry's id, or null. */
   value: string | null;
-  onChoose: (id: string) => void;
+  /** Text shown while closed when the chosen entry is not part of this picker's offers. */
+  restingValue?: string;
+  onChoose: (id: string) => unknown;
   /**
    * Called with a name that is not in the list. The caller creates it and
    * chooses it.
@@ -178,7 +180,11 @@ export interface CreatablePickerProps {
    * nothing offers nothing and the list simply does not open — which is the
    * honest answer for a picker that cannot make one.
    */
-  onCreate?: (name: string) => void;
+  onCreate?: (name: string) => unknown;
+  /** Await a write and close only when its returned outcome satisfies this predicate. */
+  closeWhen?: (result: unknown) => boolean;
+  /** Disables every take path while the caller serializes an external write. */
+  disabled?: boolean;
   /**
    * A visible `+` that opens the box's search list, on the leading edge —
    * the Depends-on cell's add affordance, carried by the shared component so
@@ -318,8 +324,11 @@ export function CreatablePicker({
   label,
   entries,
   value,
+  restingValue,
   onChoose,
   onCreate,
+  closeWhen,
+  disabled = false,
   addButtonLabel,
   onClear,
   clearVisibleWhileFocused,
@@ -339,6 +348,27 @@ export function CreatablePicker({
    * than the index remembers.
    */
   const [activeIndex, setActiveIndex] = useState(0);
+  const takingRef = useRef(false);
+  const [taking, setTaking] = useState(false);
+
+  const take = (action: () => unknown): void => {
+    if (disabled || takingRef.current) return;
+    const result = action();
+    if (closeWhen === undefined || result === undefined) {
+      setTyped(null);
+      return;
+    }
+    takingRef.current = true;
+    setTaking(true);
+    void Promise.resolve(result)
+      .then((outcome) => {
+        if (closeWhen(outcome)) setTyped(null);
+      })
+      .finally(() => {
+        takingRef.current = false;
+        setTaking(false);
+      });
+  };
 
   // Derived from the label so two pickers in one row do not share an id.
   const listId = `creatable-${label.replace(/\W+/g, '-').toLowerCase()}`;
@@ -366,8 +396,7 @@ export function CreatablePicker({
     label: pickableLabel(entry),
     selected: entry.id === value,
     take: () => {
-      onChoose(entry.id);
-      setTyped(null);
+      take(() => onChoose(entry.id));
     },
   });
   /** What is drawn, and — first line first — what Enter takes. One array. */
@@ -384,8 +413,7 @@ export function CreatablePicker({
             label: `Add “${typed.trim()}”`,
             selected: false,
             take: () => {
-              onCreate(typed.trim());
-              setTyped(null);
+              take(() => onCreate(typed.trim()));
             },
           },
         ]
@@ -410,6 +438,7 @@ export function CreatablePicker({
       {addButtonLabel !== undefined && (
         <button
           type="button"
+          disabled={disabled}
           tabIndex={-1}
           aria-label={addButtonLabel}
           data-creatable-add=""
@@ -429,6 +458,8 @@ export function CreatablePicker({
         </button>
       )}
       <input
+        disabled={disabled || taking}
+        aria-busy={disabled || taking || undefined}
         aria-label={label}
         role="combobox"
         aria-expanded={open}
@@ -442,7 +473,7 @@ export function CreatablePicker({
         // A layout the grid does not touch: the attribute is what the table
         // finds this box by, and it adds nothing to the flex row it sits in.
         style={{ font: 'inherit', flex: 1, minWidth: 0, width: 'auto' }}
-        value={typed ?? chosen?.name ?? ''}
+        value={typed ?? restingValue ?? chosen?.name ?? ''}
         onFocus={() => {
           setTyped('');
           setActiveIndex(0);

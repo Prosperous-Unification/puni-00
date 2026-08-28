@@ -490,7 +490,10 @@ function fakeApi(): ProjectApi & {
       // the join is what this client reads. A fake that wrote only the column
       // would leave the table reading an empty set and every label test green
       // against a screen with no labels on it.
-      if (row !== undefined && 'serviceTeamId' in written) {
+      if (row !== undefined && 'teamIds' in written && written.teamIds !== undefined) {
+        row.teamIds = [...written.teamIds];
+        row.serviceTeamId = row.teamIds.at(0) ?? null;
+      } else if (row !== undefined && 'serviceTeamId' in written) {
         row.teamIds = written.serviceTeamId === null ? [] : [written.serviceTeamId ?? ''];
       }
       return Promise.resolve();
@@ -7115,6 +7118,31 @@ describe('dependencies in the table', () => {
     ).toBeNull();
   });
 
+  itDom('uses the shared reference tokens and describes all three dependencies', async () => {
+    await fiveRoots();
+    dependOn('050', '010, 020, 030');
+    await waitFor(() => {
+      for (const number of ['010', '020', '030']) {
+        expect(screen.getByLabelText(`Stop 050 waiting for ${number}`)).toBeDefined();
+      }
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 050'));
+
+    const add = screen.getByRole('button', { name: 'Make 050 wait for something' });
+    expect(add).toHaveAttribute('data-reference-add');
+    expect(add.className).toContain('bg-transparent');
+    for (const number of ['010', '020', '030']) {
+      const chip = screen.getByRole('button', { name: `Stop 050 waiting for ${number}` });
+      expect(chip).toHaveAttribute('data-reference-chip');
+      expect(chip.className).toContain('bg-muted');
+      expect(chip.className).toContain('border-0');
+    }
+
+    const box = screen.getByLabelText('Add a dependency to 050');
+    const description = document.getElementById(box.getAttribute('aria-describedby') ?? '');
+    expect(description?.textContent).toBe('Waiting for 010 - Strip, 020 - Sand, 030 - Paint');
+  });
+
   itDom('opens no card over a row that waits for nothing', async () => {
     // The empty cell is a box and no chips; a card holding an empty list is a
     // box over the row below saying nothing.
@@ -8225,6 +8253,9 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(litNumbers()).toEqual(['010', '020']);
 
     fireEvent.mouseLeave(cell);
+    act(() => {
+      document.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 500 }));
+    });
     expect(litNumbers()).toEqual([]);
   });
 
@@ -8240,8 +8271,35 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(litNumbers()).toEqual(['010', '020']);
 
     fireEvent.mouseLeave(hoverTargetOf('030'));
+    act(() => {
+      document.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 500 }));
+    });
     expect(litNumbers()).toEqual([]);
   });
+
+  itDom(
+    'keeps the card mounted across passive padding and lets the bridge clear outside',
+    async () => {
+      await planWhere030Waits();
+      const owner = hoverTargetOf('030');
+      fireEvent.mouseEnter(owner);
+      expect(litNumbers()).toEqual(['010', '020']);
+
+      // Passive card padding hit-tests the table underneath, so the owner sees a
+      // non-null related target before the pointer reaches a card row. The leave
+      // must not synchronously remove the row targets the pointer is travelling
+      // towards.
+      fireEvent.mouseLeave(owner, { relatedTarget: screen.getByLabelText('Name of 020') });
+      expect(screen.getByRole('tooltip')).toBeDefined();
+      expect(litNumbers()).toEqual(['010', '020']);
+
+      act(() => {
+        document.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 500 }));
+      });
+      expect(screen.queryByRole('tooltip')).toBeNull();
+      expect(litNumbers()).toEqual([]);
+    },
+  );
 
   itDom('narrows to the pill’s row, and widens again when the pill is left', async () => {
     await planWhere030Waits();
@@ -8262,6 +8320,9 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(litNumbers()).toEqual(['010', '020']);
 
     fireEvent.mouseLeave(hoverTargetOf('030'));
+    act(() => {
+      document.dispatchEvent(new MouseEvent('pointermove', { clientX: 500, clientY: 500 }));
+    });
     expect(litNumbers()).toEqual([]);
   });
 
@@ -12471,6 +12532,45 @@ describe('the command chords', () => {
     expect(box).toHaveValue('Plat');
   });
 
+  itDom('creating a second team sends and reloads the whole team set', async () => {
+    const api = await threeRoots();
+    const patches: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = async (id, patch) => {
+      patches.push({ id, patch });
+      return realPatch(id, patch);
+    };
+
+    const createTeam = async (name: string, expected: readonly string[]): Promise<void> => {
+      const box = screen.getByRole('combobox', { name: 'Service or team for 020' });
+      fireEvent.focus(box);
+      fireEvent.change(box, { target: { value: name } });
+      fireEvent.keyDown(box, { key: 'Enter', code: 'Enter' });
+      await waitFor(() => {
+        expect(api.rows[1]?.teamIds).toEqual(expected);
+      });
+    };
+
+    await createTeam('Platform', ['team1']);
+    await createTeam('Release', ['team1', 'team2']);
+
+    // be-01 projects the stable first member for old readers; the set is the
+    // source of truth and creating the second member must not replace it.
+    expect(api.rows[1]?.serviceTeamId).toBe('team1');
+    expect(patches.at(-1)).toMatchObject({
+      id: api.rows[1]?.id,
+      patch: { teamIds: ['team1', 'team2'] },
+    });
+
+    // A refetch is part of every `run`. Querying the rendered row again proves
+    // the second write survived that round trip rather than only being the
+    // payload observed on the way out. Both members remain reachable as chips;
+    // the adjacent box is only the add path and therefore remains empty.
+    expect(screen.getByRole('button', { name: 'Remove Platform team' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Release team' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Service or team for 020' })).toHaveValue('');
+  });
+
   itDom('Cmd+Enter in an open assignee picker assigns nobody and adds nobody', async () => {
     // The same component, the other column it is rendered in — and the writes
     // it would have made are recorded rather than inferred.
@@ -12759,6 +12859,9 @@ describe('the chords reach the picker cells and the date cell', () => {
     const box = teamBox(number);
     box.focus();
     fireEvent.focus(box);
+    // A shared set excludes already-selected teams from its offers. Type a
+    // fresh name so this helper still proves the grid chords with a list open.
+    fireEvent.change(box, { target: { value: 'next team' } });
     await screen.findByRole('listbox', { name: `Service or team for ${number}` });
     return box;
   };
@@ -14520,6 +14623,9 @@ describe('the service cell', () => {
     // nothing, which is what `own.length > 0 ? 'add'` says.
     expect(screen.getByLabelText('Remove Checkout from 010')).toBeTruthy();
     expect(screen.getByLabelText('Services for 010')).toHaveAttribute('placeholder', 'add');
+    expect(
+      screen.getByLabelText('Services for 010').closest('[data-reference-set="service"]'),
+    ).not.toBeNull();
     // The child's, as placeholder ink that is shown and not stored — `↳` for
     // the inheritance, the same glyph and the same bargain the Team cell makes
     // at 120px. Inheritance did not change with the widening: blank still means
