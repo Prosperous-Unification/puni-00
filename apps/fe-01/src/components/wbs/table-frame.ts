@@ -1100,7 +1100,24 @@ export const CELL: CSSProperties = {
   boxSizing: 'border-box',
   padding: '1px 4px',
   verticalAlign: 'top',
-  overflow: 'hidden',
+  /**
+   * `clip`, and never `hidden`, because a hidden box is a **scroll container**.
+   *
+   * The two clip identically and differ in the thing that matters here: an
+   * `overflow: hidden` element has a scrollport the browser may scroll to
+   * reveal a focused or newly opened descendant, and `overflow: clip` has none
+   * at all — `scrollTop` on it cannot be anything but zero.
+   *
+   * That difference is a shipped bug. A Tags cell's picker opened a list inside
+   * a 26px cell whose column had been left out of `opensAPopover`; the cell's
+   * content became 94px tall, Chromium scrolled it by 22px to show what had
+   * opened, and the row then drew its own strip 21px above itself with the `+`
+   * scrolled out of sight (measured 2026-08-29). The exemption is the fix for
+   * that column. This is the fix for the class: with `clip`, a column somebody
+   * forgets to exempt draws a cut-off list — which is visibly wrong — instead
+   * of silently moving a row's contents out of its row.
+   */
+  overflow: 'clip',
 };
 
 /**

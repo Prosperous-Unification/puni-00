@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   REFERENCE_SET_EDGE_FADE,
+  REFERENCE_SET_LINE_HEIGHT,
   type ReferenceSetAdapter,
   ReferenceSetSheet,
   ReferenceSetStrip,
@@ -235,6 +236,13 @@ function chipsOf(within: ParentNode = document): HTMLElement {
   return found;
 }
 
+/** The line the strip stands on, which keeps its height while the strip floats. */
+function anchorOf(within: ParentNode = document): HTMLElement {
+  const found = within.querySelector<HTMLElement>('[data-reference-anchor]');
+  if (found === null) throw new Error('the strip rendered no anchor');
+  return found;
+}
+
 function searchOf(within: ParentNode = document): HTMLElement {
   const found = strip(within).querySelector<HTMLElement>('[data-reference-search]');
   if (found === null) throw new Error('the strip rendered no search holder');
@@ -287,6 +295,50 @@ describe('the reference strip on one rest line', () => {
     // cell's own rule, and why both belong to rest alone.
     expect(strip().style.overflow).toBe('visible');
     expect(strip().getAttribute('style')).not.toContain(REFERENCE_SET_EDGE_FADE);
+  });
+
+  itDom('leaves the flow while it is edited, on a line the anchor keeps', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    // At rest the strip *is* the cell's line: in the flow, no paint of its own.
+    expect(strip().style.position).toBe('');
+    expect(strip().style.background).toBe('');
+    // And the anchor holds that line whether or not the strip is standing in
+    // it — which is what stops the row shrinking when the panel opens.
+    expect(anchorOf().style.height).toBe(`${String(REFERENCE_SET_LINE_HEIGHT)}px`);
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+
+    // Out of the flow, so the wrap above cannot grow the cell it is in; opaque
+    // and above the rows, so the wrapped chips are readable rather than merely
+    // present. Both halves, because either alone is the screenshot Dany sent:
+    // in-flow chips grow the row, transparent chips draw over the row below.
+    //
+    // Proof, two faults, both watched 2026-08-29. The `position: 'absolute'`
+    // removed, `three tags open the cell without moving a row` in
+    // `e2e/reference-cells.spec.ts` failed in Chromium on the row's height,
+    // and this failed on `expected '' to be 'absolute'`; the panel's paint
+    // removed, this failed on `expected '' to be 'var(--popover)'`. jsdom
+    // computes no layout, so the height half of that pair can only be a
+    // browser's (`AGENTS.md`, R5 #14/#15).
+    expect(strip().style.position).toBe('absolute');
+    expect(strip().style.background).toBe('var(--popover)');
+    expect(strip().style.zIndex).not.toBe('');
+    // Still on the anchor's line, not somewhere else on the page.
+    expect(strip().parentElement).toBe(anchorOf());
+  });
+
+  itDom('keeps the add button first in the strip, open or shut', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    const first = () => strip().firstElementChild;
+    expect(first()?.getAttribute('data-reference-add')).toBe('');
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    // The `+` vanishing from a cell full of chips is the third of the
+    // 2026-08-29 screenshots — it was scrolled out of a cell the browser had
+    // scrolled, not removed, and the cell cannot scroll any more (`CELL`).
+    // This says the panel does not reorder it either.
+    expect(first()?.getAttribute('data-reference-add')).toBe('');
   });
 
   itDom('keeps a clipped chip out of the tab order and the focus off its press', () => {

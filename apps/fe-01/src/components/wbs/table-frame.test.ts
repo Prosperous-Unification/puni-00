@@ -390,7 +390,22 @@ describe('the width equation the table is laid out by', () => {
     expect(CELL.boxSizing).toBe('border-box');
     // The backstop: a descendant this plan missed cannot paint into the
     // neighbouring column, whatever it asks for.
-    expect(CELL.overflow).toBe('hidden');
+    //
+    // `clip` and not `hidden`, and the difference is a shipped bug rather than
+    // a preference: `hidden` makes the cell a scroll container the browser may
+    // scroll to reveal something focused or opened inside it, and `clip` makes
+    // no scrollport at all. A Tags cell whose column had been left out of
+    // `opensAPopover` opened a 94px list in a 26px cell and Chromium scrolled
+    // the cell 22px, which drew the row's own strip above the row and took its
+    // `+` off screen (measured 2026-08-29). The exemption fixes that column;
+    // this makes the next forgotten column draw a cut-off list instead of
+    // silently moving a row's contents out of its row.
+    //
+    // Proof: `'hidden'` restored here, this failed on `expected 'hidden' to be
+    // 'clip'`, and `does not clip the cells whose popovers open over the rows`
+    // failed twice more on the same swap — the constant is read by every cell
+    // in the table, which is why both files see it.
+    expect(CELL.overflow).toBe('clip');
   });
 });
 

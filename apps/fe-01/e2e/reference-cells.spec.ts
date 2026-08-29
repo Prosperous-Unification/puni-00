@@ -390,11 +390,73 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
       `tag chip ${String(index + 1)} is out of reach while the cell is edited`,
     ).toBe(true);
   }
+  // **While it is open**, which is where the fault lived. The check below
+  // measures the row after the blur and passed all through the 2026-08-29
+  // report: the wrap was in the flow, so the row grew for exactly as long as
+  // somebody was reading the cell and settled back the moment they left.
+  // Assert in the window the fault lives in (`AGENTS.md`, `D directory-page`).
+  //
+  // Proof: the panel's `position: 'absolute'` removed, this failed on
+  // `Expected: <= 28.171875 / Received: 44.171875`. Watched, 2026-08-29.
+  expect(
+    await heightOf('Tags for 010', 'the crowded row while it is open'),
+    'the open cell stands its row taller than a row with none',
+  ).toBeLessThanOrEqual(bare + 1);
+
+  // The displacement, which is the other half of the report and a different
+  // fault: the Tags column was not in `POPOVER_COLUMNS`, so its `<td>` kept
+  // `CELL`'s clip — and a clipped box that is `overflow: hidden` is a scroll
+  // container, which Chromium scrolled to reveal the list opening inside it.
+  // The cell then drew its own strip above its own row and took the `+` off
+  // screen with it.
+  //
+  // Both guards are asserted, because either alone lets the other rot: the
+  // exemption stops this cell scrolling, and `overflow: clip` stops any cell
+  // scrolling ever. Proof: `'tag'` removed from `POPOVER_COLUMNS`, the strip
+  // assertion failed on the strip standing above its row; with `CELL` also put
+  // back to `hidden`, the scroll assertion failed on `Expected: 0 / Received:
+  // 22`. Watched in Chromium, 2026-08-29.
+  expect(
+    await crowded.evaluate((cell) => cell.scrollTop),
+    'the opened cell has been scrolled, so its contents left its row',
+  ).toBe(0);
+  const openRow = await crowded.boundingBox();
+  const openStrip = await strip.boundingBox();
+  if (openRow === null || openStrip === null) throw new Error('the open cell is not painted');
+  expect(openStrip.y, 'the open strip is drawn above the row it belongs to').toBeGreaterThanOrEqual(
+    openRow.y - 2,
+  );
+
+  // And the list it opened is whole rather than cut to the cell's edge: an
+  // option is 22px, so a list holding one is at least that tall. Cut to the
+  // 4px sliver of Dany's screenshot, this fails.
+  const list = page.locator('[data-picker-list]');
+  await expect(list).toHaveCount(1);
+  const listBox = await list.boundingBox();
+  if (listBox === null) throw new Error('the open list is not painted');
+  expect(listBox.height, 'the open list is cut off at the cell edge').toBeGreaterThan(20);
+  expect(
+    await hitsItself(list.locator('[role="option"]').first()),
+    'the first line of the open list cannot be clicked',
+  ).toBe(true);
+
   await box.blur();
   expect(
     await heightOf('Tags for 010', 'the crowded row after editing'),
     'the row keeps the height it took while it was being edited',
   ).toBeLessThanOrEqual(bare + 1);
+
+  // The anchor's line and the strip's are the same line. `REFERENCE_SET_LINE_HEIGHT`
+  // is a measurement of what Chromium lays this strip out at, and a constant
+  // that drifted from the real height would clip the rest line by the
+  // difference — silently, because every style assertion about it is written
+  // against the constant itself. This is the one check that reads the browser.
+  const restingStrip = await strip.boundingBox();
+  const anchor = await crowded.locator('[data-reference-anchor]').boundingBox();
+  if (restingStrip === null || anchor === null) throw new Error('the rested cell is not painted');
+  expect(anchor.height, 'the line the anchor keeps is not the line the strip stands on').toBe(
+    restingStrip.height,
+  );
 
   // Said once, per surface. The desktop's reading is the placeholder's `↳`.
   expect(

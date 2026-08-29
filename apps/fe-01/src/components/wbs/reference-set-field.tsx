@@ -80,6 +80,44 @@ export const REFERENCE_SET_STRIP_STYLE = {
 export const REFERENCE_SET_EDGE_FADE =
   'linear-gradient(to right, #000 calc(100% - 14px), transparent)';
 
+/**
+ * How tall one resting reference strip stands, in px.
+ *
+ * The strip leaves the flow while it is edited (see {@link ReferenceSetStrip}),
+ * so something has to hold the line it was occupying or the row would shrink
+ * the moment somebody clicked into a cell — the 2026-08-29 report's own fault
+ * with its sign flipped. This is that height, on the anchor.
+ *
+ * It is a **measurement**, not a preference: the resting strip is as tall as
+ * the search box in it, which is Chromium laying out a 14px `input` with this
+ * table's padding and border. A constant that quietly disagreed with the real
+ * one would clip the rest line by the difference, and silently — every style
+ * assertion about the anchor is written against this same number. So
+ * `e2e/reference-cells.spec.ts` measures the painted anchor against the
+ * painted strip instead, and fails when the two part company.
+ */
+export const REFERENCE_SET_LINE_HEIGHT = 24;
+
+/**
+ * How wide an open reference panel may grow, in px.
+ *
+ * Wider than its 120px column on purpose — a panel held to the column would
+ * wrap one chip per line, which is the shape this whole change is undoing —
+ * and narrower than the `DEP_LIST_WIDTH` list beside it, because a tag's name
+ * is a word and a dependency's is a whole work item.
+ */
+const REFERENCE_SET_PANEL_MAX_WIDTH = 240;
+
+/**
+ * Where an open panel sits in the stack.
+ *
+ * Above every layer `table-frame.ts` gives a pinned or sticky cell (4 is its
+ * highest) and below the `PickerList`'s own 15, which opens **inside** this
+ * panel: a list that its own panel painted over would be a directory nobody
+ * can read.
+ */
+const REFERENCE_SET_PANEL_LAYER = 10;
+
 export const REFERENCE_SET_ADD_CLASS =
   'shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground';
 export const REFERENCE_SET_CHIP_CLASS =
@@ -181,169 +219,242 @@ export function ReferenceSetStrip({
   };
 
   return (
+    /*
+      The line the strip stands on, and goes on standing on while the strip is
+      not in it.
+
+      An edited strip wraps, and until 2026-08-29 it wrapped **in flow**: the
+      cell grew a line per chip, the row grew with it, and every row below moved
+      down while somebody was reading the list they had just opened. Dany's
+      screenshot of a three-line Tags cell is that. The wrap itself is right — a
+      chip clipped out of sight is a member nobody can take off — so what
+      changes is where it happens: the strip leaves the flow and opens as a
+      panel over the rows below, and this anchor keeps its line.
+
+      `position: relative` as well as the height, because the panel is placed
+      against this element. It is **not** the picker's containing block — that
+      is the `position: relative` span inside `CreatablePicker`, so the list
+      still opens under its own box wherever the panel has put it.
+    */
     <span
-      ref={root}
-      data-reference-set={adapter.kind}
-      data-reference-strip=""
-      // focusin/focusout, which is what React's onFocus/onBlur are: a move
-      // between two controls of this strip must not read as leaving it, or the
-      // chips would snap back onto one clipped line under the pointer on its
-      // way to a ✕.
-      onFocus={() => {
-        setEditing(true);
-      }}
-      onBlur={(leaving) => {
-        if (!leaving.currentTarget.contains(leaving.relatedTarget)) setEditing(false);
-      }}
+      data-reference-anchor=""
       style={{
-        ...REFERENCE_SET_STRIP_STYLE,
-        flexWrap: wrapping ? 'wrap' : 'nowrap',
-        // Rest clips and fades; editing does neither. The picker's list is an
-        // absolutely positioned child of this element, so a rest-state clip
-        // that outlived the focus would cut the directory off at the cell's
-        // edge. `editing` is exactly "the list may be open".
-        //
-        // Proof, two faults, both watched 2026-08-29 by `fades and clips the
-        // rest line, and does neither while editing`: `overflow` pinned to
-        // `visible` failed on `expected 'visible' to be 'hidden'`, and the
-        // mask deleted failed on `expected 'display: flex; flex-wrap: nowrap;
-        // ali…' to contain 'linear-gradient(to right, #000 calc(1…'`.
-        //
-        // Both again in Chromium, which is where clipping is a fact rather
-        // than a property: the fade deleted failed `the clipped rest line
-        // wears no truncation cue` on `Expected: not "none"`, and
-        // `overflow: 'visible'` never reached an assertion at all — the
-        // spilled chips cover the cell, and clicking the box timed out on
-        // `<td data-column="tag"> intercepts pointer events`.
-        overflow: editing ? 'visible' : 'hidden',
-        ...(editing
-          ? {}
-          : {
-              WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
-              maskImage: REFERENCE_SET_EDGE_FADE,
-            }),
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        flex: 1,
+        minWidth: 0,
+        height: REFERENCE_SET_LINE_HEIGHT,
       }}
     >
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label={addLabel ?? `Add a ${adapter.kind}`}
-        data-reference-add=""
-        className={REFERENCE_SET_ADD_CLASS}
-        disabled={pending}
-        onMouseDown={(event) => {
-          event.preventDefault();
-        }}
-        onClick={() => root.current?.querySelector<HTMLInputElement>('input')?.focus()}
-      >
-        +
-      </button>
       <span
-        data-reference-chips=""
+        ref={root}
+        data-reference-set={adapter.kind}
+        data-reference-strip=""
+        // focusin/focusout, which is what React's onFocus/onBlur are: a move
+        // between two controls of this strip must not read as leaving it, or the
+        // chips would snap back onto one clipped line under the pointer on its
+        // way to a ✕.
+        onFocus={() => {
+          setEditing(true);
+        }}
+        onBlur={(leaving) => {
+          if (!leaving.currentTarget.contains(leaving.relatedTarget)) setEditing(false);
+        }}
         style={{
-          display: 'flex',
-          // The strip's rule, said again here because a `nowrap` strip holding
-          // a `wrap` group is still a cell that grows a line per chip.
+          ...REFERENCE_SET_STRIP_STYLE,
           flexWrap: wrapping ? 'wrap' : 'nowrap',
-          alignItems: 'center',
-          gap: 3,
-          minWidth: 0,
-          maxWidth: '100%',
+          // At rest the strip **is** the cell's line, and fills the anchor
+          // holding it. While editing it leaves that line — see below.
+          flex: 1,
+          ...(editing
+            ? {
+                /*
+                  The open panel: out of the flow, over the rows below, opaque.
+
+                  Out of the flow is the fix. The wrap that puts a clipped chip
+                  back in reach is real layout while the strip is in flow, so
+                  the cell grew and the row grew with it — measured in Chromium
+                  on 2026-08-29 at 87.2px against a resting 27.2, and
+                  screenshotted by Dany as a Tags cell three lines tall. The
+                  anchor above keeps the line; this floats over it.
+
+                  Opaque is what makes it readable rather than merely present.
+                  An out-of-flow strip with no background draws its chips over
+                  whatever row happens to be under them, which is the same
+                  screenshot with a different explanation. `--popover` is the
+                  ink the picker's own list uses, so the panel and the list it
+                  opens read as one surface.
+
+                  The offsets undo the border and the padding this adds, so a
+                  chip sits where it sat at rest rather than stepping down and
+                  to the right as the panel opens.
+                */
+                position: 'absolute' as const,
+                top: -1,
+                left: -2,
+                zIndex: REFERENCE_SET_PANEL_LAYER,
+                width: 'max-content',
+                minWidth: 'calc(100% + 4px)',
+                maxWidth: REFERENCE_SET_PANEL_MAX_WIDTH,
+                padding: '0 1px',
+                background: 'var(--popover)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
+              }
+            : {}),
+          // Rest clips and fades; editing does neither. The picker's list is an
+          // absolutely positioned child of this element, so a rest-state clip
+          // that outlived the focus would cut the directory off at the cell's
+          // edge. `editing` is exactly "the list may be open".
+          //
+          // Proof, two faults, both watched 2026-08-29 by `fades and clips the
+          // rest line, and does neither while editing`: `overflow` pinned to
+          // `visible` failed on `expected 'visible' to be 'hidden'`, and the
+          // mask deleted failed on `expected 'display: flex; flex-wrap: nowrap;
+          // ali…' to contain 'linear-gradient(to right, #000 calc(1…'`.
+          //
+          // Both again in Chromium, which is where clipping is a fact rather
+          // than a property: the fade deleted failed `the clipped rest line
+          // wears no truncation cue` on `Expected: not "none"`, and
+          // `overflow: 'visible'` never reached an assertion at all — the
+          // spilled chips cover the cell, and clicking the box timed out on
+          // `<td data-column="tag"> intercepts pointer events`.
+          overflow: editing ? 'visible' : 'hidden',
+          ...(editing
+            ? {}
+            : {
+                WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
+                maskImage: REFERENCE_SET_EDGE_FADE,
+              }),
         }}
       >
-        {own.map((entry) => (
-          <span key={entry.id} data-reference-chip={entry.id} className={REFERENCE_SET_CHIP_CLASS}>
-            <span className="truncate">{entry.name}</span>
-            <button
-              type="button"
-              aria-label={removeLabel?.(entry) ?? `Remove ${entry.name} ${adapter.kind}`}
-              disabled={pending}
-              // Out of the tab order while the rest line clips, the
-              // Depends-on cell's rule for the same reason: a sequential Tab
-              // can focus a chip that is not on screen, and the browser
-              // scrolls an `overflow: hidden` box to show what it focused,
-              // shifting a layout nobody asked to move. Tab enters the cell
-              // at the box, the box's focus wraps every chip back on screen,
-              // and the ✕s are focusable there.
-              tabIndex={editing ? undefined : -1}
-              // **The press must not take the focus.** Focus here is what
-              // makes the strip wrap, and a wrap is a re-layout: Chromium
-              // focused this button on `mousedown`, React flushed the
-              // discrete update, the ✕ moved from x=690.7,y=154.6 to
-              // x=667.7,y=172.5 — onto the second line — and the `mouseup`
-              // landed on whatever had taken its place. Measured on the real
-              // page, 2026-08-29: `{down: 1, up: 0, click: 0, focusIn: 1}`
-              // and not one request sent. A chip's ✕ did nothing at all.
-              //
-              // The same guard the `+` above carries, for the same reason,
-              // and R5 #14/#15's fault class a fourth time: a discrete update
-              // inside a mouse gesture that moves the target out from under
-              // it. `preventDefault` on `mousedown` suppresses the focus, not
-              // the click.
-              onMouseDown={(pressed) => {
-                pressed.preventDefault();
-              }}
-              className={REFERENCE_SET_REMOVE_CLASS}
-              onClick={() => void remove(entry.id)}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </span>
-      {/*
-        The search box takes what the chips leave, and at rest that is
-        allowed to be nothing.
-
-        A `minWidth` floor here is a floor on the whole cell: 72px of it in a
-        120px column left 34px for every chip the row states, so a cell with
-        two tags in it clipped both and a cell with three wrapped onto a third
-        line. The floor is real while somebody is typing into the box — a
-        search you cannot read what you typed into is not a search — and the
-        `+` beside it is what says "add" while the box is shut.
-
-        It holds **nothing**, whatever the set's size. The chips are the value;
-        a `restingValue` that printed the sole own member into the box drew
-        that member twice in one 120px cell — `Platform ✕ Platform` — and left
-        the `add` placeholder beside it unreadable.
-
-        Proof, two faults, both watched 2026-08-29: `minWidth: 72` restored at
-        rest, `leaves the whole rest line to the chips until the box is
-        entered` failed on `expected 72 to be +0`; `restingValue` restored,
-        `draws the sole own member once, as its chip` failed on `expected [
-        'Platform', 'Platform' ] to deeply equal [ 'Platform' ]` — a count of
-        the **visible** nodes saying it, because both readings answer to one
-        accessible name.
-
-        And both in Chromium, where the floor is a width rather than a
-        property: `the search box still claims a width floor at rest` failed on
-        `Expected: < 72 / Received: 72`, and `the sole own member is drawn more
-        than once` on `Expected: 1 / Received: 2`.
-      */}
-      <span data-reference-search="" style={{ flex: 1, minWidth: editing ? 72 : 0 }}>
-        <CreatablePicker
-          label={label}
-          entries={offered}
-          value={null}
-          onChoose={(id) =>
-            mutate(
-              (current) => [...current, id],
-              (_current, next) => adapter.replace(next),
-            )
-          }
-          onCreate={(name) =>
-            mutate(
-              (current) => current,
-              (current) => adapter.create(name, current),
-            )
-          }
-          closeWhen={(outcome) => outcome === 'landed'}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={addLabel ?? `Add a ${adapter.kind}`}
+          data-reference-add=""
+          className={REFERENCE_SET_ADD_CLASS}
           disabled={pending}
-          placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
-          title={title}
-          dataCell={dataCell}
-          gridCell={gridCell}
-        />
+          onMouseDown={(event) => {
+            event.preventDefault();
+          }}
+          onClick={() => root.current?.querySelector<HTMLInputElement>('input')?.focus()}
+        >
+          +
+        </button>
+        <span
+          data-reference-chips=""
+          style={{
+            display: 'flex',
+            // The strip's rule, said again here because a `nowrap` strip holding
+            // a `wrap` group is still a cell that grows a line per chip.
+            flexWrap: wrapping ? 'wrap' : 'nowrap',
+            alignItems: 'center',
+            gap: 3,
+            minWidth: 0,
+            maxWidth: '100%',
+          }}
+        >
+          {own.map((entry) => (
+            <span
+              key={entry.id}
+              data-reference-chip={entry.id}
+              className={REFERENCE_SET_CHIP_CLASS}
+            >
+              <span className="truncate">{entry.name}</span>
+              <button
+                type="button"
+                aria-label={removeLabel?.(entry) ?? `Remove ${entry.name} ${adapter.kind}`}
+                disabled={pending}
+                // Out of the tab order while the rest line clips, the
+                // Depends-on cell's rule for the same reason: a sequential Tab
+                // can focus a chip that is not on screen, and the browser
+                // scrolls an `overflow: hidden` box to show what it focused,
+                // shifting a layout nobody asked to move. Tab enters the cell
+                // at the box, the box's focus wraps every chip back on screen,
+                // and the ✕s are focusable there.
+                tabIndex={editing ? undefined : -1}
+                // **The press must not take the focus.** Focus here is what
+                // makes the strip wrap, and a wrap is a re-layout: Chromium
+                // focused this button on `mousedown`, React flushed the
+                // discrete update, the ✕ moved from x=690.7,y=154.6 to
+                // x=667.7,y=172.5 — onto the second line — and the `mouseup`
+                // landed on whatever had taken its place. Measured on the real
+                // page, 2026-08-29: `{down: 1, up: 0, click: 0, focusIn: 1}`
+                // and not one request sent. A chip's ✕ did nothing at all.
+                //
+                // The same guard the `+` above carries, for the same reason,
+                // and R5 #14/#15's fault class a fourth time: a discrete update
+                // inside a mouse gesture that moves the target out from under
+                // it. `preventDefault` on `mousedown` suppresses the focus, not
+                // the click.
+                onMouseDown={(pressed) => {
+                  pressed.preventDefault();
+                }}
+                className={REFERENCE_SET_REMOVE_CLASS}
+                onClick={() => void remove(entry.id)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </span>
+        {/*
+          The search box takes what the chips leave, and at rest that is
+          allowed to be nothing.
+
+          A `minWidth` floor here is a floor on the whole cell: 72px of it in a
+          120px column left 34px for every chip the row states, so a cell with
+          two tags in it clipped both and a cell with three wrapped onto a third
+          line. The floor is real while somebody is typing into the box — a
+          search you cannot read what you typed into is not a search — and the
+          `+` beside it is what says "add" while the box is shut.
+
+          It holds **nothing**, whatever the set's size. The chips are the value;
+          a `restingValue` that printed the sole own member into the box drew
+          that member twice in one 120px cell — `Platform ✕ Platform` — and left
+          the `add` placeholder beside it unreadable.
+
+          Proof, two faults, both watched 2026-08-29: `minWidth: 72` restored at
+          rest, `leaves the whole rest line to the chips until the box is
+          entered` failed on `expected 72 to be +0`; `restingValue` restored,
+          `draws the sole own member once, as its chip` failed on `expected [
+          'Platform', 'Platform' ] to deeply equal [ 'Platform' ]` — a count of
+          the **visible** nodes saying it, because both readings answer to one
+          accessible name.
+
+          And both in Chromium, where the floor is a width rather than a
+          property: `the search box still claims a width floor at rest` failed on
+          `Expected: < 72 / Received: 72`, and `the sole own member is drawn more
+          than once` on `Expected: 1 / Received: 2`.
+        */}
+        <span data-reference-search="" style={{ flex: 1, minWidth: editing ? 72 : 0 }}>
+          <CreatablePicker
+            label={label}
+            entries={offered}
+            value={null}
+            onChoose={(id) =>
+              mutate(
+                (current) => [...current, id],
+                (_current, next) => adapter.replace(next),
+              )
+            }
+            onCreate={(name) =>
+              mutate(
+                (current) => current,
+                (current) => adapter.create(name, current),
+              )
+            }
+            closeWhen={(outcome) => outcome === 'landed'}
+            disabled={pending}
+            placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
+            title={title}
+            dataCell={dataCell}
+            gridCell={gridCell}
+          />
+        </span>
       </span>
     </span>
   );

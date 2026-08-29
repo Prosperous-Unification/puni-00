@@ -17,7 +17,8 @@
     "dev:gw": "nx run gw-01:serve",
     "dev:fe": "nx run fe-01:serve",
     "dev:setup": "bun run tools/dev/setup.ts",
-    "e2e": "nx run fe-01:e2e"
+    "e2e": "nx run fe-01:e2e",
+    "e2e:beside-dev": "CI=1 E2E_PORT_SHIFT=500 nx run fe-01:e2e"
   },
   "dependencies": {
     "@elysiajs/openapi": "^1.4.15",
