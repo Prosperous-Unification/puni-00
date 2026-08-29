@@ -183,6 +183,67 @@ export const GANTT_MIN_PX = 3 * ROW_PX;
 export const GANTT_CEILING_PX = 0.8 * 2160;
 
 /**
+ * How tall the fade over a shrunk panel's bottom edge is, in CSS pixels.
+ *
+ * Two thirds of a row ({@link ROW_PX}), so the row the bottom edge cuts through
+ * is visibly dissolving rather than sliced: a whole row's worth would swallow
+ * the last legible one, and a hairline would read as an artefact.
+ */
+export const GANTT_EDGE_FADE_PX = 20;
+
+/**
+ * The fade a panel with chart below the fold draws over its bottom edge.
+ *
+ * `REFERENCE_SET_EDGE_FADE` in `reference-set-field.tsx` turned on its side and
+ * painted rather than masked. A **paint** and not a `mask-image` for one
+ * reason: a mask fades the panel's content to whatever is behind the panel, and
+ * what is behind it here is the page in the same `--background` — so on the
+ * light palette the cut row would dissolve into the identical colour it was
+ * already drawn on and the cue would say nothing at all. Painting the
+ * background over the content says the same thing in a way both palettes can
+ * show, and it leaves the panel's own scrollbar alone, which a mask on the
+ * scroll box does not.
+ *
+ * In the panel's own `--background` rather than a shadow: the chart's rows are
+ * drawn on that colour, so this reads as the chart continuing under the edge
+ * instead of as a border with something behind it.
+ */
+export const GANTT_EDGE_FADE =
+  'linear-gradient(to top, var(--background), ' +
+  'color-mix(in oklab, var(--background) 65%, transparent) 55%, transparent)';
+
+/**
+ * How much chart is below the bottom edge of the panel's scroll box, in CSS
+ * pixels — the number that decides whether the fade is drawn.
+ *
+ * Zero is both "the panel holds the whole chart" and "the reader has scrolled
+ * to the last row": there is nothing below the fold in either case and the
+ * panel says so by not drawing the cue. A negative sum is a browser mid-bounce
+ * at the end of an overscroll and is the same answer, which is what the floor
+ * is for.
+ *
+ * jsdom answers 0 to all three of these, so it always reads "nothing below" —
+ * the cue is a claim about layout and Chromium is its only oracle
+ * (`e2e/gantt.spec.ts`).
+ */
+export function chartBelowTheFold(port: {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+}): number {
+  return Math.max(0, port.scrollHeight - port.clientHeight - port.scrollTop);
+}
+
+/**
+ * How much chart may be below the fold and still count as none, in CSS pixels.
+ *
+ * Sub-pixel layout means a panel scrolled to its last row lands on fractions
+ * rather than on zero, and a fade over a chart with half a pixel left under it
+ * is a fade that never goes away.
+ */
+export const AT_THE_LAST_ROW_PX = 1;
+
+/**
  * The height a drag — or a stored height claiming to be one — settles at:
  * inside `[{@link GANTT_MIN_PX}, {@link GANTT_CEILING_PX}]` and no more than
  * `availablePx`, the room the panel's own column has for it
@@ -2044,6 +2105,97 @@ function GanttChart({
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
+  /**
+   * The panel's own scroll box, so what is below its bottom edge can be
+   * measured off the boxes the browser really laid out.
+   */
+  const scrollport = useRef<HTMLElement | null>(null);
+  /**
+   * Whether there is chart under the panel's bottom edge — which is when the
+   * fade is drawn.
+   *
+   * A panel shrunk by its handle scrolls, and on macOS the scrollbar that would
+   * say so is an overlay one: invisible until something moves it. So a reader
+   * who drags the edge down gets a chart cut through a row with nothing on
+   * screen to suggest the rest is a scroll away, which is the report this state
+   * exists to answer (Dany, 2026-08-29).
+   */
+  const [moreBelow, setMoreBelow] = useState(false);
+  /**
+   * How wide the chart's own content is inside the scroll box, in CSS pixels,
+   * or `null` where nothing has laid it out.
+   *
+   * The fade is a child of the scroll box and has to cover the visible band at
+   * **every** horizontal offset, so it is as wide as the widest thing that
+   * scrolls under it rather than as wide as the box. A `width: 100%` cue is the
+   * scrollport's width pinned at the content's left edge: scroll the calendar
+   * right and the fade slides off to the left with it.
+   *
+   * Measured off the content row rather than off `scrollWidth`, and that is
+   * load-bearing: the cue is itself in the scroll area, so a width read from
+   * `scrollWidth` would be a width holding its own answer up — a chart that got
+   * narrower could never make the cue narrower again.
+   *
+   * `null` is jsdom, which lays nothing out. The fallback where it is drawn is
+   * the scrollport's own width, which is where a cue with nothing measured
+   * belongs.
+   */
+  const [chartSpanPx, setChartSpanPx] = useState<number | null>(null);
+  /**
+   * Reads both facts off one laid-out scroll box.
+   *
+   * The box is a parameter rather than the ref: the observer below holds the
+   * element it was given for as long as it is connected, and the scroll handler
+   * has it as the event's own target — so there is no nullable read here at
+   * all, and no null branch that nothing could ever take.
+   *
+   * @throws When the scroll box has no content row to measure. That row is the
+   * one element this panel always draws inside it, so its absence is an
+   * invariant broken rather than a width to default (`AGENTS.md` R5).
+   */
+  const measureTheFold = useCallback((port: HTMLElement): void => {
+    const row = port.firstElementChild;
+    if (!(row instanceof HTMLElement)) {
+      throw new Error("the chart's scroll box holds no content row to measure");
+    }
+    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
+    const span = row.getBoundingClientRect().width;
+    setChartSpanPx(span > 0 ? span : null);
+  }, []);
+  /**
+   * Keeps {@link moreBelow} and {@link chartSpanPx} on what is really drawn.
+   *
+   * Three things move the fold and each has its own event: the reader scrolls
+   * (the box's own `onScroll`), the panel is resized by the height handle (the
+   * observer on the box), and the chart itself grows or shrinks — a row added,
+   * the names put away, a coarser scale (the observer on the content row).
+   *
+   * `ResizeObserver` is absent in jsdom, where every box measures 0 and there
+   * is nothing to observe anyway; the fade stays off there and Chromium is the
+   * oracle (`e2e/gantt.spec.ts`), as it is for the panel's room next door.
+   *
+   * @throws When the panel drew no scroll box, or that box no content row.
+   * Both are drawn on every render of this component, so either absence is a
+   * broken invariant rather than a state to skip past.
+   */
+  useEffect(() => {
+    const port = scrollport.current;
+    if (port === null) throw new Error('the chart drew no scroll box to measure');
+    const row = port.firstElementChild;
+    if (!(row instanceof HTMLElement)) {
+      throw new Error("the chart's scroll box holds no content row to watch");
+    }
+    measureTheFold(port);
+    if (typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(() => {
+      measureTheFold(port);
+    });
+    watch.observe(port);
+    watch.observe(row);
+    return () => {
+      watch.disconnect();
+    };
+  }, [measureTheFold]);
   // Whether the chart's detail is drawn: the stored-dependency arrows, the
   // parent rows' summary brackets and the unestimated slices' assumed bars, all
   // three together. Off until somebody asks, and their answer outlives the
@@ -2518,6 +2670,7 @@ function GanttChart({
   const chartAndItsControls = (
     <>
       <section
+        ref={scrollport}
         data-gantt-panel
         aria-label="Gantt chart"
         // Its own scroll area, in both directions: the plan above keeps its frame
@@ -2611,6 +2764,11 @@ function GanttChart({
         }
         onScroll={(scrollEvent) => {
           setScrolledPx(scrollEvent.currentTarget.scrollLeft);
+          // The fold moved: a reader who has scrolled to the last row is owed
+          // the fade going away, and one who scrolls back up is owed it
+          // returning. The event's own target is the box, so nothing here has
+          // to go looking for it.
+          measureTheFold(scrollEvent.currentTarget);
           // The surface is a fixed layer and is not in this scroll box, so the
           // bar moves out from under it and the card stays where it was put. A
           // surface pointing at the wrong bar is worse than none.
@@ -3485,6 +3643,57 @@ function GanttChart({
             </div>
           </div>
         </div>
+
+        {/*
+          The bottom edge of a panel with chart still under it, said in a way
+          that does not depend on a scrollbar.
+
+          **Why it exists.** A panel dragged short scrolls, and macOS draws an
+          overlay scrollbar — nothing at all until something moves it. So the
+          chart ends mid-row against a hard edge and reads as broken rather than
+          as scrolled: Dany's report of 2026-08-29, measured at `height: 124`
+          over a `scrollHeight` of 196.
+
+          **Sticky, and inside the scroll box.** `bottom-0` on a zero-height box
+          at the end of the content pins it to the bottom of the scrollport at
+          every offset. Zero height and the fade absolutely placed above it, so
+          the cue adds nothing to the scroll area it is measuring — a cue with
+          height of its own would be chart below the fold in its own right, and
+          the fade would never go out.
+
+          **As wide as the chart, not as wide as the box.** {@link chartSpanPx},
+          where the reasoning is; `min-w-full` is the other half of it, for the
+          plans whose chart is narrower than the panel — `width` alone would
+          leave the band right of a short chart unfaded.
+
+          Above the label column (`z-10`) and its corner (`z-20`), because the
+          names are cut by the same edge the bars are. The section's `isolate`
+          is what keeps this contest inside the chart, exactly as it does for
+          those two.
+
+          `aria-hidden`, and it costs nothing: every row of the chart is in the
+          DOM whatever the panel's height is, so a reader on a screen reader
+          never met the cut this fade is about.
+        */}
+        {moreBelow && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none sticky bottom-0 z-30 h-0 min-w-full"
+            style={{ width: chartSpanPx ?? '100%' }}
+          >
+            {/*
+              The painted half, and the one the attribute is on: it is the box
+              with an area, so a check about the cue is a check about the band
+              the reader can actually see rather than about a zero-height
+              wrapper two of which would compare equal.
+            */}
+            <div
+              data-gantt-more-below
+              className="absolute inset-x-0 bottom-0"
+              style={{ height: GANTT_EDGE_FADE_PX, backgroundImage: GANTT_EDGE_FADE }}
+            />
+          </div>
+        )}
 
         {/*
         The one surface, and one at a time by construction: there is a single
