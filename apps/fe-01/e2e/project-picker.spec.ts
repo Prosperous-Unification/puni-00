@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The project picker's own browser gate: where an entry's card opens, what a
  * click on the closed box does to the caret, and what a create leaves the
@@ -12,11 +14,13 @@ import { expect, type Page, test } from '@playwright/test';
  * measures as zero. `project-page.test.tsx` asserts the wiring against stubbed
  * rectangles; this file asserts what a browser does with the real ones.
  *
- * **NOT YET RUN.** Ports 3100/3200/4200 were held by a developer's dev server
- * while `project-picker-flow` was written, and `reuseExistingServer` would
- * have measured that checkout rather than this one — `LLM_README.md`'s
- * landmine, and R5's sixteenth entry. Every assertion here is a claim until it
- * is run with the ports free; that is recorded in the change's `verify.md`.
+ * **Every project this file makes carries a per-test tag.** The fixed local
+ * identity is one account for the whole run, and it keeps every project every
+ * spec has ever made in it: the first cut of this file called two projects
+ * `Rewire the shed` in two tests, and by the second one `getByRole('option', {
+ * name: /Rewire the shed/ })` matched four rows and failed on strict mode. The
+ * tag is per test rather than per run for `directory.spec.ts`'s reason — a
+ * fixed name has one test measuring another test's row.
  */
 
 /** The name be-01 gives a project nobody has named yet. */
@@ -24,27 +28,28 @@ const PLACEHOLDER = 'New project';
 
 const picker = (page: Page) => page.getByRole('combobox', { name: 'Project' });
 
+/** What this test's projects are called, unique across the run and the account. */
+let tag = '';
+let made = 0;
+
+test.beforeEach(() => {
+  made += 1;
+  tag = `${String(Date.now())}-${String(made)}`;
+});
+
+/** A project name only this test could have made. */
+const named = (base: string) => `${base} ${tag}`;
+
+/** The option for one of this test's own projects, by the tag nothing else carries. */
+const optionFor = (page: Page, name: string) =>
+  page.getByRole('option', {
+    name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`),
+  });
+
 /** Signs in through the fixed local identity, on a page with no project open. */
 async function signIn(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-}
-
-/**
- * Creates a project and names it, through the rename a create now arms.
- *
- * The typing is `keyboard.type` rather than `fill`: the placeholder is
- * **selected** when the field arms, and a browser replacing a selection with
- * the first character typed is the whole point of selecting it. `fill` would
- * set the value outright and prove nothing about the selection.
- */
-async function createProjectNamed(page: Page, name: string): Promise<void> {
-  await page.getByRole('button', { name: 'New project' }).click();
-  const field = page.getByLabel('Project name');
-  await expect(field).toBeFocused();
-  await page.keyboard.type(name);
-  await field.press('Enter');
-  await expect(picker(page)).toHaveValue(name);
 }
 
 /**
@@ -84,50 +89,62 @@ async function measureCardAgainstList(
 test.describe('the project picker, driven by a browser', () => {
   test('clicking the closed picker does not put a caret in the project name', async ({ page }) => {
     await signIn(page);
-    await createProjectNamed(page, 'Rewire the shed');
+    const shed = named('Rewire the shed');
+    await createProject(page, shed);
 
-    // At rest the box is the label of what is open, and `readOnly` is what
-    // stops the click's default action — hit-testing the text and placing a
-    // caret in it — from ever running over the project's name.
-    await expect(picker(page)).toHaveJSProperty('readOnly', true);
-    await expect(picker(page)).toHaveValue('Rewire the shed');
+    // At rest the box is the label of what is open, and the project's name is
+    // in it. `readOnly` is what stops the click's default action — hit-testing
+    // that text and placing a caret in it — from ever running; a browser is
+    // the only thing that performs a default action, so it is the only thing
+    // that can be asked. Read as editability, which is `readOnly`'s whole
+    // observable effect on a text box.
+    await expect(picker(page)).toHaveValue(shed);
+    await expect(picker(page)).not.toBeEditable();
 
     await picker(page).click();
 
-    // The click focused the box, and focusing opens the list and hands the box
-    // over to the search — so the name is not on screen to hold a caret, and
-    // the box types in the same commit that opened.
+    // The click focused the box, and focusing hands it to the search: the name
+    // is no longer in it for a caret to be in, the caret that a focus does
+    // place is at the start of an empty box, and the box takes typing in the
+    // same commit that opened the list.
     await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
-    await expect(picker(page)).toHaveJSProperty('readOnly', false);
+    await expect(picker(page)).toBeEditable();
     await expect(picker(page)).toHaveValue('');
-    await picker(page).pressSequentially('Rew');
-    await expect(picker(page)).toHaveValue('Rew');
-    await expect(page.getByRole('option', { name: /Rewire the shed/ })).toBeVisible();
+    const caret = await picker(page).evaluate((node: HTMLInputElement) => [
+      node.selectionStart,
+      node.selectionEnd,
+    ]);
+    expect(caret, 'the focused picker holds a caret inside some text').toEqual([0, 0]);
+    await picker(page).pressSequentially('Rewire');
+    await expect(picker(page)).toHaveValue('Rewire');
+    await expect(optionFor(page, shed)).toBeVisible();
   });
 
   test('choosing a project takes the focus off the picker', async ({ page }) => {
     await signIn(page);
-    await createProjectNamed(page, 'Rewire the shed');
-    await createProjectNamed(page, 'Paint the fence');
+    const shed = named('Rewire the shed');
+    await createProject(page, shed);
+    await createProject(page, named('Paint the fence'));
     await openPicker(page);
 
-    await page.getByRole('option', { name: /Rewire the shed/ }).click();
+    await optionFor(page, shed).click();
 
-    await expect(picker(page)).toHaveValue('Rewire the shed');
+    await expect(picker(page)).toHaveValue(shed);
     // Nothing focuses an option — the list's `mousedown` is prevented so the
     // click can land — so without the blur the box keeps the keyboard with the
-    // project's name in it, which is a rename that is not armed and cannot be.
+    // project's name in it, which reads as a rename that is not armed and
+    // cannot be.
     await expect(picker(page)).not.toBeFocused();
-    await expect(picker(page)).toHaveJSProperty('readOnly', true);
+    await expect(picker(page)).not.toBeEditable();
     await expect(page.getByLabel('Project name')).toHaveCount(0);
     await expect(page.getByRole('listbox', { name: 'Projects' })).toHaveCount(0);
   });
 
   test('the open card opens clear of the list it explains', async ({ page }) => {
     await signIn(page);
-    await createProjectNamed(page, 'Rewire the shed');
-    await createProjectNamed(page, 'Paint the fence');
-    await createProjectNamed(page, 'Sand the floor');
+    await createProject(page, named('Rewire the shed'));
+    await createProject(page, named('Paint the fence'));
+    await createProject(page, named('Sand the floor'));
     await openPicker(page);
 
     const option = page.getByRole('option').nth(1);
@@ -152,8 +169,8 @@ test.describe('the project picker, driven by a browser', () => {
 
   test('a window with no room on the right never puts the card over the list', async ({ page }) => {
     await signIn(page);
-    await createProjectNamed(page, 'Rewire the shed');
-    await createProjectNamed(page, 'Paint the fence');
+    await createProject(page, named('Rewire the shed'));
+    await createProject(page, named('Paint the fence'));
     await openPicker(page);
     await page.getByRole('option').first().hover();
     await expect(page.getByRole('tooltip').first()).toBeVisible();
@@ -194,11 +211,12 @@ test.describe('the project picker, driven by a browser', () => {
 
     // What selecting it is for, and a browser's own behaviour: the first
     // character typed replaces the selection.
-    await page.keyboard.type('Rewire the shed');
+    const shed = named('Rewire the shed');
+    await page.keyboard.type(shed);
 
-    await expect(field).toHaveValue('Rewire the shed');
+    await expect(field).toHaveValue(shed);
     await field.press('Enter');
-    await expect(picker(page)).toHaveValue('Rewire the shed');
+    await expect(picker(page)).toHaveValue(shed);
   });
 
   test('abandoning the new project’s rename keeps the project', async ({ page }) => {

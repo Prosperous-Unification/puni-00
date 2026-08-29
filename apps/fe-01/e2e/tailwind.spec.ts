@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The Tailwind integration and the scoped reset, measured by the browser that
  * has to run them.
@@ -58,7 +60,7 @@ async function seedChip(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
@@ -88,7 +90,12 @@ async function seedChip(page: Page, _account: string): Promise<void> {
  */
 async function openChromeControl(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await page.getByRole('button', { name: 'New project' }).click();
+  // Through the ✎, which is what this measures: a chrome control opened by
+  // somebody rather than the one a create arms for itself. `createProject`
+  // leaves that armed rename before the button it clicks below exists again —
+  // without it this waited sixty seconds for a `Rename` a create had just
+  // taken off the bar.
+  await createProject(page);
   await page.getByRole('button', { name: 'Rename' }).click();
   await expect(page.getByLabel('Project name')).toBeVisible();
 }

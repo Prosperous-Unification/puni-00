@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, type Response, test } from '@playwrigh
 
 import { calendarScale } from '../src/components/wbs/gantt-geometry';
 import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
+import { createProject } from './create-project';
 
 /**
  * The batch that carries one `kind` — what a write is since `plan-commands`:
@@ -248,7 +249,7 @@ async function seedPlan(
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 
   // First, because the Not before field is disabled without a day zero to
@@ -334,7 +335,7 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
   await setDate(page, 'Project start date', PLAN_START);
 

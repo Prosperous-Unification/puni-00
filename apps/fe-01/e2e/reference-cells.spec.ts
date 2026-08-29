@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 test.use({ viewport: { width: 1280, height: 900 } });
 
 interface Entry {
@@ -55,7 +57,7 @@ async function directoryCommands<T>(page: Page, list: Record<string, unknown>[])
 async function seed(page: Page): Promise<Seed> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
 
   await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
   const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));

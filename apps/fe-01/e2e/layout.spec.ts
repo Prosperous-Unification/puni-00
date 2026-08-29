@@ -20,6 +20,7 @@ import {
   PINNED_COLUMN_IDS,
   widthFor,
 } from '../src/components/wbs/table-frame';
+import { createProject } from './create-project';
 
 /**
  * The plan {@link seedPlan} builds, as far as a column's width depends on it.
@@ -196,7 +197,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
 
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();

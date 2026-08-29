@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The Phases surface, in a browser.
  *
@@ -35,7 +37,7 @@ async function signInWithAProject(page: Page, _account: string): Promise<void> {
   void _account;
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 

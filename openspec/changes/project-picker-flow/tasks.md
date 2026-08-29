@@ -18,7 +18,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 ## 2. A pick leaves the picker at rest
 
 - [x] 2.1 `choose` blurs the combobox after clearing the search; the box carries `readOnly` while closed and drops it on focus — test: `project-page.test.tsx` `choosing a project takes the focus off the picker`, `the picker still searches after a pick`, `choosing a project arms no rename`; negative: the `blur()` removed, watched failing on `document.activeElement` still being the combobox.
-- [ ] 2.2 (written, NOT RUN — the ports were held; see `verify.md`) Chromium: a click on the closed picker places no caret — test: `e2e/project-picker.spec.ts` `clicking the closed picker does not put a caret in the project name`, asserting `selectionStart` is unreachable on a `readOnly` box and the box is not focused after the click; negative: `readOnly` removed, watched failing. **jsdom cannot see this** — a click's default action (focus and caret placement) is the browser's, R5 #14/#15's fault class.
+- [x] 2.2 Chromium: a click on the closed picker places no caret — test: `e2e/project-picker.spec.ts` `clicking the closed picker does not put a caret in the project name`, asserting the box is **not editable** at rest and editable once focused, and that the caret after the click sits in an empty box rather than in the name (`selectionStart` on a `readOnly` text input is a number like any other, so editability is what a browser will actually answer — see `verify.md`); negative: `readOnly` removed, watched failing on `Expected: not editable, Received: editable`. **jsdom cannot see this** — a click's default action (focus and caret placement) is the browser's, R5 #14/#15's fault class.
 
 ## 3. Create arms the rename
 
@@ -28,4 +28,4 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Gate
 
-- [ ] 4.1 (partial: `fe-01:test`, `fe-01:lint`, `fe-01:typecheck`, `openspec validate` and `prettier --check` run and quoted in `verify.md`; the gate script and the browser run are NOT done) `bin/h2puni-gate.sh`, `openspec validate --all --json`, and `bun run e2e` on shifted ports with `CI=1` — never the shared dev server (`LLM_README.md` landmine).
+- [x] 4.1 (`fe-01:test`, `fe-01:lint`, `fe-01:typecheck`, `openspec validate`, `prettier --check` and the **browser gate** run and quoted in `verify.md` — 209 passed, 3 failed, the three being `main`'s own, measured against `main`'s fe-01. `bin/h2puni-gate.sh` itself was not run, by instruction.) `bin/h2puni-gate.sh`, `openspec validate --all --json`, and `bun run e2e` on shifted ports with `CI=1` — never the shared dev server (`LLM_README.md` landmine).

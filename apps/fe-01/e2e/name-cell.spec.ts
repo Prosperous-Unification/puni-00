@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The Name cell's height, in a browser.
  *
@@ -54,7 +56,7 @@ async function seedRows(page: Page, _account: string, rows: number): Promise<voi
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (let made = 1; made <= rows; made += 1) {
     await addRow.click();

@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The directory page, against the real stack and measured by a browser.
  *
@@ -157,7 +159,7 @@ test.describe('the directory, edited against be-01', () => {
   test('names what a removal would take, and takes it only once confirmed', async ({ page }) => {
     const platform = `Platform ${tag}`;
     const work = `Survey the site ${tag}`;
-    await page.getByRole('button', { name: 'New project' }).click();
+    await createProject(page);
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel('Name of 010')).toBeVisible();
     await page.getByLabel('Name of 010').fill(work);

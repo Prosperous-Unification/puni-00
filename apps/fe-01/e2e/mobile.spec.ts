@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The plan on a phone, measured by a browser.
  *
@@ -94,7 +96,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
 
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
 
   // The desktop case at the bottom of this file shares this fixture and asks
   // one thing of it: a dialog, whose density is a fact about the dialog and not

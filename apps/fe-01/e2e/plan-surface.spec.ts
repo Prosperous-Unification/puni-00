@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The plan as one surface, measured by a browser.
  *
@@ -70,7 +72,7 @@ async function seedPlan(page: Page, _account: string, rows: number): Promise<voi
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 
   const addRow = page.getByRole('button', { name: 'Add work item' });

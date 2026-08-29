@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { createProject } from './create-project';
+
 /**
  * The hover cards, measured by a browser.
  *
@@ -22,7 +24,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New project' }).click();
+  await createProject(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
