@@ -8,6 +8,7 @@
     "deploy": "nx run tool-deploy:deploy",
     "build": "nx run-many -t build",
     "test": "nx run-many -t test",
+    "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",
     "lint": "nx run-many -t lint",
     "format": "nx format:write",
     "format:check": "nx format:check",
@@ -17,7 +18,8 @@
     "dev:gw": "nx run gw-01:serve",
     "dev:fe": "nx run fe-01:serve",
     "dev:setup": "bun run tools/dev/setup.ts",
-    "e2e": "nx run fe-01:e2e"
+    "e2e": "nx run fe-01:e2e",
+    "heavy-lock:test": "bash bin/heavy-lock.test.sh"
   },
   "dependencies": {
     "@elysiajs/openapi": "^1.4.15",
