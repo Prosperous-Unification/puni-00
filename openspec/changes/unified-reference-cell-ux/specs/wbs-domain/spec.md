@@ -13,6 +13,16 @@ Adding an own member MUST replace the inherited reading with the row's own set;
 removing the final own member MUST reveal inheritance again rather than writing
 an explicit "none" state.
 
+Each surface MUST draw each reading once: a table cell says an inherited set in
+its search box's placeholder, a phone sheet says it as its own `Inherited:`
+line, and neither MUST draw both. The search box MUST hold no member of the set
+at any size; the chips are the row's stated value.
+
+A resting table cell MUST stand on one line whatever its set's size, clipping
+what it cannot fit and marking the clip. Editing the cell MUST bring every
+member of a stated set into reach; an empty cell MUST NOT grow when it is
+entered.
+
 #### Scenario: the three directory-backed cells speak one interaction language
 
 - **GIVEN** a row with Teams, Tags and Services columns visible
@@ -26,6 +36,21 @@ an explicit "none" state.
 - **WHEN** the user takes that dimension's Add line
 - **THEN** the directory entry MUST be created idempotently and added to the row's own set
 - **AND** no other dimension MUST change
+
+#### Scenario: a crowded cell rests on one line and opens to every member
+
+- **GIVEN** a 120px cell whose row states three members
+- **WHEN** the cell rests, and then the search box is entered
+- **THEN** the resting cell MUST stand no taller than the same cell with no members
+- **AND** its add control and first chip MUST remain unclipped, with the clipped line marked
+- **AND** entering the box MUST bring every chip into reach
+
+#### Scenario: an inherited set is drawn once per surface
+
+- **GIVEN** a row whose own set is empty and whose ancestor states one
+- **WHEN** the table cell and the phone sheet are read
+- **THEN** the cell MUST say the inherited set only in its search box's placeholder
+- **AND** the sheet MUST say it only in its `Inherited:` line
 
 #### Scenario: removing the final own member reveals inheritance
 
@@ -159,8 +184,10 @@ MUST NOT add a redundant sequential tab stop.
 At 390×844, Teams, Tags, Services and Depends on MUST expose bottom sheets with
 the same own values, inherited context, add/search and member removal available
 on desktop. Desktop and phone writes MUST survive reload. Light and dark themes
-MUST show every chip and dependency target without clipping, overlap, native
-button paint, hidden third values, stale tint or lost focus.
+MUST show every chip and dependency target without overlap, native button
+paint, stale tint or lost focus, and MUST keep a reachable path to every stored
+member: a sheet shows them all, and a table cell that clips its rest line MUST
+bring them into reach when it is entered.
 
 Directory choose/create controls MUST await the write result: they close only
 after `landed`, retain the sheet and typed value after refusal, and suppress a

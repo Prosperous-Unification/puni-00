@@ -22,6 +22,17 @@
 - [x] 4.2 Preserve the dependency-specific picker, bulk-number/refusal logic and full accessible description while adopting the shared strip tokens — tests: existing dependency keyboard suite plus a three-dependency full-list description case; negative: narrow the card list to visible chips and observe the third dependency disappear.
 - [x] 4.3 Add Chromium hit-testing for cell→passive padding→third card row travel, exact row/line tint, empty-card click-through and stale-state cleanup after scroll, resize and pointer cancellation — test: `e2e/hover-cards.spec.ts`; negative heads with the bridge removed, target pointer events removed, and whole-card pointer events enabled MUST fail distinct assertions.
 
+## 4b. Return the directory-backed cells to one line, saying each thing once
+
+Reported by Dany with a screenshot on 2026-08-29, against the merged head: the
+Tags cell stands three lines tall and draws its inherited set twice.
+
+- [x] 4b.1 Rest both the strip and its chip group on one `nowrap` line, wrapping only while a crowded cell is being edited, and record the rest contract in the delta spec — tests: `reference-set-field.test.tsx` rest and editing cases; negative: inject `wrap` into each container singly (one `nowrap` beside one `wrap` still wraps, so a single injection proves nothing).
+- [x] 4b.2 Drop the search box's 72px width floor at rest so the chips own the line, clip the rest line and fade its last pixels as the Depends-on cell does — tests: floor-at-rest/floor-while-editing and rest-fade cases; negative: restore `minWidth: 72` at rest, and drop the fade.
+- [x] 4b.3 Draw an inherited set once per surface: the desktop's `↳` placeholder, the sheet's `Inherited:` line — tests: count the **visible** nodes saying the inherited name in the strip and in the sheet; negative: put the strip's `Inherited:` span back and watch the count.
+- [x] 4b.4 Draw the sole own member once, as its chip: the add box beside it is empty whatever the set's size — test: count the visible nodes saying the member's name; negative: restore `restingValue`.
+- [ ] 4b.5 Chromium: a three-tag cell rests no taller than an empty one, its `+` and first chip stay visible, focusing it brings every chip into reach, and the inherited set is one visible node — test: `e2e/reference-cells.spec.ts`; each head withheld from the fix must fail a distinct named assertion.
+
 ## 5. Close parity, rollback and delivery gates
 
 - [x] 5.1 Add desktop and 390×844 Chromium round trips for Teams/Tags/Services/Depends on, three-value overflow, reload, inheritance and light/dark paint — tests: `e2e/mobile.spec.ts` and focused reference-cell spec; each new geometry/paint check gets a withheld-style or clipped-value red head.

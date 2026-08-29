@@ -134,6 +134,7 @@ import { PriorityCell, priorityTyped } from './priority-cell';
 import {
   REFERENCE_SET_ADD_CLASS,
   REFERENCE_SET_CHIP_CLASS,
+  REFERENCE_SET_EDGE_FADE,
   REFERENCE_SET_STRIP_STYLE,
   ReferenceSetStrip,
 } from './reference-set-field';
@@ -483,8 +484,13 @@ const DEP_LIST_WIDTH = 260;
  * failed at rest on `expected '' to contain 'linear-gradient'`; applied
  * unconditionally, the same test failed with the picker open on
  * `expected 'linear-gradient(to right, #000 calc(1…' to be ''`.
+ *
+ * The value itself lives in `reference-set-field.tsx` since 4b, where the three
+ * directory-backed cells clip and fade their rest line by the same rule. Two
+ * cells fading by different amounts is a difference a reader would read as
+ * meaning something.
  */
-const DEP_EDGE_FADE = 'linear-gradient(to right, #000 calc(100% - 14px), transparent)';
+const DEP_EDGE_FADE = REFERENCE_SET_EDGE_FADE;
 
 // SHORTHAND_HELP moved onto {@link FoldedRoleCard}: the card is the folded
 // cell's one hint, and the native `title` that used to say this raced it.

@@ -143,22 +143,66 @@ async function showReferenceColumns(page: Page): Promise<void> {
   await page.getByText('Columns', { exact: true }).click();
 }
 
+/**
+ * Whether the point at the middle of this element belongs to it — the browser's
+ * own answer, which is the only one that knows about clipping, masks and
+ * whatever is painted over it. jsdom lays nothing out and cannot be asked.
+ */
+async function hitsItself(target: Locator): Promise<boolean> {
+  return target.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return box.width > 0 && box.height > 0 && hit !== null && node.contains(hit);
+  });
+}
+
+/**
+ * How many nodes of `within` a reader can see saying `needle`: an element's own
+ * drawn text, or a box's placeholder or value.
+ *
+ * Not accessible names, and not `title`: the duplicate this counts is a
+ * **second visible node**, which an accessible-name count reads as one.
+ */
+async function drawnSayings(within: Locator, needle: string): Promise<number> {
+  return within.evaluate(
+    (root, said) =>
+      [...root.querySelectorAll('*')].filter((node) => {
+        if (node instanceof HTMLInputElement)
+          return node.placeholder.includes(said) || node.value.includes(said);
+        return [...node.childNodes]
+          .filter((child) => child.nodeType === Node.TEXT_NODE)
+          .map((child) => child.textContent ?? '')
+          .join('')
+          .includes(said);
+      }).length,
+    needle,
+  );
+}
+
+/**
+ * Every chip of a strip, reachable and painted, **while the cell is being
+ * edited** — which is where a crowded 120px cell puts them.
+ *
+ * At rest the strip is one clipped line (4b.1): a third chip in a 120px column
+ * is past the edge, and that is the trade the fade at the end of the line
+ * announces. Entering the box wraps them all into reach, and that is the state
+ * a reader removes a member from, so it is the state this measures.
+ */
 async function assertReachablePaint(page: Page, roots: Locator[]): Promise<void> {
   for (const root of roots) {
     const chips = root.locator('[data-reference-chip]');
     await expect(chips).toHaveCount(3);
+    const box = root.getByRole('combobox').first();
+    await box.focus();
     for (let index = 0; index < 3; index += 1) {
       const chip = chips.nth(index);
       await expect(chip).toBeVisible();
       expect(
-        await chip.evaluate((node) => {
-          const box = node.getBoundingClientRect();
-          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-          return box.width > 0 && box.height > 0 && hit !== null && node.contains(hit);
-        }),
+        await hitsItself(chip),
         `reference chip ${String(index + 1)} is clipped or covered`,
       ).toBe(true);
     }
+    await box.blur();
   }
   expect(
     await page.evaluate(() => {
@@ -194,12 +238,14 @@ test('round-trips every desktop reference set with three reachable values in bot
       })
       .first(),
   );
-  await expect(
-    page
-      .locator('[data-reference-inherited]')
-      .filter({ hasText: /Inherited:/ })
-      .first(),
-  ).toBeVisible();
+  // The desktop's whole reading of inheritance: the box's own placeholder ink,
+  // and no second line under it. `Inherited: …` is the phone sheet's line, and
+  // drawing both is what stood the Tags column three lines tall (4b.3).
+  await expect(page.locator('[data-reference-inherited]')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Tags for 010.1', exact: true })).toHaveAttribute(
+    'placeholder',
+    /^↳ /,
+  );
   for (const palette of ['Light', 'Dark'] as const) {
     await chooseTheme(page, palette);
     await assertReachablePaint(page, roots);
@@ -233,6 +279,98 @@ test('round-trips every desktop reference set with three reachable values in bot
   }
   await expect(page.getByRole('button', { name: /^Stop 040 waiting for / })).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'Stop 040 waiting for 010' })).toHaveCount(0);
+});
+
+/**
+ * 4b's own proof, and it has to be a browser's: every claim below is a
+ * measurement of laid-out boxes — how tall a cell stands, what a point in it
+ * hits, how much width a floor took from the chips beside it. jsdom lays
+ * nothing out and reads every one of them as zero (R5 #14–16).
+ *
+ * Reported by Dany with a screenshot on 2026-08-29: a Tags cell three lines
+ * tall, its inherited set drawn twice.
+ */
+test('rests a crowded reference cell on one line and opens it to reach every chip', async ({
+  page,
+}) => {
+  const seeded = await seed(page);
+  await showReferenceColumns(page);
+  // 010 already states two tags; a third is the reported cell exactly. 020
+  // takes one team, which is the only set size a resting value could repeat.
+  await choose(page, 'Tags for 010', seeded.tags[2].name);
+  await choose(page, 'Service or team for 020', seeded.teams[0].name);
+  await page.reload();
+
+  const cellOf = (label: string): Locator =>
+    page.getByRole('combobox', { name: label, exact: true }).locator('xpath=ancestor::td[1]');
+  const crowded = cellOf('Tags for 010');
+  const bare = cellOf('Tags for 020');
+  const crowdedCell = await crowded.boundingBox();
+  const bareCell = await bare.boundingBox();
+  expect(crowdedCell, 'the crowded Tags cell has no painted box').not.toBeNull();
+  expect(bareCell, 'the empty Tags cell has no painted box').not.toBeNull();
+  if (crowdedCell === null || bareCell === null) throw new Error('a Tags cell was not painted');
+
+  // One line, whatever the row states. A wrapping strip grows the row a line
+  // per chip, which is the whole of the report.
+  expect(
+    crowdedCell.height,
+    'three tags stand the row taller than a row with none',
+  ).toBeLessThanOrEqual(bareCell.height + 1);
+
+  const strip = crowded.locator('[data-reference-strip]');
+  const stripBox = await strip.boundingBox();
+  if (stripBox === null) throw new Error('the crowded strip was not painted');
+  expect(stripBox.width, 'the rest line spills out of its column').toBeLessThanOrEqual(
+    crowdedCell.width + 1,
+  );
+
+  // The two things a clipped rest line must never clip: the add affordance on
+  // the leading edge, and the first chip beside it.
+  expect(
+    await hitsItself(strip.locator('[data-reference-add]')),
+    'the add button is clipped or covered at rest',
+  ).toBe(true);
+  expect(
+    await hitsItself(strip.locator('[data-reference-chip]').first()),
+    'the first chip is clipped or covered at rest',
+  ).toBe(true);
+
+  // The search box takes what the chips leave, and at rest that is nearly
+  // nothing: a 72px floor in a 120px column is where the third line came from.
+  const searchBox = await strip.locator('[data-reference-search]').boundingBox();
+  if (searchBox === null) throw new Error('the search holder was not painted');
+  expect(searchBox.width, 'the search box still claims a width floor at rest').toBeLessThan(72);
+
+  // Entering the cell is what brings a clipped member back into reach — the
+  // state a member is removed from, and therefore the state it must be in.
+  const box = page.getByRole('combobox', { name: 'Tags for 010', exact: true });
+  await box.focus();
+  const chips = strip.locator('[data-reference-chip]');
+  await expect(chips).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    expect(
+      await hitsItself(chips.nth(index)),
+      `tag chip ${String(index + 1)} is out of reach while the cell is edited`,
+    ).toBe(true);
+  }
+  await box.blur();
+  const afterEditing = await crowded.boundingBox();
+  if (afterEditing === null) throw new Error('the crowded cell stopped being painted');
+  expect(
+    afterEditing.height,
+    'the row keeps the height it took while it was being edited',
+  ).toBeLessThanOrEqual(bareCell.height + 1);
+
+  // Said once, per surface. The desktop's reading is the placeholder's `↳`.
+  expect(
+    await drawnSayings(cellOf('Tags for 010.1'), seeded.tags[0].name),
+    'the inherited set is drawn more than once',
+  ).toBe(1);
+  expect(
+    await drawnSayings(cellOf('Service or team for 020'), seeded.teams[0].name),
+    'the sole own member is drawn more than once',
+  ).toBe(1);
 });
 
 test.describe('390x844 reference sheets', () => {

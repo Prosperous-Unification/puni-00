@@ -1698,9 +1698,9 @@ describe('teams and assignees', () => {
     // `row.serviceTeamId`, and this failed on `expected 'Platform — inherited
     // from 010 (unname…' to be null` — the cell telling a reader it inherits
     // its team from itself — 1 failed / 425 passed; watched 2026-08-14. The
-    // value assertion alone stays green under that fault, because the picker's
-    // value is a second read of the same set: which arm answered is the part
-    // only the title can say.
+    // chip assertion alone stays green under that fault, because the chip is a
+    // second read of the same set: which arm answered is the part only the
+    // title can say.
     const api = await oneRow();
     await api.addTeam('Platform');
     const [row] = api.rows;
@@ -1711,7 +1711,11 @@ describe('teams and assignees', () => {
     await screen.findByLabelText('Name of 020');
 
     const box = screen.getByLabelText<HTMLInputElement>('Service or team for 010');
-    expect(box.value).toBe('Platform');
+    // As a chip. The box beside it is the add path and stays empty whatever
+    // the set holds — 4b.4, where a `restingValue` repeating the sole member
+    // drew `Platform ✕ Platform` in one 120px cell.
+    expect(screen.getByRole('button', { name: 'Remove Platform team' })).toBeInTheDocument();
+    expect(box.value).toBe('');
     // And it is the row's **own** team, not one it is told it inherits: the
     // two arms of `effectiveTeamLabelOf` read different things, and only the
     // second one leaves a title on the cell.
@@ -1793,8 +1797,10 @@ describe('teams and assignees', () => {
     );
 
     fireEvent.keyDown(picker, { key: 'Enter' });
+    // The created team lands as this row's chip; the box it was typed into is
+    // the add path and empties again (4b.4).
     await waitFor(() => {
-      expect(screen.getByLabelText<HTMLInputElement>(label).value).toBe('QA');
+      expect(screen.getByRole('button', { name: 'Remove QA team' })).toBeInTheDocument();
     });
     // The stranger's team is untouched and still there: nothing was renamed
     // and nothing was joined.
@@ -12917,8 +12923,10 @@ describe('the chords reach the picker cells and the date cell', () => {
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: 'Platform' } });
     fireEvent.keyDown(box, { key: 'Enter' });
+    // The chip is the landing, not the box: the box beside a stated set is the
+    // add path and holds nothing (`reference-set-field.tsx`, 4b.4).
     await waitFor(() => {
-      expect(screen.getByLabelText('Service or team for 010')).toHaveProperty('value', 'Platform');
+      expect(screen.getByRole('button', { name: 'Remove Platform team' })).toBeInTheDocument();
     });
     fireEvent.blur(box);
     return api;

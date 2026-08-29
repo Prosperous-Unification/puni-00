@@ -30,6 +30,12 @@
 | hover cleanup          | omit owner leave or stale-id guard                            | Chromium outside-leave retains tint                                             |
 | palette paint          | point card line at the grid-surface tint                      | two-palette direction assertion                                                 |
 | beneath-row takeover   | drop `entersThroughDependsCard` from the cell/pill enters     | Chromium padding crossing over a dependent row; jsdom enter at a corridor point |
+| one-line rest          | `wrap` on the strip, and on the chip group, one at a time     | jsdom rest case, both assertions; Chromium row height against an empty cell     |
+| reachable while edited | never wrap, then wrap an empty cell too                       | jsdom editing cases; Chromium chip hit-test with the box focused                |
+| no rest width floor    | restore the search box's `minWidth: 72`                       | jsdom floor case; Chromium search-holder width                                  |
+| clipped line is marked | pin `overflow: visible`, then delete the fade                 | jsdom rest clip/fade case                                                       |
+| inheritance said once  | draw the strip's `Inherited:` line beside the sheet's         | jsdom visible-node counts, strip and sheet                                      |
+| own member said once   | restore `restingValue`                                        | jsdom visible-node count on a one-member set                                    |
 
 ### Observed through task 1
 
@@ -153,6 +159,105 @@ the row it is hovered on`, `Expected: 0, Received: 42`) reproduced on the
   stashed `main` tree on the same Mac and is the host-specific red already
   noted in the session memory. fe-01 lint, typecheck and build passed. The
   same walk that switched the card in Chrome holds it after the fix.
+
+### Task 4b — the Tags cell three lines tall, 2026-08-29
+
+Reported by Dany with a screenshot against the merged head. Three causes, all
+confirmed in the source before any change: `flexWrap: 'wrap'` on both the strip
+and its chip group; the search box's `minWidth: 72` floor inside a 120px
+column; and inheritance drawn twice, as the picker's `↳ Risk, Review`
+placeholder **and** as a `data-reference-inherited` line under it. A fourth was
+found while writing the count: `restingValue` printed a one-member set into the
+box beside its own chip (`Platform ✕ Platform`).
+
+Red first — with the new cases in place and the fix withheld,
+`reference-set-field.test.tsx` ran 7 failed / 11 passed, on
+`expected 'wrap' to be 'nowrap'` (strip), `the strip rendered no chip group`,
+`the strip rendered no search holder`, `expected '' to be 'hidden'`,
+`expected [ '↳ Core', 'Inherited: Core' ] to deeply equal [ '↳ Core' ]` and
+`expected [ 'Platform', 'Platform' ] to deeply equal [ 'Platform' ]`.
+
+Watched failures, each fault injected into the fixed tree on its own and then
+reverted (jsdom, `bunx vitest run src/components/wbs/reference-set-field.test.tsx`):
+
+| Fault injected                                            | Test that observed it                                                   | Failure                                                                                                                                                                                             |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flexWrap: 'wrap'` on the **strip** alone                 | `rests every flex container of a crowded cell on one line`, line 252    | `expected 'wrap' to be 'nowrap'`                                                                                                                                                                    |
+| `flexWrap: 'wrap'` on the **chip group** alone            | the same case, line 253                                                 | `expected 'wrap' to be 'nowrap'`                                                                                                                                                                    |
+| `wrapping` forced to `false`                              | `wraps both containers only while a crowded cell is edited`             | `expected 'nowrap' to be 'wrap'`                                                                                                                                                                    |
+| `wrapping` widened to `editing` (an empty cell wraps too) | `keeps an empty cell on one line while it is edited`                    | `expected 'wrap' to be 'nowrap'`                                                                                                                                                                    |
+| `minWidth: 72` restored at rest                           | `leaves the whole rest line to the chips until the box is entered`      | `expected 72 to be +0`                                                                                                                                                                              |
+| `overflow` pinned to `visible`                            | `fades and clips the rest line, and does neither while editing`         | `expected 'visible' to be 'hidden'`                                                                                                                                                                 |
+| the rest fade deleted                                     | the same case                                                           | `expected 'display: flex; flex-wrap: nowrap; ali…' to contain 'linear-gradient(to right, #000 calc(1…'`                                                                                             |
+| the strip's `Inherited:` span put back beside the sheet's | `draws an inherited set once, in the box it is shown but not stored in` | `expected [ '↳ Core', 'Inherited: Core' ] to deeply equal [ '↳ Core' ]`, and the sheet's own case on `expected [ 'Inherited: Core from 010', …(1) ] to deeply equal [ 'Inherited: Core from 010' ]` |
+| `restingValue` restored                                   | `draws the sole own member once, as its chip`                           | `expected [ 'Platform', 'Platform' ] to deeply equal [ 'Platform' ]`                                                                                                                                |
+
+The two duplication counts read **visible nodes** — an element's own text, or a
+box's placeholder or value — and never accessible names: `↳ Core` beside
+`Inherited: Core` is one name to the accessibility tree and two lines to the
+eye, so a name count cannot see the fault it is written for.
+
+Existing cases the new contract moved, each re-read rather than deleted:
+`wbs-table.test.tsx`'s `reads the team out of the set…` and `creates the name
+typed…`, and the `threeRootsAndATeam` fixture, waited on the picker's **value**
+being the team's name; the chip is that reading now and the box is asserted
+empty. `reference-set-field.test.tsx`'s first case asserted the strip's
+`Inherited: Core`; it now asserts the strip draws no such line at all.
+
+Green, this Mac, 2026-08-29 (`bunx nx run fe-01:…`):
+
+```
+ Test Files  1 failed | 56 passed (57)
+      Tests  2 failed | 1812 passed (1814)
+```
+
+The two failures are `plan-mermaid.test.ts`'s `leaves a bar crossing a weekend
+exactly where it was told, manualEndTime true` and `still parses a point
+(unestimated/zero) as a real milestone with equal dates` — **pre-existing**:
+the same two fail at the branch point `b3acb7b` with 1804 passing, and this
+branch adds 8 passing cases to that same 1804.
+
+```
+✖ 1 problem (0 errors, 1 warning)
+ NX   Successfully ran target lint for project fe-01
+```
+
+The warning is `wbs-table.tsx`'s `useMemo has unnecessary dependencies` at line
+4053, pre-existing and untouched: this branch's only edits to that file are the
+`REFERENCE_SET_EDGE_FADE` import and the constant it now aliases.
+
+```
+> bunx tsc --build --force apps/fe-01/tsconfig.app.json
+> bunx tsc --build --force apps/fe-01/tsconfig.e2e.json
+ NX   Successfully ran target typecheck for project fe-01
+```
+
+`bunx prettier --check` passes over every touched file, and
+`bunx @fission-ai/openspec@1.3.0 validate unified-reference-cell-ux --strict
+--json` reports `"passed": 1, "failed": 0` over the edited delta spec.
+
+**Not run, and therefore not proved: every Chromium claim in 4b.5.** Ports
+3100/3200/4200 were held by another checkout's dev server for the whole of this
+session, and `reuseExistingServer: !isCi` would have measured that checkout
+rather than this one (`LLM_README.md`'s landmine, R5 #16's third hat). The
+spec is written and typechecked, never executed:
+`e2e/reference-cells.spec.ts`'s `rests a crowded reference cell on one line and
+opens it to reach every chip`, whose named assertions are `three tags stand the
+row taller than a row with none`, `the rest line spills out of its column`,
+`the add button is clipped or covered at rest`, `the first chip is clipped or
+covered at rest`, `the search box still claims a width floor at rest`, `tag
+chip N is out of reach while the cell is edited`, `the inherited set is drawn
+more than once` and `the sole own member is drawn more than once`. The heights,
+the hit-tests and the widths are all layout facts, so **jsdom's green says
+nothing about any of them** — the whole of 4b.5 and the two existing Chromium
+cases below it are owed a run with the ports free.
+
+Two existing Chromium assertions in that file were rewritten by this change and
+are owed the same run: `assertReachablePaint` now focuses a strip before
+measuring its three chips, because a resting 120px cell clips the third by
+design; and the desktop round trip asserted a visible `Inherited:` line, which
+is now the sheet's alone and reads as the child row's `↳ ` placeholder plus
+`[data-reference-inherited]` count 0.
 
 ## 3. Remote gate output to record after apply
 

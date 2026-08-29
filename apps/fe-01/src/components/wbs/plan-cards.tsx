@@ -694,7 +694,10 @@ function CardTeamField({
         dataCell={cellKey(row.id, 'team')}
         addLabel={`Add a team to ${row.number}`}
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
-        placeholder={team.state === 'inherited' ? `↳ ${team.name}` : 'search or add'}
+        // Not the cell's `↳ name`: the sheet says where the label came from on
+        // its own `Inherited:` line, and a placeholder repeating it is the
+        // same claim twice on a surface that already had room for the first.
+        placeholder="search or add"
         title={inheritedNote}
       />
     </>
@@ -770,7 +773,9 @@ function CardSetField({
         dataCell={cellKey(row.id, kind)}
         addLabel={`Add a ${kind} to ${row.number}`}
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
-        placeholder={inherited ? `↳ ${names.join(', ')}` : 'search or add'}
+        // The team sheet's reason, one dimension over: the `Inherited:` line
+        // above the strip is this surface's single reading of inheritance.
+        placeholder="search or add"
         title={title}
       />
     </>

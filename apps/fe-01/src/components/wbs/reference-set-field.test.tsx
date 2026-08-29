@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  REFERENCE_SET_EDGE_FADE,
   type ReferenceSetAdapter,
   ReferenceSetSheet,
   ReferenceSetStrip,
@@ -29,14 +30,16 @@ function adapter(overrides: Partial<ReferenceSetAdapter> = {}): ReferenceSetAdap
 }
 
 describe('ReferenceSetStrip', () => {
-  itDom('renders one leading add path, own chips, and inherited context', () => {
+  itDom('renders one leading add path and own chips, and no line of its own', () => {
     render(<ReferenceSetStrip label="Teams" adapter={adapter()} />);
 
     expect(screen.getAllByRole('button', { name: 'Add a team' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Add a team' }).tabIndex).toBe(-1);
     expect(document.querySelectorAll('[data-creatable-add]')).toHaveLength(0);
     expect(screen.getByText('Platform')).toBeInTheDocument();
-    expect(screen.getByText('Inherited: Core')).toBeInTheDocument();
+    // Inherited context is the surface's to draw, and a table cell draws it in
+    // its placeholder: the sheet's `Inherited:` line is `ReferenceSetSheet`'s.
+    expect(document.querySelectorAll('[data-reference-inherited]')).toHaveLength(0);
   });
 
   itDom('omits selected entries and adds the chosen id to the whole own set', async () => {
@@ -196,6 +199,121 @@ describe('ReferenceSetStrip', () => {
   });
 });
 
+/**
+ * Every node a reader can see saying `needle`: an element's own drawn text, or
+ * a box's placeholder or value.
+ *
+ * Accessible names and `title` tooltips are deliberately not counted. The
+ * duplicate this exists to catch is a **second visible node** — an
+ * `Inherited: Core` span beside a `↳ Core` placeholder reads as one name to
+ * the accessibility tree and as two lines to the eye, and a count of names
+ * cannot see it (4b.3).
+ */
+function drawnSayings(root: HTMLElement, needle: string): string[] {
+  return [...root.querySelectorAll<HTMLElement>('*')].flatMap((node) => {
+    if (node instanceof HTMLInputElement) {
+      return [node.placeholder, node.value].filter((said) => said.includes(needle));
+    }
+    const drawn = [...node.childNodes]
+      .filter((child) => child.nodeType === Node.TEXT_NODE)
+      .map((child) => child.textContent ?? '')
+      .join('');
+    return drawn.includes(needle) ? [drawn] : [];
+  });
+}
+
+/** The rendered strip, or a failure that says the render never made one. */
+function strip(within: ParentNode = document): HTMLElement {
+  const found = within.querySelector<HTMLElement>('[data-reference-strip]');
+  if (found === null) throw new Error('no reference strip was rendered');
+  return found;
+}
+
+function chipsOf(within: ParentNode = document): HTMLElement {
+  const found = strip(within).querySelector<HTMLElement>('[data-reference-chips]');
+  if (found === null) throw new Error('the strip rendered no chip group');
+  return found;
+}
+
+function searchOf(within: ParentNode = document): HTMLElement {
+  const found = strip(within).querySelector<HTMLElement>('[data-reference-search]');
+  if (found === null) throw new Error('the strip rendered no search holder');
+  return found;
+}
+
+describe('the reference strip on one rest line', () => {
+  const crowded = () => adapter({ ownIds: ['team-1', 'team-2', 'team-3'] });
+
+  itDom('rests every flex container of a crowded cell on one line', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    // Both, singly. One `nowrap` beside one `wrap` still wraps, so a check
+    // that reads either container alone passes with the bug in the other.
+    expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
+    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+  });
+
+  itDom('wraps both containers only while a crowded cell is edited', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    expect(getComputedStyle(strip()).flexWrap).toBe('wrap');
+    expect(getComputedStyle(chipsOf()).flexWrap).toBe('wrap');
+  });
+
+  itDom('keeps an empty cell on one line while it is edited', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={adapter({ ownIds: [] })} />);
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
+  });
+
+  itDom('leaves the whole rest line to the chips until the box is entered', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    expect(parseFloat(getComputedStyle(searchOf()).minWidth)).toBe(0);
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    expect(parseFloat(getComputedStyle(searchOf()).minWidth)).toBe(72);
+  });
+
+  itDom('fades and clips the rest line, and does neither while editing', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    expect(strip().style.overflow).toBe('hidden');
+    expect(strip().getAttribute('style')).toContain(REFERENCE_SET_EDGE_FADE);
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    // The picker's list opens inside this element. A clip or a mask at that
+    // moment cuts the directory somebody has just opened — the Depends-on
+    // cell's own rule, and why both belong to rest alone.
+    expect(strip().style.overflow).toBe('visible');
+    expect(strip().getAttribute('style')).not.toContain(REFERENCE_SET_EDGE_FADE);
+  });
+
+  itDom('draws an inherited set once, in the box it is shown but not stored in', () => {
+    render(
+      <ReferenceSetStrip
+        label="Teams"
+        adapter={adapter({ ownIds: [], inheritedLabel: 'Core' })}
+        placeholder="↳ Core"
+      />,
+    );
+
+    expect(drawnSayings(strip(), 'Core')).toEqual(['↳ Core']);
+  });
+
+  itDom('draws the sole own member once, as its chip', () => {
+    render(
+      <ReferenceSetStrip
+        label="Teams"
+        adapter={adapter({ ownIds: ['team-1'], inheritedLabel: undefined })}
+        placeholder="add"
+      />,
+    );
+
+    expect(drawnSayings(strip(), 'Platform')).toEqual(['Platform']);
+  });
+});
+
 describe('ReferenceSetSheet', () => {
   itDom('uses the same set editor inside a labelled phone dialog', () => {
     const close = vi.fn();
@@ -205,5 +323,20 @@ describe('ReferenceSetSheet', () => {
     expect(screen.getByRole('combobox', { name: 'Teams' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close Teams' }));
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  itDom('draws the inherited set once, as the roomy line a phone can afford', () => {
+    render(
+      <ReferenceSetSheet
+        label="Teams"
+        adapter={adapter({ ownIds: [], inheritedLabel: 'Core from 010' })}
+        placeholder="search or add"
+        open
+        onClose={vi.fn()}
+      />,
+    );
+
+    const sheet = screen.getByRole('dialog', { name: 'Edit Teams' });
+    expect(drawnSayings(sheet, 'Core')).toEqual(['Inherited: Core from 010']);
   });
 });
