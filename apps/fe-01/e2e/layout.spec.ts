@@ -3112,9 +3112,34 @@ test.describe('the Number column keeps its figures in a line', () => {
 });
 
 /**
- * What the folded toolbar's controls asked for at 1280 **before**
- * `plan-toolbar-controls`, in px — the figure this change is only done if it
- * beat.
+ * What the folded toolbar's controls are allowed to ask for at 1280, in px —
+ * a budget measured on the bar `plan-toolbar-controls` shipped, not the
+ * before-figure `tasks.md` 5.1 asked for.
+ *
+ * **The before-figure would have been a check that cannot fail, which is why
+ * it is not what is pinned here.** The negative this test exists for is
+ * `Expand all` and `Collapse all` given their text labels back — and the bar
+ * before this change carried those labels *and* `Freeze numbering` and
+ * `Unfreeze all` as two separate buttons where there is now one `Freeze #`
+ * menu. So the fault rebuilds a bar strictly narrower than the one the
+ * before-figure describes, `asked <= before` holds with the fault in, and the
+ * assertion is decoration. The pin has to be this bar's own width for the
+ * fault to have anything to exceed.
+ *
+ * Measured in Chromium at 1280×900 on 2026-08-29, both figures read off this
+ * same test with the budget temporarily set to 1:
+ *
+ * - this bar: `asked` **1552.734375**
+ * - the two labels restored (`size="sm"`, the words as the child, no
+ *   `aria-label`, no icon): `asked` **1658.828125** — 106.09px wider
+ *
+ * Pinned at **1600**: the measured 1552.73 plus about 47px, which is headroom
+ * for font-metric drift between this Mac's Chromium and CI's Linux one and is
+ * still only a little over **half** what the named fault adds. A toolbar
+ * change worth catching moves this by a control's width; one that moves it by
+ * ten pixels is a font, not a control. Should CI's Chromium disagree, it fails
+ * loudly with both numbers rather than quietly — and the figure is then
+ * re-measured there.
  *
  * A pinned number rather than a "narrower than it was" comparison, and that is
  * the whole of the check: a relative assertion passes on a one-pixel
@@ -3123,29 +3148,9 @@ test.describe('the Number column keeps its figures in a line', () => {
  * `gantt-calendar-axis`, where a canvas was measured against an axis it had
  * been sized from.
  *
- * **`null`, and the test is `fixme` until it is measured.** The change was
- * implemented on a machine that could not run Chromium — ports 3100/3200/4200
- * were held by a dev server, and `bun run e2e` reuses whatever holds them, so a
- * run there measures another checkout (`LLM_README.md`'s landmine). The
- * before-figure has to be read off the toolbar as it stood at `b3acb7b`:
- *
- * ```sh
- * git stash                                   # or check out the parent commit
- * CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts \
- *   -g 'the folded toolbar fits its budget'   # fails on the null, printing `asked`
- * ```
- *
  * See `openspec/changes/plan-toolbar-controls/verify.md`, "Measurements".
- *
- * A function rather than a `const`, and only so that this file's own
- * `no-unnecessary-condition` lint can still be believed: TypeScript narrows a
- * `const` initialised to `null` to exactly `null`, and the guard below then
- * reads as dead code to the rule — which is the shape of a check that cannot
- * fail. Through a declared return type it stays a real `number | null`.
  */
-function foldedToolbarControlsBeforePx(): number | null {
-  return null;
-}
+const FOLDED_TOOLBAR_BUDGET_PX = 1600;
 
 /**
  * The width the toolbar's controls ask for, and the figures that say what
@@ -3190,19 +3195,14 @@ async function foldedToolbarWidth(
 test.describe('the plan toolbar’s own width', () => {
   test('the folded toolbar fits its budget', async ({ page }) => {
     // The point of `plan-toolbar-controls` was bar width, so the change is only
-    // done if the bar got narrower — measured, against a number, at the one
+    // done if the bar stays narrow — measured, against a number, at the one
     // viewport that number was taken at.
     //
-    // Negative: `Expand all`'s and `Collapse all`'s words restored on the face
-    // of the two icon buttons, watched failing against the pinned figure.
-    // **Not yet watched** — see the figure above and `verify.md`.
-    const pinned = foldedToolbarControlsBeforePx();
-    test.fixme(
-      pinned === null,
-      'the pre-change figure is not measured yet — openspec/changes/plan-toolbar-controls/verify.md',
-    );
-    if (pinned === null) throw new Error('the pre-change figure is not measured yet');
-
+    // Proof: `Expand all`'s and `Collapse all`'s words restored on the face of
+    // the two icon buttons (`size="sm"`, the label as the child, no
+    // `aria-label`, no icon) — failed on `the toolbar asks for more room than
+    // its budget · Expected: <= 1600 · Received: 1658.828125`. Watched in
+    // Chromium at 1280×900, 2026-08-29.
     await page.setViewportSize({ width: 1280, height: 900 });
     // Folded: no role unfolded and nothing typed in Find, which is the state
     // the figure was taken in. Both are the default on a fresh plan, and are
@@ -3213,8 +3213,8 @@ test.describe('the plan toolbar’s own width', () => {
 
     const measured = await foldedToolbarWidth(page);
 
-    expect(measured.asked, 'the toolbar asks for more room than it did before').toBeLessThanOrEqual(
-      pinned,
+    expect(measured.asked, 'the toolbar asks for more room than its budget').toBeLessThanOrEqual(
+      FOLDED_TOOLBAR_BUDGET_PX,
     );
     // The bar never overflows — it wraps — so this is a precondition on the
     // measurement rather than the measurement itself: were it ever to fail, the
