@@ -7,6 +7,7 @@ import type {
   Service,
   ServiceTeam,
   Tag,
+  WorkItemType,
   TeamPatch,
   TeamWithServices,
   TouchedProjects,
@@ -22,6 +23,7 @@ import {
   directoryUsageOfPerson,
   directoryUsageOfService,
   directoryUsageOfTag,
+  directoryUsageOfWorkItemType,
   directoryUsageOfTeam,
 } from './directory-usage';
 
@@ -244,6 +246,67 @@ export class DirectoryService {
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTag(removed.usage, tagId) };
+    }
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
+  }
+
+  listWorkItemTypes(): Promise<WorkItemType[]> {
+    return this.opts.directory.listWorkItemTypes();
+  }
+
+  /**
+   * Adds a work item type, or refuses a name that is only whitespace —
+   * {@link addTag}'s shape, and the same absence for the same reason: a type has
+   * no pool to be unstated about.
+   */
+  async addWorkItemType(name: string): Promise<WorkItemType | null> {
+    const clean = cleanName(name);
+    if (clean === null) return null;
+    return this.opts.directory.addWorkItemType({ id: this.newId(), name: clean });
+  }
+
+  /**
+   * Renames a work item type, keeping the name unique across the deployment —
+   * {@link renameTag}'s rules.
+   */
+  async renameWorkItemType(typeId: string, name: string): Promise<DirectoryOutcome<WorkItemType>> {
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const written = await this.opts.directory.renameWorkItemType(typeId, clean);
+    if (!written.ok) {
+      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.announce(written.projectIds);
+    return { ok: true, result: written.workItemType };
+  }
+
+  /**
+   * Removes a work item type, refusing an unconfirmed removal that would unlabel
+   * anything — {@link removeTag}'s shape, one dimension over, including having
+   * no members to count because nobody belongs to a type.
+   *
+   * The unconfirmed read is still only a fast path. What decides is the count
+   * inside the store's own transaction, which is why a labelling written between
+   * the two refuses rather than being deleted.
+   */
+  async removeWorkItemType(typeId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+    if (!cascade) {
+      const seen = directoryUsageOfWorkItemType(
+        await this.opts.directory.usageOfWorkItemType(typeId),
+        typeId,
+      );
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+    }
+    const removed = await this.opts.directory.removeWorkItemType(typeId, cascade);
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return {
+        ok: false,
+        reason: 'in_use',
+        usage: directoryUsageOfWorkItemType(removed.usage, typeId),
+      };
     }
     await this.announce(removed.removal.projectIds);
     return { ok: true };

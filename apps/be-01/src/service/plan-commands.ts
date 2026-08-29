@@ -54,6 +54,9 @@ const DIRECTORY_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'patchPerson',
   'deletePerson',
   'createTag',
+  'createWorkItemType',
+  'patchWorkItemType',
+  'deleteWorkItemType',
   'patchTag',
   'deleteTag',
   'createService',
@@ -292,7 +295,7 @@ export class PlanCommandRunner {
           break;
         }
         case 'patchWorkItem': {
-          const { serviceRefs, tagRefs, teamRefs, ...patch } = command.patch;
+          const { serviceRefs, tagRefs, teamRefs, typeRefs, ...patch } = command.patch;
           const resolved = {
             ...patch,
             ...(serviceRefs === undefined
@@ -300,6 +303,7 @@ export class PlanCommandRunner {
               : { serviceIds: ids(patch.serviceIds, serviceRefs) }),
             ...(tagRefs === undefined ? {} : { tagIds: ids(patch.tagIds, tagRefs) }),
             ...(teamRefs === undefined ? {} : { teamIds: ids(patch.teamIds, teamRefs) }),
+            ...(typeRefs === undefined ? {} : { typeIds: ids(patch.typeIds, typeRefs) }),
           };
           reasonOf(
             await workItems.patch(
@@ -564,6 +568,39 @@ export class PlanCommandRunner {
             done(
               await directory.removeTag(
                 required(command.tagId, command.tagRef),
+                command.cascade ?? false,
+              ),
+            ),
+          );
+          break;
+        // The tag trio, one dimension over, line for line — including
+        // `createWorkItemType` refusing a duplicate ref before it writes, so a
+        // batch naming one ref twice cannot mint two rows under one name.
+        case 'createWorkItemType': {
+          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          const workItemType = await directory.addWorkItemType(command.name);
+          if (workItemType === null) refuse('name_required');
+          results.push(entity(mint(command.ref, workItemType.id), workItemType));
+          break;
+        }
+        case 'patchWorkItemType':
+          results.push(
+            entity(
+              plain(),
+              reasonOf(
+                await directory.renameWorkItemType(
+                  required(command.typeId, command.typeRef),
+                  command.name,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'deleteWorkItemType':
+          results.push(
+            done(
+              await directory.removeWorkItemType(
+                required(command.typeId, command.typeRef),
                 command.cascade ?? false,
               ),
             ),
