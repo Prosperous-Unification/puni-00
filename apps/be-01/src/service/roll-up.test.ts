@@ -14,7 +14,7 @@ import {
   rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
-  workedRolesOf,
+  workedStepsOf,
 } from './roll-up';
 
 const item = (id: string, parentId: string | null): WorkItem => ({
@@ -35,11 +35,11 @@ const item = (id: string, parentId: string | null): WorkItem => ({
 
 const held = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   optimistic: number,
   realistic: number,
   pessimistic: number,
-): StoredEstimate => ({ workItemId, roleId, optimistic, realistic, pessimistic });
+): StoredEstimate => ({ workItemId, stepId, optimistic, realistic, pessimistic });
 
 describe('rollUp', () => {
   it('gives a leaf its own estimate', () => {
@@ -73,7 +73,7 @@ describe('rollUp', () => {
     });
   });
 
-  it('reports a role no descendant estimated as absent, not zero', () => {
+  it('reports a step no descendant estimated as absent, not zero', () => {
     // Zero and absent look the same in a table and mean opposite things: "no QA
     // needed" against "nobody has estimated the QA".
     const rows = [item('parent', null), item('one', 'parent')];
@@ -84,7 +84,7 @@ describe('rollUp', () => {
     expect(totals.get('parent')?.get('qa')).toBeUndefined();
   });
 
-  it('keeps roles apart when only one child has each', () => {
+  it('keeps steps apart when only one child has each', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
     const estimates = [held('one', 'dev', 1, 2, 3), held('two', 'qa', 4, 5, 6)];
 
@@ -118,9 +118,9 @@ describe('rollUp', () => {
   });
 });
 
-const recorded = (workItemId: string, roleId: string, days: number): StoredActual => ({
+const recorded = (workItemId: string, stepId: string, days: number): StoredActual => ({
   workItemId,
-  roleId,
+  stepId,
   days,
   recordedAt: 1000,
 });
@@ -132,7 +132,7 @@ describe('rollUpActuals', () => {
     expect(totals.get('a')?.get('dev')).toBe(8);
   });
 
-  it('sums two children into their parent, per role', () => {
+  it('sums two children into their parent, per step', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
 
     const totals = rollUpActuals(rows, [
@@ -153,7 +153,7 @@ describe('rollUpActuals', () => {
     expect(totals.get('root')?.get('dev')).toBe(4);
   });
 
-  it('leaves a role nobody recorded absent rather than zero', () => {
+  it('leaves a step nobody recorded absent rather than zero', () => {
     // The rule the table rests on, at the fold. `has` and not the value,
     // because `0` and `undefined` are both falsy and only one of them is the
     // answer this asserts.
@@ -197,10 +197,10 @@ describe('rollUpActuals', () => {
 
 const measured = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   metric: MeasureMetric,
   value: number,
-): StoredMeasure => ({ workItemId, roleId, metric, value, recordedAt: 1 });
+): StoredMeasure => ({ workItemId, stepId, metric, value, recordedAt: 1 });
 
 describe('rollUpMeasures', () => {
   it('gives a leaf its own figure in the metric asked for', () => {
@@ -213,7 +213,7 @@ describe('rollUpMeasures', () => {
     expect(totals.get('a')?.get('dev')).toBe(512345);
   });
 
-  it('sums two children into their parent, per role', () => {
+  it('sums two children into their parent, per step', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
 
     const totals = rollUpMeasures(
@@ -258,9 +258,9 @@ describe('rollUpMeasures', () => {
     expect(rollUpMeasures(rows, stored, 'hours_actual').get('parent')?.get('dev')).toBe(3);
   });
 
-  it('leaves a role absent per metric rather than reporting it as zero', () => {
+  it('leaves a step absent per metric rather than reporting it as zero', () => {
     // Absence is the primary key's third column arriving at the read path: the
-    // same role, present in one unit and absent in another. `has` rather than
+    // same step, present in one unit and absent in another. `has` rather than
     // the value, because `0` and `undefined` are both falsy and only one of
     // them is what this asserts.
     const rows = [item('parent', null), item('one', 'parent')];
@@ -311,11 +311,11 @@ describe('rollUpMeasures', () => {
 
 const said = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   state: 'in_progress' | 'done',
 ): StoredProgress => ({
   workItemId,
-  roleId,
+  stepId,
   state,
   statedAt: 1,
 });
@@ -327,75 +327,75 @@ function fold(
   actuals: readonly StoredActual[],
   stated: readonly StoredProgress[],
 ) {
-  const byRole = rollUpProgress(rows, stated, workedRolesOf(estimates, actuals, stated));
-  return { byRole, states: rollUpItemStates(rows, byRole) };
+  const byStep = rollUpProgress(rows, stated, workedStepsOf(estimates, actuals, stated));
+  return { byStep, states: rollUpItemStates(rows, byStep) };
 }
 
 describe('rollUpProgress', () => {
-  it('gives a leaf its own state, and fills in the roles that have work and no statement', () => {
+  it('gives a leaf its own state, and fills in the steps that have work and no statement', () => {
     const rows = [item('a', null)];
 
-    const { byRole, states } = fold(
+    const { byStep, states } = fold(
       rows,
       [held('a', 'qa', 1, 1, 1)],
       [],
       [said('a', 'dev', 'done')],
     );
 
-    expect(byRole.get('a')?.get('dev')).toBe('done');
-    // The role with an estimate and no statement: present in the fold as
+    expect(byStep.get('a')?.get('dev')).toBe('done');
+    // The step with an estimate and no statement: present in the fold as
     // `not_started`, which is what keeps the item off `done`.
-    expect(byRole.get('a')?.get('qa')).toBe('not_started');
+    expect(byStep.get('a')?.get('qa')).toBe('not_started');
     expect(states.get('a')).toBe('in_progress');
   });
 
-  it('reads a role nobody has spoken about and holds no work for as absent', () => {
+  it('reads a step nobody has spoken about and holds no work for as absent', () => {
     const rows = [item('a', null)];
 
-    const { byRole, states } = fold(rows, [], [], []);
+    const { byStep, states } = fold(rows, [], [], []);
 
-    expect(byRole.get('a')?.size).toBe(0);
+    expect(byStep.get('a')?.size).toBe(0);
     expect(states.get('a')).toBe('not_started');
   });
 
-  it('counts a role with only a recorded day as work still to be spoken about', () => {
+  it('counts a step with only a recorded day as work still to be spoken about', () => {
     const rows = [item('a', null)];
 
     const { states } = fold(
       rows,
       [],
-      [{ workItemId: 'a', roleId: 'qa', days: 2, recordedAt: 1 }],
+      [{ workItemId: 'a', stepId: 'qa', days: 2, recordedAt: 1 }],
       [said('a', 'dev', 'done')],
     );
 
     expect(states.get('a')).toBe('in_progress');
   });
 
-  it('agrees two children into their parent, per role', () => {
+  it('agrees two children into their parent, per step', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
 
-    const { byRole, states } = fold(
+    const { byStep, states } = fold(
       rows,
       [],
       [],
       [said('one', 'dev', 'done'), said('two', 'dev', 'done')],
     );
 
-    expect(byRole.get('parent')?.get('dev')).toBe('done');
+    expect(byStep.get('parent')?.get('dev')).toBe('done');
     expect(states.get('parent')).toBe('done');
   });
 
   it('reads a branch whose children disagree as in progress', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
 
-    const { byRole, states } = fold(
+    const { byStep, states } = fold(
       rows,
       [held('two', 'dev', 1, 1, 1)],
       [],
       [said('one', 'dev', 'done')],
     );
 
-    expect(byRole.get('parent')?.get('dev')).toBe('in_progress');
+    expect(byStep.get('parent')?.get('dev')).toBe('in_progress');
     expect(states.get('parent')).toBe('in_progress');
   });
 
@@ -409,18 +409,18 @@ describe('rollUpProgress', () => {
   });
 
   it('keeps a branch off done while one of its rows has never been spoken about', () => {
-    // The empty sibling holds no role at all, so the per-role fold cannot see
+    // The empty sibling holds no step at all, so the per-step fold cannot see
     // it — `{dev: done}` is all it answers. The item state is folded over the
     // children instead, and that is where the silence is counted.
     //
-    // Proof: `rollUpItemStates` folded from the parent's own role map, and this
+    // Proof: `rollUpItemStates` folded from the parent's own step map, and this
     // fails with `done` — a finished branch over an untouched row; watched
     // 2026-08-18.
     const rows = [item('parent', null), item('one', 'parent'), item('empty', 'parent')];
 
-    const { byRole, states } = fold(rows, [], [], [said('one', 'dev', 'done')]);
+    const { byStep, states } = fold(rows, [], [], [said('one', 'dev', 'done')]);
 
-    expect(byRole.get('parent')?.get('dev')).toBe('done');
+    expect(byStep.get('parent')?.get('dev')).toBe('done');
     expect(states.get('parent')).toBe('in_progress');
   });
 

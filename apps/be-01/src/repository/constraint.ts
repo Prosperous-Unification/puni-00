@@ -5,13 +5,13 @@
  * `bun:sqlite` reports constraint violations as messages rather than typed
  * errors, so this is a string test — the same translation
  * `UserRepository.create` makes for a duplicate username, and
- * `RoleRepository.add` for a duplicate role name.
+ * `StepRepository.add` for a duplicate step name.
  *
  * **It does not say which key.** SQLite's message names no column, so a caller
  * that turns this into a refusal must establish *which* of the request's ids is
  * missing before it does — otherwise it reports a confident lie about the one
  * that was fine. {@link WorkItemService} does that by re-reading the project's
- * roles and rethrowing when the role is still there.
+ * steps and rethrowing when the step is still there.
  */
 export function isForeignKeyViolation(err: unknown): boolean {
   return err instanceof Error && err.message.includes('FOREIGN KEY constraint failed');

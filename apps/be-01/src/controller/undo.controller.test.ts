@@ -13,14 +13,14 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleRepository } from '../repository/role';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepRepository } from '../repository/step';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
-import { RoleService } from '../service/role.service';
+import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -61,8 +61,8 @@ beforeEach(() => {
   const workItems = new WorkItemRepository(db);
   const estimates = new EstimateRepository(db);
   const actuals = new ActualRepository(db);
-  const measures = new RoleMeasureRepository(db);
-  const progressStore = new RoleProgressRepository(db);
+  const measures = new StepMeasureRepository(db);
+  const progressStore = new StepProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -73,9 +73,9 @@ beforeEach(() => {
     history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
-    roles: new RoleService({
+    steps: new StepService({
       projects,
-      roles: new RoleRepository(db),
+      steps: new StepRepository(db),
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({

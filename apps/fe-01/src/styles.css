@@ -213,7 +213,7 @@
    * about how strong a hover is: 9.5% is the band's own 2.5% plus
    * `--grid-hover`'s 7%. An `oklab` mix is linear in lightness, so adding the
    * doses adds the steps — the pointer moves a row by the same amount of ink
-   * whichever phase of the stripe it lands on.
+   * whichever step of the stripe it lands on.
    *
    * Why it has to exist at all. `--grid-hover` is an *absolute* shade, so on a
    * plain row it was a 0.061 step down from `oklab(1)` and on a banded one a
@@ -352,7 +352,7 @@
  *
  * Every raw `<button>` outside the grid was read before this line was written:
  * `app-fault.tsx` and `directory-page.tsx` name `bg-background`, `plan-cards.tsx`
- * draws a border, `phases-dialog.tsx`'s is `sr-only`, and `<Button>` has carried
+ * draws a border, `steps-dialog.tsx`'s is `sr-only`, and `<Button>` has carried
  * `bg-transparent` in its own base since it was vendored. The three that
  * changed are the three that were broken. Inside the grid nothing changes at
  * all: the guard stops there, and every button in the table has said
@@ -618,7 +618,7 @@
     text-transform: uppercase;
   }
 
-  /* The role accordion's toggle, which is a `<button>` in a heading cell: the
+  /* The step accordion's toggle, which is a `<button>` in a heading cell: the
      caption's own type, not a platform control's bevel. */
   [data-grid] thead button {
     border: 0;

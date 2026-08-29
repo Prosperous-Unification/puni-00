@@ -286,7 +286,7 @@ const PERSON_USAGE: DirectoryUsage = {
           number: '3.1',
           name: 'Design',
           effects: [
-            { kind: 'assignment_dropped', role: { id: 'r1', name: 'Dev' } },
+            { kind: 'assignment_dropped', step: { id: 'r1', name: 'Dev' } },
             { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
           ],
         },
@@ -847,7 +847,7 @@ describe('removing from the directory', () => {
    * Proof: `askToRemove`'s two `false`s pinned to `true`, this failed on
    * `Unable to find role="dialog"` — the removal taken on the first request
    * and nobody shown what it took — along with five of its siblings. The fault
-   * `phases-dialog` already knows. Watched 2026-08-09.
+   * `steps-dialog` already knows. Watched 2026-08-09.
    */
   itDom('asks without a cascade first, and names the work on the refusal', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);

@@ -247,7 +247,7 @@ export function panelFace(panel: HTMLElement): PlanFace {
  *
  * **Vertical only, and that is load-bearing.** `scrollLeft` is never read and
  * never written on either face. The renderer's is which columns are on screen
- * with a role unfolded (`unfolding-may-scroll`), the panel's is which fortnight
+ * with a step unfolded (`unfolding-may-scroll`), the panel's is which fortnight
  * of the calendar is — and the panel's is also what its month caption is
  * computed from, so a link that touched it would make the caption name a month
  * the reader is not looking at.

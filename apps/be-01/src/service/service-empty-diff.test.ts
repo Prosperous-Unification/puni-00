@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role } from '../repository';
+import type { Step } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -14,8 +14,8 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -78,13 +78,13 @@ let capacityStore: CapacityRepository;
 let projects: ProjectService;
 let projectId: string;
 let ownerId: string;
-let roles: Role[];
+let steps: Step[];
 
 const DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
 const dev = (): string => {
-  const found = roles.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting roles');
+  const found = steps.at(0);
+  if (found === undefined) throw new Error('the project was created without its starting steps');
   return found.id;
 };
 
@@ -132,8 +132,8 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: new EstimateRepository(db),
     actuals: new ActualRepository(db),
-    measures: new RoleMeasureRepository(db),
-    progress: new RoleProgressRepository(db),
+    measures: new StepMeasureRepository(db),
+    progress: new StepProgressRepository(db),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: inMemoryPriorityBands(),
@@ -145,7 +145,7 @@ beforeEach(async () => {
 
   const created = await projects.create('Rewire the shed', ownerId);
   projectId = created.project.id;
-  roles = created.roles;
+  steps = created.steps;
   await projects.update(projectId, ownerId, { startDate: '2026-09-01' });
 });
 

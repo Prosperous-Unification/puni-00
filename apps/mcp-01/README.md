@@ -13,7 +13,7 @@ capacity, directory entries…) applied all or none, recorded as **one undo**, a
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Twenty tools in all: the reads, the two batches,
-undo, redo, the project and role routes, the export. One call drafts a plan:
+undo, redo, the project and step routes, the export. One call drafts a plan:
 
 ```json
 {
@@ -37,7 +37,7 @@ undo, redo, the project and role routes, the export. One call drafts a plan:
     {
       "kind": "setEstimate",
       "workItemRef": "a",
-      "roleId": "<dev>",
+      "stepId": "<dev>",
       "days": { "optimistic": 1, "realistic": 2, "pessimistic": 4 }
     },
     { "kind": "addDependency", "workItemRef": "b", "predecessorRef": "a" }

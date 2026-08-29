@@ -16,8 +16,8 @@ import { schedule, sliceKey } from './schedule';
  * test can hold.
  */
 
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 const PLATFORM = 'team-platform';
 
 let position = 0;
@@ -58,12 +58,12 @@ const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
  */
 const slice = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   days: number | null,
   extra: Partial<Pick<Slice, 'personId' | 'width' | 'poolIds'>> = {},
 ): Slice => ({
   workItemId,
-  roleId,
+  stepId,
   days,
   personId: null,
   width: 1,
@@ -72,13 +72,13 @@ const slice = (
 });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
-const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {
-  const one = found.slices.get(sliceKey(workItemId, roleId));
-  if (one === undefined) throw new Error(`no slice for ${workItemId}/${roleId}`);
+const planned = (found: Schedule, workItemId: string, stepId: string): ScheduledSlice => {
+  const one = found.slices.get(sliceKey(workItemId, stepId));
+  if (one === undefined) throw new Error(`no slice for ${workItemId}/${stepId}`);
   return one;
 };
 
-/** The blocking set as readable `workItem/role` keys, so a failure names rows. */
+/** The blocking set as readable `workItem/step` keys, so a failure names rows. */
 const blockersOf = (one: ScheduledSlice): string[] =>
   one.capacityPredecessorIds.map((key) => key.replace('\u0000', '/')).sort();
 
@@ -152,7 +152,7 @@ describe('capacity — a team is a pool of slots', () => {
     expect(third).toMatchObject({ earliestStart: 2, earliestFinish: 4, boundBy: 'capacity' });
     // The display referent names one of the two that freed the pool, and the
     // whole set is carried beside it.
-    expect(blockersOf(third)).toEqual(['a/role-dev', 'b/role-dev']);
+    expect(blockersOf(third)).toEqual(['a/step-dev', 'b/step-dev']);
     expect(third.resourcePredecessorId).not.toBeNull();
     expect(found.waitingForCapacity).toBe(1);
     expect(found.waitingForPerson).toBe(0);
@@ -214,7 +214,7 @@ describe('capacity — a team is a pool of slots', () => {
     const wide = planned(found, 'wide', DEV);
     expect(wide).toMatchObject({ earliestStart: 6, earliestFinish: 9, boundBy: 'capacity' });
     // Both reservations had to end for it to fit, so both are in the set.
-    expect(blockersOf(wide)).toEqual(['early/role-dev', 'late/role-dev']);
+    expect(blockersOf(wide)).toEqual(['early/step-dev', 'late/step-dev']);
   });
 
   it('lets a block run through the instant another hands its slot over', () => {
@@ -300,7 +300,7 @@ describe('capacity — a team is a pool of slots', () => {
     // aggregate to a delta of nothing, and if any other block already has an
     // event there they merge into it and leave no trace at all — which is how
     // an earlier version of this test, on a fixture where every zero-length
-    // slice landed on the finish of the role before it, was watched staying
+    // slice landed on the finish of the step before it, was watched staying
     // green with the guard removed. So the zero-length block is put where the
     // plan has nothing else: `z` at day 0, and the two real blocks held off it
     // by a manual date.
@@ -337,7 +337,7 @@ describe('capacity — a team is a pool of slots', () => {
     });
     // And nobody waited behind the block of no length: the blocking set names
     // `a`, which really did hold the slot, and nothing else.
-    expect(blockersOf(planned(found, 'b', DEV))).toEqual(['a/role-dev']);
+    expect(blockersOf(planned(found, 'b', DEV))).toEqual(['a/step-dev']);
     // The instrumented reading of "reserves nothing", exact rather than an
     // upper bound: `a` searches an empty profile and steps over nothing, `b`
     // steps over `a`'s acquisition and then onto its release. A zero-length
@@ -451,7 +451,7 @@ describe('float — the blocking set is the whole set', () => {
     const x = planned(found, 'X', DEV);
     expect(x).toMatchObject({ earliestStart: 7, earliestFinish: 10, boundBy: 'capacity' });
     // Both A and B had to end for X to fit, so both are edged.
-    expect(blockersOf(x)).toEqual(['A/role-dev', 'B/role-dev']);
+    expect(blockersOf(x)).toEqual(['A/step-dev', 'B/step-dev']);
     // The display referent is the latest finisher — B — and the set is larger
     // than one, which is what the hover says "and 1 other" about.
     expect(x.resourcePredecessorId).toBe(sliceKey('B', DEV));
@@ -495,7 +495,7 @@ describe('float — the blocking set is the whole set', () => {
 
     const x = planned(found, 'X', DEV);
     expect(x.earliestStart).toBe(6);
-    expect(blockersOf(x)).toEqual(['A/role-dev', 'B/role-dev']);
+    expect(blockersOf(x)).toEqual(['A/step-dev', 'B/step-dev']);
     // A is edged even though B alone decided the window. Its late finish is
     // therefore X's late start, which is **at most** what a disjunctive
     // reading would give it — never more.
@@ -648,7 +648,7 @@ describe('the scan, instrumented', () => {
     // A wall-clock assertion is not an R5 proof and is flaky in CI, so what is
     // gated is the work the stated complexity is a claim about: the scan is
     // `O(E)` per placement over the aggregated events of one pool, and a plan
-    // of 200 work items × 3 roles on one pool of 4 has at most two events per
+    // of 200 work items × 3 steps on one pool of 4 has at most two events per
     // reserving block.
     //
     // The bound is derived rather than observed: 600 slices, each search
@@ -661,7 +661,7 @@ describe('the scan, instrumented', () => {
     const slices = rows.flatMap((row) => [
       slice(row.id, DEV, 2, { poolIds: [PLATFORM] }),
       slice(row.id, QA, 1, { poolIds: [PLATFORM] }),
-      slice(row.id, 'role-review', 1, { poolIds: [PLATFORM] }),
+      slice(row.id, 'step-review', 1, { poolIds: [PLATFORM] }),
     ]);
 
     const found = schedule(rows, [], slices, new Map(), pool(4));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { Project, Role, StoredDependency, WorkItem } from '../repository';
-import { ROLE_POSITION_STEP } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import { STEP_POSITION_STEP } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -66,12 +66,12 @@ const plan = captured as unknown as CapturedPlan;
 const PROJECT_ID = 'live-project';
 const capturedRows = plan.workItems;
 
-/** Every role the captured estimates name, in the order the rows print them. */
-function rolesInPlan(): string[] {
+/** Every step the captured estimates name, in the order the rows print them. */
+function stepsInPlan(): string[] {
   const named: string[] = [];
   for (const row of capturedRows) {
-    for (const roleId of Object.keys(row.estimates)) {
-      if (!named.includes(roleId)) named.push(roleId);
+    for (const stepId of Object.keys(row.estimates)) {
+      if (!named.includes(stepId)) named.push(stepId);
     }
   }
   return named;
@@ -80,12 +80,12 @@ function rolesInPlan(): string[] {
 /**
  * The captured project, rebuilt behind the service, and read back through it.
  *
- * `extraRoles` is the interesting knob: the live project's roles are not in the
- * response, only the ones its estimates name. A role nobody has estimated adds a
+ * `extraSteps` is the interesting knob: the live project's steps are not in the
+ * response, only the ones its estimates name. A step nobody has estimated adds a
  * zero-length slice to every leaf, and the claim is that it changes nothing —
  * which is the rule an unestimated `Dev` in front of an estimated `QA` rests on.
  */
-async function replay(extraRoles: readonly string[]) {
+async function replay(extraSteps: readonly string[]) {
   const projects = inMemoryProjects();
   const workItems = inMemoryWorkItems();
   const estimates = inMemoryEstimates(workItems);
@@ -128,13 +128,13 @@ async function replay(extraRoles: readonly string[]) {
     revision: plan.projectRevision,
     createdAt: 1,
   };
-  const roles: Role[] = [...rolesInPlan(), ...extraRoles].map((id, place) => ({
+  const steps: Step[] = [...stepsInPlan(), ...extraSteps].map((id, place) => ({
     id,
     projectId: PROJECT_ID,
-    name: `Role ${String(place)}`,
-    position: (place + 1) * ROLE_POSITION_STEP,
+    name: `Step ${String(place)}`,
+    position: (place + 1) * STEP_POSITION_STEP,
   }));
-  await projects.create(project, roles);
+  await projects.create(project, steps);
 
   for (const row of capturedRows) {
     const stored: WorkItem = {
@@ -161,8 +161,8 @@ async function replay(extraRoles: readonly string[]) {
   for (const row of capturedRows) {
     const children = capturedRows.some((each) => each.parentId === row.id);
     if (children) continue;
-    for (const [roleId, days] of Object.entries(row.estimates)) {
-      await estimates.set({ workItemId: row.id, roleId, ...days });
+    for (const [stepId, days] of Object.entries(row.estimates)) {
+      await estimates.set({ workItemId: row.id, stepId, ...days });
     }
   }
   for (const row of capturedRows) {
@@ -199,7 +199,7 @@ describe('a captured live plan, through the slice engine', () => {
   it('answers exactly what the live server answered', async () => {
     // Re-run under the anchor rule (`dep-waits-on-first-role`, 2026-08-11):
     // nothing moved. The capture's one dependency — `030` waiting on `010` —
-    // has a predecessor holding a single role, so its first slice is its last
+    // has a predecessor holding a single step, so its first slice is its last
     // and the two rules are the same rule on this plan. Every number below is
     // still the live server's, unedited.
     const tree = await replay([]);
@@ -216,10 +216,10 @@ describe('a captured live plan, through the slice engine', () => {
     }
   });
 
-  it('answers the same with a role nobody has estimated added to the project', async () => {
-    // The zero-length slice rule, against real numbers: a second role changes
+  it('answers the same with a step nobody has estimated added to the project', async () => {
+    // The zero-length slice rule, against real numbers: a second step changes
     // what the plan is computed in and must change nothing about the answer.
-    const tree = await replay(['role-nobody-estimated']);
+    const tree = await replay(['step-nobody-estimated']);
 
     for (const [at, row] of tree.workItems.entries()) {
       expect(row.schedule).toEqual(capturedRows[at].schedule);

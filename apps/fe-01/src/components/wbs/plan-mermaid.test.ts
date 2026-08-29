@@ -18,8 +18,8 @@ import {
   type SectionMode,
 } from './plan-mermaid';
 
-const DEV = { id: 'role-dev', name: 'Dev' };
-const QA = { id: 'role-qa', name: 'QA' };
+const DEV = { id: 'step-dev', name: 'Dev' };
+const QA = { id: 'step-qa', name: 'QA' };
 
 /**
  * The plan starts on Tuesday 1 September 2026, so the workdays are
@@ -46,7 +46,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   dates: null,
   schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
   assignees: {},
-  doesEveryPhase: null,
+  doesEveryStep: null,
   ...over,
 });
 
@@ -54,7 +54,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
 const slice = (
   over: Partial<ExportSlice> & Pick<ExportSlice, 'id' | 'workItemId'>,
 ): ExportSlice => ({
-  roleId: DEV.id,
+  stepId: DEV.id,
   personId: null,
   duration: 3,
   estimated: true,
@@ -78,7 +78,7 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
   method: 'pert',
   startDate: START,
   scheduleError: null,
-  roles: [DEV, QA],
+  steps: [DEV, QA],
   teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
   priorityBands: DEFAULT_PRIORITY_BANDS,
   people: [
@@ -232,7 +232,7 @@ describe('the dates', () => {
 });
 
 describe('the tasks', () => {
-  it('draws one task per slice, in row order and then role order', () => {
+  it('draws one task per slice, in row order and then step order', () => {
     // Payload order is be-01's, and it is not the chart's: the QA slice is
     // listed first here and belongs second.
     const rows = [
@@ -246,7 +246,7 @@ describe('the tasks', () => {
           slice({
             id: 's-qa',
             workItemId: 'a',
-            roleId: QA.id,
+            stepId: QA.id,
             earliestStart: 3,
             earliestFinish: 4,
           }),
@@ -307,9 +307,9 @@ describe('the tasks', () => {
     );
   });
 
-  it('names a slice under no role at all', () => {
-    expect(lines(plan({ slices: [slice({ id: 's', workItemId: 'a', roleId: null })] }))).toContain(
-      '010 Strip - no phase :s1, 2026-09-01, 2026-09-03',
+  it('names a slice under no step at all', () => {
+    expect(lines(plan({ slices: [slice({ id: 's', workItemId: 'a', stepId: null })] }))).toContain(
+      '010 Strip - no step :s1, 2026-09-01, 2026-09-03',
     );
   });
 });
@@ -368,7 +368,7 @@ describe('the section choice (M3)', () => {
     expect(lines(plan())).toEqual(lines(plan(), 'outline'));
   });
 
-  it("groups by phase, gathering a role's slices into one section wherever their rows sit, unnamed last", () => {
+  it("groups by step, gathering a step's slices into one section wherever their rows sit, unnamed last", () => {
     // Dev sits on rows a and c with a QA row (b) between them in row order —
     // the shape a row-order-only sort cannot keep as one section. See fault 1,
     // verify.md: with the section's own order struck from the sort, this draws
@@ -377,38 +377,38 @@ describe('the section choice (M3)', () => {
       plan({
         rows: [A, B, C],
         slices: [
-          // Deliberately out of row order and out of role order in the payload —
+          // Deliberately out of row order and out of step order in the payload —
           // be-01's order is not the diagram's, same discipline as the M1 tests.
           slice({
             id: 's-a-none',
             workItemId: 'a',
-            roleId: null,
+            stepId: null,
             earliestStart: 4,
             earliestFinish: 5,
           }),
           slice({
             id: 's-b-qa',
             workItemId: 'b',
-            roleId: QA.id,
+            stepId: QA.id,
             earliestStart: 3,
             earliestFinish: 4,
           }),
           slice({
             id: 's-c-dev',
             workItemId: 'c',
-            roleId: DEV.id,
+            stepId: DEV.id,
             earliestStart: 4,
             earliestFinish: 5,
           }),
-          slice({ id: 's-a-dev', workItemId: 'a', roleId: DEV.id }),
+          slice({ id: 's-a-dev', workItemId: 'a', stepId: DEV.id }),
         ],
       }),
-      'phase',
+      'step',
     );
     expect(text.filter((line) => line.startsWith('section'))).toEqual([
       'section Dev',
       'section QA',
-      'section no phase',
+      'section no step',
     ]);
     // Both Dev slices — row a and row c — sit under the one `section Dev`,
     // row a's ahead of row c's, before QA's row-b slice appears at all.
@@ -416,12 +416,12 @@ describe('the section choice (M3)', () => {
       '010 Strip - Dev :s1, 2026-09-01, 2026-09-03',
       '030 Test - Dev :s2, 2026-09-07, 2026-09-07',
       '020 Rewire - QA :s3, 2026-09-04, 2026-09-04',
-      '010 Strip - no phase :s4, 2026-09-07, 2026-09-07',
+      '010 Strip - no step :s4, 2026-09-07, 2026-09-07',
     ]);
   });
 
   it('groups by assignee, in the roster order the app already lists people in, unassigned last', () => {
-    // Same shape as the phase test, one level over: Ada on rows a and c, Bo's
+    // Same shape as the step test, one level over: Ada on rows a and c, Bo's
     // row (b) between them.
     const text = lines(
       plan({
@@ -466,22 +466,22 @@ describe('the section choice (M3)', () => {
     ]);
   });
 
-  it("escapes a phase's or a person's own name the same way a row's is escaped", () => {
+  it("escapes a step's or a person's own name the same way a row's is escaped", () => {
     const text = lines(
       plan({
-        roles: [{ id: 'role-x', name: 'QA: final' }],
+        steps: [{ id: 'step-x', name: 'QA: final' }],
         people: [{ id: 'person-x', name: 'Grace: on call' }],
-        slices: [slice({ id: 's', workItemId: 'a', roleId: 'role-x', personId: 'person-x' })],
+        slices: [slice({ id: 's', workItemId: 'a', stepId: 'step-x', personId: 'person-x' })],
       }),
-      'phase',
+      'step',
     );
     expect(text).toContain('section QA∶ final');
     expect(
       lines(
         plan({
-          roles: [{ id: 'role-x', name: 'QA' }],
+          steps: [{ id: 'step-x', name: 'QA' }],
           people: [{ id: 'person-x', name: 'Grace: on call' }],
-          slices: [slice({ id: 's', workItemId: 'a', roleId: 'role-x', personId: 'person-x' })],
+          slices: [slice({ id: 's', workItemId: 'a', stepId: 'step-x', personId: 'person-x' })],
         }),
         'assignee',
       ),
@@ -489,7 +489,7 @@ describe('the section choice (M3)', () => {
   });
 
   it('passes the choice through to the bundled document (M2), same fence either way', () => {
-    const result = planToMermaidDocument(plan(), 'phase');
+    const result = planToMermaidDocument(plan(), 'step');
     if (!result.drawn) throw new Error('expected a document');
     expect(result.text).toContain('section Dev');
     expect(result.text).not.toContain('section 010 Strip');
@@ -500,8 +500,8 @@ describe('the escaping', () => {
   it('keeps a colon in a name out of the position Mermaid splits on', () => {
     // A colon does not break the diagram — it silently moves the split, and the
     // reader gets a task whose id is a word out of somebody's name.
-    const text = lines(plan({ rows: [row({ id: 'a', number: '010', name: 'Phase 1: strip' })] }));
-    expect(text).toContain('010 Phase 1∶ strip - Dev :s1, 2026-09-01, 2026-09-03');
+    const text = lines(plan({ rows: [row({ id: 'a', number: '010', name: 'Step 1: strip' })] }));
+    expect(text).toContain('010 Step 1∶ strip - Dev :s1, 2026-09-01, 2026-09-03');
   });
 
   it('collapses a line break in a name, which would end the line halfway', () => {
@@ -546,7 +546,7 @@ describe('what M1 deliberately does not print', () => {
 
   it('asks Mermaid to compute nothing: no after, and every task dated twice', () => {
     // `after` is a layout instruction. Mermaid knows nothing about capacity
-    // floors, person floors, role order or not-before dates, so a diagram laid
+    // floors, person floors, step order or not-before dates, so a diagram laid
     // out by it would silently disagree with be-01 on exactly the plans where
     // the disagreement matters.
     const text = drawn(
@@ -781,14 +781,14 @@ describe('a real Mermaid parse (M5)', () => {
 
   describe('the colon escape, watched against the real lexer', () => {
     it('keeps a colon in a name from moving the split, once escaped', async () => {
-      const text = drawn(plan({ rows: [row({ id: 'a', number: '010', name: 'Phase 1: strip' })] }));
+      const text = drawn(plan({ rows: [row({ id: 'a', number: '010', name: 'Step 1: strip' })] }));
       const { type, db } = await realGantt(text);
       expect(type).toBe('gantt');
       const [task] = db.getTasks();
       // The id the writer generated, not a word torn out of the name — which
       // is exactly what an unescaped colon would produce, proven next.
       expect(task.id).toBe('s1');
-      expect(task.task).toContain('Phase 1∶ strip');
+      expect(task.task).toContain('Step 1∶ strip');
     });
 
     it('— and unescaped, the real lexer does silently move the split', async () => {
@@ -802,14 +802,14 @@ describe('a real Mermaid parse (M5)', () => {
         'inclusiveEndDates',
         'excludes weekends',
         'section S',
-        'Phase 1: strip :s1, 2026-09-01, 2026-09-03',
+        'Step 1: strip :s1, 2026-09-01, 2026-09-03',
       ].join('\n');
       const { db } = await realGantt(text);
       const [task] = db.getTasks();
-      // The colon split the line at "Phase 1", not where the writer's own
+      // The colon split the line at "Step 1", not where the writer's own
       // `s1` id was typed — id and dates alike are dragged out of the
       // metadata position and mangled, silently, with no parse error at all.
-      expect(task.task).toBe('Phase 1');
+      expect(task.task).toBe('Step 1');
       expect(task.id).not.toBe('s1');
     });
   });
@@ -823,13 +823,13 @@ describe('a real Mermaid parse (M5)', () => {
         slice({
           id: 's-a-dev',
           workItemId: 'a',
-          roleId: DEV.id,
+          stepId: DEV.id,
           personId: 'person-ada',
         }),
         slice({
           id: 's-a-qa',
           workItemId: 'a',
-          roleId: QA.id,
+          stepId: QA.id,
           personId: 'person-bo',
           earliestStart: 3,
           earliestFinish: 4,
@@ -837,7 +837,7 @@ describe('a real Mermaid parse (M5)', () => {
         slice({
           id: 's-b-dev',
           workItemId: 'b',
-          roleId: DEV.id,
+          stepId: DEV.id,
           personId: 'person-ada',
           earliestStart: 4,
           earliestFinish: 5,
@@ -845,7 +845,7 @@ describe('a real Mermaid parse (M5)', () => {
         slice({
           id: 's-b-qa',
           workItemId: 'b',
-          roleId: QA.id,
+          stepId: QA.id,
           personId: 'person-bo',
           earliestStart: 5,
           earliestFinish: 6,
@@ -855,7 +855,7 @@ describe('a real Mermaid parse (M5)', () => {
 
     const cases: { mode: SectionMode; sections: string[] }[] = [
       { mode: 'outline', sections: ['010 Strip', '020 Rewire'] },
-      { mode: 'phase', sections: ['Dev', 'QA'] },
+      { mode: 'step', sections: ['Dev', 'QA'] },
       { mode: 'assignee', sections: ['Ada', 'Bo'] },
     ];
 

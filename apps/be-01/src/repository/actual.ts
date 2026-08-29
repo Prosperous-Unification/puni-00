@@ -3,7 +3,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { ActualStore, StoredActual } from './index';
 import { bumpWorkItems } from './revision';
-import { actual, role, workItem } from './schema';
+import { actual, step, workItem } from './schema';
 
 /**
  * An actual is a **satellite** of the work item it is for, exactly as an
@@ -21,16 +21,16 @@ export class ActualRepository implements ActualStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Every actual in the project, **in role order** within each work item.
+   * Every actual in the project, **in step order** within each work item.
    *
    * Ordered for `EstimateRepository.listByProject`'s reason and for one weaker
    * one. The strong half does not apply here — a work item's actuals are summed
    * in the roll-up, and floating-point addition is not associative, so the order
    * decides the last bit of a parent's total exactly as it does for estimates.
    * The weak half is that two reads of an unchanged plan must not disagree about
-   * the order of a row's roles on screen.
+   * the order of a row's steps on screen.
    *
-   * Ordered by the role's **position**, so the order this hands back is the
+   * Ordered by the step's **position**, so the order this hands back is the
    * order the work runs in — the same order the estimates come back in, which is
    * what lets a reader put the two lists side by side.
    */
@@ -44,27 +44,27 @@ export class ActualRepository implements ActualStore {
       this.db
         .select({
           workItemId: actual.workItemId,
-          roleId: actual.roleId,
+          stepId: actual.stepId,
           days: actual.days,
           recordedAt: actual.recordedAt,
         })
         .from(actual)
         // Inner rather than left: `actual.role_id` is a foreign key, so an
-        // actual whose role is gone cannot exist — `RoleRepository.remove`
-        // deletes them in the same transaction as the role.
-        .innerJoin(role, eq(actual.roleId, role.id))
+        // actual whose step is gone cannot exist — `StepRepository.remove`
+        // deletes them in the same transaction as the step.
+        .innerJoin(step, eq(actual.stepId, step.id))
         .where(
           inArray(
             actual.workItemId,
             ids.map((row) => row.id),
           ),
         )
-        .orderBy(actual.workItemId, role.position, actual.roleId)
+        .orderBy(actual.workItemId, step.position, actual.stepId)
     );
   }
 
   /**
-   * Writes one work item's actual for one role, replacing any earlier one.
+   * Writes one work item's actual for one step, replacing any earlier one.
    *
    * `recordedAt` is replaced with the new write's own stamp rather than kept
    * from the row being overwritten: the column says when this number was typed,
@@ -76,7 +76,7 @@ export class ActualRepository implements ActualStore {
       tx.insert(actual)
         .values(toSet)
         .onConflictDoUpdate({
-          target: [actual.workItemId, actual.roleId],
+          target: [actual.workItemId, actual.stepId],
           set: { days: toSet.days, recordedAt: toSet.recordedAt },
         })
         .run();
@@ -84,15 +84,15 @@ export class ActualRepository implements ActualStore {
     });
   }
 
-  async remove(workItemId: string, roleId: string): Promise<void> {
-    // Both halves of the key, not the role alone: the composite primary key is
-    // (work item, role), and narrowing to one of them would clear that role
+  async remove(workItemId: string, stepId: string): Promise<void> {
+    // Both halves of the key, not the step alone: the composite primary key is
+    // (work item, step), and narrowing to one of them would clear that step
     // across the whole database. `actual.test.ts` keeps a survivor for each half
     // so that mistake cannot pass — the same guard `estimate.test.ts` keeps.
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.delete(actual)
-        .where(and(eq(actual.workItemId, workItemId), eq(actual.roleId, roleId)))
+        .where(and(eq(actual.workItemId, workItemId), eq(actual.stepId, stepId)))
         .run();
       bumpWorkItems(tx, [workItemId]);
     });

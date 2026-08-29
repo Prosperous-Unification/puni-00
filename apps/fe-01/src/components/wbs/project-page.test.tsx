@@ -67,7 +67,7 @@ function fakeProjects(
         seq: -1,
         scheduleError: null,
         slices: [],
-        roles: [],
+        steps: [],
         assignedPeople: [],
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -89,10 +89,10 @@ function fakeProjects(
     listPeople: () => Promise.resolve([]),
     addPerson: () => Promise.reject(new Error('not_in_these_tests')),
     assign: () => Promise.reject(new Error('not_in_these_tests')),
-    roles: () => Promise.resolve([]),
-    addRole: () => Promise.reject(new Error('not_in_these_tests')),
-    renameRole: () => Promise.reject(new Error('not_in_these_tests')),
-    removeRole: () => Promise.reject(new Error('not_in_these_tests')),
+    steps: () => Promise.resolve([]),
+    addStep: () => Promise.reject(new Error('not_in_these_tests')),
+    renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+    removeStep: () => Promise.reject(new Error('not_in_these_tests')),
     create: () => Promise.reject(new Error('not_in_these_tests')),
     patch: () => Promise.reject(new Error('not_in_these_tests')),
     move: () => Promise.reject(new Error('not_in_these_tests')),

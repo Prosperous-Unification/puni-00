@@ -6,8 +6,8 @@ import {
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
-  roleRefusalSentence,
-  type RoleUsage,
+  stepRefusalSentence,
+  type StepUsage,
 } from './wbs-api';
 
 /**
@@ -27,7 +27,7 @@ const TREE = (projectId: string, ids: string[]): string =>
     seq: 1,
     scheduleError: null,
     slices: [],
-    roles: [],
+    steps: [],
     assignedPeople: [],
     teamCapacities: [],
     priorityBands: [],
@@ -38,8 +38,8 @@ const TREE = (projectId: string, ids: string[]): string =>
     redoable: false,
   });
 
-/** What be-01 answers a first, uncascaded removal of a phase somebody is using. */
-const IN_USE: RoleUsage = {
+/** What be-01 answers a first, uncascaded removal of a step somebody is using. */
+const IN_USE: StepUsage = {
   estimates: 2,
   assignments: 1,
   assumedAssignees: [{ workItemId: 'w2', assumedNow: null, assumedAfter: 'p1' }],
@@ -49,7 +49,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('removing a phase', () => {
+describe('removing a step', () => {
   it('reads the counts out of the refusal rather than throwing the code', async () => {
     // The whole reason this call does not go through `send`: `send` throws the
     // `error` field and drops `inUse` with it, and `inUse` is what the
@@ -63,7 +63,7 @@ describe('removing a phase', () => {
         Promise.resolve(response(409, JSON.stringify({ error: 'in_use', inUse: IN_USE }))),
       ),
     );
-    await expect(httpProjectApi('t').removeRole('p1', 'role-qa', false)).resolves.toEqual({
+    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).resolves.toEqual({
       ok: false,
       reason: 'in_use',
       inUse: IN_USE,
@@ -71,14 +71,14 @@ describe('removing a phase', () => {
   });
 
   it('throws a 409 that is not the refusal this client models', async () => {
-    // There is no such answer from `roleController` today. The branch exists so
+    // There is no such answer from `stepController` today. The branch exists so
     // that if one ever arrives it is a failure somebody sees, rather than being
     // read as an `in_use` with no counts in it.
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'taken' })))),
     );
-    await expect(httpProjectApi('t').removeRole('p1', 'role-qa', false)).rejects.toThrow('taken');
+    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).rejects.toThrow('taken');
   });
 
   it('throws an in_use with no counts rather than confirming against nothing', async () => {
@@ -89,18 +89,18 @@ describe('removing a phase', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'in_use' })))),
     );
-    await expect(httpProjectApi('t').removeRole('p1', 'role-qa', false)).rejects.toThrow('in_use');
+    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).rejects.toThrow('in_use');
   });
 
   it('asks for the cascade only when it is given one', async () => {
     const fetched = vi.fn(() => Promise.resolve(response(204, '')));
     vi.stubGlobal('fetch', fetched);
     const api = httpProjectApi('t');
-    await api.removeRole('p1', 'role-qa', false);
-    await api.removeRole('p1', 'role-qa', true);
+    await api.removeStep('p1', 'step-qa', false);
+    await api.removeStep('p1', 'step-qa', true);
     expect(fetched.mock.calls.map((call) => call[0])).toEqual([
-      '/api/projects/p1/roles/role-qa',
-      '/api/projects/p1/roles/role-qa?cascade=true',
+      '/api/projects/p1/steps/step-qa',
+      '/api/projects/p1/steps/step-qa?cascade=true',
     ]);
   });
 
@@ -109,23 +109,23 @@ describe('removing a phase', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(204, ''))),
     );
-    await expect(httpProjectApi('t').removeRole('p1', 'role-qa', false)).resolves.toEqual({
+    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).resolves.toEqual({
       ok: true,
     });
   });
 });
 
-describe('adding and renaming a phase', () => {
-  it('sends the name and answers with the phase', async () => {
+describe('adding and renaming a step', () => {
+  it('sends the name and answers with the step', async () => {
     const fetched = vi.fn(() =>
-      Promise.resolve(response(200, JSON.stringify({ role: { id: 'r3', name: 'Design' } }))),
+      Promise.resolve(response(200, JSON.stringify({ step: { id: 'r3', name: 'Design' } }))),
     );
     vi.stubGlobal('fetch', fetched);
-    await expect(httpProjectApi('t').addRole('p1', 'Design')).resolves.toEqual({
+    await expect(httpProjectApi('t').addStep('p1', 'Design')).resolves.toEqual({
       id: 'r3',
       name: 'Design',
     });
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/roles');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
     expect((fetched.mock.calls[0]?.[1] as RequestInit | undefined)?.body).toBe(
       JSON.stringify({ name: 'Design' }),
     );
@@ -136,25 +136,25 @@ describe('adding and renaming a phase', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'taken' })))),
     );
-    await expect(httpProjectApi('t').renameRole('p1', 'r3', 'Dev')).rejects.toThrow('taken');
+    await expect(httpProjectApi('t').renameStep('p1', 'r3', 'Dev')).rejects.toThrow('taken');
   });
 });
 
-describe('what a refused phase change says', () => {
-  it('has a sentence for every code roleController answers with', () => {
-    // The list is `statusFor` in `apps/be-01/src/controller/role.controller.ts`
-    // plus `unknown_role`, which the estimate and assignee writes answer with
-    // once a phase has gone. A code with no sentence would reach a toast as
+describe('what a refused step change says', () => {
+  it('has a sentence for every code stepController answers with', () => {
+    // The list is `statusFor` in `apps/be-01/src/controller/step.controller.ts`
+    // plus `unknown_step`, which the estimate and assignee writes answer with
+    // once a step has gone. A code with no sentence would reach a toast as
     // itself, which is what this change exists to stop.
     for (const code of [
       'taken',
       'name_required',
       'in_use',
-      'unknown_role',
+      'unknown_step',
       'not_found',
       'forbidden',
     ]) {
-      const sentence = roleRefusalSentence(code);
+      const sentence = stepRefusalSentence(code);
       expect(sentence).not.toContain(code);
       expect(sentence.endsWith('.')).toBe(true);
     }
@@ -164,7 +164,7 @@ describe('what a refused phase change says', () => {
     // Not a default sentence with the code dropped: an unrecognised refusal is
     // something to report, and a message that hid it would leave nobody able to
     // say what be-01 answered.
-    expect(roleRefusalSentence('http_502')).toContain('http_502');
+    expect(stepRefusalSentence('http_502')).toContain('http_502');
   });
 });
 
@@ -184,7 +184,7 @@ const USAGE: DirectoryUsage = {
           number: '3.1',
           name: 'Design',
           effects: [
-            { kind: 'assignment_dropped', role: { id: 'r1', name: 'Dev' } },
+            { kind: 'assignment_dropped', step: { id: 'r1', name: 'Dev' } },
             { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
           ],
         },
@@ -359,7 +359,7 @@ describe('the directory client', () => {
     // unknown arm sits beside a known one only if it knows them all, but a
     // failure would not say which arm was refused.
     const oneOfEach: Record<DirectoryEffect['kind'], DirectoryEffect> = {
-      assignment_dropped: { kind: 'assignment_dropped', role: { id: 'r1', name: 'Dev' } },
+      assignment_dropped: { kind: 'assignment_dropped', step: { id: 'r1', name: 'Dev' } },
       label_nulled: { kind: 'label_nulled' },
       label_removed: { kind: 'label_removed' },
       capacity_released: { kind: 'capacity_released', size: 4, fromId: 'w7' },

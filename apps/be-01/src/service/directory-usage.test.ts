@@ -35,7 +35,7 @@ function rowsOf(
     workItems,
     projects: [{ id: 'p1', name: 'Rollout' }],
     assignments: [],
-    roles: [],
+    steps: [],
     people: [],
     members: [],
     capacityOf,

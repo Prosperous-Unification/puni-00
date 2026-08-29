@@ -56,7 +56,7 @@ function event(id: string, daysAgo: number): PlanEvent {
     kind: 'estimate',
     label: `estimate ${id}`,
     workItemId: 'w1',
-    roleId: 'r1',
+    stepId: 'r1',
     before: { do: 'clear_estimate' },
     after: { do: 'set_estimate' },
     createdAt: NOW - daysAgo * DAY_MS,

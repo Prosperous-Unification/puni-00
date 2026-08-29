@@ -17,7 +17,7 @@ import type { Days } from './roll-up';
 import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
-const DEV = 'role-dev';
+const DEV = 'step-dev';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
@@ -73,7 +73,7 @@ async function add(name: string): Promise<string> {
  * What `WorkItemService.record` writes to the plan's history.
  *
  * The seam is one call and every journalled command goes through it, so these
- * cases are about the *derivation*: which row an event names, which role, and
+ * cases are about the *derivation*: which row an event names, which step, and
  * that the before and after are the two commands the journal already held. What
  * the store does with the pair is `repository/command-journal.test.ts`.
  */
@@ -95,22 +95,22 @@ describe('the plan’s history, as commands are recorded', () => {
 
     const estimates = journal.events.filter((each) => each.kind === 'estimate');
     expect(estimates).toHaveLength(2);
-    expect(estimates.at(0)?.before).toEqual({ do: 'clear_estimate', workItemId: id, roleId: DEV });
+    expect(estimates.at(0)?.before).toEqual({ do: 'clear_estimate', workItemId: id, stepId: DEV });
     expect(estimates.at(1)?.before).toEqual({
       do: 'set_estimate',
       workItemId: id,
-      roleId: DEV,
+      stepId: DEV,
       days: days(1, 2, 3),
     });
     expect(estimates.at(1)?.after).toEqual({
       do: 'set_estimate',
       workItemId: id,
-      roleId: DEV,
+      stepId: DEV,
       days: days(2, 4, 8),
     });
   });
 
-  it('names the work item and the role an estimate was aimed at', async () => {
+  it('names the work item and the step an estimate was aimed at', async () => {
     // What `?workItemId=` and `?kind=` filter on. Derived from the forward command
     // rather than from `touched`, which for a dependency is two rows and for a
     // freeze is the whole plan.
@@ -119,7 +119,7 @@ describe('the plan’s history, as commands are recorded', () => {
 
     const recorded = journal.events.at(-1);
     expect(recorded?.workItemId).toBe(id);
-    expect(recorded?.roleId).toBe(DEV);
+    expect(recorded?.stepId).toBe(DEV);
     expect(recorded?.projectId).toBe(projectId);
     expect(recorded?.userId).toBe(OWNER);
     expect(recorded?.label).toBe('estimate “Strip the roof”');
@@ -143,7 +143,7 @@ describe('the plan’s history, as commands are recorded', () => {
     expect(cleared.at(0)?.before).toEqual({
       do: 'set_estimate',
       workItemId: id,
-      roleId: DEV,
+      stepId: DEV,
       days: days(1, 2, 3),
     });
   });
@@ -178,7 +178,7 @@ describe('the plan’s history, as commands are recorded', () => {
 
     const dependency = journal.events.find((each) => each.kind === 'add_dependency');
     expect(dependency?.workItemId).toBe(second);
-    expect(dependency?.roleId).toBeNull();
+    expect(dependency?.stepId).toBeNull();
 
     const frozen = journal.events.find((each) => each.kind === 'freeze');
     expect(frozen?.workItemId).toBeNull();

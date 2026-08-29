@@ -26,7 +26,7 @@
       "assignees": {
         "a6592451-1862-4f9e-8d57-42af3f9d8a36": "05f2fcbc-def1-4294-915a-4c317f639697"
       },
-      "doesEveryPhase": "05f2fcbc-def1-4294-915a-4c317f639697",
+      "doesEveryStep": "05f2fcbc-def1-4294-915a-4c317f639697",
       "schedule": {
         "duration": 3.6666666666666665,
         "estimated": true,
@@ -57,7 +57,7 @@
       "rolledUp": false,
       "dependsOn": [],
       "assignees": {},
-      "doesEveryPhase": null,
+      "doesEveryStep": null,
       "schedule": {
         "duration": 0,
         "estimated": false,
@@ -88,7 +88,7 @@
       "rolledUp": true,
       "dependsOn": ["0ab7b401-9180-4745-ab58-8f17c77a0921"],
       "assignees": {},
-      "doesEveryPhase": null,
+      "doesEveryStep": null,
       "schedule": {
         "duration": 0,
         "estimated": false,
@@ -119,7 +119,7 @@
       "rolledUp": true,
       "dependsOn": [],
       "assignees": {},
-      "doesEveryPhase": null,
+      "doesEveryStep": null,
       "schedule": {
         "duration": 0,
         "estimated": false,
@@ -150,7 +150,7 @@
       "rolledUp": false,
       "dependsOn": [],
       "assignees": {},
-      "doesEveryPhase": null,
+      "doesEveryStep": null,
       "schedule": {
         "duration": 0,
         "estimated": false,
@@ -187,7 +187,7 @@
       "rolledUp": false,
       "dependsOn": [],
       "assignees": {},
-      "doesEveryPhase": null,
+      "doesEveryStep": null,
       "schedule": {
         "duration": 4.5,
         "estimated": true,

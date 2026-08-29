@@ -72,7 +72,7 @@ export function bumpWorkItems(writer: RevisionWriter, ids: readonly string[]): v
     .run();
 }
 
-/** The same, for one project — its own fields and its roles. */
+/** The same, for one project — its own fields and its steps. */
 export function bumpProject(writer: RevisionWriter, id: string): void {
   writer.update(project).set({ revision: bumpedProject }).where(eq(project.id, id)).run();
 }

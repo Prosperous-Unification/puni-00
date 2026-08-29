@@ -8,7 +8,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -34,7 +34,7 @@ let workItems: WorkItemStore;
 let service: WorkItemService;
 let serviceOptions: WorkItemServiceOptions;
 let projectId: string;
-let roleId: string;
+let stepId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
 let directory: ReturnType<typeof inMemoryDirectory>;
 /**
@@ -46,7 +46,7 @@ let capacity: CapacityStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
+let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
@@ -94,9 +94,9 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  roleId = crypto.randomUUID();
+  stepId = crypto.randomUUID();
   await projects.create(project, [
-    { id: roleId, projectId: project.id, name: 'Dev', position: 10 },
+    { id: stepId, projectId: project.id, name: 'Dev', position: 10 },
   ]);
   projectId = project.id;
   // The people these tests assign. They have to be in the directory because
@@ -393,7 +393,7 @@ describe('dependencies', () => {
   });
 
   it('refuses an edge onto its own parent', async () => {
-    const parent = await add('Phase');
+    const parent = await add('Step');
     const child = await add('Task', parent);
 
     expect(await service.addDependency(child, OWNER, parent)).toEqual({
@@ -440,7 +440,7 @@ describe('dependencies', () => {
     // The other delete path. It removes one row rather than a subtree, and it
     // had no edge cleanup at all — found by asking whether the first fix covered
     // both branches rather than assuming the tests would have said.
-    const parent = await add('Phase');
+    const parent = await add('Step');
     await add('Task', parent);
     const other = await add('Sand');
     await service.addDependency(other, OWNER, parent);
@@ -519,8 +519,8 @@ describe('dependencies', () => {
   it('schedules a dependent work item after the one it waits for', async () => {
     const a = await add('Strip');
     const b = await add('Sand');
-    await service.setEstimate(a, OWNER, roleId, { optimistic: 2, realistic: 2, pessimistic: 2 });
-    await service.setEstimate(b, OWNER, roleId, { optimistic: 3, realistic: 3, pessimistic: 3 });
+    await service.setEstimate(a, OWNER, stepId, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await service.setEstimate(b, OWNER, stepId, { optimistic: 3, realistic: 3, pessimistic: 3 });
     await service.addDependency(b, OWNER, a);
 
     const tree = await service.tree(projectId);
@@ -535,10 +535,10 @@ describe('the plan waits for the people in it', () => {
   const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
 
   /** A second project, holding `Dev` and `QA` in that order. */
-  async function twoRoleProject() {
+  async function twoStepProject() {
     const project: Project = {
       id: crypto.randomUUID(),
-      name: 'Two phases',
+      name: 'Two steps',
       ownerId: OWNER,
       restricted: false,
       estimateMethod: 'pert',
@@ -558,10 +558,10 @@ describe('the plan waits for the people in it', () => {
   it('runs two work items one person is doing one after the other', async () => {
     const first = await add('Strip');
     const second = await add('Sand');
-    await service.setEstimate(first, OWNER, roleId, flat(3));
-    await service.setEstimate(second, OWNER, roleId, flat(2));
-    await directory.assign(first, roleId, 'ada');
-    await directory.assign(second, roleId, 'ada');
+    await service.setEstimate(first, OWNER, stepId, flat(3));
+    await service.setEstimate(second, OWNER, stepId, flat(2));
+    await directory.assign(first, stepId, 'ada');
+    await directory.assign(second, stepId, 'ada');
 
     const tree = await service.tree(projectId);
 
@@ -582,10 +582,10 @@ describe('the plan waits for the people in it', () => {
     // round. Without the priority `first` reads first and takes `ada`.
     const first = await add('Strip');
     const second = await add('Sand');
-    await service.setEstimate(first, OWNER, roleId, flat(3));
-    await service.setEstimate(second, OWNER, roleId, flat(2));
-    await directory.assign(first, roleId, 'ada');
-    await directory.assign(second, roleId, 'ada');
+    await service.setEstimate(first, OWNER, stepId, flat(3));
+    await service.setEstimate(second, OWNER, stepId, flat(2));
+    await directory.assign(first, stepId, 'ada');
+    await directory.assign(second, stepId, 'ada');
 
     const before = await service.tree(projectId);
     expect(before?.workItems.find((w) => w.id === first)?.schedule.earliestStart).toBe(0);
@@ -607,33 +607,33 @@ describe('the plan waits for the people in it', () => {
   });
 
   it('reaches every leaf beneath a parent somebody gave a priority', async () => {
-    // The mirror of the parent floor: a priority written on a phase means its work
+    // The mirror of the parent floor: a priority written on a step means its work
     // is what matters, and the leaves beneath it are the only things a queue
     // can be made of.
     //
     // `Wire` is created **unprioritised** on purpose. Since
     // `priority-default-medium` a create carries the project's middle rung, and
     // `priorityByLeaf` resolves by the most specific statement — so a leaf with
-    // one of its own is a leaf a phase's priority no longer reaches, which is
+    // one of its own is a leaf a step's priority no longer reaches, which is
     // the rule working rather than failing. The state under test here is a leaf
     // nobody has ranked, and only an explicit null still puts a row in it.
-    const phase = await add('Phase');
-    const inside = await unranked('Wire', phase);
+    const step = await add('Step');
+    const inside = await unranked('Wire', step);
     const other = await add('Sand');
-    await service.setEstimate(inside, OWNER, roleId, flat(3));
-    await service.setEstimate(other, OWNER, roleId, flat(2));
-    await directory.assign(inside, roleId, 'ada');
-    await directory.assign(other, roleId, 'ada');
+    await service.setEstimate(inside, OWNER, stepId, flat(3));
+    await service.setEstimate(other, OWNER, stepId, flat(2));
+    await directory.assign(inside, stepId, 'ada');
+    await directory.assign(other, stepId, 'ada');
 
-    // `Phase` reads first, so `Wire` already takes `ada` — a priority on `other`
+    // `Step` reads first, so `Wire` already takes `ada` — a priority on `other`
     // is what makes the second half of this say anything at all.
     await service.patch(other, OWNER, { priority: 2 });
     const after = await service.tree(projectId);
     expect(after?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(0);
 
-    // And now the phase outranks it — 1 against 2 — through its leaf, which is
+    // And now the step outranks it — 1 against 2 — through its leaf, which is
     // the only thing in the queue.
-    await service.patch(phase, OWNER, { priority: 1 });
+    await service.patch(step, OWNER, { priority: 1 });
     const ranked = await service.tree(projectId);
 
     expect(ranked?.workItems.find((w) => w.id === inside)?.schedule).toMatchObject({
@@ -646,10 +646,10 @@ describe('the plan waits for the people in it', () => {
   it('leaves them where they were when the two are different people', async () => {
     const first = await add('Strip');
     const second = await add('Sand');
-    await service.setEstimate(first, OWNER, roleId, flat(2));
-    await service.setEstimate(second, OWNER, roleId, flat(3));
-    await directory.assign(first, roleId, 'ada');
-    await directory.assign(second, roleId, 'grace');
+    await service.setEstimate(first, OWNER, stepId, flat(2));
+    await service.setEstimate(second, OWNER, stepId, flat(3));
+    await directory.assign(first, stepId, 'ada');
+    await directory.assign(second, stepId, 'grace');
 
     const tree = await service.tree(projectId);
 
@@ -657,11 +657,11 @@ describe('the plan waits for the people in it', () => {
     expect(tree?.waitingForPerson).toBe(0);
   });
 
-  it('queues every phase of a work item its one assignee is assumed to be doing', async () => {
-    // The assumed assignee, as time: one named person on a two-role work item
+  it('queues every step of a work item its one assignee is assumed to be doing', async () => {
+    // The assumed assignee, as time: one named person on a two-step work item
     // is doing both of its slices, so nothing else of theirs can run alongside
     // either. Only `Dev` is assigned here — the `QA` queue is the assumption.
-    const two = await twoRoleProject();
+    const two = await twoStepProject();
     const covered = (await service.create(two.projectId, OWNER, {
       parentId: null,
       afterId: null,
@@ -697,7 +697,7 @@ describe('the plan waits for the people in it', () => {
   it('stops assuming at two, and lets the second person work alongside the first', async () => {
     // The same plan with `QA` named as well: `grace` does the QA, so `ada` is
     // free the moment her own `Dev` is done and the next work item follows it.
-    const two = await twoRoleProject();
+    const two = await twoStepProject();
     const covered = (await service.create(two.projectId, OWNER, {
       parentId: null,
       afterId: null,
@@ -725,7 +725,7 @@ describe('the plan waits for the people in it', () => {
 
   it('reports nobody waiting on a plan nobody is assigned to', async () => {
     const first = await add('Strip');
-    await service.setEstimate(first, OWNER, roleId, flat(2));
+    await service.setEstimate(first, OWNER, stepId, flat(2));
 
     expect((await service.tree(projectId))?.waitingForPerson).toBe(0);
   });
@@ -736,8 +736,8 @@ describe('the plan waits for the people in it', () => {
     // would be one more confident lie beside the banner saying so.
     const a = await add('Strip');
     const b = await add('Sand');
-    await directory.assign(a, roleId, 'ada');
-    await directory.assign(b, roleId, 'ada');
+    await directory.assign(a, stepId, 'ada');
+    await directory.assign(b, stepId, 'ada');
     await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b });
     await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a });
 
@@ -755,24 +755,24 @@ describe('who is doing the work', () => {
     const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
 
     expect(row?.assignees).toEqual({});
-    expect(row?.doesEveryPhase).toBeNull();
+    expect(row?.doesEveryStep).toBeNull();
   });
 
-  it('assumes one assignee does every phase, and stops assuming at two', async () => {
+  it('assumes one assignee does every step, and stops assuming at two', async () => {
     // Dany, 2026-08-06: "when just one is assigned it is assumed they do both
     // dev and QA". Read from the assignments rather than written as a second
     // row, so nobody is recorded against work they were never given.
     const id = await add('Strip');
-    const qaRoleId = crypto.randomUUID();
-    await directory.assign(id, roleId, 'ada');
+    const qaStepId = crypto.randomUUID();
+    await directory.assign(id, stepId, 'ada');
     let row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
-    expect(row?.doesEveryPhase).toBe('ada');
+    expect(row?.doesEveryStep).toBe('ada');
 
-    await directory.assign(id, qaRoleId, 'grace');
+    await directory.assign(id, qaStepId, 'grace');
 
     row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
-    expect(row?.assignees).toEqual({ [roleId]: 'ada', [qaRoleId]: 'grace' });
-    expect(row?.doesEveryPhase).toBeNull();
+    expect(row?.assignees).toEqual({ [stepId]: 'ada', [qaStepId]: 'grace' });
+    expect(row?.doesEveryStep).toBeNull();
   });
 
   it('assigns somebody who is not in the work item’s team', async () => {
@@ -781,11 +781,11 @@ describe('who is doing the work', () => {
     const id = await add('Strip');
     await service.patch(id, OWNER, { serviceTeamId: 'team-billing' });
 
-    const outcome = await service.assign(id, OWNER, roleId, 'ada-of-platform');
+    const outcome = await service.assign(id, OWNER, stepId, 'ada-of-platform');
 
     expect(outcome.ok).toBe(true);
     const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
-    expect(row?.assignees[roleId]).toBe('ada-of-platform');
+    expect(row?.assignees[stepId]).toBe('ada-of-platform');
     expect(row?.serviceTeamId).toBe('team-billing');
   });
 
@@ -795,7 +795,7 @@ describe('who is doing the work', () => {
     const id = await add('Strip');
     await directory.removePerson('ada', true);
 
-    const outcome = await service.assign(id, OWNER, roleId, 'ada');
+    const outcome = await service.assign(id, OWNER, stepId, 'ada');
 
     expect(outcome).toEqual({ ok: false, reason: 'unknown_person' });
     expect(await directory.assignmentsOf([id])).toEqual([]);
@@ -817,9 +817,9 @@ describe('who is doing the work', () => {
 
   it('clears an assignment', async () => {
     const id = await add('Strip');
-    await service.assign(id, OWNER, roleId, 'ada');
+    await service.assign(id, OWNER, stepId, 'ada');
 
-    await service.assign(id, OWNER, roleId, null);
+    await service.assign(id, OWNER, stepId, null);
 
     expect((await service.tree(projectId))?.workItems.find((w) => w.id === id)?.assignees).toEqual(
       {},
@@ -871,12 +871,12 @@ describe('duplicating a subtree', () => {
       startNoEarlierThan: '2026-09-01',
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
-    await service.setEstimate(socket, OWNER, roleId, {
+    await service.setEstimate(socket, OWNER, stepId, {
       optimistic: 1,
       realistic: 2,
       pessimistic: 6,
     });
-    await service.assign(socket, OWNER, roleId, 'ada');
+    await service.assign(socket, OWNER, stepId, 'ada');
 
     const copyId = await duplicate(strip);
 
@@ -891,12 +891,12 @@ describe('duplicating a subtree', () => {
     // unlike a recorded actual or a stated progress, which are claims about work
     // that was done on the original alone.
     expect(copied?.startNoEarlierThanReason).toBe('waiting on client sign-off');
-    expect(copied?.estimates[roleId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
-    expect(copied?.assignees[roleId]).toBe('ada');
+    expect(copied?.estimates[stepId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
+    expect(copied?.assignees[stepId]).toBe('ada');
   });
 
   /**
-   * The one that decides whether this feature is worth having. A copied phase
+   * The one that decides whether this feature is worth having. A copied step
    * whose edges still point at the original schedules the copy against work it
    * has nothing to do with, and nothing on screen says so.
    *
@@ -1002,7 +1002,7 @@ describe('the calendar', () => {
   const THURSDAY = '2026-08-06';
 
   const twoDaysOf = async (id: string) => {
-    await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await service.setEstimate(id, OWNER, stepId, { optimistic: 2, realistic: 2, pessimistic: 2 });
   };
 
   it('reports no dates while the project has no start date', async () => {
@@ -1051,7 +1051,7 @@ describe('the calendar', () => {
     // finishes later still wins.
     const first = await add('Strip');
     const second = await add('Sand');
-    await service.setEstimate(first, OWNER, roleId, {
+    await service.setEstimate(first, OWNER, stepId, {
       optimistic: 6,
       realistic: 6,
       pessimistic: 6,
@@ -1100,7 +1100,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
 
   /** A flat trio, so the duration in these tests is the number written. */
   const flatDaysOf = async (id: string, days: number) => {
-    await service.setEstimate(id, OWNER, roleId, {
+    await service.setEstimate(id, OWNER, stepId, {
       optimistic: days,
       realistic: days,
       pessimistic: days,
@@ -1192,7 +1192,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
 
   it('moves the dates and the printed figure together when the method changes', async () => {
     const id = await add('Strip');
-    await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 3, pessimistic: 10 });
+    await service.setEstimate(id, OWNER, stepId, { optimistic: 2, realistic: 3, pessimistic: 10 });
     await projects.update(projectId, { startDate: THURSDAY });
 
     await projects.update(projectId, { estimateMethod: 'optimistic' });
@@ -1216,7 +1216,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   // floor surviving, a later dependency still named — are engine-level, in
   // `schedule-shapes.test.ts` ('a manual floor beside a dependency').
   it('floors every leaf beneath a parent told not to start before a day', async () => {
-    const parent = await add('Phase');
+    const parent = await add('Step');
     const kid = await add('Wire', parent);
     await flatDaysOf(kid, 2);
     await projects.update(projectId, { startDate: THURSDAY });
@@ -1245,7 +1245,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     let last = '';
     for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
       const id = await add(`Link ${String(at)}`);
-      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      await service.setEstimate(id, OWNER, stepId, { optimistic, realistic, pessimistic });
       if (previous !== null) await service.addDependency(id, OWNER, previous);
       previous = id;
       last = id;
@@ -1274,7 +1274,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     let last = '';
     for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
       const id = await add(`Link ${String(at)}`);
-      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      await service.setEstimate(id, OWNER, stepId, { optimistic, realistic, pessimistic });
       if (previous !== null) await service.addDependency(id, OWNER, previous);
       previous = id;
       last = id;
@@ -1307,7 +1307,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     let last = '';
     for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
       const id = await add(`Step ${String(at)}`);
-      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      await service.setEstimate(id, OWNER, stepId, { optimistic, realistic, pessimistic });
       if (previous !== null) await service.addDependency(id, OWNER, previous);
       previous = id;
       last = id;
@@ -1345,7 +1345,7 @@ describe('the project’s estimate method', () => {
   /** A leaf with one three-point estimate, and the tree read back. */
   async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {
     const id = await add('Strip');
-    await service.setEstimate(id, OWNER, roleId, {
+    await service.setEstimate(id, OWNER, stepId, {
       optimistic: 2,
       realistic: 3,
       pessimistic: 10,
@@ -1356,10 +1356,10 @@ describe('the project’s estimate method', () => {
     return { tree, row };
   }
 
-  it('reports the final figure per role and their sum, under PERT', async () => {
+  it('reports the final figure per step and their sum, under PERT', async () => {
     const { tree, row } = await estimated('pert');
 
-    expect(row?.finalDays[roleId]).toBe(4);
+    expect(row?.finalDays[stepId]).toBe(4);
     expect(row?.finalTotal).toBe(4);
     expect(tree?.estimateMethod).toBe('pert');
   });
@@ -1380,7 +1380,7 @@ describe('the project’s estimate method', () => {
     expect(row?.schedule.duration).toBe(10);
   });
 
-  it('leaves a role nobody estimated absent rather than zero', async () => {
+  it('leaves a step nobody estimated absent rather than zero', async () => {
     const id = await add('Strip');
 
     const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
@@ -1435,7 +1435,7 @@ describe('capacity, as the adapter resolves it', () => {
 
   it('compresses a work item across the people its parallelism allows', async () => {
     const strip = await leaf('Strip', 3);
-    await service.setEstimate(strip, OWNER, roleId, flat(6));
+    await service.setEstimate(strip, OWNER, stepId, flat(6));
 
     const tree = await service.tree(projectId);
 
@@ -1462,7 +1462,7 @@ describe('capacity, as the adapter resolves it', () => {
     await directory.addTeam({ id: 'team-small', name: 'Small' });
     await capacity.set(projectId, 'team-small', 2);
     const strip = await leaf('Strip', 4, 'team-small');
-    await service.setEstimate(strip, OWNER, roleId, flat(4));
+    await service.setEstimate(strip, OWNER, stepId, flat(4));
 
     const tree = await service.tree(projectId);
 
@@ -1484,8 +1484,8 @@ describe('capacity, as the adapter resolves it', () => {
       (await listByProject(wantedProjectId)).map((row) =>
         row.id === jointlyBound ? { ...row, teamIds: ['team-alpha', 'team-beta'] } : row,
       );
-    await service.setEstimate(betaBlocker, OWNER, roleId, flat(2));
-    await service.setEstimate(jointlyBound, OWNER, roleId, flat(2));
+    await service.setEstimate(betaBlocker, OWNER, stepId, flat(2));
+    await service.setEstimate(jointlyBound, OWNER, stepId, flat(2));
 
     const tree = await service.tree(projectId);
 
@@ -1501,15 +1501,15 @@ describe('capacity, as the adapter resolves it', () => {
 
   it('runs a named person’s work one at a time however parallel the item is', async () => {
     // D3. One human cannot work beside themselves, and `assumedAssignee` means
-    // one named assignment covers every role — so naming somebody collapses
+    // one named assignment covers every step — so naming somebody collapses
     // the whole item to width 1.
     //
     // Proof: the named-person arm dropped from `widthFor` and this failed with
     // `width: 3` and `duration: 2` on work one person is doing; watched
     // 2026-08-12.
     const strip = await leaf('Strip', 3);
-    await service.setEstimate(strip, OWNER, roleId, flat(6));
-    await directory.assign(strip, roleId, 'kat');
+    await service.setEstimate(strip, OWNER, stepId, flat(6));
+    await directory.assign(strip, stepId, 'kat');
 
     const tree = await service.tree(projectId);
 
@@ -1528,11 +1528,11 @@ describe('capacity, as the adapter resolves it', () => {
     // parent.
     await directory.addTeam({ id: 'team-one', name: 'One' });
     await capacity.set(projectId, 'team-one', 1);
-    const phase = await leaf('Phase', 1, 'team-one');
-    const first = await leaf('First', 1, null, phase);
-    const second = await leaf('Second', 1, null, phase);
-    await service.setEstimate(first, OWNER, roleId, flat(2));
-    await service.setEstimate(second, OWNER, roleId, flat(2));
+    const step = await leaf('Step', 1, 'team-one');
+    const first = await leaf('First', 1, null, step);
+    const second = await leaf('Second', 1, null, step);
+    await service.setEstimate(first, OWNER, stepId, flat(2));
+    await service.setEstimate(second, OWNER, stepId, flat(2));
 
     const tree = await service.tree(projectId);
 
@@ -1556,8 +1556,8 @@ describe('capacity, as the adapter resolves it', () => {
     // before capacity existed.
     const strip = await leaf('Strip', 1, 'team-billing');
     const sand = await leaf('Sand', 1, 'team-billing');
-    await service.setEstimate(strip, OWNER, roleId, flat(2));
-    await service.setEstimate(sand, OWNER, roleId, flat(2));
+    await service.setEstimate(strip, OWNER, stepId, flat(2));
+    await service.setEstimate(sand, OWNER, stepId, flat(2));
 
     const tree = await service.tree(projectId);
 
@@ -1592,17 +1592,17 @@ describe('the slices the schedule placed, on the wire', () => {
   it('names the slice the person was finishing, under the engine’s own id', async () => {
     const strip = await add('Strip');
     const sand = await add('Sand');
-    await service.setEstimate(strip, OWNER, roleId, flat(3));
-    await service.setEstimate(sand, OWNER, roleId, flat(2));
-    await directory.assign(strip, roleId, 'kat');
-    await directory.assign(sand, roleId, 'kat');
+    await service.setEstimate(strip, OWNER, stepId, flat(3));
+    await service.setEstimate(sand, OWNER, stepId, flat(2));
+    await directory.assign(strip, stepId, 'kat');
+    await directory.assign(sand, stepId, 'kat');
 
     const tree = await service.tree(projectId);
 
     expect(tree?.slices).toHaveLength(2);
     expect(slicedFor(tree, strip)).toMatchObject({
       workItemId: strip,
-      roleId,
+      stepId,
       personId: 'kat',
       duration: 3,
       estimated: true,
@@ -1629,14 +1629,14 @@ describe('the slices the schedule placed, on the wire', () => {
     // the bar a whole day from where the Start column says it is.
     const strip = await add('Strip');
     const sand = await add('Sand');
-    await service.setEstimate(strip, OWNER, roleId, {
+    await service.setEstimate(strip, OWNER, stepId, {
       optimistic: 3,
       realistic: 3.5,
       pessimistic: 5,
     });
-    await service.setEstimate(sand, OWNER, roleId, flat(2));
-    await directory.assign(strip, roleId, 'kat');
-    await directory.assign(sand, roleId, 'kat');
+    await service.setEstimate(sand, OWNER, stepId, flat(2));
+    await directory.assign(strip, stepId, 'kat');
+    await directory.assign(sand, stepId, 'kat');
 
     const tree = await service.tree(projectId);
 
@@ -1660,12 +1660,12 @@ describe('the slices the schedule placed, on the wire', () => {
   });
 
   /**
-   * A project with two phases, its own rows, and somebody on each phase.
+   * A project with two steps, its own rows, and somebody on each step.
    *
-   * Its own project rather than the fixture's, because the order of the phases
+   * Its own project rather than the fixture's, because the order of the steps
    * is the point and the fixture has one.
    */
-  async function twoPhasePlan(): Promise<{ id: string; devId: string; qaId: string }> {
+  async function twoStepPlan(): Promise<{ id: string; devId: string; qaId: string }> {
     const id = crypto.randomUUID();
     const devId = crypto.randomUUID();
     const qaId = crypto.randomUUID();
@@ -1708,31 +1708,31 @@ describe('the slices the schedule placed, on the wire', () => {
     return { id, devId, qaId };
   }
 
-  it('carries the phases its slices were placed under, in the engine’s order', async () => {
-    const plan = await twoPhasePlan();
+  it('carries the steps its slices were placed under, in the engine’s order', async () => {
+    const plan = await twoStepPlan();
 
     const tree = await service.tree(plan.id);
 
     // The order is the schedule's own: `slicesOf` is handed
-    // `roles.map((each) => each.id)`, and a bar's place in its row is that
-    // list's order. A payload carrying the roles in any other order would put
+    // `steps.map((each) => each.id)`, and a bar's place in its row is that
+    // list's order. A payload carrying the steps in any other order would put
     // QA's bar before Dev's on a chart that had no way to know.
     //
-    // Proof: `roles: [...roles].reverse()` on the way out. This failed on
+    // Proof: `steps: [...steps].reverse()` on the way out. This failed on
     // `expect(received).toEqual(expected)` printing `- "Dev"` before `"QA"`;
     // watched 2026-08-09.
-    expect(tree?.roles.map((role) => role.name)).toEqual(['Dev', 'QA']);
-    // And the invariant a chart is drawn on: every slice is under a phase this
+    expect(tree?.steps.map((step) => step.name)).toEqual(['Dev', 'QA']);
+    // And the invariant a chart is drawn on: every slice is under a step this
     // payload lists. `layOutGantt` throws on the alternative.
-    const listed = new Set(tree?.roles.map((role) => role.id));
-    expect(tree?.slices.map((slice) => slice.roleId).filter((id) => id !== null)).toHaveLength(2);
+    const listed = new Set(tree?.steps.map((step) => step.id));
+    expect(tree?.slices.map((slice) => slice.stepId).filter((id) => id !== null)).toHaveLength(2);
     for (const slice of tree?.slices ?? []) {
-      expect(listed.has(slice.roleId ?? '')).toBe(true);
+      expect(listed.has(slice.stepId ?? '')).toBe(true);
     }
   });
 
   it('names everybody its slices are assigned to, and nobody else', async () => {
-    const plan = await twoPhasePlan();
+    const plan = await twoStepPlan();
 
     const tree = await service.tree(plan.id);
 
@@ -1750,20 +1750,20 @@ describe('the slices the schedule placed, on the wire', () => {
     for (const personId of assignedTo) expect(named.has(personId)).toBe(true);
   });
 
-  it('answers from one read of the phases, whatever a later read would say', async () => {
-    const plan = await twoPhasePlan();
+  it('answers from one read of the steps, whatever a later read would say', async () => {
+    const plan = await twoStepPlan();
     // A peer removes QA in the moment between this client's tree read and the
-    // separate role read it used to pair with it. `rolesOf` answers the first
-    // caller with both phases and everybody after with one — which is exactly
+    // separate step read it used to pair with it. `stepsOf` answers the first
+    // caller with both steps and everybody after with one — which is exactly
     // what the two requests saw, and why the chart used to be handed a slice
-    // under a phase its role list no longer had.
+    // under a step its step list no longer had.
     let reads = 0;
     const shifting: ProjectStore = {
       ...projects,
-      async rolesOf(projectId) {
+      async stepsOf(projectId) {
         reads += 1;
-        const all = await projects.rolesOf(projectId);
-        return reads === 1 ? all : all.filter((role) => role.name !== 'QA');
+        const all = await projects.stepsOf(projectId);
+        return reads === 1 ? all : all.filter((step) => step.name !== 'QA');
       },
     };
     const readingOnce = new WorkItemService({
@@ -1792,26 +1792,26 @@ describe('the slices the schedule placed, on the wire', () => {
 
     const tree = await readingOnce.tree(plan.id);
 
-    // The payload is whole: the phases in it are the phases its slices are
+    // The payload is whole: the steps in it are the steps its slices are
     // under, on one read.
     //
-    // Proof: `roles` in the returned object replaced by a second
-    // `await this.opts.projects.rolesOf(projectId)` — the second request, which
+    // Proof: `steps` in the returned object replaced by a second
+    // `await this.opts.projects.stepsOf(projectId)` — the second request, which
     // is what the client used to make. This failed on
     // `expect(received).toEqual(expected)` with `- "QA"` — the payload one
-    // phase short of the slices in it, which is the skew itself. Watched
+    // step short of the slices in it, which is the skew itself. Watched
     // 2026-08-09.
-    expect(tree?.roles.map((role) => role.name)).toEqual(['Dev', 'QA']);
-    const listed = new Set(tree?.roles.map((role) => role.id));
-    for (const slice of tree?.slices ?? []) expect(listed.has(slice.roleId ?? '')).toBe(true);
+    expect(tree?.steps.map((step) => step.name)).toEqual(['Dev', 'QA']);
+    const listed = new Set(tree?.steps.map((step) => step.id));
+    for (const slice of tree?.slices ?? []) expect(listed.has(slice.stepId ?? '')).toBe(true);
     // And the separate read really does disagree, so the assertion above is
     // about carrying the list rather than about a store that never moved.
-    expect((await shifting.rolesOf(plan.id)).map((role) => role.name)).toEqual(['Dev']);
+    expect((await shifting.stepsOf(plan.id)).map((step) => step.name)).toEqual(['Dev']);
   });
 
   it('adds slices and moves nothing else in the payload', async () => {
     const strip = await add('Strip');
-    await service.setEstimate(strip, OWNER, roleId, flat(3));
+    await service.setEstimate(strip, OWNER, stepId, flat(3));
 
     const tree = await service.tree(projectId);
 
@@ -1829,11 +1829,11 @@ describe('the slices the schedule placed, on the wire', () => {
       'estimateMethod',
       'priorityBands',
       'projectRevision',
-      'roles',
       'scheduleError',
       'seq',
       'slices',
       'startDate',
+      'steps',
       'teamCapacities',
       'waitingForCapacity',
       'waitingForPerson',
@@ -1880,12 +1880,12 @@ describe('what a not-before reason does not do', () => {
     await projects.update(projectId, { startDate: '2026-08-06' });
     const strip = await add('Strip');
     const sand = await add('Sand');
-    await service.setEstimate(strip, OWNER, roleId, {
+    await service.setEstimate(strip, OWNER, stepId, {
       optimistic: 4,
       realistic: 5,
       pessimistic: 6,
     });
-    await service.setEstimate(sand, OWNER, roleId, {
+    await service.setEstimate(sand, OWNER, stepId, {
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,

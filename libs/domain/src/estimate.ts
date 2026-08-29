@@ -1,7 +1,7 @@
 import { type } from '@wbs/validation';
 
 /**
- * Three durations in days for one work item and one role.
+ * Three durations in days for one work item and one step.
  *
  * Days, not hours, and fractional days are allowed: half a day is a real
  * estimate and rounding it up is a lie the plan then carries.
@@ -24,12 +24,12 @@ export const ThreePointEstimate = type({
 });
 export type ThreePointEstimate = typeof ThreePointEstimate.infer;
 
-/** A three-point estimate together with the role it was given for. */
-export const RoleEstimate = type({
-  roleId: 'string',
+/** A three-point estimate together with the step it was given for. */
+export const StepEstimate = type({
+  stepId: 'string',
   estimate: ThreePointEstimate,
 });
-export type RoleEstimate = typeof RoleEstimate.infer;
+export type StepEstimate = typeof StepEstimate.infer;
 
 /**
  * The PERT expected duration of a three-point estimate, in days.

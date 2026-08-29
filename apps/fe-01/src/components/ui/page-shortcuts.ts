@@ -41,10 +41,10 @@ function isOnSurface(target: EventTarget | null): boolean {
  * Ctrl+N created a work item in the plan underneath.
  *
  * **The rule, and it is one rule.** While `isOpen`, a `keydown` listener on
- * `window` in the **capture** phase ends any keystroke {@link isPageShortcut}
+ * `window` in the **capture** step ends any keystroke {@link isPageShortcut}
  * claims. Capture on `window` is the first thing to run in the whole
  * propagation, before the document, before React's root container and before
- * the bubble-phase listeners the table registers on `window` — so
+ * the bubble-step listeners the table registers on `window` — so
  * `stopImmediatePropagation` there is what makes "the page's shortcuts are off"
  * true rather than a claim about listener registration order.
  *

@@ -16,7 +16,7 @@ const target: Record<string, Schema> = {
   workItemId: id('The work item this command is aimed at.'),
   workItemRef: ref('The work item this command is aimed at'),
 };
-const role = { roleId: id('The phase (role) this figure belongs to.') };
+const step = { stepId: id('The step (step) this figure belongs to.') };
 const DAYS: Schema = {
   type: 'object',
   description: 'A three-point estimate in workdays.',
@@ -102,59 +102,56 @@ const VARIANTS: Schema[] = [
   ),
   variant(
     'setEstimate',
-    'Set the three-point estimate of one phase on a leaf work item.',
-    { ...target, ...role, days: DAYS },
-    ['roleId', 'days'],
+    'Set the three-point estimate of one step on a leaf work item.',
+    { ...target, ...step, days: DAYS },
+    ['stepId', 'days'],
   ),
-  variant(
-    'clearEstimate',
-    'Remove one phase’s estimate from a work item.',
-    { ...target, ...role },
-    ['roleId'],
-  ),
+  variant('clearEstimate', 'Remove one step’s estimate from a work item.', { ...target, ...step }, [
+    'stepId',
+  ]),
   variant(
     'setActual',
-    'Record the days one phase actually took on a work item.',
-    { ...target, ...role, days: { type: 'number' } },
-    ['roleId', 'days'],
+    'Record the days one step actually took on a work item.',
+    { ...target, ...step, days: { type: 'number' } },
+    ['stepId', 'days'],
   ),
-  variant('clearActual', 'Remove one phase’s actual from a work item.', { ...target, ...role }, [
-    'roleId',
+  variant('clearActual', 'Remove one step’s actual from a work item.', { ...target, ...step }, [
+    'stepId',
   ]),
   variant(
     'setProgress',
-    'Mark one phase of a work item in progress or done.',
-    { ...target, ...role, state: { type: 'string', enum: ['in_progress', 'done'] } },
-    ['roleId', 'state'],
+    'Mark one step of a work item in progress or done.',
+    { ...target, ...step, state: { type: 'string', enum: ['in_progress', 'done'] } },
+    ['stepId', 'state'],
   ),
-  variant('clearProgress', 'Take a phase back to not started.', { ...target, ...role }, ['roleId']),
+  variant('clearProgress', 'Take a step back to not started.', { ...target, ...step }, ['stepId']),
   variant(
     'setMeasure',
-    'Record a measured figure (tokens, hours…) for one phase of a work item.',
+    'Record a measured figure (tokens, hours…) for one step of a work item.',
     {
       ...target,
-      ...role,
+      ...step,
       metric: id('The metric, e.g. tokens or hours.'),
       value: { type: 'number' },
     },
-    ['roleId', 'metric', 'value'],
+    ['stepId', 'metric', 'value'],
   ),
   variant(
     'clearMeasure',
     'Remove one measured figure.',
-    { ...target, ...role, metric: id('The metric.') },
-    ['roleId', 'metric'],
+    { ...target, ...step, metric: id('The metric.') },
+    ['stepId', 'metric'],
   ),
   variant(
     'setAssignee',
-    'Name who does one phase of a work item, or null to unassign.',
+    'Name who does one step of a work item, or null to unassign.',
     {
       ...target,
-      ...role,
+      ...step,
       personId: nullableId('The person, or null.'),
       personRef: ref('The person'),
     },
-    ['roleId'],
+    ['stepId'],
   ),
   variant('addDependency', 'Make a work item wait for another.', {
     ...target,

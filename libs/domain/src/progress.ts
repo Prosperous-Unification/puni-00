@@ -1,6 +1,6 @@
 /**
- * Where the work has got to: three states, per role, and the one rule that
- * turns a row's roles into a reading of the row.
+ * Where the work has got to: three states, per step, and the one rule that
+ * turns a row's steps into a reading of the row.
  *
  * Dany, 2026-08-18: _"maybe we should augment actual days by completion
  * status?"_ — asked the day after actuals shipped, and the reason it is the
@@ -17,10 +17,10 @@
  */
 
 /**
- * What one role has said about its own work on one work item.
+ * What one step has said about its own work on one work item.
  *
  * **Two values, because the third is the absence of a row.** "Not started" is
- * never stored: it is what a work item with no `role_progress` row for that role
+ * never stored: it is what a work item with no `role_progress` row for that step
  * reads as, exactly as an unstated capacity and an unrecorded actual are
  * absences rather than zeroes (`project_team_capacity` and `actual` in be-01's
  * `schema.ts`). Storing it would give two spellings of "nobody has said" — no
@@ -29,28 +29,28 @@
  * **No `blocked` and no `cancelled`**, and that is a refusal rather than an
  * omission: each extra state is a question the engine must answer the day it
  * starts reading this — what a blocked predecessor does to its successors'
- * floor, whether a cancelled role's estimate leaves the plan's totals — and the
+ * floor, whether a cancelled step's estimate leaves the plan's totals — and the
  * engine is not reading this yet. Three states can be added to; a fourth shipped
  * now would be a meaning nobody has agreed, stored on real plans, in rows the
  * next change has to interpret.
  */
-export type RoleState = 'in_progress' | 'done';
+export type StepState = 'in_progress' | 'done';
 
 /**
- * What a **work item** reads as. Derived from its roles on every read and never
+ * What a **work item** reads as. Derived from its steps on every read and never
  * stored, for the reason every derived figure in this tool is: two spellings of
- * one fact is how "the item says done and a role has no actual" happens.
+ * one fact is how "the item says done and a step has no actual" happens.
  */
-export type ItemState = 'not_started' | RoleState;
+export type ItemState = 'not_started' | StepState;
 
-/** The two states a role may be stored in, in the order a face should offer them. */
-export const ROLE_STATES: readonly RoleState[] = ['in_progress', 'done'];
+/** The two states a step may be stored in, in the order a face should offer them. */
+export const STEP_STATES: readonly StepState[] = ['in_progress', 'done'];
 
-/** Nothing has been said about this work, by anybody, for any role. */
+/** Nothing has been said about this work, by anybody, for any step. */
 export const NOT_STARTED = 'not_started';
 
-/** Whether a value off the wire is one of the two states a role may be put in. */
-export function isRoleState(value: unknown): value is RoleState {
+/** Whether a value off the wire is one of the two states a step may be put in. */
+export function isStepState(value: unknown): value is StepState {
   return value === 'in_progress' || value === 'done';
 }
 
@@ -58,19 +58,19 @@ export function isRoleState(value: unknown): value is RoleState {
  * Two readings of one thing, combined: **they agree, or the thing is in
  * progress.**
  *
- * That is the whole rule, and it is the answer to "what is an item whose roles
+ * That is the whole rule, and it is the answer to "what is an item whose steps
  * disagree". Dev finished and QA has not started is not a finished item and it
  * is not an untouched one — it is an item somebody is part-way through, which is
  * the only reading that is true of every plan it can arise on.
  *
- * **`done` is therefore unanimous.** An item is finished when every role with
- * work on it says so, and one silent role is enough to keep it in progress. The
- * alternative — done as soon as any role says done — would let a plan report
+ * **`done` is therefore unanimous.** An item is finished when every step with
+ * work on it says so, and one silent step is enough to keep it in progress. The
+ * alternative — done as soon as any step says done — would let a plan report
  * finished work that nobody has tested, which is precisely the claim a
  * completion state exists to stop somebody making by accident.
  *
  * Associative, commutative and idempotent, which is what lets a parent be
- * folded from its children's states rather than from every leaf role beneath it:
+ * folded from its children's states rather than from every leaf step beneath it:
  * both routes reach the same answer, so there is no ordering of the tree that
  * changes what a branch reads as.
  */
@@ -82,10 +82,10 @@ export function agree(a: ItemState, b: ItemState): ItemState {
  * The state a collection reads as: {@link agree} across all of it, and
  * {@link NOT_STARTED} when there is nothing in it.
  *
- * Empty means nobody has said anything — an item with no roles, a branch with no
+ * Empty means nobody has said anything — an item with no steps, a branch with no
  * leaves, a plan on its first day. Reading that as "not started" rather than as
  * "done vacuously" is the same choice `rollUp` makes when it leaves an
- * unestimated role absent instead of zero: an empty statement is not a
+ * unestimated step absent instead of zero: an empty statement is not a
  * statement.
  */
 export function stateOf(states: Iterable<ItemState>): ItemState {

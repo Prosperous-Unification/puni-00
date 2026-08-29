@@ -429,7 +429,7 @@ export function CellInput({
         <span
           // Read by the box the reader sees; the textarea beside it is what the
           // screen reader and the keyboard have, so this one is hidden from
-          // both — it has no tab stop, no role, and no name of its own to say
+          // both — it has no tab stop, no step, and no name of its own to say
           // twice.
           aria-hidden="true"
           data-cell-rendered={cellKey}

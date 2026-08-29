@@ -42,7 +42,7 @@ const REREAD_AFTER_WRITE =
  *
  * Four of be-01's write operations do (the hand-written bodies on `POST
  * /api/projects/{id}/work-items`, `PATCH /api/work-items/{id}`, `POST
- * /api/work-items/{id}/move` and `PUT …/progress/{roleId}`). Appending D9's
+ * /api/work-items/{id}/move` and `PUT …/progress/{stepId}`). Appending D9's
  * sentence to those would print the same warning twice in the same description,
  * in two different wordings — which reads as two different rules.
  */

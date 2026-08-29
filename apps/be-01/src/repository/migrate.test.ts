@@ -23,7 +23,7 @@ const REVISIONS = '20260807090000_add_revisions';
 // One table of its own, referencing `project` and `users`, so it reverses first.
 const JOURNAL = '20260807180000_add_command_journal';
 // A column on `role`, so like the revisions it appears in the order and nowhere else here.
-const ROLE_POSITION = '20260809090000_add_role_position';
+const STEP_POSITION = '20260809090000_add_role_position';
 // A column on `work_item`, the same shape again: it appears in the order, and
 // in the two cases of its own at the bottom of this file.
 const PRIORITY = '20260811100000_add_priority';
@@ -72,7 +72,7 @@ const ACTUAL = '20260817130000_add_actual';
  * shares one stamp between two migrations` is the mechanical half of the same
  * check.
  */
-const ROLE_PROGRESS = '20260818010000_add_role_progress';
+const STEP_PROGRESS = '20260818010000_add_role_progress';
 /**
  * The newest, and a **column** on `work_item` rather than a table — so it
  * appears in the ordering here, in the two cases of its own at the bottom of
@@ -150,7 +150,7 @@ const WORK_ITEM_SERVICE = '20260821080000_add_work_item_service';
  * title. This constant is the one that case names as *the one before the
  * newest*, so it carries the half a shared stamp would silently empty.
  */
-const ROLE_MEASURE = '20260821140000_add_role_measure';
+const STEP_MEASURE = '20260821140000_add_role_measure';
 /**
  * The newest, and the only migration in this change that alters an existing
  * table. It adds `person.kind` — the `person | agent` classification — by
@@ -170,7 +170,7 @@ const ROLE_MEASURE = '20260821140000_add_role_measure';
  * so.
  *
  * Stamped `20260821150000`, later than every folder on disk including
- * `ROLE_MEASURE` directly below it.
+ * `STEP_MEASURE` directly below it.
  */
 const PERSON_KIND = '20260821150000_add_person_kind';
 const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
@@ -193,7 +193,7 @@ const TEAM_SET_TABLES = ['work_item_team'] as const;
 const ACTUAL_TABLES = ['actual'] as const;
 // Its own migration, reversed with the domain for `ACTUAL_TABLES`' reason: it
 // references `work_item` and `role` too.
-const ROLE_PROGRESS_TABLES = ['role_progress'] as const;
+const STEP_PROGRESS_TABLES = ['role_progress'] as const;
 // Its own migration, and the only one that adds two tables. `work_item_tag`
 // references `work_item`, so both reverse with the domain; `tag` itself
 // references nothing and reverses with them only because they arrived together.
@@ -209,7 +209,7 @@ const SERVICE_TABLES = ['service', 'team_service'] as const;
 // earlier, when this dimension held one value per row.
 const WORK_ITEM_SERVICE_TABLES = ['work_item_service'] as const;
 
-const ROLE_MEASURE_TABLES = ['role_measure'] as const;
+const STEP_MEASURE_TABLES = ['role_measure'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -246,11 +246,11 @@ describe('the WBS domain migration', () => {
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
-        ...ROLE_PROGRESS_TABLES,
+        ...STEP_PROGRESS_TABLES,
         ...TAG_TABLES,
         ...SERVICE_TABLES,
         ...WORK_ITEM_SERVICE_TABLES,
-        ...ROLE_MEASURE_TABLES,
+        ...STEP_MEASURE_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -275,12 +275,12 @@ describe('the WBS domain migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -289,7 +289,7 @@ describe('the WBS domain migration', () => {
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
-        ROLE_POSITION,
+        STEP_POSITION,
         JOURNAL,
         REVISIONS,
         TEAMS,
@@ -307,11 +307,11 @@ describe('the WBS domain migration', () => {
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
-        ...ROLE_PROGRESS_TABLES,
+        ...STEP_PROGRESS_TABLES,
         ...TAG_TABLES,
         ...SERVICE_TABLES,
         ...WORK_ITEM_SERVICE_TABLES,
-        ...ROLE_MEASURE_TABLES,
+        ...STEP_MEASURE_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -325,11 +325,11 @@ describe('the WBS domain migration', () => {
   });
 });
 
-describe('the role position migration', () => {
-  it('gives roles already in the database the order they were written in', () => {
+describe('the step position migration', () => {
+  it('gives steps already in the database the order they were written in', () => {
     // The backfill, against rows that existed before the column did — which is
     // every project on the live server and the only situation that `UPDATE` is
-    // for. Reached by rolling back to the migration before it, writing roles
+    // for. Reached by rolling back to the migration before it, writing steps
     // the way the previous release wrote them, and migrating forward again.
     const db = tempDb();
     try {
@@ -373,11 +373,11 @@ describe('the role position migration', () => {
     }
   });
 
-  it('lets the outgoing release keep inserting roles against the migrated schema', () => {
+  it('lets the outgoing release keep inserting steps against the migrated schema', () => {
     // The half of a swap nothing else covers. be-01 blue and green share one
     // SQLite file, green migrates while blue is still serving, and blue's
     // `INSERT` names the three columns it was compiled against. Without the
-    // column's default that statement fails, and adding a role on the old
+    // column's default that statement fails, and adding a step on the old
     // colour answers 500 for the length of the swap.
     //
     // The statement is written out here rather than built through drizzle
@@ -416,7 +416,7 @@ describe('the role position migration', () => {
 
 describe('the priority migration', () => {
   it('lets the outgoing release keep inserting work items against the migrated schema', () => {
-    // The blue/green half, the same shape the role position migration has:
+    // The blue/green half, the same shape the step position migration has:
     // green migrates while blue is still serving and blue's `INSERT` names the
     // columns it was compiled against. Written out rather than built through
     // drizzle, because drizzle is the new release and the point is what the old
@@ -459,13 +459,13 @@ describe('the priority migration', () => {
     // the most important work in it and reorder the queues of every plan that
     // has people on it.
     //
-    // Reached the way the role backfill case is: roll back to the migration
+    // Reached the way the step backfill case is: roll back to the migration
     // before this one, write a work item the way the previous release wrote
     // one, and migrate forward again.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, ROLE_POSITION);
+      rollbackTo(db.path, FOLDER, STEP_POSITION);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -502,7 +502,7 @@ describe('the priority migration', () => {
 
 describe('the capacity migrations', () => {
   it('lets the outgoing release keep inserting work items and teams against both', () => {
-    // The blue/green half, the same shape the priority and role-position
+    // The blue/green half, the same shape the priority and step-position
     // migrations have: green migrates while blue is still serving, and blue's
     // `INSERT` names the columns it was compiled against. Written out rather
     // than built through drizzle, because drizzle is the new release and the
@@ -598,12 +598,12 @@ describe('the capacity migrations', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -1053,12 +1053,12 @@ describe('the work item team migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -1283,12 +1283,12 @@ describe('the priority band migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -1567,12 +1567,12 @@ describe('the plan event migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
       ]);
@@ -1712,12 +1712,12 @@ describe('the actual migration', () => {
     }
   });
 
-  it('refuses to let a role go while it still holds recorded days, rather than emptying it', () => {
+  it('refuses to let a step go while it still holds recorded days, rather than emptying it', () => {
     // `role_id` carries **no** cascade, deliberately and unlike
     // `assignment.role_id`. An actual is somebody's typing about work that has
     // already happened, so a removal must count it before taking it: the missing
-    // cascade is what makes a role delete that forgot to say so fail loudly.
-    // `RoleRepository.remove` is the caller that deletes them explicitly, and
+    // cascade is what makes a step delete that forgot to say so fail loudly.
+    // `StepRepository.remove` is the caller that deletes them explicitly, and
     // this is the constraint underneath it.
     //
     // Proof: `ON DELETE CASCADE` added to `role_id` in the migration, and this
@@ -1751,7 +1751,7 @@ describe('the actual migration', () => {
   });
 
   it('refuses a second recording for one pair, so unstated has exactly one spelling', () => {
-    // The composite primary key. Two rows for one (work item, role) would make a
+    // The composite primary key. Two rows for one (work item, step) would make a
     // reader choose between them, and the choice would decide a figure on
     // screen. A correction replaces; it does not accumulate.
     const db = tempDb();
@@ -1787,12 +1787,12 @@ describe('the actual migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
       ]);
 
@@ -1843,9 +1843,9 @@ describe('the actual migration', () => {
   });
 });
 
-describe('the role progress migration', () => {
+describe('the step progress migration', () => {
   /**
-   * A plan with one estimate, one recorded actual and one role said to be done,
+   * A plan with one estimate, one recorded actual and one step said to be done,
    * written the way the release that adds this table writes them.
    *
    * By hand rather than through a service, for the reason the actual fixture
@@ -1977,10 +1977,10 @@ describe('the role progress migration', () => {
     }
   });
 
-  it('keeps a role that has been said to be done undeletable behind the repository that counts them', () => {
+  it('keeps a step that has been said to be done undeletable behind the repository that counts them', () => {
     // `role_id` deliberately carries **no** cascade: a statement is somebody's,
-    // and a role removal must count it before taking it. The missing cascade is
-    // what makes a role delete that forgot to say so fail loudly instead of
+    // and a step removal must count it before taking it. The missing cascade is
+    // what makes a step delete that forgot to say so fail loudly instead of
     // quietly turning finished work back into work nobody has started.
     //
     // Proof: `ON DELETE CASCADE` **added** to `role_id` in the migration, and
@@ -1995,7 +1995,7 @@ describe('the role progress migration', () => {
       try {
         sqlite.run('PRAGMA foreign_keys = ON');
         // The estimate and the actual out of the way first, so what refuses the
-        // role delete is this migration's foreign key rather than one of theirs.
+        // step delete is this migration's foreign key rather than one of theirs.
         sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
         sqlite.run("DELETE FROM actual WHERE role_id = 'r1'");
         expect(() => {
@@ -2012,8 +2012,8 @@ describe('the role progress migration', () => {
     }
   });
 
-  it('refuses a second statement for one pair, so a role has exactly one state', () => {
-    // The composite primary key. Two rows for one (work item, role) would make a
+  it('refuses a second statement for one pair, so a step has exactly one state', () => {
+    // The composite primary key. Two rows for one (work item, step) would make a
     // reader choose between `in_progress` and `done`, and the choice would decide
     // what the row says on screen. A change of state replaces; it does not
     // accumulate.
@@ -2052,12 +2052,12 @@ describe('the role progress migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
       ]);
 
       const after = openDatabase(db.path);
@@ -2229,7 +2229,7 @@ describe('the not-before reason migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, ROLE_PROGRESS);
+      rollbackTo(db.path, FOLDER, STEP_PROGRESS);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -2295,11 +2295,11 @@ describe('the not-before reason migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([
+      expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
@@ -2462,7 +2462,7 @@ describe('the tag migration', () => {
 
   it('takes the labelling with the label, which is where a tag differs from a progress state', () => {
     // `role_progress.role_id` deliberately does not cascade: a state is
-    // somebody's statement about their own work, so a role removal must count it
+    // somebody's statement about their own work, so a step removal must count it
     // before taking it. A tag is a label — deleting the label should take the
     // labelling with it, and there is nothing to count that the label itself was
     // not. `DELETE /api/tags/:id` still counts first and still refuses with 409
@@ -2533,7 +2533,7 @@ describe('the tag migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
@@ -2874,7 +2874,7 @@ describe('the service migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
       ]);
@@ -2995,7 +2995,7 @@ describe('the work-item-service migration', () => {
    * else.
    *
    * The reversed list is asserted rather than ignored, and it names **every**
-   * folder newer than `SERVICE` — `ROLE_MEASURE` among them since this branch
+   * folder newer than `SERVICE` — `STEP_MEASURE` among them since this branch
    * rebased onto the merged service split, and `PERSON_KIND` since the chunk
    * below it. That is the point: the helper's whole
    * claim is that the database is left at exactly the column-only shape, and a
@@ -3008,7 +3008,7 @@ describe('the work-item-service migration', () => {
       SOLUTION_REF,
       OIDC_IDENTITY,
       PERSON_KIND,
-      ROLE_MEASURE,
+      STEP_MEASURE,
       WORK_ITEM_SERVICE,
     ]);
   }
@@ -3153,7 +3153,7 @@ describe('the work-item-service migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
       ]);
       for (const t of WORK_ITEM_SERVICE_TABLES) expect(tables(db.path)).not.toContain(t);
@@ -3202,12 +3202,12 @@ describe('the work-item-service migration', () => {
   });
 });
 
-describe('the role measure migration', () => {
+describe('the step measure migration', () => {
   /**
    * A plan with one estimate, one recorded actual and two measures against the
    * same pair, written the way the release that adds this table writes them.
    *
-   * Two measures on one `(work item, role)` rather than one, and that is the
+   * Two measures on one `(work item, step)` rather than one, and that is the
    * fixture's whole job: the primary key carries `metric`, so a pair holding a
    * token figure and an hours figure is two rows and not a collision. A
    * single-measure fixture would have made every case below pass against a
@@ -3294,7 +3294,7 @@ describe('the role measure migration', () => {
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run('PRAGMA foreign_keys = ON');
-        // The estimate and the actual first: both carry the same missing role
+        // The estimate and the actual first: both carry the same missing step
         // cascade, and neither is this migration's to prove.
         sqlite.run("DELETE FROM estimate WHERE work_item_id = 'w1'");
         sqlite.run("DELETE FROM actual WHERE work_item_id = 'w1'");
@@ -3310,13 +3310,13 @@ describe('the role measure migration', () => {
     }
   });
 
-  it('refuses to let a role go while it still holds a measure, rather than emptying it', () => {
+  it('refuses to let a step go while it still holds a measure, rather than emptying it', () => {
     // `role_id` carries **no** cascade, deliberately and unlike
     // `assignment.role_id` — the asymmetry `estimate`, `actual` and
     // `role_progress` all carry. A measure is somebody's typing, or an agent's
-    // recorded spend, so a role removal must count it before taking it: the
-    // missing cascade is what makes a role delete that forgot to say so fail
-    // loudly. `RoleRepository.remove` is the caller that deletes them
+    // recorded spend, so a step removal must count it before taking it: the
+    // missing cascade is what makes a step delete that forgot to say so fail
+    // loudly. `StepRepository.remove` is the caller that deletes them
     // explicitly, and this is the constraint underneath it.
     //
     // Proof: `ON DELETE CASCADE` added to `role_id` in the migration — the
@@ -3331,7 +3331,7 @@ describe('the role measure migration', () => {
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run('PRAGMA foreign_keys = ON');
-        // Everything else holding the role, so this case watches this
+        // Everything else holding the step, so this case watches this
         // migration's foreign key rather than one of theirs.
         sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
         sqlite.run("DELETE FROM actual WHERE role_id = 'r1'");
@@ -3432,7 +3432,7 @@ describe('the role measure migration', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
       ]);
 
       const after = openDatabase(db.path);
@@ -3509,7 +3509,7 @@ describe('the person kind migration', () => {
    */
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
-    expect(rollbackTo(dbPath, FOLDER, ROLE_MEASURE)).toEqual([
+    expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       SOLUTION_REF,
       OIDC_IDENTITY,
       PERSON_KIND,
@@ -3725,7 +3725,7 @@ describe('the person kind migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_MEASURE)).toEqual([
+      expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,

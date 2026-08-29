@@ -292,7 +292,7 @@ async function seedPlan(
   // compact-columns` and carry the whole `YYYY-MM-DD` in the attribute.
   //
   // **The first of two facts**, since `row-start-floor`: the `title` reads
-  // `2026-08-14 — Waits for a dependency’s first estimated role`, the `End`
+  // `2026-08-14 — Waits for a dependency’s first estimated step`, the `End`
   // cell's own shape. This helper wants the day alone, and the guard below is
   // kept rather than loosened to a prefix match — it is what turned that change
   // into 26 named failures instead of a fixture quietly holding the wrong row
@@ -711,7 +711,7 @@ test.describe('the chart, after the browser has scaled it', () => {
     // The bar the caret belongs to, found through the caret's own row and not
     // by counting: the first attempt at this took `bars.at(1)` on the reasoning
     // that `010` is a parent and draws no bar, and a new project lists **two**
-    // roles — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
+    // steps — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
     // workday as the bar that was wanted. Every assertion below passed against
     // it, including with the caret put back on top of the real bar: a
     // zero-height box cannot be overlapped. Watched, which is why the width is
@@ -967,7 +967,7 @@ test.describe('the chart, after the browser has scaled it', () => {
   /**
    * The bars a fresh plan draws at rest, and the ones one press brings back.
    *
-   * A new project lists two roles, and a leaf estimated for one of them draws a
+   * A new project lists two steps, and a leaf estimated for one of them draws a
    * dashed bar for the other — two bars a row, half of them widths nobody gave,
    * beside the parent's own ghost. At rest that is five marks on a three-row
    * chart and the reader sees two; the detail switch is the one control that
@@ -1514,28 +1514,28 @@ test.describe('the chart on a phone', () => {
  * neither a mark nor a label.
  *
  * `role="tooltip"` and not a `data-` hook: it is the same the `HoverCard` the
- * Name cell opens, and naming it by its role is what says the two are one
+ * Name cell opens, and naming it by its step is what says the two are one
  * surface rather than two that happen to look alike.
  */
 const surface = (page: Page): Locator => page.getByRole('tooltip');
 
 /**
- * The bar for one row **and one role**, found by the accessible name it carries.
+ * The bar for one row **and one step**, found by the accessible name it carries.
  *
- * Never by its place in the list. A project is seeded with two phases, so every
+ * Never by its place in the list. A project is seeded with two steps, so every
  * leaf draws two bars and `[data-gantt-bar].nth(1)` is the *first* row's QA
  * slice rather than the second row's Dev one — the sixteenth check's own fault,
  * met again while writing this file and caught only because the dates on the
  * surface were a different row's. The label names both, which is what makes it
  * the handle: a bar found this way cannot be a bar about something else.
  */
-const barOf = (page: Page, number: string, role: string): Locator =>
-  page.locator(`[data-gantt-bar][aria-label^="${number} - "][aria-label*="${role} ·"]`);
+const barOf = (page: Page, number: string, step: string): Locator =>
+  page.locator(`[data-gantt-bar][aria-label^="${number} - "][aria-label*="${step} ·"]`);
 
 /**
  * The rectangle of an element a locator names, or a throw.
  *
- * {@link rectOf} takes a selector and the surface is found by role, so this is
+ * {@link rectOf} takes a selector and the surface is found by step, so this is
  * the same refusal on the other kind of handle: a box with no area compares
  * equal to every other box with no area, and two things that are both not
  * drawn would agree about everything.
@@ -2492,7 +2492,7 @@ test.describe('the pointed row, across both faces', () => {
 
     // `010` is the parent and draws no bar, so the pair is `010.1` and `010.2` —
     // and their stripes are read from the DOM rather than assumed, because a
-    // fixture that renumbered would otherwise quietly test one phase twice.
+    // fixture that renumbered would otherwise quietly test one step twice.
     const stripes = await page.evaluate(() =>
       [...document.querySelectorAll('[data-grid] tbody tr')].map((tr, index) => ({
         number: tr.querySelector('[data-number]')?.textContent ?? '(none)',

@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Role, WorkItem } from './index';
+import type { Project, Step, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
-import { RoleProgressRepository } from './role-progress';
+import { StepProgressRepository } from './step-progress';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -16,7 +16,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
-let repo: RoleProgressRepository;
+let repo: StepProgressRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
 let devId: string;
@@ -51,11 +51,11 @@ const revisionOf = async (id: string): Promise<number> => {
 };
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'wbs-role-progress-'));
+  dir = mkdtempSync(join(tmpdir(), 'wbs-step-progress-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  repo = new RoleProgressRepository(db);
+  repo = new StepProgressRepository(db);
   workItems = new WorkItemRepository(db);
 
   const ownerId = crypto.randomUUID();
@@ -66,7 +66,7 @@ beforeEach(async () => {
     createdAt: 1,
   });
   projectId = crypto.randomUUID();
-  // Ids chosen so that sorting them disagrees with role order, exactly as
+  // Ids chosen so that sorting them disagrees with step order, exactly as
   // `estimate.test.ts` and `actual.test.ts` do: `Dev` runs first and sorts last,
   // so a read that fell back to the primary key's own order hands back `QA`
   // first.
@@ -82,11 +82,11 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  const roles: Role[] = [
+  const steps: Step[] = [
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, roles);
+  await new ProjectRepository(db).create(project, steps);
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -98,62 +98,62 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('RoleProgressRepository', () => {
+describe('StepProgressRepository', () => {
   it('replaces one pair’s state and restamps it, rather than keeping two rows', async () => {
-    // The composite primary key is the point: a role going from in progress to
+    // The composite primary key is the point: a step going from in progress to
     // done is the same statement corrected, not a second one. And the stamp
-    // moves with it — a role said to be done today reading as stated last week
+    // moves with it — a step said to be done today reading as stated last week
     // is the one thing this column must not do.
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'in_progress', statedAt: 1_000 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'in_progress', statedAt: 1_000 });
 
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 2_000 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 2_000 });
 
     expect(await repo.listByProject(projectId)).toEqual([
-      { workItemId: stripId, roleId: devId, state: 'done', statedAt: 2_000 },
+      { workItemId: stripId, stepId: devId, state: 'done', statedAt: 2_000 },
     ]);
   });
 
-  it('removes one work item’s role without touching the other role or the same role elsewhere', async () => {
+  it('removes one work item’s step without touching the other step or the same step elsewhere', async () => {
     // Both halves of the condition are load-bearing and each needs its own
-    // survivor. With one work item, a delete narrowed to the role alone — which
-    // would clear that role's state on every work item in the database — passes.
+    // survivor. With one work item, a delete narrowed to the step alone — which
+    // would clear that step's state on every work item in the database — passes.
     // The same trap `estimate.test.ts` and `actual.test.ts` record.
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 1 });
-    await repo.set({ workItemId: stripId, roleId: qaId, state: 'in_progress', statedAt: 2 });
-    await repo.set({ workItemId: sandId, roleId: devId, state: 'done', statedAt: 3 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: qaId, state: 'in_progress', statedAt: 2 });
+    await repo.set({ workItemId: sandId, stepId: devId, state: 'done', statedAt: 3 });
 
     await repo.remove(stripId, devId);
 
     const left = await repo.listByProject(projectId);
     expect(left).toHaveLength(2);
-    // The same role on another work item survives — the work-item half.
+    // The same step on another work item survives — the work-item half.
     expect(left).toContainEqual({
       workItemId: sandId,
-      roleId: devId,
+      stepId: devId,
       state: 'done',
       statedAt: 3,
     });
-    // The other role on this one — the role half.
+    // The other step on this one — the step half.
     expect(left).toContainEqual({
       workItemId: stripId,
-      roleId: qaId,
+      stepId: qaId,
       state: 'in_progress',
       statedAt: 2,
     });
   });
 
   it('removing a statement nobody made takes nothing away and does not throw', async () => {
-    await repo.set({ workItemId: stripId, roleId: qaId, state: 'done', statedAt: 2 });
+    await repo.set({ workItemId: stripId, stepId: qaId, state: 'done', statedAt: 2 });
 
     await repo.remove(stripId, devId);
     await repo.remove(stripId, devId);
 
     expect(await repo.listByProject(projectId)).toEqual([
-      { workItemId: stripId, roleId: qaId, state: 'done', statedAt: 2 },
+      { workItemId: stripId, stepId: qaId, state: 'done', statedAt: 2 },
     ]);
   });
 
-  it('refuses a state outside the two a role may be stored in', async () => {
+  it('refuses a state outside the two a step may be stored in', async () => {
     // The `CHECK` is the closed set the whole design rests on, and it is here
     // rather than only in the type because a hand-edit, a stale release or a
     // future mistake would otherwise write a value every reader dispatches on
@@ -176,22 +176,22 @@ describe('RoleProgressRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([]);
   });
 
-  it('reads a work item’s states in role order, not in the order the row ids happen to sort', async () => {
+  it('reads a work item’s states in step order, not in the order the row ids happen to sort', async () => {
     // The order is not a contract about the fold — `agree` is commutative, so
     // unlike a sum of reals it cannot change the answer — it is a contract about
     // the screen: these have to line up with the estimates and the actuals
     // beside them, which come back in this same order.
-    await repo.set({ workItemId: stripId, roleId: qaId, state: 'done', statedAt: 1 });
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'in_progress', statedAt: 2 });
+    await repo.set({ workItemId: stripId, stepId: qaId, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'in_progress', statedAt: 2 });
 
     const held = await repo.listByProject(projectId);
 
-    expect(held.map((each) => each.roleId)).toEqual([devId, qaId]);
+    expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
 
   it('answers one project only, so another plan’s statements are never in the list', async () => {
     const otherProject = crypto.randomUUID();
-    const otherRole = crypto.randomUUID();
+    const otherStep = crypto.randomUUID();
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
@@ -212,7 +212,7 @@ describe('RoleProgressRepository', () => {
         revision: 0,
         createdAt: 1,
       },
-      [{ id: otherRole, projectId: otherProject, name: 'Dev', position: 10 }],
+      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
     );
     await new WorkItemRepository(db).insert(
       {
@@ -232,11 +232,11 @@ describe('RoleProgressRepository', () => {
       },
       [],
     );
-    await repo.set({ workItemId: otherItem, roleId: otherRole, state: 'done', statedAt: 1 });
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: otherItem, stepId: otherStep, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 1 });
 
     expect(await repo.listByProject(projectId)).toEqual([
-      { workItemId: stripId, roleId: devId, state: 'done', statedAt: 1 },
+      { workItemId: stripId, stepId: devId, state: 'done', statedAt: 1 },
     ]);
   });
 
@@ -247,7 +247,7 @@ describe('RoleProgressRepository', () => {
     // somebody made in between.
     const before = await revisionOf(stripId);
 
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'in_progress', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'in_progress', statedAt: 1 });
     const written = await revisionOf(stripId);
     await repo.remove(stripId, devId);
     const removed = await revisionOf(stripId);
@@ -261,13 +261,13 @@ describe('RoleProgressRepository', () => {
     // ends. The move is what a leaf gaining its first child runs, beside the
     // estimates' and the actuals'; the silence is what every other create runs,
     // and almost every plan has nothing stated at all.
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 7 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 7 });
     const sandBefore = await revisionOf(sandId);
 
     await repo.moveAll(stripId, sandId);
 
     expect(await repo.listByProject(projectId)).toEqual([
-      { workItemId: sandId, roleId: devId, state: 'done', statedAt: 7 },
+      { workItemId: sandId, stepId: devId, state: 'done', statedAt: 7 },
     ]);
     expect(await revisionOf(sandId)).toBe(sandBefore + 1);
 
@@ -280,7 +280,7 @@ describe('RoleProgressRepository', () => {
     // `role_progress.work_item_id` cascades, and it is the blue/green window
     // this is for: the outgoing release knows nothing about this table and its
     // plain `DELETE FROM work_item` must not hit a constraint it cannot see.
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 1 });
 
     const db = openDatabase(path);
     try {
@@ -293,13 +293,13 @@ describe('RoleProgressRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([]);
   });
 
-  it('refuses to leave a role that has been said to be done, rather than emptying it quietly', async () => {
+  it('refuses to leave a step that has been said to be done, rather than emptying it quietly', async () => {
     // `role_progress.role_id` deliberately carries **no** cascade, which is what
-    // makes a role delete that forgot the statements fail loudly.
-    // `RoleRepository.remove` is the caller that says so explicitly; this is the
+    // makes a step delete that forgot the statements fail loudly.
+    // `StepRepository.remove` is the caller that says so explicitly; this is the
     // constraint underneath it, asserted so that a later migration cannot add a
     // cascade without a red test.
-    await repo.set({ workItemId: stripId, roleId: devId, state: 'done', statedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, state: 'done', statedAt: 1 });
 
     const db = openDatabase(path);
     try {

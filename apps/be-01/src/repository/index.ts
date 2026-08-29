@@ -1,4 +1,4 @@
-import type { EstimateMethod, IsoDate, PriorityBand, RoleState } from '@wbs/domain';
+import type { EstimateMethod, IsoDate, PriorityBand, StepState } from '@wbs/domain';
 
 import type { MeasureMetric, PersonKind } from './schema';
 
@@ -70,7 +70,7 @@ export interface Project {
   solutionRef: { slug: string; url: string } | null;
   /**
    * How many times this project has been written to. Moves on its own stored
-   * fields and on its roles; never on a work item beneath it, and never on
+   * fields and on its steps; never on a work item beneath it, and never on
    * somebody opening it. See `schema.ts` for the rule and why it is bumped in
    * SQL rather than in this process.
    */
@@ -91,78 +91,78 @@ export interface ProjectWithAccess extends Project {
   ownerName: string;
 }
 
-export interface Role {
+export interface Step {
   id: string;
   projectId: string;
   name: string;
   /**
-   * Where this role sits in the project's role order — see `schema.ts` for why
+   * Where this step sits in the project's step order — see `schema.ts` for why
    * the order has to be stored rather than read off the rows as they arrive.
    */
   position: number;
 }
 
 /**
- * A role as a caller offers it. The project decides where in its order the role
- * lands, in the same transaction that writes it: two clients adding a role at
+ * A step as a caller offers it. The project decides where in its order the step
+ * lands, in the same transaction that writes it: two clients adding a step at
  * once would otherwise both read the same last place.
  */
-export type NewRole = Omit<Role, 'position'>;
+export type NewStep = Omit<Step, 'position'>;
 
 /**
- * The gap between two consecutive roles' positions.
+ * The gap between two consecutive steps' positions.
  *
- * Ten, like a work item's, and for the same reason: a role can be put between
+ * Ten, like a work item's, and for the same reason: a step can be put between
  * two others without rewriting either.
  */
-export const ROLE_POSITION_STEP = 10;
+export const STEP_POSITION_STEP = 10;
 
-/** Why a role could not be added or renamed. Both are states of the project, not faults. */
-export type RoleWriteRefusal = 'taken' | 'not_found';
+/** Why a step could not be added or renamed. Both are states of the project, not faults. */
+export type StepWriteRefusal = 'taken' | 'not_found';
 
-export type RoleWritten = { ok: true; role: Role } | { ok: false; reason: RoleWriteRefusal };
+export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
 
 /**
- * What points at one role, read for the refusal that names it.
+ * What points at one step, read for the refusal that names it.
  *
  * The estimates are a count because a count is all anyone can act on. The
- * assignments are **every assignment in the project**, not only this role's:
- * whether a work item's assumed assignee moves when this role goes depends on
- * what it holds for the *other* roles, so the answer cannot be computed from
- * this role's rows alone. See `assumedAssigneeFlips`.
+ * assignments are **every assignment in the project**, not only this step's:
+ * whether a work item's assumed assignee moves when this step goes depends on
+ * what it holds for the *other* steps, so the answer cannot be computed from
+ * this step's rows alone. See `assumedAssigneeFlips`.
  */
-export interface RoleUsageRows {
+export interface StepUsageRows {
   estimates: number;
   /**
-   * How many actuals this role holds — a count, for {@link RoleUsageRows.estimates}'
+   * How many actuals this step holds — a count, for {@link StepUsageRows.estimates}'
    * reason.
    *
    * Counted separately rather than added to the estimates, and counted **at
    * all**, because an actual is somebody's typing about work that has already
-   * happened: a role removal that took one silently would delete the only record
-   * of a week somebody spent. A role with no estimate and one actual is `in_use`.
+   * happened: a step removal that took one silently would delete the only record
+   * of a week somebody spent. A step with no estimate and one actual is `in_use`.
    */
   actuals: number;
   /**
-   * How many work items have said where this role's work has got to — a count,
-   * for {@link RoleUsageRows.estimates}' reason.
+   * How many work items have said where this step's work has got to — a count,
+   * for {@link StepUsageRows.estimates}' reason.
    *
-   * Counted separately and counted **at all** for {@link RoleUsageRows.actuals}'
-   * reason, one table over: a statement is somebody's, and a role removal that
+   * Counted separately and counted **at all** for {@link StepUsageRows.actuals}'
+   * reason, one table over: a statement is somebody's, and a step removal that
    * took one silently would turn finished work back into work nobody has
-   * started, on a plan somebody is reading. A role with no estimate, no actual
+   * started, on a plan somebody is reading. A step with no estimate, no actual
    * and one stated row is `in_use`.
    */
   progress: number;
   /**
-   * How many figures in the units that are not days this role holds — a count
+   * How many figures in the units that are not days this step holds — a count
    * of **rows**, so one pair holding a token estimate and an hours fact counts
-   * two, for {@link RoleUsageRows.estimates}' reason.
+   * two, for {@link StepUsageRows.estimates}' reason.
    *
-   * Counted separately and counted **at all** for {@link RoleUsageRows.actuals}'
+   * Counted separately and counted **at all** for {@link StepUsageRows.actuals}'
    * reason in a third table: `token_actual` and `hours_actual` are records of
    * work that has already happened, and a removal that took them silently would
-   * delete the only account of what a role's work cost. `token_estimate` is
+   * delete the only account of what a step's work cost. `token_estimate` is
    * counted with them rather than with the day-estimates because they share a
    * table and a key, and a count that split one table by its discriminator
    * would be reporting a schema rather than a loss.
@@ -176,11 +176,11 @@ export interface RoleUsageRows {
 }
 
 /** What one confirmed removal took with it. */
-export interface RoleRemoval {
+export interface StepRemoval {
   estimates: number;
   actuals: number;
   progress: number;
-  /** Rows, not pairs — {@link RoleUsageRows.measures}. */
+  /** Rows, not pairs — {@link StepUsageRows.measures}. */
   measures: number;
   assignments: number;
   /** Every work item that lost an estimate, an actual, a state, a figure or an assignment, and whose revision therefore moved. */
@@ -195,44 +195,44 @@ export interface RoleRemoval {
  * counted earlier: an estimate written between a caller's count and its
  * confirmation is what this refusal is for.
  *
- * `not_found` is the loser of two removals of one role — and a role id that
+ * `not_found` is the loser of two removals of one step — and a step id that
  * belongs to another project, which is the same absence from this project's
  * point of view.
  */
-export type RoleRemoved =
-  | { ok: true; removal: RoleRemoval }
+export type StepRemoved =
+  | { ok: true; removal: StepRemoval }
   | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'in_use'; usage: RoleUsageRows };
+  | { ok: false; reason: 'in_use'; usage: StepUsageRows };
 
-export interface RoleStore {
-  /** In role order, which is the order every reader of a project's roles gets. */
-  listByProject(projectId: string): Promise<Role[]>;
-  /** By id alone: the caller checks the role belongs to the project it was asked about. */
-  findById(roleId: string): Promise<Role | null>;
+export interface StepStore {
+  /** In step order, which is the order every reader of a project's steps gets. */
+  listByProject(projectId: string): Promise<Step[]>;
+  /** By id alone: the caller checks the step belongs to the project it was asked about. */
+  findById(stepId: string): Promise<Step | null>;
   /**
-   * Adds a role, or refuses a name the project already holds.
+   * Adds a step, or refuses a name the project already holds.
    *
    * Refused by the unique index rather than by asking first: two clients adding
    * `Design` at the same moment both pass a check-then-insert. Moves the
-   * project's revision in the same transaction — a role is a satellite of the
+   * project's revision in the same transaction — a step is a satellite of the
    * project, and adding one changes what every estimate in it means.
    *
-   * The role lands last in the project's role order, and the written role
+   * The step lands last in the project's step order, and the written step
    * carries the place it took.
    */
-  add(role: NewRole): Promise<RoleWritten>;
-  /** The same rules as {@link RoleStore.add}, and `not_found` for a role that has gone. */
-  rename(roleId: string, name: string): Promise<RoleWritten>;
+  add(step: NewStep): Promise<StepWritten>;
+  /** The same rules as {@link StepStore.add}, and `not_found` for a step that has gone. */
+  rename(stepId: string, name: string): Promise<StepWritten>;
   /**
-   * What points at the role right now — a **fast path** for the refusal, never
+   * What points at the step right now — a **fast path** for the refusal, never
    * the authority for it. Between this answer and any delete, anybody may write.
-   * {@link RoleStore.remove} is what decides.
+   * {@link StepStore.remove} is what decides.
    */
-  usageOf(projectId: string, roleId: string): Promise<RoleUsageRows>;
+  usageOf(projectId: string, stepId: string): Promise<StepUsageRows>;
   /**
-   * Counts what points at the role, refuses an unconfirmed removal that would
-   * take any of it, and otherwise deletes the role's estimates, its assignments
-   * and the role row — all in **one** transaction, bumping the project and every
+   * Counts what points at the step, refuses an unconfirmed removal that would
+   * take any of it, and otherwise deletes the step's estimates, its assignments
+   * and the step row — all in **one** transaction, bumping the project and every
    * work item that lost one of them.
    *
    * The count lives inside the transaction because it is the decision: a caller
@@ -243,11 +243,11 @@ export interface RoleStore {
    * The estimates are deleted explicitly because `estimate.role_id` has no
    * cascade: a bare delete of the row hits the foreign key and answers 500. The
    * **actuals** are deleted explicitly for exactly the same reason, and counted
-   * for a stronger one — see {@link RoleUsageRows.actuals}. The **stated
+   * for a stronger one — see {@link StepUsageRows.actuals}. The **stated
    * progress** goes the same way and is counted the same way, see
-   * {@link RoleUsageRows.progress}.
+   * {@link StepUsageRows.progress}.
    */
-  remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved>;
+  remove(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoved>;
 }
 
 export interface ProjectPatch {
@@ -655,7 +655,7 @@ export interface WorkItemStore {
 
 export interface StoredEstimate {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   optimistic: number;
   realistic: number;
   pessimistic: number;
@@ -663,17 +663,17 @@ export interface StoredEstimate {
 
 export interface EstimateStore {
   listByProject(projectId: string): Promise<StoredEstimate[]>;
-  /** Writes one work item's estimate for one role, replacing any earlier one. */
+  /** Writes one work item's estimate for one step, replacing any earlier one. */
   set(estimate: StoredEstimate): Promise<void>;
   /**
-   * Takes away one work item's estimate for one role, leaving every other
-   * role on that work item and that role on every other work item alone.
+   * Takes away one work item's estimate for one step, leaving every other
+   * step on that work item and that step on every other work item alone.
    *
    * Removing one that is not stored is not an error: the state asked for is
    * the state left, and two people emptying the same three boxes must not turn
    * the second one into a failure on screen.
    */
-  remove(workItemId: string, roleId: string): Promise<void>;
+  remove(workItemId: string, stepId: string): Promise<void>;
   /**
    * Moves every estimate from one work item to another.
    *
@@ -686,14 +686,14 @@ export interface EstimateStore {
 }
 
 /**
- * The days one role spent on one work item, and when somebody said so.
+ * The days one step spent on one work item, and when somebody said so.
  *
  * One number rather than a trio: an estimate is a guess about a range and an
  * actual is a fact about what happened.
  */
 export interface StoredActual {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   days: number;
   /** When the number was typed, in epoch milliseconds. */
   recordedAt: number;
@@ -702,7 +702,7 @@ export interface StoredActual {
 /** One actual row's whole identity: the pair its primary key is. */
 export interface ActualKey {
   workItemId: string;
-  roleId: string;
+  stepId: string;
 }
 
 /**
@@ -717,19 +717,19 @@ export interface ActualKey {
  * own to drift into.
  */
 export interface ActualStore {
-  /** Every actual in the project, in role order within each work item. */
+  /** Every actual in the project, in step order within each work item. */
   listByProject(projectId: string): Promise<StoredActual[]>;
-  /** Writes one work item's actual for one role, replacing any earlier one. */
+  /** Writes one work item's actual for one step, replacing any earlier one. */
   set(actual: StoredActual): Promise<void>;
   /**
-   * Takes away one work item's actual for one role, leaving every other role on
-   * that work item and that role on every other work item alone.
+   * Takes away one work item's actual for one step, leaving every other step on
+   * that work item and that step on every other work item alone.
    *
    * Removing one that is not stored is not an error, for
    * {@link EstimateStore.remove}'s reason: the state asked for is the state
    * left.
    */
-  remove(workItemId: string, roleId: string): Promise<void>;
+  remove(workItemId: string, stepId: string): Promise<void>;
   /**
    * Moves every actual from one work item to another, exactly as
    * {@link EstimateStore.moveAll} does and at the same call sites.
@@ -743,16 +743,16 @@ export interface ActualStore {
 }
 
 /**
- * Where one role's work on one work item has got to, and when somebody said so.
+ * Where one step's work on one work item has got to, and when somebody said so.
  *
- * `state` is one of the two a role may be **stored** in. The third state — not
+ * `state` is one of the two a step may be **stored** in. The third state — not
  * started — is the absence of this row, so it has no spelling here and cannot
- * be written by anybody: see {@link RoleState} in `@wbs/domain`.
+ * be written by anybody: see {@link StepState} in `@wbs/domain`.
  */
 export interface StoredProgress {
   workItemId: string;
-  roleId: string;
-  state: RoleState;
+  stepId: string;
+  state: StepState;
   /** When somebody said so, in epoch milliseconds. */
   statedAt: number;
 }
@@ -760,7 +760,7 @@ export interface StoredProgress {
 /** One progress row's whole identity: the pair its primary key is. */
 export interface ProgressKey {
   workItemId: string;
-  roleId: string;
+  stepId: string;
 }
 
 /**
@@ -775,21 +775,21 @@ export interface ProgressKey {
  * follow a subtree and the statement about them quietly does not — a branch that
  * comes back from an undo reading "not started" over work somebody finished.
  */
-export interface RoleProgressStore {
-  /** Every stated role on every work item in the project, in role order within each. */
+export interface StepProgressStore {
+  /** Every stated step on every work item in the project, in step order within each. */
   listByProject(projectId: string): Promise<StoredProgress[]>;
-  /** States one work item's role, replacing whatever it said before. */
+  /** States one work item's step, replacing whatever it said before. */
   set(progress: StoredProgress): Promise<void>;
   /**
-   * Takes the statement back, leaving every other role on that work item and
-   * that role on every other work item alone.
+   * Takes the statement back, leaving every other step on that work item and
+   * that step on every other work item alone.
    *
    * Removing one that is not stored is not an error, for
    * {@link EstimateStore.remove}'s reason: the state asked for is the state
    * left. What it leaves behind is "not started", which is the absence of a row
    * and never a row saying so.
    */
-  remove(workItemId: string, roleId: string): Promise<void>;
+  remove(workItemId: string, stepId: string): Promise<void>;
   /**
    * Moves every statement from one work item to another, exactly as
    * {@link ActualStore.moveAll} does and at the same call sites.
@@ -803,17 +803,17 @@ export interface RoleProgressStore {
 }
 
 /**
- * What one role's work on one work item cost in one unit that is not days, and
+ * What one step's work on one work item cost in one unit that is not days, and
  * when somebody said so.
  *
  * `metric` is part of the identity rather than a property of it: the same pair
  * holding a token estimate, a token fact and an hours fact is three of these,
- * and each is absent on its own. See {@link roleMeasure} in `schema.ts` and
+ * and each is absent on its own. See {@link stepMeasure} in `schema.ts` and
  * `openspec/changes/token-tracking/design.md` D1.
  */
 export interface StoredMeasure {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   metric: MeasureMetric;
   /** The figure itself — tokens or hours, in whatever `metric` says. */
   value: number;
@@ -824,7 +824,7 @@ export interface StoredMeasure {
 /** One measure row's whole identity: the triple its primary key is. */
 export interface MeasureKey {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   metric: MeasureMetric;
 }
 
@@ -847,16 +847,16 @@ export interface MeasureKey {
  * because a leaf gaining a child stops holding figures in every unit at once.
  */
 export interface MeasureStore {
-  /** Every measure in the project, in role order within each work item and metric order within each pair. */
+  /** Every measure in the project, in step order within each work item and metric order within each pair. */
   listByProject(projectId: string): Promise<StoredMeasure[]>;
   /**
-   * Writes one work item's figure in one metric for one role, replacing any
+   * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.
    */
   set(measure: StoredMeasure): Promise<void>;
   /**
-   * Takes away one work item's figure in one metric for one role, leaving every
-   * other metric on that pair, every other role on that work item and that role
+   * Takes away one work item's figure in one metric for one step, leaving every
+   * other metric on that pair, every other step on that work item and that step
    * on every other work item alone.
    *
    * Removing one that is not stored is not an error, for
@@ -864,7 +864,7 @@ export interface MeasureStore {
    * left. What it leaves behind is nobody having said, which is the absence of a
    * row and never a stored zero.
    */
-  remove(workItemId: string, roleId: string, metric: MeasureMetric): Promise<void>;
+  remove(workItemId: string, stepId: string, metric: MeasureMetric): Promise<void>;
   /**
    * Moves every measure in every metric from one work item to another, exactly
    * as {@link ActualStore.moveAll} does and at the same call sites.
@@ -997,10 +997,10 @@ export interface PersonWithTeams extends Person {
   teamIds: string[];
 }
 
-/** Who is doing one work item's work for one role. */
+/** Who is doing one work item's work for one step. */
 export interface Assignment {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   personId: string;
 }
 
@@ -1086,9 +1086,9 @@ export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'u
  * them by a number nobody's screen shows.
  *
  * `assignments` are every assignment in those projects rather than the ones
- * naming the entity, for the reason {@link RoleUsageRows} gives: whether a work
+ * naming the entity, for the reason {@link StepUsageRows} gives: whether a work
  * item's **assumed assignee** moves depends on what it holds for the *other*
- * roles.
+ * steps.
  */
 export interface DirectoryUsageRows {
   /**
@@ -1099,7 +1099,7 @@ export interface DirectoryUsageRows {
   workItems: readonly LabelledWorkItem[];
   projects: readonly { id: string; name: string }[];
   assignments: readonly Assignment[];
-  roles: readonly { id: string; name: string }[];
+  steps: readonly { id: string; name: string }[];
   /** Every person an assignment above names, so an effect can say who rather than which id. */
   people: readonly Person[];
   /**
@@ -1107,7 +1107,7 @@ export interface DirectoryUsageRows {
    * being removed**. Empty for a person: their own memberships name nobody
    * else and go with them, so they force no confirmation.
    *
-   * Named rather than {@link Person}, the shape `projects` and `roles` above
+   * Named rather than {@link Person}, the shape `projects` and `steps` above
    * already use: the confirmation prints who loses the membership, and
    * `directory-usage.ts` narrows this to `{ id, name }` before it leaves the
    * service. Widening it to a whole person would mean reading a `kind` column
@@ -1368,10 +1368,10 @@ export interface DirectoryStore {
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
   /**
    * Sets, replaces or (with `null`) removes one work item's assignee for one
-   * role, validating the person **inside the write's own transaction** — see
+   * step, validating the person **inside the write's own transaction** — see
    * {@link AssignmentWritten}.
    */
-  assign(workItemId: string, roleId: string, personId: string | null): Promise<AssignmentWritten>;
+  assign(workItemId: string, stepId: string, personId: string | null): Promise<AssignmentWritten>;
 }
 
 /**
@@ -1483,7 +1483,7 @@ export interface SubtreeCopy {
 /** One estimate row's whole identity: the pair its primary key is. */
 export interface EstimateKey {
   workItemId: string;
-  roleId: string;
+  stepId: string;
 }
 
 export interface SubtreeStore {
@@ -1583,8 +1583,8 @@ export interface PlanEvent {
   label: string;
   /** The one work item the command was aimed at, or null when it named many. */
   workItemId: string | null;
-  /** The role, for the kinds that carry one. */
-  roleId: string | null;
+  /** The step, for the kinds that carry one. */
+  stepId: string | null;
   before: unknown;
   after: unknown;
   createdAt: number;
@@ -1709,11 +1709,11 @@ export interface CommandJournalStore {
 
 export interface ProjectStore {
   /**
-   * Writes the project and its starting roles together. A project that existed
-   * for even one request without roles would accept an estimate that had no
-   * role to belong to, so the two are one transaction rather than two calls.
+   * Writes the project and its starting steps together. A project that existed
+   * for even one request without steps would accept an estimate that had no
+   * step to belong to, so the two are one transaction rather than two calls.
    */
-  create(project: Project, roles: readonly Role[]): Promise<Project>;
+  create(project: Project, steps: readonly Step[]): Promise<Project>;
   findById(id: string): Promise<Project | null>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
@@ -1741,5 +1741,5 @@ export interface ProjectStore {
   recordOpen(userId: string, projectId: string, at: number): Promise<void>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch): Promise<Project | null>;
-  rolesOf(projectId: string): Promise<Role[]>;
+  stepsOf(projectId: string): Promise<Step[]>;
 }

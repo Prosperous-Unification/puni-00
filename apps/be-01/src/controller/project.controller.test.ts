@@ -18,7 +18,7 @@ import { inMemoryPriorityBands, testPriorityBandService } from '../testing/prior
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -75,7 +75,7 @@ function buildHarness(options: { writeOnly?: boolean } = {}) {
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),
-    roles: testRoleService(projectStore),
+    steps: testStepService(projectStore),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
@@ -268,11 +268,11 @@ describe('projects', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       project: { name: string; ownerId: string; restricted: boolean };
-      roles: { name: string }[];
+      steps: { name: string }[];
     };
     expect(body.project.name).toBe('Rewire the shed');
     expect(body.project.restricted).toBe(false);
-    expect(body.roles.map((r) => r.name)).toEqual(['Dev', 'QA']);
+    expect(body.steps.map((r) => r.name)).toEqual(['Dev', 'QA']);
   });
 
   it('lists every project regardless of who owns it', async () => {
@@ -412,16 +412,16 @@ describe('projects', () => {
     expect(res.status).toBe(200);
   });
 
-  it('answers a create with the project it wrote and its starting roles', async () => {
+  it('answers a create with the project it wrote and its starting steps', async () => {
     const { register, send } = buildHarness();
     const token = await register('owner');
 
     const res = await send('/api/projects', token, created('Rewire the shed'));
 
-    const body = (await res.json()) as { project: object; roles: object[] };
+    const body = (await res.json()) as { project: object; steps: object[] };
     expect(missingFrom(body.project, PROJECT_FIELDS)).toEqual([]);
     expect(
-      body.roles.every((r) => missingFrom(r, ['id', 'projectId', 'name', 'position']).length === 0),
+      body.steps.every((r) => missingFrom(r, ['id', 'projectId', 'name', 'position']).length === 0),
     ).toBe(true);
     // The two absences, which are claims of their own: create has never had an
     // account's navigation history to report, and fe-01 typed its response as
@@ -457,9 +457,9 @@ describe('projects', () => {
 
     const res = await send(`/api/projects/${project.id}`, token);
 
-    const body = (await res.json()) as { project: object; roles: object[] };
+    const body = (await res.json()) as { project: object; steps: object[] };
     expect(missingFrom(body.project, PROJECT_FIELDS)).toEqual([]);
-    expect(body.roles).toHaveLength(2);
+    expect(body.steps).toHaveLength(2);
     // The recorded non-goal, made breakable: the header reads its project out
     // of the list it already holds, so this route is not half-joined to match.
     expect(Object.hasOwn(body.project, 'ownerName')).toBe(false);

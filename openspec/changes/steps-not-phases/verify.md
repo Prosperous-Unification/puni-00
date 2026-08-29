@@ -1,15 +1,34 @@
 # verify — `steps-not-phases`
 
-Not yet implemented.
+Branched from `fix/reference-cell-popover` (`7ac1285`), which carries
+`E2E_PORT_SHIFT` — without it the browser gate silently measures whatever holds
+3100/3200/4200 (`LLM_README.md`'s landmine).
 
 ## Pre-rename test-case counts (slice 1.2)
 
-| Project       | Cases before | Cases after |
-| ------------- | ------------ | ----------- |
-| `libs/domain` | pending      | pending     |
-| `be-01`       | pending      | pending     |
-| `fe-01`       | pending      | pending     |
-| `mcp-01`      | pending      | pending     |
+Measured on `7ac1285`, before a single identifier moved,
+`bunx nx run-many -t test --projects=domain,be-01,fe-01,mcp-01 --skip-nx-cache`.
+
+| Project       | Cases before    | Cases after |
+| ------------- | --------------- | ----------- |
+| `libs/domain` | 118 (0 failed)  | pending     |
+| `be-01`       | 1172 (2 failed) | pending     |
+| `fe-01`       | 1872 (3 failed) | pending     |
+| `mcp-01`      | 103 (0 failed)  | pending     |
+
+The five failures are **pre-rename** and are this checkout's baseline, not this
+change's:
+
+- `be-01` `login-throttle.test.ts` `never evicts a live lock when the bounded
+map fills with attacker keys` — `this test timed out after 5000ms`, having
+  taken 7187ms on a loaded laptop.
+- `be-01` `priority-band.controller.test.ts` — `SyntaxError: Failed to parse
+JSON` in its `registered` helper, downstream of the throttle above.
+- `fe-01` `wbs-table.test.tsx` `gives every cell the chrome its declared width
+is measured with` — `expected 'clip' to be 'hidden'`.
+- `fe-01` `wbs-table.test.tsx` `anything the item holds vetoes the backspace
+removal` and `names every dependency the server refused, and keeps the rest` —
+  both `Test timed out in 5000ms` in a 458-second run.
 
 Any case whose body changed beyond identifier substitution is listed here with
 the reason. An empty list is the claim "no behaviour changed"; a non-empty one
@@ -17,12 +36,12 @@ is where that claim is weakest.
 
 ## Commands
 
-| Command                                                              | Result  |
-| -------------------------------------------------------------------- | ------- |
-| `bin/h2puni-gate.sh`                                                 | not run |
-| `openspec validate --all --json`                                     | not run |
-| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                     | not run |
-| `CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts` | not run |
+| Command                                          | Result  |
+| ------------------------------------------------ | ------- |
+| `bin/h2puni-gate.sh`                             | not run |
+| `openspec validate --all --json`                 | not run |
+| `bun apps/be-01/src/openapi/emit-openapi-cli.ts` | not run |
+| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`  | not run |
 
 ## Failure proofs (R5)
 

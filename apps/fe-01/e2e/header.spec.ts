@@ -385,7 +385,7 @@ test.describe('the header bar, measured by a browser', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     const bar = page.getByRole('banner');
 
-    // Every one of these is found by role and name, and inside the bar: the
+    // Every one of these is found by step and name, and inside the bar: the
     // brand, the two pages, the project, who else is here, and the account. The
     // account menu has never been opened by a browser before this line — `F`
     // shipped `modal.tsx` with the same gap and said so.
@@ -579,7 +579,7 @@ test.describe('the open project picker, measured by a browser', () => {
  * FAULT W — three more controls in the bar.
  *   `app-header.tsx`: three `shrink-0` buttons of about 200px each added beside
  *   the brand, which is what the next three changes to this bar look like
- *   (`P` a phases dialog, `G` a view switch, `M` a menu).
+ *   (`P` a steps dialog, `G` a view switch, `M` a menu).
  * Three rather than one because the bar has about 460px of slack at its
  * narrowest — the picker and the roster give way first, by design — and one
  * more control is a thing it absorbs rather than a regression. `past: 50` at

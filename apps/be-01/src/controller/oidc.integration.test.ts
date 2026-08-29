@@ -9,7 +9,7 @@ import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import * as authModule from './auth.controller';
@@ -125,7 +125,7 @@ function fixture(
     probeDatabase: () => 'ok',
     projects: testProjectService(),
     replay: testReplay().replay,
-    roles: testRoleService(),
+    steps: testStepService(),
     workItems: testWorkItemService(),
   });
   return { app, calls, tokens, transactions, users };

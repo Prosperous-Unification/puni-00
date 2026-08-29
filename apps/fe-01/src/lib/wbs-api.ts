@@ -53,7 +53,7 @@ export interface ScheduleView {
  * What decided a slice's start: the latest of its floors, named.
  *
  * `projectStart` means nothing did. `predecessor` is a dependency onto another
- * work item, `roleOrder` the work item's own earlier phase, `notBefore` a
+ * work item, `stepOrder` the work item's own earlier step, `notBefore` a
  * manual date, `person` the assignee finishing something else, and `capacity`
  * the work item's **team** having no slot free. A tie is never `person` and
  * never `capacity`: whoever came free exactly as the dependency cleared was not
@@ -63,23 +63,23 @@ export interface ScheduleView {
 export type ScheduleFloorView =
   | 'projectStart'
   | 'predecessor'
-  | 'roleOrder'
+  | 'stepOrder'
   | 'notBefore'
   | 'person'
   | 'capacity';
 
 /**
- * One placed slice — one work item's work for one phase — as be-01 sends it.
+ * One placed slice — one work item's work for one step — as be-01 sends it.
  *
  * A row's {@link ScheduleView} is the span this is a projection of, and both
  * are carried because neither answers the other's question: a row does not say
- * which phase ran when, and a slice does not know its parent's bracket.
+ * which step ran when, and a slice does not know its parent's bracket.
  *
  * `id` is be-01's own key for the slice and is **opaque** — a string to look up,
  * never to take apart. `resourcePredecessorId` names another entry of the same
  * array by that id: the slice this one's assignee was busy with, and only where
  * `boundBy` is `person`, so a link drawn from it is a wait that really happened.
- * Reconstructing the id from `workItemId` and `roleId` would be a second copy of
+ * Reconstructing the id from `workItemId` and `stepId` would be a second copy of
  * be-01's `sliceKey`, and the two would disagree the day either changes.
  *
  * The numbers are be-01's verbatim, fractions and all — a chart drawn from them
@@ -88,8 +88,8 @@ export type ScheduleFloorView =
 export interface SliceView {
   id: string;
   workItemId: string;
-  /** Null only in a project holding no phases at all, which is reachable. */
-  roleId: string | null;
+  /** Null only in a project holding no steps at all, which is reachable. */
+  stepId: string | null;
   personId: string | null;
   duration: number;
   /** False when nobody has estimated this pair, which is not the same as zero days. */
@@ -163,7 +163,7 @@ export interface WorkItemView {
   /** The work items this one waits for, by id. Either end may be a parent. */
   dependsOn: string[];
   /**
-   * The one number this row is planned with, per role, and their sum — the
+   * The one number this row is planned with, per step, and their sum — the
    * project's estimate method applied to the trio above.
    *
    * be-01 computes both, from the same call the schedule's durations come
@@ -304,15 +304,15 @@ export interface WorkItemView {
    */
   serviceIds?: string[];
   /**
-   * Who does this work, by role id.
+   * Who does this work, by step id.
    *
-   * `string | undefined` rather than `string`: a role nobody is assigned to is
+   * `string | undefined` rather than `string`: a step nobody is assigned to is
    * **absent** from this object, and a type saying otherwise would have every
    * reader believing an index always finds somebody.
    */
   assignees: Record<string, string | undefined>;
-  /** The one person assumed to do every phase, when exactly one is assigned. */
-  doesEveryPhase: string | null;
+  /** The one person assumed to do every step, when exactly one is assigned. */
+  doesEveryStep: string | null;
   /**
    * `estimates` is **effort** and this is **span**. For a parent they differ:
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
@@ -321,7 +321,7 @@ export interface WorkItemView {
   schedule: ScheduleView;
 }
 
-export interface RoleView {
+export interface StepView {
   id: string;
   name: string;
 }
@@ -339,11 +339,11 @@ export interface AssignedPersonView {
 }
 
 /**
- * One work item whose {@link WorkItemView.doesEveryPhase} a removal would move.
+ * One work item whose {@link WorkItemView.doesEveryStep} a removal would move.
  *
  * Nobody wrote these rows: the assumption is derived from a work item holding
- * exactly one assignment, so removing a role can promote somebody to covering
- * every phase or end that reading. be-01 computes them (`assumed-assignee.ts`)
+ * exactly one assignment, so removing a step can promote somebody to covering
+ * every step or end that reading. be-01 computes them (`assumed-assignee.ts`)
  * and the confirmation prints them, which is the only reason they cross the
  * wire — the client never derives one.
  */
@@ -351,30 +351,30 @@ export interface AssumedAssigneeFlipView {
   workItemId: string;
   /** Who is assumed to be doing all of it now, or null for nobody. */
   assumedNow: string | null;
-  /** Who would be, once the phase and its assignments have gone. */
+  /** Who would be, once the step and its assignments have gone. */
   assumedAfter: string | null;
 }
 
-/** What removing a phase would take with it, as be-01's refusal reports it. */
-export interface RoleUsage {
+/** What removing a step would take with it, as be-01's refusal reports it. */
+export interface StepUsage {
   estimates: number;
-  /** Explicit assignments on this phase. The assumed ones are in `assumedAssignees`. */
+  /** Explicit assignments on this step. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   assumedAssignees: AssumedAssigneeFlipView[];
 }
 
 /**
- * What came of asking for a phase to be removed.
+ * What came of asking for a step to be removed.
  *
  * `in_use` is a **modeled answer** rather than a thrown code, for the reason
  * {@link UndoResult}'s refusals are: it is an ordinary state of a plan somebody
  * has been estimating, and the counts riding along with it are the whole point
  * of the refusal — the next request is the same one with the cascade, and
  * nobody can agree to that without being told what it takes. Every other
- * refusal throws its code, which {@link roleRefusalSentence} turns into a
+ * refusal throws its code, which {@link stepRefusalSentence} turns into a
  * sentence.
  */
-export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: RoleUsage };
+export type StepRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: StepUsage };
 
 /**
  * A service or team, global to this deployment. A name and nothing else.
@@ -533,7 +533,7 @@ export interface PersonView {
  * description of what arrives.
  */
 export type DirectoryEffect =
-  | { kind: 'assignment_dropped'; role: { id: string; name: string } }
+  | { kind: 'assignment_dropped'; step: { id: string; name: string } }
   | { kind: 'label_nulled' }
   /**
    * The row carries the **tag** being removed, and will stop carrying it.
@@ -613,7 +613,7 @@ export interface DirectoryUsage {
  * What came of asking for a person or a service team to be removed.
  *
  * `in_use` is a **modeled answer** rather than a thrown code, for the reason
- * {@link RoleRemoval}'s is: the usage riding along with it is the whole value of
+ * {@link StepRemoval}'s is: the usage riding along with it is the whole value of
  * the refusal, and {@link send} throws the `error` field and drops every field
  * beside it. The next request is the same one with the cascade, and nobody can
  * agree to that without being shown what it takes.
@@ -796,7 +796,7 @@ export type UndoResult =
  * the query to make the two match. `startDate` is the one wire field this now
  * reads beyond the entry's own meta: the hover card prints it, and it is the
  * only project field cheap enough to be worth it — everything else the card
- * might show (phase counts, last *modified*) is not on this wire at all.
+ * might show (step counts, last *modified*) is not on this wire at all.
  *
  * Separate from {@link CreatedProject} because the two routes answer different
  * things: one type standing for both is how `createProject` came to declare a
@@ -883,15 +883,15 @@ export interface ProjectApi {
      */
     slices: SliceView[];
     /**
-     * The phases the slices above were placed under, in the engine's own order.
+     * The steps the slices above were placed under, in the engine's own order.
      *
-     * The same list {@link ProjectApi.roles} answers with, carried here so that
+     * The same list {@link ProjectApi.steps} answers with, carried here so that
      * a chart drawn from this read never has to pair it with another one. Both
      * are needed and they are not the same fact: this one describes **these**
-     * slices, and the separate read is what the column headers and the phases
+     * slices, and the separate read is what the column headers and the steps
      * dialog edit.
      */
-    roles: RoleView[];
+    steps: StepView[];
     /**
      * The names of everybody an assignment on these rows points at.
      *
@@ -905,7 +905,7 @@ export interface ProjectApi {
      * has stated a number about.
      *
      * Carried on the tree rather than fetched separately, and for a stronger
-     * reason than `roles` has: the dates and bars in this very payload were
+     * reason than `steps` has: the dates and bars in this very payload were
      * computed **from** these numbers, so a second request at a second moment
      * could put a capacity on screen that does not explain the bars beside it.
      *
@@ -933,7 +933,7 @@ export interface ProjectApi {
     startDate: string | null;
     /**
      * The project row's own revision: its name, restriction, estimate method,
-     * start date and roles. It does not move when a work item does — each
+     * start date and steps. It does not move when a work item does — each
      * carries its own.
      */
     projectRevision: number;
@@ -992,18 +992,18 @@ export interface ProjectApi {
    * answered on — the bargain `setTeamCapacity` makes one fact along.
    */
   setPriorityBands(projectId: string, bands: readonly PriorityBandView[]): Promise<void>;
-  roles(projectId: string): Promise<RoleView[]>;
-  /** Adds a phase to the project. Throws `taken` when the name is already one. */
-  addRole(projectId: string, name: string): Promise<RoleView>;
-  renameRole(projectId: string, roleId: string, name: string): Promise<RoleView>;
+  steps(projectId: string): Promise<StepView[]>;
+  /** Adds a step to the project. Throws `taken` when the name is already one. */
+  addStep(projectId: string, name: string): Promise<StepView>;
+  renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
   /**
-   * Removes a phase, or answers what it would take.
+   * Removes a step, or answers what it would take.
    *
-   * Called first without a cascade, always: be-01 removes a phase nothing points
+   * Called first without a cascade, always: be-01 removes a step nothing points
    * at outright and refuses one that is used, with its counts. `cascade` is the
    * caller saying it has shown those counts to somebody and been told to go on.
    */
-  removeRole(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoval>;
+  removeStep(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
   create(
     projectId: string,
     input: { parentId: string | null; afterId: string | null; name?: string },
@@ -1102,8 +1102,8 @@ export interface ProjectApi {
   listPeople(): Promise<PersonView[]>;
   /** Adds a person; no teams means a free agent. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
-  /** Sets or (with `null`) clears who does one work item's work for one role. */
-  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
+  /** Sets or (with `null`) clears who does one work item's work for one step. */
+  assign(workItemId: string, stepId: string, personId: string | null): Promise<void>;
   move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   /**
    * Copies a work item and everything under it, as the next sibling of the
@@ -1117,21 +1117,21 @@ export interface ProjectApi {
    */
   duplicate(id: string): Promise<{ id: string }>;
   remove(id: string, options?: DeleteOptions): Promise<void>;
-  setEstimate(id: string, roleId: string, days: Days): Promise<void>;
+  setEstimate(id: string, stepId: string, days: Days): Promise<void>;
   /**
-   * Takes one work item's stored trio for one role back off.
+   * Takes one work item's stored trio for one step back off.
    *
    * Idempotent at be-01, which is what lets the table call it from a gesture —
    * emptying three boxes — rather than from a button that has to know whether
    * there is anything there to remove.
    */
-  clearEstimate(id: string, roleId: string): Promise<void>;
+  clearEstimate(id: string, stepId: string): Promise<void>;
   freeze(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
   unfreeze(id: string): Promise<void>;
   /**
    * Records "`predecessorId`'s **anchor** must finish before this starts" —
-   * its first role somebody estimated, not the whole of it. The roles behind
+   * its first step somebody estimated, not the whole of it. The steps behind
    * that anchor run alongside this work item. Since `dep-waits-on-first-role`
    * (2026-08-11); the edge itself is unchanged, only what it means.
    */
@@ -1189,7 +1189,7 @@ async function stepStack(path: string, token: string): Promise<UndoResult> {
 }
 
 /**
- * Removes a phase, reading be-01's `in_use` counts out of the 409 instead of
+ * Removes a step, reading be-01's `in_use` counts out of the 409 instead of
  * throwing the code alone.
  *
  * The same shape as {@link stepStack} and for the same reason: `send` throws the
@@ -1198,11 +1198,11 @@ async function stepStack(path: string, token: string): Promise<UndoResult> {
  * throws through the ordinary path rather than being read as a refusal this
  * client understands.
  */
-async function removeRoleAt(path: string, token: string): Promise<RoleRemoval> {
+async function removeStepAt(path: string, token: string): Promise<StepRemoval> {
   const res = await fetch(path, { method: 'DELETE', headers: auth(token) });
   const text = await res.text();
   if (res.status === 409) {
-    const body = JSON.parse(text) as { error?: string; inUse?: RoleUsage };
+    const body = JSON.parse(text) as { error?: string; inUse?: StepUsage };
     // Both halves are asked for. A refusal claiming to be `in_use` with no
     // counts in it is a be-01 that has changed shape, and confirming a cascade
     // from an empty confirmation is exactly the unknown this repository refuses
@@ -1231,10 +1231,10 @@ async function removeRoleAt(path: string, token: string): Promise<RoleRemoval> {
 }
 
 /**
- * What a refused phase change says out loud.
+ * What a refused step change says out loud.
  *
  * be-01's codes are the vocabulary everywhere else in this client — `cycle` and
- * `forbidden` reach a toast as themselves — and phases are the exception on
+ * `forbidden` reach a toast as themselves — and steps are the exception on
  * purpose: these are refusals aimed at somebody typing a name into a box, not at
  * somebody reading a plan, and `taken` in the corner of the screen is a word
  * about HTTP rather than about their project.
@@ -1244,22 +1244,22 @@ async function removeRoleAt(path: string, token: string): Promise<RoleRemoval> {
  * this takes the code as a string and answers for anything, so there is one
  * fallback and it is here.
  */
-export function roleRefusalSentence(code: string): string {
+export function stepRefusalSentence(code: string): string {
   switch (code) {
     case 'taken':
-      return 'That name is already a phase on this plan.';
+      return 'That name is already a step on this plan.';
     case 'name_required':
-      return 'A phase needs a name.';
+      return 'A step needs a name.';
     case 'in_use':
-      return 'That phase still holds estimates or assignments on this plan.';
-    case 'unknown_role':
-      return 'That phase is no longer on this plan — somebody else removed it.';
+      return 'That step still holds estimates or assignments on this plan.';
+    case 'unknown_step':
+      return 'That step is no longer on this plan — somebody else removed it.';
     case 'not_found':
-      return 'That phase is no longer on this plan.';
+      return 'That step is no longer on this plan.';
     case 'forbidden':
       return 'This plan is not yours to change.';
     default:
-      return `The phase could not be changed (${code}).`;
+      return `The step could not be changed (${code}).`;
   }
 }
 
@@ -1309,7 +1309,7 @@ function isDirectoryEffect(value: unknown): value is DirectoryEffect {
     // `fromId` would take the inherited-limit sentence's whole subject with it.
     return typeof value['size'] === 'number' && typeof value['fromId'] === 'string';
   }
-  if (value['kind'] === 'assignment_dropped') return isNamed(value['role']);
+  if (value['kind'] === 'assignment_dropped') return isNamed(value['step']);
   if (value['kind'] === 'assumed_assignee_changed') {
     // Both, and present: `undefined` fails this, so a payload that dropped the
     // flip's "after" cannot be drawn as a flip to nobody.
@@ -1523,7 +1523,7 @@ export function priorityBandRefusalSentence(code: string): string {
 /**
  * What a refused directory change says out loud.
  *
- * {@link roleRefusalSentence}'s sibling, and here for the same reason: these
+ * {@link stepRefusalSentence}'s sibling, and here for the same reason: these
  * refusals are aimed at somebody typing a name into a box, and `taken` in the
  * corner of the screen is a word about HTTP rather than about their directory.
  *
@@ -1752,7 +1752,7 @@ export function httpProjectApi(token: string): ProjectApi {
         seq: number;
         scheduleError: 'cycle' | null;
         slices: SliceView[];
-        roles: RoleView[];
+        steps: StepView[];
         assignedPeople: AssignedPersonView[];
         teamCapacities: TeamCapacityView[];
         priorityBands: PriorityBandView[];
@@ -1781,8 +1781,8 @@ export function httpProjectApi(token: string): ProjectApi {
     removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),
     listPeople: () => directory.listPeople(),
     addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
-    async assign(workItemId, roleId, personId) {
-      await onRow(workItemId, { kind: 'setAssignee', roleId, personId });
+    async assign(workItemId, stepId, personId) {
+      await onRow(workItemId, { kind: 'setAssignee', stepId, personId });
     },
     async setStartDate(projectId, startDate) {
       await send(`/api/projects/${projectId}`, token, {
@@ -1802,28 +1802,28 @@ export function httpProjectApi(token: string): ProjectApi {
         body: JSON.stringify({ estimateMethod: method }),
       });
     },
-    async roles(projectId) {
-      const body = await send<{ roles: RoleView[] }>(`/api/projects/${projectId}`, token);
-      return body.roles;
+    async steps(projectId) {
+      const body = await send<{ steps: StepView[] }>(`/api/projects/${projectId}`, token);
+      return body.steps;
     },
-    async addRole(projectId, name) {
-      const body = await send<{ role: RoleView }>(`/api/projects/${projectId}/roles`, token, {
+    async addStep(projectId, name) {
+      const body = await send<{ step: StepView }>(`/api/projects/${projectId}/steps`, token, {
         method: 'POST',
         body: JSON.stringify({ name }),
       });
-      return body.role;
+      return body.step;
     },
-    async renameRole(projectId, roleId, name) {
-      const body = await send<{ role: RoleView }>(
-        `/api/projects/${projectId}/roles/${roleId}`,
+    async renameStep(projectId, stepId, name) {
+      const body = await send<{ step: StepView }>(
+        `/api/projects/${projectId}/steps/${stepId}`,
         token,
         { method: 'PATCH', body: JSON.stringify({ name }) },
       );
-      return body.role;
+      return body.step;
     },
-    removeRole(projectId, roleId, cascade) {
-      return removeRoleAt(
-        `/api/projects/${projectId}/roles/${roleId}${cascade ? '?cascade=true' : ''}`,
+    removeStep(projectId, stepId, cascade) {
+      return removeStepAt(
+        `/api/projects/${projectId}/steps/${stepId}${cascade ? '?cascade=true' : ''}`,
         token,
       );
     },
@@ -1854,11 +1854,11 @@ export function httpProjectApi(token: string): ProjectApi {
         ...(options?.strategy === undefined ? {} : { strategy: options.strategy }),
       });
     },
-    async setEstimate(id, roleId, days) {
-      await onRow(id, { kind: 'setEstimate', roleId, days });
+    async setEstimate(id, stepId, days) {
+      await onRow(id, { kind: 'setEstimate', stepId, days });
     },
-    async clearEstimate(id, roleId) {
-      await onRow(id, { kind: 'clearEstimate', roleId });
+    async clearEstimate(id, stepId) {
+      await onRow(id, { kind: 'clearEstimate', stepId });
     },
     async freeze(projectId) {
       await command(projectId, { kind: 'freezeProject' });

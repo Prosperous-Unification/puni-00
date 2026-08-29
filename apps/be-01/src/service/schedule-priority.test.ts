@@ -14,8 +14,8 @@ import { schedule, sliceKey } from './schedule';
  * does not move.
  */
 
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 let position = 0;
 const item = (
@@ -45,15 +45,15 @@ const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
 
 const slice = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   days: number | null,
   personId: string | null = null,
-): Slice => ({ workItemId, roleId, days, personId, width: 1, poolIds: [] });
+): Slice => ({ workItemId, stepId, days, personId, width: 1, poolIds: [] });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
-const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {
-  const one = found.slices.get(sliceKey(workItemId, roleId));
-  if (one === undefined) throw new Error(`no slice for ${workItemId}/${roleId}`);
+const planned = (found: Schedule, workItemId: string, stepId: string): ScheduledSlice => {
+  const one = found.slices.get(sliceKey(workItemId, stepId));
+  if (one === undefined) throw new Error(`no slice for ${workItemId}/${stepId}`);
   return one;
 };
 
@@ -154,9 +154,9 @@ describe('priority never overrides a hard constraint', () => {
     });
   });
 
-  it('keeps a work item’s own roles in role order', () => {
+  it('keeps a work item’s own steps in step order', () => {
     // Priority is per work item, so both of a work item's slices carry it —
-    // and a priority cannot reorder them against each other, because the role
+    // and a priority cannot reorder them against each other, because the step
     // chain is a plan edge like any other.
     const rows = [item('a', null, 2), item('b', null, 1)];
     const slices = [
@@ -268,10 +268,10 @@ describe('a priority written up the tree reaches the leaves', () => {
  *
  * Three of them were **re-derived** at `dep-waits-on-first-role` (2026-08-11),
  * which moved this plan on purpose: `c-c` waits on `c-a`'s anchor — its `Dev`,
- * finishing day 7 — instead of on the whole of `c-a`, so `c-c/role-dev` starts
- * 8 → 7, and sam's queue reverses behind it: `c-a/role-qa` 7 → 9.5 with
- * `boundBy` `roleOrder` → `person` and `c-c/role-dev` as its resource
- * predecessor, while `c-p1/role-qa` — unestimated, floating — takes the
+ * finishing day 7 — instead of on the whole of `c-a`, so `c-c/step-dev` starts
+ * 8 → 7, and sam's queue reverses behind it: `c-a/step-qa` 7 → 9.5 with
+ * `boundBy` `stepOrder` → `person` and `c-c/step-dev` as its resource
+ * predecessor, while `c-p1/step-qa` — unestimated, floating — takes the
  * project's new finish, float 3.5 → 6.5. Everything else is untouched, which is
  * the point: the anchor rule moves what waits on a dependency and nothing else.
  * Priority is still what this pin is *for*; the plan still priorities nothing.
@@ -336,9 +336,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
       .sort(([left], [right]) => (left < right ? -1 : 1));
 
     expect(Object.fromEntries(saidOfSlices)).toEqual({
-      'c-a/role-dev': {
+      'c-a/step-dev': {
         workItemId: 'c-a',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 3,
         effort: 3,
         width: 1,
@@ -351,12 +351,12 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         critical: true,
         personId: 'kat',
         boundBy: 'person',
-        resourcePredecessorId: 'c-p1/role-dev',
+        resourcePredecessorId: 'c-p1/step-dev',
         capacityPredecessorIds: [],
       },
-      'c-a/role-qa': {
+      'c-a/step-qa': {
         workItemId: 'c-a',
-        roleId: 'role-qa',
+        stepId: 'step-qa',
         duration: 1,
         effort: 1,
         width: 1,
@@ -369,12 +369,12 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         critical: true,
         personId: 'sam',
         boundBy: 'person',
-        resourcePredecessorId: 'c-c/role-dev',
+        resourcePredecessorId: 'c-c/step-dev',
         capacityPredecessorIds: [],
       },
-      'c-b/role-dev': {
+      'c-b/step-dev': {
         workItemId: 'c-b',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 2,
         effort: 2,
         width: 1,
@@ -387,12 +387,12 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         critical: false,
         personId: 'kat',
         boundBy: 'person',
-        resourcePredecessorId: 'c-a/role-dev',
+        resourcePredecessorId: 'c-a/step-dev',
         capacityPredecessorIds: [],
       },
-      'c-c/role-dev': {
+      'c-c/step-dev': {
         workItemId: 'c-c',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 2.5,
         effort: 2.5,
         width: 1,
@@ -408,9 +408,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
-      'c-d/role-dev': {
+      'c-d/step-dev': {
         workItemId: 'c-d',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 3,
         effort: 3,
         width: 1,
@@ -426,9 +426,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
-      'c-p1/role-dev': {
+      'c-p1/step-dev': {
         workItemId: 'c-p1',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 4,
         effort: 4,
         width: 1,
@@ -444,9 +444,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
-      'c-p1/role-qa': {
+      'c-p1/step-qa': {
         workItemId: 'c-p1',
-        roleId: 'role-qa',
+        stepId: 'step-qa',
         duration: 0,
         effort: 0,
         width: 1,
@@ -458,13 +458,13 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         float: 6.5,
         critical: false,
         personId: 'sam',
-        boundBy: 'roleOrder',
+        boundBy: 'stepOrder',
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
-      'c-p2/role-dev': {
+      'c-p2/step-dev': {
         workItemId: 'c-p2',
-        roleId: 'role-dev',
+        stepId: 'step-dev',
         duration: 1,
         effort: 1,
         width: 1,

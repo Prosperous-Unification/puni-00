@@ -3,9 +3,9 @@ import { expect, type Page, test } from '@playwright/test';
 import { createProject } from './create-project';
 
 /**
- * The Phases surface, in a browser.
+ * The Steps surface, in a browser.
  *
- * `phases-dialog.test.tsx` proves what the dialog sends and what it says; this
+ * `steps-dialog.test.tsx` proves what the dialog sends and what it says; this
  * file exists for the things jsdom cannot answer, and every one of them is
  * about the modal itself. `F shadcn-foundation` vendored `Modal` on Radix and
  * shipped it with **no production caller at all** — its focus trap, its Escape,
@@ -19,13 +19,13 @@ import { createProject } from './create-project';
  *    and the second is a pointer event on the overlay rather than on anything
  *    this repository renders.
  * 3. **A real chord.** Ctrl+Enter typed into a field on the surface has to
- *    survive the capture-phase listener `usePageShortcutsSuspended` registers on
+ *    survive the capture-step listener `usePageShortcutsSuspended` registers on
  *    `window` and reach the dialog's own handler. That split was corrected on
  *    review with a jsdom test behind it; this is the browser saying so.
- * 4. **The three-phase table.** `layout.spec.ts` has been measuring two phases
+ * 4. **The three-step table.** `layout.spec.ts` has been measuring two steps
  *    since it was written, because two is all a project could ever have. C3-4
  *    in `openspec/changes/table-geometry-and-tab-order/verify.md` is the open
- *    item this closes: a third phase, added through the UI, and the columns it
+ *    item this closes: a third step, added through the UI, and the columns it
  *    brings with it.
  */
 
@@ -62,18 +62,18 @@ test.beforeEach(() => {
 });
 
 /*
- * Not `e2e-phases-…`: the account menu's button is named after the account, and
- * `getByRole('button', { name: 'Phases' })` matches an accessible name by
- * substring — so a username with "phases" in it resolved that locator to two
+ * Not `e2e-steps-…`: the account menu's button is named after the account, and
+ * `getByRole('button', { name: 'Steps' })` matches an accessible name by
+ * substring — so a username with "steps" in it resolved that locator to two
  * elements. `exact: true` is the fix; this is the belt beside it.
  */
 const throwaway = (): string => `e2e-ph-${String(Date.now())}-${String(account)}`;
 
-test.describe('the phases surface, in a browser', () => {
+test.describe('the steps surface, in a browser', () => {
   test('opens from the toolbar and holds the focus inside itself', async ({ page }) => {
     await signInWithAProject(page, throwaway());
 
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // More Tabs than there are controls on the surface, so the trap is asked
@@ -92,7 +92,7 @@ test.describe('the phases surface, in a browser', () => {
     page,
   }) => {
     await signInWithAProject(page, throwaway());
-    const opener = page.getByRole('button', { name: 'Phases', exact: true });
+    const opener = page.getByRole('button', { name: 'Steps', exact: true });
     await opener.click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
@@ -104,7 +104,7 @@ test.describe('the phases surface, in a browser', () => {
 
   test('a click away closes it', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // The overlay, at a corner the surface cannot reach: a centred dialog is
@@ -114,11 +114,11 @@ test.describe('the phases surface, in a browser', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
   });
 
-  test('Ctrl+Enter in the new-phase box adds the phase', async ({ page }) => {
+  test('Ctrl+Enter in the new-step box adds the step', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
 
-    await page.getByLabel('New phase').fill('Design');
+    await page.getByLabel('New step').fill('Design');
     // The whole point of the split `F` shipped on review: the capture listener
     // on `window` claims `?`, Cmd+Z and the command chords for a target on the
     // page, and lets a chord through for a target on the surface. If it did
@@ -130,10 +130,10 @@ test.describe('the phases surface, in a browser', () => {
   });
 
   /**
-   * A bare Enter in the new-phase box adds the phase, through the browser's own
+   * A bare Enter in the new-step box adds the step, through the browser's own
    * implicit form submission and nothing this repository wrote.
    *
-   * `phases-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` is the
+   * `steps-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` is the
    * jsdom half, and on its own it is satisfied by the environment rather than by
    * the code: jsdom performs **no** implicit submission at all, so a keydown it
    * dispatches never reaches a `submit` handler whatever `onChord` does with it.
@@ -141,60 +141,58 @@ test.describe('the phases surface, in a browser', () => {
    * "nothing here submits on Enter ever". Only a browser can.
    *
    * Proof: an unconditional `event.preventDefault()` at the top of `onChord` in
-   * `phases-dialog.tsx` — the fault the jsdom test is blind to — this failed on
+   * `steps-dialog.tsx` — the fault the jsdom test is blind to — this failed on
    * `expect(locator).toBeVisible() … waiting for getByRole('button', { name:
-   * 'Remove Design' })`, the phase never added, while `leaves a bare Enter to
+   * 'Remove Design' })`, the step never added, while `leaves a bare Enter to
    * the form it is in` went on passing. Watched in Chromium, 2026-08-09.
    */
-  test('a bare Enter in the new-phase box adds the phase', async ({ page }) => {
+  test('a bare Enter in the new-step box adds the step', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
-    await page.getByLabel('New phase').fill('Design');
+    await page.getByLabel('New step').fill('Design');
     await page.keyboard.press('Enter');
 
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
 
-    // The plan behind the dialog, not only the list inside it: the phase is a
+    // The plan behind the dialog, not only the list inside it: the step is a
     // column the table lays out, and the refetch the submit asked for is what
-    // puts it there. A dialog that listed a phase the table never grew would be
+    // puts it there. A dialog that listed a step the table never grew would be
     // this test passing about half the behaviour.
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
   });
 
-  test('a third phase gives the table a third set of columns', async ({ page }) => {
+  test('a third step gives the table a third set of columns', async ({ page }) => {
     // C3-4, closed. The fixture the layout gate could never build: a project
-    // with three phases, made the way somebody really makes one.
+    // with three steps, made the way somebody really makes one.
     await signInWithAProject(page, throwaway());
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel('Name of 010')).toBeVisible();
 
-    const twoPhases = await columnsOnScreen(page);
-    expect(twoPhases.filter((id) => id.endsWith('-final'))).toHaveLength(2);
+    const twoSteps = await columnsOnScreen(page);
+    expect(twoSteps.filter((id) => id.endsWith('-final'))).toHaveLength(2);
     const minWidthBefore = await page.evaluate(() =>
       Number.parseInt(document.querySelector('table')?.style.minWidth ?? '', 10),
     );
     expect(minWidthBefore).toBeGreaterThan(0);
 
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
-    await page.getByLabel('New phase').fill('Design');
-    await page.getByRole('button', { name: 'Add phase' }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
+    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
 
     // The arithmetic the surface prints, while it is still open to print it.
-    await expect(
-      page.getByText('3 phases need ≥1327px of width to sit side by side'),
-    ).toBeVisible();
+    await expect(page.getByText('3 steps need ≥1327px of width to sit side by side')).toBeVisible();
     await page.keyboard.press('Escape');
 
-    const threePhases = await columnsOnScreen(page);
-    expect(threePhases.filter((id) => id.endsWith('-final'))).toHaveLength(3);
+    const threeSteps = await columnsOnScreen(page);
+    expect(threeSteps.filter((id) => id.endsWith('-final'))).toHaveLength(3);
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
-    // One folded phase is 96px. Compare the rendered before/after widths so
+    // One folded step is 96px. Compare the rendered before/after widths so
     // globally-created optional Tag/Service columns may be present without
-    // turning this phase-layout test into a cross-test directory-state test.
+    // turning this step-layout test into a cross-test directory-state test.
     const minWidthAfter = await page.evaluate(() =>
       Number.parseInt(document.querySelector('table')?.style.minWidth ?? '', 10),
     );
@@ -216,17 +214,17 @@ test.describe('the phases surface, in a browser', () => {
     await page.getByLabel('Name of 010').click();
     await expect(qa).toHaveValue('3.7');
 
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByRole('button', { name: 'Steps', exact: true }).click();
     await page.getByRole('button', { name: 'Remove QA' }).click();
 
     await expect(
-      page.getByText('Removing QA would delete 1 estimate and 0 assignments.'),
+      page.getByText('Removing the step QA would delete 1 estimate and 0 assignments.'),
     ).toBeVisible();
     // The cascade is a decision. The confirm is dead until it is made.
     const confirm = page.getByRole('button', { name: 'Remove QA' });
     await expect(confirm).toBeDisabled();
 
-    await page.getByLabel('Delete them along with the phase').check();
+    await page.getByLabel('Delete them along with the step').check();
     await expect(confirm).toBeEnabled();
     await confirm.click();
 

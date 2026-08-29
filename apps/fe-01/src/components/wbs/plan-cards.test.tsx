@@ -6,7 +6,7 @@ import type {
   Days,
   PersonView,
   ProjectApi,
-  RoleView,
+  StepView,
   ScheduleView,
   ServiceView,
   TagView,
@@ -33,8 +33,8 @@ const PHONE = 390;
 /** The same phone's CSS height, and sideways the two swap places. */
 const PHONE_TALL = 844;
 
-const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
-const QA: RoleView = { id: 'role-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev' };
+const QA: StepView = { id: 'step-qa', name: 'QA' };
 
 /**
  * What this fake was asked for and does not do.
@@ -52,7 +52,7 @@ const notImplemented = (what: string): never => {
  * by.
  *
  * Deliberately **not** `wbs-table.test.tsx`'s: that one is four hundred lines
- * modelling renumbering, undo stacks, phase removal and assumed-assignee flips,
+ * modelling renumbering, undo stacks, step removal and assumed-assignee flips,
  * and it is that file's spec. Nothing here needs any of it — a card is read
  * from the same tree the table is — and importing a test file to borrow its
  * fixture would run its 289 tests again.
@@ -155,7 +155,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   const rows: WorkItemView[] = [];
   const rowActionCalls: string[] = [];
   const edges: string[] = [];
-  const roleList: RoleView[] = [{ ...DEV }, { ...QA }];
+  const stepList: StepView[] = [{ ...DEV }, { ...QA }];
   const people: PersonView[] = [{ id: 'p1', name: 'Kat', kind: 'person', teamIds: [] }];
   const teams: TeamView[] = [];
   const services: ServiceView[] = [];
@@ -172,8 +172,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   const assignments: string[] = [];
   let next = 0;
 
-  /** The one person this work item is taken to be doing every phase of, if any. */
-  const doesEveryPhase = (id: string): string | null => {
+  /** The one person this work item is taken to be doing every step of, if any. */
+  const doesEveryStep = (id: string): string | null => {
     const named = [...assigned.entries()]
       .filter(([key]) => key.startsWith(`${id}::`))
       .map(([, personId]) => personId);
@@ -182,9 +182,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
 
   const view = (row: WorkItemView): WorkItemView => ({
     ...row,
-    doesEveryPhase: doesEveryPhase(row.id),
+    doesEveryStep: doesEveryStep(row.id),
     assignees: Object.fromEntries(
-      roleList.map((role) => [role.id, assigned.get(`${row.id}::${role.id}`)]),
+      stepList.map((step) => [step.id, assigned.get(`${row.id}::${step.id}`)]),
     ),
   });
 
@@ -210,7 +210,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         slices: rows.map((row) => ({
           id: `${row.id}::${DEV.id}`,
           workItemId: row.id,
-          roleId: DEV.id,
+          stepId: DEV.id,
           personId: null,
           duration: 0,
           estimated: false,
@@ -229,9 +229,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           effort: 0,
           capacityPredecessorIds: [],
         })),
-        // The same two lists `roles` and `listPeople` answer with, on the read
+        // The same two lists `steps` and `listPeople` answer with, on the read
         // that carried the slices: the chart is drawn from this payload alone.
-        roles: roleList.map((role) => ({ ...role })),
+        steps: stepList.map((step) => ({ ...step })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -244,7 +244,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         undoable: false,
         redoable: false,
       }),
-    roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
+    steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
     listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
@@ -275,7 +275,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         serviceTeamId: null,
         teamIds: [],
         assignees: {},
-        doesEveryPhase: null,
+        doesEveryStep: null,
         schedule: {
           duration: 0,
           estimated: false,
@@ -341,25 +341,25 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       if (patch.priority !== undefined) row.priority = patch.priority;
       return Promise.resolve();
     },
-    setEstimate: (id: string, roleId: string, days: Days) => {
+    setEstimate: (id: string, stepId: string, days: Days) => {
       const row = rows.find((each) => each.id === id);
       if (row === undefined) return Promise.reject(new Error('not_found'));
-      row.estimates = { ...row.estimates, [roleId]: days };
+      row.estimates = { ...row.estimates, [stepId]: days };
       const final = (days.optimistic + 4 * days.realistic + days.pessimistic) / 6;
-      row.finalDays = { ...row.finalDays, [roleId]: final };
+      row.finalDays = { ...row.finalDays, [stepId]: final };
       row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
       return Promise.resolve();
     },
-    assign: (workItemId: string, roleId: string, personId: string | null) => {
-      assignments.push(`${workItemId} ${roleId} ${personId ?? '(nobody)'}`);
-      if (personId === null) assigned.delete(`${workItemId}::${roleId}`);
-      else assigned.set(`${workItemId}::${roleId}`, personId);
+    assign: (workItemId: string, stepId: string, personId: string | null) => {
+      assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
+      if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
+      else assigned.set(`${workItemId}::${stepId}`, personId);
       return Promise.resolve();
     },
-    addRole: (_projectId: string, name: string) => {
-      const role = { id: `role-${name.toLowerCase()}`, name };
-      roleList.push(role);
-      return Promise.resolve({ ...role });
+    addStep: (_projectId: string, name: string) => {
+      const step = { id: `step-${name.toLowerCase()}`, name };
+      stepList.push(step);
+      return Promise.resolve({ ...step });
     },
     listProjects: () => notImplemented('listProjects'),
     createProject: () => notImplemented('createProject'),
@@ -369,8 +369,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     redo: () => notImplemented('redo'),
     setEstimateMethod: () => notImplemented('setEstimateMethod'),
     setStartDate: () => notImplemented('setStartDate'),
-    renameRole: () => notImplemented('renameRole'),
-    removeRole: () => notImplemented('removeRole'),
+    renameStep: () => notImplemented('renameStep'),
+    removeStep: () => notImplemented('removeStep'),
     // Idempotent by name, because be-01 is: two browsers typing `Platform`
     // at once end up on one team, and a fake that made two would hide the
     // whole reason `createTeamFor` goes through the server at all.
@@ -431,13 +431,13 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     // Real since `wbs-mobile-orp-input`: the trio sheet's `Clear` is the one
     // control on a card that reaches it, and a fake that refused would have let
     // "taking an estimate back off" pass untested on the only face that can do
-    // it with a thumb. Removes the role's key rather than storing zeros —
+    // it with a thumb. Removes the step's key rather than storing zeros —
     // `0/0/0` is an estimate somebody made, and no estimate is not.
-    clearEstimate: (id: string, roleId: string) => {
+    clearEstimate: (id: string, stepId: string) => {
       const row = rows.find((each) => each.id === id);
       if (row === undefined) return Promise.reject(new Error('not_found'));
-      const { [roleId]: goneDays, ...keptDays } = row.estimates;
-      const { [roleId]: goneFinal, ...keptFinal } = row.finalDays;
+      const { [stepId]: goneDays, ...keptDays } = row.estimates;
+      const { [stepId]: goneFinal, ...keptFinal } = row.finalDays;
       void goneDays;
       void goneFinal;
       row.estimates = keptDays;
@@ -619,7 +619,7 @@ describe('the plan on a phone', () => {
     resizeTo(LAPTOP);
     const onTheTable = cellsOnScreen();
 
-    expect(onCards).toEqual(['w1::name', 'w1::role-dev-final', 'w1::role-qa-final']);
+    expect(onCards).toEqual(['w1::name', 'w1::step-dev-final', 'w1::step-qa-final']);
     for (const cell of onCards) expect(onTheTable).toContain(cell);
   });
 
@@ -656,7 +656,7 @@ describe('the plan on a phone', () => {
    *
    * Proof: `gridRef` dropped from `PlanCards`, so `gridElement` stays null and
    * the walk has no grid to read. Failed on `expected <body> to be <input
-   * data-cell="w1::role-dev-final" …>` — the caret left where it was, on a
+   * data-cell="w1::step-dev-final" …>` — the caret left where it was, on a
    * badge that had said it would take the reader somewhere. Watched,
    * 2026-08-09.
    */
@@ -937,7 +937,7 @@ describe('a picker open on a card', () => {
    * here rather than assumed from the table's version of this test.
    *
    * Proof: the `Enter` branch removed from the card's figure box, this failed
-   * on `expected [] to deeply equal [ 'w1 role-dev p1' ]` — the key reaching
+   * on `expected [] to deeply equal [ 'w1 step-dev p1' ]` — the key reaching
    * the box under the list and assigning nobody. Watched, 2026-08-09.
    */
   itDom('takes Enter for the list rather than the box under it', async () => {
@@ -954,7 +954,7 @@ describe('a picker open on a card', () => {
     fireEvent.keyDown(figure, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(api.assignments).toEqual(['w1 role-dev p1']);
+      expect(api.assignments).toEqual(['w1 step-dev p1']);
     });
     // The mention goes with the pick and the estimate half stays exactly as it
     // was typed: `@ka` was a search, not part of a figure.
@@ -965,7 +965,7 @@ describe('a picker open on a card', () => {
    * Escape closes the list and strips nothing — what was typed is still on
    * screen to be corrected, which is the answer every picker in this app gives.
    *
-   * Proof: the `Escape` branch removed, this failed on `expected <ul role=
+   * Proof: the `Escape` branch removed, this failed on `expected <ul step=
    * "listbox" …> to be null` — a list nothing on a phone could close.
    * Watched, 2026-08-09.
    */
@@ -1031,7 +1031,7 @@ describe('a picker open on a card', () => {
     fireEvent.keyDown(figure, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
@@ -1065,8 +1065,8 @@ describe('the toolbar sheet', () => {
    * menu reaches the phone by construction — what this asserts is that it
    * arrives as **one** entry and that it opens where a phone can read it.
    *
-   * The trigger is exempt from the sheet's own close for `PhasesDialog`'s
-   * reason and by `PhasesDialog`'s mechanism: `closingControlIn` leaves a
+   * The trigger is exempt from the sheet's own close for `StepsDialog`'s
+   * reason and by `StepsDialog`'s mechanism: `closingControlIn` leaves a
    * control carrying `aria-haspopup` alone, and closing the sheet on the click
    * that opened the menu would unmount the menu with it.
    *
@@ -1127,17 +1127,17 @@ describe('the toolbar sheet', () => {
 
   /**
    * The exemption, and the reason it is not a nicety: closing the sheet
-   * unmounts the dialog its own trigger was about to open, and a phase change
+   * unmounts the dialog its own trigger was about to open, and a step change
    * is one of the things a phone most needs the sheet for.
    *
    * Proof, two faults, both watched 2026-08-09. The `aria-haspopup` exemption
    * removed: failed on `Unable to find an accessible element with the role
-   * "dialog" and name "Phases"` — the sheet closed on the trigger's own click
+   * "dialog" and name "Steps"` — the sheet closed on the trigger's own click
    * and took the dialog with it. The surface check removed so a click anywhere
-   * closes the sheet: `adds a phase from inside the sheet` failed the same way
+   * closes the sheet: `adds a step from inside the sheet` failed the same way
    * one click later, on the dialog's own Add.
    */
-  itDom('lets the phases dialog open from inside it', async () => {
+  itDom('lets the steps dialog open from inside it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1146,9 +1146,9 @@ describe('the toolbar sheet', () => {
     });
     openTheSheet();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Phases', exact: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Steps', exact: true }));
 
-    expect(await screen.findByRole('dialog', { name: 'Phases' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Steps' })).toBeInTheDocument();
   });
 
   /**
@@ -1158,34 +1158,34 @@ describe('the toolbar sheet', () => {
    * React sends a portal's events up the **React** tree, so every click inside
    * that dialog arrives at the sheet's own capture handler — and a rule that
    * only asked "is this a button" would close the sheet under the dialog,
-   * mid-click, on the way to adding a phase.
+   * mid-click, on the way to adding a step.
    *
    * Proof: the `[data-modal-surface]` check removed from `closingControlIn`, this
    * failed on `Unable to find an accessible element with the role "dialog" and
-   * name "Phases"` — the sheet closed under the dialog on the way to sending
-   * the phase, taking the surface somebody was working on with it. Watched,
-   * 2026-08-09, and only after the second assertion below was added: the phase
+   * name "Steps"` — the sheet closed under the dialog on the way to sending
+   * the step, taking the surface somebody was working on with it. Watched,
+   * 2026-08-09, and only after the second assertion below was added: the step
    * itself still lands, so the first one cannot see this at all.
    */
-  itDom('adds a phase from inside the sheet', async () => {
+  itDom('adds a step from inside the sheet', async () => {
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await addAWorkItem();
     openTheSheet();
-    fireEvent.click(await screen.findByRole('button', { name: 'Phases', exact: true }));
-    await screen.findByRole('dialog', { name: 'Phases' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Steps', exact: true }));
+    await screen.findByRole('dialog', { name: 'Steps' });
 
-    fireEvent.change(screen.getByLabelText('New phase'), { target: { value: 'Review' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    fireEvent.change(screen.getByLabelText('New step'), { target: { value: 'Review' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
 
-    // The new phase reaches the cards behind both surfaces, which is what says
+    // The new step reaches the cards behind both surfaces, which is what says
     // the refetch the dialog asked for was not thrown away with them.
     expect(await screen.findByLabelText('Review estimate for 010')).toBeInTheDocument();
     // And the dialog is still there to add a second one. This is the half the
     // line above cannot see: a sheet that closed under it would take the dialog
-    // with it *after* the phase had already been sent.
-    expect(screen.getByRole('dialog', { name: 'Phases' })).toBeInTheDocument();
+    // with it *after* the step had already been sent.
+    expect(screen.getByRole('dialog', { name: 'Steps' })).toBeInTheDocument();
   });
 
   /**
@@ -1495,7 +1495,7 @@ describe('what a card says about capacity', () => {
   /**
    * The narrow-width sibling of `wbs-table.test.tsx`'s two marker cases, which
    * assert the same two sentences at `LAPTOP` (`marks the service cell of a row
-   * a non-owner is building` and `marks the assignee on a folded role`).
+   * a non-owner is building` and `marks the assignee on a folded step`).
    *
    * Filed as `phone-mismatch-markers` off a Browser Use Cloud walk of dev on
    * 2026-08-22: at 390px both markers were counted in the DOM and there were
@@ -1592,9 +1592,9 @@ describe('what a card says about capacity', () => {
     expect(mismatchesOnCard()).toEqual([]);
   });
 
-  itDom('says one outsider once, however many phases the plan puts them on', async () => {
-    // Kat is named on Dev alone, so `doesEveryPhase` assumes her onto QA too and
-    // `assigneeOn` answers with the same sentence for both roles. Two roles,
+  itDom('says one outsider once, however many steps the plan puts them on', async () => {
+    // Kat is named on Dev alone, so `doesEveryStep` assumes her onto QA too and
+    // `assigneeOn` answers with the same sentence for both steps. Two steps,
     // one fact, one line — 390px of card is not where the same words get
     // printed twice, and a signal repeated is a signal a reader stops reading.
     await aMismatchedPlan();
@@ -1675,7 +1675,7 @@ describe('what a card says about capacity', () => {
       const row = rows[0];
       row.maxParallel = 3;
       // Through the write path, because the fake derives both `assignees` and
-      // `doesEveryPhase` from the assignments it holds — a row object with an
+      // `doesEveryStep` from the assignments it holds — a row object with an
       // `assignees` written straight onto it is a shape the tree never sends.
       void api.assign(row.id, DEV.id, 'p1');
     });
@@ -1818,13 +1818,13 @@ describe('what a card says about the schedule', () => {
   });
 });
 
-describe('the trio behind a phase’s figure, on a card', () => {
-  const trioOnCard = (roleId: string): HTMLElement | null =>
-    document.querySelector(`[data-phase-trio="${roleId}"]`);
-  const finalOnCard = (roleId: string): HTMLElement | null =>
-    document.querySelector(`[data-phase-final="${roleId}"]`);
-  const detailOnCard = (roleId: string): HTMLDetailsElement | null =>
-    document.querySelector(`details[data-phase-detail="${roleId}"]`);
+describe('the trio behind a step’s figure, on a card', () => {
+  const trioOnCard = (stepId: string): HTMLElement | null =>
+    document.querySelector(`[data-step-trio="${stepId}"]`);
+  const finalOnCard = (stepId: string): HTMLElement | null =>
+    document.querySelector(`[data-step-final="${stepId}"]`);
+  const detailOnCard = (stepId: string): HTMLDetailsElement | null =>
+    document.querySelector(`details[data-step-detail="${stepId}"]`);
 
   itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
     const api = fakeApi();
@@ -1837,11 +1837,11 @@ describe('the trio behind a phase’s figure, on a card', () => {
   });
 
   itDom(
-    'reads the trio and the final off the row, in the same words `folded-role-card.tsx` prints on hover',
+    'reads the trio and the final off the row, in the same words `folded-step-card.tsx` prints on hover',
     async () => {
       // Read off `row.estimates` and `row.finalDays` — not the box's draft,
       // and not `estimateValue`/`combinedValue` — the same choice
-      // `folded-role-card.tsx`'s own points make, and for the same reason:
+      // `folded-step-card.tsx`'s own points make, and for the same reason:
       // a card is what the fold left behind, not what somebody is mid-typing.
       const api = fakeApi();
       const created = await api.create('p1', { parentId: null });
@@ -1884,9 +1884,9 @@ describe('the trio behind a phase’s figure, on a card', () => {
  * to make, at the cards viewport, against a real browser.
  */
 describe('typing a trio on a card, where the keypad has no slash', () => {
-  const openTheTrioSheet = async (roleName: string, number: string): Promise<HTMLElement> => {
-    fireEvent.click(screen.getByRole('button', { name: `${roleName} o, r and p for ${number}` }));
-    return screen.findByRole('dialog', { name: `${roleName} estimate for ${number}` });
+  const openTheTrioSheet = async (stepName: string, number: string): Promise<HTMLElement> => {
+    fireEvent.click(screen.getByRole('button', { name: `${stepName} o, r and p for ${number}` }));
+    return screen.findByRole('dialog', { name: `${stepName} estimate for ${number}` });
   };
 
   /**
@@ -1915,8 +1915,8 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
       const box = screen.getByLabelText<HTMLInputElement>(`Dev ${point} for 010`);
       expect(box.getAttribute('inputmode')).toBe('decimal');
       // The table's own cell id for that point, so the three boxes on a phone
-      // are the three boxes an unfolded role shows — one cell, two faces.
-      expect(box.getAttribute('data-cell')).toBe(`${api.rows[0]?.id ?? ''}::role-dev-${point}`);
+      // are the three boxes an unfolded step shows — one cell, two faces.
+      expect(box.getAttribute('data-cell')).toBe(`${api.rows[0]?.id ?? ''}::step-dev-${point}`);
     }
   });
 
@@ -1939,7 +1939,7 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
     // The words the card prints at rest, which is the round trip the reader
     // sees rather than the write the fake recorded.
     await waitFor(() => {
-      expect(document.querySelector(`[data-phase-trio="${DEV.id}"]`)?.textContent).toBe(
+      expect(document.querySelector(`[data-step-trio="${DEV.id}"]`)?.textContent).toBe(
         'optimistic 2 · realistic 3 · pessimistic 8',
       );
     });
@@ -1974,14 +1974,14 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
     });
   });
 
-  itDom('is reachable on a phase nobody has estimated, and Clear is not', async () => {
+  itDom('is reachable on a step nobody has estimated, and Clear is not', async () => {
     // The departure this file has now made five times: the words are the claim
     // and say "No estimate yet", so the control around them has to be drawn
     // anyway. `Clear` is the opposite case — there is nothing to take off.
     await aPhonePlan();
     const sheet = await openTheTrioSheet('Dev', '010');
 
-    expect(document.querySelector(`[data-phase-trio="${DEV.id}"]`)?.textContent).toBe(
+    expect(document.querySelector(`[data-step-trio="${DEV.id}"]`)?.textContent).toBe(
       'No estimate yet',
     );
     expect(sheet.querySelector('[data-card-trio-clear]')).toBeNull();
@@ -2116,7 +2116,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
     teamIds: [],
     serviceTeamId: null,
     assignees: {},
-    doesEveryPhase: null,
+    doesEveryStep: null,
     schedule: EMPTY_SCHEDULE,
     subRows: [],
     ...overrides,
@@ -2125,7 +2125,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
 
 /**
  * Every prop `<PlanCards>` needs, stubbed to do nothing — this suite's own
- * rows carry no roles, no dependencies and no team, so the phase loop and the
+ * rows carry no steps, no dependencies and no team, so the step loop and the
  * fact line render nothing to stub wrong. `rowActions` is each test's own.
  */
 function renderCards(
@@ -2150,7 +2150,7 @@ function renderCards(
         toggleBranch: () => undefined,
         matched: matchedIds.includes(row.id),
       }))}
-      roles={[]}
+      steps={[]}
       priorityBands={DEFAULT_PRIORITY_BANDS}
       gridRef={() => undefined}
       commitName={() => unsent()}

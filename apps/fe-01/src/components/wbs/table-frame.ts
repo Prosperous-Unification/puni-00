@@ -22,7 +22,7 @@ export interface FrameLayoutState {
   hasAnyNotBefore: boolean;
   /**
    * The widths this browser was told by a drag, by the column's **own** id —
-   * `<roleId>-final` for a folded phase — or absent where nothing has been
+   * `<stepId>-final` for a folded step — or absent where nothing has been
    * dragged.
    *
    * A fact about the reader rather than about the plan, which is why it is
@@ -88,7 +88,7 @@ export interface PinnedGeometry {
  * Every width one render of the table declares, resolved together.
  *
  * The object that replaced five consumers each doing their own arithmetic: the
- * `<colgroup>`, the table's own `min-width`, the folded minimum the Phases
+ * `<colgroup>`, the table's own `min-width`, the folded minimum the Steps
  * dialog quotes, the offsets the pinned columns are held at, and the browser
  * gate's equation. A width that changes changes all five, because there is
  * only one of them.
@@ -179,7 +179,7 @@ const DATE_COLUMN_WIDTH = 98;
  * These numbers are the compaction Dany asked for on 2026-08-08 ("compact
  * every column as far as it will go"), and every one of them is a figure the
  * browser gate measures rather than a preference: the table has to fit a
- * 1280px laptop with two roles folded. `name` is deliberately absent — see
+ * 1280px laptop with two steps folded. `name` is deliberately absent — see
  * {@link FLEXIBLE_COLUMNS}.
  *
  * A `Map` rather than a plain object because the id being looked up is a
@@ -211,7 +211,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // 2026-08-16, the reversible one of the two design.md D4 offered: eliding
   // from the head holds at every depth but changes how every clipped number
   // in the product reads, so it stays available as a later change rather than
-  // being smuggled into this one. Affordable: two folded phases at 1280 go
+  // being smuggled into this one. Affordable: two folded steps at 1280 go
   // 1219 → 1231 against a 1248px frame, 12 of the 29px of measured slack.
   ['number', 105],
   ['depends', 110],
@@ -230,7 +230,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // change's answer to the width budget.** The folded table has 29px of slack
   // at 1280 (`layout.spec.ts`, measured 2026-08-14) and this column costs 120,
   // so a column on screen in every state would blow the budget by 91px and put
-  // a scrollbar under every two-phase plan on a 1280 laptop.
+  // a scrollbar under every two-step plan on a 1280 laptop.
   //
   // What it is exempted **for**, named as the rule requires: this column is
   // rendered only where the deployment has a tag vocabulary at all — one or
@@ -268,7 +268,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // with a deep row.
   //
   // It is 32 and not the 48 the plan drew because the table has 1280px to fit
-  // with two roles folded and C0 measured a 48px column overflowing it by
+  // with two steps folded and C0 measured a 48px column overflowing it by
   // 19px. See `openspec/changes/capacity-ui/design.md`.
   ['in-parallel', 32],
   ['final-total', 52],
@@ -348,7 +348,7 @@ export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLA
  * The columns off the table until a reader shows them — the whole of what makes
  * the default column set different from {@link FIXED_COLUMNS}.
  *
- * `team` and `service`, and the arithmetic is why: the folded two-phase table
+ * `team` and `service`, and the arithmetic is why: the folded two-step table
  * has 29px of slack at 1280 (`e2e/layout.spec.ts`, `holds the folded budget at
  * 1280`), each of these three label columns costs 120, and `tag` is the one on
  * by default. Teams off pays for Tags on, to the pixel, so the figure that
@@ -383,15 +383,15 @@ export const ROW_CONTROLS: readonly string[] = ['drag', 'number', 'name', 'actio
 /**
  * The columns a reader may hide, in the order the table renders them — what
  * the Columns control lists. Every declared column that is not one of
- * {@link ROW_CONTROLS}, with each role as **one** entry by its bare id, sitting
- * where the role's columns sit.
+ * {@link ROW_CONTROLS}, with each step as **one** entry by its bare id, sitting
+ * where the step's columns sit.
  *
  * Written out rather than read off {@link FIXED_COLUMNS}, because the width
  * table's order is not the table's; `table-frame.test.ts` holds the two to the
  * same membership, so a column added to the width table without a place here
  * fails there rather than going unofferable.
  */
-export function hideableColumnIds(roleIds: readonly string[]): readonly string[] {
+export function hideableColumnIds(stepIds: readonly string[]): readonly string[] {
   return [
     'depends',
     'priority',
@@ -399,7 +399,7 @@ export function hideableColumnIds(roleIds: readonly string[]): readonly string[]
     'tag',
     'service',
     'in-parallel',
-    ...roleIds,
+    ...stepIds,
     'final-total',
     'not-before',
     'start',
@@ -463,9 +463,9 @@ export const FLEXIBLE_FLOOR = 200;
 export const FLEXIBLE_CAP = 420;
 
 /**
- * The widths of a role's columns, which have no fixed ids: a role is created at
- * runtime and its columns are named `<roleId>-final`, `<roleId>-<point>` and
- * `<roleId>-assignee`. Sized by suffix, because the role half of the id is
+ * The widths of a step's columns, which have no fixed ids: a step is created at
+ * runtime and its columns are named `<stepId>-final`, `<stepId>-<point>` and
+ * `<stepId>-assignee`. Sized by suffix, because the step half of the id is
  * whatever the project called it.
  *
  * The folded column is the one that grew: it shows the figure *and* who is
@@ -480,16 +480,16 @@ export const FLEXIBLE_CAP = 420;
  * decimal in it. The word itself is still in the heading's `title` and in its
  * accessible name.
  */
-const ROLE_FINAL_WIDTH = 96;
-const ROLE_POINT_WIDTH = 44;
-const ROLE_ASSIGNEE_WIDTH = 120;
+const STEP_FINAL_WIDTH = 96;
+const STEP_POINT_WIDTH = 44;
+const STEP_ASSIGNEE_WIDTH = 120;
 
 /** An id the width table has never heard of — a typo, or a new column nobody sized. */
 export class UnknownColumnError extends Error {
   constructor(columnId: string) {
     super(
       `No declared width for column "${columnId}". Every rendered column ` +
-        `must be in COLUMN_WIDTHS or PLAN_WIDTHS or use a role suffix — an unlisted ` +
+        `must be in COLUMN_WIDTHS or PLAN_WIDTHS or use a step suffix — an unlisted ` +
         `one would silently get a wrong width, which is the overlap bug all over again.`,
     );
     this.name = 'UnknownColumnError';
@@ -515,10 +515,10 @@ export function defaultWidthFor(columnId: string, state: FrameLayoutState): numb
   const fromPlan = PLAN_WIDTHS.get(columnId);
   if (fromPlan !== undefined) return fromPlan(state);
   if (columnId.includes('-')) {
-    if (columnId.endsWith('-final')) return ROLE_FINAL_WIDTH;
-    if (columnId.endsWith('-assignee')) return ROLE_ASSIGNEE_WIDTH;
+    if (columnId.endsWith('-final')) return STEP_FINAL_WIDTH;
+    if (columnId.endsWith('-assignee')) return STEP_ASSIGNEE_WIDTH;
     const point = columnId.slice(columnId.lastIndexOf('-') + 1);
-    if ((POINTS as readonly string[]).includes(point)) return ROLE_POINT_WIDTH;
+    if ((POINTS as readonly string[]).includes(point)) return STEP_POINT_WIDTH;
   }
   throw new UnknownColumnError(columnId);
 }
@@ -643,7 +643,7 @@ export function clampColumnWidth(columnId: string, width: number, state: FrameLa
  * would throw out of the render that laid it out, and a preference about a
  * column that does not exist must not be able to take the table down.
  *
- * A role's column for a phase the project no longer holds answers `true` and
+ * A step's column for a step the project no longer holds answers `true` and
  * is then never looked at — the harmlessness a remembered expansion's deleted
  * row ids already have. A {@link FLEXIBLE_COLUMNS} member answers `true` since
  * `name-column-drag`: a dragged Name is stored like any other column, and the
@@ -696,7 +696,7 @@ export const PINNED_COLUMN_IDS: readonly string[] = ['drag', 'number', 'name'];
  * plan being drawn.
  *
  * One call per render, read by the `<colgroup>`, the table's `min-width`, the
- * pinned cells and the Phases dialog alike. Before this existed the same
+ * pinned cells and the Steps dialog alike. Before this existed the same
  * arithmetic lived in five places and the pinned offsets were prefix sums
  * computed **once when the module loaded** — which is why no width could depend
  * on the plan, and why `not-before` could not be two widths.
@@ -821,51 +821,51 @@ export function pinnedGeometryFor(
 }
 
 /**
- * The narrowest the table can be laid out with these phases, all folded, in px
- * — the number the Phases dialog quotes before somebody adds another one.
+ * The narrowest the table can be laid out with these steps, all folded, in px
+ * — the number the Steps dialog quotes before somebody adds another one.
  *
- * The phases' **real** ids, not a count. Every width resolves per column id, so
+ * The steps' **real** ids, not a count. Every width resolves per column id, so
  * a figure summed from stand-in ids would answer about columns that do not
  * exist while the table lays out the ones that do: an override is stored under
- * the exact column id and a `phase0-final` could never carry one.
+ * the exact column id and a `step0-final` could never carry one.
  *
  * The floor is every declared column in {@link FIXED_COLUMNS} less
  * `hiddenColumnIds`, plus Name's {@link FLEXIBLE_FLOOR}, plus one folded column
- * per phase that is not itself hidden. The hidden list defaults to
+ * per step that is not itself hidden. The hidden list defaults to
  * {@link DEFAULT_HIDDEN_COLUMNS}, so a caller with no reader in front of it —
  * the budget test, a fresh project — gets the default column set's figure, and
- * the Phases dialog passes the reader's own list to quote the table actually on
- * screen. A hidden role's id is passed bare (`role-qa`, not `role-qa-final`),
+ * the Steps dialog passes the reader's own list to quote the table actually on
+ * screen. A hidden step's id is passed bare (`step-qa`, not `step-qa-final`),
  * exactly as it is stored.
  *
  * Derived through {@link frameLayout} rather than as arithmetic of its own,
  * and that is the whole point of it living here rather than as a sentence in
  * the dialog: a column that changes width changes this number in the same
- * commit. `phases-dialog.test.tsx` pins the quoted figure against what a real
- * `WbsTable` render of the same phases declares as its `min-width`.
+ * commit. `steps-dialog.test.tsx` pins the quoted figure against what a real
+ * `WbsTable` render of the same steps declares as its `min-width`.
  *
  * @throws {UnknownColumnError} for a hidden id that is neither a declared
- * column nor one of `roleIds` — storage drops those at its boundary, so one
+ * column nor one of `stepIds` — storage drops those at its boundary, so one
  * reaching here is a caller's typo, and a typo that silently hides nothing is
  * a check that cannot fail — and through {@link frameLayout}, for its reasons.
  * Proof: the loop deleted, `refuses a hidden id that is neither a column nor a
- * role of this plan` failed on `expected function to throw`. Watched 2026-08-28.
+ * step of this plan` failed on `expected function to throw`. Watched 2026-08-28.
  */
 export function foldedTableMinWidth(
-  roleIds: readonly string[],
+  stepIds: readonly string[],
   state: FrameLayoutState,
   hiddenColumnIds: readonly string[] = DEFAULT_HIDDEN_COLUMNS,
 ): number {
   for (const id of hiddenColumnIds) {
-    if (!FIXED_COLUMNS.includes(id) && !roleIds.includes(id)) throw new UnknownColumnError(id);
+    if (!FIXED_COLUMNS.includes(id) && !stepIds.includes(id)) throw new UnknownColumnError(id);
   }
   const shown = (id: string): boolean => !hiddenColumnIds.includes(id);
   return frameLayout(
     [
       ...FIXED_COLUMNS.filter(shown),
       ...FLEXIBLE_COLUMNS,
-      // The folded column of each shown phase, named exactly as the table names it.
-      ...roleIds.filter(shown).map((roleId) => `${roleId}-final`),
+      // The folded column of each shown step, named exactly as the table names it.
+      ...stepIds.filter(shown).map((stepId) => `${stepId}-final`),
     ],
     state,
   ).minWidth;

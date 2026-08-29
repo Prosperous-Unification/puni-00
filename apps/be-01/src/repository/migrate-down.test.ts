@@ -31,7 +31,7 @@ const REVISIONS = '20260807090000_add_revisions';
 const JOURNAL = '20260807180000_add_command_journal';
 // A column on `role`, so like the revisions it appears in the order and in
 // nothing else this file checks.
-const ROLE_POSITION = '20260809090000_add_role_position';
+const STEP_POSITION = '20260809090000_add_role_position';
 const PRIORITY = '20260811100000_add_priority';
 // Two columns in one release: a nullable `service_team.size` and a
 // `NOT NULL DEFAULT 1` `work_item.max_parallel`. They appear here in the order
@@ -93,7 +93,7 @@ const ACTUAL = '20260817130000_add_actual';
  * shares one stamp between two migrations` is the mechanical half of the same
  * check.
  */
-const ROLE_PROGRESS = '20260818010000_add_role_progress';
+const STEP_PROGRESS = '20260818010000_add_role_progress';
 /**
  * The newest, and a column on `work_item` rather than a table of its own: it
  * reverses first because it was applied last, and it takes nothing with it.
@@ -149,7 +149,7 @@ const WORK_ITEM_SERVICE = '20260821080000_add_work_item_service';
  * the target is already the newest applied` — the half that answers with what is
  * newer than it, and the one a shared stamp would silently empty.
  */
-const ROLE_MEASURE = '20260821140000_add_role_measure';
+const STEP_MEASURE = '20260821140000_add_role_measure';
 /**
  * The newest, and the only migration in this change that alters a table rather
  * than adding one: `person.kind`, by `ALTER TABLE … ADD COLUMN` with a
@@ -247,7 +247,7 @@ describe('readMigrationFolders', () => {
       TEAMS,
       REVISIONS,
       JOURNAL,
-      ROLE_POSITION,
+      STEP_POSITION,
       PRIORITY,
       TEAM_SLOTS,
       MAX_PARALLEL,
@@ -256,12 +256,12 @@ describe('readMigrationFolders', () => {
       PRIORITY_BANDS,
       PLAN_EVENT,
       ACTUAL,
-      ROLE_PROGRESS,
+      STEP_PROGRESS,
       NOT_BEFORE_REASON,
       TAG,
       SERVICE,
       WORK_ITEM_SERVICE,
-      ROLE_MEASURE,
+      STEP_MEASURE,
       PERSON_KIND,
       OIDC_IDENTITY,
       SOLUTION_REF,
@@ -348,7 +348,7 @@ describe('rollbackTo, against a real database', () => {
         TEAMS,
         REVISIONS,
         JOURNAL,
-        ROLE_POSITION,
+        STEP_POSITION,
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
@@ -357,12 +357,12 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY_BANDS,
         PLAN_EVENT,
         ACTUAL,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         NOT_BEFORE_REASON,
         TAG,
         SERVICE,
         WORK_ITEM_SERVICE,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         PERSON_KIND,
         OIDC_IDENTITY,
         SOLUTION_REF,
@@ -374,12 +374,12 @@ describe('rollbackTo, against a real database', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -388,7 +388,7 @@ describe('rollbackTo, against a real database', () => {
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
-        ROLE_POSITION,
+        STEP_POSITION,
         JOURNAL,
         REVISIONS,
         TEAMS,
@@ -431,7 +431,7 @@ describe('rollbackTo, against a real database', () => {
         TEAMS,
         REVISIONS,
         JOURNAL,
-        ROLE_POSITION,
+        STEP_POSITION,
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
@@ -440,12 +440,12 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY_BANDS,
         PLAN_EVENT,
         ACTUAL,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         NOT_BEFORE_REASON,
         TAG,
         SERVICE,
         WORK_ITEM_SERVICE,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         PERSON_KIND,
         OIDC_IDENTITY,
         SOLUTION_REF,
@@ -465,12 +465,12 @@ describe('rollbackTo, against a real database', () => {
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
-        ROLE_MEASURE,
+        STEP_MEASURE,
         WORK_ITEM_SERVICE,
         SERVICE,
         TAG,
         NOT_BEFORE_REASON,
-        ROLE_PROGRESS,
+        STEP_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -479,7 +479,7 @@ describe('rollbackTo, against a real database', () => {
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
-        ROLE_POSITION,
+        STEP_POSITION,
         JOURNAL,
         REVISIONS,
         TEAMS,

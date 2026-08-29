@@ -93,7 +93,7 @@ function asEvent(row: PlanEventRow): PlanEvent {
     kind: row.kind,
     label: row.label,
     workItemId: row.workItemId,
-    roleId: row.roleId,
+    stepId: row.stepId,
     before: JSON.parse(row.before),
     after: JSON.parse(row.after),
     createdAt: row.createdAt,

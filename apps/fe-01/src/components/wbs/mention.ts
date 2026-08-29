@@ -1,5 +1,5 @@
 /**
- * The two things a folded role's cell can hold at once: an estimate somebody
+ * The two things a folded step's cell can hold at once: an estimate somebody
  * is typing, and a person somebody is looking up.
  *
  * `mention: null` is "no `@` has been typed", which is not the same as an

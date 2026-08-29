@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { agree, isRoleState, NOT_STARTED, stateOf } from './progress';
+import { agree, isStepState, NOT_STARTED, stateOf } from './progress';
 
 describe('agree', () => {
   it('answers the state both readings hold', () => {
@@ -24,7 +24,7 @@ describe('agree', () => {
 
   it('is associative, which is what lets a branch be folded from its children', () => {
     // A parent folded from its children's states and the same parent folded
-    // from every role beneath it must answer the same thing, or the tree has
+    // from every step beneath it must answer the same thing, or the tree has
     // two readings and the one on screen depends on the traversal.
     const states = [NOT_STARTED, 'in_progress', 'done'] as const;
     for (const a of states) {
@@ -40,7 +40,7 @@ describe('agree', () => {
 
 describe('stateOf', () => {
   it('reads an empty collection as not started, never as vacuously done', () => {
-    // An item with no roles, a branch with no leaves, a plan on its first day.
+    // An item with no steps, a branch with no leaves, a plan on its first day.
     // Proof: `answer ?? 'done'` and this fails with `done` — every empty branch
     // in a fresh plan reporting finished work; watched 2026-08-18.
     expect(stateOf([])).toBe(NOT_STARTED);
@@ -64,16 +64,16 @@ describe('stateOf', () => {
   });
 });
 
-describe('isRoleState', () => {
-  it('admits the two states a role may be stored in and nothing else', () => {
-    expect(isRoleState('in_progress')).toBe(true);
-    expect(isRoleState('done')).toBe(true);
+describe('isStepState', () => {
+  it('admits the two states a step may be stored in and nothing else', () => {
+    expect(isStepState('in_progress')).toBe(true);
+    expect(isStepState('done')).toBe(true);
     // The absence of a row is how "not started" is spelled, so it is not a
-    // value anybody may write — see `RoleState`.
-    expect(isRoleState('not_started')).toBe(false);
-    expect(isRoleState('blocked')).toBe(false);
-    expect(isRoleState('')).toBe(false);
-    expect(isRoleState(null)).toBe(false);
-    expect(isRoleState(1)).toBe(false);
+    // value anybody may write — see `StepState`.
+    expect(isStepState('not_started')).toBe(false);
+    expect(isStepState('blocked')).toBe(false);
+    expect(isStepState('')).toBe(false);
+    expect(isStepState(null)).toBe(false);
+    expect(isStepState(1)).toBe(false);
   });
 });

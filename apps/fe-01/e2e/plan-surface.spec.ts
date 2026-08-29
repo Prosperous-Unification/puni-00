@@ -389,7 +389,7 @@ test.describe('the plan and its chart as one surface', () => {
     await seedPlan(page, signedInAs, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
 
-    // An unfolded role is what makes the frame scroll sideways at all
+    // An unfolded step is what makes the frame scroll sideways at all
     // (`unfolding-may-scroll`), and the chart's own sideways position is which
     // fortnight of the calendar it is showing. The two are different facts and
     // the link is not allowed to confuse them.

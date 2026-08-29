@@ -30,7 +30,7 @@ const ROW: WorkItemView = {
   finalTotal: 0,
   dates: null,
   assignees: {},
-  doesEveryPhase: null,
+  doesEveryStep: null,
   serviceTeamId: null,
   teamIds: [],
   startNoEarlierThan: null,
@@ -87,7 +87,7 @@ function silentApi(): SilentApi {
           seq: 1,
           scheduleError: null,
           slices: [],
-          roles: [],
+          steps: [],
           assignedPeople: [],
           // Present and empty, never absent: be-01 always sends it, so a fake that
           // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -104,10 +104,10 @@ function silentApi(): SilentApi {
       redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
       setEstimateMethod: nothing,
       setStartDate: nothing,
-      roles: () => Promise.resolve([{ id: 'role-dev', name: 'Dev' }]),
-      addRole: () => Promise.reject(new Error('not_in_these_tests')),
-      renameRole: () => Promise.reject(new Error('not_in_these_tests')),
-      removeRole: () => Promise.reject(new Error('not_in_these_tests')),
+      steps: () => Promise.resolve([{ id: 'step-dev', name: 'Dev' }]),
+      addStep: () => Promise.reject(new Error('not_in_these_tests')),
+      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
       create,
       patch: nothing,
       listTeams: () => Promise.resolve([]),
@@ -171,9 +171,9 @@ const cheatSheetShowing = (): boolean =>
  * A keystroke aimed at `target`, dispatched the way a browser does.
  *
  * `fireEvent.keyDown` on the element rather than on `window`: the rule under
- * test runs in the **capture** phase at the window, which only exists for an
+ * test runs in the **capture** step at the window, which only exists for an
  * event that has a path through the document to travel. Dispatched on `window`
- * directly there is no capture phase to stop anything in, and the test would
+ * directly there is no capture step to stop anything in, and the test would
  * pass for a reason that has nothing to do with a browser.
  */
 function press(target: Element, key: Record<string, unknown>): void {

@@ -44,14 +44,14 @@ import {
   type EstimateMethod,
   isEstimateMethod,
   type ProjectApi,
-  type RoleView,
+  type StepView,
   type SliceView,
 } from '@/lib/wbs-api';
 
 import { ActionsMenu, MenuControl } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
-import { type ColumnHintState, hintFor, ROLE_FINAL_HINT } from './column-hints';
+import { type ColumnHintState, hintFor, STEP_FINAL_HINT } from './column-hints';
 import {
   CreatablePicker,
   pickableLabel,
@@ -83,7 +83,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
-import { FoldedRoleCard } from './folded-role-card';
+import { FoldedStepCard } from './folded-step-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import {
   type GanttPlan,
@@ -123,7 +123,7 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
-import { PhasesDialog } from './phases-dialog';
+import { StepsDialog } from './steps-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -204,22 +204,22 @@ export interface SubscriptionHandlers {
 const showDays = (days: Days | undefined, point: Point): string =>
   days === undefined ? '' : String(days[point]);
 
-/** A role's final figure, or nothing at all when no estimate under this row mentions it. */
+/** A step's final figure, or nothing at all when no estimate under this row mentions it. */
 const showFinal = (days: number | undefined): string => (days === undefined ? '' : showDay(days));
 
-/** The key one estimate box's draft is held under: one row, one role, one point. */
-const draftKey = (rowId: string, roleId: string, point: Point): string =>
-  `${rowId}::${roleId}::${point}`;
+/** The key one estimate box's draft is held under: one row, one step, one point. */
+const draftKey = (rowId: string, stepId: string, point: Point): string =>
+  `${rowId}::${stepId}::${point}`;
 
 /**
- * The key the folded cell's `o/r/p` draft is held under: one row, one role.
+ * The key the folded cell's `o/r/p` draft is held under: one row, one step.
  *
  * The same `drafts` record as the boxes, because there is one pending
- * estimate per row and role however it was typed — see
+ * estimate per row and step however it was typed — see
  * {@link commitCombinedEstimate} for the rule that keeps it one. `combined`
  * cannot collide with a {@link Point}, which is what makes one record safe.
  */
-const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::${roleId}::combined`;
+const combinedDraftKey = (rowId: string, stepId: string): string => `${rowId}::${stepId}::combined`;
 
 /**
  * be-01's word for a rejected request, or `fallback` when it threw something
@@ -431,16 +431,16 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
  * Seven kinds of column, not two: the dependency listbox (`depends`), the
  * rendered notes preview (`name` — the notes live in that box since the Notes
  * column was folded into it), a `CreatablePicker`'s list — which is the
- * service/team cell and each role's assignee cell — the row's own actions
+ * service/team cell and each step's assignee cell — the row's own actions
  * menu (`actions`), which hangs a 140px box off a 40px cell one line high,
- * a folded role's own cell (`<roleId>-final`), where an `@` opens the people
+ * a folded step's own cell (`<stepId>-final`), where an `@` opens the people
  * picker over a 96px column, and the earliest-start cell (`not-before`), whose
  * date editor is `DATE_EDITOR_WIDTH` wide in a column of 84px or 56. That last
  * one is the widest escape of the lot, and the one number here this repository
  * does not get to choose: it is what Chromium lays an unconstrained
  * `input[type=date]` out at. A column that grew to fit one would move every
  * cell under the person typing, so the editor leaves the cell instead.
- * Both kinds of role column are named for a role that only exists at runtime,
+ * Both kinds of step column are named for a step that only exists at runtime,
  * so they are matched by suffix, the same way `widthFor` sizes them.
  *
  * `name` is also a pinned column, and the two rules do not fight: the pin
@@ -448,10 +448,10 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
  *
  * Since 2026-08-09 two of these columns are exempt for a **second** reason, and
  * it is written down here so a later change that moves a picker out of one of
- * them cannot take the exemption with it: `depends` and `<roleId>-final` each
+ * them cannot take the exemption with it: `depends` and `<stepId>-final` each
  * open a hover card as well as a list, and a card is what a reader of a folded
  * plan is left with when nothing is open. `e2e/hover-cards.spec.ts` injects the
- * suffix branch's removal and watches the folded role's card get clipped.
+ * suffix branch's removal and watches the folded step's card get clipped.
  *
  * What still keeps these cells from painting into their neighbours, now that the
  * structural backstop is off for them: every control inside them is
@@ -503,7 +503,7 @@ const DEP_LIST_WIDTH = 260;
  */
 const DEP_EDGE_FADE = REFERENCE_SET_EDGE_FADE;
 
-// SHORTHAND_HELP moved onto {@link FoldedRoleCard}: the card is the folded
+// SHORTHAND_HELP moved onto {@link FoldedStepCard}: the card is the folded
 // cell's one hint, and the native `title` that used to say this raced it.
 
 /**
@@ -520,26 +520,26 @@ const dropDrafts = (
   Object.fromEntries(Object.entries(drafts).filter(([key]) => !gone.has(key)));
 
 /**
- * The role a draft key belongs to — `rowId::roleId::point` — or null when the
+ * The step a draft key belongs to — `rowId::stepId::point` — or null when the
  * key is not one this table wrote.
  *
  * Null rather than an empty string for a malformed key: every draft in this
  * record is written by {@link draftKey} or {@link combinedDraftKey}, so a key of
- * any other shape is a fault rather than a draft for the empty role, and the
+ * any other shape is a fault rather than a draft for the empty step, and the
  * sanitizer below keeps it rather than dropping it silently.
  */
-const roleOfDraftKey = (key: string): string | null => key.split('::')[1] ?? null;
+const stepOfDraftKey = (key: string): string | null => key.split('::')[1] ?? null;
 
 /**
- * The role whose column a cell key names — `rowId::<roleId>-final` or
- * `rowId::<roleId>-<point>` — or null when the column is not a role's.
+ * The step whose column a cell key names — `rowId::<stepId>-final` or
+ * `rowId::<stepId>-<point>` — or null when the column is not a step's.
  *
- * The suffix rule is {@link widthFor}'s, and for the same reason: a role's half
+ * The suffix rule is {@link widthFor}'s, and for the same reason: a step's half
  * of the id is whatever the project called it, so the only thing that can be
  * matched is the end. Name, Depends on and the date box answer null and are
- * never purged by a phase going.
+ * never purged by a step going.
  */
-function roleOfCellKey(cellKey: string): string | null {
+function stepOfCellKey(cellKey: string): string | null {
   const columnId = cellKey.slice(cellKey.indexOf('::') + 2);
   const at = columnId.lastIndexOf('-');
   if (at < 1) return null;
@@ -612,11 +612,11 @@ function hoveredCellAfterRefresh(
   return placed !== undefined && placed === was.get(rowOfCellKey(open)) ? open : null;
 }
 
-/** Every key one row-and-role's pending estimate can be held under. */
-const estimateDraftKeys = (rowId: string, roleId: string): ReadonlySet<string> =>
+/** Every key one row-and-step's pending estimate can be held under. */
+const estimateDraftKeys = (rowId: string, stepId: string): ReadonlySet<string> =>
   new Set([
-    ...POINTS.map((point) => draftKey(rowId, roleId, point)),
-    combinedDraftKey(rowId, roleId),
+    ...POINTS.map((point) => draftKey(rowId, stepId, point)),
+    combinedDraftKey(rowId, stepId),
   ]);
 
 /**
@@ -964,9 +964,9 @@ function isWidthOverrides(value: unknown): value is Record<string, number> {
  * have been about. The range check below is what really refuses both, and it is
  * the line the negative watches. R5, and `P phases-ui`'s sanitizer before it.
  *
- * An id naming a phase this project no longer holds survives all three and is
+ * An id naming a step this project no longer holds survives all three and is
  * then never looked at — the harmlessness a remembered expansion's deleted row
- * ids have, and the reason the role coming back finds its width waiting.
+ * ids have, and the reason the step coming back finds its width waiting.
  *
  * Deliberately not the "unknown is not OK" throw, for {@link
  * rememberedExpansion}'s reason: the alternative is a plan nobody can open
@@ -1003,7 +1003,7 @@ function rememberedWidthOverrides(projectId: string): Map<string, number> {
  * Called when a drag is let go of and at no other time. In particular the
  * sanitized set is **not** written back on read: opening a project must not
  * change what is remembered about it, and a write-back would quietly discard
- * the entry for a phase that is only temporarily absent.
+ * the entry for a step that is only temporarily absent.
  */
 function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string, number>): void {
   localStorage.setItem(widthOverridesKey(projectId), JSON.stringify(Object.fromEntries(overrides)));
@@ -1045,12 +1045,12 @@ const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${pro
  * The stored value is a claim, not a fact — user-editable storage read at a
  * boundary, the posture {@link rememberedWidthOverrides} takes. A value that is
  * not a list of strings takes the key with it and the default set is shown. An
- * id the table does not declare is **not** judged here: a role's id is only
- * known once the roles have loaded, so the list is kept whole and
+ * id the table does not declare is **not** judged here: a step's id is only
+ * known once the steps have loaded, so the list is kept whole and
  * `hiddenColumnIds` in the component filters it against
  * {@link hideableColumnIds} on every render that could change the answer. It
  * is also not written back — opening a project must not change what is
- * remembered about it, and a hidden role that is only temporarily absent must
+ * remembered about it, and a hidden step that is only temporarily absent must
  * find its entry waiting.
  *
  * Deliberately not the "unknown is not OK" throw, for {@link
@@ -1187,7 +1187,7 @@ function isFilterCriteriaShape(value: unknown): value is FilterCriteria {
     isAbsentOrBoolean(claimed['assignedOutsideTeam']) &&
     isStringArray(claimed['assigneeIds']) &&
     isStringArray(claimed['priorityBands']) &&
-    isStringArray(claimed['estimatedRoleIds']) &&
+    isStringArray(claimed['estimatedStepIds']) &&
     typeof claimed['unestimated'] === 'boolean' &&
     typeof claimed['critical'] === 'boolean'
   );
@@ -1239,7 +1239,7 @@ function isSavedView(value: unknown): value is SavedView {
  * not a usable view is dropped **on its own**, and the views beside it still
  * apply — one hand-edited view is no reason to forget the rest.
  *
- * A view naming a team, a person or a phase this project no longer holds
+ * A view naming a team, a person or a step this project no longer holds
  * survives this check and is simply never a live checkbox: applying it ticks
  * a box the facet panel already knows how to draw for an absent value
  * (`optionsFor`, "a team this plan has not loaded"), and narrowing by an id
@@ -1577,11 +1577,11 @@ function listed(names: readonly string[]): string {
 }
 
 /**
- * Everybody named on any of this row's phases, deduplicated.
+ * Everybody named on any of this row's steps, deduplicated.
  *
  * A module function and not two inline spreads because both readers of it — the
  * `assigneeIds` facet and the assignee marker's list of who is outside — have
- * to be asking about the same people. One person on three phases is one person
+ * to be asking about the same people. One person on three steps is one person
  * to filter by and one person to mark, and `includes` over a list holding them
  * three times is the same answer paid for three times on every keystroke.
  */
@@ -1628,7 +1628,7 @@ function MismatchMark({
    * Whether this mark sits in a cell whose one hint is a hover card, in which
    * case it carries no native `title`.
    *
-   * The folded role cell's own decision, 2026-08-09 and stated in its code: a
+   * The folded step cell's own decision, 2026-08-09 and stated in its code: a
    * browser tooltip is one line, a second late, and it raced the card over the
    * same pixels. So there the sentence goes on the card and the mark keeps only
    * its `aria-label`, which nothing races. A mark with no sentence anywhere
@@ -1665,10 +1665,10 @@ function MismatchMark({
   );
 }
 
-/** Whether two role lists say the same thing, so an equal one can be discarded. */
-function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
+/** Whether two step lists say the same thing, so an equal one can be discarded. */
+function sameSteps(a: readonly StepView[], b: readonly StepView[]): boolean {
   return (
-    a.length === b.length && a.every((role, i) => role.id === b[i]?.id && role.name === b[i]?.name)
+    a.length === b.length && a.every((step, i) => step.id === b[i]?.id && step.name === b[i]?.name)
   );
 }
 
@@ -1774,14 +1774,14 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
- * - **A control that opens a surface of its own.** `PhasesDialog` is on this
+ * - **A control that opens a surface of its own.** `StepsDialog` is on this
  *   sheet, and closing the sheet unmounts the dialog its trigger was about to
  *   open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
  *   question asked here.
  * - **A click on another surface entirely.** React sends a portal's events up
- *   the **React** tree, so every click inside that phases dialog arrives here
+ *   the **React** tree, so every click inside that steps dialog arrives here
  *   even though the dialog is nowhere near this element in the DOM — and would
- *   close the sheet under it, mid-click, on the way to adding a phase.
+ *   close the sheet under it, mid-click, on the way to adding a step.
  *
  * @param target What was clicked — `event.target`, not the handler's element.
  * @param surface The sheet's own surface, which is `event.currentTarget`.
@@ -1852,7 +1852,7 @@ const busyAffordance = (busy: boolean): { 'data-busy'?: ''; style?: CSSPropertie
   busy ? { 'data-busy': '', style: { cursor: 'progress', opacity: 0.6 } } : {};
 
 /**
- * One read of the tree, as far as the chart is concerned: the slices, the roles
+ * One read of the tree, as far as the chart is concerned: the slices, the steps
  * they were placed under, and the names of everybody on them.
  *
  * All three arrive on the same request, and this type is what keeps them
@@ -1861,7 +1861,7 @@ const busyAffordance = (busy: boolean): { 'data-busy'?: ''; style?: CSSPropertie
  */
 interface ChartRead {
   slices: SliceView[];
-  roles: RoleView[];
+  steps: StepView[];
   people: AssignedPersonView[];
   /**
    * Which read this is: `refresh`'s own generation, and 0 before any has
@@ -1875,8 +1875,8 @@ interface ChartRead {
   generation: number;
 }
 
-/** No read has landed yet: no slices, no roles, nobody, and no generation. */
-const NO_CHART_READ: ChartRead = { slices: [], roles: [], people: [], generation: 0 };
+/** No read has landed yet: no slices, no steps, nobody, and no generation. */
+const NO_CHART_READ: ChartRead = { slices: [], steps: [], people: [], generation: 0 };
 
 const column = createColumnHelper<TreeRow>();
 
@@ -1922,7 +1922,7 @@ function facetsChosen(facets: FacetCriteria): number {
     (facets.assignedOutsideTeam ? 1 : 0) +
     facets.assigneeIds.length +
     facets.priorityBands.length +
-    facets.estimatedRoleIds.length +
+    facets.estimatedStepIds.length +
     (facets.unestimated ? 1 : 0) +
     (facets.critical ? 1 : 0)
   );
@@ -1946,7 +1946,7 @@ const toggledIn = (chosen: readonly string[], id: string): string[] =>
  *
  * By label, because neither teams nor people have a meaning in the order be-01
  * happens to return them in — unlike the bands, which are a ladder, and the
- * phases, which are the order of the columns they estimate. Those two keep
+ * steps, which are the order of the columns they estimate. Those two keep
  * their own order and do not come through here.
  */
 function optionsFor(
@@ -1963,7 +1963,7 @@ function optionsFor(
  * The six facets a reader can narrow the plan by, beside the Find box.
  *
  * **A `<details>` and not a positioned popover**, for the reason
- * `plan-cards.tsx`'s phase breakdown is one: it needs no measurement, no
+ * `plan-cards.tsx`'s step breakdown is one: it needs no measurement, no
  * pointer-type guard and no dismiss handler, and a tap is what opens one
  * already — which is what makes this control work unchanged inside the phone's
  * `Plan actions` sheet, where a `<summary>` and a checkbox are not the
@@ -1971,7 +1971,7 @@ function optionsFor(
  *
  * **Every list is the plan's own.** The teams are the effective teams somebody
  * on this plan carries, the people are the ones be-01 says are assigned on it,
- * the bands are this project's ladder and the phases are its roles. A facet
+ * the bands are this project's ladder and the steps are its steps. A facet
  * offering a value no row has is a filter whose only possible answer is an
  * empty table.
  *
@@ -1986,7 +1986,7 @@ function FilterFacets({
   services,
   people,
   bands,
-  phases,
+  steps,
   ownershipKnown,
   membershipKnown,
 }: {
@@ -1997,7 +1997,7 @@ function FilterFacets({
   services: readonly FacetOption[];
   people: readonly FacetOption[];
   bands: readonly FacetOption[];
-  phases: readonly FacetOption[];
+  steps: readonly FacetOption[];
   /**
    * Whether any team owns any service — the directory fact `builtByNonOwner`
    * is asked against.
@@ -2145,9 +2145,9 @@ function FilterFacets({
           ...facets,
           priorityBands,
         }))}
-        {group('Estimated for', 'phase', phases, facets.estimatedRoleIds, (estimatedRoleIds) => ({
+        {group('Estimated for', 'step', steps, facets.estimatedStepIds, (estimatedStepIds) => ({
           ...facets,
-          estimatedRoleIds,
+          estimatedStepIds,
         }))}
         <fieldset data-facet-group="state" className="mb-2 border-0 p-0">
           <legend className="text-muted-foreground mb-1 text-xs font-semibold">State</legend>
@@ -2232,7 +2232,7 @@ function FilterFacets({
 /**
  * The words the Columns control uses for the fixed columns a reader may hide —
  * the full word, where the header is abbreviated for width (`Prio`, `Not
- * bef.`) or is a glyph (People at once). Roles are named by the project.
+ * bef.`) or is a glyph (People at once). Steps are named by the project.
  */
 const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['depends', 'Depends on'],
@@ -2250,7 +2250,7 @@ const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
 
 /**
  * The Columns control: one tick box per column a reader may hide, and one per
- * role, in the order the table renders them. Ticked is on screen.
+ * step, in the order the table renders them. Ticked is on screen.
  *
  * A `<details>` for the reason {@link FilterFacets} is one — no measurement,
  * no dismiss handler, and it works unchanged inside the phone's `Plan actions`
@@ -2459,19 +2459,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * be a second implementation of the engine.
    *
    * One state and not three, and that is the fix rather than a tidy-up.
-   * `layOutGantt` refuses a payload whose slices name a role or a person it has
+   * `layOutGantt` refuses a payload whose slices name a step or a person it has
    * not got, which is exactly what this client held while the slices came from
-   * `tree()` and the roles and names came from `roles()` and `listPeople()`:
-   * four requests, four moments, and a peer deleting a phase in between left a
+   * `tree()` and the steps and names came from `steps()` and `listPeople()`:
+   * four requests, four moments, and a peer deleting a step in between left a
    * chart that threw. Held together, they cannot disagree — there is no setter
    * that can move one without the others.
    *
-   * The separate reads stay for what they are actually about: {@link roles}
-   * heads the estimate columns and the phases dialog edits it, and
+   * The separate reads stay for what they are actually about: {@link steps}
+   * heads the estimate columns and the steps dialog edits it, and
    * {@link people} is who the assignee picker can offer.
    */
   const [chartRead, setChartRead] = useState<ChartRead>(NO_CHART_READ);
-  const [roles, setRoles] = useState<RoleView[]>([]);
+  const [steps, setSteps] = useState<StepView[]>([]);
   /**
    * Which branches are open, as this browser last left them for this project.
    *
@@ -2683,7 +2683,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * The one cell whose hover card is open, as a {@link cellKey}, or null.
    *
    * One state for every surface that opens a card — the Name cell's notes
-   * marker, a folded role's figure, the depends chips — rather than one state
+   * marker, a folded step's figure, the depends chips — rather than one state
    * each, and that is what makes "one card at a time" true by construction
    * rather than by three pieces of code remembering to close each other.
    *
@@ -2692,7 +2692,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * file holds one spelling of "which cell".
    *
    * Read through {@link live} inside `columns`, never closed over: `columns`
-   * depends on `roles` alone, and a dependency that changed on every mouse
+   * depends on `steps` alone, and a dependency that changed on every mouse
    * move would remount every cell in the table as the pointer crossed it.
    */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
@@ -2745,15 +2745,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [stack, setStack] = useState({ undoable: false, redoable: false });
   /**
-   * Roles whose columns are unfolded — the three points, next to the final
+   * Steps whose columns are unfolded — the three points, next to the final
    * figure and its assignee, which are always on screen.
    *
    * **A set, and any number of them.** It was an accordion until
-   * `unfolding-may-scroll` — unfolding a role folded whichever was open —
-   * because a folded role costs 96px and an unfolded one 348, and one open
-   * role already needs more width than a 1280 laptop has. That arithmetic is
+   * `unfolding-may-scroll` — unfolding a step folded whichever was open —
+   * because a folded step costs 96px and an unfolded one 348, and one open
+   * step already needs more width than a 1280 laptop has. That arithmetic is
    * unchanged and it is not what the rule was worth: a reader comparing two
-   * phases' three points had to hold one of them in their head, and a table
+   * steps' three points had to hold one of them in their head, and a table
    * that reshuffles itself when you open something reads as a bug whatever it
    * is protecting.
    *
@@ -2765,11 +2765,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * in the matrix.
    *
    * A list rather than a `Set` because it is what the column builder asks
-   * (`unfoldedRoles.includes(role.id)`) and what the `columns` memo may depend
+   * (`unfoldedSteps.includes(step.id)`) and what the `columns` memo may depend
    * on. Local state, not shared: my unfolding must not reshuffle anyone else's
    * table.
    */
-  const [unfoldedRoles, setUnfoldedRoles] = useState<readonly string[]>([]);
+  const [unfoldedSteps, setUnfoldedSteps] = useState<readonly string[]>([]);
 
   /**
    * The hide-list as this browser remembers it for this project, whole — see
@@ -2782,7 +2782,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /**
    * The columns this reader has hidden **and this table could show**: the
    * stored list less any id that is neither a hideable column nor one of this
-   * project's roles. A typo in storage, or a role since deleted, hides nothing
+   * project's steps. A typo in storage, or a step since deleted, hides nothing
    * and is never handed to `foldedTableMinWidth`, which throws on it by design.
    *
    * A memo on the two things it reads, so its identity moves only when one of
@@ -2790,9 +2790,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * there remounts every cell.
    */
   const hiddenColumnIds = useMemo(() => {
-    const hideable = hideableColumnIds(roles.map((role) => role.id));
+    const hideable = hideableColumnIds(steps.map((step) => step.id));
     return storedHiddenColumns.filter((id) => hideable.includes(id));
-  }, [roles, storedHiddenColumns]);
+  }, [steps, storedHiddenColumns]);
 
   /**
    * What the Columns control offers: every hideable column with the word the
@@ -2802,19 +2802,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const offeredColumns = useMemo(
     () =>
-      hideableColumnIds(roles.map((role) => role.id)).map((id) => {
-        const label = COLUMN_LABELS.get(id) ?? roles.find((role) => role.id === id)?.name;
+      hideableColumnIds(steps.map((step) => step.id)).map((id) => {
+        const label = COLUMN_LABELS.get(id) ?? steps.find((step) => step.id === id)?.name;
         if (label === undefined) throw new Error(`no label for hideable column "${id}"`);
         return { id, label };
       }),
-    [roles],
+    [steps],
   );
 
   /**
    * Hides a shown column, or shows a hidden one — and writes the list, which is
    * the one moment it is written (see {@link rememberedHiddenColumns}). Written
    * from the sanitised list rather than the stored one, as a drag writes the
-   * widths in force: an id for a role this project no longer holds is dropped
+   * widths in force: an id for a step this project no longer holds is dropped
    * the first time the reader touches the control.
    */
   function toggleColumn(columnId: string): void {
@@ -2826,24 +2826,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }
 
   /**
-   * Unfolds a role, or folds it again — and leaves every other role alone.
+   * Unfolds a step, or folds it again — and leaves every other step alone.
    *
    * The one writer, which is why the rule it keeps is stated on the state
-   * above rather than here. It was `current.includes(roleId) ? [] : [roleId]`
+   * above rather than here. It was `current.includes(stepId) ? [] : [stepId]`
    * until `unfolding-may-scroll`: the second arm is what made this an
-   * accordion, and the first folded the open one whichever role was clicked.
+   * accordion, and the first folded the open one whichever step was clicked.
    *
-   * Proof: written as `current.includes(roleId) ? [] : [roleId]` again,
-   * `unfolds each role on its own, and leaves the others open` failed on
+   * Proof: written as `current.includes(stepId) ? [] : [stepId]` again,
+   * `unfolds each step on its own, and leaves the others open` failed on
    * `Unable to find a label with the text of: Dev optimistic for 010`, with
-   * `walks both open roles in turn, and the grid arrows cross between them`
-   * beside it and — in Chromium — `opens every role at once, scrolls the frame
+   * `walks both open steps in turn, and the grid arrows cross between them`
+   * beside it and — in Chromium — `opens every step at once, scrolls the frame
    * for it, and holds the pinned block` on the same missing box. Watched on
    * h2puni, 2026-08-12 (fault 1).
    */
-  const toggleRole = useCallback((roleId: string) => {
-    setUnfoldedRoles((current) =>
-      current.includes(roleId) ? current.filter((each) => each !== roleId) : [...current, roleId],
+  const toggleStep = useCallback((stepId: string) => {
+    setUnfoldedSteps((current) =>
+      current.includes(stepId) ? current.filter((each) => each !== stepId) : [...current, stepId],
     );
   }, []);
   /** The project's start date, or null while the plan is not on a calendar. */
@@ -2982,7 +2982,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * `dep-hover-highlights` shipped `depFocus` on.
    *
    * All three are read on the `<tr>` and passed to the panel, and **never**
-   * inside `columns`: that memo depends on `roles` and `unfoldedRoles` and
+   * inside `columns`: that memo depends on `steps` and `unfoldedSteps` and
    * nothing else, and a dep added here would hand every cell a new component
    * type on the first hover and remount the lot, taking the focus and any
    * half-typed value with it (LLM_README landmine #1).
@@ -2997,17 +2997,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const [chartPointedRow, setChartPointedRow] = useState<string | null>(null);
   const [chartFocusedRow, setChartFocusedRow] = useState<string | null>(null);
   /**
-   * The `@` mention open in a folded role's cell: whose cell, and what has been
+   * The `@` mention open in a folded step's cell: whose cell, and what has been
    * typed after the `@`.
    *
    * One at a time, for `depPicker`'s reason: one box is being typed into. Read
-   * through {@link live}, because `columns` may depend on `roles` and
-   * `unfoldedRoles` and nothing else.
+   * through {@link live}, because `columns` may depend on `steps` and
+   * `unfoldedSteps` and nothing else.
    *
    * `typed: ''` is a bare `@` — everybody offered — and is not the same as no
    * mention at all. {@link splitMention} is what tells the two apart.
    */
-  const [mention, setMention] = useState<{ rowId: string; roleId: string; typed: string } | null>(
+  const [mention, setMention] = useState<{ rowId: string; stepId: string; typed: string } | null>(
     null,
   );
   /**
@@ -3248,58 +3248,58 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const stream = useRef<ProjectStream | null>(null);
 
   /**
-   * Settles this browser's own state against the phases be-01 just reported.
+   * Settles this browser's own state against the steps be-01 just reported.
    *
-   * A phase that goes takes two things with it that are nobody's but this
+   * A step that goes takes two things with it that are nobody's but this
    * client's, and be-01 can clean up neither:
    *
-   * - the **estimate drafts**, keyed `rowId::roleId::point`. A half-typed trio
-   *   for a phase that has gone is a figure nobody can see, reach or finish,
+   * - the **estimate drafts**, keyed `rowId::stepId::point`. A half-typed trio
+   *   for a step that has gone is a figure nobody can see, reach or finish,
    *   and it goes on counting as content — an otherwise empty row it belongs to
    *   can never be removed by Backspace again.
    * - the **held refusals**, keyed by cell, whose columns no longer exist —
    *   text nobody can ever resolve, held for the life of the page.
    *
-   * `unfoldedRoles` is deliberately **not** settled here, and that is a finding
+   * `unfoldedSteps` is deliberately **not** settled here, and that is a finding
    * rather than an omission. The plan asked for it (agy #7) on the reading that
    * the set could hold a dead id; it can, and nothing can observe it,
-   * because `columns` is built by mapping over `roles` and a dead id selects no
-   * role to unfold. The sanitizer was written, its negative test watched
+   * because `columns` is built by mapping over `steps` and a dead id selects no
+   * step to unfold. The sanitizer was written, its negative test watched
    * **passing** with the line deleted, and the line removed —
    * `openspec/changes/phases-ui/verify.md` has the run.
    *
    * The drafts sanitizer returns the object it was given when nothing changed.
    * `drafts` is not one of `columns`' dependencies, so this is about not
    * re-rendering every cell rather than about remounting them — but the rule is
-   * the same one `sameRoles` keeps one line above, and stating it twice is
+   * the same one `sameSteps` keeps one line above, and stating it twice is
    * cheaper than the two of them drifting.
    *
-   * A phase change **does** cost the focus, and that is the accepted trade: the
+   * A step change **does** cost the focus, and that is the accepted trade: the
    * columns really are different, the cells really are new elements, and the
    * person sees the caret leave the box at the moment the table changes shape.
    * What must not go with it is a draft be-01 refused, which is why the hold is
    * outside `CellInput` — see {@link refusedDrafts}.
    */
-  const settleAgainstRoles = useCallback((live: readonly RoleView[]) => {
-    const liveIds = new Set(live.map((role) => role.id));
-    // Proof: this whole block deleted, `drops a half-typed figure for a phase
+  const settleAgainstSteps = useCallback((live: readonly StepView[]) => {
+    const liveIds = new Set(live.map((step) => step.id));
+    // Proof: this whole block deleted, `drops a half-typed figure for a step
     // that has gone` failed on `expected [ '010' ] to deeply equal []` — an
-    // empty row nobody could remove, vetoed by a figure typed for a phase that
+    // empty row nobody could remove, vetoed by a figure typed for a step that
     // was no longer there. Watched, 2026-08-09.
     setDrafts((current) => {
       const gone = new Set(
         Object.keys(current).filter((key) => {
-          const roleId = roleOfDraftKey(key);
-          return roleId !== null && !liveIds.has(roleId);
+          const stepId = stepOfDraftKey(key);
+          return stepId !== null && !liveIds.has(stepId);
         }),
       );
       return gone.size === 0 ? current : dropDrafts(current, gone);
     });
-    // Proof: this call deleted, `forgets a refusal held for a phase that has
+    // Proof: this call deleted, `forgets a refusal held for a step that has
     // gone` failed on `expected '9' to be undefined`. Watched, 2026-08-09.
     forgetRefusedDrafts((cellKey) => {
-      const roleId = roleOfCellKey(cellKey);
-      return roleId !== null && !liveIds.has(roleId);
+      const stepId = stepOfCellKey(cellKey);
+      return stepId !== null && !liveIds.has(stepId);
     });
   }, []);
 
@@ -3314,10 +3314,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // arrive afterwards and repair it. Only the newest request may write.
     const generation = latestRefresh.current + 1;
     latestRefresh.current = generation;
-    const [tree, loadedRoles, loadedTeams, loadedTags, loadedServices, loadedPeople] =
+    const [tree, loadedSteps, loadedTeams, loadedTags, loadedServices, loadedPeople] =
       await Promise.all([
         api.tree(projectId),
-        api.roles(projectId),
+        api.steps(projectId),
         api.listTeams(),
         // Beside the teams rather than behind them: both are global lists the
         // pickers need before a reader can tick anything, and a second round trip
@@ -3366,13 +3366,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // the one-row plan's slices still behind it; watched 2026-08-09.
     //
     // One call, so the chart's three parts can only ever be one payload's. The
-    // roles and the names come from `tree` and **not** from `loadedRoles` or
-    // `loadedPeople` below: those are three more requests, and a peer's phase
+    // steps and the names come from `tree` and **not** from `loadedSteps` or
+    // `loadedPeople` below: those are three more requests, and a peer's step
     // delete landing between them is what used to hand `layOutGantt` a slice
-    // under a role the plan no longer listed.
+    // under a step the plan no longer listed.
     setChartRead({
       slices: tree.slices,
-      roles: tree.roles,
+      steps: tree.steps,
       people: tree.assignedPeople,
       generation,
     });
@@ -3382,16 +3382,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
     setStartDate(tree.startDate);
-    // Replaced only when the roles actually differ. Every read returns a fresh
-    // array, and `roles` is the one dependency `columns` still has — so a new
+    // Replaced only when the steps actually differ. Every read returns a fresh
+    // array, and `steps` is the one dependency `columns` still has — so a new
     // array on every refresh rebuilt every column definition, which is how a
     // stranger's edit used to take the focus of whoever was mid-word.
-    setRoles((current) => (sameRoles(current, loadedRoles) ? current : loadedRoles));
-    settleAgainstRoles(loadedRoles);
+    setSteps((current) => (sameSteps(current, loadedSteps) ? current : loadedSteps));
+    settleAgainstSteps(loadedSteps);
     // Reported after the generation check, so a superseded read cannot move the
     // resume point to a moment whose rows were thrown away.
     stream.current?.seen(tree.seq);
-  }, [api, projectId, settleAgainstRoles]);
+  }, [api, projectId, settleAgainstSteps]);
 
   /**
    * Rereads the tree, and raises the stale banner instead of throwing when
@@ -4065,14 +4065,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [flat]);
 
   /**
-   * What this plan is still short of, per leaf and per role.
+   * What this plan is still short of, per leaf and per step.
    *
    * Recomputed from the tree on screen rather than tracked, for the reason
    * nothing here is patched locally: an estimate can arrive from anybody, and
    * a count kept alongside would be the second answer to a question that has
    * one.
    */
-  const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+  const gaps = useMemo(() => findEstimateGaps(flat, steps), [flat, steps]);
   /**
    * The rows the readiness badge counts, as a set the filter can ask.
    *
@@ -4158,9 +4158,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // `Object.hasOwn` and not a truthy test, which is `findEstimateGaps`'
             // own rule: a stored `0 / 0 / 0` is somebody saying this costs
             // nothing, which is an answer and not an absence.
-            estimatedRoleIds: roles
-              .filter((role) => Object.hasOwn(row.estimates, role.id))
-              .map((role) => role.id),
+            estimatedStepIds: steps
+              .filter((step) => Object.hasOwn(row.estimates, step.id))
+              .map((step) => step.id),
             unestimated: unestimatedIds.has(row.id),
             // be-01's own answer for the row, not a second reading of the
             // slices: a row is on the critical path when its work is, and the
@@ -4185,7 +4185,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // booleans above are read out of it and not recomputed here.
       mismatchByRow,
       priorityBands,
-      roles,
+      steps,
       unestimatedIds,
     ],
   );
@@ -4226,7 +4226,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     personName: (personId) =>
       chartRead.people.find((person) => person.id === personId)?.name ??
       'somebody this plan has not loaded',
-    phaseName: (roleId) => roles.find((role) => role.id === roleId)?.name ?? '(unknown)',
+    stepName: (stepId) => steps.find((step) => step.id === stepId)?.name ?? '(unknown)',
     tagName: (tagId) =>
       tags.find((each) => each.id === tagId)?.name ?? 'a tag this plan has not loaded',
     // Names a service since task 6.3 pulled `listServices` forward out of 7.6.
@@ -4308,13 +4308,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       .filter((band) => present.has(band.label) || facets.priorityBands.includes(band.label))
       .map((band) => ({ id: band.label, label: band.label }));
   }, [narrowable, priorityBands, facets.priorityBands]);
-  /** In the phase list's order, which is the order of the columns they estimate. */
-  const facetPhases = useMemo(() => {
-    const present = new Set(narrowable.flatMap((row) => row.facets.estimatedRoleIds));
-    return roles
-      .filter((role) => present.has(role.id) || facets.estimatedRoleIds.includes(role.id))
-      .map((role) => ({ id: role.id, label: role.name }));
-  }, [narrowable, roles, facets.estimatedRoleIds]);
+  /** In the step list's order, which is the order of the columns they estimate. */
+  const facetSteps = useMemo(() => {
+    const present = new Set(narrowable.flatMap((row) => row.facets.estimatedStepIds));
+    return steps
+      .filter((step) => present.has(step.id) || facets.estimatedStepIds.includes(step.id))
+      .map((step) => ({ id: step.id, label: step.name }));
+  }, [narrowable, steps, facets.estimatedStepIds]);
 
   const siblingsOf = useCallback(
     (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
@@ -4513,7 +4513,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       method: estimateMethod,
       startDate,
       scheduleError,
-      roles,
+      steps,
       teams,
       tags,
       // The service vocabulary the export's `Services` column resolves ids
@@ -4543,7 +4543,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       estimateMethod,
       startDate,
       scheduleError,
-      roles,
+      steps,
       teams,
       tags,
       services,
@@ -4692,7 +4692,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * The readiness badge's only behaviour. It reads nothing and writes nothing:
    * a plan is judged complete or not by {@link findEstimateGaps}, and this
-   * carries the eye there. The cell aimed at is the **first role that leaf is
+   * carries the eye there. The cell aimed at is the **first step that leaf is
    * missing** — a row costed for Dev and not QA is stood in front of its QA
    * cell, because pointing at the number that is already there would be the
    * tool asking for work that is done.
@@ -4717,25 +4717,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // the third click, which sat where it was. Watched, 2026-08-06.
     //
     // Both indexes below are in range without a guard: the list is not empty,
-    // and `findEstimateGaps` never reports a leaf that is missing no role at
+    // and `findEstimateGaps` never reports a leaf that is missing no step at
     // all. Guards for them were written and `no-unnecessary-condition` refused
     // them — dead branches, which is exactly the check that cannot fail.
     const next = gaps.leaves[(at + 1) % gaps.leaves.length];
-    const roleId = next.missingRoleIds[0];
-    // Which cell edits this role depends on the fold: the combined cell while
-    // the role is folded, and the optimistic box while it is not, because
+    const stepId = next.missingStepIds[0];
+    // Which cell edits this step depends on the fold: the combined cell while
+    // the step is folded, and the optimistic box while it is not, because
     // `combined-trio-entry` deliberately never shows both editors at once.
     // Proof: hard-coded to the folded cell, `lands in the first box while the
-    // role is unfolded, where the trio is typed` failed with the focus left on
-    // the body — the column it named is not an editable cell while the role is
+    // step is unfolded, where the trio is typed` failed with the focus left on
+    // the body — the column it named is not an editable cell while the step is
     // open. Watched, 2026-08-06.
-    const columnId = unfoldedRoles.includes(roleId) ? `${roleId}-optimistic` : `${roleId}-final`;
+    const columnId = unfoldedSteps.includes(stepId) ? `${stepId}-optimistic` : `${stepId}-final`;
     // Proof: removed, `opens a collapsed branch rather than focusing a cell
     // nobody can see` failed with the child row still hidden. Watched,
     // 2026-08-06.
     setExpanded((current) => ancestorsOf(next.rowId).reduce(expandBranch, current));
     setGapVisit({ rowId: next.rowId, cell: { rowId: next.rowId, columnId } });
-  }, [ancestorsOf, gapVisit, gaps, unfoldedRoles]);
+  }, [ancestorsOf, gapVisit, gaps, unfoldedSteps]);
 
   /**
    * Lands the focus on the cell the readiness walk asked for.
@@ -5623,13 +5623,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [],
   );
 
-  // A roles change rebuilds the column definitions and remounts every cell —
+  // A steps change rebuilds the column definitions and remounts every cell —
   // the one remount this table still allows itself. React fires no blur on an
   // unmounted input, so an open picker would stay open under a fresh, unfocused
   // cell with no keyboard attached to it. Closed instead.
   useEffect(() => {
     setDepPicker(null);
-  }, [roles]);
+  }, [steps]);
 
   /**
    * Whether the numbers in the schedule columns mean anything.
@@ -5649,10 +5649,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * quietly disagreeing with the box.
    */
   const typedTrio = useCallback(
-    (row: TreeRow, roleId: string): TypedTrio => {
-      const stored = row.estimates[roleId];
+    (row: TreeRow, stepId: string): TypedTrio => {
+      const stored = row.estimates[stepId];
       const read = (point: Point): string =>
-        drafts[draftKey(row.id, roleId, point)] ?? showDays(stored, point);
+        drafts[draftKey(row.id, stepId, point)] ?? showDays(stored, point);
       return {
         optimistic: read('optimistic'),
         realistic: read('realistic'),
@@ -5663,36 +5663,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   const estimateValue = useCallback(
-    (row: TreeRow, roleId: string, point: Point): string => typedTrio(row, roleId)[point],
+    (row: TreeRow, stepId: string, point: Point): string => typedTrio(row, stepId)[point],
     [typedTrio],
   );
 
   /**
-   * What is wrong with this row-and-role's trio, or null.
+   * What is wrong with this row-and-step's trio, or null.
    *
    * A parent's figures are rolled up rather than typed, so they are never
    * anyone's mistake: complaining about a sum the tool computed would be the
    * tool telling somebody off for its own arithmetic.
    */
   const trioProblemFor = useCallback(
-    (row: TreeRow, roleId: string) => (row.rolledUp ? null : trioProblem(typedTrio(row, roleId))),
+    (row: TreeRow, stepId: string) => (row.rolledUp ? null : trioProblem(typedTrio(row, stepId))),
     [typedTrio],
   );
 
   /**
-   * Forgets every draft of one row-and-role — the three boxes' and the folded
+   * Forgets every draft of one row-and-step — the three boxes' and the folded
    * cell's — once be-01 has the answer.
    *
    * All four together, whichever of them was typed: they are drafts of one
    * estimate, and leaving the others behind would put a stale entry back on
-   * screen the moment the role was folded or unfolded.
+   * screen the moment the step was folded or unfolded.
    *
    * Rebuilt without those keys rather than deleted from a copy: `delete` on a
    * computed key is banned here, and filtering says the same thing without
    * reaching into the object twice.
    */
-  const forgetEstimateDrafts = useCallback((rowId: string, roleId: string) => {
-    setDrafts((current) => dropDrafts(current, estimateDraftKeys(rowId, roleId)));
+  const forgetEstimateDrafts = useCallback((rowId: string, stepId: string) => {
+    setDrafts((current) => dropDrafts(current, estimateDraftKeys(rowId, stepId)));
   }, []);
 
   /**
@@ -5712,26 +5712,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * three boxes are emptied` in `wbs-table.test.tsx`; watched, 2026-08-06.
    */
   const commitEstimate = useCallback(
-    (row: TreeRow, roleId: string, point: Point, typed: string): Promise<CommitOutcome> => {
-      const next = { ...typedTrio(row, roleId), [point]: typed };
+    (row: TreeRow, stepId: string, point: Point, typed: string): Promise<CommitOutcome> => {
+      const next = { ...typedTrio(row, stepId), [point]: typed };
       setDrafts((current) => ({
         // A box edited last drops the folded cell's pending shorthand for this
-        // trio: one row and role has one draft, whichever way it was typed.
+        // trio: one row and step has one draft, whichever way it was typed.
         // Proof: left as `...current`, `lets a box replace what the folded cell
         // was holding` fails — the refused `8/3/2` came back over the box's
         // own complaint. Watched, 2026-08-06.
-        ...dropDrafts(current, new Set([combinedDraftKey(row.id, roleId)])),
-        [draftKey(row.id, roleId, point)]: typed,
+        ...dropDrafts(current, new Set([combinedDraftKey(row.id, stepId)])),
+        [draftKey(row.id, stepId, point)]: typed,
       }));
       const days = sendableTrio(next);
       if (days === null) {
         // `hasOwn` rather than a truthiness test: what matters is whether
-        // be-01 holds a trio for this row and role at all, and a stored
+        // be-01 holds a trio for this row and step at all, and a stored
         // `0 / 0 / 0` is one.
-        if (isTrioEmpty(next) && Object.hasOwn(row.estimates, roleId)) {
+        if (isTrioEmpty(next) && Object.hasOwn(row.estimates, stepId)) {
           return run(async () => {
-            await api.clearEstimate(row.id, roleId);
-            forgetEstimateDrafts(row.id, roleId);
+            await api.clearEstimate(row.id, stepId);
+            forgetEstimateDrafts(row.id, stepId);
           });
         }
         // A half-filled trio is a complaint, not a request: what was typed
@@ -5739,15 +5739,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         return unsent();
       }
       return run(async () => {
-        await api.setEstimate(row.id, roleId, days);
-        forgetEstimateDrafts(row.id, roleId);
+        await api.setEstimate(row.id, stepId, days);
+        forgetEstimateDrafts(row.id, stepId);
       });
     },
     [api, forgetEstimateDrafts, run, typedTrio],
   );
 
   /**
-   * What the folded role column's cell reads: the pending shorthand if there
+   * What the folded step column's cell reads: the pending shorthand if there
    * is one, and otherwise be-01's computed final figure.
    *
    * The one cell in the table whose value at rest is not what typing into it
@@ -5757,13 +5757,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * typed and has not been told off about yet.
    */
   const combinedValue = useCallback(
-    (row: TreeRow, roleId: string): string =>
-      drafts[combinedDraftKey(row.id, roleId)] ?? showFinal(row.finalDays[roleId]),
+    (row: TreeRow, stepId: string): string =>
+      drafts[combinedDraftKey(row.id, stepId)] ?? showFinal(row.finalDays[stepId]),
     [drafts],
   );
 
   /**
-   * What is wrong with what the folded column is showing for one row and role,
+   * What is wrong with what the folded column is showing for one row and step,
    * or null.
    *
    * Two sources, never both at once: the folded cell's own shorthand if
@@ -5774,17 +5774,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * without unfolding.
    */
   const combinedProblem = useCallback(
-    (row: TreeRow, roleId: string): string | null => {
+    (row: TreeRow, stepId: string): string | null => {
       // `hasOwn` rather than a nullish test: an empty draft is a person having
       // just emptied the cell, and it is the entry that reads as a clear —
       // reading it as "nothing pending here" would show the stored figure back
       // over the emptying.
       // Proof: returning null instead of the boxes' complaint fails `a folded
-      // role cannot hide a complaint`, `marks the folded cell when the boxes
+      // step cannot hide a complaint`, `marks the folded cell when the boxes
       // hold a trio that saves nothing` and `lets a box replace what the
       // folded cell was holding`. Watched, 2026-08-06.
-      const key = combinedDraftKey(row.id, roleId);
-      if (!Object.hasOwn(drafts, key)) return trioProblemFor(row, roleId)?.message ?? null;
+      const key = combinedDraftKey(row.id, stepId);
+      if (!Object.hasOwn(drafts, key)) return trioProblemFor(row, stepId)?.message ?? null;
       const entry = parseTrioShorthand(drafts[key]);
       return entry.kind === 'problem' ? entry.message : null;
     },
@@ -5795,7 +5795,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * Takes a whole trio typed into one cell as `o/r/p`, and sends it in one
    * request — or holds it as a draft and complains, exactly as a box does.
    *
-   * The shorthand is the estimating loop's short path: the role stays folded,
+   * The shorthand is the estimating loop's short path: the step stays folded,
    * one cell takes `2/3/8`, and be-01 is asked once rather than three times.
    * `5` means `5/5/5` because the person typed one number meaning three equal
    * ones; nothing here invents a figure, and a trio that runs backwards, has
@@ -5811,7 +5811,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * in `wbs-table.test.tsx` fails; watched, 2026-08-06.
    */
   const commitCombinedEstimate = useCallback(
-    (row: TreeRow, roleId: string, typed: string, baseline: string): Promise<CommitOutcome> => {
+    (row: TreeRow, stepId: string, typed: string, baseline: string): Promise<CommitOutcome> => {
       // The estimate half, always — {@link parseTrioShorthand} never sees a
       // mention. Two things follow, and both are refusals to send rather than
       // repairs: a cell left with `@ka` still in it whose estimate half is
@@ -5830,10 +5830,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // Proof: left as `...current`, `lets a folded entry replace what the
         // boxes were holding` fails — the box still held a `7` nobody could
         // see. Watched, 2026-08-06.
-        ...dropDrafts(current, new Set(POINTS.map((point) => draftKey(row.id, roleId, point)))),
+        ...dropDrafts(current, new Set(POINTS.map((point) => draftKey(row.id, stepId, point)))),
         // The estimate half, so a draft rendered back into the box can never
         // carry a mention somebody abandoned.
-        [combinedDraftKey(row.id, roleId)]: estimate,
+        [combinedDraftKey(row.id, stepId)]: estimate,
       }));
       if (entry.kind === 'problem') return unsent();
       if (entry.kind === 'empty') {
@@ -5842,15 +5842,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // and `asks for nothing when a cell with no estimate is emptied` both
         // fail — one clear lost, one deletion posted per cell tabbed through.
         // Watched, 2026-08-06.
-        if (!Object.hasOwn(row.estimates, roleId)) return unsent();
+        if (!Object.hasOwn(row.estimates, stepId)) return unsent();
         return run(async () => {
-          await api.clearEstimate(row.id, roleId);
-          forgetEstimateDrafts(row.id, roleId);
+          await api.clearEstimate(row.id, stepId);
+          forgetEstimateDrafts(row.id, stepId);
         });
       }
       return run(async () => {
-        await api.setEstimate(row.id, roleId, entry.days);
-        forgetEstimateDrafts(row.id, roleId);
+        await api.setEstimate(row.id, stepId, entry.days);
+        forgetEstimateDrafts(row.id, stepId);
       });
     },
     [api, forgetEstimateDrafts, run],
@@ -6176,8 +6176,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   const assignTo = useCallback(
-    (id: string, roleId: string, personId: string | null) => {
-      void run(() => api.assign(id, roleId, personId));
+    (id: string, stepId: string, personId: string | null) => {
+      void run(() => api.assign(id, stepId, personId));
     },
     [api, run],
   );
@@ -6192,10 +6192,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * membership of one.
    */
   const createPersonFor = useCallback(
-    (row: TreeRow, roleId: string, name: string) => {
+    (row: TreeRow, stepId: string, name: string) => {
       void run(async () => {
         const person = await api.addPerson(name, row.teamIds);
-        await api.assign(row.id, roleId, person.id);
+        await api.assign(row.id, stepId, person.id);
       });
     },
     [api, run],
@@ -6210,7 +6210,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
-   * Takes the focus into a folded role's cell, remembering what it holds.
+   * Takes the focus into a folded step's cell, remembering what it holds.
    *
    * Called from the box's own `onFocus`, before the select that cell has
    * always done — the value has to be read while it is still there.
@@ -6221,7 +6221,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, []);
 
   /**
-   * Reads a folded role's box on every keystroke and opens or closes its `@`
+   * Reads a folded step's box on every keystroke and opens or closes its `@`
    * picker.
    *
    * The estimate half is not touched here and no draft is written: what has
@@ -6229,9 +6229,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * before mentions existed. All this does is decide whether a list is open
    * and what it is filtered by.
    */
-  const readFoldedCell = useCallback((rowId: string, roleId: string, box: CellElement) => {
+  const readFoldedCell = useCallback((rowId: string, stepId: string, box: CellElement) => {
     const { mention: fragment } = splitMention(box.value);
-    setMention(fragment === null ? null : { rowId, roleId, typed: fragment });
+    setMention(fragment === null ? null : { rowId, stepId, typed: fragment });
   }, []);
 
   /**
@@ -6280,11 +6280,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * nowhere else, and `@ka⏎` can never be the gesture that unassigns anybody.
    */
   const mentionOptions = useCallback(
-    (row: TreeRow, roleId: string): PickerOption[] => {
+    (row: TreeRow, stepId: string): PickerOption[] => {
       const open = mention;
-      if (open?.rowId !== row.id || open.roleId !== roleId) return [];
+      if (open?.rowId !== row.id || open.stepId !== stepId) return [];
       const wanted = open.typed.trim().toLowerCase();
-      const assigned = row.assignees[roleId];
+      const assigned = row.assignees[stepId];
       const assignedPerson = people.find((each) => each.id === assigned);
       const matching = people.filter(
         (each) => wanted === '' || each.name.toLowerCase().includes(wanted),
@@ -6298,7 +6298,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 label: `Remove ${assignedPerson.name}`,
                 selected: false,
                 take: () => {
-                  assignTo(row.id, roleId, null);
+                  assignTo(row.id, stepId, null);
                   takeMentionOut();
                 },
               },
@@ -6318,7 +6318,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }),
           selected: each.id === assigned,
           take: () => {
-            assignTo(row.id, roleId, each.id);
+            assignTo(row.id, stepId, each.id);
             takeMentionOut();
           },
         })),
@@ -6329,7 +6329,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 label: `Add “${open.typed.trim()}”`,
                 selected: false,
                 take: () => {
-                  createPersonFor(row, roleId, open.typed.trim());
+                  createPersonFor(row, stepId, open.typed.trim());
                   takeMentionOut();
                 },
               },
@@ -6417,11 +6417,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
-   * Who is doing one phase of one work item, and whether anybody said so.
+   * Who is doing one step of one work item, and whether anybody said so.
    *
-   * The assumption — nobody named on this phase and exactly one person named on
+   * The assumption — nobody named on this step and exactly one person named on
    * another, so they are taken to be doing all of it — is be-01's
-   * (`doesEveryPhase`), and this is the one place either renderer reads it.
+   * (`doesEveryStep`), and this is the one place either renderer reads it.
    * `(unknown)` rather than nothing for a person the directory has not got:
    * somebody is assigned, and printing an empty cell would say nobody is.
    *
@@ -6430,19 +6430,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the unfolded assignee column and the plan cards all read it, so a signal
    * added here cannot be on one of them and missing from another. The person
    * shown and not the row's whole set — the assumed assignee included, because
-   * a phase the plan says they are doing is work assigned to them.
+   * a step the plan says they are doing is work assigned to them.
    */
   const assigneeOn = useCallback(
-    (row: TreeRow, roleId: string): CardAssignee | null => {
-      const named = row.assignees[roleId];
-      const shows = named ?? row.doesEveryPhase;
+    (row: TreeRow, stepId: string): CardAssignee | null => {
+      const named = row.assignees[stepId];
+      const shows = named ?? row.doesEveryStep;
       if (shows === null) return null;
       const name = people.find((each) => each.id === shows)?.name ?? '(unknown)';
       // The row's own answer, filtered to the person this cell shows — and that
       // covers the assumed assignee too, which is not obvious and is the reason
       // this is written down. An assumption is `assumedAssignee(row.assignees)`
       // (`apps/be-01/src/service/assumed-assignee.ts`): the one person the row
-      // *does* state, promoted to cover the phases it does not. So whoever this
+      // *does* state, promoted to cover the steps it does not. So whoever this
       // cell shows is always in `assigneesOf(row)` and therefore always in
       // `mismatchByRow`'s list, and a second call for the assumed case cannot
       // answer anything different.
@@ -6451,7 +6451,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // was missing from the list. F4 of chunk 17's injection round disproved
       // it: with that arm forced off, the case written for it stayed green,
       // 1565/0 — because the else branch had been answering it all along. The
-      // case is kept (an assumed phase must wear the mark, and nothing else
+      // case is kept (an assumed step must wear the mark, and nothing else
       // asserts it); the branch is gone.
       const outsider = mismatchByRow.get(row.id)?.outsideAssignees.includes(shows) ?? false;
       const teamNames = teamNamesOn(row);
@@ -6507,7 +6507,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * tree.
    *
    * A ref for {@link live}'s reason and not a second one: the `columns` memo
-   * depends on `roles` alone, and a value added to its dependency list remounts
+   * depends on `steps` alone, and a value added to its dependency list remounts
    * every cell in the table and eats the focus (LLM_README landmine #1). Its own
    * ref rather than a field on `live` because it is assigned two thousand lines
    * further down than that object is — the plan it is computed from is built
@@ -6589,7 +6589,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     createTagFor,
     assignTo,
     createPersonFor,
-    toggleRole,
+    toggleStep,
     spanOf,
     assigneeOn,
     nonOwnerNoteOf,
@@ -6666,7 +6666,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     createTagFor,
     assignTo,
     createPersonFor,
-    toggleRole,
+    toggleStep,
     spanOf,
     assigneeOn,
     nonOwnerNoteOf,
@@ -6925,7 +6925,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // column is the widest thing on the way to anywhere in this
                   // table, and a rendered document over the rows below on every
                   // pass of the mouse is disruptive rather than helpful. The
-                  // compact cards keep the whole cell — see the folded role
+                  // compact cards keep the whole cell — see the folded step
                   // cell — because a card three lines tall over a 96px cell
                   // costs a passing mouse nothing.
                   //
@@ -7043,7 +7043,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             const cardable = waitingFor.length > 0 && picker === null;
             const carded = cardable && live.current.openCard === dependsCell;
             // What the card says, for a reader with no pointer. This cell cannot
-            // answer a focus with the card the way the folded role cell does —
+            // answer a focus with the card the way the folded step cell does —
             // the focus here already belongs to the picker, which opens on it and
             // offers the rows this one could *start* waiting for, and stacking
             // two boxes over one 110px cell is what the design ruled out. So the
@@ -7746,7 +7746,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             its own about it.
 
             The ladder is read off `live.current` rather than closed over, which
-            is this file's oldest landmine: `columns` depends on `roles` alone,
+            is this file's oldest landmine: `columns` depends on `steps` alone,
             and a second dependency remounts every cell in the table and eats the
             focus somebody is typing in. A re-cut ladder redraws because the rows
             redraw.
@@ -8018,32 +8018,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             const own = row.original.maxParallel;
             const hasChildren = row.subRows.length > 0;
             /**
-             * Who be-01's `widthFor` reads for one role of this leaf — its own
+             * Who be-01's `widthFor` reads for one step of this leaf — its own
              * assignee, or the row's single assumed one. The same fallback
              * `assigneeOn` reads two columns back, because `widthFor` is built
              * from exactly this pair (`work-item.service.ts`'s `personFor`).
              */
-            const personForRole = (roleId: string): string | null =>
-              row.original.assignees[roleId] ?? row.original.doesEveryPhase ?? null;
-            const estimatedRoles = Object.keys(row.original.estimates);
+            const personForStep = (stepId: string): string | null =>
+              row.original.assignees[stepId] ?? row.original.doesEveryStep ?? null;
+            const estimatedSteps = Object.keys(row.original.estimates);
             /**
              * Whether **every** slice `widthFor` would cut this leaf into is
              * pinned to width 1 by a named person — the only reading that
              * agrees with be-01, which collapses **per slice** and not per row.
              *
-             * `doesEveryPhase` alone used to stand in for this and is still the
-             * right answer for a leaf with one role, or with several roles and
+             * `doesEveryStep` alone used to stand in for this and is still the
+             * right answer for a leaf with one step, or with several steps and
              * one assumed assignee — but it is `null` the moment a *second*
-             * role gets its own explicit name, because `assumedAssignee`
+             * step gets its own explicit name, because `assumedAssignee`
              * requires exactly one named assignment project-wide on the row.
-             * Two roles on two different people each still collapse their own
+             * Two steps on two different people each still collapse their own
              * slice to width 1; the row-level reading just stopped being able
              * to say so.
              */
             const everySliceNamed =
-              estimatedRoles.length > 0
-                ? estimatedRoles.every((roleId) => personForRole(roleId) !== null)
-                : row.original.doesEveryPhase !== null;
+              estimatedSteps.length > 0
+                ? estimatedSteps.every((stepId) => personForStep(stepId) !== null)
+                : row.original.doesEveryStep !== null;
             // Three states the cell renders differently, and each of them is a
             // fact the reader cannot get anywhere else:
             //
@@ -8052,7 +8052,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             //   `has_children`; the cell is read-only rather than offering an
             //   edit be-01 refuses. A leaf that later gained a child keeps
             //   whatever it was given, inert, and the cell says so.
-            // - a leaf whose **every estimated role** is named runs each of
+            // - a leaf whose **every estimated step** is named runs each of
             //   those slices at width 1 whatever this says (D3): one human
             //   cannot work beside themselves. The number is still stored and
             //   still applies the moment a name comes off, so it is shown muted
@@ -8119,40 +8119,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             );
           },
         }),
-        ...roles.flatMap((role) => {
-          const unfolded = unfoldedRoles.includes(role.id);
+        ...steps.flatMap((step) => {
+          const unfolded = unfoldedSteps.includes(step.id);
           return [
             column.display({
-              id: `${role.id}-final`,
+              id: `${step.id}-final`,
               // The toggle lives on the column that never goes away, so nothing
               // jumps when the group opens: it extends to the right of this one.
               header: () => (
                 <button
                   type="button"
                   aria-expanded={unfolded}
-                  aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
-                  // The role's own name, in full, because the button now shows as
-                  // much of it as the column has room for and no more. A role
+                  aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${step.name} estimates`}
+                  // The step's own name, in full, because the button now shows as
+                  // much of it as the column has room for and no more. A step
                   // called "Infrastructure and platform" used to set the width of
                   // everything under it instead.
                   // The assignee no longer folds away — it is beside the figure
                   // in this very cell, and `@` assigns from there — so the
                   // button is about the three points and nothing else. It said
-                  // "any other role folds" until `unfolding-may-scroll`, and no
-                  // other role folds now; what the reader is owed instead is
+                  // "any other step folds" until `unfolding-may-scroll`, and no
+                  // other step folds now; what the reader is owed instead is
                   // that the table may become wider than the window, which is
                   // the one thing unfolding can do that it could not before.
                   // The column's own sentence first, then the toggle's: this
                   // button covers most of its `<th>`, so a title naming only the
                   // fold would be the one heading in the table where hovering
                   // teaches nothing about the column (`column-hints.ts`).
-                  title={`${ROLE_FINAL_HINT} ${
+                  title={`${STEP_FINAL_HINT} ${
                     unfolded
                       ? 'Click to fold the three points back into the figure.'
                       : 'Click to show the three points; the table may scroll sideways.'
                   }`}
                   onClick={() => {
-                    live.current.toggleRole(role.id);
+                    live.current.toggleStep(step.id);
                   }}
                   style={{
                     font: 'inherit',
@@ -8163,33 +8163,33 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {role.name} {unfolded ? '▾' : '▸'}
+                  {step.name} {unfolded ? '▾' : '▸'}
                 </button>
               ),
               cell: ({ row }) => {
-                // A folded role must not be able to hide a complaint: a typed
+                // A folded step must not be able to hide a complaint: a typed
                 // trio that saves nothing stays visible as a mark on the figure
                 // the fold leaves behind.
                 const problem = unfolded
                   ? null
-                  : live.current.combinedProblem(row.original, role.id);
+                  : live.current.combinedProblem(row.original, step.id);
                 // The whole trio in one cell, but only where both halves of that
-                // sentence hold: a folded role, so the three boxes are not on
+                // sentence hold: a folded step, so the three boxes are not on
                 // screen to disagree with it, and a leaf, because a parent's
                 // figure is a sum of what is below it and nothing to type into.
                 const shorthand = !unfolded && !row.original.rolledUp;
-                // Nobody on this role and exactly one person on another: they are
-                // assumed to be doing this phase too. The same rule the unfolded
+                // Nobody on this step and exactly one person on another: they are
+                // assumed to be doing this step too. The same rule the unfolded
                 // column has, in the cell that is always on screen — which is the
                 // whole reason the assignee stopped folding away. Read through
                 // {@link assigneeOn}, which is where a card reads it too.
-                const doing = live.current.assigneeOn(row.original, role.id);
-                // Only while this role is folded: unfolded, the assignee has a
+                const doing = live.current.assigneeOn(row.original, step.id);
+                // Only while this step is folded: unfolded, the assignee has a
                 // column of its own with a picker in it, and two ways to assign
                 // one person side by side is two things to keep in step.
-                const options = unfolded ? [] : live.current.mentionOptions(row.original, role.id);
-                const listId = `mention-${row.original.id}-${role.id}`;
-                const finalCell = cellKey(row.original.id, `${role.id}-final`);
+                const options = unfolded ? [] : live.current.mentionOptions(row.original, step.id);
+                const listId = `mention-${row.original.id}-${step.id}`;
+                const finalCell = cellKey(row.original.id, `${step.id}-final`);
                 // The card opens on the cell itself — not on a marker, the way
                 // the Name cell's preview does. The difference is size: this one
                 // is four lines over a 96px cell, so a mouse crossing the column
@@ -8210,7 +8210,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // contain 'QA'`. Watched, 2026-08-09.
                 const openMention = live.current.mention;
                 const mentioning =
-                  openMention?.rowId === row.original.id && openMention.roleId === role.id;
+                  openMention?.rowId === row.original.id && openMention.stepId === step.id;
                 const cardable = !unfolded && !mentioning;
                 const carded = cardable && live.current.openCard === finalCell;
                 // The card's own id, which the box below points
@@ -8220,10 +8220,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // the cell's only focusable thing, so it is the one that can
                 // carry it; a parent's rolled-up figure has no box and no
                 // keyboard route, which is its own entry in `design.md`.
-                const cardId = `folded-${row.original.id}-${role.id}`;
+                const cardId = `folded-${row.original.id}-${step.id}`;
                 return (
                   <span
-                    data-final={role.id}
+                    data-final={step.id}
                     onMouseEnter={() => {
                       // No card to show, no state written: {@link hoveredCell}
                       // lives on the table and a write of it renders all of it.
@@ -8273,12 +8273,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   >
                     {shorthand ? (
                       <CellInput
-                        aria-label={`${role.name} estimate for ${row.original.number}`}
+                        aria-label={`${step.name} estimate for ${row.original.number}`}
                         // In the keyboard grid, which is what makes Down-type-
-                        // Down-type work down a role's column. Proof: dropped,
+                        // Down-type work down a step's column. Proof: dropped,
                         // `is a cell of the keyboard grid, so a column can be
                         // typed down` fails. Watched, 2026-08-06.
-                        cellKey={cellKey(row.original.id, `${role.id}-final`)}
+                        cellKey={cellKey(row.original.id, `${step.id}-final`)}
                         role="combobox"
                         aria-expanded={options.length > 0}
                         aria-controls={options.length > 0 ? listId : undefined}
@@ -8297,7 +8297,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // it is typed. The estimate half is not read here and no
                         // draft is written — that is still the blur's job.
                         onTyped={(box) => {
-                          live.current.readFoldedCell(row.original.id, role.id, box);
+                          live.current.readFoldedCell(row.original.id, step.id, box);
                         }}
                         onKeyDown={(e) => {
                           // `mentioning`, not `options.length > 0`, and the two
@@ -8326,7 +8326,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             // Proof, two faults, both watched 2026-08-08. This
                             // guard removed: `Cmd+Enter in the folded cell’s open
                             // @ list assigns nobody` failed on `expected
-                            // [ 'assign w2 role-dev person1' ] to deeply equal []`,
+                            // [ 'assign w2 step-dev person1' ] to deeply equal []`,
                             // and `Alt+arrows in the folded cell’s open @ list
                             // move no row` on `expected [ 'Strip', 'Paint',
                             // 'Sand' ] to deeply equal [ 'Strip', 'Sand',
@@ -8384,11 +8384,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             // the keyboard, and Escape above is how it is given
                             // back. A chord that fired through an open list
                             // would create a row under a half-typed name search.
-                            live.current.onCommandKey(e, row.original, `${role.id}-final`);
+                            live.current.onCommandKey(e, row.original, `${step.id}-final`);
                           }
-                          live.current.onAltMove(e, row.original, `${role.id}-final`);
-                          live.current.onTabKey(e, row.original.id, `${role.id}-final`);
-                          live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
+                          live.current.onAltMove(e, row.original, `${step.id}-final`);
+                          live.current.onTabKey(e, row.original.id, `${step.id}-final`);
+                          live.current.onArrowKey(e, row.original.id, `${step.id}-final`);
                         }}
                         // Selected on arrival, because the value at rest is a
                         // computed figure and the syntax is a trio: there is no
@@ -8427,18 +8427,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                                 borderColor: 'var(--destructive)',
                               }),
                         }}
-                        value={live.current.combinedValue(row.original, role.id)}
+                        value={live.current.combinedValue(row.original, step.id)}
                         commit={(typed, baseline) =>
                           live.current.commitCombinedEstimate(
                             row.original,
-                            role.id,
+                            step.id,
                             typed,
                             baseline,
                           )
                         }
                       />
                     ) : (
-                      showFinal(row.original.finalDays[role.id])
+                      showFinal(row.original.finalDays[step.id])
                     )}
                     {problem !== null && ' !'}
                     {doing !== null && (
@@ -8451,14 +8451,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // and somebody is assumed, exactly as the unfolded column
                       // reads it.
                       <span
-                        data-folded-assignee={role.id}
-                        {...(doing.assumed ? { 'data-assumed': role.id } : {})}
+                        data-folded-assignee={step.id}
+                        {...(doing.assumed ? { 'data-assumed': step.id } : {})}
                         // No `title`, still. One was written here for the
                         // initials and taken back out: `leaves the assignee no
                         // title of its own to say it twice` is a decision from
                         // 2026-08-09 — a native tooltip is one line, a second
                         // late, and the hover card already names them in full
-                        // (`folded-role-card.tsx`). Initials make the card more
+                        // (`folded-step-card.tsx`). Initials make the card more
                         // load-bearing, not the tooltip more welcome.
                         style={{
                           marginLeft: 4,
@@ -8474,14 +8474,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     {/*
                       Task 7.2's marker on the folded cell as well as the
                       unfolded one, and that is the point rather than a
-                      duplication: roles start folded (`unfoldedRoles` is `[]`),
+                      duplication: steps start folded (`unfoldedSteps` is `[]`),
                       so a marker living only in the `by` column would be absent
                       from every plan nobody has unfolded. This cell already
-                      holds the rule as `A folded role must not be able to hide
+                      holds the rule as `A folded step must not be able to hide
                       a complaint`; a signal is not a complaint, but it hides
                       exactly as easily.
 
-                      `carded`, so the sentence rides {@link FoldedRoleCard}
+                      `carded`, so the sentence rides {@link FoldedStepCard}
                       with the assignee's own name rather than fighting it as a
                       native tooltip.
                     */}
@@ -8491,13 +8491,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     {options.length > 0 && (
                       <PickerList
                         id={listId}
-                        label={`${role.name} assignee for ${row.original.number}`}
+                        label={`${step.name} assignee for ${row.original.number}`}
                         options={options}
                       />
                     )}
                     {carded && (
-                      <FoldedRoleCard
-                        roleName={role.name}
+                      <FoldedStepCard
+                        stepName={step.name}
                         number={row.original.number}
                         id={cardId}
                         points={POINTS.map((point) => ({
@@ -8513,7 +8513,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           // sees. Reading the draft made a card say
                           // `realistic —` beside `Final 3.7 days`, and
                           // `Final 8/3/2 days` where a number of days belongs.
-                          // The draft is not lost: unfolding the role puts it
+                          // The draft is not lost: unfolding the step puts it
                           // back in the box it was typed into, with its
                           // complaint, which is the only place it can be
                           // corrected. codex round 3, finding 4.
@@ -8526,9 +8526,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           // half-typed shorthand the cell is holding` failed on
                           // `expected 'Dev…Final 8/3/2 days' to contain 'Final
                           // 3.7 days'`.
-                          days: showDays(row.original.estimates[role.id], point),
+                          days: showDays(row.original.estimates[step.id], point),
                         }))}
-                        final={showFinal(row.original.finalDays[role.id])}
+                        final={showFinal(row.original.finalDays[step.id])}
                         doing={doing}
                         problem={problem}
                       />
@@ -8542,8 +8542,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               : [
                   ...POINTS.map((point) =>
                     column.display({
-                      id: `${role.id}-${point}`,
-                      // The role's name is on the group column; repeating it three
+                      id: `${step.id}-${point}`,
+                      // The step's name is on the group column; repeating it three
                       // times over is how the headers came to set the table's width.
                       //
                       // The word itself in a `title`, because the column is 44px
@@ -8566,12 +8566,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       meta: { spokenHeading: point },
                       header: () => <span>{point.slice(0, 1)}</span>,
                       cell: ({ row }) => {
-                        const problem = live.current.trioProblemFor(row.original, role.id);
+                        const problem = live.current.trioProblemFor(row.original, step.id);
                         const wrong = problem?.points.includes(point) ?? false;
                         return (
                           <CellInput
-                            aria-label={`${role.name} ${point} for ${row.original.number}`}
-                            cellKey={cellKey(row.original.id, `${role.id}-${point}`)}
+                            aria-label={`${step.name} ${point} for ${row.original.number}`}
+                            cellKey={cellKey(row.original.id, `${step.id}-${point}`)}
                             // Narrow on purpose: these hold a number of days, and a box
                             // sized for a sentence reads as if it wants one. Which is
                             // the column's width to say now, not this box's.
@@ -8605,10 +8605,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                                 void flushCell(e.currentTarget);
                                 return;
                               }
-                              live.current.onAltMove(e, row.original, `${role.id}-${point}`);
-                              live.current.onCommandKey(e, row.original, `${role.id}-${point}`);
-                              live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
-                              live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
+                              live.current.onAltMove(e, row.original, `${step.id}-${point}`);
+                              live.current.onCommandKey(e, row.original, `${step.id}-${point}`);
+                              live.current.onTabKey(e, row.original.id, `${step.id}-${point}`);
+                              live.current.onArrowKey(e, row.original.id, `${step.id}-${point}`);
                             }}
                             // A parent's figures are sums of what is below it, so the cell is
                             // shown and not editable — greyed rather than blank, because the
@@ -8626,13 +8626,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                                     }
                                   : {}),
                             }}
-                            value={live.current.estimateValue(row.original, role.id, point)}
+                            value={live.current.estimateValue(row.original, step.id, point)}
                             commit={(typed) =>
                               // A rolled-up figure is a sum of the rows below it:
                               // the box is read-only and there is nothing to send.
                               row.original.rolledUp
                                 ? unsent()
-                                : live.current.commitEstimate(row.original, role.id, point, typed)
+                                : live.current.commitEstimate(row.original, step.id, point, typed)
                             }
                           />
                         );
@@ -8640,22 +8640,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     }),
                   ),
                   column.display({
-                    id: `${role.id}-assignee`,
+                    id: `${step.id}-assignee`,
                     header: 'by',
                     cell: ({ row }) => {
-                      const assigned = row.original.assignees[role.id];
-                      // Nobody on this role, and exactly one person on another: they are
-                      // assumed to be doing this phase too, so the cell says so rather
+                      const assigned = row.original.assignees[step.id];
+                      // Nobody on this step, and exactly one person on another: they are
+                      // assumed to be doing this step too, so the cell says so rather
                       // than reading as unassigned. Assigning anyone here ends the
                       // assumption by itself.
-                      const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
+                      const assumed = assigned === undefined ? row.original.doesEveryStep : null;
                       // Task 7.2's second marker. Read through `assigneeOn` and
                       // not off the row, because that is the one function that
                       // resolves *which* person this cell shows — the named one
                       // or the assumed one — and a marker computed from
                       // `assigned` alone would go quiet on exactly the assumed
                       // case, where nobody has looked at the assignment at all.
-                      const doing = live.current.assigneeOn(row.original, role.id);
+                      const doing = live.current.assigneeOn(row.original, step.id);
                       const nameOf = (id: string) =>
                         live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
                       return (
@@ -8671,7 +8671,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           }}
                         >
                           <CreatablePicker
-                            label={`${role.name} assignee for ${row.original.number}`}
+                            label={`${step.name} assignee for ${row.original.number}`}
                             placeholder="search or add"
                             entries={live.current.people.map((each) => ({
                               id: each.id,
@@ -8689,31 +8689,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             }))}
                             value={assigned ?? null}
                             onChoose={(id) => {
-                              live.current.assignTo(row.original.id, role.id, id);
+                              live.current.assignTo(row.original.id, step.id, id);
                             }}
                             onCreate={(name) => {
-                              live.current.createPersonFor(row.original, role.id, name);
+                              live.current.createPersonFor(row.original, step.id, name);
                             }}
                             onClear={() => {
-                              live.current.assignTo(row.original.id, role.id, null);
+                              live.current.assignTo(row.original.id, step.id, null);
                             }}
                             gridCell={{
-                              dataCell: cellKey(row.original.id, `${role.id}-assignee`),
+                              dataCell: cellKey(row.original.id, `${step.id}-assignee`),
                               onTabKey: (e) => {
-                                live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
+                                live.current.onTabKey(e, row.original.id, `${step.id}-assignee`);
                               },
                               onCommandKey: (e) => {
-                                live.current.onCommandKey(e, row.original, `${role.id}-assignee`);
+                                live.current.onCommandKey(e, row.original, `${step.id}-assignee`);
                               },
                               onAltMove: (e) => {
-                                live.current.onAltMove(e, row.original, `${role.id}-assignee`);
+                                live.current.onAltMove(e, row.original, `${step.id}-assignee`);
                               },
                             }}
                           />
                           {assumed !== null && (
                             <span
-                              data-assumed={role.id}
-                              title="Only one person is assigned, so they are assumed to do this phase too"
+                              data-assumed={step.id}
+                              title="Only one person is assigned, so they are assumed to do this step too"
                               style={{
                                 color: 'var(--muted-foreground)',
                                 marginLeft: 4,
@@ -8739,7 +8739,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         column.display({
           id: 'final-total',
           // One word, because the column is 52px wide: it holds a number of days
-          // and the roles beside it hold days too. The sentence it used to be is
+          // and the steps beside it hold days too. The sentence it used to be is
           // on the `<th>` (`column-hints.ts`), where every column's is.
           header: () => <span>Days</span>,
           cell: ({ row }) => (
@@ -9113,7 +9113,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               number={row.original.number}
               // Read through `live`, both of them, for the reason every other
               // cell here reads its state that way: `columns` may depend on
-              // `roles` and `unfoldedRoles` and nothing else, or a click on one
+              // `steps` and `unfoldedSteps` and nothing else, or a click on one
               // menu remounts every cell in the table.
               open={live.current.openMenuRowId === row.original.id}
               busy={live.current.busy}
@@ -9173,8 +9173,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // **A hidden column is not in the table model at all.** Not merely
         // unrendered: absent, so the keyboard grid, the hover cards and the
         // drag geometry never learn it was declared. Fixed columns go by their
-        // own id; a hidden role takes every column named after it — folded,
-        // unfolded and assignee — while the role itself stays in `roles`, so
+        // own id; a hidden step takes every column named after it — folded,
+        // unfolded and assignee — while the step itself stays in `steps`, so
         // its estimates still reach the total and the dates be-01 computed.
         //
         // Until `configurable-columns` two filters here rendered Tags and
@@ -9188,12 +9188,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           const id = each.id;
           return !hiddenColumnIds.some((hidden) => id === hidden || id.startsWith(`${hidden}-`));
         }),
-    // `roles` because a role's name is rendered in a header, and
-    // `unfoldedRoles` because it decides which columns exist at all.
+    // `steps` because a step's name is rendered in a header, and
+    // `unfoldedSteps` because it decides which columns exist at all.
     // `flexRender` renders each `cell` function as a component type, so
     // rebuilding these definitions gives every cell a new type and React
     // unmounts and remounts the lot — losing focus, selection and any
-    // half-typed value. For `roles` that is rare and tolerated; for the fold
+    // half-typed value. For `steps` that is rare and tolerated; for the fold
     // it happens exactly on the click that asked for it, when the only focus
     // to lose is the button's own. Estimate drafts live in `drafts`, not in
     // the inputs, so a fold cannot swallow one. Everything else the cells need
@@ -9201,10 +9201,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // absent rather than forgotten.
     //
     // `hiddenColumnIds` joins them because it decides which columns exist at
-    // all, exactly as `unfoldedRoles` does — a memo whose identity moves only
+    // all, exactly as `unfoldedSteps` does — a memo whose identity moves only
     // on a tick in the Columns control, so the remount it costs happens on the
     // click that asked for it rather than once per render.
-    [roles, unfoldedRoles, hiddenColumnIds],
+    [steps, unfoldedSteps, hiddenColumnIds],
   );
 
   const table = useReactTable({
@@ -9337,7 +9337,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * when the pointer settles on it, from the cell` is the browser that can.
    *
    * Built here rather than in the column definition for landmine #1's reason:
-   * `columns` depends on `roles` alone, and anything that changes per pointer
+   * `columns` depends on `steps` alone, and anything that changes per pointer
    * move must not enter it. The `<td>` is rendered outside that memo.
    */
   const dependsCellHoverProps = (
@@ -9425,7 +9425,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * day, then this sentence as its accessible description.
    *
    * Built outside the column definitions for the same reason as
-   * {@link dependsCellHoverProps}: `columns` depends on `roles` alone, while
+   * {@link dependsCellHoverProps}: `columns` depends on `steps` alone, while
    * this sentence depends on `startFloor`, which is filled after the first
    * render.
    */
@@ -9457,7 +9457,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * two. Both watched, 2026-08-09.
    *
    * Built outside the `columns` memo and read by nothing inside it: that memo
-   * depends on `roles` alone, and anything added to it remounts every cell in
+   * depends on `steps` alone, and anything added to it remounts every cell in
    * the table and eats the focus (LLM_README landmine #1).
    */
   const ganttPlan: GanttPlan = {
@@ -9499,10 +9499,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // row that names no tag, and that is the whole of what this field does.
       // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
       tags: effectiveTagLabelOf(row.original),
-      // The trio the plan holds for each role on this row, straight off the
+      // The trio the plan holds for each step on this row, straight off the
       // tree read — the drafts a reader is half-way through typing are not
       // facts about the schedule the chart was drawn from.
-      trioByRole: new Map(Object.entries(row.original.estimates)),
+      trioByStep: new Map(Object.entries(row.original.estimates)),
       waitsFor: row.original.dependsOn.map(
         // A predecessor the tree does not hold at all is the same modeled
         // absence `personFloorWords` already has words for, and it is said the
@@ -9530,11 +9530,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     dependencies: flat.flatMap((row) =>
       row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
     ),
-    // All three off {@link chartRead}, which is one payload. **Not** `roles`
-    // and `people`: those are the separate reads the pickers and the phases
-    // dialog are about, and a slice checked against a role list from another
+    // All three off {@link chartRead}, which is one payload. **Not** `steps`
+    // and `people`: those are the separate reads the pickers and the steps
+    // dialog are about, and a slice checked against a step list from another
     // moment is the skew `layOutGantt` throws on.
-    roles: chartRead.roles,
+    steps: chartRead.steps,
     personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
     teamNames: new Map(teams.map((team) => [team.id, team.name])),
     // The ladder the chart names its priorities with. Off the same state the
@@ -9617,7 +9617,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /**
    * The columns this render puts on screen, in order — which is exactly what a
    * `<colgroup>` declares and what the table's own width adds up. Read from the
-   * table model rather than listed here, so unfolding a role cannot leave the
+   * table model rather than listed here, so unfolding a step cannot leave the
    * declared widths describing the columns of a moment ago.
    */
   const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
@@ -9848,7 +9848,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         Gantt
       </Button>
       {/*
-        The phases, which are the project's to choose since `R1 role-crud`.
+        The steps, which are the project's to choose since `R1 role-crud`.
         The button belongs to the dialog rather than sitting beside it: Radix
         restores the focus to its **trigger** on close and to nothing at all
         without one, so the two are one component. The surface itself lands in
@@ -9859,7 +9859,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         unopenable on a plan two people are working on.
       */}
       {/*
-        How many of each team on this plan are at work at once. Beside the phases
+        How many of each team on this plan are at work at once. Beside the steps
         for the reason it is beside them: both are the **project's** own lists,
         both move what the table draws, and the button belongs to the dialog rather
         than sitting next to it because Radix restores focus to its trigger.
@@ -9896,8 +9896,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         setBands={(bands) => api.setPriorityBands(projectId, bands)}
         onChanged={refreshOrMarkStale}
       />
-      <PhasesDialog
-        roles={roles}
+      <StepsDialog
+        steps={steps}
         hiddenColumnIds={hiddenColumnIds}
         // The same object the `<colgroup>` above is resolved from, so the
         // figure this dialog quotes and the width the table lays out cannot
@@ -9905,9 +9905,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         frameState={frameState}
         numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
         nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
-        addRole={(name) => api.addRole(projectId, name)}
-        renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
-        removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
+        addStep={(name) => api.addStep(projectId, name)}
+        renameStep={(stepId, name) => api.renameStep(projectId, stepId, name)}
+        removeStep={(stepId, cascade) => api.removeStep(projectId, stepId, cascade)}
         // The same reread every other change on this page makes, which is what
         // puts the new columns on the table and the new list in the dialog.
         onChanged={refreshOrMarkStale}
@@ -9950,7 +9950,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         services={facetServices}
         people={facetPeople}
         bands={facetBands}
-        phases={facetPhases}
+        steps={facetSteps}
         // The two directory maps read as one bit each — the same two the row
         // facets are computed from, so the box and the answer behind it can
         // never disagree about whether the question is askable.
@@ -10023,7 +10023,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       {/*
         How ready this plan is to be read, and the way to the rows that make
         it not ready. Absent entirely when every leaf is estimated for every
-        role: a complete plan needs no badge, and a tick that is always there
+        step: a complete plan needs no badge, and a tick that is always there
         is a thing to stop seeing — this has to be noticed the day it appears.
 
         Not disabled while the table is busy, unlike the buttons beside it:
@@ -10282,7 +10282,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           <Modal open={toolbarSheetOpen} onOpenChange={setToolbarSheetOpen}>
             {/*
               The trigger belongs to the modal rather than sitting beside it,
-              for `PhasesDialog`'s reason: Radix restores the focus to its
+              for `StepsDialog`'s reason: Radix restores the focus to its
               trigger on close, and to nothing at all without one.
             */}
             <ModalTrigger asChild>
@@ -10295,7 +10295,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // Taking a control on this sheet is taking it on the plan behind
               // it, and the plan is what wants looking at next.
               //
-              // **The bubble phase, and that is load-bearing.** As
+              // **The bubble step, and that is load-bearing.** As
               // `onClickCapture` this closed the sheet *before* the control's
               // own handler ran, and in a real browser that means the handler
               // never ran at all: React registers one capture listener and one
@@ -10493,7 +10493,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // definition, and there is no per-keystroke remount to protect.
             matched: search.matchIds.has(row.id),
           }))}
-          roles={roles}
+          steps={steps}
           priorityBands={priorityBands}
           gridRef={(node) => {
             gridElement.current = node;
@@ -10735,7 +10735,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // reader is resting on, and a `title` on an inner
                         // `<span>` covers the word and none of the padding
                         // around it. The two headings that carry their own
-                        // `title` after this — the role's fold button and the
+                        // `title` after this — the step's fold button and the
                         // resize handle — describe a *control*, not a column,
                         // and the fold button opens with this same sentence so
                         // that hovering it still teaches the column.

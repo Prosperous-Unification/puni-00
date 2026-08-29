@@ -8,8 +8,8 @@ that ARIA `role` was excluded. See design D1.
 
 ## 1. The identifier list, before any edit
 
-- [ ] 1.1 Write `identifiers.txt` beside this file: every distinct identifier matching `[A-Za-z]*[Rr]ole[A-Za-z]*` in `libs/`, `apps/be-01/src`, `apps/fe-01/src`, `apps/mcp-01/src`, each marked `rename` or `aria`. The ARIA set (`role=`, `getByRole`, `ByRole`, `aria-*`) is enumerated explicitly, not matched by rule. Reviewed as a list before slice 2 starts.
-- [ ] 1.2 Record the pre-rename test-case count per project (`bun nx test <app> -- --reporter`) in `verify.md`. Slice 5 asserts it is unchanged.
+- [x] 1.1 Write `identifiers.txt` beside this file: every distinct identifier matching `[A-Za-z]*[Rr]ole[A-Za-z]*` in `libs/`, `apps/be-01/src`, `apps/fe-01/src`, `apps/mcp-01/src`, each marked `rename` or `aria`. The ARIA set (`role=`, `getByRole`, `ByRole`, `aria-*`) is enumerated explicitly, not matched by rule. Reviewed as a list before slice 2 starts.
+- [x] 1.2 Record the pre-rename test-case count per project (`bun nx test <app> -- --reporter`) in `verify.md`. Slice 5 asserts it is unchanged.
 
 ## 2. `libs/domain` and `CONTEXT.md`
 

@@ -9,7 +9,7 @@ import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixtu
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -23,9 +23,9 @@ function event(id: string, over: Partial<PlanEvent> = {}): PlanEvent {
     kind: 'estimate',
     label: `estimate ${id}`,
     workItemId: 'w1',
-    roleId: 'r1',
-    before: { do: 'clear_estimate', workItemId: 'w1', roleId: 'r1' },
-    after: { do: 'set_estimate', workItemId: 'w1', roleId: 'r1', days: { o: 1, r: 2, p: 3 } },
+    stepId: 'r1',
+    before: { do: 'clear_estimate', workItemId: 'w1', stepId: 'r1' },
+    after: { do: 'set_estimate', workItemId: 'w1', stepId: 'r1', days: { o: 1, r: 2, p: 3 } },
     createdAt: 1_000,
     ...over,
   };
@@ -61,13 +61,13 @@ describe('one plan’s history, over HTTP', () => {
     const events = inMemoryPlanEvents([
       event('set', { createdAt: 1_000 }),
       event('cleared', { kind: 'clear_estimate', createdAt: 2_000 }),
-      event('renamed', { kind: 'patch', workItemId: 'w2', roleId: null, createdAt: 3_000 }),
-      event('frozen', { kind: 'freeze', workItemId: null, roleId: null, createdAt: 4_000 }),
+      event('renamed', { kind: 'patch', workItemId: 'w2', stepId: null, createdAt: 3_000 }),
+      event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
     app = buildApp({
       auth,
       projects: testProjectService(projects),
-      roles: testRoleService(),
+      steps: testStepService(),
       workItems: testWorkItemService(),
       directory: testDirectoryService(),
       capacity: testCapacityService(),

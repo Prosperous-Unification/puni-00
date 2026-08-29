@@ -143,28 +143,28 @@ function randomFrom(seed: number): () => number {
 const PERT = (optimistic: number, realistic: number, pessimistic: number): number =>
   (optimistic + 4 * realistic + pessimistic) / 6;
 
-/** One work item's estimate for one role, before either engine has been given it. */
+/** One work item's estimate for one step, before either engine has been given it. */
 interface EstimateRow {
   workItemId: string;
-  roleId: string;
+  stepId: string;
   days: number | null;
 }
 
 interface GeneratedPlan {
   rows: WorkItem[];
   edges: DependencyEdge[];
-  /** In role order, which is the order both the repository and the adapter hand them over in. */
+  /** In step order, which is the order both the repository and the adapter hand them over in. */
   estimates: EstimateRow[];
   notBefore: Map<string, number>;
 }
 
 /**
  * One random plan: a tree up to three deep, dependencies between the rows that
- * can take them, `roleCount` roles, PERT figures, and a few manual floors.
+ * can take them, `stepCount` steps, PERT figures, and a few manual floors.
  *
  * The estimates are PERT thirds on purpose. Whole days would agree through any
  * arithmetic; the sixths are what make the difference between adding a work
- * item's roles up first and accumulating them one slice at a time visible in
+ * item's steps up first and accumulating them one slice at a time visible in
  * the last bits.
  *
  * It hands back the estimates rather than the two engines' inputs, and the two
@@ -173,10 +173,10 @@ interface GeneratedPlan {
  * handed a total added up in exactly the order the slices were made in, which is
  * the one order it was guaranteed to match.
  */
-function generatePlan(seed: number, roleCount: number): GeneratedPlan {
+function generatePlan(seed: number, stepCount: number): GeneratedPlan {
   const random = randomFrom(seed);
   const pick = <T>(from: readonly T[]): T => from[Math.floor(random() * from.length)];
-  const roleIds = Array.from({ length: roleCount }, (_, i) => `role-${String(i)}`);
+  const stepIds = Array.from({ length: stepCount }, (_, i) => `step-${String(i)}`);
 
   const rows: WorkItem[] = [];
   const newRow = (id: string, parentId: string | null): WorkItem => ({
@@ -232,12 +232,12 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
   const estimates: EstimateRow[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
-    for (const roleId of roleIds) {
+    for (const stepId of stepIds) {
       const estimated = random() > 0.25;
       const days = estimated
         ? PERT(pick([0, 1, 2, 3]), pick([1, 2, 3, 5, 8]), pick([2, 4, 7, 9, 13]))
         : null;
-      estimates.push({ workItemId: row.id, roleId, days });
+      estimates.push({ workItemId: row.id, stepId, days });
     }
   }
 
@@ -251,7 +251,7 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
 }
 
 /**
- * What the adapter builds: one slice per pair, in role order, unestimated ones
+ * What the adapter builds: one slice per pair, in step order, unestimated ones
  * included — and nobody on any of them.
  *
  * The `personId` is the second half of what this file proves. Leveling is on
@@ -264,7 +264,7 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
 const slicesFrom = (plan: GeneratedPlan): Slice[] =>
   plan.estimates.map((each) => ({
     workItemId: each.workItemId,
-    roleId: each.roleId,
+    stepId: each.stepId,
     days: each.days,
     personId: null,
     // Width 1 on no pool, which is the state this whole corpus is about: a
@@ -374,13 +374,13 @@ function expectSameSchedule(
   }
 }
 
-/** `Dev` and `QA`: the most roles any project in a released database can hold. */
-const RELEASED_ROLES = 2;
+/** `Dev` and `QA`: the most steps any project in a released database can hold. */
+const RELEASED_STEPS = 2;
 
 describe('the slice engine against the one it replaced', () => {
-  it('answers what it answered for a two-role plan, however the old sum was ordered', () => {
+  it('answers what it answered for a two-step plan, however the old sum was ordered', () => {
     // The change's central claim, at the size every project that already exists
-    // is: two roles, because `role-crud` and this change ship in the same
+    // is: two steps, because `role-crud` and this change ship in the same
     // release train and nothing before them could write a third.
     //
     // The old engine is handed its totals **shuffled**, because nothing ordered
@@ -393,14 +393,14 @@ describe('the slice engine against the one it replaced', () => {
     //
     // Narrowed 2026-08-11 (`dep-waits-on-first-role`): the generated edges are
     // dropped from both engines. A dependency now waits on the predecessor's
-    // anchor slice, so a multi-role plan with dependencies moves **by design**
+    // anchor slice, so a multi-step plan with dependencies moves **by design**
     // and parity with the whole-item oracle holds only where the two rules
-    // coincide — no dependencies here, edges kept in the single-role run below
+    // coincide — no dependencies here, edges kept in the single-step run below
     // (design.md D7). The anchor rule has direct tests instead:
     // `schedule-shapes.test.ts`, and the growth property at the end of this
     // block.
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       const durations = durationsFrom(plan, true, seed);
       const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
       const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
@@ -409,16 +409,16 @@ describe('the slice engine against the one it replaced', () => {
     }
   });
 
-  it('answers what it answered for a three-role plan summed in role order', () => {
-    // Three roles are reachable the moment this release lands, and for three
+  it('answers what it answered for a three-step plan summed in step order', () => {
+    // Three steps are reachable the moment this release lands, and for three
     // addends the order is no longer free: association is not commutation. So
     // the order is **defined** — `EstimateRepository.listByProject` orders by
-    // role position and the adapter slices in the same order — and this is that
+    // step position and the adapter slices in the same order — and this is that
     // definition held to: the same estimates, added up the way the repository
     // now hands them over, come out the same on both sides.
     //
     // Narrowed 2026-08-11 (`dep-waits-on-first-role`): edges dropped, for the
-    // two-role run's reason — three roles with a dependency is exactly the
+    // two-step run's reason — three steps with a dependency is exactly the
     // shape the anchor rule moves on purpose.
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, 3);
@@ -430,9 +430,9 @@ describe('the slice engine against the one it replaced', () => {
     }
   });
 
-  it('answers what it answered for a single-role plan, edges and all', () => {
+  it('answers what it answered for a single-step plan, edges and all', () => {
     // The one multi-row scope where the anchor rule and the whole-item rule
-    // are the same rule: with one role the first slice *is* the last slice, so
+    // are the same rule: with one step the first slice *is* the last slice, so
     // the edges stay in and every number still has to match the oracle to the
     // bit (2026-08-11, design.md D7). One addend per work item makes the
     // shuffle moot, so the totals are summed as they arrived.
@@ -470,13 +470,13 @@ describe('the slice engine against the one it replaced', () => {
     //
     // Proof: `hasResourceEdges` read as `poolSizes.size > 0 ||
     // queues.some(...)` instead of from the edges actually emitted, and this
-    // failed at seed 13 — `r0c0g0 role-0.latestFinish` came back
+    // failed at seed 13 — `r0c0g0 step-0.latestFinish` came back
     // 2.8333333333333335 where 2.833333333333334 was owed, a row whose late
     // times moved because a team nobody contended for was merely sized;
     // watched 2026-08-12.
     const PLATFORM = 'team-platform';
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       const bare = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore);
       const labelled = plan.rows.map((row) => ({ ...row, serviceTeamId: PLATFORM }));
       const pooled = schedule(
@@ -526,7 +526,7 @@ describe('the slice engine against the one it replaced', () => {
     let drifted = 0;
     let turnedRed = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       const durations = durationsFrom(plan, true, seed);
       for (const was of previousSchedule(
         plan.rows,
@@ -559,7 +559,7 @@ describe('the slice engine against the one it replaced', () => {
     // re-watched against the estimated-anchor walk the same day.
     let grownPlans = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       if (plan.edges.length === 0) continue;
       const index = indexTree(plan.rows);
       const predecessorLeaves = new Set(
@@ -568,7 +568,7 @@ describe('the slice engine against the one it replaced', () => {
       const successorLeaves = new Set(
         plan.edges.flatMap((each) => index.leavesUnder.get(each.successorId) ?? []),
       );
-      // `estimates` is in role order within each work item, so the first
+      // `estimates` is in step order within each work item, so the first
       // **estimated** entry per leaf is its anchor slice — the one that must
       // keep its days. The unestimated entries in front of it are not anchors
       // and have no days to double anyway, so the walk is the engine's own
@@ -584,7 +584,7 @@ describe('the slice engine against the one it replaced', () => {
             : each.days;
         return {
           workItemId: each.workItemId,
-          roleId: each.roleId,
+          stepId: each.stepId,
           days: doubled,
           personId: null,
           width: 1,
@@ -612,9 +612,9 @@ describe('the slice engine against the one it replaced', () => {
     expect(grownPlans).toBeGreaterThan(500);
   });
 
-  it('holds the anchor rule’s own invariants over every multi-role plan with edges', () => {
+  it('holds the anchor rule’s own invariants over every multi-step plan with edges', () => {
     // What the narrowing cost, paid back. Parity with the whole-item oracle was
-    // the only thing this corpus proved about multi-role plans *with*
+    // the only thing this corpus proved about multi-step plans *with*
     // dependencies, and this change had to drop it — the two engines disagree
     // there on purpose. The corpus itself is not the loss; it is a thousand
     // trees, floors and edge sets nothing else in the suite generates. So the
@@ -627,7 +627,7 @@ describe('the slice engine against the one it replaced', () => {
     //      lost track of the new edges would produce;
     //   3. every leaf's projection spans its slices exactly.
     //
-    // Read off `plan.estimates`, which is in role order per work item, so the
+    // Read off `plan.estimates`, which is in step order per work item, so the
     // expected anchor is found the way `schedule.ts` finds it and not by
     // asking the engine where it put one.
     //
@@ -638,32 +638,32 @@ describe('the slice engine against the one it replaced', () => {
     let edgesChecked = 0;
     let walkedPast = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       if (plan.edges.length === 0) continue;
       const index = indexTree(plan.rows);
       const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore);
 
-      const anchorRoleOf = new Map<string, string | null>();
+      const anchorStepOf = new Map<string, string | null>();
       for (const each of plan.estimates) {
-        if (each.days === null || anchorRoleOf.has(each.workItemId)) continue;
-        anchorRoleOf.set(each.workItemId, each.roleId);
+        if (each.days === null || anchorStepOf.has(each.workItemId)) continue;
+        anchorStepOf.set(each.workItemId, each.stepId);
       }
       const anchorFinishOf = (leafId: string): number => {
-        const roleId = anchorRoleOf.get(leafId);
+        const stepId = anchorStepOf.get(leafId);
         // Nothing estimated: the walk falls through to the work item's finish.
-        if (roleId === undefined) {
+        if (stepId === undefined) {
           const row = found.workItems.get(leafId);
           if (row === undefined) throw new Error(`${leafId} lost its schedule`);
           return row.earliestFinish;
         }
-        const anchor = found.slices.get(sliceKey(leafId, roleId));
+        const anchor = found.slices.get(sliceKey(leafId, stepId));
         if (anchor === undefined) throw new Error(`${leafId} lost its anchor slice`);
         return anchor.earliestFinish;
       };
 
       for (const { predecessorId, successorId } of expandToLeaves(index, plan.edges)) {
         edgesChecked += 1;
-        // The predecessor's first slice in role order carries no estimate, so
+        // The predecessor's first slice in step order carries no estimate, so
         // the anchor is not it and the walk had to step over something.
         if (plan.estimates.find((each) => each.workItemId === predecessorId)?.days === null) {
           walkedPast += 1;
@@ -691,7 +691,7 @@ describe('the slice engine against the one it replaced', () => {
       for (const leafId of index.leafIds) {
         const own = plan.estimates
           .filter((each) => each.workItemId === leafId)
-          .map((each) => found.slices.get(sliceKey(leafId, each.roleId)))
+          .map((each) => found.slices.get(sliceKey(leafId, each.stepId)))
           .filter((placed) => placed !== undefined);
         if (own.length === 0) continue;
         const row = found.workItems.get(leafId);
@@ -714,26 +714,26 @@ describe('the slice engine against the one it replaced', () => {
     // corpus actually contains the shapes the claims are about — and that the
     // shuffle above really does permute, since a shuffle that never moved
     // anything would make the first test the same test as the second.
-    let multiRole = 0;
+    let multiStep = 0;
     let withEdges = 0;
     let withParents = 0;
     let unestimated = 0;
     let floored = 0;
     let reordered = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       const perWorkItem = new Map<string, number>();
       for (const each of plan.estimates) {
         perWorkItem.set(each.workItemId, (perWorkItem.get(each.workItemId) ?? 0) + 1);
       }
-      if ([...perWorkItem.values()].some((count) => count > 1)) multiRole += 1;
+      if ([...perWorkItem.values()].some((count) => count > 1)) multiStep += 1;
       if (plan.edges.length > 0) withEdges += 1;
       if (plan.rows.some((row) => row.parentId !== null)) withParents += 1;
       if (plan.estimates.some((each) => each.days === null)) unestimated += 1;
       if (plan.notBefore.size > 0) floored += 1;
 
       // The shuffle is only observable through the order of the addends, so it
-      // is re-run here and compared against the role-ordered one.
+      // is re-run here and compared against the step-ordered one.
       const random = randomFrom(seed * 7919 + 13);
       const inOrder: number[] = [];
       for (const each of plan.estimates) if (each.days !== null) inOrder.push(each.days);
@@ -747,7 +747,7 @@ describe('the slice engine against the one it replaced', () => {
       if (shuffled.some((each, at) => each !== inOrder[at])) reordered += 1;
     }
 
-    expect(multiRole).toBeGreaterThan(500);
+    expect(multiStep).toBeGreaterThan(500);
     expect(withEdges).toBeGreaterThan(500);
     expect(withParents).toBeGreaterThan(500);
     expect(unestimated).toBeGreaterThan(500);

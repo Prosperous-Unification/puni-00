@@ -4,7 +4,7 @@ import type {
   DirectoryStore,
   EstimateStore,
   MeasureStore,
-  RoleProgressStore,
+  StepProgressStore,
   SubtreeStore,
   WorkItemStore,
 } from '../repository';
@@ -27,7 +27,7 @@ export function inMemorySubtrees(stores: {
   workItems: WorkItemStore;
   estimates: EstimateStore;
   actuals: ActualStore;
-  progress: RoleProgressStore;
+  progress: StepProgressStore;
   measures: MeasureStore;
   dependencies: DependencyStore;
   directory: DirectoryStore;
@@ -50,20 +50,20 @@ export function inMemorySubtrees(stores: {
       for (const said of copy.progress) await stores.progress.set(said);
       for (const measured of copy.measures) await stores.measures.set(measured);
       for (const assigned of copy.assignments) {
-        await stores.directory.assign(assigned.workItemId, assigned.roleId, assigned.personId);
+        await stores.directory.assign(assigned.workItemId, assigned.stepId, assigned.personId);
       }
       for (const edge of copy.dependencies) await stores.dependencies.add(edge);
       for (const taken of copy.removedEstimates) {
-        await stores.estimates.remove(taken.workItemId, taken.roleId);
+        await stores.estimates.remove(taken.workItemId, taken.stepId);
       }
       for (const taken of copy.removedActuals) {
-        await stores.actuals.remove(taken.workItemId, taken.roleId);
+        await stores.actuals.remove(taken.workItemId, taken.stepId);
       }
       for (const taken of copy.removedProgress) {
-        await stores.progress.remove(taken.workItemId, taken.roleId);
+        await stores.progress.remove(taken.workItemId, taken.stepId);
       }
       for (const taken of copy.removedMeasures) {
-        await stores.measures.remove(taken.workItemId, taken.roleId, taken.metric);
+        await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric);
       }
     },
   };

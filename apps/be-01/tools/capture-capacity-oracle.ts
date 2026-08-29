@@ -36,8 +36,8 @@
  * editing it, and an edited capture script is not the script that produced the
  * capture.
  */
-import type { Project, Role, StoredDependency, WorkItem } from '../src/repository';
-import { ROLE_POSITION_STEP } from '../src/repository';
+import type { Project, Step, StoredDependency, WorkItem } from '../src/repository';
+import { STEP_POSITION_STEP } from '../src/repository';
 import { recordingBroadcaster } from '../src/testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../src/testing/command-journal-fixture';
 import { inMemoryDependencies } from '../src/testing/dependency-fixture';
@@ -98,7 +98,7 @@ interface PlanRow {
 
 interface Plan {
   projectId: string;
-  roleIds: string[];
+  stepIds: string[];
   estimateMethod: (typeof METHODS)[number];
   startDate: string | null;
   rows: PlanRow[];
@@ -113,7 +113,7 @@ function planFor(seed: number): Plan {
     return chosen;
   };
   const projectId = `p${String(seed)}`;
-  const roleIds = ['role-0', 'role-1', 'role-2'].slice(0, 2 + Math.floor(next() * 2));
+  const stepIds = ['step-0', 'step-1', 'step-2'].slice(0, 2 + Math.floor(next() * 2));
   const rows: PlanRow[] = [];
   let position = 0;
   const topLevel: string[] = [];
@@ -144,11 +144,11 @@ function planFor(seed: number): Plan {
     for (let leaf = 0; leaf < leaves; leaf += 1) {
       const id = `${parentId}-l${String(leaf)}`;
       const estimates: PlanRow['estimates'] = {};
-      for (const roleId of roleIds) {
-        // A role nobody estimated on this leaf: the zero-length-slice case.
+      for (const stepId of stepIds) {
+        // A step nobody estimated on this leaf: the zero-length-slice case.
         if (next() < 0.25) continue;
         const optimistic = 1 + Math.floor(next() * 4);
-        estimates[roleId] = {
+        estimates[stepId] = {
           optimistic,
           realistic: optimistic + Math.floor(next() * 3),
           pessimistic: optimistic + 2 + Math.floor(next() * 5),
@@ -156,8 +156,8 @@ function planFor(seed: number): Plan {
       }
       const assignees: PlanRow['assignees'] = {};
       if (next() < 0.2) {
-        const roleId = pick(roleIds);
-        assignees[roleId] = pick(PEOPLE).id;
+        const stepId = pick(stepIds);
+        assignees[stepId] = pick(PEOPLE).id;
       }
       rows.push({
         id,
@@ -182,8 +182,8 @@ function planFor(seed: number): Plan {
   position += 10;
   const loose = `${projectId}-solo`;
   const soloEstimates: PlanRow['estimates'] = {};
-  for (const roleId of roleIds) {
-    soloEstimates[roleId] = { optimistic: 2, realistic: 3, pessimistic: 6 };
+  for (const stepId of stepIds) {
+    soloEstimates[stepId] = { optimistic: 2, realistic: 3, pessimistic: 6 };
   }
   rows.push({
     id: loose,
@@ -214,7 +214,7 @@ function planFor(seed: number): Plan {
 
   return {
     projectId,
-    roleIds,
+    stepIds,
     estimateMethod: METHODS[seed % METHODS.length] ?? 'pert',
     startDate: seed % 7 === 0 ? null : '2026-09-01',
     rows,
@@ -255,13 +255,13 @@ async function main(): Promise<void> {
       revision: 0,
       createdAt: 1,
     };
-    const roles: Role[] = plan.roleIds.map((id, place) => ({
+    const steps: Step[] = plan.stepIds.map((id, place) => ({
       id,
       projectId: plan.projectId,
-      name: `Role ${String(place)}`,
-      position: (place + 1) * ROLE_POSITION_STEP,
+      name: `Step ${String(place)}`,
+      position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await projects.create(project, roles);
+    await projects.create(project, steps);
     for (const row of plan.rows) {
       const stored: WorkItem = {
         id: row.id,
@@ -280,11 +280,11 @@ async function main(): Promise<void> {
       await workItems.insert(stored, []);
     }
     for (const row of plan.rows) {
-      for (const [roleId, days] of Object.entries(row.estimates)) {
-        await estimates.set({ workItemId: row.id, roleId, ...days });
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        await estimates.set({ workItemId: row.id, stepId, ...days });
       }
-      for (const [roleId, personId] of Object.entries(row.assignees)) {
-        await directory.assign(row.id, roleId, personId);
+      for (const [stepId, personId] of Object.entries(row.assignees)) {
+        await directory.assign(row.id, stepId, personId);
       }
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {

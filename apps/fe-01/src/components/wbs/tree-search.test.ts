@@ -19,7 +19,7 @@ const NO_FACETS: RowFacets = {
   assignedOutsideTeam: false,
   assigneeIds: [],
   priorityBand: null,
-  estimatedRoleIds: [],
+  estimatedStepIds: [],
   unestimated: false,
   critical: false,
 };
@@ -72,13 +72,13 @@ const FACETED: NarrowableRow[] = [
     teamIds: ['platform'],
     assigneeIds: ['ada'],
     priorityBand: 'High',
-    estimatedRoleIds: ['dev'],
+    estimatedStepIds: ['dev'],
     critical: true,
   }),
   row('a1', 'a', 'Sockets', { unestimated: true }),
   row('a11', 'a1', 'Back boxes', { teamIds: ['payments'], assigneeIds: ['bo'] }),
   row('a2', 'a', 'Skirting', { priorityBand: 'Low' }),
-  row('b', null, 'Paint', { teamIds: ['payments'], estimatedRoleIds: ['dev', 'qa'] }),
+  row('b', null, 'Paint', { teamIds: ['payments'], estimatedStepIds: ['dev', 'qa'] }),
   row('b1', 'b', 'Undercoat', { assigneeIds: ['ada'], unestimated: true, critical: true }),
 ];
 
@@ -262,7 +262,7 @@ describe('narrowTree — the facets', () => {
     expect(ids(narrowed.matchIds)).toEqual(['a11']);
   });
 
-  it('finds a person on any of a row’s phases', () => {
+  it('finds a person on any of a row’s steps', () => {
     const narrowed = narrowTree(FACETED, asking({ assigneeIds: ['ada'] }));
 
     expect(ids(narrowed.matchIds)).toEqual(['a', 'b1']);
@@ -282,8 +282,8 @@ describe('narrowTree — the facets', () => {
     expect(ids(narrowed.matchIds)).toEqual(['a', 'a2']);
   });
 
-  it('finds the rows carrying an estimate for a phase', () => {
-    const narrowed = narrowTree(FACETED, asking({ estimatedRoleIds: ['qa'] }));
+  it('finds the rows carrying an estimate for a step', () => {
+    const narrowed = narrowTree(FACETED, asking({ estimatedStepIds: ['qa'] }));
 
     expect(ids(narrowed.matchIds)).toEqual(['b']);
   });
@@ -351,7 +351,7 @@ describe('what the filter says it is asking', () => {
   const LABELS = {
     teamName: (id: string) => (id === 'platform' ? 'Platform' : 'Payments'),
     personName: (id: string) => (id === 'ada' ? 'Ada' : 'Kat'),
-    phaseName: (id: string) => (id === 'dev' ? 'Dev' : 'QA'),
+    stepName: (id: string) => (id === 'dev' ? 'Dev' : 'QA'),
   };
 
   it('says nothing while nothing is being asked', () => {
@@ -365,7 +365,7 @@ describe('what the filter says it is asking', () => {
         teamIds: ['platform', 'payments'],
         assigneeIds: ['ada'],
         priorityBands: ['Critical'],
-        estimatedRoleIds: ['qa'],
+        estimatedStepIds: ['qa'],
         unestimated: true,
         critical: true,
       }),
@@ -447,7 +447,7 @@ describe('the tag facet narrows like every other facet', () => {
         teamName: (id) => `team-${id}`,
         tagName: (id) => `tag-${id}`,
         personName: (id) => id,
-        phaseName: (id) => id,
+        stepName: (id) => id,
       }),
     ).toEqual(['team team-platform', 'tag tag-regulatory or tag-tech-debt']);
   });
@@ -601,7 +601,7 @@ describe('what the filter says it is asking, for the third dimension', () => {
     tagName: (id: string) => `tag-${id}`,
     serviceName: (id: string) => `service-${id}`,
     personName: (id: string) => `person-${id}`,
-    phaseName: (id: string) => `phase-${id}`,
+    stepName: (id: string) => `step-${id}`,
   };
 
   it('gives the service its own phrase beside the team and the tag', () => {

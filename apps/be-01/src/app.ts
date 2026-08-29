@@ -11,7 +11,7 @@ import { directoryController } from './controller/directory.controller';
 import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
-import { roleController } from './controller/role.controller';
+import { stepController } from './controller/step.controller';
 import { smokeController } from './controller/smoke.controller';
 import { solutionController } from './controller/solution.controller';
 import { workItemController } from './controller/work-item.controller';
@@ -27,7 +27,7 @@ import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
-import type { RoleService } from './service/role.service';
+import type { StepService } from './service/step.service';
 import type { WorkItemService } from './service/work-item.service';
 import type { WriteLock } from './service/write-lock';
 
@@ -50,10 +50,10 @@ export interface AppOptions {
   workItems: WorkItemService;
   /**
    * Required for the same reason as `projects`, and for one more: a process
-   * built without it would answer 404 on every role route, which is exactly
-   * what a client asking a be-01 from before roles could be written sees.
+   * built without it would answer 404 on every step route, which is exactly
+   * what a client asking a be-01 from before steps could be written sees.
    */
-  roles: RoleService;
+  steps: StepService;
   directory: DirectoryService;
   /**
    * Required for the same reason as `projects`: a process built without it would
@@ -175,7 +175,7 @@ export function buildApp(opts: AppOptions) {
       .use(authController(opts.auth, opts.oidc))
       .use(solutionController(opts.auth, opts.projects))
       .use(projectController(opts.auth, opts.projects, opts.workItems))
-      .use(roleController(opts.auth, opts.roles))
+      .use(stepController(opts.auth, opts.steps))
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))
       // After `projectController`, whose prefix it shares: Elysia matches in

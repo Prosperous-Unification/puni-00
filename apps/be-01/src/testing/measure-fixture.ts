@@ -18,16 +18,16 @@ export function inMemoryMeasures(workItems: WorkItemStore): MeasureStore {
         (row) =>
           !(
             row.workItemId === toSet.workItemId &&
-            row.roleId === toSet.roleId &&
+            row.stepId === toSet.stepId &&
             row.metric === toSet.metric
           ),
       );
       rows.push(toSet);
       return Promise.resolve();
     },
-    remove(workItemId, roleId, metric) {
+    remove(workItemId, stepId, metric) {
       rows = rows.filter(
-        (row) => !(row.workItemId === workItemId && row.roleId === roleId && row.metric === metric),
+        (row) => !(row.workItemId === workItemId && row.stepId === stepId && row.metric === metric),
       );
       return Promise.resolve();
     },

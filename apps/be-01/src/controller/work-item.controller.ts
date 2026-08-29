@@ -1,10 +1,10 @@
 import {
   isIsoDate,
   type IsoDate,
-  isRoleState,
+  isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
-  type RoleState,
+  type StepState,
   ThreePointEstimate,
 } from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
@@ -172,7 +172,7 @@ function parseActual(body: unknown): number {
  * reason at the top of this file and for {@link parseActual}'s.
  *
  * **The body key is `value`, not `tokens` or `hours`.** The unit is in the
- * path — `/measures/token_actual/:roleId` — so a key naming one would be the
+ * path — `/measures/token_actual/:stepId` — so a key naming one would be the
  * same fact twice, and the two could then disagree: `{"hours": 6}` sent to the
  * `token_actual` path is a request with two answers and no way to pick. One
  * route serves three metrics precisely because the number is the same shape in
@@ -213,10 +213,10 @@ function parseMeasure(body: unknown): number {
  * database, so a body this function ever came to let through does not become a
  * row nothing folds.
  */
-function parseProgress(body: unknown): RoleState {
+function parseProgress(body: unknown): StepState {
   const raw = asRecord(body);
   const state: unknown = raw['state'];
-  if (!isRoleState(state)) throw new BadRequest('invalid_progress');
+  if (!isStepState(state)) throw new BadRequest('invalid_progress');
   return state;
 }
 
@@ -505,8 +505,8 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
     workItemId: asOptionalId(raw['workItemId'], 'workItemId'),
     workItemRef: asOptionalId(raw['workItemRef'], 'workItemRef'),
   });
-  // Read only by the kinds that carry a role; eager, it would refuse a create.
-  const role = (): { roleId: string } => ({ roleId: asText(raw['roleId'], 'roleId') });
+  // Read only by the kinds that carry a step; eager, it would refuse a create.
+  const step = (): { stepId: string } => ({ stepId: asText(raw['stepId'], 'stepId') });
   const ref = present({ ref: asOptionalId(raw['ref'], 'ref') });
   switch (kind) {
     case 'createWorkItem': {
@@ -562,15 +562,15 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
       return present({ kind, ...target, strategy });
     }
     case 'setEstimate':
-      return { kind, ...target, ...role(), days: parseOrThrow(ThreePointEstimate, raw['days']) };
+      return { kind, ...target, ...step(), days: parseOrThrow(ThreePointEstimate, raw['days']) };
     case 'clearEstimate':
     case 'clearActual':
     case 'clearProgress':
-      return { kind, ...target, ...role() };
+      return { kind, ...target, ...step() };
     case 'setActual':
-      return { kind, ...target, ...role(), days: parseActual(raw) };
+      return { kind, ...target, ...step(), days: parseActual(raw) };
     case 'setProgress':
-      return { kind, ...target, ...role(), state: parseProgress(raw) };
+      return { kind, ...target, ...step(), state: parseProgress(raw) };
     // The metric is text here and judged by the service, as the retired route
     // left it: `unknown_metric` is a 404 — a unit this release does not keep,
     // arriving where an id does — and a parser refusal would make it a 400.
@@ -578,17 +578,17 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
       return {
         kind,
         ...target,
-        ...role(),
+        ...step(),
         metric: asText(raw['metric'], 'metric'),
         value: parseMeasure(raw),
       };
     case 'clearMeasure':
-      return { kind, ...target, ...role(), metric: asText(raw['metric'], 'metric') };
+      return { kind, ...target, ...step(), metric: asText(raw['metric'], 'metric') };
     case 'setAssignee':
       return present({
         kind,
         ...target,
-        ...role(),
+        ...step(),
         personId: asIdOrNull(raw['personId'], 'personId'),
         personRef: asOptionalId(raw['personRef'], 'personRef'),
       });

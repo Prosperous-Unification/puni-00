@@ -42,9 +42,10 @@ served.
 
 #### Scenario: the steps routes serve and the roles routes do not exist
 
-- **WHEN** a project's steps are requested at `/api/projects/:id/steps`
-- **THEN** the response SHALL list the project's steps
-- **AND** the same request at `/api/projects/:id/roles` SHALL be a 404
+- **WHEN** a step is added at `/api/projects/:id/steps`
+- **THEN** it SHALL be written, and the project read SHALL list it under `steps`
+- **AND** the same request at `/api/projects/:id/roles` SHALL be a 404, as SHALL
+  a rename and a removal at `/api/projects/:id/roles/:roleId`
 
 #### Scenario: a plan payload names steps
 

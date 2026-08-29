@@ -13,7 +13,7 @@ import { deriveNumbers } from './derive-numbers';
  * who it would read as after.
  */
 export type DirectoryEffect =
-  | { kind: 'assignment_dropped'; role: { id: string; name: string } }
+  | { kind: 'assignment_dropped'; step: { id: string; name: string } }
   | { kind: 'label_nulled' }
   /**
    * The row carries the tag being removed, and will stop carrying it.
@@ -92,11 +92,11 @@ export interface DirectoryUsage {
   members: { id: string; name: string }[];
 }
 
-/** Who a work item's assignments name, keyed by role. */
-function byRoleOn(assignments: readonly Assignment[], workItemId: string): Record<string, string> {
+/** Who a work item's assignments name, keyed by step. */
+function byStepOn(assignments: readonly Assignment[], workItemId: string): Record<string, string> {
   const held: Record<string, string> = {};
   for (const each of assignments) {
-    if (each.workItemId === workItemId) held[each.roleId] = each.personId;
+    if (each.workItemId === workItemId) held[each.stepId] = each.personId;
   }
   return held;
 }
@@ -164,17 +164,17 @@ function usageFrom(
  */
 export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: string): DirectoryUsage {
   const nameOf = new Map(rows.people.map((each) => [each.id, each.name]));
-  const roleOf = new Map(rows.roles.map((each) => [each.id, each.name]));
+  const stepOf = new Map(rows.steps.map((each) => [each.id, each.name]));
   return usageFrom(rows, (row) => {
-    const held = byRoleOn(rows.assignments, row.id);
+    const held = byStepOn(rows.assignments, row.id);
     const dropped = Object.entries(held).filter(([, personOf]) => personOf === personId);
     if (dropped.length === 0) return [];
     const effects: DirectoryEffect[] = dropped
-      .map(([roleId]) => roleId)
+      .map(([stepId]) => stepId)
       .sort()
-      .map((roleId) => ({
+      .map((stepId) => ({
         kind: 'assignment_dropped' as const,
-        role: { id: roleId, name: roleOf.get(roleId) ?? '' },
+        step: { id: stepId, name: stepOf.get(stepId) ?? '' },
       }));
     const left = Object.fromEntries(
       Object.entries(held).filter(([, personOf]) => personOf !== personId),

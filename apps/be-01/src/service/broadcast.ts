@@ -1,4 +1,4 @@
-import type { Role } from '../repository';
+import type { Step } from '../repository';
 import type { NumberedWorkItem } from './work-item.service';
 
 /**
@@ -12,19 +12,19 @@ import type { NumberedWorkItem } from './work-item.service';
  * rare cases. A work breakdown is hundreds of rows and structural edits are
  * rare, so sending the tree is the cheaper mistake.
  *
- * The three role events carry the role and **not** the tree, even though
- * removing one deletes estimates from it. A client reads the project's roles and
- * its tree together — one refresh, both reads — so a role event says which fact
+ * The three step events carry the step and **not** the tree, even though
+ * removing one deletes estimates from it. A client reads the project's steps and
+ * its tree together — one refresh, both reads — so a step event says which fact
  * moved and the client rereads both. Putting the tree in here would send a
- * second copy of it that the reader would have to reconcile with the roles it
+ * second copy of it that the reader would have to reconcile with the steps it
  * has not read yet.
  */
 export type ProjectEvent =
   | { type: 'work_items_changed'; workItems: NumberedWorkItem[] }
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
-  | { type: 'role_added'; role: Role }
-  | { type: 'role_renamed'; role: Role }
-  | { type: 'role_removed'; roleId: string }
+  | { type: 'step_added'; step: Step }
+  | { type: 'step_renamed'; step: Step }
+  | { type: 'step_removed'; stepId: string }
   /**
    * Something in the global directory that this project reads has changed — a
    * person or team renamed, or one removed and its assignments and labels taken
@@ -35,7 +35,7 @@ export type ProjectEvent =
    * useful thing to say is "read again". A payload would be a second copy of a
    * list the client is about to fetch anyway, and it would have to be
    * reconciled against the tree it has not fetched yet — the same argument the
-   * three role events make for carrying the role and not the tree.
+   * three step events make for carrying the step and not the tree.
    */
   | { type: 'directory_changed' }
   /**

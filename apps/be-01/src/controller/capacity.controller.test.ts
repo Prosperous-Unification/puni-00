@@ -14,16 +14,16 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleRepository } from '../repository/role';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepRepository } from '../repository/step';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
 import { CapacityService } from '../service/capacity.service';
 import { DirectoryService } from '../service/directory.service';
 import { ProjectService } from '../service/project.service';
-import { RoleService } from '../service/role.service';
+import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -83,9 +83,9 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
-      roles: new RoleService({
+      steps: new StepService({
         projects: projectStore,
-        roles: new RoleRepository(db),
+        steps: new StepRepository(db),
         broadcast,
       }),
       workItems: new WorkItemService({
@@ -93,8 +93,8 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
         projects: projectStore,
         estimates: new EstimateRepository(db),
         actuals: new ActualRepository(db),
-        measures: new RoleMeasureRepository(db),
-        progress: new RoleProgressRepository(db),
+        measures: new StepMeasureRepository(db),
+        progress: new StepProgressRepository(db),
         dependencies: new DependencyRepository(db),
         directory: directoryStore,
         capacity: capacityStore,
@@ -344,14 +344,14 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
           headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         }),
       );
-    const rolesRes = await send(`/api/projects/${projectId}`);
+    const stepsRes = await send(`/api/projects/${projectId}`);
     // `readonly` and indexed through `.at`, so the absence a fresh project could
     // have is a state the type carries rather than one the cast asserts away — a
-    // project with no phases has no estimate to write and this test would
+    // project with no steps has no estimate to write and this test would
     // otherwise fail three lines later on an empty string in the URL.
-    const { roles } = (await rolesRes.json()) as { roles: readonly { id: string }[] };
-    const devId = roles.at(0)?.id;
-    if (devId === undefined) throw new Error('the fixture project has no roles');
+    const { steps } = (await stepsRes.json()) as { steps: readonly { id: string }[] };
+    const devId = steps.at(0)?.id;
+    if (devId === undefined) throw new Error('the fixture project has no steps');
 
     // Both items, each labelled and estimated, in one batch: a later command
     // names what an earlier one made by its `ref`.
@@ -364,7 +364,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
           {
             kind: 'setEstimate',
             workItemRef: name,
-            roleId: devId,
+            stepId: devId,
             days: { optimistic: 2, realistic: 2, pessimistic: 2 },
           },
         ]),

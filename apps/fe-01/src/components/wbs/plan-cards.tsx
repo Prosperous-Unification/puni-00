@@ -8,7 +8,7 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
-import type { Days, PriorityBandView, RoleView } from '@/lib/wbs-api';
+import type { Days, PriorityBandView, StepView } from '@/lib/wbs-api';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { CellInput } from './cell-input';
@@ -55,12 +55,12 @@ export interface CardRow {
 }
 
 /**
- * Who is doing one phase of one work item, as a card prints it.
+ * Who is doing one step of one work item, as a card prints it.
  *
- * `assumed` is the derived reading — nobody named on this phase and exactly one
+ * `assumed` is the derived reading — nobody named on this step and exactly one
  * person named on another — and it is why this is one answer with a flag rather
  * than two questions: the rule that a lone assignee is taken to be doing every
- * phase belongs to be-01 and is computed once by whoever hands this over, not
+ * step belongs to be-01 and is computed once by whoever hands this over, not
  * twice by two renderers.
  */
 export interface CardAssignee {
@@ -96,7 +96,7 @@ export interface DependencyEntry {
 export interface PlanCardsProps {
   /** The rows on screen, in the order and the expansion the table model gives them. */
   rows: readonly CardRow[];
-  roles: readonly RoleView[];
+  steps: readonly StepView[];
   /**
    * This plan's priority ladder, for the chip on each card's header.
    *
@@ -122,27 +122,27 @@ export interface PlanCardsProps {
    * for — {@link import('./live-editing').FocusIntent.landOnAttached}.
    */
   claimFocus: (node: CellElement, cell: CellRef) => void;
-  /** What one phase's figure box shows: the pending shorthand, or the final figure. */
-  estimateValue: (row: TreeRow, roleId: string) => string;
+  /** What one step's figure box shows: the pending shorthand, or the final figure. */
+  estimateValue: (row: TreeRow, stepId: string) => string;
   /** What is wrong with what that box shows, or null. */
-  estimateProblem: (row: TreeRow, roleId: string) => string | null;
+  estimateProblem: (row: TreeRow, stepId: string) => string | null;
   commitEstimate: (
     row: TreeRow,
-    roleId: string,
+    stepId: string,
     typed: string,
     baseline: string,
   ) => Promise<CommitOutcome>;
   /** The focus arriving in a figure box, which is what remembers its value. */
   enterEstimate: (box: CellElement) => void;
   /** A keystroke in one, which is what opens and closes the `@` list. */
-  readEstimate: (rowId: string, roleId: string, box: CellElement) => void;
+  readEstimate: (rowId: string, stepId: string, box: CellElement) => void;
   /** Escape: the list closes and the box is left exactly as it is. */
   closeMention: () => void;
   /** The focus leaving a figure box, which takes a half-typed `@` with it. */
   leaveEstimate: () => void;
   /** What the `@` list in one box is offering, or nothing while it is closed. */
-  mentionOptions: (row: TreeRow, roleId: string) => PickerOption[];
-  assigneeOn: (row: TreeRow, roleId: string) => CardAssignee | null;
+  mentionOptions: (row: TreeRow, stepId: string) => PickerOption[];
+  assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null;
   /**
    * The work items this one waits for, in the order it holds them.
    *
@@ -458,7 +458,7 @@ const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string 
  * disagree.
  */
 const inertParallel = (row: TreeRow): boolean =>
-  row.subRows.length > 0 || row.doesEveryPhase !== null;
+  row.subRows.length > 0 || row.doesEveryStep !== null;
 
 /**
  * What the table's Slack column says about one row, read off the row the same
@@ -495,9 +495,9 @@ const cardSlackOf = (
  * table that the other is fine. So they are gathered in one place, printed by
  * one loop, and there is no arm here that can render one without the other.
  *
- * The assignee half is **deduplicated by sentence**, not by phase. One person
+ * The assignee half is **deduplicated by sentence**, not by step. One person
  * outside the team, named on Dev and assumed onto QA, is one fact about this
- * row; three phases would print the same words three times under a card that is
+ * row; three steps would print the same words three times under a card that is
  * 390px wide, and a signal repeated is a signal a reader stops reading.
  *
  * Ordered service-then-assignee, matching the order `wbs-table.tsx` meets them
@@ -506,15 +506,15 @@ const cardSlackOf = (
  */
 const cardMismatchesOf = (
   row: TreeRow,
-  roles: readonly RoleView[],
+  steps: readonly StepView[],
   nonOwner: (row: TreeRow) => string | null,
-  assigneeOn: (row: TreeRow, roleId: string) => CardAssignee | null,
+  assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null,
 ): { kind: 'service' | 'assignee'; note: string }[] => {
   const built = nonOwner(row);
   const outside = [
     ...new Set(
-      roles
-        .map((role) => assigneeOn(row, role.id)?.outside)
+      steps
+        .map((step) => assigneeOn(row, step.id)?.outside)
         .filter((note): note is string => note !== undefined && note !== null),
     ),
   ];
@@ -525,39 +525,39 @@ const cardMismatchesOf = (
 };
 
 /**
- * One point of one phase's trio, off the row rather than a box's draft —
- * `wbs-table.tsx`'s own `showDays`, so a phase estimated on the table and one
+ * One point of one step's trio, off the row rather than a box's draft —
+ * `wbs-table.tsx`'s own `showDays`, so a step estimated on the table and one
  * estimated on a phone cannot print the point differently.
  *
  * Takes the possibly-missing estimate as a parameter rather than reading
- * `row.estimates[roleId]` into a local first: a bare `Record<string, Days>`
+ * `row.estimates[stepId]` into a local first: a bare `Record<string, Days>`
  * index reads as always-present to the type checker once assigned to a
- * `const`, which is not true of a role nobody has estimated.
+ * `const`, which is not true of a step nobody has estimated.
  */
 const trioPoint = (estimate: Days | undefined, point: (typeof POINTS)[number]): string =>
   estimate === undefined ? '' : String(estimate[point]);
 
-/** A phase's final figure, off the row — `wbs-table.tsx`'s own `showFinal`. */
+/** A step's final figure, off the row — `wbs-table.tsx`'s own `showFinal`. */
 const trioFinal = (finalDays: number | undefined, showDay: (days: number) => string): string =>
   finalDays === undefined ? '' : showDay(finalDays);
 
 /**
- * One phase's `o/r/p` breakdown, said in the words `folded-role-card.tsx`
+ * One step's `o/r/p` breakdown, said in the words `folded-step-card.tsx`
  * already prints on the table's hover card — this is the same read of the
  * same fields, not a second copy of "no estimate yet".
  */
 const cardTrioOf = (
   row: TreeRow,
-  roleId: string,
+  stepId: string,
   showDay: (days: number) => string,
 ): { line: string; final: string } => {
-  const points = POINTS.map((point) => ({ point, days: trioPoint(row.estimates[roleId], point) }));
+  const points = POINTS.map((point) => ({ point, days: trioPoint(row.estimates[stepId], point) }));
   const estimated = points.some((each) => each.days !== '');
   return {
     line: estimated
       ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
       : 'No estimate yet',
-    final: trioFinal(row.finalDays[roleId], showDay),
+    final: trioFinal(row.finalDays[stepId], showDay),
   };
 };
 
@@ -1676,11 +1676,11 @@ function CardDependsField({
 }
 
 /**
- * The three points of one phase, each in its own box — the fifth card field,
+ * The three points of one step, each in its own box — the fifth card field,
  * and the only one filed as a bug rather than a hole.
  *
  * Dany, 2026-08-23: *"I cannot input o/r/p on WBS from mobile."* The figure box
- * beside the phase name takes the trio as `2/3/8`, and **a phone keypad has no
+ * beside the step name takes the trio as `2/3/8`, and **a phone keypad has no
  * `/` key to type it with**. That is the HTML standard, not a browser's
  * accident: `inputmode="decimal"` is specified as "Numeric keys and the format
  * separator for the locale", `numeric` as digits for PIN entry, and `url` is
@@ -1702,23 +1702,23 @@ function CardDependsField({
  * sentence a trio typed on the table is. Out-of-order is still a complaint and
  * still never sorted — `estimate-draft.ts`'s whole point.
  *
- * **The trigger is drawn on an unestimated phase**, the fifth time this file
- * makes that departure and for the same reason: `data-phase-trio` stays the
- * claim — the words `folded-role-card.tsx` prints — while
+ * **The trigger is drawn on an unestimated step**, the fifth time this file
+ * makes that departure and for the same reason: `data-step-trio` stays the
+ * claim — the words `folded-step-card.tsx` prints — while
  * `data-card-trio-field` is always there, because a control that appears only
  * once a value exists cannot set the first one.
  */
 function CardTrioField({
   row,
-  roleId,
-  roleName,
+  stepId,
+  stepName,
   line,
   baseline,
   commit,
 }: {
   row: TreeRow;
-  roleId: string;
-  roleName: string;
+  stepId: string;
+  stepName: string;
   /** The trio in words, as the card prints it at rest. */
   line: string;
   /** What the figure box shows, which is what a commit is measured against. */
@@ -1731,11 +1731,11 @@ function CardTrioField({
   // `CardPriorityField` and `CardNotBeforeField` make, and its reason: a
   // controlled box fed from the row would be overwritten by a refetch
   // mid-keystroke, and an uncontrolled one would still hold the previous
-  // phase's digits on the next open. Nothing is sent until Save.
+  // step's digits on the next open. Nothing is sent until Save.
   const seed = (): Record<string, string> =>
-    Object.fromEntries(POINTS.map((point) => [point, trioPoint(row.estimates[roleId], point)]));
+    Object.fromEntries(POINTS.map((point) => [point, trioPoint(row.estimates[stepId], point)]));
   const [draft, setDraft] = useState<Record<string, string>>(seed);
-  const estimated = POINTS.some((point) => trioPoint(row.estimates[roleId], point) !== '');
+  const estimated = POINTS.some((point) => trioPoint(row.estimates[stepId], point) !== '');
   const send = (typed: string): void => {
     void commit(typed, baseline);
     setOpen(false);
@@ -1752,21 +1752,21 @@ function CardTrioField({
         <button
           ref={triggerRef}
           type="button"
-          data-card-trio-field={roleId}
+          data-card-trio-field={stepId}
           // The three boxes' own accessible names one sentence up: this opens
-          // the phase's trio, and the phase is what a reader is looking for.
-          aria-label={`${roleName} o, r and p for ${row.number}`}
+          // the step's trio, and the step is what a reader is looking for.
+          aria-label={`${stepName} o, r and p for ${row.number}`}
           title="Optimistic, realistic and pessimistic days — a keypad has no slash, so each gets its own box."
           className={`${TAP} flex w-full items-center justify-between gap-2 text-left`}
         >
-          <span data-phase-trio={roleId}>{line}</span>
+          <span data-step-trio={stepId}>{line}</span>
           <span aria-hidden="true">✎</span>
         </button>
       </ModalTrigger>
       <ModalContent side="bottom">
         <ModalHeader>
           <ModalTitle>
-            {roleName} estimate for {row.number}
+            {stepName} estimate for {row.number}
           </ModalTitle>
           <ModalDescription>
             Three days, each in its own box — optimistic first, then realistic, then pessimistic.
@@ -1776,7 +1776,7 @@ function CardTrioField({
         </ModalHeader>
         <div className="flex flex-col gap-3" key={open ? 'open' : 'shut'}>
           {POINTS.map((point) => (
-            <label key={`${row.id}-${roleId}-${point}`} className="flex flex-col gap-1 text-sm">
+            <label key={`${row.id}-${stepId}-${point}`} className="flex flex-col gap-1 text-sm">
               {/* The word, not the letter: the table's column heading clips to
                   `o` because 44px of column is all there is, and a sheet has
                   the width the column did not. */}
@@ -1788,8 +1788,8 @@ function CardTrioField({
                 // the keyword whose keypad is specified to carry the locale's
                 // separator.
                 inputMode="decimal"
-                aria-label={`${roleName} ${point} for ${row.number}`}
-                data-cell={cellKey(row.id, `${roleId}-${point}`)}
+                aria-label={`${stepName} ${point} for ${row.number}`}
+                data-cell={cellKey(row.id, `${stepId}-${point}`)}
                 data-card-trio-input={point}
                 className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
                 value={draft[point] ?? ''}
@@ -1852,14 +1852,14 @@ function CardTrioField({
  *
  * **The same cells, too**, and that is the contract worth reading. Each box
  * carries the `data-cell` of the cell it edits — `rowId::name`, and
- * `rowId::<roleId>-final` for a phase's figure — which is the *same* string the
+ * `rowId::<stepId>-final` for a step's figure — which is the *same* string the
  * table's box for that cell carries. So the {@link import('./live-editing').LiveField}
  * a card mounts is the one the table mounted, and a draft be-01 refused is
  * still there when a phone is turned. That is the whole of what
  * `X live-editing-extraction` was for.
  *
  * **What a card can change**, as of `wbs-mobile-orp-input`: the name-and-notes
- * box, each phase's `o/r/p` figure, who is on that phase (the `@` list inside
+ * box, each step's `o/r/p` figure, who is on that step (the `@` list inside
  * that figure's box), the three points of that figure one box each
  * ({@link CardTrioField}), and the four fields `card-field-pickers` gave sheets
  * to — team, earliest start, priority and what the row waits for. Each of the
@@ -1881,7 +1881,7 @@ function CardTrioField({
  */
 export function PlanCards({
   rows,
-  roles,
+  steps,
   priorityBands,
   gridRef,
   commitName,
@@ -1948,7 +1948,7 @@ export function PlanCards({
         const delivers = serviceLabel(row);
         const span = spanOf(row);
         const slack = cardSlackOf(row, showDay);
-        const mismatches = cardMismatchesOf(row, roles, nonOwner, assigneeOn);
+        const mismatches = cardMismatchesOf(row, steps, nonOwner, assigneeOn);
         return (
           <article
             key={row.id}
@@ -2052,16 +2052,16 @@ export function PlanCards({
               commit={(typed, baseline) => commitName(row.id, typed, baseline)}
             />
 
-            {roles.map((role) => {
-              const problem = estimateProblem(row, role.id);
-              const options = mentionOptions(row, role.id);
-              const listId = `card-mention-${row.id}-${role.id}`;
-              const assignee = assigneeOn(row, role.id);
-              const trio = cardTrioOf(row, role.id, showDay);
+            {steps.map((step) => {
+              const problem = estimateProblem(row, step.id);
+              const options = mentionOptions(row, step.id);
+              const listId = `card-mention-${row.id}-${step.id}`;
+              const assignee = assigneeOn(row, step.id);
+              const trio = cardTrioOf(row, step.id, showDay);
               return (
-                <Fragment key={role.id}>
+                <Fragment key={step.id}>
                   <div
-                    data-phase={role.id}
+                    data-step={step.id}
                     // The positioned ancestor `PickerList` measures `top: 100%`
                     // from — it owns the box, the caller owns the wrapper.
                     // The blur is the mention's, bubbling from the box inside:
@@ -2070,17 +2070,17 @@ export function PlanCards({
                     onBlur={leaveEstimate}
                   >
                     <span className="text-muted-foreground w-20 shrink-0 truncate text-sm">
-                      {role.name}
+                      {step.name}
                     </span>
                     {row.rolledUp ? (
                       // A parent's figure is a sum of what is below it. Printed
                       // rather than typed into, the same rule the table's folded
                       // cell keeps.
-                      <span className="font-semibold">{estimateValue(row, role.id)}</span>
+                      <span className="font-semibold">{estimateValue(row, step.id)}</span>
                     ) : (
                       <CellInput
-                        aria-label={`${role.name} estimate for ${row.number}`}
-                        cellKey={cellKey(row.id, `${role.id}-final`)}
+                        aria-label={`${step.name} estimate for ${row.number}`}
+                        cellKey={cellKey(row.id, `${step.id}-final`)}
                         role="combobox"
                         aria-expanded={options.length > 0}
                         aria-controls={options.length > 0 ? listId : undefined}
@@ -2108,7 +2108,7 @@ export function PlanCards({
                           event.currentTarget.select();
                         }}
                         onTyped={(box) => {
-                          readEstimate(row.id, role.id, box);
+                          readEstimate(row.id, step.id, box);
                         }}
                         onKeyDown={(event) => {
                           // The open list owns the keyboard, and Escape is how it
@@ -2140,8 +2140,8 @@ export function PlanCards({
                             options[0]?.take();
                           }
                         }}
-                        value={estimateValue(row, role.id)}
-                        commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
+                        value={estimateValue(row, step.id)}
+                        commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
                       />
                     )}
                     {problem !== null && (
@@ -2151,11 +2151,11 @@ export function PlanCards({
                     )}
                     {assignee !== null && (
                       <span
-                        data-card-assignee={role.id}
-                        {...(assignee.assumed ? { 'data-assumed': role.id } : {})}
+                        data-card-assignee={step.id}
+                        {...(assignee.assumed ? { 'data-assumed': step.id } : {})}
                         title={
                           assignee.assumed
-                            ? `${assignee.name} — only one person is assigned, so they are assumed to do this phase too`
+                            ? `${assignee.name} — only one person is assigned, so they are assumed to do this step too`
                             : assignee.name
                         }
                         className={`min-w-0 truncate text-sm ${
@@ -2168,7 +2168,7 @@ export function PlanCards({
                     {options.length > 0 && (
                       <PickerList
                         id={listId}
-                        label={`${role.name} assignee for ${row.number}`}
+                        label={`${step.name} assignee for ${row.number}`}
                         options={options}
                       />
                     )}
@@ -2176,33 +2176,33 @@ export function PlanCards({
                   {/*
                   The trio behind the figure box above — folded there into one
                   computed number the same way the table's own cell folds it —
-                  said in the words `folded-role-card.tsx` already prints on
+                  said in the words `folded-step-card.tsx` already prints on
                   hover, since a phone has no hover to read them from. A native
                   `<details>` rather than a positioned card: it needs no
                   measurement, no pointer-type guard and no dismiss handler,
                   and a tap is what opens one already.
                 */}
                   <details
-                    data-phase-detail={role.id}
+                    data-step-detail={step.id}
                     className="text-muted-foreground -mt-1 ml-20 text-xs"
                   >
                     <summary className="w-fit cursor-pointer py-1 select-none">o·r·p</summary>
                     {/*
-                      The words are still the words — `data-phase-trio` has not
+                      The words are still the words — `data-step-trio` has not
                       moved and still says what the row holds — but they are now
                       the face of a control, because reading the trio was never
                       the missing half. See {@link CardTrioField}.
                     */}
                     <CardTrioField
                       row={row}
-                      roleId={role.id}
-                      roleName={role.name}
+                      stepId={step.id}
+                      stepName={step.name}
                       line={trio.line}
-                      baseline={estimateValue(row, role.id)}
-                      commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
+                      baseline={estimateValue(row, step.id)}
+                      commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
                     />
                     {trio.final !== '' && (
-                      <div data-phase-final={role.id}>Final {trio.final} days</div>
+                      <div data-step-final={step.id}>Final {trio.final} days</div>
                     )}
                   </details>
                 </Fragment>

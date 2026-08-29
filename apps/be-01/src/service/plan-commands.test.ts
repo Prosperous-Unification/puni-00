@@ -10,7 +10,7 @@ import {
 } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role } from '../repository';
+import type { Step } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -22,8 +22,8 @@ import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { ProjectRepository } from '../repository/project';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository } from '../repository/work-item';
 import { WorkItemRepository } from '../repository/work-item';
@@ -58,11 +58,11 @@ let journalStore: CommandJournalRepository;
 let planEvents: PlanEventRepository;
 let projectId: string;
 let ownerId: string;
-let roles: Role[];
+let steps: Step[];
 
 const dev = (): string => {
-  const found = roles.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting roles');
+  const found = steps.at(0);
+  if (found === undefined) throw new Error('the project was created without its starting steps');
   return found.id;
 };
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
@@ -96,8 +96,8 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: estimateStore,
     actuals: new ActualRepository(db),
-    measures: new RoleMeasureRepository(db),
-    progress: new RoleProgressRepository(db),
+    measures: new StepMeasureRepository(db),
+    progress: new StepProgressRepository(db),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: bandStore,
@@ -121,7 +121,7 @@ beforeEach(async () => {
     ownerId,
   );
   projectId = created.project.id;
-  roles = created.roles;
+  steps = created.steps;
 });
 
 afterEach(() => {
@@ -149,14 +149,14 @@ const DRAFT: PlanCommand[] = [
   { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
   { kind: 'createWorkItem', ref: 'sand', parentId: null, afterRef: 'strip', name: 'Sand' },
   { kind: 'createWorkItem', ref: 'paint', parentId: null, afterRef: 'sand', name: 'Paint' },
-  { kind: 'setEstimate', ref: undefined, workItemRef: 'strip', roleId: 'ROLE', days: DAYS },
-  { kind: 'setEstimate', workItemRef: 'sand', roleId: 'ROLE', days: DAYS },
+  { kind: 'setEstimate', ref: undefined, workItemRef: 'strip', stepId: 'STEP', days: DAYS },
+  { kind: 'setEstimate', workItemRef: 'sand', stepId: 'STEP', days: DAYS },
   { kind: 'addDependency', workItemRef: 'sand', predecessorRef: 'strip' },
 ];
-/** The draft with the project's real Dev role in place of the placeholder. */
+/** The draft with the project's real Dev step in place of the placeholder. */
 const draft = (): PlanCommand[] =>
   DRAFT.map((command) =>
-    'roleId' in command && command.roleId === 'ROLE' ? { ...command, roleId: dev() } : command,
+    'stepId' in command && command.stepId === 'STEP' ? { ...command, stepId: dev() } : command,
   );
 
 describe('a command batch', () => {
@@ -177,9 +177,9 @@ describe('a command batch', () => {
     // `expected [ 'Sand', 'Strip' ] to equal []`. Watched, 2026-08-29.
     const outcome = await run([
       ...draft().slice(0, 2),
-      { kind: 'setEstimate', workItemRef: 'strip', roleId: 'no-such-role', days: DAYS },
+      { kind: 'setEstimate', workItemRef: 'strip', stepId: 'no-such-step', days: DAYS },
     ]);
-    expect(outcome).toEqual({ ok: false, at: 2, kind: 'setEstimate', reason: 'unknown_role' });
+    expect(outcome).toEqual({ ok: false, at: 2, kind: 'setEstimate', reason: 'unknown_step' });
     expect(await names()).toEqual([]);
     expect(await journal()).toHaveLength(0);
   });
@@ -204,7 +204,7 @@ describe('a command batch', () => {
 
   it('takes back the steps an undo already applied when a later step cannot', async () => {
     // A journal entry as the runner writes one, whose inverse renames X and
-    // then sets an estimate for a role nobody has: the preconditions hold, so
+    // then sets an estimate for a step nobody has: the preconditions hold, so
     // the first step is applied before the second is refused — and the rename
     // must be gone again, or an undo has left a plan nobody asked for. The
     // entry is appended by hand because every natural way of making a later
@@ -225,7 +225,7 @@ describe('a command batch', () => {
     const impossible = {
       do: 'set_estimate' as const,
       workItemId: x,
-      roleId: 'no-such-role',
+      stepId: 'no-such-step',
       days: DAYS,
     };
     const at = Date.now();
@@ -247,7 +247,7 @@ describe('a command batch', () => {
         kind: 'batch',
         label: '2 changes',
         workItemId: x,
-        roleId: null,
+        stepId: null,
         before: { do: 'batch', steps: [rename, impossible] },
         after: { do: 'batch', steps: [impossible, rename] },
         createdAt: at,
@@ -256,9 +256,9 @@ describe('a command batch', () => {
 
     const undone = await runner.undo(projectId, ownerId);
     expect(undone.ok).toBe(false);
-    if (undone.ok) throw new Error('an undo naming a missing role was accepted');
+    if (undone.ok) throw new Error('an undo naming a missing step was accepted');
     expect(undone.reason).toBe('stale_undo');
-    expect(undone.detail).toBe('that phase is no longer in this project.');
+    expect(undone.detail).toBe('that step is no longer in this project.');
     expect((await workItemStore.findById(x))?.name).toBe('X');
     // And the entry is gone for good, discarded outside the rolled-back
     // transaction: only the create is left to undo.
@@ -279,7 +279,7 @@ describe('a command batch', () => {
     const refs = applied(await run(draft()));
     const paint = refs.get('paint');
     if (paint === undefined) throw new Error('no paint');
-    applied(await run([{ kind: 'clearEstimate', workItemId: paint, roleId: dev() }]));
+    applied(await run([{ kind: 'clearEstimate', workItemId: paint, stepId: dev() }]));
     expect(await journal()).toHaveLength(1);
   });
 
@@ -425,7 +425,7 @@ describe('a command batch', () => {
     if (strip === undefined) throw new Error('no strip');
     const refused = run([
       { kind: 'createWorkItem', ref: 'x', parentId: null, afterId: null, name: 'Doomed' },
-      { kind: 'setEstimate', workItemRef: 'x', roleId: 'no-such-role', days: DAYS },
+      { kind: 'setEstimate', workItemRef: 'x', stepId: 'no-such-step', days: DAYS },
     ]);
     const renamed = run([
       { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Strip it' } },

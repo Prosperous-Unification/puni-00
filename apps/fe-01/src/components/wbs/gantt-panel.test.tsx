@@ -7,7 +7,7 @@ import type {
   Days,
   PersonView,
   ProjectApi,
-  RoleView,
+  StepView,
   SliceView,
   TeamView,
   WorkItemView,
@@ -65,12 +65,12 @@ const rowAt = (
   // to state a team it is not asking about.
   team: { state: 'none' },
   tags: { state: 'none' },
-  trioByRole: new Map(),
+  trioByStep: new Map(),
   waitsFor: [],
   ...extras,
 });
 
-/** A scheduled slice over these workdays, under the `dev` role. */
+/** A scheduled slice over these workdays, under the `dev` step. */
 const sliceAt = (
   id: string,
   workItemId: string,
@@ -80,7 +80,7 @@ const sliceAt = (
 ): GanttSlice => ({
   id,
   workItemId,
-  roleId: 'dev',
+  stepId: 'dev',
   personId: null,
   duration: earliestFinish - earliestStart,
   estimated: true,
@@ -119,7 +119,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   tree: treeFrom(parts.rows ?? []),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
-  roles: [{ id: 'dev', name: 'Dev' }],
+  steps: [{ id: 'dev', name: 'Dev' }],
   personNames: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
   priorityBands: DEFAULT_PRIORITY_BANDS,
@@ -1067,7 +1067,7 @@ describe('the chart is drawn in calendar days', () => {
               number: '3.2',
               name: 'API',
               team: { state: 'named', name: 'Platform' },
-              trioByRole: new Map([['dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]),
+              trioByStep: new Map([['dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]),
               waitsFor: ['3.1 Design'],
             }),
           ],
@@ -1100,7 +1100,7 @@ describe('the chart is drawn in calendar days', () => {
       'Workdays 2 → 5 · 3 days',
       '2/3/8',
       'Float 2 days',
-      'Waits for a dependency’s first estimated role',
+      'Waits for a dependency’s first estimated step',
       'after 3.1 Design',
     ]);
     // The heading against `rowWords`' own output and not against the literal
@@ -1340,16 +1340,16 @@ describe('the chart is drawn in calendar days', () => {
   });
 
   itDom('leaves no line blank where a fact is missing', () => {
-    // Every absence at once, on one chart: a slice under no role, nobody
-    // assigned, no estimate for that role, and no team. Each says so in words —
+    // Every absence at once, on one chart: a slice under no step, nobody
+    // assigned, no estimate for that step, and no team. Each says so in words —
     // the whole of the "nothing is blank" scenario, on a project holding no
-    // roles at all.
+    // steps at all.
     render(
       <GanttPanel
         plan={planOf({
           rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip' })],
-          slices: [sliceAt('strip-dev', 'strip', 0, 3, { roleId: null })],
-          roles: [],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3, { stepId: null })],
+          steps: [],
         })}
         startDate={null}
         scheduleError={null}
@@ -1362,9 +1362,9 @@ describe('the chart is drawn in calendar days', () => {
     );
 
     const lines = linesOf(surfaceOn('strip-dev'));
-    expect(lines).toContain('No role · Unassigned');
+    expect(lines).toContain('No step · Unassigned');
     expect(lines).toContain('No team');
-    expect(lines).toContain('No estimate for this role');
+    expect(lines).toContain('No estimate for this step');
     // And nothing empty among them, which is the fact the three lines above
     // cannot state between them: a line rendered and blank passes all three.
     expect(lines.filter((line) => line.trim() === '')).toEqual([]);
@@ -1474,8 +1474,8 @@ describe('the chart is drawn in calendar days', () => {
     expect(lines).toContain('No team');
   });
 
-  itDom('gives each role’s bar its own dates and its own trio', () => {
-    // Two roles on one leaf, which is the whole of "a bar's facts are its own
+  itDom('gives each step’s bar its own dates and its own trio', () => {
+    // Two steps on one leaf, which is the whole of "a bar's facts are its own
     // slice's": the row spans 0 → 5 and neither bar says so.
     //
     // Proof: the two dates derived from the row's own span — `spanWords` fed
@@ -1491,7 +1491,7 @@ describe('the chart is drawn in calendar days', () => {
             rowAt('deck', 0, 5, {
               number: '010',
               name: 'Deck',
-              trioByRole: new Map([
+              trioByStep: new Map([
                 ['dev', { optimistic: 2, realistic: 3, pessimistic: 8 }],
                 ['qa', { optimistic: 1, realistic: 1, pessimistic: 1 }],
               ]),
@@ -1499,9 +1499,9 @@ describe('the chart is drawn in calendar days', () => {
           ],
           slices: [
             sliceAt('deck-dev', 'deck', 0, 3),
-            sliceAt('deck-qa', 'deck', 3, 5, { roleId: 'qa' }),
+            sliceAt('deck-qa', 'deck', 3, 5, { stepId: 'qa' }),
           ],
-          roles: [
+          steps: [
             { id: 'dev', name: 'Dev' },
             { id: 'qa', name: 'QA' },
           ],
@@ -1524,7 +1524,7 @@ describe('the chart is drawn in calendar days', () => {
     fireEvent.blur(markFor('deck-dev'));
     const qa = linesOf(surfaceOn('deck-qa'));
     expect(qa).toContain('13 Aug → 14 Aug · 2 days');
-    // The bar's own role's trio, never the row's first one.
+    // The bar's own step's trio, never the row's first one.
     expect(qa).toContain('1/1/1');
     expect(qa).not.toContain('2/3/8');
   });
@@ -2759,7 +2759,7 @@ describe('the axis is a calendar', () => {
 /** The Monday the fixture plan begins on, so every offset below is a weekday. */
 const MONDAY = '2026-08-10';
 
-const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev' };
 
 const NO_DAYS: Days = { optimistic: 0, realistic: 0, pessimistic: 0 };
 
@@ -2806,7 +2806,7 @@ function rowOf(parts: {
     serviceTeamId: null,
     teamIds: [],
     assignees: {},
-    doesEveryPhase: null,
+    doesEveryStep: null,
     schedule: {
       duration: parts.finish - parts.start,
       estimated: true,
@@ -2875,11 +2875,11 @@ const PLAN: WorkItemView[] = [
   }),
 ];
 
-/** One slice per leaf, which is what a one-phase plan gets from the engine. */
+/** One slice per leaf, which is what a one-step plan gets from the engine. */
 const sliceOf = (workItemId: string, start: number, finish: number): SliceView => ({
   id: `${workItemId}::${DEV.id}`,
   workItemId,
-  roleId: DEV.id,
+  stepId: DEV.id,
   personId: null,
   duration: finish - start,
   estimated: true,
@@ -2932,8 +2932,8 @@ const notImplemented = (what: string): never => {
  * The four reads `refresh` makes, disagreeing — which is what a peer's edit
  * landing between two of them leaves behind.
  *
- * `tree` carries the slices **and** the roles and names they were placed with;
- * `roles` and `listPeople` are separate requests at separate moments. This is
+ * `tree` carries the slices **and** the steps and names they were placed with;
+ * `steps` and `listPeople` are separate requests at separate moments. This is
  * how a test says "these two moments do not agree" without inventing a
  * `GanttPlan` by hand: a hand-built plan proves the geometry throws, and the
  * question here is which of the four reads the panel is drawn from.
@@ -2949,8 +2949,8 @@ interface ReadSkew {
    * the fixture is a mark added to twenty drawings that are not about it.
    */
   waits?: Record<string, string[]>;
-  /** What the **separate** role read says, when it disagrees with the payload. */
-  roles?: RoleView[];
+  /** What the **separate** step read says, when it disagrees with the payload. */
+  steps?: StepView[];
   /** What the **separate** people read says, when it disagrees with the payload. */
   people?: PersonView[];
   /**
@@ -2995,9 +2995,9 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         seq: 0,
         scheduleError: null,
         slices: skew.slices ?? SLICES,
-        // The roles and the names the slices above were placed with — one
+        // The steps and the names the slices above were placed with — one
         // payload, which is the whole of the invariant the chart is drawn on.
-        roles: [{ ...DEV }],
+        steps: [{ ...DEV }],
         assignedPeople: [{ id: 'kat', name: 'Kat' }],
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -3012,7 +3012,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
       }),
     // The **separate** read, which the skewed fixture below makes disagree with
     // the payload above on purpose.
-    roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
+    steps: () => Promise.resolve(skew.steps ?? [{ ...DEV }]),
     listTeams: () => Promise.resolve(skew.teams ?? teams),
     listTags: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
@@ -3025,9 +3025,9 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     redo: () => notImplemented('redo'),
     setEstimateMethod: () => notImplemented('setEstimateMethod'),
     setStartDate: () => notImplemented('setStartDate'),
-    addRole: () => notImplemented('addRole'),
-    renameRole: () => notImplemented('renameRole'),
-    removeRole: () => notImplemented('removeRole'),
+    addStep: () => notImplemented('addStep'),
+    renameStep: () => notImplemented('renameStep'),
+    removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
     addPerson: () => notImplemented('addPerson'),
     create: () => notImplemented('create'),
@@ -3448,7 +3448,7 @@ describe('the deploy gate: a plan a sized team is holding back', () => {
     // `default:` catches it again. Both tests here failed, on
     // `expected 'The chart cannot be drawn: slice seal…' to be null` and
     // `no bar on the chart for sealing`, against four uncaught
-    // `GanttDataError: slice sealing::role-dev is held by capacity, which this
+    // `GanttDataError: slice sealing::step-dev is held by capacity, which this
     // chart has no words for` — the whole chart replaced by the fallback on a
     // plan be-01 schedules every day. Watched 2026-08-13.
     await showTheChart(MONDAY, POOLED);
@@ -3478,7 +3478,7 @@ describe('the deploy gate: a plan a sized team is holding back', () => {
     // Proof: the `unresolved` arm of `poolNameOf` returning `null` again, so
     // the capacity arm's no-team throw catches it. This test alone failed, on
     // `expected 'The chart cannot be drawn: slice seal…' to be null` against
-    // `GanttDataError: slice sealing::role-dev is floored by a team's capacity
+    // `GanttDataError: slice sealing::step-dev is floored by a team's capacity
     // but its row names no team` — the whole chart in the boundary for a state
     // that self-heals on the next read. Watched 2026-08-13.
     await showTheChart(MONDAY, { ...POOLED, teams: [] });
@@ -3512,7 +3512,7 @@ describe('a chart that cannot be drawn', () => {
     //
     // Proof: `<GanttFaultBoundary>` struck from `wbs-table.tsx` and the panel
     // rendered bare. This test failed with the render itself throwing —
-    // `GanttDataError: slice sanding::role-dev names resource predecessor
+    // `GanttDataError: slice sanding::step-dev names resource predecessor
     // a-slice-nobody-sent, which is not a slice in this payload`, out of
     // `render` rather than as a failed expectation, taking the four rows and
     // every toolbar control with it. Watched 2026-08-09.
@@ -3583,18 +3583,18 @@ describe('a chart that cannot be drawn', () => {
 });
 
 describe('the chart is drawn from one read', () => {
-  itDom('draws under the roles the payload carried, not the pickers’ list', async () => {
+  itDom('draws under the steps the payload carried, not the pickers’ list', async () => {
     // A peer removed `Dev` and added `Ops` between this client's `tree` read and
-    // its `roles` read: the separate read now lists a phase no slice is under,
-    // and lists none of the phase every slice **is** under. That is the
+    // its `steps` read: the separate read now lists a step no slice is under,
+    // and lists none of the step every slice **is** under. That is the
     // four-request skew this fix exists for, and nothing about it is malformed —
     // both answers were true when they were given.
-    await showTheChart(MONDAY, { roles: [{ id: 'role-ops', name: 'Ops' }] });
+    await showTheChart(MONDAY, { steps: [{ id: 'step-ops', name: 'Ops' }] });
 
-    // Proof: `ganttPlan`'s `roles` put back to the `roles` state — the separate
+    // Proof: `ganttPlan`'s `steps` put back to the `steps` state — the separate
     // read. This test failed on `expected null not to be null`, with the
-    // boundary reading `The chart cannot be drawn: slice sanding::role-dev is
-    // under role role-dev, which this plan does not list.` Watched 2026-08-09.
+    // boundary reading `The chart cannot be drawn: slice sanding::step-dev is
+    // under step step-dev, which this plan does not list.` Watched 2026-08-09.
     expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
     expect(faultWords()).toBeNull();
     expect(labelsOnTheChart()).toEqual([
@@ -3603,7 +3603,7 @@ describe('the chart is drawn from one read', () => {
       '012 - Sealing',
       '020 - Rigging',
     ]);
-    // The phase's name is read from the same list the bar was placed by, so a
+    // The step's name is read from the same list the bar was placed by, so a
     // chart drawn from the skewed read would either throw or say `Ops`.
     expect(labelOf(barOn('sanding'))).toContain('Dev');
   });
@@ -3621,7 +3621,7 @@ describe('the chart is drawn from one read', () => {
 
     // Proof: `ganttPlan`'s `personNames` put back to the `people` state. This
     // test alone failed, on `expected 'The chart cannot be drawn: slice sand…'
-    // to be null` — the boundary reading `slice sanding::role-dev is assigned
+    // to be null` — the boundary reading `slice sanding::step-dev is assigned
     // to kat, whom this plan does not name`. Watched 2026-08-09.
     expect(faultWords()).toBeNull();
     expect(labelOf(barOn('sanding'))).toContain('Kat');
@@ -3939,7 +3939,7 @@ describe('a bar names what its row waits for, from the whole tree', () => {
     // include 'after 011 Sanding'`, the bar reading `after work that is not
     // shown` about a row the plan holds and the reader has merely closed. The
     // search test below failed on the same edit; both watched, 2026-08-09.
-    expect(linesOf(surfaceOn('rigging::role-dev'))).toContain('after 011 Sanding');
+    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 Sanding');
   });
 
   itDom('names a predecessor a search narrowed away', async () => {
@@ -3949,7 +3949,7 @@ describe('a bar names what its row waits for, from the whole tree', () => {
 
     // The second half of the same fault, and it has its own test because a
     // collapse and a search narrow the plan by two different mechanisms.
-    expect(linesOf(surfaceOn('rigging::role-dev'))).toContain('after 011 Sanding');
+    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 Sanding');
   });
 });
 
@@ -4898,28 +4898,28 @@ describe('downloading the chart as a standalone .svg', () => {
       reader.readAsText(blob);
     });
 
-  const twoRolePlan = (): GanttPlan =>
+  const twoStepPlan = (): GanttPlan =>
     planOf({
       rows: [rowAt('hull', 0, 7, { number: '010', name: 'Hull' })],
       slices: [
         sliceAt('hull-dev', 'hull', 0, 7, { personId: 'kat' }),
-        sliceAt('hull-qa', 'hull', 7, 8, { roleId: 'qa' }),
+        sliceAt('hull-qa', 'hull', 7, 8, { stepId: 'qa' }),
       ],
-      roles: [
+      steps: [
         { id: 'dev', name: 'Dev' },
         { id: 'qa', name: 'QA' },
       ],
       personNames: new Map([['kat', 'Kat']]),
     });
 
-  const twoWideRolePlan = (): GanttPlan =>
+  const twoWideStepPlan = (): GanttPlan =>
     planOf({
       rows: [rowAt('hull', 0, 14, { number: '010', name: 'Hull' })],
       slices: [
         sliceAt('hull-dev', 'hull', 0, 7, { personId: 'kat' }),
-        sliceAt('hull-qa', 'hull', 7, 14, { roleId: 'qa' }),
+        sliceAt('hull-qa', 'hull', 7, 14, { stepId: 'qa' }),
       ],
-      roles: [
+      steps: [
         { id: 'dev', name: 'Dev' },
         { id: 'qa', name: 'QA' },
       ],
@@ -4935,7 +4935,7 @@ describe('downloading the chart as a standalone .svg', () => {
   itDom('puts a download control in the panel corner, without a toolbar button', () => {
     render(
       <GanttPanel
-        plan={twoRolePlan()}
+        plan={twoStepPlan()}
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
@@ -4965,7 +4965,7 @@ describe('downloading the chart as a standalone .svg', () => {
     // rung, where the constant and the value agree. Watched 2026-08-23.
     render(
       <GanttPanel
-        plan={twoRolePlan()}
+        plan={twoStepPlan()}
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
@@ -5011,7 +5011,7 @@ describe('downloading the chart as a standalone .svg', () => {
   itDom('clips every visible bar label to that bar at the Months rung', async () => {
     render(
       <GanttPanel
-        plan={twoWideRolePlan()}
+        plan={twoWideStepPlan()}
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
@@ -5060,7 +5060,7 @@ describe('downloading the chart as a standalone .svg', () => {
   itDom('downloads a well-formed, self-contained .svg carrying the chart’s own marks', async () => {
     render(
       <GanttPanel
-        plan={twoRolePlan()}
+        plan={twoStepPlan()}
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
@@ -5131,7 +5131,7 @@ describe('downloading the chart as a standalone .svg', () => {
     async () => {
       render(
         <GanttPanel
-          plan={twoRolePlan()}
+          plan={twoStepPlan()}
           startDate={MONDAY_START}
           scheduleError={null}
           generation={0}
@@ -5153,7 +5153,7 @@ describe('downloading the chart as a standalone .svg', () => {
       for (const line of gridlines) {
         expect(line.getAttribute('class')).toBeNull();
       }
-      // Nor may role/tabindex -- a keyboard control in the app the file has
+      // Nor may step/tabindex -- a keyboard control in the app the file has
       // nothing behind, in a document with no reason to claim one.
       const anyBar = doc.querySelector('[data-gantt-bar]');
       expect(anyBar?.getAttribute('role')).toBeNull();

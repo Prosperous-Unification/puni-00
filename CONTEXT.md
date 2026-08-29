@@ -8,7 +8,7 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 ### WBS
 
 **Project**:
-One work breakdown structure and everything scoped to it — its work items, its roles and
+One work breakdown structure and everything scoped to it — its work items, its steps and
 its restriction. Nothing is shared between projects.
 _Avoid_: workspace, board, plan
 
@@ -58,24 +58,24 @@ Widening every child number under one parent when that parent gains a tenth chil
 `010.1` becomes `010.01` and the tenth sorts last rather than second.
 _Avoid_: renumbering, padding fix
 
-**Role**:
+**Step**:
 A named kind of work a project estimates separately, unique by name within it. Every
 project starts with `Dev` and `QA`, and may then be given others, renamed or emptied.
 _Avoid_: discipline, type, category
 
-**Role order**:
-The order a project works its roles in — `Dev` before `QA` before whatever was added
-after them. One order for the whole project, held per role, and the order every list of
+**Step order**:
+The order a project works its steps in — `Dev` before `QA` before whatever was added
+after them. One order for the whole project, held per step, and the order every list of
 them is read in.
-_Avoid_: phase order, sequence, priority
+_Avoid_: phase order, role order, sequence, priority
 
 **Assumed assignee**:
-The person a work item with exactly one assignment is taken to be doing every role's work
+The person a work item with exactly one assignment is taken to be doing every step's work
 for. Read from the assignments rather than stored, so a second one ends the assumption.
 _Avoid_: default assignee, implicit owner, cover
 
-**Role usage**:
-What a role's removal would take with it: the estimates and assignments that hold it, and
+**Step usage**:
+What a step's removal would take with it: the estimates and assignments that hold it, and
 the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
@@ -158,7 +158,7 @@ row again. A third state beside stated and unstated.
 _Avoid_: stale capacity, orphan capacity, leftover
 
 **Person**:
-Somebody who does work, named in the directory and assigned to a work item's role. Not an
+Somebody who does work, named in the directory and assigned to a work item's step. Not an
 account: most of the people a plan names never sign in.
 _Avoid_: user, resource, member, assignee (which is the assignment, not the person)
 
@@ -209,25 +209,25 @@ _Avoid_: subtitle, caption, details
 
 **Estimate**:
 Three durations in days — optimistic, realistic, pessimistic — held for one work item and
-one role. A work item with children has no estimates of its own.
+one step. A work item with children has no estimates of its own.
 _Avoid_: points, effort, sizing
 
 **Trio shorthand**:
 One estimate written as one value — `2/3/8`, or `5` meaning all three are five. What a
-folded role's cell takes, in place of three boxes.
+folded step's cell takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
 **Estimate gap**:
-One leaf work item and one role it holds no estimate for. A work item with children never
+One leaf work item and one step it holds no estimate for. A work item with children never
 has one, because its figures are rolled up rather than typed.
 _Avoid_: missing estimate, unestimated row, TBD
 
 **Roll-up**:
-The sum of a parent's descendants' estimates, per role, computed on read and never stored.
+The sum of a parent's descendants' estimates, per step, computed on read and never stored.
 _Avoid_: aggregate, total, computed estimate
 
 **Measure**:
-One number somebody typed about one work item, one role and one **metric**, with the
+One number somebody typed about one work item, one step and one **metric**, with the
 moment they typed it. Rolls up like an estimate; absent, never zero, when nobody typed it.
 Days live outside this term — they are the **estimate** and the **recorded days**.
 _Avoid_: metric value, figure, datapoint, reading
@@ -239,35 +239,35 @@ whether a token figure exists.
 _Avoid_: unit, kind (which is the person's), measure type
 
 **Token estimate**:
-The tokens a role's work on one work item is expected to take. One number, not a trio: no
+The tokens a step's work on one work item is expected to take. One number, not a trio: no
 scheduler folds it, so there is nothing for a range to reduce to.
 _Avoid_: token budget, projected spend, cost estimate
 
 **Token fact**:
-The tokens a role's work on one work item actually took. Says nothing about whether that
-work is finished — completion is the role's **progress**, recorded separately.
+The tokens a step's work on one work item actually took. Says nothing about whether that
+work is finished — completion is the step's **progress**, recorded separately.
 _Avoid_: actual tokens, token spend, usage
 
 **Hours fact**:
-The hours a role's work on one work item actually took. Recorded, never derived: no
+The hours a step's work on one work item actually took. Recorded, never derived: no
 conversion from tokens or from days exists, because neither is one.
 _Avoid_: actual hours, time spent, effort
 
 **Dependency**:
 One work item waiting for another's anchor slice to finish before it starts; the
-predecessor's later roles run in parallel with it. Either end may be a parent, which
+predecessor's later steps run in parallel with it. Either end may be a parent, which
 means every leaf beneath it. Held once per pair, in one direction.
 _Avoid_: link, blocker, edge (outside the graph code)
 
 **Slice**:
-One leaf work item's work for one role — the unit a schedule is computed in. A leaf in a
-project holding two roles is two slices, run one after the other in role order.
-_Avoid_: task, bar, segment, phase, item×role
+One leaf work item's work for one step — the unit a schedule is computed in. A leaf in a
+project holding two steps is two slices, run one after the other in step order.
+_Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in role order that somebody estimated — the one a dependency
-waits on. A role listed in front of it and left unestimated is stepped over. Reordering a
-project's roles moves what every dependency waits for. Where nothing is estimated the
+A work item's first slice in step order that somebody estimated — the one a dependency
+waits on. A step listed in front of it and left unestimated is stepped over. Reordering a
+project's steps moves what every dependency waits for. Where nothing is estimated the
 anchor is the work item's finish, which for a work item of no days is its own start.
 _Avoid_: dev slice, first slice, handoff point
 
@@ -289,7 +289,7 @@ important — or absent, which is a state of its own and not a large number. A c
 item takes its project's rank 2 band's own default unless the create names one; absent is
 what a create is explicitly told to write, and what every work item written before
 2026-08-29 still holds. Decides which of two eligible slices is **placed** first; a leaf
-that carries one is not reached by a priority written on a phase above it. Never overrides
+that carries one is not reached by a priority written on a step above it. Never overrides
 a dependency, a floor or a calendar, and placed first is not started first — a narrow
 block can take a hole a wide one of higher priority cannot use. What the number is **called** is the project's own —
 see Priority band — and the name decides nothing the number does not.
@@ -318,13 +318,13 @@ _Avoid_: band index, level, tier number
 
 **Eligible slice**:
 One whose predecessors have all been placed — its dependencies and its work item's
-earlier roles. The set of them is what the schedule takes its next slice from, highest
+earlier steps. The set of them is what the schedule takes its next slice from, highest
 priority first.
 _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
 The one thing a slice's start is set by, out of the day the project starts, a dependency,
-its work item's earlier role, a manual date, its assignee's last finish, and its team's
+its work item's earlier step, a manual date, its assignee's last finish, and its team's
 capacity. A tie is never the person and never the capacity: somebody — or some slot —
 free exactly when the dependency clears is holding nothing up.
 _Avoid_: constraint, reason, blocker, driver
@@ -504,7 +504,7 @@ _Avoid_: notes icon, badge, indicator, button
 
 **Hover card**:
 The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest
-face folds away — a folded role's three points and assignee, a depends chip's names. Opens
+face folds away — a folded step's three points and assignee, a depends chip's names. Opens
 on enter with no delay, one at a time; the Name cell's hover preview is one.
 _Avoid_: tooltip, title attribute, hint
 
@@ -602,7 +602,7 @@ _Avoid_: fixed columns, standard columns, all columns
 
 **Hidden column**:
 A column a reader has taken off the table for one project, still in the plan and still
-counted in every roll-up and date; a whole role can be hidden, and then none of its columns
+counted in every roll-up and date; a whole step can be hidden, and then none of its columns
 is on screen. Number, Name and the row's controls cannot be.
 _Avoid_: collapsed column, disabled column, removed column, folded column
 
@@ -632,12 +632,12 @@ _Avoid_: view, mode, layout, breakpoint
 
 **Outline card**:
 One work item as a phone reads it: its number at its own depth, its name and notes in one
-box, its figures, its dates, and one line per phase. Read whole; edited one field at a time.
+box, its figures, its dates, and one line per step. Read whole; edited one field at a time.
 _Avoid_: tile, row, list item, mobile row
 
 **Mention**:
 A person looked up from inside another box, written as `@` and part of their name — in the
-folded role cell, where `2/3/8@kat` is one gesture. Held apart from whatever the box is
+folded step cell, where `2/3/8@kat` is one gesture. Held apart from whatever the box is
 otherwise for: the estimate never sees the mention and the mention never becomes an
 estimate.
 _Avoid_: at-mention, tag, autocomplete
@@ -668,7 +668,7 @@ _Avoid_: version, etag, timestamp, sequence
 
 **Satellite**:
 A row that belongs to one entity, has no identity anyone holds, and is only ever read
-through that entity — an estimate, an assignment, a role. Writing one moves the owner's
+through that entity — an estimate, an assignment, a step. Writing one moves the owner's
 revision; a dependency has two owners and moves both.
 _Avoid_: child row, detail, related record
 
@@ -688,7 +688,7 @@ _Avoid_: audit log, activity feed, changelog, journal
 
 **Plan event**:
 One row of the plan history: a command that happened, the sentence describing it, the
-work item and role it was aimed at where it had one, and the two commands the journal
+work item and step it was aimed at where it had one, and the two commands the journal
 holds — what it did, and what would undo it. It names its work item without depending on
 it, so it survives the row's deletion.
 _Avoid_: history entry, audit record, revision

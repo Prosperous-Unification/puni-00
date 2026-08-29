@@ -23,7 +23,7 @@ const refusal = (
 
 /**
  * ```
- * phase          (parent)
+ * step          (parent)
  *   early
  *   late
  * after
@@ -33,9 +33,9 @@ const refusal = (
  * are that file's cases and not a paraphrase of them.
  */
 const FIXTURE: readonly (readonly [string, string | null])[] = [
-  ['phase', null],
-  ['early', 'phase'],
-  ['late', 'phase'],
+  ['step', null],
+  ['early', 'step'],
+  ['late', 'step'],
   ['after', null],
   ['loose', null],
 ];
@@ -82,7 +82,7 @@ const BE_01_CASES: readonly {
     what: 'allows an edge onto a parent, which is the point of declaring one there',
     tree: FIXTURE,
     edges: [],
-    predecessorId: 'phase',
+    predecessorId: 'step',
     successorId: 'after',
     expected: null,
   },
@@ -91,7 +91,7 @@ const BE_01_CASES: readonly {
     tree: FIXTURE,
     edges: [],
     predecessorId: 'after',
-    successorId: 'phase',
+    successorId: 'step',
     expected: null,
   },
   {
@@ -106,7 +106,7 @@ const BE_01_CASES: readonly {
     what: 'refuses a work item depending on its own parent',
     tree: FIXTURE,
     edges: [],
-    predecessorId: 'phase',
+    predecessorId: 'step',
     successorId: 'early',
     expected: 'ancestor',
   },
@@ -115,7 +115,7 @@ const BE_01_CASES: readonly {
     tree: FIXTURE,
     edges: [],
     predecessorId: 'early',
-    successorId: 'phase',
+    successorId: 'step',
     expected: 'ancestor',
   },
   {
@@ -160,22 +160,22 @@ const BE_01_CASES: readonly {
   {
     what: 'follows the tree when a cycle runs through a parent',
     tree: FIXTURE,
-    edges: [['phase', 'after']],
+    edges: [['step', 'after']],
     predecessorId: 'after',
     successorId: 'early',
     expected: 'cycle',
   },
   {
-    // codex's cross-review example. `phase → after` expands to `leaf → after`,
+    // codex's cross-review example. `step → after` expands to `leaf → after`,
     // which with an existing `after → leaf` is a cycle.
     what: 'refuses an edge whose expansion closes a cycle through a parent',
     tree: [
-      ['phase', null],
-      ['leaf', 'phase'],
+      ['step', null],
+      ['leaf', 'step'],
       ['after', null],
     ],
     edges: [['after', 'leaf']],
-    predecessorId: 'phase',
+    predecessorId: 'step',
     successorId: 'after',
     expected: 'cycle',
   },
@@ -228,8 +228,8 @@ describe('refusalFor — the part the picker needs that be-01 does not', () => {
     // The two sentences the dropdown writes are not the same sentence: one row
     // contains the row being edited, the other sits inside it. Fold these two
     // together and the picker tells half the people the wrong thing.
-    expect(refusal(rows, 'phase', 'early')).toBe('ancestor');
-    expect(refusal(rows, 'early', 'phase')).toBe('descendant');
+    expect(refusal(rows, 'step', 'early')).toBe('ancestor');
+    expect(refusal(rows, 'early', 'step')).toBe('descendant');
   });
 
   it('names a row onto itself as itself, not as an ancestor', () => {

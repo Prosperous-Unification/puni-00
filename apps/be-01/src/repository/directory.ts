@@ -27,7 +27,7 @@ import {
   personTeam,
   project,
   projectTeamCapacity,
-  role,
+  step,
   service,
   serviceTeam,
   tag,
@@ -42,7 +42,7 @@ import {
  * Whether a thrown error is SQLite refusing a second team of the same name.
  *
  * The message rather than a typed error, because `bun:sqlite` has no typed one
- * — the same translation `RoleRepository` makes for a duplicate role name. It
+ * — the same translation `StepRepository` makes for a duplicate step name. It
  * names the index's column so that a different constraint failing here is still
  * an unknown, and still throws.
  */
@@ -72,7 +72,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
   projects: [],
   assignments: [],
-  roles: [],
+  steps: [],
   people: [],
   members: [],
   capacityOf: new Map(),
@@ -86,7 +86,7 @@ type Reader = Pick<SQLiteBunDatabase, 'select'>;
  * `members` the caller worked out.
  *
  * Takes the reader so the refusal can read it inside the transaction that
- * refused — the same shape `RoleRepository`'s `assignmentsIn` takes, and for
+ * refused — the same shape `StepRepository`'s `assignmentsIn` takes, and for
  * the same reason.
  */
 function usageRowsIn(
@@ -162,17 +162,17 @@ function usageRowsIn(
   const assignments = reader
     .select({
       workItemId: assignment.workItemId,
-      roleId: assignment.roleId,
+      stepId: assignment.stepId,
       personId: assignment.personId,
     })
     .from(assignment)
     .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
     .where(inArray(workItem.projectId, ids))
     .all();
-  const roles = reader
-    .select({ id: role.id, name: role.name })
-    .from(role)
-    .where(inArray(role.projectId, ids))
+  const steps = reader
+    .select({ id: step.id, name: step.name })
+    .from(step)
+    .where(inArray(step.projectId, ids))
     .all();
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
@@ -200,7 +200,7 @@ function usageRowsIn(
     workItems,
     projects,
     assignments,
-    roles,
+    steps,
     people,
     members,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
@@ -779,7 +779,7 @@ export class DirectoryRepository implements DirectoryStore {
    * Counts, decides and deletes in **one** transaction.
    *
    * The count is inside because it *is* the decision, not a report about it —
-   * the rule `RoleRepository.remove` sets out at length. An assignment written
+   * the rule `StepRepository.remove` sets out at length. An assignment written
    * between an unconfirmed caller's own count and this statement refuses the
    * removal rather than being deleted by it: the usage that caller was shown
    * never mentioned it.
@@ -973,7 +973,7 @@ export class DirectoryRepository implements DirectoryStore {
 
   async assignmentsOf(
     workItemIds: readonly string[],
-  ): Promise<{ workItemId: string; roleId: string; personId: string }[]> {
+  ): Promise<{ workItemId: string; stepId: string; personId: string }[]> {
     if (workItemIds.length === 0) return [];
     const wanted = new Set(workItemIds);
     const rows = await this.db.select().from(assignment);
@@ -999,7 +999,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async assign(
     workItemId: string,
-    roleId: string,
+    stepId: string,
     personId: string | null,
   ): Promise<AssignmentWritten> {
     await Promise.resolve();
@@ -1010,17 +1010,17 @@ export class DirectoryRepository implements DirectoryStore {
       }
       if (personId === null) {
         // `and(...)`, not `&&`: the JS operator would evaluate to the second
-        // condition alone and delete every role's assignment on this work item.
+        // condition alone and delete every step's assignment on this work item.
         tx.delete(assignment)
-          .where(and(eq(assignment.workItemId, workItemId), eq(assignment.roleId, roleId)))
+          .where(and(eq(assignment.workItemId, workItemId), eq(assignment.stepId, stepId)))
           .run();
       } else {
         tx.insert(assignment)
-          .values({ workItemId, roleId, personId })
+          .values({ workItemId, stepId, personId })
           // The pair is the primary key, so reassigning is an update rather
           // than a constraint violation.
           .onConflictDoUpdate({
-            target: [assignment.workItemId, assignment.roleId],
+            target: [assignment.workItemId, assignment.stepId],
             set: { personId },
           })
           .run();

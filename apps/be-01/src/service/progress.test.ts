@@ -8,7 +8,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   StoredProgress,
   WorkItemStore,
 } from '../repository';
@@ -30,16 +30,16 @@ import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
-let journal: CommandJournalStore & { events: { kind: string; roleId: string | null }[] };
+let progress: StepProgressStore;
+let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
 
@@ -53,7 +53,7 @@ beforeEach(async () => {
   progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
-  const recorded: { kind: string; roleId: string | null }[] = [];
+  const recorded: { kind: string; stepId: string | null }[] = [];
   // The journal with the history rows it is handed kept where a test can read
   // them, exactly as `actual.test.ts` does it: H1 writes the plan's event from
   // inside `append`, so this is the seam a statement has to arrive through if it
@@ -62,7 +62,7 @@ beforeEach(async () => {
     ...store,
     events: recorded,
     async append(entry, event) {
-      recorded.push({ kind: event.kind, roleId: event.roleId });
+      recorded.push({ kind: event.kind, stepId: event.stepId });
       await store.append(entry, event);
     },
   };
@@ -119,8 +119,8 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
  */
 function stored(
   rows: readonly StoredProgress[],
-): { workItemId: string; roleId: string; state: string }[] {
-  return rows.map(({ workItemId, roleId, state }) => ({ workItemId, roleId, state }));
+): { workItemId: string; stepId: string; state: string }[] {
+  return rows.map(({ workItemId, stepId, state }) => ({ workItemId, stepId, state }));
 }
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
@@ -130,11 +130,11 @@ async function add(name: string, parentId: string | null = null): Promise<string
 }
 
 /**
- * The per-role states by work item name, as the payload carries them.
+ * The per-step states by work item name, as the payload carries them.
  *
  * A Map rather than a Record for `estimate.test.ts`' reason: indexing a Record
  * is typed as always present, and every assertion here turns on the difference
- * between a role that is absent and one that has said something.
+ * between a step that is absent and one that has said something.
  */
 async function shown(): Promise<Map<string, Record<string, string>>> {
   const tree = await service.tree(projectId);
@@ -150,7 +150,7 @@ async function states(): Promise<Map<string, ItemState>> {
 }
 
 describe('stating where the work has got to', () => {
-  it('stores a role’s state on a leaf and shows it beside the figures', async () => {
+  it('stores a step’s state on a leaf and shows it beside the figures', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
     await service.setActual(strip, OWNER, DEV, 8);
@@ -178,14 +178,14 @@ describe('stating where the work has got to', () => {
     expect(await progress.listByProject(projectId)).toEqual([]);
   });
 
-  it('is in progress when one role is done and another has said nothing', async () => {
+  it('is in progress when one step is done and another has said nothing', async () => {
     // The disagreement case, and the one the whole design turns on. Dev has
     // finished and QA has an estimate and no statement: that is an unfinished
     // work item, and reading it as done would let a plan report finished work
     // nobody has tested.
     //
-    // Proof: `workedRolesOf`'s estimates and actuals dropped, so the fold sees
-    // only the stated roles, and this fails with `done` where `in_progress` is
+    // Proof: `workedStepsOf`'s estimates and actuals dropped, so the fold sees
+    // only the stated steps, and this fails with `done` where `in_progress` is
     // owed; watched 2026-08-18.
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
@@ -197,7 +197,7 @@ describe('stating where the work has got to', () => {
     expect((await states()).get('Strip')).toBe('in_progress');
   });
 
-  it('is done only when every role with work on the row says so', async () => {
+  it('is done only when every step with work on the row says so', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
     await service.setEstimate(strip, OWNER, QA, days(1, 1, 1));
@@ -208,8 +208,8 @@ describe('stating where the work has got to', () => {
     expect((await states()).get('Strip')).toBe('done');
   });
 
-  it('counts a role that only has a recorded day as work still to be spoken about', async () => {
-    // The other half of the candidate set: a role nobody estimated but somebody
+  it('counts a step that only has a recorded day as work still to be spoken about', async () => {
+    // The other half of the candidate set: a step nobody estimated but somebody
     // recorded days against is work on this row, so its silence keeps the item
     // in progress.
     const strip = await add('Strip');
@@ -233,12 +233,12 @@ describe('stating where the work has got to', () => {
     expect(await progress.listByProject(projectId)).toEqual([]);
   });
 
-  it('refuses a role this project does not hold, and writes nothing', async () => {
+  it('refuses a step this project does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
-    const outcome = await service.setProgress(strip, OWNER, 'role-design', 'done');
+    const outcome = await service.setProgress(strip, OWNER, 'step-design', 'done');
 
-    expect(outcome).toEqual({ ok: false, reason: 'unknown_role' });
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_step' });
     expect(await progress.listByProject(projectId)).toEqual([]);
   });
 
@@ -264,21 +264,21 @@ describe('stating where the work has got to', () => {
     await service.setProgress(first, OWNER, DEV, 'done');
 
     // One child finished, the other estimated and silent: the branch is under
-    // way, and the per-role fold says the same because `agree` sees the second
+    // way, and the per-step fold says the same because `agree` sees the second
     // child's `not_started`.
     expect((await states()).get('Branch')).toBe('in_progress');
     expect((await shown()).get('Branch')).toEqual({ [DEV]: 'in_progress' });
 
     await service.setProgress(second, OWNER, DEV, 'done');
 
-    // Both finished: the branch is finished, and the roll-up says so per role.
+    // Both finished: the branch is finished, and the roll-up says so per step.
     expect((await states()).get('Branch')).toBe('done');
     expect((await shown()).get('Branch')).toEqual({ [DEV]: 'done' });
   });
 
   it('a branch is not done while one of its rows has never been spoken about', async () => {
     // The empty sibling: no estimate, no recorded day, nothing said. It holds no
-    // role, so the **per-role** fold cannot see it — `{dev: done}` is all it
+    // step, so the **per-step** fold cannot see it — `{dev: done}` is all it
     // answers — and reading the branch off that map would report finished work
     // over a row nobody has touched. The item state is folded over the children
     // instead, and silence keeps the branch in progress.
@@ -325,8 +325,8 @@ describe('stating where the work has got to', () => {
       'progress',
       'clear_progress',
     ]);
-    expect(journal.events.at(1)).toEqual({ kind: 'progress', roleId: DEV });
-    expect(journal.events.at(2)).toEqual({ kind: 'clear_progress', roleId: DEV });
+    expect(journal.events.at(1)).toEqual({ kind: 'progress', stepId: DEV });
+    expect(journal.events.at(2)).toEqual({ kind: 'clear_progress', stepId: DEV });
   });
 
   it('records nothing at all for clearing a statement that was never made', async () => {
@@ -354,7 +354,7 @@ describe('stating where the work has got to', () => {
     // carrying a third value would be the one thing this table must never hold.
     //
     // Proof: the inverse written as a `set_progress` of `in_progress`, and this
-    // fails with `+ { "role-dev": "in_progress" }` where an absence is owed — an
+    // fails with `+ { "step-dev": "in_progress" }` where an absence is owed — an
     // undo leaving the plan asserting work is under way that nobody started;
     // watched 2026-08-18.
     expect(await progress.listByProject(projectId)).toEqual([]);
@@ -368,12 +368,12 @@ describe('stating where the work has got to', () => {
 
     await service.undo(projectId, OWNER);
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, state: 'in_progress' },
+      { workItemId: strip, stepId: DEV, state: 'in_progress' },
     ]);
 
     await service.redo(projectId, OWNER);
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, state: 'done' },
+      { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
 
@@ -385,7 +385,7 @@ describe('stating where the work has got to', () => {
     await service.undo(projectId, OWNER);
 
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, state: 'done' },
+      { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
 });
@@ -404,14 +404,14 @@ describe('states through the structural commands', () => {
     // Proof: `progress.moveAll` struck from `create`, and this fails with the
     // child empty; watched 2026-08-18.
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: child, roleId: DEV, state: 'done' },
+      { workItemId: child, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Strip')).toBe('done');
 
     await service.undo(projectId, OWNER);
 
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, state: 'done' },
+      { workItemId: strip, stepId: DEV, state: 'done' },
     ]);
   });
 
@@ -430,7 +430,7 @@ describe('states through the structural commands', () => {
     // Proof: the hand-up loop struck from `remove`, and this fails with the
     // parent empty where `done` is owed; watched 2026-08-18.
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: branch, roleId: DEV, state: 'done' },
+      { workItemId: branch, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Branch')).toBe('done');
   });
@@ -454,7 +454,7 @@ describe('states through the structural commands', () => {
     await service.remove(child, OWNER, 'cascade');
 
     expect(stored(await progress.listByProject(projectId))).toEqual([
-      { workItemId: branch, roleId: DEV, state: 'done' },
+      { workItemId: branch, stepId: DEV, state: 'done' },
     ]);
     expect((await states()).get('Branch')).toBe('in_progress');
   });
@@ -465,7 +465,7 @@ describe('states through the structural commands', () => {
     // lie in a stronger tense.
     //
     // Proof: the duplicate's `progress` filled from the original's rows, and
-    // this fails with `+ { "role-dev": "done" }` on a row nobody has worked on;
+    // this fails with `+ { "step-dev": "done" }` on a row nobody has worked on;
     // watched 2026-08-18.
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
@@ -485,10 +485,10 @@ describe('states through the structural commands', () => {
 describe('what stating progress does not do', () => {
   it('moves no date: the plan schedules identically with and without a state', async () => {
     // R6's whole product decision as an assertion. The engine's input map is
-    // built from estimates in `slicesOf` and this table is not in it, so a role
+    // built from estimates in `slicesOf` and this table is not in it, so a step
     // marked done moves no bar and no successor.
     //
-    // Proof: the engine wired to skip a finished role's slice — the obvious
+    // Proof: the engine wired to skip a finished step's slice — the obvious
     // reading of "done" and the one the next change has to argue for
     // deliberately — and this fails with every date downstream moved; watched
     // 2026-08-18. `service/schedule.ts` has an empty diff on this branch, and

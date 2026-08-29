@@ -65,8 +65,8 @@ interface Submission {
  * live-editing state that outlives the thing rendering it.
  *
  * Rule 4 used to hold a refusal in a ref inside `CellInput`, which is exactly as
- * long as that component lives — and two things unmount it. A phase change
- * rebuilds every column (`columns` depends on `roles`, deliberately; see
+ * long as that component lives — and two things unmount it. A step change
+ * rebuilds every column (`columns` depends on `steps`, deliberately; see
  * `wbs-table.tsx`), and from `M mobile-cards` on, a phone turned sideways
  * swaps the whole renderer. Either way a name be-01 had refused was replaced by
  * the server's value and the only copy of what had been typed was gone.
@@ -104,15 +104,15 @@ const flushes = new WeakMap<CellElement, () => Promise<CommitOutcome>>();
 /**
  * Forgets every held refusal whose cell `isGone` answers true for.
  *
- * Called when a phase is removed: its columns no longer exist, so a draft held
+ * Called when a step is removed: its columns no longer exist, so a draft held
  * for one is text nobody can ever resolve — it would sit in the map for the
- * life of the page, and be restored into a cell of some later phase that
+ * life of the page, and be restored into a cell of some later step that
  * happened to be given the same column id.
  *
  * Only the durable copy goes. A field that is still mounted keeps `isRefused`,
  * and so keeps the text in the box until the remount that is on its way takes
  * the box with it: silently rewriting a box somebody is looking at is not what
- * "this phase is gone" should look like, and the remount is what says it.
+ * "this step is gone" should look like, and the remount is what says it.
  *
  * @param isGone Asked about each held cell key (`rowId::columnId`).
  */
@@ -271,7 +271,7 @@ export class LiveField {
    * Attaches the box this field is rendered as, and puts back whatever refusal
    * the cell was left holding.
    *
-   * The second half is rule 4 across a face that has gone. A phase change
+   * The second half is rule 4 across a face that has gone. A step change
    * rebuilds every column definition and React unmounts every cell — the one
    * sanctioned remount this table has — and a phone turned sideways will swap
    * the renderer outright; either way the fresh node arrives showing the
@@ -284,9 +284,9 @@ export class LiveField {
    * server still holds it, and leaving this cell again is therefore a retry
    * rather than a no-op.
    *
-   * Proof: the restore deleted, `keeps a draft be-01 refused when a new phase
+   * Proof: the restore deleted, `keeps a draft be-01 refused when a new step
    * rebuilds every column` failed on `expected '' to be 'Strip the wiring'` —
-   * the typed name replaced by the server's, by a phase somebody else added.
+   * the typed name replaced by the server's, by a step somebody else added.
    * Watched, 2026-08-09.
    */
   takeNode(node: CellElement | null): void {
@@ -467,7 +467,7 @@ export class LiveField {
         // request that never landed. Watched, 2026-08-08.
         this.sent = null;
         // Held outside this field as well as in it, because this object dies
-        // with the face and a phase change — or a breakpoint — takes the face
+        // with the face and a step change — or a breakpoint — takes the face
         // away. `text` rather than the node's value: this runs a round trip
         // later, and what was refused is what was sent.
         if (outcome === 'refused') heldRefusals.set(this.cellKey, text);

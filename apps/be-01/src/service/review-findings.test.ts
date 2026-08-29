@@ -6,7 +6,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -31,7 +31,7 @@ let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
+let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
@@ -47,10 +47,10 @@ async function newProject(name: string): Promise<string> {
     revision: 0,
     createdAt: 1,
   };
-  // Seeded with the role the estimates below name. The service refuses a role
+  // Seeded with the step the estimates below name. The service refuses a step
   // the project does not hold, and production's foreign key refuses it harder.
   await projects.create(project, [
-    { id: 'role-dev', projectId: project.id, name: 'Dev', position: 10 },
+    { id: 'step-dev', projectId: project.id, name: 'Dev', position: 10 },
   ]);
   return project.id;
 }
@@ -129,7 +129,7 @@ describe('review finding: a last child carries its descendants’ estimates up',
     const parent = await add('Parent');
     const onlyChild = await add('OnlyChild', parent);
     const leaf = await add('Leaf', onlyChild);
-    await service.setEstimate(leaf, OWNER, 'role-dev', {
+    await service.setEstimate(leaf, OWNER, 'step-dev', {
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,
@@ -138,7 +138,7 @@ describe('review finding: a last child carries its descendants’ estimates up',
     await service.remove(onlyChild, OWNER, 'cascade');
 
     const tree = await service.tree(projectId);
-    expect(tree?.workItems.find((w) => w.name === 'Parent')?.estimates['role-dev']).toEqual({
+    expect(tree?.workItems.find((w) => w.name === 'Parent')?.estimates['step-dev']).toEqual({
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,

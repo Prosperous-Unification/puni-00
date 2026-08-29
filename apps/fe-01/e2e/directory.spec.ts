@@ -167,7 +167,7 @@ test.describe('the directory, edited against be-01', () => {
     await showTeamsColumn(page);
 
     // The label, typed into the picker that creates a team if there is none.
-    // Found by role rather than by label: the open list carries the same
+    // Found by step rather than by label: the open list carries the same
     // accessible name as the box it drops from, and `getByLabel` finds both.
     const teamCell = page.getByRole('combobox', { name: 'Service or team for 010' });
     await teamCell.click();

@@ -82,7 +82,7 @@ describe('the resolved frame layout', () => {
     expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
     expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(105);
     // 867px of fixed columns with a dated `not-before`, plus Name's 200px
-    // floor, plus a folded column for each of two phases. 855 → 867 in
+    // floor, plus a folded column for each of two steps. 855 → 867 in
     // `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
     expect(layout.minWidth).toBe(867 + FLEXIBLE_FLOOR + 2 * 96);
   });
@@ -97,7 +97,7 @@ describe('the resolved frame layout', () => {
     // holds in a state nobody wrote a case for: whatever each pinned column
     // resolves to, the one behind it starts where that one ends. The three
     // numbers themselves are the test below.
-    // Proof: `pinnedGeometryFor` made to add `ROLE_FINAL_WIDTH` instead of the
+    // Proof: `pinnedGeometryFor` made to add `STEP_FINAL_WIDTH` instead of the
     // resolved width, this failed on `expected { left: 96, width: 100 } to
     // deeply equal { left: 24, width: 100 }`. Watched, 2026-08-09.
     for (const state of [DATED, UNDATED]) {
@@ -144,8 +144,8 @@ describe('the resolved frame layout', () => {
     // `<col>` and a `minWidth` of `NaN`, a table declared narrower than it lays
     // out by a column nobody can see. Watched, 2026-08-09.
     expect(() => frameLayout([...RENDERED, 'serviec'], DATED)).toThrow(UnknownColumnError);
-    // A typo carrying a dash must not fall through the role suffixes either.
-    expect(() => frameLayout(['role-dev-realsitic'], DATED)).toThrow(UnknownColumnError);
+    // A typo carrying a dash must not fall through the step suffixes either.
+    expect(() => frameLayout(['step-dev-realsitic'], DATED)).toThrow(UnknownColumnError);
     // And the width that is missing is missing from the sum as well, which is
     // the second half of the same fault: the assertion above only sees the
     // throw, so the sum is stated here as the thing the throw is protecting.
@@ -185,7 +185,7 @@ describe('the resolved frame layout', () => {
       }
       expect(column.width).toBeGreaterThan(0);
     }
-    // A role's columns are named for a role that only exists at runtime, so
+    // A step's columns are named for a step that only exists at runtime, so
     // they are sized by suffix. One per literal in `POINTS`.
     expect(
       declared(
@@ -304,21 +304,21 @@ describe('the width equation the table is laid out by', () => {
     // 819px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor. The three states the browser gate measures, computed here so a
     // width change that breaks one of them fails in the repo gate rather than
-    // only in a browser: two roles folded fits a 1280 laptop, whose frame
+    // only in a browser: two steps folded fits a 1280 laptop, whose frame
     // measures 1248px.
     //
     // Three folded no longer does, and that is `column-rebalance`'s stated
     // cost: it was 1247 against that 1248 — one pixel inside — and the two
-    // date columns took 124px to stop wrapping their days. A three-phase plan
+    // date columns took 124px to stop wrapping their days. A three-step plan
     // scrolls its frame at 1280 now, which is the backstop the pinned columns
-    // exist for. One role unfolded has never fitted a 1280 laptop, and two of
+    // exist for. One step unfolded has never fitted a 1280 laptop, and two of
     // them fit nothing in the matrix: since `unfolding-may-scroll` that is a
     // state a reader may ask for, and the frame is what scrolls for it.
     //
-    // Each figure is 48px larger since `priority-column`: the two-phase plan
+    // Each figure is 48px larger since `priority-column`: the two-step plan
     // needs 1247 where it needed 1199, which is one pixel inside that same
     // 1248 — the margin `column-rebalance` left is now spent, and a single row
-    // setting an earliest start is what a two-phase plan has left before it
+    // setting an earliest start is what a two-step plan has left before it
     // scrolls. A plan with no dates on it is 28px narrower again and sits
     // comfortably inside. 48px is the narrowest a four-digit priority fits in.
     //
@@ -359,7 +359,7 @@ describe('the width equation the table is laid out by', () => {
     // this module exists to prevent, one column along.
     expect(frameLayout(['drag', 'number'], DATED).maxWidth).toBe(24 + 105);
     expect(frameLayout(['name'], DATED).maxWidth).toBe(FLEXIBLE_CAP);
-    // The two-phase plan the browser gate measures: 1259 at the floor, and the
+    // The two-step plan the browser gate measures: 1259 at the floor, and the
     // same fixed columns with Name at its cap instead.
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).maxWidth).toBe(
       1259 - FLEXIBLE_FLOOR + FLEXIBLE_CAP,
@@ -598,27 +598,27 @@ describe('the frame the table scrolls inside', () => {
   });
 });
 
-describe('how wide the phases make the table', () => {
-  it('grows by one folded column per phase, from the same widths the table sums', () => {
-    // The sentence the Phases dialog prints, and the phases' own ids rather
+describe('how wide the steps make the table', () => {
+  it('grows by one folded column per step, from the same widths the table sums', () => {
+    // The sentence the Steps dialog prints, and the steps' own ids rather
     // than a count: every width resolves per column id now, so a figure summed
     // from invented ids would answer about columns that do not exist.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1259);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1259);
     expect(
-      foldedTableMinWidth(['role-dev', 'role-qa', 'role-ops'], DATED) -
-        foldedTableMinWidth(['role-dev', 'role-qa'], DATED),
+      foldedTableMinWidth(['step-dev', 'step-qa', 'step-ops'], DATED) -
+        foldedTableMinWidth(['step-dev', 'step-qa'], DATED),
     ).toBe(widthFor('anything-final', DATED));
     // And it answers the narrow state too, which is the fact a count could
     // never carry into it.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1259 - (84 - 56));
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1259 - (84 - 56));
   });
 
-  it('is the fixed columns plus Name plus the phases, with nothing left out', () => {
+  it('is the fixed columns plus Name plus the steps, with nothing left out', () => {
     // Said as the equation rather than as a total, so a column added to the
     // width table without being rendered — or rendered without being summed —
     // shows up here as a disagreement rather than as a number nobody checks.
-    // Proof: the role columns dropped from the sum, `grows by one folded column
-    // per phase` failed on `expected 959 to be 1151`. Watched, 2026-08-09.
+    // Proof: the step columns dropped from the sum, `grows by one folded column
+    // per step` failed on `expected 959 to be 1151`. Watched, 2026-08-09.
     expect(foldedTableMinWidth([], DATED)).toBe(
       frameLayout([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS], DATED).minWidth,
     );
@@ -627,7 +627,7 @@ describe('how wide the phases make the table', () => {
     for (const id of RENDERED) expect([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS]).toContain(id);
   });
 
-  it('has no phases to be wide for at all, and still declares a table', () => {
+  it('has no steps to be wide for at all, and still declares a table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
     expect(foldedTableMinWidth([], DATED)).toBe(1067);
@@ -641,7 +641,7 @@ describe('how wide the phases make the table', () => {
     // The floor first, deliberately: it is the fact, and the membership
     // assertions under it are only why it is true.
     expect(foldedTableMinWidth([], DATED)).toBe(1067);
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1259);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1259);
     expect(DEFAULT_HIDDEN_COLUMNS).toEqual(['team', 'service']);
     expect(DEFAULT_COLUMN_SET).toContain('tag');
     expect(DEFAULT_COLUMN_SET).not.toContain('team');
@@ -657,37 +657,37 @@ describe('how wide the phases make the table', () => {
     // struck from it, on `expected 1187 to be 1067`. Watched, 2026-08-28.
   });
 
-  it('subtracts what the reader has hidden, a whole role included', () => {
-    // The Phases dialog quotes the table actually on screen, not the default
+  it('subtracts what the reader has hidden, a whole step included', () => {
+    // The Steps dialog quotes the table actually on screen, not the default
     // one: a reader who has hidden Depends on is 110px narrower than the
     // default, and one who has shown Teams is 120px wider.
     expect(foldedTableMinWidth([], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'depends'])).toBe(
       1067 - widthFor('depends', DATED),
     );
     expect(foldedTableMinWidth([], DATED, ['service'])).toBe(1067 + widthFor('team', DATED));
-    // A hidden role takes its folded column with it, and nothing else.
+    // A hidden step takes its folded column with it, and nothing else.
     expect(
-      foldedTableMinWidth(['role-dev', 'role-qa'], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'role-qa']),
-    ).toBe(foldedTableMinWidth(['role-dev'], DATED));
+      foldedTableMinWidth(['step-dev', 'step-qa'], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'step-qa']),
+    ).toBe(foldedTableMinWidth(['step-dev'], DATED));
     // Proof: the hidden list ignored, the first line failed on `expected 1067
     // to be 957`. Watched, 2026-08-28.
   });
 
-  it('offers every data column and every role to hide, and none of the row’s controls', () => {
+  it('offers every data column and every step to hide, and none of the row’s controls', () => {
     // What the Columns control lists, in the order the table renders them: the
     // drag handle, Number, Name and the ⋯ menu are the row's controls and are
     // never offered — a table with no Name column is not a narrower table, it
-    // is no table. A role is one entry, by its bare id, and sits where its
+    // is no table. A step is one entry, by its bare id, and sits where its
     // columns do.
-    expect(hideableColumnIds(['role-dev', 'role-qa'])).toEqual([
+    expect(hideableColumnIds(['step-dev', 'step-qa'])).toEqual([
       'depends',
       'priority',
       'team',
       'tag',
       'service',
       'in-parallel',
-      'role-dev',
-      'role-qa',
+      'step-dev',
+      'step-qa',
       'final-total',
       'not-before',
       'start',
@@ -705,12 +705,12 @@ describe('how wide the phases make the table', () => {
     // the same shape the other way. Watched, 2026-08-28.
   });
 
-  it('refuses a hidden id that is neither a column nor a role of this plan', () => {
+  it('refuses a hidden id that is neither a column nor a step of this plan', () => {
     // Storage is validated at its boundary and drops unknown ids on their own;
     // an unknown id reaching this far is a caller's typo, and a typo silently
     // hiding nothing is the check that cannot fail.
-    expect(() => foldedTableMinWidth(['role-dev'], DATED, ['tags'])).toThrow(UnknownColumnError);
-    expect(() => foldedTableMinWidth(['role-dev'], DATED, ['role-qa'])).toThrow(UnknownColumnError);
+    expect(() => foldedTableMinWidth(['step-dev'], DATED, ['tags'])).toThrow(UnknownColumnError);
+    expect(() => foldedTableMinWidth(['step-dev'], DATED, ['step-qa'])).toThrow(UnknownColumnError);
   });
 });
 
@@ -742,27 +742,27 @@ describe('a column this browser has dragged to another width', () => {
     expect(dragged.minWidth).toBe(resting.minWidth + 40);
     expect(dragged.pinned.get('number')).toEqual({ left: 24, width: 145 });
     expect(dragged.pinned.get('name')?.left).toBe((resting.pinned.get('name')?.left ?? 0) + 40);
-    // The fourth consumer, which is the figure the Phases dialog quotes.
-    expect(foldedTableMinWidth(['role-dev'], NUMBER_DRAGGED)).toBe(
-      foldedTableMinWidth(['role-dev'], DATED) + 40,
+    // The fourth consumer, which is the figure the Steps dialog quotes.
+    expect(foldedTableMinWidth(['step-dev'], NUMBER_DRAGGED)).toBe(
+      foldedTableMinWidth(['step-dev'], DATED) + 40,
     );
   });
 
-  it('carries a folded phase’s own width under the id the table renders it by', () => {
-    // The reason `foldedTableMinWidth` takes real role ids rather than a count:
-    // an override is stored under `<roleId>-final`, and a `phase0-final`
+  it('carries a folded step’s own width under the id the table renders it by', () => {
+    // The reason `foldedTableMinWidth` takes real step ids rather than a count:
+    // an override is stored under `<stepId>-final`, and a `step0-final`
     // invented from a length could never carry one. Both answered 96px until
     // this change, which is why nothing measurable told them apart.
     const dragged: FrameLayoutState = {
       hasAnyNotBefore: false,
-      columnWidthOverrides: new Map([['role-dev-final', 140]]),
+      columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };
 
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], dragged)).toBe(
-      foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96),
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], dragged)).toBe(
+      foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED) + (140 - 96),
     );
-    expect(foldedTableMinWidth(['phase0', 'phase1'], dragged)).toBe(
-      foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED),
+    expect(foldedTableMinWidth(['step0', 'step1'], dragged)).toBe(
+      foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED),
     );
   });
 
@@ -845,8 +845,8 @@ describe('a column this browser has dragged to another width', () => {
     expect(draggedName.pinned.get('name')).toEqual({ left: 129, width: undefined });
     // Name is the last pinned column, so no offset in front of it moves.
     expect(draggedName.pinned.get('number')).toEqual(resting.pinned.get('number'));
-    expect(foldedTableMinWidth(['role-dev'], NAME_DRAGGED)).toBe(
-      foldedTableMinWidth(['role-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
+    expect(foldedTableMinWidth(['step-dev'], NAME_DRAGGED)).toBe(
+      foldedTableMinWidth(['step-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
     );
     // The table's own width is where the override reaches the browser: the
     // resolved sum with the override in force, and `min(100%, cap)` without —
@@ -913,9 +913,9 @@ describe('a column this browser has dragged to another width', () => {
 
   it('says which ids can be sized at all, which is what a stored width is checked against', () => {
     expect(sizableColumn('number', DATED)).toBe(true);
-    // A phase this project no longer holds is sizable and simply never asked
+    // A step this project no longer holds is sizable and simply never asked
     // about — the harmlessness a remembered expansion's deleted row ids have.
-    expect(sizableColumn('role-gone-final', DATED)).toBe(true);
+    expect(sizableColumn('step-gone-final', DATED)).toBe(true);
     // Sizable since `name-column-drag`: a stored `name` entry survives this
     // filter and is then judged by the range check against Name's own bounds.
     expect(sizableColumn('name', DATED)).toBe(true);

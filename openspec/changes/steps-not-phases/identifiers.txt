@@ -1,0 +1,189 @@
+# identifiers — steps-not-phases (slice 1.1)
+#
+# Every distinct token matching `[A-Za-z_]*[Rr]ole[A-Za-z_]*` in `libs/`,
+# `apps/be-01/src`, `apps/fe-01/src` and `apps/mcp-01/src`, enumerated before
+# any edit (design D1: the rename is done from this list, never from a pattern).
+#
+# Three dispositions:
+#   rename    the domain word — `Role`/`role` becomes `Step`/`step`
+#   aria      the ARIA attribute and the testing-library queries built on it —
+#             a different vocabulary that happens to share four letters (D1)
+#   physical  a SQLite table, column, index, check or migration-folder name —
+#             the database is deliberately left alone (D2, `steps-schema-rename`)
+#
+# `role` and `Role` appear under all three headings because the same four
+# letters are the domain word, the ARIA attribute and the physical table name.
+# Those occurrences are separated by context, spelled out under `aria` and
+# `physical` below; everything the two do not claim is the domain word.
+
+## aria — untouched
+
+findByRole
+getAllByRole
+getByRole
+queryAllByRole
+queryByRole
+role= / [role= / role={          the JSX and CSS attribute
+getAttribute('role')             and removeAttribute('role')
+{ role: 'alert' }                toasts.tsx — the live region's attribute
+prose naming the attribute       "with the role \"tooltip\"", "no alert role",
+                                 "queried by role", "a role query", "no role
+                                 attribute at all", "jsx-a11y/role-supports-
+                                 aria-props", "the implicit role's property",
+                                 "Every role and name it had", "a role or a
+                                 name", "no role for a bare", "role of its own
+                                 is not reliably", "By role, because an open",
+                                 "with no `role` and no"
+
+## physical — untouched (D2)
+
+_add_role_measure                migration folder
+_add_role_position               migration folder
+_add_role_progress               migration folder
+actual_by_role                   index
+role                             table name, as a string literal only
+role_id                          column
+role_measure                     table name, as a string literal only
+role_measure_by_role             index
+role_measure_metric              check
+role_progress                    table name, as a string literal only
+role_progress_by_role            index
+role_progress_state              check
+role_project_name                unique index
+
+## rename — Role -> Step, role -> step
+
+_roleId
+addRole
+anchorRoleOf
+byRole
+byRoleOn
+estimatedRoleIds
+estimatedRoles
+extraRoles
+foldByRole
+FoldedRoleCard
+FoldedRoleCardProps
+FoldedRolePoint
+fromRoleOrder
+GanttRole
+GanttRolePlace
+holdsRole
+inMemoryRoles
+inRoleOrder
+inRoleOrderSafely
+isRoleState
+itemsByIdMeasuresByMetricByRoleId
+loadedRoles
+missingRoleIds
+multiRole
+NewRole
+otherRole
+otherRoleId
+patchApiProjectsByIdRolesByRoleId   mcp-01 tool, derived from the route
+perRole
+personForRole
+ProjectWithRoles
+qaRoleId
+removeRole
+removeRoleAt
+RemoveRoleOutcome
+renameRole
+role                                the identifier, the local and the prose
+Role
+role_added                          broadcast type — the wire, not the DB
+role_removed                        broadcast type — the wire, not the DB
+role_renamed                        broadcast type — the wire, not the DB
+roleController
+roleCount
+roledPlan
+RoleEstimate
+RoleGap
+roleId
+roleIds
+roleInProject
+RoleInUse
+roleless
+roleList
+roleMeasure                         the drizzle table const, not its string
+RoleMeasureRepository
+RoleMeasureRow
+roleName
+roleNamed
+roleOf
+roleOfCellKey
+roleOfDraftKey
+roleOrder
+RoleOutcome
+roleProgress                        the drizzle table const, not its string
+RoleProgressRepository
+RoleProgressRow
+RoleProgressStore
+RoleRefusal
+roleRefusalSentence
+RoleRemoval
+RoleRemoved
+RoleRepository
+RoleRow
+roles
+Roles
+rolesAtPublish
+rolesById
+roleService
+RoleService
+RoleServiceOptions
+rolesInPlan
+rolesOf
+rolesRes
+RoleState
+roleStore
+RoleStore
+RoleUsage
+RoleUsageRows
+RoleView
+RoleWriteRefusal
+RoleWritten
+sameRoles
+setRoles
+settleAgainstRoles
+setUnfoldedRoles
+startingRoles
+strangerRole
+testRoleService
+threeRolePlan
+toggleRole
+trioByRole
+twoRolePlan
+twoRoleProject
+twoWideRolePlan
+unfoldedRoles
+unfoldRole
+unknown_role                        refusal reason on the wire
+watchedRole
+workedRolesOf
+writeNamingRole
+
+## the same sweep for `Phase`, fe-01's other spelling of the same thing
+
+addPhase
+closePhases
+doesEveryPhase
+facetPhases
+onePhase
+openPhases
+Phase / phase / Phases / phases
+phaseId
+phaseName
+phasesOf
+PhasesDialog
+PhasesDialogProps
+removePhase
+threePhases
+twoPhasePlan
+twoPhases
+
+## kept, and not the domain word
+
+phaseOfTheMoon   `gantt-geometry.test.ts`'s deliberately meaningless
+                 `BindingFloor`, the idiom for an arbitrary value. It names no
+                 step; renaming it would make it look like one.

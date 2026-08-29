@@ -6,7 +6,7 @@ const rename: CompensatingCommand = { do: 'patch', workItemId: 'w1', patch: { na
 const estimate: CompensatingCommand = {
   do: 'set_estimate',
   workItemId: 'w2',
-  roleId: 'r1',
+  stepId: 'r1',
   days: { optimistic: 1, realistic: 2, pessimistic: 3 },
 };
 const edge: CompensatingCommand = { do: 'add_dependency', successorId: 'w2', predecessorId: 'w1' };
@@ -21,14 +21,14 @@ describe('a batch as one compensating command', () => {
   });
 
   it('takes its first step as its subject', () => {
-    // The plan event names one work item and role where it has one; a batch's
+    // The plan event names one work item and step where it has one; a batch's
     // is the row its first step was aimed at, as `restore_subtree` names its
     // root.
     expect(subjectOf({ do: 'batch', steps: [estimate, rename] })).toEqual({
       workItemId: 'w2',
-      roleId: 'r1',
+      stepId: 'r1',
     });
-    expect(subjectOf({ do: 'batch', steps: [] })).toEqual({ workItemId: null, roleId: null });
+    expect(subjectOf({ do: 'batch', steps: [] })).toEqual({ workItemId: null, stepId: null });
   });
 
   it('reads back from the journal as a command this release can apply', () => {

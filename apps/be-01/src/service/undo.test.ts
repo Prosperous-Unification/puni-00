@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { JournalEntry, LabelledWorkItem, Role, WorkItem } from '../repository';
+import type { JournalEntry, LabelledWorkItem, Step, WorkItem } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -14,8 +14,8 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -50,20 +50,20 @@ let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
-let measureStore: RoleMeasureRepository;
-let progressStore: RoleProgressRepository;
+let measureStore: StepMeasureRepository;
+let progressStore: StepProgressRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
 let projectId: string;
 let ownerId: string;
 let strangerId: string;
-let roles: Role[];
+let steps: Step[];
 
-/** The first role every project starts with, which the estimate cases write to. */
+/** The first step every project starts with, which the estimate cases write to. */
 const dev = (): string => {
-  const found = roles.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting roles');
+  const found = steps.at(0);
+  if (found === undefined) throw new Error('the project was created without its starting steps');
   return found.id;
 };
 
@@ -80,8 +80,8 @@ beforeEach(async () => {
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   actualStore = new ActualRepository(db);
-  measureStore = new RoleMeasureRepository(db);
-  progressStore = new RoleProgressRepository(db);
+  measureStore = new StepMeasureRepository(db);
+  progressStore = new StepProgressRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
   journalStore = new CommandJournalRepository(db);
@@ -113,7 +113,7 @@ beforeEach(async () => {
 
   const created = await projects.create('Rewire the shed', ownerId);
   projectId = created.project.id;
-  roles = created.roles;
+  steps = created.steps;
 });
 
 afterEach(() => {
@@ -374,7 +374,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('estimate “Strip”');
 
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: strip, roleId: dev(), ...DAYS },
+      { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
 
@@ -395,7 +395,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('clear the estimate on “Strip”');
 
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: strip, roleId: dev(), ...DAYS },
+      { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
 
@@ -419,7 +419,7 @@ describe('undoing each kind of change', () => {
 
     expect(expectDone(await undone())).toBe('assign “Strip”');
     expect(await directoryStore.assignmentsOf([strip])).toEqual([
-      { workItemId: strip, roleId: dev(), personId: alice },
+      { workItemId: strip, stepId: dev(), personId: alice },
     ]);
 
     expect(expectDone(await undone())).toBe('assign “Strip”');
@@ -435,7 +435,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('clear who does “Strip”');
 
     expect(await directoryStore.assignmentsOf([strip])).toEqual([
-      { workItemId: strip, roleId: dev(), personId: alice },
+      { workItemId: strip, stepId: dev(), personId: alice },
     ]);
   });
 
@@ -481,14 +481,14 @@ describe('undoing each kind of change', () => {
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const sockets = await child(strip, 'Sockets');
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: sockets, roleId: dev(), ...DAYS },
+      { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
 
     expect(expectDone(await undone())).toBe('add “Sockets”');
 
     expect(await found(sockets)).toBeNull();
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: strip, roleId: dev(), ...DAYS },
+      { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
 
@@ -546,10 +546,10 @@ describe('undoing each kind of change', () => {
     expect(await namesByPosition(null)).toEqual(['Strip']);
     expect(await namesByPosition(strip)).toEqual(['Sockets', 'Switches']);
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: sockets, roleId: dev(), ...DAYS },
+      { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
     expect(await directoryStore.assignmentsOf([switches])).toEqual([
-      { workItemId: switches, roleId: dev(), personId: alice },
+      { workItemId: switches, stepId: dev(), personId: alice },
     ]);
     expect(await edges()).toEqual([[sockets, switches]]);
   });
@@ -636,7 +636,7 @@ describe('undoing each kind of change', () => {
     expect(byItem.get(sockets)).toBe(8);
     expect(byItem.get(switches)).toBe(3);
     expect(back).toHaveLength(2);
-    expect(back.every((each) => each.roleId === dev())).toBe(true);
+    expect(back.every((each) => each.stepId === dev())).toBe(true);
   });
 
   it('restores every statement made in a deleted branch, against the real cascade', async () => {
@@ -673,7 +673,7 @@ describe('undoing each kind of change', () => {
     expect(byItem.get(sockets)).toBe('done');
     expect(byItem.get(switches)).toBe('in_progress');
     expect(back).toHaveLength(2);
-    expect(back.every((each) => each.roleId === dev())).toBe(true);
+    expect(back.every((each) => each.stepId === dev())).toBe(true);
   });
 
   it('restores every token and hour recorded in a deleted branch, against the real cascade', async () => {
@@ -697,7 +697,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('delete “Strip”');
 
     // Keyed by the **triple**, not the pair, and that is what this case is for
-    // beyond the cascade: two of these three rows share a work item and a role
+    // beyond the cascade: two of these three rows share a work item and a step
     // and differ only in metric, so a restore that keyed by the pair puts one
     // row back and loses the other in silence. Ordering is not asserted, for
     // the reason the actual case above gives — `listByProject` orders by a UUID.
@@ -707,7 +707,7 @@ describe('undoing each kind of change', () => {
     expect(byKey.get(`${sockets}/hours_actual`)).toBe(3);
     expect(byKey.get(`${switches}/token_estimate`)).toBe(12_000);
     expect(back).toHaveLength(3);
-    expect(back.every((each) => each.roleId === dev())).toBe(true);
+    expect(back.every((each) => each.stepId === dev())).toBe(true);
   });
 
   // **The case that would pin `removedMeasures`' triple key is not here, because
@@ -814,13 +814,13 @@ describe('undoing each kind of change', () => {
     expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
     // The parent has no children left, so it took the figures back.
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: strip, roleId: dev(), ...DAYS },
+      { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
 
     expect(expectDone(await undone())).toBe('delete “Sockets”');
 
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: sockets, roleId: dev(), ...DAYS },
+      { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
   });
 
@@ -972,7 +972,7 @@ describe('an undo refuses when what it touched has moved', () => {
     expectStale(await undone());
 
     expect(await estimateStore.listByProject(projectId)).toEqual([
-      { workItemId: strip, roleId: dev(), ...OTHER_DAYS },
+      { workItemId: strip, stepId: dev(), ...OTHER_DAYS },
     ]);
   });
 
@@ -986,7 +986,7 @@ describe('an undo refuses when what it touched has moved', () => {
     expectStale(await undone());
 
     expect(await directoryStore.assignmentsOf([strip])).toEqual([
-      { workItemId: strip, roleId: dev(), personId: bob },
+      { workItemId: strip, stepId: dev(), personId: bob },
     ]);
   });
 
@@ -1372,7 +1372,7 @@ describe('what an undo leaves in the plan’s history', () => {
     // `openspec/changes/plan-history/design.md` D4 — if this case ever goes red
     // because somebody closed the gap, that is the change and not a regression.
     const id = await root('Strip the roof');
-    const set = await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    const set = await workItems.setEstimate(id, ownerId, steps[0].id, DAYS);
     expect(set.ok).toBe(true);
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
 
@@ -1390,9 +1390,9 @@ describe('what an undo leaves in the plan’s history', () => {
     // stack entirely the moment anything else is written. Its event stays, which is
     // the difference between the plan's history and one account's undo stack.
     const id = await root('Strip the roof');
-    await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    await workItems.setEstimate(id, ownerId, steps[0].id, DAYS);
     await workItems.undo(projectId, ownerId);
-    await workItems.setEstimate(id, ownerId, roles[0].id, OTHER_DAYS);
+    await workItems.setEstimate(id, ownerId, steps[0].id, OTHER_DAYS);
 
     expect((await allEntries()).map((each) => each.kind)).toEqual(['create', 'estimate']);
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'estimate', 'create']);

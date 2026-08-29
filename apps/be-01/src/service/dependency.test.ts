@@ -30,7 +30,7 @@ const edge = (predecessorId: string, successorId: string): StoredDependency => (
 
 /**
  * ```
- * phase          (parent)
+ * step          (parent)
  *   early
  *   late
  * after
@@ -38,9 +38,9 @@ const edge = (predecessorId: string, successorId: string): StoredDependency => (
  * ```
  */
 const ROWS: WorkItem[] = [
-  item('phase'),
-  item('early', 'phase'),
-  item('late', 'phase'),
+  item('step'),
+  item('early', 'step'),
+  item('late', 'step'),
   item('after'),
   item('loose'),
 ];
@@ -57,8 +57,8 @@ describe('canDepend', () => {
   });
 
   it('allows an edge onto a parent, which is the point of declaring one there', () => {
-    expect(check('phase', 'after')).toBeNull();
-    expect(check('after', 'phase')).toBeNull();
+    expect(check('step', 'after')).toBeNull();
+    expect(check('after', 'step')).toBeNull();
   });
 
   it('refuses a work item depending on itself', () => {
@@ -68,11 +68,11 @@ describe('canDepend', () => {
   it('refuses a work item depending on its own parent', () => {
     // A parent already spans its children. Asking it to wait for one of them is
     // asking it to start after itself.
-    expect(check('phase', 'early')).toBe('ancestor');
+    expect(check('step', 'early')).toBe('ancestor');
   });
 
   it('refuses a work item depending on its own child', () => {
-    expect(check('early', 'phase')).toBe('ancestor');
+    expect(check('early', 'step')).toBe('ancestor');
   });
 
   it('refuses an ancestor more than one level up, in both directions', () => {
@@ -115,27 +115,27 @@ describe('canDepend', () => {
   });
 
   it('follows the tree when a cycle runs through a parent', () => {
-    // `phase → after` means both leaves under `phase` come first. Adding
+    // `step → after` means both leaves under `step` come first. Adding
     // `after → early` puts `early` after something that waits for `early`.
-    expect(check('after', 'early', [edge('phase', 'after')])).toBe('cycle');
+    expect(check('after', 'early', [edge('step', 'after')])).toBe('cycle');
   });
 });
 
 describe('canDepend — cross-review findings', () => {
   /**
    * ```
-   * phase          after
+   * step          after
    *   leaf
    * ```
-   * codex's example. `phase → after` expands to `leaf → after`, which with an
+   * codex's example. `step → after` expands to `leaf → after`, which with an
    * existing `after → leaf` is a cycle. The old search compared ids and never
-   * saw it: `leaf` is not `phase`, so reaching `leaf` did not count as reaching
+   * saw it: `leaf` is not `step`, so reaching `leaf` did not count as reaching
    * the parent the proposed edge was declared on.
    */
   it('refuses an edge whose expansion closes a cycle through a parent', () => {
-    const rows = [item('phase'), item('leaf', 'phase'), item('after')];
+    const rows = [item('step'), item('leaf', 'step'), item('after')];
 
-    expect(canDepend(rows, [edge('after', 'leaf')], 'phase', 'after')).toBe('cycle');
+    expect(canDepend(rows, [edge('after', 'leaf')], 'step', 'after')).toBe('cycle');
   });
 
   /**
@@ -176,7 +176,7 @@ describe('canDepend — cross-review findings', () => {
           .filter((r) => !parents.has(r.id))
           .map((r) => ({
             workItemId: r.id,
-            roleId: 'role-dev',
+            stepId: 'step-dev',
             days: 1,
             personId: null,
             width: 1,

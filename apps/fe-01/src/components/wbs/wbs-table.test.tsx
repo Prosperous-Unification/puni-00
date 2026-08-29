@@ -16,12 +16,12 @@ import type {
   Days,
   EstimateMethod,
   ProjectApi,
-  RoleView,
+  StepView,
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
 
-import { hintFor, ROLE_FINAL_HINT } from './column-hints';
+import { hintFor, STEP_FINAL_HINT } from './column-hints';
 import { cellKey } from './editable-grid';
 import { DAY_PX } from './gantt-panel';
 import { initialsOf } from './initials';
@@ -53,10 +53,10 @@ const UNDATED: FrameLayoutState = { hasAnyNotBefore: false };
 /** And one where somebody has, which is 28px wider. */
 const DATED: FrameLayoutState = { hasAnyNotBefore: true };
 
-const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
-// A second role, because "one assignee is assumed to do every phase" is only
-// observable when there is another phase for them to be assumed into.
-const QA: RoleView = { id: 'role-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev' };
+// A second step, because "one assignee is assumed to do every step" is only
+// observable when there is another step for them to be assumed into.
+const QA: StepView = { id: 'step-qa', name: 'QA' };
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -102,13 +102,13 @@ function fakeApi(): ProjectApi & {
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
   /**
-   * The project's phases, which this fake can now be asked to change.
+   * The project's steps, which this fake can now be asked to change.
    *
    * A list of its own rather than the two constants, because `P phases-ui` adds
    * and removes them: a fake answering a fixed pair would let a dialog that
    * wrote nothing pass.
    */
-  let roleList: RoleView[] = [{ ...DEV }, { ...QA }];
+  let stepList: StepView[] = [{ ...DEV }, { ...QA }];
   /**
    * The undo stack as far as this table can see it, which is only what be-01
    * reports and what it answers.
@@ -166,26 +166,26 @@ function fakeApi(): ProjectApi & {
   }
 
   /**
-   * The work items whose assumed assignee removing `roleId` would move, the way
+   * The work items whose assumed assignee removing `stepId` would move, the way
    * `apps/be-01/src/service/assumed-assignee.ts` computes them: exactly one
-   * assignment means that person is taken to be doing every phase.
+   * assignment means that person is taken to be doing every step.
    */
-  function flipsFor(roleId: string): AssumedAssigneeFlipView[] {
+  function flipsFor(stepId: string): AssumedAssigneeFlipView[] {
     const byWorkItem = new Map<string, Record<string, string>>();
     for (const [key, personId] of assigned) {
       const [workItemId = '', held = ''] = key.split('::');
       byWorkItem.set(workItemId, { ...(byWorkItem.get(workItemId) ?? {}), [held]: personId });
     }
-    const only = (byRole: Record<string, string>): string | null => {
-      const named = Object.values(byRole);
+    const only = (byStep: Record<string, string>): string | null => {
+      const named = Object.values(byStep);
       return named.length === 1 ? (named[0] ?? null) : null;
     };
     return [...byWorkItem.entries()]
-      .map(([workItemId, byRole]) => ({
+      .map(([workItemId, byStep]) => ({
         workItemId,
-        assumedNow: only(byRole),
+        assumedNow: only(byStep),
         assumedAfter: only(
-          Object.fromEntries(Object.entries(byRole).filter(([each]) => each !== roleId)),
+          Object.fromEntries(Object.entries(byStep).filter(([each]) => each !== stepId)),
         ),
       }))
       .filter((flip) => flip.assumedNow !== flip.assumedAfter)
@@ -275,7 +275,7 @@ function fakeApi(): ProjectApi & {
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
           finalDays: Object.fromEntries(
-            Object.entries(r.estimates).map(([roleId, days]) => [roleId, finalOf(days)]),
+            Object.entries(r.estimates).map(([stepId, days]) => [stepId, finalOf(days)]),
           ),
           finalTotal: Object.values(r.estimates).reduce((total, days) => total + finalOf(days), 0),
           // be-01 works the dates out; the fake only has to place them on the
@@ -286,14 +286,14 @@ function fakeApi(): ProjectApi & {
               .filter(([key]) => key.startsWith(`${r.id}::`))
               .map(([key, personId]) => [key.split('::')[1] ?? '', personId]),
           ),
-          doesEveryPhase: (() => {
+          doesEveryStep: (() => {
             const mine = [...assigned.entries()].filter(([key]) => key.startsWith(`${r.id}::`));
             return mine.length === 1 ? (mine[0]?.[1] ?? null) : null;
           })(),
         })),
         seq,
         scheduleError: null,
-        // One per leaf and phase, as be-01 places them: a parent has no work of
+        // One per leaf and step, as be-01 places them: a parent has no work of
         // its own and gets none. The ids are this fake's, and opaque — the
         // table looks them up and never takes them apart.
         slices: rows
@@ -301,7 +301,7 @@ function fakeApi(): ProjectApi & {
           .map((r) => ({
             id: `${r.id}::${DEV.id}`,
             workItemId: r.id,
-            roleId: DEV.id,
+            stepId: DEV.id,
             personId: assigned.get(`${r.id}::${DEV.id}`) ?? null,
             ...scheduleOf(r),
             // The one floor this fake can honestly tell apart, and it tells it
@@ -322,9 +322,9 @@ function fakeApi(): ProjectApi & {
             capacityPredecessorIds: [],
           })),
         // On the read that carried the slices, as be-01 sends them: the chart
-        // reads its roles and its names from here and not from the separate
-        // `roles`/`listPeople` calls the pickers make.
-        roles: roleList.map((role) => ({ ...role })),
+        // reads its steps and its names from here and not from the separate
+        // `steps`/`listPeople` calls the pickers make.
+        steps: stepList.map((step) => ({ ...step })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -364,8 +364,8 @@ function fakeApi(): ProjectApi & {
       people.push(person);
       return Promise.resolve(person);
     },
-    assign(workItemId: string, roleId: string, personId: string | null) {
-      const key = `${workItemId}::${roleId}`;
+    assign(workItemId: string, stepId: string, personId: string | null) {
+      const key = `${workItemId}::${stepId}`;
       if (personId === null) assigned.delete(key);
       else assigned.set(key, personId);
       renumber();
@@ -376,53 +376,53 @@ function fakeApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
-    addRole(_projectId, name) {
+    steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
+    addStep(_projectId, name) {
       const clean = name.trim();
       if (clean === '') return Promise.reject(new Error('name_required'));
-      if (roleList.some((role) => role.name === clean)) {
+      if (stepList.some((step) => step.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      const role = { id: `role-${clean.toLowerCase()}`, name: clean };
-      roleList.push(role);
+      const step = { id: `step-${clean.toLowerCase()}`, name: clean };
+      stepList.push(step);
       renumber();
-      return Promise.resolve(role);
+      return Promise.resolve(step);
     },
-    renameRole(_projectId, roleId, name) {
+    renameStep(_projectId, stepId, name) {
       const clean = name.trim();
       if (clean === '') return Promise.reject(new Error('name_required'));
-      const role = roleList.find((each) => each.id === roleId);
-      if (role === undefined) return Promise.reject(new Error('not_found'));
-      if (roleList.some((each) => each.id !== roleId && each.name === clean)) {
+      const step = stepList.find((each) => each.id === stepId);
+      if (step === undefined) return Promise.reject(new Error('not_found'));
+      if (stepList.some((each) => each.id !== stepId && each.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      role.name = clean;
+      step.name = clean;
       renumber();
-      return Promise.resolve({ ...role });
+      return Promise.resolve({ ...step });
     },
-    removeRole(_projectId, roleId, cascade) {
-      const role = roleList.find((each) => each.id === roleId);
-      if (role === undefined) return Promise.reject(new Error('not_found'));
+    removeStep(_projectId, stepId, cascade) {
+      const step = stepList.find((each) => each.id === stepId);
+      if (step === undefined) return Promise.reject(new Error('not_found'));
       // `Object.hasOwn` rather than an index and a comparison: `estimates` is a
       // `Record<string, Days>`, so the index is typed as always finding one and
       // the comparison is dead code the lint rightly refuses.
-      const estimates = rows.filter((row) => Object.hasOwn(row.estimates, roleId)).length;
-      const holders = [...assigned.keys()].filter((key) => key.endsWith(`::${roleId}`));
+      const estimates = rows.filter((row) => Object.hasOwn(row.estimates, stepId)).length;
+      const holders = [...assigned.keys()].filter((key) => key.endsWith(`::${stepId}`));
       if (!cascade && estimates + holders.length > 0) {
         return Promise.resolve({
           ok: false as const,
           reason: 'in_use' as const,
-          inUse: { estimates, assignments: holders.length, assumedAssignees: flipsFor(roleId) },
+          inUse: { estimates, assignments: holders.length, assumedAssignees: flipsFor(stepId) },
         });
       }
       for (const row of rows) {
         // Rebuilt rather than `delete`d on a computed key, which this repo bans.
         row.estimates = Object.fromEntries(
-          Object.entries(row.estimates).filter(([each]) => each !== roleId),
+          Object.entries(row.estimates).filter(([each]) => each !== stepId),
         );
       }
       for (const key of holders) assigned.delete(key);
-      roleList = roleList.filter((each) => each.id !== roleId);
+      stepList = stepList.filter((each) => each.id !== stepId);
       renumber();
       return Promise.resolve({ ok: true as const });
     },
@@ -456,7 +456,7 @@ function fakeApi(): ProjectApi & {
         serviceTeamId: null,
         teamIds: [],
         assignees: {},
-        doesEveryPhase: null,
+        doesEveryStep: null,
         rolledUp: false,
         estimates: {},
         dependsOn: [],
@@ -549,8 +549,8 @@ function fakeApi(): ProjectApi & {
         });
       }
       for (const [key, personId] of [...assigned.entries()]) {
-        const [workItemId = '', roleId = ''] = key.split('::');
-        if (inside.has(workItemId)) assigned.set(`${copyId(workItemId)}::${roleId}`, personId);
+        const [workItemId = '', stepId = ''] = key.split('::');
+        if (inside.has(workItemId)) assigned.set(`${copyId(workItemId)}::${stepId}`, personId);
       }
       const last = subtree.at(-1);
       rows.splice(last === undefined ? rows.length : rows.indexOf(last) + 1, 0, ...copies);
@@ -565,18 +565,18 @@ function fakeApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    setEstimate(id, roleId, days: Days) {
+    setEstimate(id, stepId, days: Days) {
       const row = rows.find((r) => r.id === id);
-      if (row !== undefined) row.estimates[roleId] = days;
+      if (row !== undefined) row.estimates[stepId] = days;
       return Promise.resolve();
     },
-    clearEstimate(id, roleId) {
+    clearEstimate(id, stepId) {
       const row = rows.find((r) => r.id === id);
-      // Rebuilt without the role rather than `delete`d on a computed key, the
+      // Rebuilt without the step rather than `delete`d on a computed key, the
       // same way the table drops a trio's drafts.
       if (row !== undefined) {
         row.estimates = Object.fromEntries(
-          Object.entries(row.estimates).filter(([key]) => key !== roleId),
+          Object.entries(row.estimates).filter(([key]) => key !== stepId),
         );
       }
       return Promise.resolve();
@@ -700,11 +700,11 @@ const pressNewItem = (number: string) => {
 };
 
 /**
- * Opens a role's folded columns — the trio and the assignee. Folded is the
+ * Opens a step's folded columns — the trio and the assignee. Folded is the
  * default, so every test that types an estimate or assigns someone does this
  * first, exactly as a person would.
  */
-const unfoldRole = (name: string) => {
+const unfoldStep = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name: `Unfold ${name} estimates` }));
 };
 
@@ -836,7 +836,7 @@ describe('the WBS table', () => {
     const api: ProjectApi = {
       ...first,
       tree: (projectId) => forProject(projectId).tree(projectId),
-      roles: (projectId) => forProject(projectId).roles(projectId),
+      steps: (projectId) => forProject(projectId).steps(projectId),
       create: async (projectId, input) => {
         calls.push(projectId);
         if (projectId === 'p1') await heldFirst;
@@ -921,6 +921,57 @@ describe('the WBS table', () => {
     await waitFor(() => {
       expect(sliceCount()).toBe('1');
     });
+  });
+
+  itDom('no rendered string says Phase or Role', async () => {
+    // Every column, because the sweep is about what a reader can be shown and
+    // the hidden ones carry headers and hints of their own.
+    showEveryColumn();
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    typeName('010', 'Strip');
+
+    /*
+      The text and the three attributes a reader is read to through: `title` is
+      the toolbar's hints, `aria-label` is every cell's name, `placeholder` is
+      what an empty box says. The ARIA `role` attribute is deliberately not
+      among them — it is a different vocabulary that shares four letters, and
+      `steps-not-phases` design D1 keeps it.
+
+      Proof: the trigger's label and `<ModalTitle>` in `steps-dialog.tsx`
+      spelled back to `Phases`. This failed on `expected [ 'text: Phases' ] to
+      deeply equal []`. Watched 2026-08-29.
+    */
+    const stale = /\b(phase|phases|role|roles)\b/i;
+    const said: string[] = [];
+    // Text **node** by text node, not `body.textContent`: that concatenates
+    // adjacent elements with no separator, so a toolbar reads
+    // `PrioritiesPhasesFilters` and `\bPhases\b` matches nothing at all. The
+    // first cut of this sweep did exactly that and could not see the label.
+    const words: string[] = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const text = node.textContent ?? '';
+      words.push(text);
+      if (stale.test(text)) said.push(`text: ${text}`);
+    }
+    for (const element of document.body.querySelectorAll('[title], [aria-label], [placeholder]')) {
+      for (const attribute of ['title', 'aria-label', 'placeholder']) {
+        const value = element.getAttribute(attribute);
+        if (value !== null && stale.test(value)) said.push(`${attribute}="${value}"`);
+      }
+    }
+
+    expect(said).toEqual([]);
+    // And the sweep really walked a drawn plan, so the emptiness above is a
+    // reading rather than an empty page: a row is on screen, the word the fault
+    // would corrupt is among the strings that were read, and the attributes it
+    // was searched through are there to search.
+    expect(numbersOnScreen()).toEqual(['010']);
+    expect(words).toContain('Steps');
+    expect(document.body.querySelectorAll('[title], [aria-label]').length).toBeGreaterThan(10);
   });
 
   itDom('backspace at the start of the name outdents the row', async () => {
@@ -1047,7 +1098,7 @@ describe('the WBS table', () => {
     const notes = screen.getByLabelText<HTMLInputElement>('Name of 030');
     fireEvent.change(notes, { target: { value: '\nmeasure twice' } });
     fireEvent.blur(notes);
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     // A whole trio on 040 — one point alone is a draft, not an estimate, since
     // the table stopped inventing the other two.
     for (const point of ['optimistic', 'realistic', 'pessimistic'] as const) {
@@ -1133,7 +1184,7 @@ describe('the WBS table', () => {
     // remounts every cell, and a name typed but not yet committed would be
     // reset to the server's value — the one cost of folding, paid on an
     // explicit click.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -1166,7 +1217,7 @@ describe('the WBS table', () => {
     // remounts every cell, and a name typed but not yet committed would be
     // reset to the server's value — the one cost of folding, paid on an
     // explicit click.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -1199,7 +1250,7 @@ describe('the WBS table', () => {
     // remounts every cell, and a name typed but not yet committed would be
     // reset to the server's value — the one cost of folding, paid on an
     // explicit click.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -1250,7 +1301,7 @@ describe('the WBS table', () => {
     });
     pressTab('020');
     await screen.findByLabelText('Name of 010.1');
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     // A parent's figures are sums of what is below it. Typing into them would be
     // either ignored or double-counted, and neither is visible to whoever typed.
@@ -1647,7 +1698,7 @@ describe('collapsing a branch', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1']);
     });
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     click('Collapse 010');
 
@@ -1686,10 +1737,10 @@ describe('teams and assignees', () => {
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     // Dev only, and QA deliberately left folded: the folded cell is where the
-    // every-phase assumption is read, beside the figure. A second unfold
+    // every-step assumption is read, beside the figure. A second unfold
     // would have folded this one until `unfolding-may-scroll`; it would leave
     // both open now, and this fixture wants one of each.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     return api;
   }
 
@@ -1921,7 +1972,7 @@ describe('teams and assignees', () => {
     });
   });
 
-  itDom('says the single assignee is doing the other phase too', async () => {
+  itDom('says the single assignee is doing the other step too', async () => {
     await oneRow();
 
     const picker = screen.getByLabelText('Dev assignee for 010');
@@ -3092,9 +3143,9 @@ describe('the In-parallel cell', () => {
     });
     expect(parallelCell('010').title).toContain('effort is compressed');
 
-    // The assignee box lives in the unfolded role, which is where somebody
+    // The assignee box lives in the unfolded step, which is where somebody
     // names a person on the work.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const picker = await screen.findByLabelText('Dev assignee for 010');
     fireEvent.focus(picker);
     fireEvent.change(picker, { target: { value: 'Kat' } });
@@ -3109,12 +3160,12 @@ describe('the In-parallel cell', () => {
   });
 
   itDom(
-    'says a number is not applied where two different people are named on two different roles',
+    'says a number is not applied where two different people are named on two different steps',
     async () => {
-      // be-01's `widthFor` collapses **per slice**: a role with its own named
-      // assignee runs at width 1 on that slice alone. Two roles, two different
-      // people, is two slices each individually collapsed — `doesEveryPhase`
-      // is `null` here (it only fires for exactly one named role project-wide
+      // be-01's `widthFor` collapses **per slice**: a step with its own named
+      // assignee runs at width 1 on that slice alone. Two steps, two different
+      // people, is two slices each individually collapsed — `doesEveryStep`
+      // is `null` here (it only fires for exactly one named step project-wide
       // on the row), so the row-level reading this cell used to lean on cannot
       // see it, and a `3` sits there doing nothing while looking editable.
       const api = await twoRows();
@@ -3128,7 +3179,7 @@ describe('the In-parallel cell', () => {
       });
       expect(parallelCell('010').title).toContain('effort is compressed');
 
-      unfoldRole('Dev');
+      unfoldStep('Dev');
       const dev = await screen.findByLabelText('Dev assignee for 010');
       fireEvent.focus(dev);
       fireEvent.change(dev, { target: { value: 'Ada' } });
@@ -3137,7 +3188,7 @@ describe('the In-parallel cell', () => {
         expect(screen.getByLabelText<HTMLInputElement>('Dev assignee for 010').value).toBe('Ada');
       });
 
-      unfoldRole('QA');
+      unfoldStep('QA');
       const qa = await screen.findByLabelText('QA assignee for 010');
       fireEvent.focus(qa);
       fireEvent.change(qa, { target: { value: 'Bo' } });
@@ -3147,9 +3198,9 @@ describe('the In-parallel cell', () => {
         expect(screen.getByLabelText<HTMLInputElement>('QA assignee for 010').value).toBe('Bo');
       });
 
-      // Proof: `everySliceNamed` reverted to `doesEveryPhase !== null` alone,
+      // Proof: `everySliceNamed` reverted to `doesEveryStep !== null` alone,
       // this failed on `expected '3 people at once…' to contain 'one at a
-      // time whatever this says'` — un-muted with both roles individually
+      // time whatever this says'` — un-muted with both steps individually
       // named and neither slice free to run more than one at once. Watched
       // 2026-08-14.
       await waitFor(() => {
@@ -3277,7 +3328,7 @@ describe('the earliest-start cell', () => {
   });
 
   itDom('leaves the Tab handling exactly where it was', async () => {
-    // The cell is text now and it is still a cell: Tab from the phase before
+    // The cell is text now and it is still a cell: Tab from the step before
     // it lands here, and Tab from here goes on to the next row.
     await datedPlan();
 
@@ -3696,7 +3747,7 @@ describe('names wrap and notes carry markdown', () => {
     // Dany, 2026-08-09: a rendered document over the rows below on every pass
     // of the mouse is too disruptive. The Name column is the widest thing on
     // the way to anywhere in this table, so the preview waits behind its
-    // marker — while the folded role cell and the depends cell, which are a
+    // marker — while the folded step cell and the depends cell, which are a
     // few lines over a narrow cell, keep the whole cell as their trigger.
     //
     // Proof: the handlers put back on the cell wrapper, this failed on
@@ -3935,7 +3986,7 @@ describe('names wrap and notes carry markdown', () => {
   });
 });
 
-describe('role columns fold away', () => {
+describe('step columns fold away', () => {
   async function oneRow() {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -3946,25 +3997,25 @@ describe('role columns fold away', () => {
 
   const headerTexts = () => screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
 
-  itDom('starts folded: one column per role, the final figure kept', async () => {
+  itDom('starts folded: one column per step, the final figure kept', async () => {
     await oneRow();
 
-    // The whole point of the fold: two roles cost ten columns and the dates
+    // The whole point of the fold: two steps cost ten columns and the dates
     // fell off the screen. The figure a plan is read by stays.
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev assignee for 010')).toBeNull();
-    expect(rowFor('010').querySelector('[data-final="role-dev"]')).not.toBeNull();
+    expect(rowFor('010').querySelector('[data-final="step-dev"]')).not.toBeNull();
     expect(headerTexts()).toContain('Dev ▸');
   });
 
   itDom('unfolds to the trio and the assignee, and folds back', async () => {
     await oneRow();
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
     expect(screen.getByLabelText('Dev assignee for 010')).toBeDefined();
-    // The other role stays folded — each opens on its own.
+    // The other step stays folded — each opens on its own.
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
@@ -3992,7 +4043,7 @@ describe('role columns fold away', () => {
     // the reader with nothing to call it.
     await oneRow();
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     for (const point of ['optimistic', 'realistic', 'pessimistic']) {
       expect(headerTitled(point.slice(0, 1)).toLowerCase()).toContain(point);
@@ -4000,15 +4051,15 @@ describe('role columns fold away', () => {
     }
   });
 
-  itDom('unfolds each role on its own, and leaves the others open', async () => {
-    // **Superseded, by name**: this was `unfolds one role at a time, so the
+  itDom('unfolds each step on its own, and leaves the others open', async () => {
+    // **Superseded, by name**: this was `unfolds one step at a time, so the
     // table still fits the window`, and it asserted the accordion — QA open,
     // Dev's three boxes gone. `unfolding-may-scroll` reverses that decision
     // (Dany, 2026-08-08, U3) and adopts its recorded injected fault as the
-    // behaviour: `[...current, roleId]` is what the writer does now.
+    // behaviour: `[...current, stepId]` is what the writer does now.
     //
     // The arithmetic it quoted is unchanged and is still pinned in
-    // `table-frame.test.ts`: a folded role costs 96px and an unfolded one 348,
+    // `table-frame.test.ts`: a folded step costs 96px and an unfolded one 348,
     // so two folded need 1231px, one open 1483 and both open 1735 (1219 →
     // 1231 → 1483 → 1735 in `number-column-widen`, 93 → 105 in
     // `COLUMN_WIDTHS`). What changed at `unfolding-may-scroll` is that the
@@ -4016,8 +4067,8 @@ describe('role columns fold away', () => {
     // for it — `e2e/layout.spec.ts` measures that half.
     await oneRow();
 
-    unfoldRole('Dev');
-    unfoldRole('QA');
+    unfoldStep('Dev');
+    unfoldStep('QA');
 
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
@@ -4038,7 +4089,7 @@ describe('role columns fold away', () => {
     // The copy is the change: who is doing the work is in the folded cell now,
     // so a button claiming to hide it would be describing the table of a week
     // ago. The second half is superseded with the accordion — it promised that
-    // any other role would fold, and none does — and what replaces it is the
+    // any other step would fold, and none does — and what replaces it is the
     // one thing unfolding can now do that it could not before: make the table
     // wider than the window.
     // Proof: the old copy restored, this failed on `expected 'Dev — show the
@@ -4049,14 +4100,14 @@ describe('role columns fold away', () => {
     const folded = screen.getByRole('button', { name: 'Unfold Dev estimates' });
     expect(folded.title).toContain('Click to show the three points');
     expect(folded.title).toContain('the table may scroll sideways');
-    expect(folded.title).not.toContain('any other role folds');
+    expect(folded.title).not.toContain('any other step folds');
     expect(folded.title).not.toContain('assignee');
     // And it opens with the column's own sentence, because this button covers
     // most of its `<th>`: a reader resting on it would otherwise be the one
     // reader in the table who learns nothing about the column under the cursor.
-    expect(folded.title.startsWith(ROLE_FINAL_HINT)).toBe(true);
+    expect(folded.title.startsWith(STEP_FINAL_HINT)).toBe(true);
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const open = screen.getByRole('button', { name: 'Fold Dev estimates' });
     expect(open.title).toContain('Click to fold the three points back into the figure');
     expect(open.title).not.toContain('assignee');
@@ -4071,21 +4122,21 @@ describe('role columns fold away', () => {
       sent.push(args);
       return Promise.resolve();
     };
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const cell = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(cell, { target: { value: '5' } });
     fireEvent.blur(cell);
 
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     expect(screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010').value).toBe('5');
     expect(sent).toEqual([]);
   });
 
-  itDom('a folded role cannot hide a complaint', async () => {
+  itDom('a folded step cannot hide a complaint', async () => {
     await oneRow();
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const cell = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(cell, { target: { value: '5' } });
     fireEvent.blur(cell);
@@ -4096,7 +4147,7 @@ describe('role columns fold away', () => {
     // the figure the fold leaves behind — the mark on the figure, and the
     // complaint on the cell's one hint, the card. No native `title`: two
     // hints over one cell is the bug this line used to be.
-    const final = rowFor('010').querySelector('[data-final="role-dev"]');
+    const final = rowFor('010').querySelector('[data-final="step-dev"]');
     expect(final?.textContent).toContain('!');
     expect(final?.getAttribute('title')).toBeNull();
     fireEvent.mouseEnter(final as HTMLElement);
@@ -4104,8 +4155,8 @@ describe('role columns fold away', () => {
   });
 });
 
-describe('assigning from a folded role’s cell with @', () => {
-  /** One row and two roles, both folded — where a person starts. */
+describe('assigning from a folded step’s cell with @', () => {
+  /** One row and two steps, both folded — where a person starts. */
   async function oneRow() {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -4114,8 +4165,8 @@ describe('assigning from a folded role’s cell with @', () => {
     return api;
   }
 
-  const foldedCell = (role = 'Dev') =>
-    screen.getByLabelText<HTMLInputElement>(`${role} estimate for 010`);
+  const foldedCell = (step = 'Dev') =>
+    screen.getByLabelText<HTMLInputElement>(`${step} estimate for 010`);
 
   /** Focuses the folded box and puts `text` in it, keystroke by keystroke’s event. */
   const typeInto = (cell: HTMLInputElement, text: string): HTMLInputElement => {
@@ -4128,34 +4179,34 @@ describe('assigning from a folded role’s cell with @', () => {
   const watchEstimates = (api: ProjectApi): unknown[][] => {
     const written: unknown[][] = [];
     const perform = api.setEstimate.bind(api);
-    api.setEstimate = (id: string, roleId: string, days: Days) => {
-      written.push([id, roleId, days]);
-      return perform(id, roleId, days);
+    api.setEstimate = (id: string, stepId: string, days: Days) => {
+      written.push([id, stepId, days]);
+      return perform(id, stepId, days);
     };
     return written;
   };
 
-  /** What a folded role's cell says about who is doing the work, or null. */
-  const assigneeShown = (role = 'role-dev'): string | null =>
-    rowFor('010').querySelector(`[data-folded-assignee="${role}"]`)?.textContent ?? null;
+  /** What a folded step's cell says about who is doing the work, or null. */
+  const assigneeShown = (step = 'step-dev'): string | null =>
+    rowFor('010').querySelector(`[data-folded-assignee="${step}"]`)?.textContent ?? null;
 
   /** The `@` picker's entries, in the order they are offered. */
-  const offered = (role = 'Dev'): (string | null)[] => {
+  const offered = (step = 'Dev'): (string | null)[] => {
     const list = screen
       .queryAllByRole('listbox')
-      .find((box) => box.getAttribute('aria-label') === `${role} assignee for 010`);
+      .find((box) => box.getAttribute('aria-label') === `${step} assignee for 010`);
     return list === undefined
       ? []
       : [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
   };
 
   /** Puts a person on the directory the way a person does: `@name` in a cell. */
-  const addPersonThrough = async (role: string, name: string): Promise<void> => {
-    fireEvent.keyDown(typeInto(foldedCell(role), `@${name}`), { key: 'Enter' });
+  const addPersonThrough = async (step: string, name: string): Promise<void> => {
+    fireEvent.keyDown(typeInto(foldedCell(step), `@${name}`), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown(role === 'Dev' ? 'role-dev' : 'role-qa')).toContain(initialsOf(name));
+      expect(assigneeShown(step === 'Dev' ? 'step-dev' : 'step-qa')).toContain(initialsOf(name));
     });
-    fireEvent.blur(foldedCell(role));
+    fireEvent.blur(foldedCell(step));
   };
 
   itDom('opens the people picker on an @ and filters it by what follows', async () => {
@@ -4195,7 +4246,7 @@ describe('assigning from a folded role’s cell with @', () => {
     // both pointers with it.
     fireEvent.keyDown(cell, { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· GR');
+      expect(assigneeShown('step-dev')).toBe('· GR');
     });
     expect(cell.getAttribute('aria-controls')).toBeNull();
     expect(cell.getAttribute('aria-activedescendant')).toBeNull();
@@ -4213,7 +4264,7 @@ describe('assigning from a folded role’s cell with @', () => {
     fireEvent.keyDown(cell, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· KA');
+      expect(assigneeShown('step-dev')).toBe('· KA');
     });
     // The mention is gone and the estimate half is untouched.
     expect(cell.value).toBe('2/3/8');
@@ -4221,7 +4272,7 @@ describe('assigning from a folded role’s cell with @', () => {
 
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
@@ -4282,7 +4333,7 @@ describe('assigning from a folded role’s cell with @', () => {
 
     // The figure and who is doing it, in the one cell that never folds away.
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· GR');
+      expect(assigneeShown('step-dev')).toBe('· GR');
     });
     expect(await api.listPeople()).toEqual([{ id: 'person1', name: 'Grace', teamIds: [] }]);
 
@@ -4292,28 +4343,28 @@ describe('assigning from a folded role’s cell with @', () => {
     expect(offered()).toEqual(['Remove Grace', 'Grace — free agent']);
     fireEvent.keyDown(again, { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBeNull();
+      expect(assigneeShown('step-dev')).toBeNull();
     });
   });
 
-  itDom('shows the assumed name in grey beside the figure of the other phase', async () => {
-    // One person on one phase is read as doing the others too, and the folded
-    // cell is where that is now visible — it used to need the role unfolded.
+  itDom('shows the assumed name in grey beside the figure of the other step', async () => {
+    // One person on one step is read as doing the others too, and the folded
+    // cell is where that is now visible — it used to need the step unfolded.
     await oneRow();
 
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· AD');
+      expect(assigneeShown('step-dev')).toBe('· AD');
     });
 
-    const dev = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');
-    const qa = rowFor('010').querySelector('[data-folded-assignee="role-qa"]');
+    const dev = rowFor('010').querySelector('[data-folded-assignee="step-dev"]');
+    const qa = rowFor('010').querySelector('[data-folded-assignee="step-qa"]');
     expect(dev?.textContent).toBe('· AD');
     expect(dev?.getAttribute('data-assumed')).toBeNull();
     // Bracketed and grey: a reading of one assignment, not a second one
     // written down.
     expect(qa?.textContent).toBe('· (AD)');
-    expect(qa?.getAttribute('data-assumed')).toBe('role-qa');
+    expect(qa?.getAttribute('data-assumed')).toBe('step-qa');
     // The palette's own muted ink rather than the `#666` it was: `styles.css`
     // re-points every token under `.dark` and a literal is the one shade that
     // would not follow. jsdom hands back the declaration, not a resolved colour.
@@ -4323,18 +4374,18 @@ describe('assigning from a folded role’s cell with @', () => {
   itDom('says nothing where nobody is assigned and nobody is assumed', async () => {
     await oneRow();
 
-    expect(rowFor('010').querySelector('[data-folded-assignee="role-dev"]')).toBeNull();
+    expect(rowFor('010').querySelector('[data-folded-assignee="step-dev"]')).toBeNull();
   });
 
   /** The wrapper the folded figure, its assignee and its card all live on. */
-  const foldedWrapper = (role = 'role-dev'): HTMLElement => {
-    const found = rowFor('010').querySelector(`[data-final="${role}"]`);
-    if (found === null) throw new Error(`no folded cell for ${role}`);
+  const foldedWrapper = (step = 'step-dev'): HTMLElement => {
+    const found = rowFor('010').querySelector(`[data-final="${step}"]`);
+    if (found === null) throw new Error(`no folded cell for ${step}`);
     return found as HTMLElement;
   };
 
   itDom('opens the folded figure into its parts, without asking the server', async () => {
-    // The whole of what 96px hides: the role, the trio behind the computed
+    // The whole of what 96px hides: the step, the trio behind the computed
     // figure, the figure, and who is doing it — read off the row the client
     // already holds, which is what makes a hover free.
     //
@@ -4347,7 +4398,7 @@ describe('assigning from a folded role’s cell with @', () => {
     const cell = typeInto(foldedCell(), '2/3/8');
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
@@ -4399,12 +4450,12 @@ describe('assigning from a folded role’s cell with @', () => {
     //
     // Proof, two faults watched 2026-08-09. The `onFocus` line dropped: this
     // failed on `Unable to find an accessible element with the role "tooltip"`.
-    // The `aria-label` put back on `FoldedRoleCard`: on `expected 'Dev for 010'
+    // The `aria-label` put back on `FoldedStepCard`: on `expected 'Dev for 010'
     // to be null`.
     const api = await oneRow();
     fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+      expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(3);
     });
 
     // No pointer has been anywhere near this cell.
@@ -4440,7 +4491,7 @@ describe('assigning from a folded role’s cell with @', () => {
     const api = await oneRow();
     fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+      expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(3);
     });
 
     fireEvent.focus(foldedCell());
@@ -4449,9 +4500,9 @@ describe('assigning from a folded role’s cell with @', () => {
 
     // The pointer crosses the QA cell — which has a card of its own, so it owns
     // the screen while it is there — and leaves again.
-    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+    fireEvent.mouseEnter(foldedWrapper('step-qa'));
     expect(screen.getByRole('tooltip').textContent).toContain('QA for 010');
-    fireEvent.mouseLeave(foldedWrapper('role-qa'));
+    fireEvent.mouseLeave(foldedWrapper('step-qa'));
 
     const back = screen.getByRole('tooltip');
     expect(back.textContent).toContain('Dev for 010');
@@ -4465,14 +4516,14 @@ describe('assigning from a folded role’s cell with @', () => {
 
   itDom('reads the trio off the row, not out of the boxes it was typed into', async () => {
     // The case the first round left out. A half-filled trio is never sent, so
-    // what was typed stays a draft — and folding the role takes those boxes off
+    // what was typed stays a draft — and folding the step takes those boxes off
     // screen while the draft outlives them. The card is what the fold leaves
     // behind, and what the fold hid is the estimate this plan is *made of*: the
     // one be-01 holds, the one the figure beside it is computed from, the one
     // every other reader of the plan sees. A card showing 'realistic —' beside
     // 'Final 3.7 days' is a card disagreeing with itself.
     //
-    // The draft is not lost by this and is not meant to be: unfolding the role
+    // The draft is not lost by this and is not meant to be: unfolding the step
     // puts it back in the box it was typed into, with its complaint, which is
     // the only place it can be corrected. codex round 3, finding 4.
     //
@@ -4483,7 +4534,7 @@ describe('assigning from a folded role’s cell with @', () => {
     const cell = typeInto(foldedCell(), '2/3/8');
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
@@ -4498,7 +4549,7 @@ describe('assigning from a folded role’s cell with @', () => {
     fireEvent.change(realistic, { target: { value: '' } });
     fireEvent.blur(realistic);
     expect(realistic.value, 'the emptied box did not keep what was typed').toBe('');
-    expect(api.rows[0]?.estimates['role-dev']?.realistic, 'the half trio was sent').toBe(3);
+    expect(api.rows[0]?.estimates['step-dev']?.realistic, 'the half trio was sent').toBe(3);
 
     click('Fold Dev estimates');
     fireEvent.mouseEnter(foldedWrapper());
@@ -4523,14 +4574,14 @@ describe('assigning from a folded role’s cell with @', () => {
     const api = await oneRow();
     fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+      expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(3);
     });
 
     // Out of order, so be-01 is never asked and the shorthand stays in the cell
     // with its complaint on it.
     fireEvent.blur(typeInto(foldedCell(), '8/3/2'));
     expect(foldedCell().value).toBe('8/3/2');
-    expect(api.rows[0]?.estimates['role-dev']?.optimistic).toBe(2);
+    expect(api.rows[0]?.estimates['step-dev']?.optimistic).toBe(2);
 
     fireEvent.mouseEnter(foldedWrapper());
 
@@ -4541,11 +4592,11 @@ describe('assigning from a folded role’s cell with @', () => {
     await oneRow();
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· AD');
+      expect(assigneeShown('step-dev')).toBe('· AD');
     });
     fireEvent.blur(foldedCell());
 
-    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+    fireEvent.mouseEnter(foldedWrapper('step-qa'));
 
     const card = screen.getByRole('tooltip');
     expect(card.textContent).toContain('Ada');
@@ -4562,10 +4613,10 @@ describe('assigning from a folded role’s cell with @', () => {
     await oneRow();
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· AD');
+      expect(assigneeShown('step-dev')).toBe('· AD');
     });
 
-    const shown = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');
+    const shown = rowFor('010').querySelector('[data-folded-assignee="step-dev"]');
     expect(shown?.getAttribute('title')).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Unfold Dev estimates' }).getAttribute('title'),
@@ -4613,7 +4664,7 @@ describe('assigning from a folded role’s cell with @', () => {
 
     typeInto(foldedCell(), '@');
     expect(offered(), 'somebody is on this deployment, so the list is not empty').toEqual([]);
-    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+    fireEvent.mouseEnter(foldedWrapper('step-qa'));
     expect(screen.getAllByRole('tooltip')).toHaveLength(1);
 
     fireEvent.mouseEnter(foldedWrapper());
@@ -4625,9 +4676,9 @@ describe('assigning from a folded role’s cell with @', () => {
 });
 
 describe('one cell for the whole trio', () => {
-  /** The folded role's cell: shows the final figure, takes `o/r/p`. */
-  const combinedCell = (number: string, role = 'Dev') =>
-    screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+  /** The folded step's cell: shows the final figure, takes `o/r/p`. */
+  const combinedCell = (number: string, step = 'Dev') =>
+    screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`);
 
   /** Types shorthand into the folded cell and leaves it, the way a person does. */
   const typeCombined = (number: string, value: string) => {
@@ -4641,14 +4692,14 @@ describe('one cell for the whole trio', () => {
   const watchWrites = (api: ProjectApi): unknown[][] => {
     const written: unknown[][] = [];
     const perform = api.setEstimate.bind(api);
-    api.setEstimate = (id: string, roleId: string, days: Days) => {
-      written.push([id, roleId, days]);
-      return perform(id, roleId, days);
+    api.setEstimate = (id: string, stepId: string, days: Days) => {
+      written.push([id, stepId, days]);
+      return perform(id, stepId, days);
     };
     return written;
   };
 
-  /** One row, roles left folded — which is where a person starts. */
+  /** One row, steps left folded — which is where a person starts. */
   async function oneRow() {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -4668,13 +4719,13 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', '2/3/8');
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
       });
     });
-    expect(written).toEqual([['w1', 'role-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]);
+    expect(written).toEqual([['w1', 'step-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]);
   });
 
   itDom('goes back to showing be-01’s final figure once the trio lands', async () => {
@@ -4697,7 +4748,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', '5');
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 5,
         realistic: 5,
         pessimistic: 5,
@@ -4725,7 +4776,7 @@ describe('one cell for the whole trio', () => {
 
     await waitFor(() => {
       expect(written).toEqual([
-        ['w1', 'role-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }],
+        ['w1', 'step-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }],
       ]);
     });
     // The caret stays where it is, exactly as Prio's does: moving on is
@@ -4782,7 +4833,7 @@ describe('one cell for the whole trio', () => {
     fireEvent.keyDown(realistic, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 8,
@@ -4796,7 +4847,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', ' 0.5 / 1 / 2 ');
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 0.5,
         realistic: 1,
         pessimistic: 2,
@@ -4814,7 +4865,7 @@ describe('one cell for the whole trio', () => {
     const cell = typeCombined('010', '8/3/2');
 
     expect(written).toEqual([]);
-    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    expect(api.rows[0]?.estimates['step-dev']).toBeUndefined();
     expect(cell).toHaveAttribute('aria-invalid', 'true');
     // The complaint reads off the card, the cell's one hint. 'Must read' and
     // not 'optimistic': the card's help line says 'optimistic' about every
@@ -4836,7 +4887,7 @@ describe('one cell for the whole trio', () => {
     const cell = typeCombined('010', '2/3');
 
     expect(written).toEqual([]);
-    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    expect(api.rows[0]?.estimates['step-dev']).toBeUndefined();
     expect(cell).toHaveAttribute('aria-invalid', 'true');
     expect(cell.value).toBe('2/3');
   });
@@ -4853,36 +4904,36 @@ describe('one cell for the whole trio', () => {
     const cell = combinedCell('010');
     expect(cell.value).toBe('1/2/3/4');
     expect(cell).toHaveAttribute('aria-invalid', 'true');
-    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    expect(api.rows[0]?.estimates['step-dev']).toBeUndefined();
   });
 
   itDom('clears the stored trio when the cell is emptied', async () => {
     const api = await oneRow();
     typeCombined('010', '2/3/10');
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toBeDefined();
+      expect(api.rows[0]?.estimates['step-dev']).toBeDefined();
     });
     const cleared: [string, string][] = [];
     const perform = api.clearEstimate.bind(api);
-    api.clearEstimate = (id: string, roleId: string) => {
-      cleared.push([id, roleId]);
-      return perform(id, roleId);
+    api.clearEstimate = (id: string, stepId: string) => {
+      cleared.push([id, stepId]);
+      return perform(id, stepId);
     };
 
     typeCombined('010', '');
 
     await waitFor(() => {
-      expect(cleared).toEqual([['w1', 'role-dev']]);
+      expect(cleared).toEqual([['w1', 'step-dev']]);
     });
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+      expect(api.rows[0]?.estimates['step-dev']).toBeUndefined();
     });
     expect(combinedCell('010').value).toBe('');
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'false');
   });
 
   itDom('asks for nothing when a cell with no estimate is emptied', async () => {
-    // Tabbing through an unestimated plan must not post a deletion per role
+    // Tabbing through an unestimated plan must not post a deletion per step
     // per row. A space is what a person leaves behind after select-all.
     const api = await oneRow();
     const cleared: unknown[] = [];
@@ -4898,13 +4949,13 @@ describe('one cell for the whole trio', () => {
     expect(written).toEqual([]);
   });
 
-  itDom('gives way to the three boxes when the role is unfolded', async () => {
+  itDom('gives way to the three boxes when the step is unfolded', async () => {
     // Two editors for one trio side by side is two places to disagree. The
-    // combined cell is the folded role's; unfolded, the boxes are.
+    // combined cell is the folded step's; unfolded, the boxes are.
     await oneRow();
     expect(combinedCell('010')).toBeDefined();
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
@@ -4921,13 +4972,13 @@ describe('one cell for the whole trio', () => {
 
     typeCombined('010.1', '2/3/10');
     await waitFor(() => {
-      expect(api.rows.find((r) => r.id === 'w2')?.estimates['role-dev']).toBeDefined();
+      expect(api.rows.find((r) => r.id === 'w2')?.estimates['step-dev']).toBeDefined();
     });
 
     // The parent sums what is below it; there is nothing there to type. Its
     // figure is still shown — read-only text where the leaf has a box.
     expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
-    expect(rowFor('010').querySelector('[data-final="role-dev"]')).not.toBeNull();
+    expect(rowFor('010').querySelector('[data-final="step-dev"]')).not.toBeNull();
     await waitFor(() => {
       expect(combinedCell('010.1').value).toBe('4');
     });
@@ -4949,7 +5000,7 @@ describe('one cell for the whole trio', () => {
     fireEvent.change(combinedCell('020'), { target: { value: '1/1/1' } });
     fireEvent.blur(combinedCell('020'));
     await waitFor(() => {
-      expect(api.rows[1]?.estimates['role-dev']).toEqual({
+      expect(api.rows[1]?.estimates['step-dev']).toEqual({
         optimistic: 1,
         realistic: 1,
         pessimistic: 1,
@@ -4958,13 +5009,13 @@ describe('one cell for the whole trio', () => {
   });
 
   itDom('lets a folded entry replace what the boxes were holding', async () => {
-    // One row and role has one pending draft, whichever way it was typed. The
+    // One row and step has one pending draft, whichever way it was typed. The
     // alternative is two half-typed estimates of one trio and a rule about
     // which of them is real — and this is the case where it shows, because a
     // refused entry is the one that stays.
     const api = await oneRow();
     const written = watchWrites(api);
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(box, { target: { value: '7' } });
     fireEvent.blur(box);
@@ -4975,7 +5026,7 @@ describe('one cell for the whole trio', () => {
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
     // The `7` was a draft of this same trio, and the trio has since been typed
     // again — differently, and last. It is not still waiting in a box.
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const after = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     expect(after.value).toBe('');
     expect(after).toHaveAttribute('aria-invalid', 'false');
@@ -4990,7 +5041,7 @@ describe('one cell for the whole trio', () => {
     const written = watchWrites(api);
     typeCombined('010', '8/3/2');
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(box, { target: { value: '1' } });
     fireEvent.blur(box);
@@ -5008,7 +5059,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('010', '8/3/2');
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
 
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     for (const [point, value] of [
       ['optimistic', '1'],
       ['realistic', '2'],
@@ -5020,7 +5071,7 @@ describe('one cell for the whole trio', () => {
     }
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 1,
         realistic: 2,
         pessimistic: 3,
@@ -5037,7 +5088,7 @@ describe('one cell for the whole trio', () => {
     // The `!` marker `role-columns-fold` put on the figure now has an input
     // under it, and the complaint has to reach both.
     await oneRow();
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(box, { target: { value: '5' } });
     fireEvent.blur(box);
@@ -5046,7 +5097,7 @@ describe('one cell for the whole trio', () => {
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
     fireEvent.focus(combinedCell('010'));
     expect(screen.getByRole('tooltip').textContent).toContain('not saved');
-    expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toContain('!');
+    expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toContain('!');
   });
 });
 
@@ -5067,7 +5118,7 @@ describe('estimates are never edited for you', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     return api;
   }
 
@@ -5129,7 +5180,7 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'pessimistic', '10');
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 10,
@@ -5147,7 +5198,7 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'realistic', '7');
 
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      expect(api.rows[0]?.estimates['step-dev']).toEqual({
         optimistic: 5,
         realistic: 7,
         pessimistic: 10,
@@ -5159,9 +5210,9 @@ describe('estimates are never edited for you', () => {
   const watchClears = (api: ProjectApi): [string, string][] => {
     const cleared: [string, string][] = [];
     const perform = api.clearEstimate.bind(api);
-    api.clearEstimate = (id: string, roleId: string) => {
-      cleared.push([id, roleId]);
-      return perform(id, roleId);
+    api.clearEstimate = (id: string, stepId: string) => {
+      cleared.push([id, stepId]);
+      return perform(id, stepId);
     };
     return cleared;
   };
@@ -5173,7 +5224,7 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'realistic', '3');
     typeEstimate('010', 'pessimistic', '10');
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toBeDefined();
+      expect(api.rows[0]?.estimates['step-dev']).toBeDefined();
     });
     return api;
   }
@@ -5181,7 +5232,7 @@ describe('estimates are never edited for you', () => {
   itDom('clears the stored trio when all three boxes are emptied', async () => {
     // Until now a trio could be overwritten but never taken back off. Emptying
     // the three boxes is the only gesture that says "this row does not need
-    // this role", and it used to save nothing at all.
+    // this step", and it used to save nothing at all.
     const api = await estimated();
     const cleared = watchClears(api);
 
@@ -5190,10 +5241,10 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'pessimistic', '');
 
     await waitFor(() => {
-      expect(cleared).toEqual([['w1', 'role-dev']]);
+      expect(cleared).toEqual([['w1', 'step-dev']]);
     });
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+      expect(api.rows[0]?.estimates['step-dev']).toBeUndefined();
     });
     // The drafts went with it, so the boxes read from the tree again rather
     // than from three empty strings the table is still holding.
@@ -5212,7 +5263,7 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'realistic', '');
 
     expect(cleared).toEqual([]);
-    expect(api.rows[0]?.estimates['role-dev']).toEqual({
+    expect(api.rows[0]?.estimates['step-dev']).toEqual({
       optimistic: 2,
       realistic: 3,
       pessimistic: 10,
@@ -5225,7 +5276,7 @@ describe('estimates are never edited for you', () => {
 
   itDom('asks for nothing when three empty boxes were already empty', async () => {
     // A row nobody estimated is the ordinary state. Tabbing through its boxes
-    // must not post a deletion for every role on every row it passes.
+    // must not post a deletion for every step on every row it passes.
     const api = await oneRow();
     const cleared = watchClears(api);
 
@@ -5235,7 +5286,7 @@ describe('estimates are never edited for you', () => {
     expect(cleared).toEqual([]);
   });
 
-  itDom('shows the final figure be-01 computed, per role and in total', async () => {
+  itDom('shows the final figure be-01 computed, per step and in total', async () => {
     const api = await oneRow();
 
     typeEstimate('010', 'optimistic', '2');
@@ -5243,10 +5294,10 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'pessimistic', '10');
 
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('4');
+      expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('4');
     });
     expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('4');
-    expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+    expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(3);
   });
 
   itDom('follows the project’s chosen method', async () => {
@@ -5255,7 +5306,7 @@ describe('estimates are never edited for you', () => {
     typeEstimate('010', 'realistic', '3');
     typeEstimate('010', 'pessimistic', '10');
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('4');
+      expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('4');
     });
 
     fireEvent.change(screen.getByLabelText('Final estimate'), {
@@ -5263,7 +5314,7 @@ describe('estimates are never edited for you', () => {
     });
 
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('10');
+      expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('10');
     });
   });
 });
@@ -5395,7 +5446,7 @@ async function threeRoots() {
       expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
     });
   }
-  unfoldRole('Dev');
+  unfoldStep('Dev');
   return api;
 }
 
@@ -5508,12 +5559,12 @@ describe('dragging a row', () => {
 });
 
 describe('the drag handle as assistive technology meets it', () => {
-  itDom('is a control with a role and a name, not a decorated span', async () => {
+  itDom('is a control with a step and a name, not a decorated span', async () => {
     // It was a bare `<span aria-label="Reorder">` with no `role` and no
     // `tabindex` — a label on nothing, which is what a screen reader is handed.
     // ⌥+arrows are the keyboard route to reordering, so the handle is
     // deliberately out of the tab order; what it is not allowed to be is
-    // roleless.
+    // stepless.
     await threeRoots();
 
     const handle = screen.getByLabelText('Reorder 020');
@@ -6611,15 +6662,15 @@ describe('Tab moves between the fields, from every cell', () => {
     }
   });
 
-  itDom('walks both open roles in turn, and the grid arrows cross between them', async () => {
-    // The keyboard's half of `unfolding-may-scroll`: with two roles open the
+  itDom('walks both open steps in turn, and the grid arrows cross between them', async () => {
+    // The keyboard's half of `unfolding-may-scroll`: with two steps open the
     // row is eight cells longer than any walk ever asserted, because until
-    // that change a second role could not be open at all. The Tab order and
+    // that change a second step could not be open at all. The Tab order and
     // the grid's own left/right are the two ways across a row and both are
-    // asked here — a handler left off the second role's boxes is invisible to
+    // asked here — a handler left off the second step's boxes is invisible to
     // a walk that only ever sees the first one's.
     await threeRoots();
-    unfoldRole('QA');
+    unfoldStep('QA');
 
     for (const [from, to] of stepsThrough([
       'Dev pessimistic for 010',
@@ -6636,7 +6687,7 @@ describe('Tab moves between the fields, from every cell', () => {
     }
 
     // And the chord that moves between cells rather than through them: out of
-    // the first open role and into the second, then back.
+    // the first open step and into the second, then back.
     focusCaret('Dev assignee for 010', 'end');
     fireEvent.keyDown(screen.getByLabelText('Dev assignee for 010'), { key: 'l', ctrlKey: true });
     expect(document.activeElement).toBe(screen.getByLabelText('QA optimistic for 010'));
@@ -7180,7 +7231,7 @@ describe('dependencies in the table', () => {
   });
 
   itDom('describes the box with what the row waits for, pointer or no pointer', async () => {
-    // This cell's card cannot open on the focus the way the folded role cell's
+    // This cell's card cannot open on the focus the way the folded step cell's
     // does: the focus here already belongs to the dependency picker, which
     // opens on it and offers the rows this one could *start* waiting for — a
     // different list, over the same 110px, and stacking the two is the thing the
@@ -7341,7 +7392,7 @@ describe('dependencies in the table', () => {
       fireEvent.blur(cell);
     }
     await waitFor(() => {
-      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(4);
+      expect(api.rows[0]?.estimates['step-dev']?.realistic).toBe(4);
     });
 
     dependOn('020', '010');
@@ -8103,10 +8154,10 @@ describe('dependencies in the table — cross-review findings', () => {
     assign: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
     duplicate: () => Promise.reject(new Error('not_in_these_tests')),
-    roles: () => Promise.resolve([DEV]),
-    addRole: () => Promise.reject(new Error('not_in_these_tests')),
-    renameRole: () => Promise.reject(new Error('not_in_these_tests')),
-    removeRole: () => Promise.reject(new Error('not_in_these_tests')),
+    steps: () => Promise.resolve([DEV]),
+    addStep: () => Promise.reject(new Error('not_in_these_tests')),
+    renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+    removeStep: () => Promise.reject(new Error('not_in_these_tests')),
     tree: () =>
       Promise.resolve({
         seq: 0,
@@ -8120,7 +8171,7 @@ describe('dependencies in the table — cross-review findings', () => {
                 {
                   id: `w1::${DEV.id}`,
                   workItemId: 'w1',
-                  roleId: DEV.id,
+                  stepId: DEV.id,
                   personId: null,
                   duration: 7,
                   estimated: true,
@@ -8138,7 +8189,7 @@ describe('dependencies in the table — cross-review findings', () => {
                   ...schedule,
                 },
               ],
-        roles: [DEV],
+        steps: [DEV],
         assignedPeople: [],
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -8166,7 +8217,7 @@ describe('dependencies in the table — cross-review findings', () => {
             serviceTeamId: null,
             teamIds: [],
             assignees: {},
-            doesEveryPhase: null,
+            doesEveryStep: null,
             dates: null,
             schedule: {
               duration: 7,
@@ -8661,7 +8712,7 @@ describe('hovering a dependency lights the rows it names', () => {
   });
 
   itDom('lights rows without remounting the cells under a half-typed name', async () => {
-    // The landmine: `columns` may depend on `roles` and `unfoldedRoles` and
+    // The landmine: `columns` may depend on `steps` and `unfoldedSteps` and
     // nothing else. A `columns` that rebuilt on `depHover` would hand every
     // cell a new component type on the first hover, and React would remount
     // the lot — dropping the focus to the body and the half-typed name with
@@ -8850,7 +8901,7 @@ describe('the pointed row', () => {
   });
 
   itDom('points a row without remounting the cells under a half-typed name', async () => {
-    // The landmine: `columns` may depend on `roles` and `unfoldedRoles` and
+    // The landmine: `columns` may depend on `steps` and `unfoldedSteps` and
     // nothing else. A `columns` that rebuilt on a pointed row would hand every
     // cell a new component type on the first hover and React would remount the
     // lot, dropping the focus to the body and the half-typed name with it. The
@@ -8909,10 +8960,10 @@ describe('the chart under a plan being edited', () => {
       assign: () => Promise.resolve(),
       renameProject: () => Promise.resolve(),
       duplicate: () => Promise.reject(new Error('not_in_these_tests')),
-      roles: () => Promise.resolve([DEV]),
-      addRole: () => Promise.reject(new Error('not_in_these_tests')),
-      renameRole: () => Promise.reject(new Error('not_in_these_tests')),
-      removeRole: () => Promise.reject(new Error('not_in_these_tests')),
+      steps: () => Promise.resolve([DEV]),
+      addStep: () => Promise.reject(new Error('not_in_these_tests')),
+      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
       tree: () =>
         Promise.resolve({
           seq: 0,
@@ -8923,7 +8974,7 @@ describe('the chart under a plan being edited', () => {
             {
               id: `w1::${DEV.id}`,
               workItemId: 'w1',
-              roleId: DEV.id,
+              stepId: DEV.id,
               personId: null,
               // Which floor binds moves with the edit, the way be-01's does: a
               // row with a not-before that pushed it is a slice bound by that
@@ -8937,7 +8988,7 @@ describe('the chart under a plan being edited', () => {
               ...scheduleNow(),
             },
           ],
-          roles: [DEV],
+          steps: [DEV],
           assignedPeople: [],
           // Present and empty, never absent: be-01 always sends it, so a fake that
           // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -8966,7 +9017,7 @@ describe('the chart under a plan being edited', () => {
               serviceTeamId: null,
               teamIds: [],
               assignees: {},
-              doesEveryPhase: null,
+              doesEveryStep: null,
               dates: null,
               schedule: scheduleNow(),
             },
@@ -9322,7 +9373,7 @@ describe('the widths the table is laid out by', () => {
     // plan has Dev unfolded and QA folded, so the floor is the 839px of fixed
     // columns (827 → 839 in `number-column-widen`, 93 → 105 in
     // `COLUMN_WIDTHS`) — nobody has dated a row, so `not-before` is at its
-    // narrow 56 — plus 348 for the open role, 96 for the closed one and
+    // narrow 56 — plus 348 for the open step, 96 for the closed one and
     // Name's 200. Folded it would be 1231, and both open 1735 — the
     // difference is what `unfolding-may-scroll` decided to spend the frame's
     // scrollbar on.
@@ -9375,7 +9426,7 @@ describe('the widths the table is laid out by', () => {
 
   itDom('changes a width without rebuilding a single cell of the table', async () => {
     // The landmine this whole seam is built around (LLM_README #1): `columns`
-    // may depend on `roles` and `unfoldedRoles` and nothing else. `flexRender`
+    // may depend on `steps` and `unfoldedSteps` and nothing else. `flexRender`
     // renders every `cell` as a component *type*, so a width threaded through
     // a column definition — and the `frameState` dependency that would have to
     // come with it — gives every cell a new type and React unmounts and
@@ -9453,7 +9504,7 @@ describe('the widths the table is laid out by', () => {
         // lines over a 48px column, which is now the narrowest clip in the table.
         (['depends', 'name', 'team', 'actions', 'not-before', 'priority'].includes(column) ||
           column.endsWith('-assignee') ||
-          // A folded role's cell opens the `@` people picker over a 96px
+          // A folded step's cell opens the `@` people picker over a 96px
           // column, which is the narrowest clip in the table.
           column.endsWith('-final'));
       expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
@@ -9569,26 +9620,26 @@ describe('the widths the table is laid out by', () => {
     expect(cellOf('actions').style.overflow).toBe('visible');
     // The service/team box and every assignee box are `CreatablePicker`s, and
     // a picker's list is the same absolutely positioned popover in the same
-    // kind of wrapper. Their columns are named `<roleId>-assignee` at runtime,
+    // kind of wrapper. Their columns are named `<stepId>-assignee` at runtime,
     // so they are found rather than written out.
     expect(cellOf('team').style.overflow).toBe('visible');
     const assigneeCells = [
       ...rowFor('020').querySelectorAll<HTMLElement>('td[data-column$="-assignee"]'),
     ];
     // Or an empty list would satisfy the loop below without a picker column
-    // being rendered at all. One here: this plan has two roles and the second
-    // is folded, and a folded role shows one estimate box and no assignee.
+    // being rendered at all. One here: this plan has two steps and the second
+    // is folded, and a folded step shows one estimate box and no assignee.
     expect(assigneeCells.length).toBeGreaterThan(0);
     for (const cell of assigneeCells) expect(cell.style.overflow).toBe('visible');
 
-    // A folded role's cell: `@` opens the people picker there, over a column
+    // A folded step's cell: `@` opens the people picker there, over a column
     // 96px wide. `final-total` is not one of these — it ends in `total`, and
     // it still clips, which is what says the suffix match is a match and not a
     // blanket.
     // Proof: the `-final` suffix dropped from `opensAPopover`, this and
     // `gives every cell the chrome its declared width is measured with` both
     // failed on `expected 'hidden' to be 'visible'`. Watched, 2026-08-08.
-    expect(cellOf('role-qa-final').style.overflow).toBe('visible');
+    expect(cellOf('step-qa-final').style.overflow).toBe('visible');
     expect(cellOf('final-total').style.overflow).toBe('clip');
 
     // The other two reference cells, and their absence from `POPOVER_COLUMNS`
@@ -10032,15 +10083,15 @@ describe('the widths this browser has dragged', () => {
     },
   );
 
-  itDom('leaves a phase this project no longer holds alone', async () => {
+  itDom('leaves a step this project no longer holds alone', async () => {
     // Never looked at rather than dropped: expansion's deleted row ids are
     // harmless for the same reason, and a width for a column nothing renders
-    // costs nothing to keep. The role coming back would find its width waiting.
-    storedWidths({ 'role-gone-final': 140, number: 240 });
+    // costs nothing to keep. The step coming back would find its width waiting.
+    storedWidths({ 'step-gone-final': 140, number: 240 });
     await threeRoots();
 
     expect(laidOut().number).toBe('240px');
-    expect(stored()).toContain('role-gone-final');
+    expect(stored()).toContain('step-gone-final');
   });
 
   itDom('freezes a width that would otherwise move with the plan', async () => {
@@ -10105,8 +10156,8 @@ describe('the widths this browser has dragged', () => {
   });
 
   itDom('changes a width without rebuilding a single cell of the table', async () => {
-    // Landmine #1 again, from the other side. `columns` may depend on `roles`
-    // and `unfoldedRoles` and nothing else, so the overrides live beside
+    // Landmine #1 again, from the other side. `columns` may depend on `steps`
+    // and `unfoldedSteps` and nothing else, so the overrides live beside
     // `expanded` and never enter a column definition: `flexRender` renders each
     // `cell` as a component *type*, and a definition that changed with a width
     // would unmount and remount every cell in the table, taking the focus and
@@ -10528,7 +10579,7 @@ describe('what the plan is still missing', () => {
     return found;
   };
 
-  /** Rows with nothing typed into them yet, roles left folded — where a person starts. */
+  /** Rows with nothing typed into them yet, steps left folded — where a person starts. */
   async function rows(count: number) {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -10539,21 +10590,21 @@ describe('what the plan is still missing', () => {
     return api;
   }
 
-  /** Estimates one row and role through the folded cell, and waits for it to land. */
-  const estimate = async (number: string, role: 'Dev' | 'QA') => {
-    const cell = screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+  /** Estimates one row and step through the folded cell, and waits for it to land. */
+  const estimate = async (number: string, step: 'Dev' | 'QA') => {
+    const cell = screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`);
     fireEvent.change(cell, { target: { value: '5' } });
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`).value).toBe(
+      expect(screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`).value).toBe(
         '5',
       );
     });
   };
 
-  itDom('counts the leaves that are short, not the roles they are short of', async () => {
-    // Two work items to go and fix, three role-sized holes between them. The
-    // badge is a number of rows a reader can walk; adding the per-role counts
+  itDom('counts the leaves that are short, not the steps they are short of', async () => {
+    // Two work items to go and fix, three step-sized holes between them. The
+    // badge is a number of rows a reader can walk; adding the per-step counts
     // would print a bigger number than there are rows to visit.
     await rows(3);
     await estimate('010', 'Dev');
@@ -10590,8 +10641,8 @@ describe('what the plan is still missing', () => {
     expect(badge()).toBeNull();
   });
 
-  itDom('lands the focus in the cell of the first role that leaf is missing', async () => {
-    // Per role, not per row: 010 has a Dev estimate and no QA one, so the cell
+  itDom('lands the focus in the cell of the first step that leaf is missing', async () => {
+    // Per step, not per row: 010 has a Dev estimate and no QA one, so the cell
     // to be standing in is QA's. Sending the focus to Dev would be the tool
     // pointing at the one number that is already there.
     await rows(2);
@@ -10652,11 +10703,11 @@ describe('what the plan is still missing', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010.1'));
   });
 
-  itDom('lands in the first box while the role is unfolded, where the trio is typed', async () => {
+  itDom('lands in the first box while the step is unfolded, where the trio is typed', async () => {
     // Unfolded, the folded cell is the read-only figure again and the three
     // boxes are the editor — so that is where the walk has to put the caret.
     await rows(1);
-    unfoldRole('Dev');
+    unfoldStep('Dev');
 
     fireEvent.click(theBadge());
 
@@ -12687,7 +12738,7 @@ describe('the command chords', () => {
     });
 
     // And now the reader goes somewhere else entirely and starts typing a
-    // name into a folded role's cell, which opens the people list.
+    // name into a folded step's cell, which opens the people list.
     const folded = screen.getByLabelText<HTMLInputElement>('QA estimate for 010');
     folded.focus();
     fireEvent.focus(folded);
@@ -12828,9 +12879,9 @@ describe('the command chords', () => {
   const watchPeopleWrites = (api: ProjectApi): string[] => {
     const written: string[] = [];
     const realAssign = api.assign.bind(api);
-    api.assign = (id: string, roleId: string, personId: string | null) => {
-      written.push(`assign ${id} ${roleId} ${String(personId)}`);
-      return realAssign(id, roleId, personId);
+    api.assign = (id: string, stepId: string, personId: string | null) => {
+      written.push(`assign ${id} ${stepId} ${String(personId)}`);
+      return realAssign(id, stepId, personId);
     };
     const realAdd = api.addPerson.bind(api);
     api.addPerson = (name: string, teamIds: readonly string[]) => {
@@ -12923,7 +12974,7 @@ describe('the command chords', () => {
     // it would have made are recorded rather than inferred.
     //
     // Proof: the same guard removed, this failed on `expected [ 'assign w2
-    // role-dev person1' ] to deeply equal []`. Watched, 2026-08-08.
+    // step-dev person1' ] to deeply equal []`. Watched, 2026-08-08.
     const api = await threeRoots();
     const first = screen.getByLabelText('Dev assignee for 010');
     fireEvent.focus(first);
@@ -12977,7 +13028,7 @@ describe('the command chords', () => {
 
   itDom('Cmd+Enter in the folded cell’s open @ list assigns nobody', async () => {
     // Proof: the consume guard removed from the folded cell's `onKeyDown`,
-    // this failed on `expected [ 'assign w2 role-dev person1' ] to deeply
+    // this failed on `expected [ 'assign w2 step-dev person1' ] to deeply
     // equal []`. Watched, 2026-08-08.
     const api = await threeRoots();
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
@@ -12986,7 +13037,7 @@ describe('the command chords', () => {
     fireEvent.change(first, { target: { value: '@Kateryna' } });
     fireEvent.keyDown(first, { key: 'Enter' });
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-folded-assignee="role-dev"]')).not.toBeNull();
+      expect(rowFor('010').querySelector('[data-folded-assignee="step-dev"]')).not.toBeNull();
     });
     fireEvent.blur(first);
     const written = watchPeopleWrites(api);
@@ -13002,7 +13053,7 @@ describe('the command chords', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(written).toEqual([]);
     expect(await api.listPeople()).toHaveLength(1);
-    expect(rowFor('020').querySelector('[data-folded-assignee="role-dev"]')).toBeNull();
+    expect(rowFor('020').querySelector('[data-folded-assignee="step-dev"]')).toBeNull();
     // The mention was not taken out of the box, because nothing was taken.
     expect(box.value).toBe('@Kat');
   });
@@ -13473,13 +13524,13 @@ describe('the chords reach the picker cells and the date cell', () => {
   });
 });
 
-describe('a phase changing, and what the table does about it', () => {
-  /** The Phases surface, from the toolbar button somebody really clicks. */
-  const openPhases = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
+describe('a step changing, and what the table does about it', () => {
+  /** The Steps surface, from the toolbar button somebody really clicks. */
+  const openSteps = (): void => {
+    fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
   };
 
-  const closePhases = (): void => {
+  const closeSteps = (): void => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   };
 
@@ -13491,30 +13542,30 @@ describe('a phase changing, and what the table does about it', () => {
    * — a wait that could never fail, and it was written that way first.
    */
 
-  /** Adds a phase through the dialog and waits for the column to arrive. */
-  async function addPhase(name: string): Promise<void> {
-    openPhases();
-    fireEvent.change(screen.getByLabelText('New phase'), { target: { value: name } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+  /** Adds a step through the dialog and waits for the column to arrive. */
+  async function addStep(name: string): Promise<void> {
+    openSteps();
+    fireEvent.change(screen.getByLabelText('New step'), { target: { value: name } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await screen.findByRole('button', { name: `Remove ${name}` });
-    closePhases();
+    closeSteps();
     await screen.findByRole('button', { name: `Unfold ${name} estimates` });
   }
 
-  /** Removes a phase through the dialog and waits for the column to go. */
-  async function removePhase(name: string): Promise<void> {
-    openPhases();
+  /** Removes a step through the dialog and waits for the column to go. */
+  async function removeStep(name: string): Promise<void> {
+    openSteps();
     fireEvent.click(screen.getByRole('button', { name: `Remove ${name}` }));
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Remove ${name}` })).toBeNull();
     });
-    closePhases();
+    closeSteps();
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Unfold ${name} estimates` })).toBeNull();
     });
   }
 
-  /** One empty root row, with both seeded phases still there. */
+  /** One empty root row, with both seeded steps still there. */
   async function oneRow() {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
@@ -13523,35 +13574,35 @@ describe('a phase changing, and what the table does about it', () => {
     return api;
   }
 
-  itDom('takes the columns of a phase that has gone, unfolded and all', async () => {
-    // The accordion is left holding `role-qa` on purpose — see
-    // `settleAgainstRoles`. Nothing can observe that, because `columns` is
-    // built by mapping over `roles` and a dead id selects no role to unfold;
-    // what this measures is the columns following the phases.
-    // Proof: `setRoles` made to keep whatever it first loaded, so a later read
-    // could not take a phase away, this failed in `removePhase` on `expected
-    // <button …(2)></button> to be null` — the removed phase's fold button
+  itDom('takes the columns of a step that has gone, unfolded and all', async () => {
+    // The accordion is left holding `step-qa` on purpose — see
+    // `settleAgainstSteps`. Nothing can observe that, because `columns` is
+    // built by mapping over `steps` and a dead id selects no step to unfold;
+    // what this measures is the columns following the steps.
+    // Proof: `setSteps` made to keep whatever it first loaded, so a later read
+    // could not take a step away, this failed in `removeStep` on `expected
+    // <button …(2)></button> to be null` — the removed step's fold button
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
-    unfoldRole('QA');
+    unfoldStep('QA');
     expect(screen.getByRole('table').style.minWidth).toBe('1483px');
 
-    await removePhase('QA');
+    await removeStep('QA');
 
-    // One phase left, folded: 839px of fixed columns (827 → 839 in
+    // One step left, folded: 839px of fixed columns (827 → 839 in
     // `number-column-widen`, 93 → 105 in `COLUMN_WIDTHS`), 200 for Name, 96
     // for it.
     expect(screen.getByRole('table').style.minWidth).toBe('1135px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 
-  itDom('drops a half-typed figure for a phase that has gone', async () => {
+  itDom('drops a half-typed figure for a step that has gone', async () => {
     // Observable because a pending draft **vetoes** the backspace removal of an
-    // otherwise empty row: typing counts as content. A draft for a phase that
+    // otherwise empty row: typing counts as content. A draft for a step that
     // no longer exists would go on vetoing forever, over a figure nobody can
     // see, reach or finish.
     await oneRow();
-    unfoldRole('QA');
+    unfoldStep('QA');
     const box = screen.getByLabelText<HTMLInputElement>('QA optimistic for 010');
     fireEvent.change(box, { target: { value: '5' } });
     fireEvent.blur(box);
@@ -13563,7 +13614,7 @@ describe('a phase changing, and what the table does about it', () => {
     // below is measured against.
     expect(numbersOnScreen()).toEqual(['010']);
 
-    await removePhase('QA');
+    await removeStep('QA');
 
     const after = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
     after.setSelectionRange(0, 0);
@@ -13574,16 +13625,16 @@ describe('a phase changing, and what the table does about it', () => {
     });
   });
 
-  itDom('keeps the drafts of the phases that stayed', async () => {
+  itDom('keeps the drafts of the steps that stayed', async () => {
     // The other half, and the reason the sanitizer is a filter rather than a
-    // clear: a phase going must not take the figures of the ones that remain.
+    // clear: a step going must not take the figures of the ones that remain.
     await oneRow();
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const dev = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     fireEvent.change(dev, { target: { value: '7' } });
     fireEvent.blur(dev);
 
-    await removePhase('QA');
+    await removeStep('QA');
 
     // Dev is still unfolded — it is still there, so the set keeps it — and its
     // three boxes are new elements after the rebuild.
@@ -13594,16 +13645,16 @@ describe('a phase changing, and what the table does about it', () => {
     expect(numbersOnScreen()).toEqual(['010']);
   });
 
-  itDom('rebuilds nothing when the phases came back the same', async () => {
-    // A phase change is the **one** sanctioned remount, and this is the other
-    // side of that sentence: a read that changed no phase must cost nobody
-    // their place. `roles` is `columns`' dependency, so an array replaced on
+  itDom('rebuilds nothing when the steps came back the same', async () => {
+    // A step change is the **one** sanctioned remount, and this is the other
+    // side of that sentence: a read that changed no step must cost nobody
+    // their place. `steps` is `columns`' dependency, so an array replaced on
     // every read rebuilds every column definition and unmounts every cell.
-    // Proof: `sameRoles` made to answer false, this failed on `expected <body
+    // Proof: `sameSteps` made to answer false, this failed on `expected <body
     // style><div>…(1)</div></body> to be <input …(5)></input>` — the focused
     // box unmounted by a reread that changed nothing. Watched, 2026-08-09.
     await oneRow();
-    unfoldRole('Dev');
+    unfoldStep('Dev');
     const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
     box.focus();
 
@@ -13627,8 +13678,8 @@ describe('a phase changing, and what the table does about it', () => {
     expect(document.activeElement).toBe(box);
   });
 
-  itDom('keeps a draft be-01 refused when a new phase rebuilds every column', async () => {
-    // The one sanctioned remount: a phase change really does rebuild the
+  itDom('keeps a draft be-01 refused when a new step rebuilds every column', async () => {
+    // The one sanctioned remount: a step change really does rebuild the
     // columns, and every cell in the table is a new element afterwards. The
     // focus goes with it, by design — but a refused draft is text that exists
     // nowhere else, and `CellInput`'s rule 4 held it in a ref that dies with
@@ -13644,15 +13695,15 @@ describe('a phase changing, and what the table does about it', () => {
       );
     });
 
-    await addPhase('Design');
+    await addStep('Design');
 
     expect(screen.getByLabelText<HTMLTextAreaElement>('Name of 010').value).toBe(
       'Strip the wiring',
     );
   });
 
-  itDom('forgets a refusal held for a phase that has gone', async () => {
-    // The held refusals are keyed by cell, and a cell of a phase that no longer
+  itDom('forgets a refusal held for a step that has gone', async () => {
+    // The held refusals are keyed by cell, and a cell of a step that no longer
     // exists is one nobody can ever resolve — it would sit in the map for the
     // life of the page.
     const api = await oneRow();
@@ -13661,12 +13712,12 @@ describe('a phase changing, and what the table does about it', () => {
     fireEvent.change(folded, { target: { value: '9' } });
     fireEvent.blur(folded);
     await waitFor(() => {
-      expect(refusedDraftFor('w1::role-qa-final')).toBe('9');
+      expect(refusedDraftFor('w1::step-qa-final')).toBe('9');
     });
 
-    await removePhase('QA');
+    await removeStep('QA');
 
-    expect(refusedDraftFor('w1::role-qa-final')).toBeUndefined();
+    expect(refusedDraftFor('w1::step-qa-final')).toBeUndefined();
   });
 });
 
@@ -13798,7 +13849,7 @@ describe('narrowing the plan by facet', () => {
     expect(numbersOnScreen()).toEqual(['010']);
   });
 
-  itDom('takes a person on any phase, a band by its name, and a phase’s estimate', async () => {
+  itDom('takes a person on any step, a band by its name, and a step’s estimate', async () => {
     await aFacetedPlan();
     openFilters();
 
@@ -14236,9 +14287,9 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     expect(said).not.toContain('Checkout');
   });
 
-  itDom('marks the assignee on a folded role, which is where every plan starts', async () => {
+  itDom('marks the assignee on a folded step, which is where every plan starts', async () => {
     // **Task 7.2's second marker, on the surface that is on screen by default.**
-    // `unfoldedRoles` starts empty, so a marker living only in the unfolded `by`
+    // `unfoldedSteps` starts empty, so a marker living only in the unfolded `by`
     // column would be absent from every plan nobody has unfolded — the same
     // hiding this cell already refuses for a complaint.
     const api = await aServicedPlan();
@@ -14247,7 +14298,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     const said =
       'Assigned outside the team: Ada is not in Billing.' +
       ' Nothing is blocked — the plan is recording this, not refusing it.';
-    const final = rowFor('010').querySelector('[data-final="role-dev"]');
+    const final = rowFor('010').querySelector('[data-final="step-dev"]');
     const mark = final?.querySelector('[data-mismatch="assignee"]');
     expect(mark?.getAttribute('aria-label')).toBe(said);
     // **No native `title` here**, unlike the service cell's mark: this cell's
@@ -14262,7 +14313,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     expect(rowFor('010.1').querySelector('[data-mismatch="assignee"]')).toBeNull();
   });
 
-  itDom('keeps the assignee mark when the role is unfolded, with its own sentence', async () => {
+  itDom('keeps the assignee mark when the step is unfolded, with its own sentence', async () => {
     // The other half of the same claim: unfolding moves the assignee into a
     // column of its own, and a marker that lived only on the folded cell would
     // vanish exactly when somebody looked closer.
@@ -14297,7 +14348,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // Proof, three faults watched on h2puni 2026-08-22, one per way the pair
       // can drift. `title` dropped from the uncarded arm: `expected null to be
       // 'Built by a non-owner: Billing does no…'`. The card's sentence removed
-      // (`folded-role-card.tsx`, the `doing?.outside` block): `expected 'Dev for
+      // (`folded-step-card.tsx`, the `doing?.outside` block): `expected 'Dev for
       // 010No estimate yetAdaDays as …' to contain 'Assigned outside the team:
       // Ada is not…'`. A `title` put back on the carded arm, which is the race
       // 2026-08-09 ended: `expected 'Assigned outside the team: Ada is not…' to
@@ -14338,23 +14389,23 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     },
   );
 
-  itDom('marks the phase nobody named, where the assumption puts them on it', async () => {
+  itDom('marks the step nobody named, where the assumption puts them on it', async () => {
     // **The surface every other assignee case here walks straight past.** Ada is
-    // named on Dev alone, so `doesEveryPhase` puts her on QA as an assumption,
-    // and a phase the plan says she is doing is work assigned to her.
+    // named on Dev alone, so `doesEveryStep` puts her on QA as an assumption,
+    // and a step the plan says she is doing is work assigned to her.
     //
     // Written during chunk 17's injection round, which is also how the branch
     // that used to serve it got deleted: `assigneeOn` carried a special arm for
     // the assumed case, F4 forced it off, and every case stayed green — because
     // an assumption is the row's own single stated assignee, so the ordinary
     // path had been answering it all along. The arm went; this case stays,
-    // because nothing else asserts an assumed phase is marked at all.
+    // because nothing else asserts an assumed step is marked at all.
     const api = await aServicedPlan();
     await shown(api);
 
-    const qa = rowFor('010').querySelector('[data-final="role-qa"]');
+    const qa = rowFor('010').querySelector('[data-final="step-qa"]');
     const mark = qa?.querySelector('[data-mismatch="assignee"]');
-    // The same sentence as the named phase beside it. A phase the plan says she
+    // The same sentence as the named step beside it. A step the plan says she
     // is doing is work assigned to her, and a marker that went quiet exactly
     // where nobody has looked at the assignment would be quiet where it is most
     // needed.
@@ -14629,7 +14680,7 @@ describe('saved views, per browser', () => {
               teamIds: [],
               assigneeIds: [],
               priorityBands: [],
-              estimatedRoleIds: [],
+              estimatedStepIds: [],
               unestimated: false,
               critical: false,
             },
@@ -14660,7 +14711,7 @@ describe('saved views, per browser', () => {
         teamIds: [],
         assigneeIds: [],
         priorityBands: [],
-        estimatedRoleIds: [],
+        estimatedStepIds: [],
         unestimated: false,
         critical: false,
       };
@@ -14691,7 +14742,7 @@ describe('saved views, per browser', () => {
             teamIds: [],
             assigneeIds: [],
             priorityBands: [],
-            estimatedRoleIds: [],
+            estimatedStepIds: [],
             unestimated: false,
             critical: false,
           },
@@ -14704,7 +14755,7 @@ describe('saved views, per browser', () => {
             teamIds: [],
             assigneeIds: [],
             priorityBands: [],
-            estimatedRoleIds: [],
+            estimatedStepIds: [],
             unestimated: false,
             critical: false,
           },
@@ -14735,7 +14786,7 @@ describe('saved views, per browser', () => {
             teamIds: ['team-does-not-exist'],
             assigneeIds: [],
             priorityBands: [],
-            estimatedRoleIds: [],
+            estimatedStepIds: [],
             unestimated: false,
             critical: false,
           },
@@ -15135,7 +15186,7 @@ describe('the columns a reader has hidden', () => {
   }
 
   /** The default column set as this table renders it, read off `table-frame`. */
-  const DEFAULT_ON_SCREEN = (roleIds: readonly string[]) => [
+  const DEFAULT_ON_SCREEN = (stepIds: readonly string[]) => [
     'drag',
     'number',
     'name',
@@ -15143,7 +15194,7 @@ describe('the columns a reader has hidden', () => {
     'priority',
     'tag',
     'in-parallel',
-    ...roleIds.map((id) => `${id}-final`),
+    ...stepIds.map((id) => `${id}-final`),
     'final-total',
     'not-before',
     'start',
@@ -15158,7 +15209,7 @@ describe('the columns a reader has hidden', () => {
     // Teams was on screen in every state. On main this fails twice over.
     localStorage.removeItem(KEY);
     await oneRow();
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['role-dev', 'role-qa']));
+    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
     expect(screen.getByLabelText('Add a tag to 010')).toBeDefined();
     expect(screen.queryByLabelText('Service or team for 010')).toBeNull();
     expect(screen.queryByLabelText('Services for 010')).toBeNull();
@@ -15170,7 +15221,7 @@ describe('the columns a reader has hidden', () => {
     await api.addTeam('Platform');
     await api.addService('Checkout');
     await oneRow(api);
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['role-dev', 'role-qa']));
+    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
   });
 
   itDom('keeps a hidden column hidden across a reload', async () => {
@@ -15190,12 +15241,12 @@ describe('the columns a reader has hidden', () => {
     // Watched, 2026-08-28.
     storedHidden('4');
     await oneRow();
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['role-dev', 'role-qa']));
+    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
     expect(stored()).toBeNull();
     cleanup();
     storedHidden(['priority', 3]);
     await oneRow();
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['role-dev', 'role-qa']));
+    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
     expect(stored()).toBeNull();
   });
 
@@ -15203,31 +15254,31 @@ describe('the columns a reader has hidden', () => {
     // A hide-list, so a stored list that names only Prio has Teams and
     // Services **on** screen: the defaults are what an absent key means, not
     // what every list starts from.
-    const claimed = JSON.stringify(['priority', 'role-nope', 'banana']);
+    const claimed = JSON.stringify(['priority', 'step-nope', 'banana']);
     storedHidden(claimed);
     await oneRow();
     const ids = headerIds();
     expect(ids).not.toContain('priority');
-    for (const id of ['depends', 'team', 'tag', 'service', 'role-dev-final', 'role-qa-final']) {
+    for (const id of ['depends', 'team', 'tag', 'service', 'step-dev-final', 'step-qa-final']) {
       expect(ids).toContain(id);
     }
     // Not written back on read: opening a project must not change what is
     // remembered about it.
     expect(stored()).toBe(claimed);
-    // And the Phases dialog, which quotes the folded width of the columns on
+    // And the Steps dialog, which quotes the folded width of the columns on
     // screen, opens: `foldedTableMinWidth` throws on an id it does not know,
     // so the sanitised list — not the stored one — is what reaches it.
     // Proof: `hiddenColumnIds` handed `storedHiddenColumns` unfiltered, this
-    // failed with `UnknownColumnError: No declared width for column "role-
+    // failed with `UnknownColumnError: No declared width for column "step-
     // nope"` on the click below. Watched, 2026-08-28.
-    click('Phases');
+    click('Steps');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  itDom('hides a role whole and leaves Days and the dates alone', async () => {
+  itDom('hides a step whole and leaves Days and the dates alone', async () => {
     const api = fakeApi();
     const row = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    await api.setEstimate(row.id, 'role-qa', { optimistic: 2, realistic: 3, pessimistic: 4 });
+    await api.setEstimate(row.id, 'step-qa', { optimistic: 2, realistic: 3, pessimistic: 4 });
     render(<WbsTable projectId="p1" api={api} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
@@ -15236,16 +15287,16 @@ describe('the columns a reader has hidden', () => {
       total: rowFor('010').querySelector('[data-final-total]')?.textContent,
       start: rowFor('010').querySelector('td[data-column="start"]')?.textContent,
     };
-    expect(headerIds().filter((id) => id.startsWith('role-qa-'))).toEqual(['role-qa-final']);
+    expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual(['step-qa-final']);
     cleanup();
 
-    storedHidden(['role-qa']);
+    storedHidden(['step-qa']);
     render(<WbsTable projectId="p1" api={api} />);
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010']);
     });
-    expect(headerIds().filter((id) => id.startsWith('role-qa-'))).toEqual([]);
-    expect(headerIds()).toContain('role-dev-final');
+    expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
+    expect(headerIds()).toContain('step-dev-final');
     // The figures are be-01's own and the column only drew them: hidden, they
     // still reach the total and the dates.
     expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe(shown.total);
@@ -15265,7 +15316,7 @@ describe('the columns a reader has hidden', () => {
       checked: box.checked,
     }));
 
-  itDom('offers every data column and every role, in table order, and no control', async () => {
+  itDom('offers every data column and every step, in table order, and no control', async () => {
     await oneRow();
     const panel = openColumns();
     expect(offered(panel)).toEqual([
@@ -15303,15 +15354,15 @@ describe('the columns a reader has hidden', () => {
     },
   );
 
-  itDom('shows a hidden-by-default column from the control, a whole role too', async () => {
+  itDom('shows a hidden-by-default column from the control, a whole step too', async () => {
     await oneRow();
     const panel = openColumns();
     fireEvent.click(within(panel).getByLabelText('Teams'));
     expect(headerIds()).toContain('team');
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
-    expect(headerIds().filter((id) => id.startsWith('role-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['service', 'role-qa']));
+    expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
+    expect(stored()).toBe(JSON.stringify(['service', 'step-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {
@@ -15326,7 +15377,7 @@ describe('the columns a reader has hidden', () => {
     expect(headerIds()).not.toContain('depends');
 
     click('Reset layout');
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['role-dev', 'role-qa']));
+    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
     expect(stored()).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
   });

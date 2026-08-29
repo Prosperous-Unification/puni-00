@@ -6,7 +6,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -26,15 +26,15 @@ import type { Days } from './roll-up';
 import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
+let progress: StepProgressStore;
 let broadcast: ReturnType<typeof recordingBroadcaster>;
 let service: WorkItemService;
 let projectId: string;
@@ -71,7 +71,7 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  // The two roles these cases estimate against. A project that held neither
+  // The two steps these cases estimate against. A project that held neither
   // would refuse every write here, as production's foreign key does.
   await projects.create(project, [
     { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
@@ -95,7 +95,7 @@ async function add(name: string, parentId: string | null = null): Promise<string
 /**
  * Estimates by work item name. A Map rather than a Record because indexing a
  * Record is typed as always present, and every assertion below turns on the
- * difference between a role that is absent and one that is zero.
+ * difference between a step that is absent and one that is zero.
  */
 async function shown(): Promise<Map<string, Record<string, Days>>> {
   const tree = await service.tree(projectId);
@@ -106,7 +106,7 @@ async function shown(): Promise<Map<string, Record<string, Days>>> {
 /**
  * The names an event carries, or a loud failure when it carries none.
  *
- * `ProjectEvent` also covers the role events, which carry a role rather than
+ * `ProjectEvent` also covers the step events, which carry a step rather than
  * work items, so reading `workItems` off the union needs a narrowing — and a
  * test that quietly read nothing would assert against an empty list.
  */
@@ -188,7 +188,7 @@ describe('estimates follow the first and last child', () => {
 });
 
 describe('roll-up through the tree', () => {
-  it('sums two children into their parent, per role', async () => {
+  it('sums two children into their parent, per step', async () => {
     const strip = await add('Strip');
     const one = await add('Sockets', strip);
     const two = await add('Switches', strip);
@@ -202,7 +202,7 @@ describe('roll-up through the tree', () => {
     expect(tree.get('Strip')?.[QA]).toEqual(days(0.5, 0.5, 1));
   });
 
-  it('omits a role no descendant estimated', async () => {
+  it('omits a step no descendant estimated', async () => {
     const strip = await add('Strip');
     const one = await add('Sockets', strip);
     await service.setEstimate(one, OWNER, DEV, days(1, 2, 3));
@@ -212,7 +212,7 @@ describe('roll-up through the tree', () => {
 });
 
 describe('clearing estimates', () => {
-  it('takes the trio away and leaves the other role alone', async () => {
+  it('takes the trio away and leaves the other step alone', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
     await service.setEstimate(strip, OWNER, QA, days(4, 5, 6));

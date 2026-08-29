@@ -5,16 +5,22 @@ import type { DependencyEdge, Slice } from './schedule';
 import { schedule } from './schedule';
 
 /**
- * A plan the size of a real one: 20 phases of 10 work items, three roles each.
+ * A plan the size of a real one: 20 parents of 10 work items, three steps each.
  *
- * 600 slices and 60-odd dependencies — some declared between phases, which
+ * 600 slices and 60-odd dependencies — some declared between parents, which
  * expand to every pair of leaves beneath them — with eight people carrying the
  * work and one person often covering a whole work item. The point of the
  * fixture is that leveling **binds** in it: a benchmark over a plan nobody is
  * assigned to would time the pass that already existed.
+ *
+ * The 20 were called *phases* until `steps-not-phases`, where the word became
+ * the project's own spelling of what a slice is under. They are top-level work
+ * items and never were a step, so they are `parent` here rather than collapsing
+ * into the inner loop's name — which is exactly what a blind rename did, taking
+ * `waitingForPerson` from 175 to 173.
  */
 function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice[] } {
-  const roleIds = ['role-dev', 'role-qa', 'role-doc'];
+  const stepIds = ['step-dev', 'step-qa', 'step-doc'];
   const people = Array.from({ length: 8 }, (_, i) => `person-${String(i)}`);
   const rows: WorkItem[] = [];
   const slices: Slice[] = [];
@@ -35,39 +41,39 @@ function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice
     revision: 0,
   });
 
-  for (let phase = 0; phase < 20; phase += 1) {
-    const phaseId = `phase-${String(phase)}`;
-    rows.push(newRow(phaseId, null, phase * 10));
-    // Every fourth phase waits for the one before it — a plan whose phases all
+  for (let parent = 0; parent < 20; parent += 1) {
+    const parentId = `parent-${String(parent)}`;
+    rows.push(newRow(parentId, null, parent * 10));
+    // Every fourth parent waits for the one before it — a plan whose parents all
     // ran in a single chain would have nobody free to queue behind anybody.
-    if (phase % 4 === 0 && phase > 0) {
-      edges.push({ predecessorId: `phase-${String(phase - 1)}`, successorId: phaseId });
+    if (parent % 4 === 0 && parent > 0) {
+      edges.push({ predecessorId: `parent-${String(parent - 1)}`, successorId: parentId });
     }
     for (let at = 0; at < 10; at += 1) {
-      const leafId = `${phaseId}-${String(at)}`;
-      rows.push(newRow(leafId, phaseId, at * 10));
-      // Somebody is on most of it, and one work item's roles are often one
+      const leafId = `${parentId}-${String(at)}`;
+      rows.push(newRow(leafId, parentId, at * 10));
+      // Somebody is on most of it, and one work item's steps are often one
       // person's — which is the assumed assignee, and the queue that binds.
-      const owner = people[(phase + (at % 3)) % people.length];
+      const owner = people[(parent + (at % 3)) % people.length];
       const covered = at % 3 === 0;
-      roleIds.forEach((roleId, role) => {
+      stepIds.forEach((stepId, step) => {
         slices.push({
           workItemId: leafId,
-          roleId,
-          days: (at + role) % 7 === 0 ? null : 1 + ((phase + at + role) % 4) / 3,
-          personId: covered ? owner : role === 0 ? owner : null,
+          stepId,
+          days: (at + step) % 7 === 0 ? null : 1 + ((parent + at + step) % 4) / 3,
+          personId: covered ? owner : step === 0 ? owner : null,
           // No capacity in this fixture: the budget below is about the graph
           // and the queues, and a pool would make it about a second thing.
           width: 1,
           poolIds: [],
         });
       });
-      // A chain inside the phase, and one edge reaching back two phases.
+      // A chain inside the parent, and one edge reaching back two parents.
       if (at % 5 === 1) {
-        edges.push({ predecessorId: `${phaseId}-${String(at - 1)}`, successorId: leafId });
+        edges.push({ predecessorId: `${parentId}-${String(at - 1)}`, successorId: leafId });
       }
-      if (phase > 1 && at === 5) {
-        edges.push({ predecessorId: `phase-${String(phase - 2)}-3`, successorId: leafId });
+      if (parent > 1 && at === 5) {
+        edges.push({ predecessorId: `parent-${String(parent - 2)}-3`, successorId: leafId });
       }
     }
   }
@@ -98,7 +104,7 @@ describe('the leveled pass, at the size of a real plan', () => {
     // The exact figure, so a fixture that quietly stops queueing is visible:
     // 175 of the 200 work items wait for the person on them. 159 under the
     // whole-item dependency rule; the anchor rule (`dep-waits-on-first-role`,
-    // 2026-08-11) releases successors at their predecessors' first-role
+    // 2026-08-11) releases successors at their predecessors' first-step
     // finishes, more slices contend for the same people at once, and the
     // person becomes the strictly-latest floor on sixteen more rows.
     expect(found.waitingForPerson).toBe(175);

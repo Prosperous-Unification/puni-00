@@ -28,7 +28,7 @@ import {
 export interface DirectoryServiceOptions {
   directory: DirectoryStore;
   /**
-   * Required, like the role service's. A directory service built without one
+   * Required, like the step service's. A directory service built without one
    * would rename somebody assigned across three plans and tell none of them —
    * every other client would keep drawing the old name until somebody
    * reloaded.

@@ -92,7 +92,7 @@ export interface TeamsDialogProps {
  * "the plan you last had open", which reads as global and is not. The full argument
  * is `capacity-per-project`'s design.md D5.
  *
- * `PhasesDialog` is the precedent one button along, and the shape is deliberately
+ * `StepsDialog` is the precedent one button along, and the shape is deliberately
  * its: a project's own list, edited from the plan's toolbar, on a surface whose
  * **trigger** lives in this component because Radix restores focus to the trigger
  * on close and to nothing at all without one.

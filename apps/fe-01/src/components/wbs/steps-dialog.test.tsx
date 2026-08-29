@@ -1,9 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RoleUsage, RoleView } from '@/lib/wbs-api';
+import type { StepUsage, StepView } from '@/lib/wbs-api';
 
-import { flipSentence, PhasesDialog, usageSentence } from './phases-dialog';
+import { flipSentence, StepsDialog, usageSentence } from './steps-dialog';
 import type * as TableFrame from './table-frame';
 import { DEFAULT_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } from './table-frame';
 
@@ -13,7 +13,7 @@ import { DEFAULT_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } fr
  * Spied rather than replaced — the real arithmetic still runs, and every other
  * assertion here still reads the real number. The one thing a spy adds is the
  * only thing nothing else can see: **which ids** the dialog resolved against.
- * `<roleId>-final` is 96px whatever the role is called, so a stand-in id and a
+ * `<stepId>-final` is 96px whatever the step is called, so a stand-in id and a
  * real one produce the same figure and no rendered output can tell them apart.
  */
 vi.mock('./table-frame', async (importOriginal) => {
@@ -27,8 +27,8 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
-const QA: RoleView = { id: 'role-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev' };
+const QA: StepView = { id: 'step-qa', name: 'QA' };
 
 /** A plan where no row sets an earliest start, which is what a fresh project is. */
 const UNDATED: FrameLayoutState = { hasAnyNotBefore: false };
@@ -39,29 +39,29 @@ const NUMBERS: Record<string, string> = { w1: '010', w2: '020' };
 const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
 
 /** Everything the dialog is given, with each call recorded. */
-function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
-  const addRole = vi.fn(() => Promise.resolve({ id: 'role-design', name: 'Design' }));
-  const renameRole = vi.fn(() => Promise.resolve({ id: 'role-qa', name: 'Review' }));
-  const removeRole = vi.fn(() => Promise.resolve({ ok: true }));
+function stubbed(overrides: Partial<Parameters<typeof StepsDialog>[0]> = {}) {
+  const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
+  const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
+  const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
   const props = {
-    roles: [DEV, QA],
+    steps: [DEV, QA],
     frameState: UNDATED,
     // The table's own default, so every figure below is the default table's.
     hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
     numberOf: (id: string) => NUMBERS[id] ?? null,
     nameOf: (id: string) => PEOPLE[id] ?? null,
-    addRole,
-    renameRole,
-    removeRole,
+    addStep,
+    renameStep,
+    removeStep,
     onChanged,
     ...overrides,
   };
-  render(<PhasesDialog {...props} />);
+  render(<StepsDialog {...props} />);
   // Opened through its own trigger, because the trigger is the component's now:
   // Radix restores the focus to it on close and to nothing without one.
-  fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
-  return { addRole, renameRole, removeRole, onChanged, props };
+  fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
+  return { addStep, renameStep, removeStep, onChanged, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -75,7 +75,7 @@ const type = (label: string, value: string): void => {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 };
 
-describe('the phases a project holds', () => {
+describe('the steps a project holds', () => {
   itDom('quotes the folded width of the columns actually on screen', () => {
     // `configurable-columns`: a reader who has hidden Depends on is 110px
     // narrower than the default table, and the sentence has to say so — the
@@ -83,15 +83,26 @@ describe('the phases a project holds', () => {
     // since a stand-in list and the real one print the same kind of number.
     stubbed({ hiddenColumnIds: ['depends'] });
     const spy = vi.mocked(foldedTableMinWidth);
-    expect(spy).toHaveBeenLastCalledWith(['role-dev', 'role-qa'], UNDATED, ['depends']);
-    const quoted = String(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED, ['depends']));
+    expect(spy).toHaveBeenLastCalledWith(['step-dev', 'step-qa'], UNDATED, ['depends']);
+    const quoted = String(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED, ['depends']));
     expect(screen.getByText(new RegExp(`≥\\s*${quoted}px`))).toBeInTheDocument();
     // Proof: `hiddenColumnIds` not passed through to `foldedTableMinWidth`,
-    // this failed on `expected "vi.fn" to be called with arguments: [ [ 'role-
-    // dev', 'role-qa' ], …, [ 'depends' ] ]`. Watched, 2026-08-28.
+    // this failed on `expected "vi.fn" to be called with arguments: [ [ 'step-
+    // dev', 'step-qa' ], …, [ 'depends' ] ]`. Watched, 2026-08-28.
   });
 
-  itDom('lists every phase, each with a way to rename it and remove it', () => {
+  itDom('the dialog is called Steps', () => {
+    stubbed();
+
+    // The trigger, the title and the sentence under it — the three places the
+    // word is written on this surface. `Phase` was every one of them until
+    // `steps-not-phases`, and `Role` was the same thing everywhere below.
+    expect(screen.getByRole('button', { name: 'Steps' })).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Steps' })).toBeDefined();
+    expect(screen.getByRole('dialog').textContent ?? '').not.toMatch(/phase|role/i);
+  });
+
+  itDom('lists every step, each with a way to rename it and remove it', () => {
     stubbed();
 
     expect(screen.getByLabelText('Dev')).toHaveProperty('value', 'Dev');
@@ -100,27 +111,27 @@ describe('the phases a project holds', () => {
     expect(screen.getByRole('button', { name: 'Remove QA' })).toBeDefined();
   });
 
-  itDom('adds a phase and rereads the project', async () => {
+  itDom('adds a step and rereads the project', async () => {
     const stub = stubbed();
 
-    type('New phase', 'Design');
-    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    type('New step', 'Design');
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await settle();
 
-    expect(stub.addRole).toHaveBeenCalledWith('Design');
+    expect(stub.addStep).toHaveBeenCalledWith('Design');
     // The reread is what puts the column on the table. Without it the dialog
-    // would be the only thing on the page that knew about the new phase.
+    // would be the only thing on the page that knew about the new step.
     expect(stub.onChanged).toHaveBeenCalled();
   });
 
-  itDom('renames a phase to what was typed over it', async () => {
+  itDom('renames a step to what was typed over it', async () => {
     const stub = stubbed();
 
     type('QA', 'Review');
     fireEvent.submit(screen.getByLabelText('QA'));
     await settle();
 
-    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
+    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
   });
 
   itDom('renames on the way out of the box, not only on Enter', async () => {
@@ -131,7 +142,7 @@ describe('the phases a project holds', () => {
     // 2026-08-09.
     //
     // Proof: the `onBlur` handler removed from the rename box, this failed on
-    // `expected "spy" to be called with arguments: [ 'role-qa', 'Review' ]` —
+    // `expected "spy" to be called with arguments: [ 'step-qa', 'Review' ]` —
     // never called at all, and so did `keeps a rename that was typed and then
     // the dialog closed on it`. Both watched, 2026-08-09.
     const stub = stubbed();
@@ -140,7 +151,7 @@ describe('the phases a project holds', () => {
     fireEvent.blur(screen.getByLabelText('QA'));
     await settle();
 
-    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
+    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
   });
 
   itDom('keeps a rename that was typed and then the dialog closed on it', async () => {
@@ -157,7 +168,7 @@ describe('the phases a project holds', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await settle();
 
-    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
+    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
   });
 
   itDom('sends nothing on the way out of a box nobody typed in', async () => {
@@ -168,22 +179,22 @@ describe('the phases a project holds', () => {
     fireEvent.blur(screen.getByLabelText('QA'));
     await settle();
 
-    expect(stub.renameRole).not.toHaveBeenCalled();
+    expect(stub.renameStep).not.toHaveBeenCalled();
   });
 
   itDom('sends nothing for a name that is only spaces', async () => {
     const stub = stubbed();
 
-    type('New phase', '   ');
-    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    type('New step', '   ');
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await settle();
 
     // Refused here rather than by be-01: the answer is the same and this one
     // needs no round trip.
     // Proof: the `clean === ''` guard removed, this failed on `expected "spy"
     // to not be called at all, but it was called 1 time`. Watched, 2026-08-09.
-    expect(stub.addRole).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toBe('A phase needs a name.');
+    expect(stub.addStep).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe('A step needs a name.');
   });
 
   itDom('sends nothing when a name is submitted unchanged', async () => {
@@ -192,19 +203,17 @@ describe('the phases a project holds', () => {
     fireEvent.submit(screen.getByLabelText('QA'));
     await settle();
 
-    expect(stub.renameRole).not.toHaveBeenCalled();
+    expect(stub.renameStep).not.toHaveBeenCalled();
   });
 
   itDom('says what refused it, in words rather than in be-01’s code', async () => {
-    const stub = stubbed({ addRole: vi.fn(() => Promise.reject(new Error('taken'))) });
+    const stub = stubbed({ addStep: vi.fn(() => Promise.reject(new Error('taken'))) });
 
-    type('New phase', 'Dev');
-    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    type('New step', 'Dev');
+    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await settle();
 
-    expect(screen.getByRole('alert').textContent).toBe(
-      'That name is already a phase on this plan.',
-    );
+    expect(screen.getByRole('alert').textContent).toBe('That name is already a step on this plan.');
     expect(document.body.textContent).not.toContain('taken');
     expect(stub.onChanged).not.toHaveBeenCalled();
   });
@@ -225,12 +234,12 @@ describe('leaving the surface', () => {
     // Proof: `ModalTrigger` swapped for a plain `Button` with an `onClick`,
     // this failed on `expected <body style><div>…(1)</div></body> to be
     // <button …(3)></button>`. Watched, 2026-08-09.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Phases' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Steps' }));
   });
 
   itDom('leaves no half-answered confirmation behind', async () => {
     // A confirmation somebody walked away from is not one they agreed to.
-    const removeRole = vi.fn((_roleId: string, cascade: boolean) =>
+    const removeStep = vi.fn((_stepId: string, cascade: boolean) =>
       cascade
         ? Promise.resolve({ ok: true })
         : Promise.resolve({
@@ -239,16 +248,16 @@ describe('leaving the surface', () => {
             inUse: { estimates: 1, assignments: 0, assumedAssignees: [] },
           }),
     );
-    stubbed({ removeRole });
+    stubbed({ removeStep });
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
-    expect(screen.getByLabelText('Delete them along with the phase')).toBeDefined();
+    expect(screen.getByLabelText('Delete them along with the step')).toBeDefined();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
 
-    expect(screen.queryByLabelText('Delete them along with the phase')).toBeNull();
+    expect(screen.queryByLabelText('Delete them along with the step')).toBeNull();
   });
 });
 
@@ -256,21 +265,21 @@ describe('the chord on the surface', () => {
   itDom('submits the form the keystroke was aimed at', async () => {
     const stub = stubbed();
 
-    type('New phase', 'Design');
+    type('New step', 'Design');
     // The chord `F shadcn-foundation`'s second round made reachable: the first
-    // version of `usePageShortcutsSuspended` ended it in the capture phase and
+    // version of `usePageShortcutsSuspended` ended it in the capture step and
     // this handler could never have run.
     // Proof: `onChord` returning early for every keystroke, this failed on
     // `expected "spy" to be called with arguments: [ 'Design' ]`. Watched,
     // 2026-08-09.
-    fireEvent.keyDown(screen.getByLabelText('New phase'), {
+    fireEvent.keyDown(screen.getByLabelText('New step'), {
       key: 'Enter',
       metaKey: true,
       code: 'Enter',
     });
     await settle();
 
-    expect(stub.addRole).toHaveBeenCalledWith('Design');
+    expect(stub.addStep).toHaveBeenCalledWith('Design');
   });
 
   itDom('submits the rename it was pressed in, not the add box', async () => {
@@ -284,8 +293,8 @@ describe('the chord on the surface', () => {
     });
     await settle();
 
-    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
-    expect(stub.addRole).not.toHaveBeenCalled();
+    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
+    expect(stub.addStep).not.toHaveBeenCalled();
   });
 
   itDom('leaves a bare Enter to the form it is in', async () => {
@@ -296,37 +305,37 @@ describe('the chord on the surface', () => {
     // Watched, 2026-08-09.
     const stub = stubbed();
 
-    type('New phase', 'Design');
-    fireEvent.keyDown(screen.getByLabelText('New phase'), { key: 'Enter', code: 'Enter' });
+    type('New step', 'Design');
+    fireEvent.keyDown(screen.getByLabelText('New step'), { key: 'Enter', code: 'Enter' });
     await settle();
 
-    expect(stub.addRole).not.toHaveBeenCalled();
+    expect(stub.addStep).not.toHaveBeenCalled();
   });
 });
 
-describe('removing a phase', () => {
-  const IN_USE: RoleUsage = {
+describe('removing a step', () => {
+  const IN_USE: StepUsage = {
     estimates: 2,
     assignments: 1,
     assumedAssignees: [{ workItemId: 'w2', assumedNow: null, assumedAfter: 'p1' }],
   };
   const refusing = () =>
-    vi.fn((_roleId: string, cascade: boolean) =>
+    vi.fn((_stepId: string, cascade: boolean) =>
       cascade
         ? Promise.resolve({ ok: true })
         : Promise.resolve({ ok: false, reason: 'in_use' as const, inUse: IN_USE }),
     );
 
   itDom('asks without a cascade first, and shows what would go', async () => {
-    const removeRole = refusing();
-    stubbed({ removeRole });
+    const removeStep = refusing();
+    stubbed({ removeStep });
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
 
-    expect(removeRole).toHaveBeenCalledWith('role-qa', false);
+    expect(removeStep).toHaveBeenCalledWith('step-qa', false);
     expect(document.body.textContent).toContain(
-      'Removing QA would delete 2 estimates and 1 assignment.',
+      'Removing the step QA would delete 2 estimates and 1 assignment.',
     );
     // The flip, by the work item's **number**: an id in a confirmation is a
     // fact nobody reading the plan can act on.
@@ -336,8 +345,8 @@ describe('removing a phase', () => {
   });
 
   itDom('sends nothing when the confirmation is agreed to without the box', async () => {
-    const removeRole = refusing();
-    stubbed({ removeRole });
+    const removeStep = refusing();
+    stubbed({ removeStep });
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
@@ -352,40 +361,40 @@ describe('removing a phase', () => {
     fireEvent.click(confirm);
     await settle();
 
-    expect(removeRole).toHaveBeenCalledTimes(1);
+    expect(removeStep).toHaveBeenCalledTimes(1);
   });
 
   itDom('removes it once the box is ticked', async () => {
-    const removeRole = refusing();
-    const stub = stubbed({ removeRole });
+    const removeStep = refusing();
+    const stub = stubbed({ removeStep });
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
-    fireEvent.click(screen.getByLabelText('Delete them along with the phase'));
+    fireEvent.click(screen.getByLabelText('Delete them along with the step'));
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
 
-    expect(removeRole.mock.calls).toEqual([
-      ['role-qa', false],
-      ['role-qa', true],
+    expect(removeStep.mock.calls).toEqual([
+      ['step-qa', false],
+      ['step-qa', true],
     ]);
     expect(stub.onChanged).toHaveBeenCalled();
   });
 
-  itDom('keeps the phase, and asks nothing more, when the confirmation is dropped', async () => {
-    const removeRole = refusing();
-    stubbed({ removeRole });
+  itDom('keeps the step, and asks nothing more, when the confirmation is dropped', async () => {
+    const removeStep = refusing();
+    stubbed({ removeStep });
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'Keep QA' }));
     await settle();
 
-    expect(removeRole).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText('New phase')).toBeDefined();
+    expect(removeStep).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('New step')).toBeDefined();
   });
 
-  itDom('takes a phase nobody uses without asking at all', async () => {
+  itDom('takes a step nobody uses without asking at all', async () => {
     // be-01 removes one nothing points at outright, so there is nothing to
     // confirm — and asking anyway is how people learn to confirm without
     // reading.
@@ -396,21 +405,21 @@ describe('removing a phase', () => {
       expect(stub.onChanged).toHaveBeenCalled();
     });
 
-    expect(screen.queryByLabelText('Delete them along with the phase')).toBeNull();
+    expect(screen.queryByLabelText('Delete them along with the step')).toBeNull();
   });
 });
 
-describe('how wide the phases make the table', () => {
+describe('how wide the steps make the table', () => {
   itDom('says the width, from the table’s own columns', () => {
-    stubbed({ roles: [DEV, QA] });
+    stubbed({ steps: [DEV, QA] });
 
     // 839px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
-    // for two folded phases (827 → 839 in `number-column-widen`, 93 → 105 in
+    // for two folded steps (827 → 839 in `number-column-widen`, 93 → 105 in
     // `COLUMN_WIDTHS`). Renderer-neutral wording: this dialog opens from the
     // phone's toolbar sheet too, and the sentence used to describe a table
     // that reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 phases need ≥1231px of width to sit side by side',
+      '2 steps need ≥1231px of width to sit side by side',
     );
     expect(document.body.textContent).toContain(
       'under 768px wide or 500px tall the plan is drawn as cards instead',
@@ -420,11 +429,11 @@ describe('how wide the phases make the table', () => {
 
   itDom('quotes the table’s own arithmetic, not a sum of its own', () => {
     // The number moves with every width the table declares, including the ones
-    // that depend on the plan: the same two phases are 28px wider once
+    // that depend on the plan: the same two steps are 28px wider once
     // somebody sets an earliest start anywhere in the project.
     //
-    // Proof: `minWidth` in `phases-dialog.tsx` replaced by the hand-written
-    // `952 + roles.length * 96` this sentence used to quote, this failed on
+    // Proof: `minWidth` in `steps-dialog.tsx` replaced by the hand-written
+    // `952 + steps.length * 96` this sentence used to quote, this failed on
     // `expected '…≥1144px…' to contain '≥1123px'` for the undated plan and on
     // `≥1151px` for the dated one — one number where the table lays out two.
     // Watched, 2026-08-09, when those two figures were the table's; they were
@@ -432,104 +441,118 @@ describe('how wide the phases make the table', () => {
     // `number-column-widen` — the assertions below read them from the layout
     // rather than repeating them.
     cleanup();
-    stubbed({ roles: [DEV, QA], frameState: UNDATED });
+    stubbed({ steps: [DEV, QA], frameState: UNDATED });
     expect(document.body.textContent).toContain(
-      `≥${String(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED))}px`,
+      `≥${String(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED))}px`,
     );
 
     cleanup();
-    stubbed({ roles: [DEV, QA], frameState: DATED });
+    stubbed({ steps: [DEV, QA], frameState: DATED });
     expect(document.body.textContent).toContain(
-      `≥${String(foldedTableMinWidth(['role-dev', 'role-qa'], DATED))}px`,
+      `≥${String(foldedTableMinWidth(['step-dev', 'step-qa'], DATED))}px`,
     );
     expect(
-      foldedTableMinWidth(['role-dev', 'role-qa'], DATED) -
-        foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED),
+      foldedTableMinWidth(['step-dev', 'step-qa'], DATED) -
+        foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED),
     ).toBe(28);
   });
 
-  itDom('resolves the project’s own role ids, not stand-ins for the count', () => {
+  itDom('resolves the project’s own step ids, not stand-ins for the count', () => {
     // A width can be resolved per column id now, which is what makes an id a
     // fact rather than a placeholder: `T1 column-widths-drag` stores a
-    // reader's override under the exact column id, and a `phase0-final`
+    // reader's override under the exact column id, and a `step0-final`
     // invented here could never carry one. The two resolve to the same 96 px
     // today, so nothing measurable tells them apart — the call is what says
     // which was asked about.
     //
-    // Proof: `roles.map((role) => role.id)` replaced by the
-    // `Array.from({ length: roles.length }, (_, at) => \`phase${at}\`)` this
-    // used to be, this failed on `expected [ 'phase0', 'phase1' ] to deeply
-    // equal [ 'role-dev', 'role-qa' ]`. Watched, 2026-08-09.
-    stubbed({ roles: [DEV, QA] });
+    // Proof: `steps.map((step) => step.id)` replaced by the
+    // `Array.from({ length: steps.length }, (_, at) => \`step${at}\`)` this
+    // used to be, this failed on `expected [ 'step0', 'step1' ] to deeply
+    // equal [ 'step-dev', 'step-qa' ]`. Watched, 2026-08-09.
+    stubbed({ steps: [DEV, QA] });
 
-    expect(vi.mocked(foldedTableMinWidth).mock.calls.at(-1)?.[0]).toEqual(['role-dev', 'role-qa']);
+    expect(vi.mocked(foldedTableMinWidth).mock.calls.at(-1)?.[0]).toEqual(['step-dev', 'step-qa']);
   });
 
-  itDom('quotes a phase’s dragged width, because it resolved that phase’s own column', () => {
+  itDom('quotes a step’s dragged width, because it resolved that step’s own column', () => {
     // The half of "real ids, not stand-ins" that has a number attached to it.
     // A reader who drags the Dev column wider is looking at a wider table, and
-    // the figure that says how much width the phases need has to be that
+    // the figure that says how much width the steps need has to be that
     // table's. It can only be, because the override is stored under
-    // `role-dev-final` — the id the table renders that column by — and this
-    // dialog resolves the project's own role ids.
+    // `step-dev-final` — the id the table renders that column by — and this
+    // dialog resolves the project's own step ids.
     //
-    // Proof: `roles.map((role) => role.id)` replaced by the stand-in
-    // `Array.from({ length: roles.length }, (_, at) => \`phase${at}\`)`, this
-    // failed on `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // Proof: `steps.map((step) => step.id)` replaced by the stand-in
+    // `Array.from({ length: steps.length }, (_, at) => \`step${at}\`)`, this
+    // failed on `expected 'StepsStepsThe steps every work ite…' to contain
     // '≥1167px'` — the dialog
     // quoting the default 96px column while the table lays out the dragged
     // 140px one. Watched, 2026-08-09.
     const dragged: FrameLayoutState = {
       hasAnyNotBefore: false,
-      columnWidthOverrides: new Map([['role-dev-final', 140]]),
+      columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };
-    stubbed({ roles: [DEV, QA], frameState: dragged });
+    stubbed({ steps: [DEV, QA], frameState: dragged });
 
-    const quoted = foldedTableMinWidth(['role-dev', 'role-qa'], dragged);
+    const quoted = foldedTableMinWidth(['step-dev', 'step-qa'], dragged);
     expect(document.body.textContent).toContain(`≥${String(quoted)}px`);
     // And it really moved: a figure that ignored the override would be the
     // undated default, which is what a stand-in id resolves to.
-    expect(quoted).toBe(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96));
+    expect(quoted).toBe(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED) + (140 - 96));
   });
 
-  itDom('counts one phase as one, and says so in the singular throughout', () => {
-    // The noun and the **verb**. This asserted `'1 phase need'` until
+  itDom('counts one step as one, and says so in the singular throughout', () => {
+    // The noun and the **verb**. This asserted `'1 step need'` until
     // 2026-08-14: it was written about `count`'s singular noun and swept the
     // plural verb beside it up in the same `toContain`, so the sentence a
-    // single-phase plan really showed — `1 phase need ≥1123px` — was pinned by
+    // single-step plan really showed — `1 step need ≥1123px` — was pinned by
     // the test that was meant to be checking it. The whole clause is asserted
     // now, which is the only spelling that can see the verb.
     //
     // Proof: the verb put back to a flat `need`, this failed on
-    // `expected 'PhasesPhasesThe phases every work ite…' to contain
-    // '1 phase needs ≥1123px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F5).
-    stubbed({ roles: [DEV] });
+    // `expected 'StepsStepsThe steps every work ite…' to contain
+    // '1 step needs ≥1123px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F5).
+    stubbed({ steps: [DEV] });
 
     // 1123 → 1135 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
-    expect(document.body.textContent).toContain('1 phase needs ≥1135px of width to sit side by');
-    expect(document.body.textContent).not.toContain('1 phase need ≥');
+    expect(document.body.textContent).toContain('1 step needs ≥1135px of width to sit side by');
+    expect(document.body.textContent).not.toContain('1 step need ≥');
   });
 
-  itDom('keeps the plural where there is more than one phase', () => {
+  itDom('keeps the plural where there is more than one step', () => {
     // The other arm, and it is here so the fix above cannot be "never say
     // `need`" — a singular-only expression satisfies the test above and reads
-    // `2 phases needs` on every real plan.
+    // `2 steps needs` on every real plan.
     //
     // Proof: the plural arm made to say `needs` as well, this failed on
-    // `expected 'PhasesPhasesThe phases every work ite…' to contain
-    // '2 phases need ≥1219px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F6).
-    stubbed({ roles: [DEV, QA] });
+    // `expected 'StepsStepsThe steps every work ite…' to contain
+    // '2 steps need ≥1219px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F6).
+    stubbed({ steps: [DEV, QA] });
 
     // 1219 → 1231 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
-    expect(document.body.textContent).toContain('2 phases need ≥1231px of width to sit side by');
-    expect(document.body.textContent).not.toContain('2 phases needs');
+    expect(document.body.textContent).toContain('2 steps need ≥1231px of width to sit side by');
+    expect(document.body.textContent).not.toContain('2 steps needs');
   });
 });
 
 describe('the sentences on their own', () => {
+  it('the removal sentence says step', () => {
+    // A project names its own steps, so one may well be called `Kat` or
+    // `Backend` — the sentence somebody agrees to before a removal has to say
+    // what kind of thing is going, in the word every other face uses for it.
+    const sentence = usageSentence('QA', {
+      estimates: 2,
+      assignments: 1,
+      assumedAssignees: [],
+    });
+
+    expect(sentence).toContain('the step QA');
+    expect(sentence).not.toMatch(/phase|role/i);
+  });
+
   it('names both counts, even the one that is zero', () => {
     expect(usageSentence('QA', { estimates: 1, assignments: 0, assumedAssignees: [] })).toBe(
-      'Removing QA would delete 1 estimate and 0 assignments.',
+      'Removing the step QA would delete 1 estimate and 0 assignments.',
     );
   });
 

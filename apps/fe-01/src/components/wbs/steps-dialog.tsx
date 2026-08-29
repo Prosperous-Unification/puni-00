@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/modal';
 import {
   type AssumedAssigneeFlipView,
-  roleRefusalSentence,
-  type RoleUsage,
-  type RoleView,
+  stepRefusalSentence,
+  type StepUsage,
+  type StepView,
 } from '@/lib/wbs-api';
 
 import { commandChordIn } from './keyboard-bindings';
@@ -39,23 +39,29 @@ const count = (howMany: number, thing: string): string =>
   `${String(howMany)} ${thing}${howMany === 1 ? '' : 's'}`;
 
 /**
- * What removing a phase would take, as one sentence.
+ * What removing a step would take, as one sentence.
  *
  * The two counts always, even when one is zero: "1 estimate and 0 assignments"
  * is a complete answer, and a sentence that dropped the zero would leave the
  * reader wondering whether it had been asked.
+ *
+ * It names the **kind** of thing as well as the name — "the step QA" rather
+ * than "QA" — because a project's steps are named by whoever made them and one
+ * may well be called after a person or a team. `steps-not-phases` made the word
+ * the same everywhere it is written; this is the one sentence that has to say
+ * it out loud, since it is what somebody agrees to before a removal.
  */
-export function usageSentence(roleName: string, inUse: RoleUsage): string {
-  return `Removing ${roleName} would delete ${count(inUse.estimates, 'estimate')} and ${count(
-    inUse.assignments,
-    'assignment',
-  )}.`;
+export function usageSentence(stepName: string, inUse: StepUsage): string {
+  return `Removing the step ${stepName} would delete ${count(
+    inUse.estimates,
+    'estimate',
+  )} and ${count(inUse.assignments, 'assignment')}.`;
 }
 
 /**
  * What one assumed-assignee flip says, in the words of somebody reading a plan.
  *
- * "Assumed to be doing all of it" rather than `doesEveryPhase`: the field is
+ * "Assumed to be doing all of it" rather than `doesEveryStep`: the field is
  * derived from a work item holding exactly one assignment, and the person it
  * names never agreed to anything — so the sentence has to say who is being
  * assumed, not report a flag.
@@ -78,9 +84,9 @@ export function flipSentence(
   )} would be afterwards.`;
 }
 
-export interface PhasesDialogProps {
-  /** The phases the table is currently drawing columns for. */
-  roles: readonly RoleView[];
+export interface StepsDialogProps {
+  /** The steps the table is currently drawing columns for. */
+  steps: readonly StepView[];
   /**
    * The plan the table is drawing, as far as a width depends on it.
    *
@@ -98,22 +104,22 @@ export interface PhasesDialogProps {
   hiddenColumnIds: readonly string[];
   numberOf: NumberOf;
   nameOf: NameOf;
-  addRole: (name: string) => Promise<RoleView>;
-  renameRole: (roleId: string, name: string) => Promise<RoleView>;
-  removeRole: (roleId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: RoleUsage }>;
+  addStep: (name: string) => Promise<StepView>;
+  renameStep: (stepId: string, name: string) => Promise<StepView>;
+  removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
   /** Re-reads the project, which is what puts the new columns on the table. */
   onChanged: () => Promise<void>;
 }
 
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
-  role: RoleView;
-  inUse: RoleUsage;
+  step: StepView;
+  inUse: StepUsage;
   cascade: boolean;
 }
 
 /**
- * The project's phases, and everything that can be done to them.
+ * The project's steps, and everything that can be done to them.
  *
  * The first production caller of {@link ModalContent}, which brings two rules
  * with it: the page's own keyboard is held back while this is open, and a
@@ -123,25 +129,25 @@ interface Confirming {
  * **Refusals are shown on the surface rather than raised as toasts.** A toast
  * appears in the corner of a page this dialog is covering, and every one of
  * these refusals is about the box somebody is typing in. They are also
- * sentences rather than be-01's codes; {@link roleRefusalSentence} is the one
+ * sentences rather than be-01's codes; {@link stepRefusalSentence} is the one
  * place that translation happens.
  *
  * **Nothing here is optimistic.** Every change re-reads the project through
  * `onChanged` and the list redraws from what came back — the same rule the table
- * behind it keeps, and for the same reason: a phase list kept locally would be a
+ * behind it keeps, and for the same reason: a step list kept locally would be a
  * second answer to a question be-01 owns.
  */
-export function PhasesDialog({
-  roles,
+export function StepsDialog({
+  steps,
   frameState,
   hiddenColumnIds,
   numberOf,
   nameOf,
-  addRole,
-  renameRole,
-  removeRole,
+  addStep,
+  renameStep,
+  removeStep,
   onChanged,
-}: PhasesDialogProps) {
+}: StepsDialogProps) {
   /**
    * Whether the surface is up.
    *
@@ -158,10 +164,10 @@ export function PhasesDialog({
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
   /**
-   * The names being typed over the phases' own, by role id.
+   * The names being typed over the steps' own, by step id.
    *
    * Only the ones somebody has touched: an entry that is absent means "as be-01
-   * has it", so a phase renamed by somebody else redraws rather than being held
+   * has it", so a step renamed by somebody else redraws rather than being held
    * at the name this browser last read.
    */
   const [renamed, setRenamed] = useState<Record<string, string>>({});
@@ -169,10 +175,10 @@ export function PhasesDialog({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const nameShown = (role: RoleView): string => renamed[role.id] ?? role.name;
+  const nameShown = (step: StepView): string => renamed[step.id] ?? step.name;
 
   /**
-   * Runs one phase change, reports what refused it, and re-reads on success.
+   * Runs one step change, reports what refused it, and re-reads on success.
    *
    * The refusal is caught here rather than by the table's `run`: that one puts
    * be-01's code straight into a toast, which is the raw-code path this change
@@ -185,7 +191,7 @@ export function PhasesDialog({
       await change();
       await onChanged();
     } catch (thrown: unknown) {
-      setProblem(roleRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'));
+      setProblem(stepRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'));
     } finally {
       setBusy(false);
     }
@@ -198,17 +204,17 @@ export function PhasesDialog({
     // this one arrives without a round trip. Trimmed rather than tested as
     // typed, because a name of spaces is what `name_required` is about.
     if (clean === '') {
-      setProblem(roleRefusalSentence('name_required'));
+      setProblem(stepRefusalSentence('name_required'));
       return;
     }
     void attempt(async () => {
-      await addRole(clean);
+      await addStep(clean);
       setNewName('');
     });
   }
 
   /**
-   * Sends the name typed over this phase's, if it is a different one.
+   * Sends the name typed over this step's, if it is a different one.
    *
    * Reached from Enter — the form's own submit — and from **leaving the box**,
    * which is the half that was missing. Every other text field in this product
@@ -217,53 +223,53 @@ export function PhasesDialog({
    * 2026-08-09, and `onOpenChange` clearing `renamed` is what made it silent.
    *
    * An empty name is a refusal rather than a no-op, on both paths: somebody who
-   * cleared the box meant something by it, and a phase with no name is what
+   * cleared the box meant something by it, and a step with no name is what
    * `name_required` is about.
    */
-  function commitRename(role: RoleView): void {
-    const clean = nameShown(role).trim();
+  function commitRename(step: StepView): void {
+    const clean = nameShown(step).trim();
     if (clean === '') {
-      setProblem(roleRefusalSentence('name_required'));
+      setProblem(stepRefusalSentence('name_required'));
       return;
     }
-    if (clean === role.name) return;
+    if (clean === step.name) return;
     void attempt(async () => {
-      await renameRole(role.id, clean);
+      await renameStep(step.id, clean);
       setRenamed((current) =>
-        Object.fromEntries(Object.entries(current).filter(([id]) => id !== role.id)),
+        Object.fromEntries(Object.entries(current).filter(([id]) => id !== step.id)),
       );
     });
   }
 
-  function submitRename(event: FormEvent, role: RoleView): void {
+  function submitRename(event: FormEvent, step: StepView): void {
     event.preventDefault();
-    commitRename(role);
+    commitRename(step);
   }
 
   /**
    * Asks for a removal without a cascade, which is always the first ask.
    *
-   * be-01 removes a phase nothing points at outright, so a confirmation only
+   * be-01 removes a step nothing points at outright, so a confirmation only
    * opens for one that would take something with it — asking anyway is how
    * people learn to confirm without reading.
    */
-  function askToRemove(role: RoleView): void {
+  function askToRemove(step: StepView): void {
     void attempt(async () => {
-      const outcome = await removeRole(role.id, false);
+      const outcome = await removeStep(step.id, false);
       if (outcome.ok) return;
       if (outcome.inUse === undefined) throw new Error('in_use');
-      setConfirming({ role, inUse: outcome.inUse, cascade: false });
+      setConfirming({ step, inUse: outcome.inUse, cascade: false });
     });
   }
 
   function confirmRemoval(): void {
     if (confirming === null) return;
     // The whole of what the checkbox is for. Nothing is sent until it is
-    // ticked, and it starts off — see the assertion in `phases-dialog.test.tsx`.
+    // ticked, and it starts off — see the assertion in `steps-dialog.test.tsx`.
     if (!confirming.cascade) return;
-    const role = confirming.role;
+    const step = confirming.step;
     void attempt(async () => {
-      const outcome = await removeRole(role.id, true);
+      const outcome = await removeStep(step.id, true);
       if (!outcome.ok) throw new Error('in_use');
       setConfirming(null);
     });
@@ -275,7 +281,7 @@ export function PhasesDialog({
    * The chord this surface can have at all only because `F shadcn-foundation`'s
    * second round let a command chord through to a field on a modal surface:
    * the first version of {@link usePageShortcutsSuspended} swallowed it in the
-   * capture phase and this handler would never have run.
+   * capture step and this handler would never have run.
    *
    * `requestSubmit` rather than calling the handler directly, so the chord goes
    * through exactly the path Enter does — validation, the `submit` event, and
@@ -292,14 +298,14 @@ export function PhasesDialog({
   }
 
   /**
-   * How wide the table would be with these phases folded.
+   * How wide the table would be with these steps folded.
    *
-   * The phases' **real** ids, not their number: every width resolves per
+   * The steps' **real** ids, not their number: every width resolves per
    * column id, so a figure summed from stand-in ids would answer about columns
    * that do not exist while the table lays out the ones that do.
    */
   const minWidth = foldedTableMinWidth(
-    roles.map((role) => role.id),
+    steps.map((step) => step.id),
     frameState,
     hiddenColumnIds,
   );
@@ -323,16 +329,16 @@ export function PhasesDialog({
           variant="outline"
           size="sm"
           type="button"
-          title="Add, rename and remove the phases every work item is estimated by"
+          title="Add, rename and remove the steps every work item is estimated by"
         >
-          Phases
+          Steps
         </Button>
       </ModalTrigger>
       <ModalContent onKeyDown={onChord}>
         <ModalHeader>
-          <ModalTitle>Phases</ModalTitle>
+          <ModalTitle>Steps</ModalTitle>
           <ModalDescription>
-            The phases every work item on this plan is estimated by. Estimates and assignees follow
+            The steps every work item on this plan is estimated by. Estimates and assignees follow
             them.
           </ModalDescription>
         </ModalHeader>
@@ -346,29 +352,29 @@ export function PhasesDialog({
         {confirming === null ? (
           <>
             <ul className="flex flex-col gap-2">
-              {roles.map((role) => (
-                <li key={role.id} className="flex items-end gap-2">
+              {steps.map((step) => (
+                <li key={step.id} className="flex items-end gap-2">
                   <form
                     className="flex flex-1 flex-col gap-1"
                     onSubmit={(event) => {
-                      submitRename(event, role);
+                      submitRename(event, step);
                     }}
                   >
-                    <Label htmlFor={`phase-${role.id}`}>{role.name}</Label>
+                    <Label htmlFor={`step-${step.id}`}>{step.name}</Label>
                     <Input
-                      id={`phase-${role.id}`}
-                      value={nameShown(role)}
+                      id={`step-${step.id}`}
+                      value={nameShown(step)}
                       disabled={busy}
                       onChange={(event) => {
                         const typed = event.currentTarget.value;
-                        setRenamed((current) => ({ ...current, [role.id]: typed }));
+                        setRenamed((current) => ({ ...current, [step.id]: typed }));
                       }}
                       onBlur={() => {
-                        commitRename(role);
+                        commitRename(step);
                       }}
                     />
                     <button type="submit" className="sr-only">
-                      Rename {role.name}
+                      Rename {step.name}
                     </button>
                   </form>
                   <Button
@@ -377,10 +383,10 @@ export function PhasesDialog({
                     size="sm"
                     disabled={busy}
                     onClick={() => {
-                      askToRemove(role);
+                      askToRemove(step);
                     }}
                   >
-                    Remove {role.name}
+                    Remove {step.name}
                   </Button>
                 </li>
               ))}
@@ -388,9 +394,9 @@ export function PhasesDialog({
 
             <form className="flex items-end gap-2" onSubmit={submitNew}>
               <div className="flex flex-1 flex-col gap-1">
-                <Label htmlFor="phase-new">New phase</Label>
+                <Label htmlFor="step-new">New step</Label>
                 <Input
-                  id="phase-new"
+                  id="step-new"
                   value={newName}
                   disabled={busy}
                   onChange={(event) => {
@@ -399,13 +405,13 @@ export function PhasesDialog({
                 />
               </div>
               <Button type="submit" size="sm" disabled={busy}>
-                Add phase
+                Add step
               </Button>
             </form>
 
             {/*
               The arithmetic, said out loud where the decision is made. Somebody
-              adding a sixth phase is entitled to know what it costs before the
+              adding a sixth step is entitled to know what it costs before the
               table starts scrolling sideways under them, and the number is
               `table-frame.ts`'s own rather than a figure typed in here.
             */}
@@ -418,16 +424,16 @@ export function PhasesDialog({
             */}
             <p className="text-muted-foreground text-sm">
               {/*
-                `needs` for one phase and `need` for several. {@link count}
+                `needs` for one step and `need` for several. {@link count}
                 gets the noun right and the verb was written once, plurally,
-                and never made to follow it — so a single-phase plan read
-                `1 phase need ≥1123px`. Found on 2026-08-14 while measuring
+                and never made to follow it — so a single-step plan read
+                `1 step need ≥1123px`. Found on 2026-08-14 while measuring
                 this very figure at 1280; it is the `and 1 others` defect #59
                 corrected in the chart's blocking-set sentence, in the sentence
-                next door. `phases-dialog.test.tsx` asserts the whole sentence
+                next door. `steps-dialog.test.tsx` asserts the whole sentence
                 now rather than a prefix that swept the verb up with the noun.
               */}
-              {count(roles.length, 'phase')} {roles.length === 1 ? 'needs' : 'need'} ≥
+              {count(steps.length, 'step')} {steps.length === 1 ? 'needs' : 'need'} ≥
               {String(minWidth)}px of width to sit side by side; a narrower window scrolls sideways,
               and under {String(CARDS_BELOW)}px wide or {String(TABLE_NEEDS_HEIGHT)}px tall the plan
               is drawn as cards instead.
@@ -435,11 +441,11 @@ export function PhasesDialog({
           </>
         ) : (
           <div className="flex flex-col gap-3">
-            <p>{usageSentence(confirming.role.name, confirming.inUse)}</p>
+            <p>{usageSentence(confirming.step.name, confirming.inUse)}</p>
             {confirming.inUse.assumedAssignees.length > 0 && (
               <div className="flex flex-col gap-1">
                 <p className="text-sm">
-                  It would also change who is assumed to be doing every phase of these:
+                  It would also change who is assumed to be doing every step of these:
                 </p>
                 <ul className="text-sm">
                   {confirming.inUse.assumedAssignees.map((flip) => (
@@ -460,7 +466,7 @@ export function PhasesDialog({
                   );
                 }}
               />
-              Delete them along with the phase
+              Delete them along with the step
             </Label>
             <ModalFooter>
               <Button
@@ -472,7 +478,7 @@ export function PhasesDialog({
                   setConfirming(null);
                 }}
               >
-                Keep {confirming.role.name}
+                Keep {confirming.step.name}
               </Button>
               <Button
                 type="button"
@@ -483,7 +489,7 @@ export function PhasesDialog({
                 disabled={busy || !confirming.cascade}
                 onClick={confirmRemoval}
               >
-                Remove {confirming.role.name}
+                Remove {confirming.step.name}
               </Button>
             </ModalFooter>
           </div>

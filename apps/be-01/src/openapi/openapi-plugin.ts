@@ -53,7 +53,7 @@ refuses the batch with \`{ "error", "at", "kind" }\` and nothing is applied. Its
 body is described under the route, one variant per command kind.
 
 **Bodies this document declares, and bodies it only describes.** The project,
-role and auth routes declare a schema to Elysia, and those appear here as
+step and auth routes declare a schema to Elysia, and those appear here as
 schemas. The two batch routes parse their body by hand — because Elysia strips
 unknown properties before a handler runs, which would silently delete refusals
 like \`number_is_derived\` and the priority and parallelism guards — and each
