@@ -1,4 +1,12 @@
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { Button } from '@/components/ui/button';
@@ -7,7 +15,7 @@ import { subscribeToProject } from '@/lib/project-stream';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
 
-import { type AnchorRect, HoverCard } from './hover-card';
+import { type BesideAnchorRect, HoverCard } from './hover-card';
 import { entryMeta, matchingProjects, projectCardMeta } from './project-picker';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
@@ -45,20 +53,56 @@ export interface ProjectPageProps {
  */
 const PROJECT_KEY = 'wbs.project';
 
+/**
+ * The name be-01 writes for a project nobody has named yet.
+ *
+ * Named here rather than typed twice: it is both what the create route is
+ * asked for and what the rename field opens holding, and two literals that
+ * must agree is one of them going stale.
+ */
+const PLACEHOLDER_PROJECT_NAME = 'New project';
+
 function rememberProject(id: string | null): void {
   if (id === null) localStorage.removeItem(PROJECT_KEY);
   else localStorage.setItem(PROJECT_KEY, id);
 }
 
-/** The current viewport rectangle of an option while it remains visible in its listbox. */
-function projectOptionAnchor(id: string | null, listbox: HTMLElement | null): AnchorRect | null {
+/**
+ * Where an option's card opens: the **listbox's** own horizontal bounds, at
+ * the option's row — or null while the option is scrolled out of the list.
+ *
+ * The list's edges rather than the option's, and that is the whole of the fix
+ * this function carries. A card anchored to the option opens on top of the
+ * list, so the card somebody opened to tell two projects apart covers the
+ * other projects they were comparing it against. Moving it right by a constant
+ * instead cannot work: the constant would have to be the list's width, which
+ * varies with the longest project name.
+ *
+ * The option contributes its `top` and nothing else, which is what "the card
+ * follows the pointer down the list and never across it" means.
+ *
+ * Proof: put back to the option's own rect under the old `anchor` placement —
+ * `the open card leaves every option visible` failed on `the card opens at
+ * 45px in a list ending at 240: expected 45 to be greater than or equal to
+ * 240`, with the other three placement tests failing beside it. And with the
+ * option's rect read through *this* placement (`left: box.left, right:
+ * box.right`), `moving down the list does not move the card sideways` failed
+ * on `expected '241px' to be '246px'` — the five pixels of border and padding
+ * the option is inset by, which is the only difference a browser can show
+ * between the two rectangles, since every option in a `w-full` list shares its
+ * width. Watched 2026-08-29.
+ */
+function projectOptionAnchor(
+  id: string | null,
+  listbox: HTMLElement | null,
+): BesideAnchorRect | null {
   if (id === null || listbox === null) return null;
   const option = document.getElementById(`project-option-${id}`);
   if (option === null) return null;
   const box = option.getBoundingClientRect();
   const list = listbox.getBoundingClientRect();
   if (box.bottom <= list.top || box.top >= list.bottom) return null;
-  return { left: box.left, top: box.top, bottom: box.bottom };
+  return { left: list.left, right: list.right, top: box.top };
 }
 
 /**
@@ -73,7 +117,7 @@ function ProjectOptionCard({
   now: Date;
 }): ReactNode {
   const id = entry?.id ?? null;
-  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+  const [anchor, setAnchor] = useState<BesideAnchorRect | null>(null);
   useLayoutEffect(() => {
     const listbox = document.getElementById('project-options');
     const remeasure = () => {
@@ -89,7 +133,7 @@ function ProjectOptionCard({
   if (entry === undefined || anchor === null) return null;
   const meta = projectCardMeta(entry, now);
   return (
-    <HoverCard anchor={anchor} label={entry.name}>
+    <HoverCard beside={anchor} label={entry.name}>
       <div className="font-medium break-words">{entry.name}</div>
       <div className="text-muted-foreground">
         {meta.ownership}
@@ -98,6 +142,75 @@ function ProjectOptionCard({
       <div className="text-muted-foreground">{meta.start}</div>
       <div className="text-muted-foreground">{meta.lastOpened}</div>
     </HoverCard>
+  );
+}
+
+/**
+ * The box a project's new name is typed into while a rename is armed.
+ *
+ * A component rather than a callback ref on the picker's own `<Input>`, and
+ * the reason is the selection: an inline callback ref is a new function on
+ * every render, so React detaches and reattaches it on **every keystroke**,
+ * and a `select()` there would put the whole draft back under the next
+ * character typed. Mounting is the one moment a rename is armed, which is
+ * exactly when the focus and the selection belong.
+ *
+ * Proof, both halves. With the `select()` deleted, `creating a project selects
+ * the whole placeholder name` failed on `expected [ 11, 11 ] to deeply equal
+ * [ +0, 11 ]` — the caret at the end of `New project` rather than a selection
+ * over it. With the effect's dependency list removed, so it ran on every
+ * render as an inline ref would, `does not put the whole draft back under the
+ * next keystroke` failed on `expected [ +0, 1 ] to deeply equal [ 1, 1 ]` —
+ * the one typed character selected again, and gone on the next. Watched
+ * 2026-08-29.
+ */
+function ProjectNameField({
+  draft,
+  selectsWholeDraft,
+  onDraft,
+  onCommit,
+  onCancel,
+}: {
+  draft: string;
+  /** Whether the whole draft is selected on arming, so one keystroke replaces it. */
+  selectsWholeDraft: boolean;
+  onDraft: (draft: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}): ReactNode {
+  const field = useRef<HTMLInputElement | null>(null);
+  useLayoutEffect(() => {
+    const node = field.current;
+    // Narrowing, not a guard: a layout effect runs on a mounted node, so no
+    // injected fault can make this null and a throw here would be a check
+    // whose failure can never be observed. That the focus happens at all is
+    // asserted instead, by `creating a project puts the caret in its name`.
+    if (node === null) return;
+    node.focus();
+    if (selectsWholeDraft) node.select();
+    // Once per arming: `key` on the caller remounts this for another project.
+  }, [selectsWholeDraft]);
+  return (
+    <Input
+      ref={field}
+      className="h-8 max-w-72 min-w-0 flex-1"
+      aria-label="Project name"
+      value={draft}
+      onChange={(e) => {
+        onDraft(e.target.value);
+      }}
+      // Blur commits — the proposal's word — which also gives the rename a
+      // mouse exit: click anywhere else and the mode resolves instead of
+      // sitting open forever.
+      onBlur={onCommit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onCommit();
+        }
+        if (e.key === 'Escape') onCancel();
+      }}
+    />
   );
 }
 
@@ -131,6 +244,11 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
     [],
   );
 
+  /**
+   * The picker's own box, for the one thing state cannot say: give up the
+   * keyboard. See {@link ProjectPage}'s `choose`.
+   */
+  const pickerBox = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +260,18 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
    * finding, from all three reviewers: with only the draft stored, arming a
    * rename and then creating a project sent the old draft to the new project.
    */
-  const [rename, setRename] = useState<{ projectId: string; draft: string } | null>(null);
+  const [rename, setRename] = useState<{
+    projectId: string;
+    draft: string;
+    /**
+     * Whether the draft is the placeholder name a create put there, which the
+     * field selects whole so the first keystroke replaces it.
+     *
+     * False for the ✎, which arms a rename on a name somebody chose: selecting
+     * that would put a whole considered name one keystroke from gone.
+     */
+    draftIsPlaceholder: boolean;
+  } | null>(null);
   /**
    * What has been typed into the picker, and which entry is highlighted — or
    * null while the picker is closed.
@@ -229,16 +358,45 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
     });
   }, [api, selected]);
 
+  /**
+   * Creates a project, selects it, and puts the caret in its name.
+   *
+   * The re-arm is **after** `await load()`: the name field renders in place of
+   * the picker, and arming it before the list holds the new project puts a
+   * commit target on screen for a project this page cannot yet name — an
+   * immediate Enter would then compare the draft against no current name at
+   * all and send a rename for the name the row already has.
+   *
+   * Proof: the re-arm moved above `await load()` — `arms the rename only once
+   * the list can name the new project` failed on `expected <input …(3)></input>
+   * to be null`, the field on screen while the reload was still in flight.
+   * Watched 2026-08-29.
+   *
+   * The draft is the placeholder rather than an empty box, and it is selected
+   * rather than cleared: `commitOrCancelRename` reads an empty draft as a
+   * cancel, so a reader who saw an empty field and pressed Enter would get a
+   * project called `New project` and no explanation.
+   */
   const create = () => {
     // An armed rename is cancelled, not carried: the draft was meant for the
     // project it was opened on, and this click is about to select another.
+    //
+    // Proof: this line deleted — `a draft armed for another project does not
+    // follow the create` failed on `expected 'Meant for p2' to be null`, the
+    // old project's typing still on screen and still aimed at it while the
+    // create was in flight. Watched 2026-08-29.
     setRename(null);
     void api
-      .createProject('New project')
+      .createProject(PLACEHOLDER_PROJECT_NAME)
       .then(async (project) => {
         setSelected(project.id);
         rememberProject(project.id);
         await load();
+        setRename({
+          projectId: project.id,
+          draft: PLACEHOLDER_PROJECT_NAME,
+          draftIsPlaceholder: true,
+        });
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'create_failed');
@@ -309,11 +467,26 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
   const cardId = listOpen ? (hoveredId ?? highlighted?.id ?? null) : null;
   const cardEntry = cardId === null ? undefined : entries.find((entry) => entry.id === cardId);
 
-  /** Takes a project: selects it, remembers it, and closes the picker. */
+  /**
+   * Takes a project: selects it, remembers it, closes the picker, and gives
+   * the keyboard back.
+   *
+   * The blur is the third of those and not tidiness. Nothing focuses the
+   * option — the list's `mousedown` is prevented so the click can land — so
+   * without it the combobox keeps the focus, and a closed combobox shows the
+   * chosen project's **name**: a text field holding the project's name with a
+   * caret in it, indistinguishable from an armed rename that does not exist.
+   *
+   * Proof: the `blur()` removed — `choosing a project takes the focus off the
+   * picker` failed on `expected <input …(9)></input> not to be <input
+   * …(9)></input>`, the combobox still holding the keyboard after the pick.
+   * Watched 2026-08-29.
+   */
   const choose = (id: string) => {
     setSelected(id);
     rememberProject(id);
     setSearch(null);
+    pickerBox.current?.blur();
   };
 
   /** Moves the picker highlight by `delta` over what is on offer, clamped. */
@@ -344,9 +517,24 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
         <>
           <span className="relative inline-block max-w-72 min-w-0 flex-1">
             <Input
+              ref={pickerBox}
               className="h-8 w-full"
               aria-label="Project"
               role="combobox"
+              // At rest the box is the label of what is open, and a label is
+              // not typed into: `readOnly` is what stops a click on the closed
+              // picker putting a caret in the project's name. It is dropped
+              // the moment the box takes the focus — the same commit that
+              // opens the list — so every route in still types.
+              //
+              // `readOnly` and not `disabled`: a disabled combobox is out of
+              // the tab order and cannot be opened from the keyboard at all.
+              //
+              // jsdom cannot be the oracle for this half. A click's default
+              // action — the focus and the caret it places — is the browser's,
+              // and jsdom performs none of it (R5 #14/#15). The negative lives
+              // in `e2e/project-picker.spec.ts`.
+              readOnly={search === null}
               aria-expanded={listOpen}
               aria-controls={listOpen ? 'project-options' : undefined}
               aria-activedescendant={
@@ -530,7 +718,11 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
               aria-label="Rename"
               title="Rename this project"
               onClick={() => {
-                setRename({ projectId: selectedProject.id, draft: selectedProject.name });
+                setRename({
+                  projectId: selectedProject.id,
+                  draft: selectedProject.name,
+                  draftIsPlaceholder: false,
+                });
               }}
             >
               ✎
@@ -538,29 +730,21 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
           )}
         </>
       ) : (
-        <Input
-          className="h-8 max-w-72 min-w-0 flex-1"
-          aria-label="Project name"
-          value={rename.draft}
-          // A callback ref rather than autoFocus: it fires when the node
-          // attaches, which is the moment the button it replaces was clicked.
-          ref={(element) => element?.focus()}
-          onChange={(e) => {
-            const draft = e.target.value;
+        <ProjectNameField
+          // The armed project, so arming a rename on another one is a new
+          // field rather than the same one holding somebody else's name: the
+          // focus and the selection below happen on mount.
+          key={rename.projectId}
+          draft={rename.draft}
+          selectsWholeDraft={rename.draftIsPlaceholder}
+          onDraft={(draft) => {
             setRename((current) => (current === null ? current : { ...current, draft }));
           }}
-          // Blur commits — the proposal's word — which also gives the rename
-          // a mouse exit: click anywhere else and the mode resolves instead
-          // of sitting open forever.
-          onBlur={() => {
+          onCommit={() => {
             commitOrCancelRename(rename);
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commitOrCancelRename(rename);
-            }
-            if (e.key === 'Escape') setRename(null);
+          onCancel={() => {
+            setRename(null);
           }}
         />
       )}

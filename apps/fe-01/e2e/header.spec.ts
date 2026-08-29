@@ -126,12 +126,22 @@ async function readHoverCard(page: Page): Promise<string> {
   return (await card.textContent()) ?? '';
 }
 
-/** Registers a throwaway account and opens a project. Nothing in it yet. */
+/**
+ * Registers a throwaway account and opens a project. Nothing in it yet.
+ *
+ * The create arms the rename on the new project — `project-picker-flow`, and
+ * `e2e/project-picker.spec.ts` is where that is the thing under test — so the
+ * fixture leaves it: Escape keeps the project under its placeholder name and
+ * puts the picker back on the bar, which is the state every test in this file
+ * measures.
+ */
 async function signInWithAProject(page: Page, _account: string): Promise<void> {
   void _account;
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByLabel('Project name').press('Escape');
+  await expect(page.getByRole('combobox', { name: 'Project' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 
@@ -152,6 +162,10 @@ async function switchToAccountWithAProject(
   void leaving;
   void account;
   await page.getByRole('button', { name: 'New project' }).click();
+  // See `signInWithAProject`: the create leaves a rename armed, and this
+  // fixture's callers want the picker.
+  await page.getByLabel('Project name').press('Escape');
+  await expect(page.getByRole('combobox', { name: 'Project' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 
@@ -511,6 +525,9 @@ test.describe('the open project picker, measured by a browser', () => {
         ),
         page.getByRole('button', { name: 'New project' }).click(),
       ]);
+      // Each create arms a rename over the picker; the next click has to land
+      // on the `+` again. See `signInWithAProject`.
+      await page.getByLabel('Project name').press('Escape');
     }
     await openPicker(page);
     const list = page.getByRole('listbox', { name: 'Projects' });
@@ -531,10 +548,15 @@ test.describe('the open project picker, measured by a browser', () => {
         if (optionBox === null || cardBox === null) return null;
         return {
           optionMoved: Math.round(before.y - optionBox.y),
-          cardGap: Math.round(cardBox.y - (optionBox.y + optionBox.height)),
+          // The card stands **on** the option's row rather than under it since
+          // `project-picker-flow`: it opens beside the list, so following the
+          // option means sharing its top edge. Where it opens sideways is
+          // `e2e/project-picker.spec.ts`'s claim; this one is that it is still
+          // remeasured while the list scrolls under it.
+          cardOffset: Math.round(cardBox.y - optionBox.y),
         };
       })
-      .toEqual({ optionMoved: 12, cardGap: 6 });
+      .toEqual({ optionMoved: 12, cardOffset: 0 });
   });
 
   test('a short entry is shown whole', async ({ page }) => {

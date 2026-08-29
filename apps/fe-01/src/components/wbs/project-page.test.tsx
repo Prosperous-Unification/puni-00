@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 
@@ -145,6 +145,20 @@ const TWO: ProjectListEntry[] = [
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'strip',
+    createdAt: MADE_ON,
+  },
+];
+
+/** A third project, so a card can be asked to leave the options either side of it alone. */
+const THREE: ProjectListEntry[] = [
+  ...TWO,
+  {
+    id: 'p3',
+    name: 'Sand the floor',
+    restricted: false,
+    startDate: null,
+    lastOpenedAt: null,
+    ownerName: 'kat',
     createdAt: MADE_ON,
   },
 ];
@@ -562,9 +576,13 @@ describe('creating a project', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New project' }));
 
+    // The name field stands in place of the picker while the rename a create
+    // arms is open; leaving it is what shows the picker the selection.
     await waitFor(() => {
-      expect(picker().value).toBe('New project');
+      expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('New project');
     });
+    fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Escape' });
+    expect(picker().value).toBe('New project');
     // And it was opened, which is what sorts the picker next time — the
     // recording is driven by the selection, so a create that failed to select
     // would record nothing.
@@ -670,29 +688,6 @@ describe('renaming a project', () => {
     expect(picker().value).toBe('Paint the fence');
   });
 
-  itDom('creating a project mid-rename cancels the draft instead of retargeting it', async () => {
-    const api = fakeProjects(TWO);
-    pageWith(api);
-    await selectProject('p2');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-    fireEvent.change(screen.getByLabelText('Project name'), {
-      target: { value: 'Meant for p2' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
-
-    // The draft is gone, nothing was renamed, and the new project keeps the
-    // name it was created with.
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Project name')).toBeNull();
-    });
-    expect(api.renamed).toEqual([]);
-    openPicker();
-    await waitFor(() => {
-      expect(optionNames()).toContain(`New project (kat · ${THIS_JUNE})`);
-    });
-  });
-
   itDom('commits on blur when the name changed', async () => {
     const api = fakeProjects(TWO);
     pageWith(api);
@@ -781,15 +776,17 @@ describe('the hover card follows the list, not a stale pointer', () => {
       let optionTop = 20;
       option.getBoundingClientRect = () => new DOMRect(10, optionTop, 120, 10);
       fireEvent.mouseEnter(option);
+      // The option's own top, not its bottom plus a gap: the card opens
+      // *beside* the list now, on the row it describes.
       await waitFor(() => {
-        expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('36px');
+        expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('20px');
       });
 
       optionTop = 100;
       fireEvent.scroll(list);
 
       await waitFor(() => {
-        expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('116px');
+        expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('100px');
       });
     },
   );
@@ -839,7 +836,7 @@ describe('the hover card follows the list, not a stale pointer', () => {
     option.getBoundingClientRect = () => new DOMRect(10, optionTop, 120, 10);
     fireEvent.mouseEnter(option);
     await waitFor(() => {
-      expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('36px');
+      expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('20px');
     });
     const rendersBeforeScroll = pageRenders;
 
@@ -847,7 +844,7 @@ describe('the hover card follows the list, not a stale pointer', () => {
     fireEvent.scroll(list);
 
     await waitFor(() => {
-      expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('56px');
+      expect(screen.getByRole('tooltip', { name: 'Paint the fence' }).style.top).toBe('40px');
     });
     expect(pageRenders).toBe(rendersBeforeScroll);
   });
@@ -916,5 +913,418 @@ describe('the hover card follows the list, not a stale pointer', () => {
       expect(within(list).queryAllByRole('option').length).toBe(2);
     });
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
+/**
+ * How far an option's box is inset from the listbox's own, in px.
+ *
+ * The `<ul>` has a 1px border and `p-1`, so an option's rectangle is five
+ * pixels inside the list's on each side. It is stubbed here rather than left
+ * equal because that inset is the **only** measurable difference between a
+ * card anchored to the list and one anchored to the option: every option in a
+ * one-column `w-full` list shares its width, so a per-option anchor cannot
+ * produce two different lefts, and a stub that gave both the same box could
+ * not see the two apart at all.
+ */
+const OPTION_INSET = 5;
+
+/** How tall a stubbed option row is, in px. */
+const OPTION_ROW = 24;
+
+/** The clear air the placement keeps between the card and the list, in px. */
+const CARD_GAP = 6;
+
+/**
+ * What jsdom reports for the hover card's own box while these tests run.
+ *
+ * jsdom measures every element as 0×0, and a card with no width can neither
+ * run out of room on the right nor cover anything on the left — which is both
+ * of the placements this suite is about. `G gantt-calendar-axis`'s sixteenth
+ * fault is a measurement taken against something with no size; each test below
+ * asserts this is non-zero before it believes an overlap.
+ */
+const CARD_WIDTH = 300;
+
+/** How tall the stubbed card is. Only the placement's vertical clamp reads it. */
+const CARD_HEIGHT = 90;
+
+/**
+ * jsdom's own measurement, restored after each test in this suite.
+ *
+ * Referenced unbound on purpose and called with `.call(this)` below: this is
+ * the prototype method the stub stands in front of, and binding it to one
+ * element would measure that element for every node asking.
+ */
+// eslint-disable-next-line @typescript-eslint/unbound-method -- see above; every call site supplies its own `this`.
+const measureElement = HTMLElement.prototype.getBoundingClientRect;
+
+/** jsdom's own window width, restored after each test in this suite. */
+const WINDOW_WIDTH = window.innerWidth;
+
+function resizeWindow(width: number): void {
+  Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+}
+
+/**
+ * Lays the open listbox out where a browser would put it, options inset.
+ *
+ * Returns the list's own edges, which is what the card is asserted against —
+ * reading them back rather than restating the numbers keeps each assertion
+ * about the relation rather than about two literals that happen to agree.
+ */
+function layOutPickerAt(box: { left: number; width: number }): { left: number; right: number } {
+  const list = screen.getByRole('listbox', { name: 'Projects' });
+  list.getBoundingClientRect = () => new DOMRect(box.left, 0, box.width, 240);
+  within(list)
+    .getAllByRole('option')
+    .forEach((option, index) => {
+      option.getBoundingClientRect = () =>
+        new DOMRect(
+          box.left + OPTION_INSET,
+          index * OPTION_ROW,
+          box.width - 2 * OPTION_INSET,
+          OPTION_ROW,
+        );
+    });
+  return { left: box.left, right: box.left + box.width };
+}
+
+/** Rests the pointer on a project's option, by the id the listbox gives it. */
+function pointAt(id: string): void {
+  const option = document.getElementById(`project-option-${id}`);
+  if (option === null) throw new Error(`no option for ${id}`);
+  fireEvent.mouseEnter(option);
+}
+
+/** Opens the picker on `projects` and waits for every one of them to be offered. */
+async function openPickerOn(projects: ProjectListEntry[]): Promise<void> {
+  pageWith(fakeProjects(projects));
+  await waitFor(() => {
+    expect(screen.getByLabelText('Project')).toBeDefined();
+  });
+  openPicker();
+  await waitFor(() => {
+    expect(optionNames().length).toBe(projects.length);
+  });
+}
+
+describe('the card opens beside the list, not over it', () => {
+  beforeEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      // The card alone: everything else keeps jsdom's zeroes, or the stubs
+      // `layOutPickerAt` installs on the list and its options.
+      if (this.getAttribute('role') === 'tooltip') {
+        return new DOMRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+      }
+      return measureElement.call(this);
+    };
+  });
+
+  afterEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = measureElement;
+    resizeWindow(WINDOW_WIDTH);
+  });
+
+  itDom('the open card leaves every option visible', async () => {
+    await openPickerOn(THREE);
+    const list = layOutPickerAt({ left: 40, width: 200 });
+
+    pointAt('p2');
+
+    const card = await screen.findByRole('tooltip', { name: 'Paint the fence' });
+    const cardLeft = Number.parseFloat(card.style.left);
+    // Or the card has no rectangle, covers nothing whatever it is placed over,
+    // and every assertion under this one is green by default.
+    expect(CARD_WIDTH, 'a card of no width cannot cover the list').toBeGreaterThan(0);
+    expect(
+      cardLeft,
+      `the card opens at ${card.style.left} in a list ending at ${String(list.right)}`,
+    ).toBeGreaterThanOrEqual(list.right);
+    // And every option — the two being compared as much as the one being read
+    // — ends before the card begins.
+    const optionRights = screen
+      .getAllByRole('option')
+      .map((option) => option.getBoundingClientRect().right);
+    expect(optionRights).toHaveLength(3);
+    expect(Math.max(...optionRights)).toBeLessThanOrEqual(cardLeft);
+  });
+
+  itDom('a narrow window flips the card to the left of the list', async () => {
+    await openPickerOn(TWO);
+    resizeWindow(700);
+    const list = layOutPickerAt({ left: 400, width: 200 });
+
+    pointAt('p2');
+
+    const card = await screen.findByRole('tooltip', { name: 'Paint the fence' });
+    await waitFor(() => {
+      expect(Number.parseFloat(card.style.left)).toBeLessThan(list.left);
+    });
+    expect(CARD_WIDTH, 'a card of no width cannot cover the list').toBeGreaterThan(0);
+    // The whole card, not only its left edge: a clamp back into the viewport
+    // would put its right edge over the list, which is the failure the flip
+    // exists to avoid.
+    const cardRight = Number.parseFloat(card.style.left) + CARD_WIDTH;
+    expect(
+      cardRight,
+      `the flipped card ends at ${String(cardRight)}, over a list starting at ${String(list.left)}`,
+    ).toBeLessThanOrEqual(list.left);
+  });
+
+  itDom('a window with room on neither side shows no card', async () => {
+    await openPickerOn(TWO);
+    resizeWindow(500);
+    layOutPickerAt({ left: 100, width: 200 });
+
+    pointAt('p2');
+
+    // A card that must cover the list to exist has no claim on the space.
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+  });
+
+  itDom('moving down the list does not move the card sideways', async () => {
+    await openPickerOn(THREE);
+    const list = layOutPickerAt({ left: 40, width: 200 });
+
+    pointAt('p1');
+    const first = await screen.findByRole('tooltip', { name: 'Rewire the shed' });
+    const firstPlacement = { left: first.style.left, top: first.style.top };
+
+    pointAt('p3');
+
+    const third = await screen.findByRole('tooltip', { name: 'Sand the floor' });
+    // Sideways: unchanged, and at the **list's** edge rather than the option's
+    // — the two are five pixels apart, which is what an anchor taken from the
+    // option's own box would read instead.
+    expect(third.style.left).toBe(firstPlacement.left);
+    expect(third.style.left).toBe(`${String(list.right + CARD_GAP)}px`);
+    // Vertically: it followed the pointer, or the assertion above is about a
+    // card that never moved at all.
+    expect(Number.parseFloat(third.style.top)).toBeGreaterThan(
+      Number.parseFloat(firstPlacement.top),
+    );
+  });
+});
+
+describe('a pick leaves the picker at rest', () => {
+  itDom('choosing a project takes the focus off the picker', async () => {
+    pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    // A real focus, not a dispatched `focus` event: `document.activeElement`
+    // is the whole claim here, and `fireEvent.focus` moves nothing at all —
+    // the assertion below would then hold with the blur deleted, which is the
+    // vacuous check this file exists to avoid.
+    picker().focus();
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+    expect(document.activeElement, 'the picker never took the focus').toBe(picker());
+
+    fireEvent.click(document.getElementById('project-option-p2')!);
+
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    // Nothing focuses an option — the list's mousedown is prevented so the
+    // click can land — so without the blur the combobox keeps the keyboard,
+    // showing the project's name with a caret in it.
+    expect(document.activeElement).not.toBe(picker());
+  });
+
+  itDom('choosing a project arms no rename', async () => {
+    pageWith(fakeProjects(TWO));
+    await selectProject('p2');
+
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    expect(screen.queryByLabelText('Project name')).toBeNull();
+    // The rename is reachable, and only through its own control.
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeDefined();
+  });
+
+  itDom('the picker still searches after a pick', async () => {
+    pageWith(fakeProjects(TWO));
+    await selectProject('p2');
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    // At rest it is a label of what is open, which is what `readOnly` says.
+    expect(picker().readOnly).toBe(true);
+
+    picker().focus();
+
+    // Scoped to the picker's own list: a selected project renders the table,
+    // and the table has options of its own.
+    const offered = () =>
+      within(screen.getByRole('listbox', { name: 'Projects' }))
+        .queryAllByRole('option')
+        .map((entry) => entry.textContent);
+    await waitFor(() => {
+      expect(offered().length).toBe(2);
+    });
+    // And it is a search box again the moment it has the focus, in the same
+    // commit that opened the list.
+    expect(picker().readOnly).toBe(false);
+    fireEvent.change(picker(), { target: { value: 'FENCE' } });
+    expect(offered()).toEqual([`Paint the fence (strip · ${THIS_JUNE})`]);
+    expect(picker().value).toBe('FENCE');
+  });
+});
+
+describe('a new project opens with its name ready to be typed', () => {
+  itDom('creating a project puts the caret in its name', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    const name = await screen.findByLabelText<HTMLInputElement>('Project name');
+    expect(name.value).toBe('New project');
+    expect(document.activeElement).toBe(name);
+    // And it was selected and opened, which is what sorts the picker next
+    // time — both are driven by the selection, so a create that failed to
+    // select would record nothing.
+    expect(api.opened).toContain('p3');
+    expect(localStorage.getItem('wbs.project')).toBe('p3');
+  });
+
+  itDom('does not put the whole draft back under the next keystroke', async () => {
+    pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const name = await screen.findByLabelText<HTMLInputElement>('Project name');
+
+    fireEvent.change(name, { target: { value: 'A' } });
+
+    // The selection is armed once, when the rename is armed — not on every
+    // render. Re-selected after each keystroke, the second character typed
+    // would replace the first and the field could never hold two.
+    expect([name.selectionStart, name.selectionEnd]).toEqual([1, 1]);
+  });
+
+  itDom('creating a project selects the whole placeholder name', async () => {
+    pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    const name = await screen.findByLabelText<HTMLInputElement>('Project name');
+    // Selected rather than emptied: `commitOrCancelRename` reads an empty
+    // draft as a cancel, so an empty box would answer Enter with a project
+    // still called `New project` and no explanation. Selected, the first
+    // keystroke replaces it and an untouched Enter is a no-op rename.
+    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'New project'.length]);
+  });
+
+  itDom('arms the rename only once the list can name the new project', async () => {
+    const api = fakeProjects(TWO);
+    const listProjects = api.listProjects.bind(api);
+    let releaseList: (() => void) | null = null;
+    let listCalls = 0;
+    // The page's own first load answers at once; the create's reload is held,
+    // which is the window the fault lives in. Armed before `await load()`, the
+    // name field is on screen for a project the picker cannot yet name — and
+    // an Enter there compares the draft against no current name at all and
+    // sends a rename for the name the row already has.
+    api.listProjects = async () => {
+      listCalls += 1;
+      if (listCalls > 1) {
+        await new Promise<void>((resolve) => {
+          releaseList = resolve;
+        });
+      }
+      return listProjects();
+    };
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    await waitFor(() => {
+      expect(listCalls).toBe(2);
+    });
+    expect(screen.queryByLabelText('Project name')).toBeNull();
+
+    releaseList?.();
+
+    expect(await screen.findByLabelText<HTMLInputElement>('Project name')).toBeDefined();
+  });
+
+  itDom('a draft armed for another project does not follow the create', async () => {
+    const api = fakeProjects(TWO);
+    const createProject = api.createProject.bind(api);
+    let releaseCreate: (() => void) | null = null;
+    api.createProject = async (name) => {
+      await new Promise<void>((resolve) => {
+        releaseCreate = resolve;
+      });
+      return createProject(name);
+    };
+    pageWith(api);
+    await selectProject('p2');
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: { value: 'Meant for p2' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    // Asserted in the window the fault lives in: with the create held, a draft
+    // that was not cancelled is still on screen and still aimed at p2. Once
+    // the create resolves the re-arm would overwrite it either way, so the
+    // final state cannot see this at all.
+    await waitFor(() => {
+      expect(releaseCreate).not.toBeNull();
+    });
+    expect(screen.queryByLabelText<HTMLInputElement>('Project name')?.value ?? null).toBeNull();
+
+    releaseCreate?.();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('New project');
+    });
+    // Nothing was renamed, and p2 still holds the name it had.
+    expect(api.renamed).toEqual([]);
+    fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Escape' });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames()).toContain(`Paint the fence (strip · ${THIS_JUNE})`);
+    });
+  });
+
+  itDom('abandoning the new project’s rename keeps the project', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    const name = await screen.findByLabelText<HTMLInputElement>('Project name');
+
+    fireEvent.keyDown(name, { key: 'Escape' });
+
+    // The project was created before the rename was ever offered; nothing is
+    // rolled back, and it is still the one that is open.
+    expect(api.renamed).toEqual([]);
+    expect(picker().value).toBe('New project');
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames()).toContain(`New project (kat · ${THIS_JUNE})`);
+    });
   });
 });

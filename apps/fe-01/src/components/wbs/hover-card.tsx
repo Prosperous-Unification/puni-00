@@ -57,6 +57,62 @@ export function surfacePlacement(
   return { left, top };
 }
 
+/**
+ * The horizontal bounds of a **list**, at the row of the option a card is
+ * open for — the mark a card opens *beside* rather than under.
+ *
+ * Both edges, because the card may open at either: see {@link
+ * besidePlacement}. The list's own rect rather than the option's, because
+ * every option in a one-column list shares the list's width, and a card
+ * anchored to the option lands on top of the list it is being read against.
+ */
+export interface BesideAnchorRect {
+  left: number;
+  right: number;
+  top: number;
+}
+
+/**
+ * Where a card opens beside a list: clear of the list's right edge, on the
+ * row of the option it describes.
+ *
+ * Flipped to the list's **left** edge where the viewport has no room on the
+ * right, and `null` — no card at all — where neither side fits. A clamp back
+ * into the viewport is what this deliberately is not: a clamped card slides
+ * over the list at exactly the widths where the list is hardest to read, which
+ * is the fault the placement exists to fix. A card that must cover the list to
+ * exist has no claim on the space.
+ *
+ * `top` is clamped so a card opening from the last row of a long list does not
+ * hang off the bottom of the window; it is never moved horizontally to make
+ * room, which is what lets the card stay still while the pointer walks the
+ * list.
+ *
+ * Pure, and separated from the component for {@link surfacePlacement}'s
+ * reason: jsdom measures every box as zero, so the arithmetic can only be
+ * asserted where the measurements are handed to it. That it is really wired to
+ * the listbox's own rectangle is asserted through the production call path in
+ * `project-page.test.tsx`, where the card's box is stubbed for the same
+ * reason.
+ *
+ * Proof: the flip replaced by a clamp to the viewport's right edge — `a narrow
+ * window flips the card to the left of the list` failed on `expected 400 to be
+ * less than 400`, the clamped card starting exactly where the list starts, and
+ * `a window with room on neither side shows no card` failed on `expected <div
+ * role="tooltip" …(2)>…(4)</div> to be null`. Watched 2026-08-29.
+ */
+export function besidePlacement(
+  anchor: BesideAnchorRect,
+  card: { width: number; height: number },
+  viewport: { width: number; height: number },
+): Placement | null {
+  const top = Math.max(0, Math.min(anchor.top, viewport.height - card.height));
+  const beyondRight = anchor.right + ANCHOR_GAP_PX;
+  if (beyondRight + card.width <= viewport.width) return { left: beyondRight, top };
+  const beforeLeft = anchor.left - ANCHOR_GAP_PX - card.width;
+  return beforeLeft >= 0 ? { left: beforeLeft, top } : null;
+}
+
 export interface HoverCardProps {
   /**
    * The mark this card is placed against, in viewport coordinates — and the
@@ -70,6 +126,19 @@ export interface HoverCardProps {
    * measured. See {@link surfacePlacement}.
    */
   anchor?: AnchorRect;
+  /**
+   * The list this card opens beside, in viewport coordinates — a **fixed**,
+   * portalled card like {@link HoverCardProps.anchor}, placed by {@link
+   * besidePlacement} instead.
+   *
+   * The project picker's alone. A card that explains one option of a list is
+   * read against the other options, so it opens clear of the list rather than
+   * over it; every card that explains a *cell* opens under that cell, where
+   * there is nothing being compared.
+   *
+   * Never passed together with `anchor`: they are two placements of one card.
+   */
+  beside?: BesideAnchorRect;
   /**
    * What the card is, for a screen reader — it names the row, because a table
    * of forty of these otherwise announces "tooltip" and nothing else.
@@ -222,7 +291,14 @@ export function roomForCard(
  *   surfacePlacement}, and the delay before it opens belongs to the panel that
  *   opens it rather than to this.
  */
-export function HoverCard({ label, id, scrolls = false, anchor, children }: HoverCardProps) {
+export function HoverCard({
+  label,
+  id,
+  scrolls = false,
+  anchor,
+  beside,
+  children,
+}: HoverCardProps) {
   const card = useRef<HTMLDivElement | null>(null);
   // Placed under the mark to begin with and corrected once the card has a size,
   // which is the only moment its own width and height exist. `useLayoutEffect`
@@ -248,6 +324,33 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
   }, [anchor]);
 
   /**
+   * This card's own box, or null before it has ever been measured.
+   *
+   * Held rather than read at placement time because a card placed beside a
+   * list can be **suppressed**, and a suppressed card is not in the document
+   * to be measured again: the size it last had is what the next option's
+   * placement is decided from. Without it a window with no room either side
+   * would suppress the card once and never let it back, since the effect that
+   * measures has no node to run against.
+   */
+  const [cardBox, setCardBox] = useState<{ width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const node = card.current;
+    if (beside === undefined || node === null) return;
+    const measured = node.getBoundingClientRect();
+    setCardBox({ width: measured.width, height: measured.height });
+    // Each anchor identity measures again: the card's content is the option's
+    // and a longer project name is a wider card.
+  }, [beside]);
+  const besidePlaced =
+    beside === undefined
+      ? null
+      : besidePlacement(beside, cardBox ?? { width: 0, height: 0 }, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+
+  /**
    * The room this card's cell leaves it, or null until it has been measured.
    *
    * Only a scrolling card measures: it is the one card whose height is not its
@@ -255,7 +358,7 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
    */
   const [room, setRoom] = useState<CardRoom | null>(null);
   useLayoutEffect(() => {
-    if (!scrolls || anchor !== undefined) return;
+    if (!scrolls || anchor !== undefined || beside !== undefined) return;
     // Narrowing, not a guard, and deliberately not a throw: a layout effect runs
     // on a mounted node, and a mounted node has a parent. No injected fault can
     // make either null, so a throw here would be a check whose failure can never
@@ -280,8 +383,15 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
       }),
     );
     // The cell does not move while the card is open — the card is closed by the
-    // pointer leaving the cell — so this runs once per opening.
-  }, [scrolls, anchor]);
+    // pointer leaving the cell — so this runs once per opening. `beside` is in
+    // the list because the guard above reads it, not because a card placed
+    // beside a list is ever measured for room: it has none of its own.
+  }, [scrolls, anchor, beside]);
+
+  // A window with room on neither side of the list shows no card at all. After
+  // every hook, because this is a render that draws nothing rather than a
+  // component that does less.
+  if (beside !== undefined && besidePlaced === null) return null;
 
   const scrolling: CSSProperties = scrolls
     ? {
@@ -291,26 +401,39 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
       }
     : { pointerEvents: 'none' };
   const anchored: CSSProperties =
-    anchor === undefined
+    besidePlaced !== null
       ? {
-          position: 'absolute',
-          // Measured, so `null` is the frame before the layout effect has run
-          // rather than a card with no room: it opens downward, which is where
-          // it will stay for every row that has the room below.
-          ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
-          left: 0,
-          maxWidth: scrolls ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)` : CARD_MAX_WIDTH_PX,
-        }
-      : {
           position: 'fixed',
-          top: placed.top,
-          left: placed.left,
-          // Never wider than the screen it is clamped inside, which is what
-          // lets {@link surfacePlacement} promise both edges at once. `min`
-          // rather than the constant alone: 420px on a 390px phone is a card
-          // that cannot be clamped into view.
+          top: besidePlaced.top,
+          left: besidePlaced.left,
+          // The same ceiling as an anchored card's, and load-bearing for the
+          // same reason twice over: it is the width {@link besidePlacement}
+          // decides the side from, so a card that could grow past it would be
+          // placed against a width it does not have.
           maxWidth: `min(${String(CARD_MAX_WIDTH_PX)}px, 100vw)`,
-        };
+        }
+      : anchor === undefined
+        ? {
+            position: 'absolute',
+            // Measured, so `null` is the frame before the layout effect has run
+            // rather than a card with no room: it opens downward, which is where
+            // it will stay for every row that has the room below.
+            ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
+            left: 0,
+            maxWidth: scrolls
+              ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)`
+              : CARD_MAX_WIDTH_PX,
+          }
+        : {
+            position: 'fixed',
+            top: placed.top,
+            left: placed.left,
+            // Never wider than the screen it is clamped inside, which is what
+            // lets {@link surfacePlacement} promise both edges at once. `min`
+            // rather than the constant alone: 420px on a 390px phone is a card
+            // that cannot be clamped into view.
+            maxWidth: `min(${String(CARD_MAX_WIDTH_PX)}px, 100vw)`,
+          };
   const body = (
     <div
       ref={card}
@@ -353,6 +476,7 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
   // A card that opens from a cell stays inside that cell's wrapper, which is
   // what its `position: absolute` is measured against. An anchored one is
   // portalled out: its mark is inside an `<svg>`, which can hold no HTML at
-  // all, and every ancestor of it clips.
-  return anchor === undefined ? body : createPortal(body, document.body);
+  // all, and every ancestor of it clips. A card placed beside a list is
+  // portalled for the second of those reasons — the listbox scrolls and clips.
+  return anchor === undefined && beside === undefined ? body : createPortal(body, document.body);
 }
