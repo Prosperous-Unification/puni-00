@@ -219,7 +219,15 @@ test.describe('the Name cell shows one of its two boxes at a time', () => {
       await drawn.evaluate((node) => getComputedStyle(node).pointerEvents),
       'the rendered name takes the pointer the box under it needs',
     ).toBe('none');
-    await drawn.click();
+    // A real click at the point the link is drawn at, through `page.mouse`
+    // rather than `drawn.click()`. Playwright's own actionability check refuses
+    // the latter — "<textarea …> intercepts pointer events" — which is the very
+    // thing this line exists to prove, so using the locator's click made the
+    // test fail on the behaviour it was asserting. `force: true` would be the
+    // wrong escape: it bypasses hit-testing, and hit-testing IS the claim.
+    const at = await drawn.boundingBox();
+    if (at === null) throw new Error('the rendered name has no box to click');
+    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
     await expect(box).toBeFocused();
   });
 });
