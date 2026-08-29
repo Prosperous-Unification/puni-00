@@ -20,6 +20,7 @@ import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { testWrites } from '../testing/writes-fixture';
 
 function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
   const workItemStore = inMemoryWorkItems();
@@ -78,6 +79,7 @@ function buildHarness(options: { writeOnly?: boolean } = {}) {
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
+    writes: testWrites(),
     migrationsApplied: true,
   });
 
@@ -143,9 +145,9 @@ describe('projects', () => {
     const token = await register('owner');
     const create = await send('/api/projects', token, created('Export me'));
     const { project } = (await create.json()) as { project: { id: string } };
-    await send(`/api/projects/${project.id}/work-items`, token, {
+    await send(`/api/projects/${project.id}/commands`, token, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Build the thing' }),
+      body: JSON.stringify({ commands: [{ kind: 'createWorkItem', name: 'Build the thing' }] }),
     });
 
     const res = await send(`/api/projects/${project.id}/export?format=json`, token);
@@ -167,9 +169,9 @@ describe('projects', () => {
     const token = await register('owner');
     const create = await send('/api/projects', token, created('Export me'));
     const { project } = (await create.json()) as { project: { id: string } };
-    await send(`/api/projects/${project.id}/work-items`, token, {
+    await send(`/api/projects/${project.id}/commands`, token, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Build | ship' }),
+      body: JSON.stringify({ commands: [{ kind: 'createWorkItem', name: 'Build | ship' }] }),
     });
 
     const res = await send(`/api/projects/${project.id}/export?format=markdown`, token);

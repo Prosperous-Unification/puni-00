@@ -7,11 +7,9 @@ import {
   hasInvalidCookieOrigin,
   type OidcRouteOptions,
 } from './controller/auth.controller';
-import { capacityController } from './controller/capacity.controller';
 import { directoryController } from './controller/directory.controller';
 import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
-import { priorityBandController } from './controller/priority-band.controller';
 import { projectController } from './controller/project.controller';
 import { roleController } from './controller/role.controller';
 import { smokeController } from './controller/smoke.controller';
@@ -24,11 +22,14 @@ import type { AuthService } from './service/auth.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
 import type { HistoryService } from './service/history.service';
+import type { OuterTransaction } from './service/outer-transaction';
+import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
 import type { RoleService } from './service/role.service';
 import type { WorkItemService } from './service/work-item.service';
+import type { WriteLock } from './service/write-lock';
 
 export interface AppOptions {
   migrationsApplied: boolean;
@@ -97,6 +98,13 @@ export interface AppOptions {
    */
   probeDatabase: () => DatabaseHealth;
   /**
+   * What a command batch runs inside: the outer transaction on the one
+   * connection and the write lock — `drizzleOuterTransaction(db)` and a
+   * `WriteLock` in production, the counting fixture on in-memory stores. See
+   * `service/plan-commands.ts` and ADR 0007.
+   */
+  writes: { transactions: OuterTransaction; lock: WriteLock };
+  /**
    * The commit the checkout on disk is at, read fresh on every `/health` call.
    *
    * Optional, and this is the one place an absent value does not lie: `null`
@@ -116,6 +124,14 @@ export interface AppOptions {
 
 export function buildApp(opts: AppOptions) {
   const logger = createLogger({ service: 'be-01', version: opts.version });
+  const commands = new PlanCommandRunner({
+    workItems: opts.workItems,
+    directory: opts.directory,
+    capacity: opts.capacity,
+    priorityBands: opts.priorityBands,
+    transactions: opts.writes.transactions,
+    lock: opts.writes.lock,
+  });
 
   return (
     new Elysia()
@@ -160,18 +176,16 @@ export function buildApp(opts: AppOptions) {
       .use(solutionController(opts.auth, opts.projects))
       .use(projectController(opts.auth, opts.projects, opts.workItems))
       .use(roleController(opts.auth, opts.roles))
-      .use(workItemController(opts.auth, opts.workItems))
+      .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))
       // After `projectController`, whose prefix it shares: Elysia matches in
       // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
       // anything that route declares, but keeping the two adjacent is what makes
       // that checkable at a glance.
-      .use(capacityController(opts.auth, opts.capacity))
       // Beside `capacityController` for its reason: it shares
       // `projectController`'s prefix, `/:id/priority-bands` cannot be shadowed by
       // anything that route declares, and adjacency is what makes that checkable
       // at a glance.
-      .use(priorityBandController(opts.auth, opts.priorityBands))
       // Beside the two above for their reason: it shares `projectController`'s
       // prefix, `/:id/history` cannot be shadowed by anything that route
       // declares, and adjacency is what makes that checkable at a glance.

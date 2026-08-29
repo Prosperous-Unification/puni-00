@@ -85,19 +85,31 @@ export interface OpenApiDocument {
  * `/*` matches a prefix and nothing else does — no regex, because a pattern
  * that can match more than it reads is the wrong tool for a deny list.
  */
-export const EXCLUDED_PATHS = [
+
+export const EXCLUDED_PATHS: readonly string[] = [
   '/api/auth/*',
   '/internal/*',
   '/health',
   '/metrics',
   '/api/smoke/echo',
-] as const;
+];
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */
 const TOOL_NAME = /^[a-zA-Z0-9_-]{1,128}$/;
 
+/**
+ * Whether one exclusion entry covers this path: a path, or a `prefix/*`. Method
+ * plays no part — every path in the document is all read or all excluded.
+ */
 const excludes = (pattern: string, path: string): boolean =>
   pattern.endsWith('/*') ? path.startsWith(pattern.slice(0, -1)) : path === pattern;
+
+/** The exclusion entry covering this path, or none. */
+const exclusionFor = (path: string): string | undefined =>
+  EXCLUDED_PATHS.find((candidate) => excludes(candidate, path));
+
+/** Whether this path of the document becomes no tool. */
+export const isExcluded = (path: string): boolean => exclusionFor(path) !== undefined;
 
 const isMethod = (key: string): key is HttpMethod =>
   (HTTP_METHODS as readonly string[]).includes(key);
@@ -236,14 +248,14 @@ export function toolsFromDocument(document: OpenApiDocument): DerivedTool[] {
   const seen = new Map<string, string>();
 
   for (const [path, item] of Object.entries(paths)) {
-    const pattern = EXCLUDED_PATHS.find((candidate) => excludes(candidate, path));
-    if (pattern !== undefined) {
-      matched.add(pattern);
-      continue;
-    }
     if (item === undefined) continue;
     for (const [key, operation] of Object.entries(item)) {
       if (!isMethod(key) || operation === undefined) continue;
+      const pattern = exclusionFor(path);
+      if (pattern !== undefined) {
+        matched.add(pattern);
+        continue;
+      }
       const tool = toTool(key, path, operation);
       const first = seen.get(tool.name);
       if (first !== undefined) {
