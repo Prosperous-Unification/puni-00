@@ -9451,12 +9451,29 @@ describe('the widths the table is laid out by', () => {
         // than the column and leaves the cell rather than sizing it.
         // `priority` since `priority-bands`: the Prio cell opens the five band
         // lines over a 48px column, which is now the narrowest clip in the table.
-        (['depends', 'name', 'team', 'actions', 'not-before', 'priority'].includes(column) ||
+        // `tag` and `service` since `reference-cell-popover`: each renders a
+        // `CreatablePicker`, exactly as `team` does, and their absence from
+        // this set was the 2026-08-29 report — a Tags cell that scrolled
+        // itself to show the list it had opened, drawing its own strip above
+        // its own row.
+        ([
+          'depends',
+          'name',
+          'team',
+          'tag',
+          'service',
+          'actions',
+          'not-before',
+          'priority',
+        ].includes(column) ||
           column.endsWith('-assignee') ||
           // A folded role's cell opens the `@` people picker over a 96px
           // column, which is the narrowest clip in the table.
           column.endsWith('-final'));
-      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
+      // `clip`, not `hidden`: a hidden box is a scroll container the browser
+      // may scroll to reveal what opened inside it, and a clip box has no
+      // scrollport at all. See {@link CELL}.
+      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'clip');
     }
   });
 

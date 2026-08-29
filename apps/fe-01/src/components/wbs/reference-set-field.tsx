@@ -363,6 +363,30 @@ export function ReferenceSetStrip({
             gap: 3,
             minWidth: 0,
             maxWidth: '100%',
+            /*
+              A chip may not paint outside this group, because what is beside
+              it is the search box — and the box, being later in the DOM, takes
+              the press.
+
+              The group shrinks below its content (`minWidth: 0`, which is what
+              lets the line clip rather than widen the column), and a `visible`
+              overflow then draws the last chip straight across the box:
+              measured live on 2026-08-29 at `chips` 750–835 with a
+              `scrollWidth` of 101, the last chip's own box running to 851, and
+              the input standing at 839. Clicking that chip's `✕` hit the input
+              instead — the browser gate's `<input … aria-label="Tags for 010">
+              from <span data-reference-search> subtree intercepts pointer
+              events`, a 60s timeout in `round-trips every desktop reference
+              set`.
+
+              Clipping here is what the cell already promises: the rest line is
+              one clipped line, the fade on the strip says so, and a chip that
+              has run out of room is reached by opening the cell rather than by
+              aiming at the sliver of it that is still drawn. While the cell is
+              open the chips wrap into the panel and there is nothing to clip,
+              which is why this follows `wrapping` rather than being pinned.
+            */
+            overflow: wrapping ? 'visible' : 'hidden',
           }}
         >
           {own.map((entry) => (
