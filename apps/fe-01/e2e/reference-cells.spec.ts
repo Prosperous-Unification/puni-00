@@ -427,18 +427,34 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
     openRow.y - 2,
   );
 
-  // And the list it opened is whole rather than cut to the cell's edge: an
-  // option is 22px, so a list holding one is at least that tall. Cut to the
-  // 4px sliver of Dany's screenshot, this fails.
+  // And the list a cell opens is whole rather than cut to the cell's edge.
+  //
+  // Not this cell: 010 already carries every seeded tag, so its picker has
+  // nothing left to offer and opens no list at all — which is the honest
+  // answer for a directory with nothing in it, and would have made an
+  // assertion here pass on an empty page. 030 states no tag and is offered all
+  // three. (Watched: written against 010, it failed on `Expected: 1 /
+  // Received: 0`, an assertion about an open list with no list open.)
+  const empty = page.getByRole('combobox', { name: 'Tags for 030', exact: true });
+  await empty.focus();
   const list = page.locator('[data-picker-list]');
   await expect(list).toHaveCount(1);
   const listBox = await list.boundingBox();
-  if (listBox === null) throw new Error('the open list is not painted');
-  expect(listBox.height, 'the open list is cut off at the cell edge').toBeGreaterThan(20);
+  const emptyCell = await cellOf('Tags for 030').boundingBox();
+  if (listBox === null || emptyCell === null) throw new Error('the open list is not painted');
+  // Three options at 22px. Cut to the sliver of Dany's screenshot — the cell
+  // scrolled under an unexempted clip — this is a few pixels tall.
+  expect(listBox.height, 'the open list is cut off at the cell edge').toBeGreaterThan(50);
   expect(
     await hitsItself(list.locator('[role="option"]').first()),
     'the first line of the open list cannot be clicked',
   ).toBe(true);
+  // The cell has not been scrolled to reveal it, which is the fault itself.
+  expect(
+    await cellOf('Tags for 030').evaluate((cell) => cell.scrollTop),
+    'the opened cell has been scrolled, so its contents left its row',
+  ).toBe(0);
+  await empty.blur();
 
   await box.blur();
   expect(
@@ -452,11 +468,21 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   // difference — silently, because every style assertion about it is written
   // against the constant itself. This is the one check that reads the browser.
   const restingStrip = await strip.boundingBox();
-  const anchor = await crowded.locator('[data-reference-anchor]').boundingBox();
-  if (restingStrip === null || anchor === null) throw new Error('the rested cell is not painted');
-  expect(anchor.height, 'the line the anchor keeps is not the line the strip stands on').toBe(
-    restingStrip.height,
-  );
+  const floor = await crowded
+    .locator('[data-reference-anchor]')
+    .evaluate((node) => parseFloat(getComputedStyle(node).minHeight));
+  if (restingStrip === null) throw new Error('the rested cell is not painted');
+  // Within a pixel of it rather than equal to it: the strip rests at
+  // 24.1875px — Chromium's own layout of a 14px input with this table's border
+  // and padding — and a constant written as a fraction would be one nobody can
+  // read. What this catches is drift, which is how the number goes wrong: a
+  // floor of 12 or of 40 fails here. Watched at `Expected: 24.1875 / Received:
+  // 24` when the anchor pinned `height` instead of a floor, which clipped the
+  // rest line by the fraction.
+  expect(
+    Math.abs(floor - restingStrip.height),
+    'the line the anchor keeps is not the line the strip stands on',
+  ).toBeLessThanOrEqual(1);
 
   // Said once, per surface. The desktop's reading is the placeholder's `↳`.
   expect(

@@ -305,7 +305,7 @@ describe('the reference strip on one rest line', () => {
     expect(strip().style.background).toBe('');
     // And the anchor holds that line whether or not the strip is standing in
     // it — which is what stops the row shrinking when the panel opens.
-    expect(anchorOf().style.height).toBe(`${String(REFERENCE_SET_LINE_HEIGHT)}px`);
+    expect(anchorOf().style.minHeight).toBe(`${String(REFERENCE_SET_LINE_HEIGHT)}px`);
 
     fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
 

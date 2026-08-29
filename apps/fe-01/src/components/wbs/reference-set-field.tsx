@@ -99,16 +99,6 @@ export const REFERENCE_SET_EDGE_FADE =
 export const REFERENCE_SET_LINE_HEIGHT = 24;
 
 /**
- * How wide an open reference panel may grow, in px.
- *
- * Wider than its 120px column on purpose — a panel held to the column would
- * wrap one chip per line, which is the shape this whole change is undoing —
- * and narrower than the `DEP_LIST_WIDTH` list beside it, because a tag's name
- * is a word and a dependency's is a whole work item.
- */
-const REFERENCE_SET_PANEL_MAX_WIDTH = 240;
-
-/**
  * Where an open panel sits in the stack.
  *
  * Above every layer `table-frame.ts` gives a pinned or sticky cell (4 is its
@@ -244,7 +234,11 @@ export function ReferenceSetStrip({
         alignItems: 'center',
         flex: 1,
         minWidth: 0,
-        height: REFERENCE_SET_LINE_HEIGHT,
+        // A floor, not a height. At rest the strip stands in this anchor and
+        // sets its own height — 24.1875px in Chromium, an input's border and
+        // padding included — and a pinned 24 would clip it by the difference.
+        // While the strip floats, this is what is left holding the line.
+        minHeight: REFERENCE_SET_LINE_HEIGHT,
       }}
     >
       <span
@@ -294,9 +288,23 @@ export function ReferenceSetStrip({
                 top: -1,
                 left: -2,
                 zIndex: REFERENCE_SET_PANEL_LAYER,
-                width: 'max-content',
-                minWidth: 'calc(100% + 4px)',
-                maxWidth: REFERENCE_SET_PANEL_MAX_WIDTH,
+                /*
+                  Its own column's width, and never a pixel of the one beside
+                  it. A panel sized to its content (`max-content`, capped at
+                  240px) covered the Tags cell of the same row while a Teams
+                  cell was open, and a click aimed at the neighbour hit the
+                  panel instead: `<span data-reference-strip data-reference-set="team">
+                  … intercepts pointer events`, watched in Chromium, 2026-08-29.
+                  A popover that eats its neighbour's clicks is not an
+                  improvement on a row that grew.
+
+                  So it grows **downwards only**. The chips wrap inside the
+                  column's own width and the panel hangs over the rows below,
+                  which are the pixels a popover is allowed to take. The `+ 4`
+                  and the `-2` offset either side undo this panel's border and
+                  padding, so a chip sits where it sat at rest.
+                */
+                width: 'calc(100% + 4px)',
                 padding: '0 1px',
                 background: 'var(--popover)',
                 border: '1px solid var(--border)',
