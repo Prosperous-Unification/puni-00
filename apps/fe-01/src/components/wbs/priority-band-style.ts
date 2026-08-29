@@ -28,16 +28,35 @@ export interface PriorityBandStyle {
  * The five inks, most important first, keyed on **rank** and never on the label.
  *
  * A project may rename `Critical` to `Blocker`, so a colour that followed the
- * word would follow it out of the ladder. The rank is the rung and the rung is
- * what "more important" means, so the ramp runs with it: hot at 0, cool and quiet
- * at 4.
+ * word would follow it out of the ladder. The rank is the rung, and since
+ * `priority-default-medium` (2026-08-29) the ramp **diverges around rank 2**
+ * rather than running hot to cool: neutral at the middle rung, warm above it,
+ * cool below it. Colour reads as *distance from ordinary*.
+ *
+ * The reason it had to change is the create: a new work item now carries the
+ * project's rank 2 default, so rank 2 is the commonest value on any screen. On
+ * the old heat ramp that was a yellow, and a plan of ordinary work was a column
+ * of chips shouting about nothing. Rank 2 is now the exact grey rank 4 wore
+ * before this change — copied, not re-picked, because that grey is the one Dany
+ * approved. design.md D3.
+ *
+ * **Ranks 3 and 4 are the counter-intuitive pair, and deliberately so.** They are
+ * one cool hue, held at one lightness band, differing in chroma with **4 the more
+ * saturated**: with neutral in the middle, "quietest" no longer means "least
+ * important", it means "most ordinary", and a reader scanning for what is
+ * deprioritised looks for the bluest thing. Rank 3 carries the extra `0.01` of
+ * lightness that keeps the two reading as one step at one weight — the lower
+ * chroma of the pair sits visibly darker without it. They are the smallest
+ * distinction on this ramp, so `priority-band-style.test.ts` measures the chroma
+ * margin between them rather than eyeballing it.
  *
  * `oklch` and not hex, which is this app's convention and the reason is
  * legibility in both themes — the lightness component is stated rather than
- * emerging from a hue rotation, so `Lowest` is quiet in dark mode instead of
- * disappearing. The five are held at one lightness band on purpose: this is a
- * **nominal** scale drawn from an ordinal one, and a ramp that also got darker
- * would say "more important" twice and read as a heat map of something measured.
+ * emerging from a hue rotation, so the quiet rungs stay quiet in dark mode
+ * instead of disappearing. The five are held at one lightness band on purpose:
+ * this is a **nominal** scale drawn from an ordinal one, and a ramp that also got
+ * darker would say "more important" twice and read as a heat map of something
+ * measured. That argument survives the change of hue meaning.
  *
  * **Dany has said the colours will be revisited once he can see them** (the R9
  * brief, 2026-08-14). That is exactly why they are five entries in one array
@@ -47,9 +66,9 @@ export interface PriorityBandStyle {
 const BAND_INKS: readonly { ink: string; tint: string }[] = [
   { ink: 'oklch(0.55 0.21 27)', tint: 'oklch(0.55 0.21 27 / 14%)' },
   { ink: 'oklch(0.62 0.17 52)', tint: 'oklch(0.62 0.17 52 / 14%)' },
-  { ink: 'oklch(0.62 0.13 92)', tint: 'oklch(0.62 0.13 92 / 14%)' },
-  { ink: 'oklch(0.58 0.11 205)', tint: 'oklch(0.58 0.11 205 / 14%)' },
   { ink: 'oklch(0.58 0.02 265)', tint: 'oklch(0.58 0.02 265 / 14%)' },
+  { ink: 'oklch(0.59 0.06 240)', tint: 'oklch(0.59 0.06 240 / 14%)' },
+  { ink: 'oklch(0.58 0.12 240)', tint: 'oklch(0.58 0.12 240 / 14%)' },
 ];
 
 /**

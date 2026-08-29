@@ -61,6 +61,12 @@ const VARIANTS: Schema[] = [
     afterRef: ref('The sibling it is placed after'),
     name: id('Its name. Absent leaves it unnamed.'),
     notes: id('Free text shown on the row.'),
+    priority: {
+      type: 'integer',
+      nullable: true,
+      description:
+        'Its priority: a whole number ≥ 1, or null to create it unprioritised. Absent takes the project’s middle band’s default.',
+    },
   }),
   variant(
     'patchWorkItem',

@@ -126,6 +126,25 @@ async function root(name: string, afterId: string | null = null): Promise<string
   return outcome.result.id;
 }
 
+/**
+ * A top-level row created with **no** priority — the explicit-null create.
+ *
+ * A plain {@link root} carries the project's middle rung since
+ * `priority-default-medium`, so "the first priority this row ever had" is a
+ * state only this create can put a row in. Rows written before that change are
+ * in it too, and are never backfilled out of it.
+ */
+async function unranked(name: string): Promise<string> {
+  const outcome = await workItems.create(projectId, ownerId, {
+    parentId: null,
+    afterId: null,
+    name,
+    priority: null,
+  });
+  if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
+  return outcome.result.id;
+}
+
 /** `afterId` is which sibling it lands after; null means first, as the API means it. */
 async function child(
   parentId: string,
@@ -239,7 +258,7 @@ describe('undoing each kind of change', () => {
     // Unranked is a state of its own, so undoing the first priority a work item
     // ever had has to put `null` back — not the smallest number, which would
     // be the tool inventing an opinion nobody wrote.
-    const strip = await root('Strip');
+    const strip = await unranked('Strip');
     await workItems.patch(strip, ownerId, { priority: 1 });
 
     expectDone(await undone());
@@ -1151,7 +1170,7 @@ describe('redo', () => {
     expectDone(await workItems.redo(projectId, ownerId));
     expect((await found(strip))?.priority).toBe(1);
 
-    const fresh = await root('Fresh');
+    const fresh = await unranked('Fresh');
     await workItems.patch(fresh, ownerId, { priority: 3 });
 
     expectDone(await undone());

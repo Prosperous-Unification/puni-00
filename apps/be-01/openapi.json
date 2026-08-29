@@ -664,6 +664,11 @@
                             "notes": {
                               "type": "string",
                               "description": "Free text shown on the row."
+                            },
+                            "priority": {
+                              "type": "integer",
+                              "nullable": true,
+                              "description": "Its priority: a whole number ≥ 1, or null to create it unprioritised. Absent takes the project’s middle band’s default."
                             }
                           },
                           "required": [
@@ -1714,6 +1719,11 @@
                             "notes": {
                               "type": "string",
                               "description": "Free text shown on the row."
+                            },
+                            "priority": {
+                              "type": "integer",
+                              "nullable": true,
+                              "description": "Its priority: a whole number ≥ 1, or null to create it unprioritised. Absent takes the project’s middle band’s default."
                             }
                           },
                           "required": [

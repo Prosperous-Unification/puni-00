@@ -2,6 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  DEFAULT_PRIORITY_BANDS,
+  ORDINARY_BAND_RANK,
+  type PriorityBand,
+  priorityBandRankOf,
+} from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Role } from '../repository';
@@ -44,6 +50,7 @@ let runnerOptions: PlanCommandRunnerOptions;
 let serviceOptions: WorkItemServiceOptions;
 let workItems: WorkItemService;
 let workItemStore: WorkItemRepository;
+let projectStore: ProjectRepository;
 let estimateStore: EstimateRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
@@ -65,7 +72,7 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  const projectStore = new ProjectRepository(db);
+  projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   dependencyStore = new DependencyRepository(db);
@@ -426,5 +433,102 @@ describe('a command batch', () => {
     expect((await refused).ok).toBe(false);
     expect((await renamed).ok).toBe(true);
     expect(await names()).toEqual(['Strip it']);
+  });
+});
+
+/**
+ * What a created work item's priority is, and where the number comes from.
+ *
+ * It comes from **this project's ladder, at rank 2** — not from the constant 50
+ * and not from the band that happens to be called `Medium`.
+ * `openspec/changes/priority-default-medium/design.md` D1.
+ */
+describe('the priority a create writes', () => {
+  const priorityOf = async (id: string | undefined): Promise<number | null> => {
+    if (id === undefined) throw new Error('the create minted no id');
+    const row = await workItemStore.findById(id);
+    if (row === null) throw new Error('the created work item is not stored');
+    return row.priority;
+  };
+
+  /** A ladder whose middle rung writes 200 — a number the default ladder calls `Critical`. */
+  const RECUT: PriorityBand[] = [
+    { startsAt: 1, label: 'Critical', defaultValue: 10 },
+    { startsAt: 101, label: 'High', defaultValue: 150 },
+    { startsAt: 181, label: 'Medium', defaultValue: 200 },
+    { startsAt: 301, label: 'Low', defaultValue: 350 },
+    { startsAt: 401, label: 'Lowest', defaultValue: 450 },
+  ];
+
+  const add = (ref: string, priority?: number | null): PlanCommand => ({
+    kind: 'createWorkItem',
+    ref,
+    parentId: null,
+    afterId: null,
+    name: 'Rewire',
+    ...(priority === undefined ? {} : { priority }),
+  });
+
+  it('a new work item is ordinary by default', async () => {
+    const refs = applied(await run([add('w')]));
+    expect(await priorityOf(refs.get('w'))).toBe(50);
+    // And 50 is the *third rung* of this project's ladder rather than a number
+    // that happens to be 50: the rank is the contract, the figure is what this
+    // ladder cuts it at.
+    expect(priorityBandRankOf(await runnerOptions.priorityBands.listFor(projectId), 50)).toBe(
+      ORDINARY_BAND_RANK,
+    );
+  });
+
+  it('a re-cut ladder moves the default', async () => {
+    // Proof: `bands.at(ORDINARY_BAND_RANK).defaultValue` replaced by the
+    // constant `50` in `WorkItemService.ordinaryPriorityOf`, and this failed on
+    // `Expected: 200 / Received: 50` — the row stamped into this ladder's
+    // *Critical* band, which starts at 1. Watched 2026-08-29.
+    const refs = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
+    expect(await priorityOf(refs.get('w'))).toBe(200);
+  });
+
+  it('a renamed middle band still supplies the default', async () => {
+    // Proof: the lookup changed to `bands.find((band) => band.label === 'Medium')`,
+    // and this failed on `project … has a priority ladder of 5 bands, so it has
+    // no rank 2 rung to create work items at` — the rung is still there and only
+    // the word has moved, which is exactly the fault. Watched 2026-08-29.
+    const renamed = DEFAULT_PRIORITY_BANDS.map((band, rank) =>
+      rank === ORDINARY_BAND_RANK ? { ...band, label: 'Normal' } : { ...band },
+    );
+    const refs = applied(await run([{ kind: 'setPriorityBands', bands: renamed }, add('w')]));
+    expect(await priorityOf(refs.get('w'))).toBe(50);
+  });
+
+  it('an explicit priority is written as given', async () => {
+    const refs = applied(await run([add('w', 7)]));
+    expect(await priorityOf(refs.get('w'))).toBe(7);
+  });
+
+  it('an explicit null creates an unprioritised item', async () => {
+    // Absent and null are different answers, and this is the case that says so.
+    // Proof: the service's `input.priority === undefined ? … : input.priority`
+    // written as `input.priority ?? …` — null collapsed to absent — and this
+    // failed on `expect(received).toBeNull() / Received: 50`. Watched 2026-08-29.
+    const refs = applied(await run([add('w', null)]));
+    expect(await priorityOf(refs.get('w'))).toBeNull();
+  });
+
+  it('the default priority comes from the project being written to', async () => {
+    // Two plans on differently-cut ladders, written through one runner. A ladder
+    // read once and kept would give the second plan the first plan's number.
+    // Proof: the read hoisted out of the create — `ordinaryPriorityOf` memoised
+    // on the service, ignoring its `projectId` after the first call — and this
+    // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
+    const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
+    const other = await new ProjectService({ projects: projectStore }).create('Tile it', ownerId);
+    const plain = applied(
+      await runner.run(other.project.id, ownerId, [
+        { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Grout' },
+      ]),
+    );
+    expect(await priorityOf(recut.get('w'))).toBe(200);
+    expect(await priorityOf(plain.get('w'))).toBe(50);
   });
 });

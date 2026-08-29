@@ -285,10 +285,13 @@ _Avoid_: smoothing, balancing, allocation
 
 **Priority**:
 How important one work item's work is, as an integer from 1 upward, smaller being more
-important — or absent, which is a state of its own and not a large number. Decides which
-of two eligible slices is **placed** first; never overrides a dependency, a floor or a
-calendar, and placed first is not started first — a narrow block can take a hole a wide
-one of higher priority cannot use. What the number is **called** is the project's own —
+important — or absent, which is a state of its own and not a large number. A created work
+item takes its project's rank 2 band's own default unless the create names one; absent is
+what a create is explicitly told to write, and what every work item written before
+2026-08-29 still holds. Decides which of two eligible slices is **placed** first; a leaf
+that carries one is not reached by a priority written on a phase above it. Never overrides
+a dependency, a floor or a calendar, and placed first is not started first — a narrow
+block can take a hole a wide one of higher priority cannot use. What the number is **called** is the project's own —
 see Priority band — and the name decides nothing the number does not.
 _Avoid_: priority, importance, urgency, severity, weight
 
@@ -307,7 +310,10 @@ _Avoid_: priority scheme, priority config, priority scale
 
 **Rank**:
 A band's position in its ladder, 0 (most important) to 4. What every face keys a band's
-colour off, because a label can be renamed out from under one and a position cannot.
+colour off, because a label can be renamed out from under one and a position cannot, and
+what a create reads its default priority from. Rank 2 is the ordinary rung: the colours
+diverge around it — neutral there, warm above, cool below — so colour reads as distance
+from ordinary.
 _Avoid_: band index, level, tier number
 
 **Eligible slice**:

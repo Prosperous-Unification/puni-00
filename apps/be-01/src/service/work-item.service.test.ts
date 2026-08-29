@@ -24,7 +24,7 @@ import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
-import { poolsFor, WorkItemService } from './work-item.service';
+import { poolsFor, WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 const OWNER = 'owner-account';
 const STRANGER = 'stranger-account';
@@ -32,6 +32,7 @@ const STRANGER = 'stranger-account';
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let service: WorkItemService;
+let serviceOptions: WorkItemServiceOptions;
 let projectId: string;
 let roleId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
@@ -59,7 +60,7 @@ beforeEach(async () => {
   progress = inMemoryProgress(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
-  service = new WorkItemService({
+  serviceOptions = {
     priorityBands: inMemoryPriorityBands(),
     workItems,
     projects,
@@ -81,7 +82,8 @@ beforeEach(async () => {
     }),
     journal: inMemoryCommandJournal(),
     broadcast,
-  });
+  };
+  service = new WorkItemService(serviceOptions);
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -115,6 +117,24 @@ beforeEach(async () => {
 /** Creates under `parentId`, after `afterId`, returning the new id. */
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
+  if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+  return outcome.result.id;
+}
+
+/**
+ * The same, created with **no** priority — the explicit-null create.
+ *
+ * {@link add} carries the project's middle rung since `priority-default-medium`;
+ * this is the create for a test whose subject is a row nobody has ranked, which
+ * is what every row written before that change still is.
+ */
+async function unranked(name: string, parentId: string | null = null) {
+  const outcome = await service.create(projectId, OWNER, {
+    parentId,
+    afterId: null,
+    name,
+    priority: null,
+  });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.result.id;
 }
@@ -590,8 +610,15 @@ describe('the plan waits for the people in it', () => {
     // The mirror of the parent floor: a priority written on a phase means its work
     // is what matters, and the leaves beneath it are the only things a queue
     // can be made of.
+    //
+    // `Wire` is created **unprioritised** on purpose. Since
+    // `priority-default-medium` a create carries the project's middle rung, and
+    // `priorityByLeaf` resolves by the most specific statement — so a leaf with
+    // one of its own is a leaf a phase's priority no longer reaches, which is
+    // the rule working rather than failing. The state under test here is a leaf
+    // nobody has ranked, and only an explicit null still puts a row in it.
     const phase = await add('Phase');
-    const inside = await add('Wire', phase);
+    const inside = await unranked('Wire', phase);
     const other = await add('Sand');
     await service.setEstimate(inside, OWNER, roleId, flat(3));
     await service.setEstimate(other, OWNER, roleId, flat(2));
@@ -1924,5 +1951,62 @@ describe('what a not-before reason does not do', () => {
       startNoEarlierThan: '2026-09-12',
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
+  });
+});
+
+/**
+ * The rung a create stamps, and what happens when the ladder has not got one.
+ *
+ * The happy paths live in `plan-commands.test.ts`, against real SQLite and the
+ * project's own ladder. This is the one case a real ladder cannot be put into:
+ * `priorityLadderProblem` refuses a write of any count but five, so a store
+ * answering fewer is a store that has stopped keeping its contract.
+ */
+describe('the priority a create stamps', () => {
+  it('refuses to create against a ladder with no middle rung', async () => {
+    // Proof: the throw in `ordinaryPriorityOf` replaced by
+    // `?? DEFAULT_PRIORITY_BANDS[ORDINARY_BAND_RANK]`, and this failed on
+    // `expected "(resolved without throwing)" to match /no rank 2 rung/` — the
+    // create returned `ok` having stored 50, a number from a ladder this project
+    // does not use. Watched 2026-08-29.
+    const short = new WorkItemService({
+      ...serviceOptions,
+      priorityBands: inMemoryPriorityBands({
+        [projectId]: [
+          { startsAt: 1, label: 'Now', defaultValue: 1 },
+          { startsAt: 2, label: 'Later', defaultValue: 2 },
+        ],
+      }),
+    });
+    // Awaited rather than `.rejects.toThrow`, which returns void in `bun:test`
+    // and so cannot be awaited — an assertion nothing awaits passes whatever
+    // happens, which is `project.test.ts`' own note and exactly the failure mode
+    // R5 is about.
+    const refusal = await short
+      .create(projectId, OWNER, { parentId: null, afterId: null, name: 'Rewire' })
+      .then(
+        () => '(resolved without throwing)',
+        (err: unknown) => String(err),
+      );
+    expect(refusal).toMatch(/no rank 2 rung/);
+    // And nothing was written on the way to the throw.
+    expect(await workItems.listByProject(projectId)).toHaveLength(0);
+  });
+
+  it('writes the explicit priority a caller names, and null for an unprioritised row', async () => {
+    const stamped = await service.create(projectId, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Rewire',
+      priority: 7,
+    });
+    const blank = await service.create(projectId, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Sand',
+      priority: null,
+    });
+    if (!stamped.ok || !blank.ok) throw new Error('a create was refused');
+    expect([stamped.result.priority, blank.result.priority]).toEqual([7, null]);
   });
 });

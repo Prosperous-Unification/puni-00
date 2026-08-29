@@ -7,6 +7,7 @@ import {
   type IsoDate,
   lastWorkdayOf,
   NOT_STARTED,
+  ORDINARY_BAND_RANK,
   type PriorityBand,
   type RoleState,
   workdaysBetween,
@@ -618,6 +619,20 @@ export interface CreateWorkItem {
   afterId: string | null;
   name?: string;
   notes?: string;
+  /**
+   * The priority to write, or `null` to create the row unprioritised.
+   *
+   * **Three states, and absent is not null.** Absent means "nobody said", and
+   * {@link WorkItemService.create} stamps the project's own
+   * {@link ORDINARY_BAND_RANK} band's default in its place. An explicit `null`
+   * means "create this with no priority" and is what a caller wanting the
+   * pre-2026-08-29 behaviour sends. The distinction is the one the patch path
+   * already draws for `notes`, and `mcp-01` needs both halves of it: a batch
+   * that sets priorities per item must not have them overwritten, and a batch
+   * that deliberately leaves an item unprioritised must be able to say so.
+   * `openspec/changes/priority-default-medium/design.md` D2.
+   */
+  priority?: number | null;
 }
 
 export interface MoveWorkItem {
@@ -1434,6 +1449,12 @@ export class WorkItemService {
       return { ok: false, reason: 'not_found' };
     }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
+    // Read here, per create, against **this** project's ladder — not hoisted to
+    // the caller and not carried in on the command. A default fetched by a
+    // client is a number the server cannot tell from one somebody typed, and
+    // undo/redo would replay it as an intentional priority. design.md D1.
+    const priority =
+      input.priority === undefined ? await this.ordinaryPriorityOf(projectId) : input.priority;
     const workItem: WorkItem = {
       id: this.newId(),
       projectId,
@@ -1445,7 +1466,7 @@ export class WorkItemService {
       startNoEarlierThan: null,
       // No floor, so no words about one — the only pair a new row can be in.
       startNoEarlierThanReason: null,
-      priority: null,
+      priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
       // nothing and therefore inherits whatever its parent is delivering. The
@@ -3698,6 +3719,38 @@ export class WorkItemService {
 
   private groupUnder(rows: readonly WorkItem[], parentId: string | null): Sibling[] {
     return rows.filter((row) => row.parentId === parentId).map(asSibling);
+  }
+
+  /**
+   * What a create stamps when the command names no priority: this project's
+   * {@link ORDINARY_BAND_RANK} band's own default value.
+   *
+   * Read from the project being written to, every time — see the comment at its
+   * one call site in {@link WorkItemService.create}.
+   *
+   * **Throws on a short ladder rather than falling back to the default one.**
+   * `PriorityBandStore.listFor` answers five bands or the default five, and
+   * `priorityLadderProblem` refuses a write of any other count, so a ladder with
+   * no middle rung is a store that has stopped keeping its contract — and
+   * quietly stamping 50 there would write a number from a ladder this project
+   * does not use into a band it may not own (`AGENTS.md` R5: unknown is not OK).
+   *
+   * Proof: the throw replaced by `?? DEFAULT_PRIORITY_BANDS[ORDINARY_BAND_RANK]`,
+   * and `refuses to create against a ladder with no middle rung` failed on
+   * `expected "(resolved without throwing)" to match /no rank 2 rung/` — the
+   * create returned `ok` having stored 50. Watched 2026-08-29,
+   * `work-item.service.test.ts`.
+   */
+  private async ordinaryPriorityOf(projectId: string): Promise<number> {
+    const bands = await this.opts.priorityBands.listFor(projectId);
+    const ordinary = bands.at(ORDINARY_BAND_RANK);
+    if (ordinary === undefined) {
+      throw new Error(
+        `project ${projectId} has a priority ladder of ${String(bands.length)} bands, ` +
+          `so it has no rank ${String(ORDINARY_BAND_RANK)} rung to create work items at`,
+      );
+    }
+    return ordinary.defaultValue;
   }
 
   /** The work item, its project and the project's rows — or the refusal that stops the caller. */

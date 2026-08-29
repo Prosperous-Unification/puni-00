@@ -228,6 +228,11 @@ function parseCreate(body: unknown): CreateWorkItem {
     afterId: asIdOrNull(raw['afterId'], 'afterId'),
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
+    // The same parser the patch path uses, so a create and a patch refuse the
+    // same numbers with the same code. `undefined` for an absent field is what
+    // carries "nobody said" through to the service, where it becomes the
+    // project's middle rung; `null` arrives as `null` and stays one.
+    priority: asOptionalPriority(raw['priority'], 'priority'),
   };
 }
 
@@ -515,6 +520,7 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
         afterRef: asOptionalId(raw['afterRef'], 'afterRef'),
         name: created.name,
         notes: created.notes,
+        priority: created.priority,
       });
     }
     case 'patchWorkItem': {

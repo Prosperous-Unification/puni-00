@@ -69,6 +69,23 @@ export const DEFAULT_PRIORITY_BANDS: readonly PriorityBand[] = [
  */
 export const PRIORITY_BAND_COUNT = DEFAULT_PRIORITY_BANDS.length;
 
+/**
+ * The rung a work item is created at when nobody names a priority: the middle
+ * one of the five.
+ *
+ * A **rank**, and that is the whole point. Not the constant `50`, because a
+ * project may re-cut its ladder and a number has no meaning outside the ladder
+ * it is read against — a plan whose middle rung starts at 200 would have every
+ * new row stamped into its *most* important band. And not the label `Medium`,
+ * because a rung is renameable and `priority-band-style.ts` already refuses to
+ * key on the word for that exact reason. The band at this rank supplies its
+ * {@link PriorityBand.defaultValue}; `openspec/changes/priority-default-medium/design.md` D1.
+ *
+ * It is also the pivot the colours diverge around: rank 2 neutral, the ranks
+ * above it warm, the ranks below it cool.
+ */
+export const ORDINARY_BAND_RANK = 2;
+
 /** The longest a band's label may be — the width the dialog and the cell title can carry. */
 export const LONGEST_BAND_LABEL = 40;
 

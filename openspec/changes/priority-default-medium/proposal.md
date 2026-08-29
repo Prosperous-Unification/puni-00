@@ -28,8 +28,8 @@ blank; `priority` stays nullable and null still draws as nothing.
 
 **The ramp becomes diverging around the default.** Rank 2 takes the neutral grey
 `Lowest` wears today. Ranks 3 and 4 become two steps of one cool blue, 4 the
-more saturated. Ranks 0 and 1 are unchanged. Colour then reads as _distance from
-ordinary_: hot above, quiet at, cool below — instead of a heat ramp where the
+more saturated. Ranks 0 and 1 are unchanged. Colour then reads as *distance from
+ordinary*: hot above, quiet at, cool below — instead of a heat ramp where the
 commonest value is the third-hottest thing on screen.
 
 ## Non-Goals

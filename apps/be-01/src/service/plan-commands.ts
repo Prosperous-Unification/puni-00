@@ -281,6 +281,11 @@ export class PlanCommandRunner {
               afterId: id(command.afterId, command.afterRef),
               ...(command.name === undefined ? {} : { name: command.name }),
               ...(command.notes === undefined ? {} : { notes: command.notes }),
+              // Absent stays absent, exactly as `name` and `notes` do above, so
+              // the service sees the three states the command carries: a number
+              // written as given, an explicit `null` for an unprioritised row,
+              // and nothing at all for the project's middle rung.
+              ...(command.priority === undefined ? {} : { priority: command.priority }),
             }),
           );
           results.push(mint(command.ref, created.id));

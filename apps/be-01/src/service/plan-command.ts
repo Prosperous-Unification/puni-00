@@ -23,6 +23,13 @@ export type PlanCommand =
       afterRef?: string;
       name?: string;
       notes?: string;
+      /**
+       * Absent takes the project's middle rung; a number is written as given;
+       * an explicit `null` creates the item unprioritised. This field is
+       * `CreateWorkItem.priority` in `work-item.service.ts` on the wire, and the
+       * three states are documented there.
+       */
+      priority?: number | null;
     }
   | ({
       kind: 'patchWorkItem';
