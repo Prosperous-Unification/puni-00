@@ -179,17 +179,21 @@ describe('leveling — a person does one thing at a time', () => {
     expect(overlaps(found)).toEqual([]);
   });
 
-  it('gives a slice nobody has estimated no place in the queue', () => {
-    // `a`'s QA is a slice with nothing in it. Queued behind `kat`'s other work
-    // it would sit at day 5 and take `a`'s finish out to 5 with it, reporting a
-    // work item that ends on day 3 as ending on day 5 — for a role nobody has
-    // put a number against. Nobody is busy for zero days.
+  it('gives a slice somebody sized at zero no place in the queue', () => {
+    // `a`'s QA is a slice somebody said costs nothing. Queued behind `kat`'s
+    // other work it would sit at day 5 and take `a`'s finish out to 5 with it,
+    // reporting a work item that ends on day 3 as ending on day 5. Nobody is
+    // busy for zero days.
+    //
+    // Until `assumed-duration-schedules` (2026-08-29) this read `null` here and
+    // was about the role nobody had put a number against. That case moved and
+    // is now the opposite claim — an unestimated slice is two workdays wide and
+    // **does** occupy its assignee (`schedule-assumed-duration.test.ts`, `two
+    // unestimated slices for one person do not overlap`). What survives is the
+    // statement of zero, which is an answer rather than an absence and is still
+    // honoured as one.
     const rows = [item('a'), item('b')];
-    const slices = [
-      slice('a', DEV, 3, 'kat'),
-      slice('a', QA, null, 'kat'),
-      slice('b', DEV, 2, 'kat'),
-    ];
+    const slices = [slice('a', DEV, 3, 'kat'), slice('a', QA, 0, 'kat'), slice('b', DEV, 2, 'kat')];
 
     const found = schedule(rows, [], slices);
 

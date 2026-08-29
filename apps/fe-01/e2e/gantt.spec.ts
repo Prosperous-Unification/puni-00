@@ -318,17 +318,62 @@ async function seedPlan(
 }
 
 /**
+ * A two-row chain whose predecessor nobody has estimated at all.
+ *
+ * `020` waits for `010`, `010` carries no estimate for either role, and `020`'s
+ * `Dev` is costed so it draws a bar with area to measure. Before
+ * `assumed-duration-schedules` (2026-08-29) every row of this plan sat at
+ * workday 0 and the chart drew the successor beside the work it depends on;
+ * `010`'s two unsized steps are two workdays each now, so it occupies the first
+ * four workdays and `020` begins after them.
+ */
+async function seedUnestimatedChain(page: Page, _account: string): Promise<void> {
+  void _account;
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+
+  await createProject(page);
+  await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
+  await setDate(page, 'Project start date', PLAN_START);
+
+  const addRow = page.getByRole('button', { name: 'Add work item' });
+  for (const number of ['010', '020']) {
+    await addRow.click();
+    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+  }
+
+  // Only the successor is costed. The predecessor is left blank on purpose:
+  // "nobody has looked at this yet" is the state this test is about.
+  const estimate = page.getByLabel('Dev estimate for 020');
+  await estimate.fill('2/4/6');
+  await estimate.blur();
+  await expect(estimate).not.toHaveValue('');
+
+  const depends = page.getByLabel('Add a dependency to 020');
+  await depends.click();
+  await depends.fill('010');
+  await depends.press('Enter');
+  await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
+  await depends.press('Escape');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+}
+
+/**
  * The smallest plan whose arrows leave the schedule at **both** ends.
  *
- * Four roots and two dependencies, and no indenting: `020` waits for `010` and
- * neither is estimated, so both sit at workday 0 — the successor's start is the
- * canvas's own left edge, which is where an arrow's approach goes negative.
- * `040` waits for the estimated `030`, so it starts at the far end of the
- * schedule and its arrow's outward leg reaches past it.
+ * Four roots and two dependencies, and no indenting: `020` waits for `010`,
+ * whose `Dev` is estimated at nothing at all, so both sit at workday 0 — the
+ * successor's start is the canvas's own left edge, which is where an arrow's
+ * approach goes negative. `040` waits for the estimated `030`, so it starts
+ * further along the schedule and its arrow's outward leg reaches past its bar.
  *
- * Unestimated on purpose rather than by omission: it is the state every row of
- * every plan is in for its first few minutes, so the left-edge arrow is not an
- * edge case at all.
+ * **`0/0/0` rather than blank, since `assumed-duration-schedules`**
+ * (2026-08-29). `010` used to be left unestimated on the reasoning that it is
+ * the state every row is in for its first few minutes — and an unestimated
+ * predecessor now takes two workdays, which would move `020` off day zero and
+ * take the left-edge arrow, and this test's whole subject, with it. A stated
+ * zero is the case that survives: somebody has said this step costs nothing,
+ * the anchor is that `Dev`, and it finishes where it starts.
  */
 async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
   void _account;
@@ -345,12 +390,18 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
     await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
   }
 
-  // The one estimate in the plan, so the horizon is four workdays and `040`
-  // starts on it.
+  // The one estimate that costs anything, so `040` starts four workdays along.
   const estimate = page.getByLabel('Dev estimate for 030');
   await estimate.fill('2/4/6');
   await estimate.blur();
   await expect(estimate).not.toHaveValue('');
+
+  // And the stated zero on `010`, which is what holds `020` at workday 0 — see
+  // this helper's docstring.
+  const nothing = page.getByLabel('Dev estimate for 010');
+  await nothing.fill('0/0/0');
+  await nothing.blur();
+  await expect(nothing).not.toHaveValue('');
 
   for (const [waiting, on] of [
     ['020', '010'],
@@ -842,6 +893,78 @@ test.describe('the chart, after the browser has scaled it', () => {
   });
 
   /**
+   * The change's headline, in pixels: an entirely unestimated predecessor holds
+   * its successor back.
+   *
+   * jsdom can say what `earliestStart` be-01 sent. Only a browser can say that
+   * the bar a reader sees is drawn to the right of the bars it waits for, at a
+   * width that is there to be seen — which is the whole complaint
+   * `assumed-duration-schedules` answers: unsized work used to be free, and the
+   * chart drew the plan as if it were.
+   *
+   * Every box is asserted to have area **before** any of them are compared, for
+   * the reason `AGENTS.md` records against `G gantt-calendar-axis`: a
+   * zero-width bar makes an overlap or ordering check unfailable, and the first
+   * version of that test compared a caret against exactly such a mark and could
+   * not see the fault it was written for.
+   */
+  test('draws a successor after the predecessor nobody estimated', async ({ page }) => {
+    await seedUnestimatedChain(page, nextAccount());
+    await openTheChart(page);
+    // One arrow: `020` waits for `010` and there is nothing else in the plan.
+    await askForTheDetail(page, 1);
+
+    // The predecessor's two assumed bars and the successor's costed one, each
+    // found through the row it is on rather than by index — `bars.at(n)` is the
+    // shape R5 #16 was, and a project lists two roles so the indices are not
+    // the rows.
+    const drawn = await page.evaluate(() => {
+      const boxOf = (mark: Element) => {
+        const box = mark.getBoundingClientRect();
+        return { left: box.left, right: box.right, width: box.width, height: box.height };
+      };
+      const onRow = (row: number, selector: string) =>
+        [...document.querySelectorAll(selector)]
+          .filter((bar) => Math.floor(Number(bar.getAttribute('y'))) === row)
+          .map(boxOf);
+      return {
+        predecessor: onRow(0, '[data-gantt-bar][data-assumed]'),
+        successor: onRow(1, '[data-gantt-bar]:not([data-assumed])'),
+      };
+    });
+
+    // Non-vacuity first, and it is three separate claims: the predecessor draws
+    // both of its unsized steps, each of them has area, and the successor's own
+    // bar has area to be to the right of them.
+    expect(
+      drawn.predecessor,
+      'the unestimated predecessor drew no assumed bars to measure',
+    ).toHaveLength(2);
+    expect(drawn.successor, 'the successor drew no costed bar of its own').toHaveLength(1);
+    for (const bar of [...drawn.predecessor, ...drawn.successor]) {
+      expect(bar.width, 'a bar with no width cannot be to the right of anything').toBeGreaterThan(0);
+      expect(bar.height, 'a bar with no height cannot be to the right of anything').toBeGreaterThan(
+        0,
+      );
+    }
+
+    // And the claim. `NEARLY` of tolerance, because the two are laid out by the
+    // same transform and a sub-pixel boundary is not a schedule.
+    //
+    // Proof: `durationOf`'s assumed arm removed in `apps/be-01/src/service/
+    // schedule.ts`, so an unestimated slice is zero days again — this failed on
+    // `the unestimated predecessor drew no assumed bars to measure: expected [
+    // { left: 96, right: 96, width: 0, height: 0 }, … ] to have a length of 2`
+    // — the two assumed bars still drawn, at no width at all, standing on the
+    // same workday as the successor. Watched 2026-08-30.
+    const holdsUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
+    expect(
+      drawn.successor[0].left,
+      'the successor is drawn left of the work it waits for',
+    ).toBeGreaterThan(holdsUntil - NEARLY);
+  });
+
+  /**
    * The two arrows that route outside the schedule, and the fix that lets them
    * be seen.
    *
@@ -860,10 +983,10 @@ test.describe('the chart, after the browser has scaled it', () => {
     // for after it: an arrow is drawn from the **rows'** own schedule, so the
     // two uncosted rows have routes between them either way.
     await openTheChart(page);
-    // Two arrows: `020` waits for `010` and both are unestimated, so the
+    // Two arrows: `020` waits for `010`, whose `Dev` costs nothing, so the
     // successor starts at workday 0 and the route reaches left of the
-    // schedule; `040` waits for the estimated `030`, so it starts at the far
-    // end of it and the route reaches right of that. Asserted inside the
+    // schedule; `040` waits for the estimated `030`, so it starts further
+    // along it and the route reaches right of that bar. Asserted inside the
     // helper, because one arrow would make half of this test vacuous.
     await askForTheDetail(page, 2);
 

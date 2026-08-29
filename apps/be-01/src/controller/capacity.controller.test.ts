@@ -380,7 +380,12 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     };
 
     expect(body.slices.map((one) => one.boundBy)).toContain('capacity');
-    expect(body.waitingForCapacity).toBe(1);
+    // Two since `assumed-duration-schedules` (2026-08-29), not one: the fixture
+    // project holds `Dev` and `QA`, only `Dev` is estimated, and the two `QA`
+    // slices nobody sized now take two workdays each out of a pool of one. Both
+    // work items therefore have a slice held by the team's capacity, which is
+    // what this number counts.
+    expect(body.waitingForCapacity).toBe(2);
     // And the number the bars came out of rides in the same payload, so a client
     // never renders a capacity from one moment beside dates from another.
     expect(body.teamCapacities).toEqual([{ serviceTeamId: platform, size: 1 }]);

@@ -1,3 +1,4 @@
+import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
@@ -28,7 +29,7 @@ import {
 function previousSchedule(
   rows: readonly WorkItem[],
   edges: readonly DependencyEdge[],
-  durations: ReadonlyMap<string, number>,
+  durations: OracleDurations,
   notBefore: ReadonlyMap<string, number> = new Map(),
 ): Map<string, Scheduled> {
   const index = indexTree(rows);
@@ -63,7 +64,7 @@ function previousSchedule(
     successorsOf.set(predecessorId, [...(successorsOf.get(predecessorId) ?? []), successorId]);
   }
 
-  const durationOf = (id: string): number => durations.get(id) ?? 0;
+  const durationOf = (id: string): number => durations.placed.get(id) ?? 0;
   const earliestStart = new Map<string, number>();
   const earliestFinish = new Map<string, number>();
   for (const id of order) {
@@ -94,8 +95,11 @@ function previousSchedule(
     const start = earliestStart.get(id) ?? 0;
     const late = latestStart.get(id) ?? 0;
     scheduled.set(id, {
-      duration: durationOf(id),
-      estimated: durations.has(id),
+      // Read off `effort` and not `placed`: what a row is placed across and
+      // what anybody estimated it at stopped being one number at
+      // `assumed-duration-schedules`. See {@link OracleDurations}.
+      duration: durations.effort.get(id) ?? 0,
+      estimated: durations.effort.has(id),
       earliestStart: start,
       earliestFinish: earliestFinish.get(id) ?? 0,
       latestStart: late,
@@ -143,6 +147,25 @@ function randomFrom(seed: number): () => number {
 const PERT = (optimistic: number, realistic: number, pessimistic: number): number =>
   (optimistic + 4 * realistic + pessimistic) / 6;
 
+/**
+ * The two numbers per leaf the oracle needs, which stopped being one number at
+ * `assumed-duration-schedules` (2026-08-29).
+ *
+ * `placed` is what the leaf occupies — its slices' durations, an unestimated one
+ * counting {@link ASSUMED_SLICE_WORKDAYS}. `effort` is what anybody actually
+ * estimated it at, and a leaf **nobody** estimated is absent from it rather than
+ * zero, which is what `Scheduled.estimated` is read off.
+ *
+ * Two maps rather than one is the whole of what this change told the oracle. A
+ * single map would have made the assumption an estimate here, which is the exact
+ * conflation the change's design D2 is about, and the differential would have
+ * agreed with an engine that made it too.
+ */
+interface OracleDurations {
+  placed: ReadonlyMap<string, number>;
+  effort: ReadonlyMap<string, number>;
+}
+
 /** One work item's estimate for one role, before either engine has been given it. */
 interface EstimateRow {
   workItemId: string;
@@ -173,7 +196,20 @@ interface GeneratedPlan {
  * handed a total added up in exactly the order the slices were made in, which is
  * the one order it was guaranteed to match.
  */
-function generatePlan(seed: number, roleCount: number): GeneratedPlan {
+function generatePlan(
+  seed: number,
+  roleCount: number,
+  /**
+   * Whether every work-item/role pair gets a figure.
+   *
+   * False is the corpus as it has always been — a quarter of the pairs carry
+   * `null`, which is what a half-estimated plan looks like. True is the corpus
+   * `assumed-duration-schedules` (2026-08-29) needs: the plans that change must
+   * not touch, so that "these dates did not move" is a claim about the engine
+   * rather than about a generator that happened to fill everything in.
+   */
+  everyPairEstimated = false,
+): GeneratedPlan {
   const random = randomFrom(seed);
   const pick = <T>(from: readonly T[]): T => from[Math.floor(random() * from.length)];
   const roleIds = Array.from({ length: roleCount }, (_, i) => `role-${String(i)}`);
@@ -233,7 +269,7 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
     for (const roleId of roleIds) {
-      const estimated = random() > 0.25;
+      const estimated = everyPairEstimated || random() > 0.25;
       const days = estimated
         ? PERT(pick([0, 1, 2, 3]), pick([1, 2, 3, 5, 8]), pick([2, 4, 7, 9, 13]))
         : null;
@@ -284,33 +320,50 @@ const slicesFrom = (plan: GeneratedPlan): Slice[] =>
  * depends on it. Handing the old engine a **differently ordered** sum is what
  * makes the identity claim a claim about the plan rather than about the loop
  * that built the test.
+ *
+ * **A pair nobody estimated contributes {@link ASSUMED_SLICE_WORKDAYS}** since
+ * `assumed-duration-schedules` (2026-08-29), where it used to contribute
+ * nothing. That is the one place this file was told what the change did, and it
+ * is told once: the oracle above is still an independent critical path over the
+ * same tree, the same edges and the same floors, and every field is still
+ * compared `toBe`-exact. A leaf every role of which is unestimated used to be
+ * absent from this map entirely and read as zero days; it now carries its
+ * steps' assumed days, which is what the engine places it across.
  */
-function durationsFrom(plan: GeneratedPlan, shuffle: boolean, seed: number): Map<string, number> {
+function durationsFrom(plan: GeneratedPlan, shuffle: boolean, seed: number): OracleDurations {
   const random = randomFrom(seed * 7919 + 13);
-  const perWorkItem = new Map<string, number[]>();
+  const placedOf = new Map<string, number[]>();
+  const effortOf = new Map<string, number[]>();
   for (const each of plan.estimates) {
+    const placed = placedOf.get(each.workItemId);
+    const days = each.days ?? ASSUMED_SLICE_WORKDAYS;
+    if (placed === undefined) placedOf.set(each.workItemId, [days]);
+    else placed.push(days);
     if (each.days === null) continue;
-    const held = perWorkItem.get(each.workItemId);
-    if (held === undefined) perWorkItem.set(each.workItemId, [each.days]);
-    else held.push(each.days);
+    const effort = effortOf.get(each.workItemId);
+    if (effort === undefined) effortOf.set(each.workItemId, [each.days]);
+    else effort.push(each.days);
   }
 
-  const durations = new Map<string, number>();
-  for (const [workItemId, days] of perWorkItem) {
-    const addends = [...days];
-    if (shuffle) {
-      for (let i = addends.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(random() * (i + 1));
-        const held = addends[i];
-        addends[i] = addends[j];
-        addends[j] = held;
+  const summed = (perWorkItem: ReadonlyMap<string, number[]>): Map<string, number> => {
+    const totals = new Map<string, number>();
+    for (const [workItemId, days] of perWorkItem) {
+      const addends = [...days];
+      if (shuffle) {
+        for (let i = addends.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(random() * (i + 1));
+          const held = addends[i];
+          addends[i] = addends[j];
+          addends[j] = held;
+        }
       }
+      let total = 0;
+      for (const each of addends) total += each;
+      totals.set(workItemId, total);
     }
-    let total = 0;
-    for (const each of addends) total += each;
-    durations.set(workItemId, total);
-  }
-  return durations;
+    return totals;
+  };
+  return { placed: summed(placedOf), effort: summed(effortOf) };
 }
 
 /**
@@ -441,6 +494,36 @@ describe('the slice engine against the one it replaced', () => {
       const durations = durationsFrom(plan, false, seed);
       const expected = previousSchedule(plan.rows, plan.edges, durations, plan.notBefore);
       const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
+
+      expectSameSchedule(seed, expected, found);
+    }
+  });
+
+  it('a fully estimated plan is not moved at all by the assumed duration', () => {
+    // `assumed-duration-schedules` (2026-08-29), and the line the whole change
+    // has to stay on the right side of. The corpora above hold unestimated
+    // pairs and moved by design — their oracle was told the assumed duration
+    // once, in {@link OracleDurations}. This one generates the same thousand
+    // trees with **every** pair estimated, so the `??` in `durationsFrom` never
+    // fires and the oracle here is the pre-change oracle character for
+    // character: whatever it answers is what be-01 answered before this change
+    // existed.
+    //
+    // A failure in this test is the assumption having leaked into estimated
+    // work, which is a different and much worse bug than a date moving. Edges
+    // are dropped for the reason the two- and three-role runs above drop them:
+    // the anchor rule moves multi-role dependencies on purpose.
+    //
+    // Proof: `durationOf` in `schedule.ts` changed to give **every** slice the
+    // assumed duration rather than only the unestimated ones, and this failed
+    // at seed 1 on `r0.duration: 4.833333333333333 became 2` — an estimate
+    // overwritten by a guess; watched 2026-08-29.
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES, true);
+      expect(plan.estimates.every((each) => each.days !== null)).toBe(true);
+      const durations = durationsFrom(plan, true, seed);
+      const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
+      const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
 
       expectSameSchedule(seed, expected, found);
     }

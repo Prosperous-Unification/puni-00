@@ -1,3 +1,4 @@
+import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import {
   addWorkdays,
   calendarDaysBetween,
@@ -513,31 +514,6 @@ export interface GanttRowLabel {
   rowIndex: number;
 }
 
-/**
- * How many workdays an unestimated slice's bar is **drawn** across.
- *
- * A drawing assumption and not a schedule fact. Nobody has said how long this
- * slice is, so the engine gives it zero days — and a bar of zero days is a mark
- * with no area, which reads as "there is nothing here" when the truth is "we do
- * not know yet". Two workdays is the smallest span that reads as a task at the
- * panel's 28px workday and is short enough that nobody mistakes it for an
- * estimate.
- *
- * **It changes nothing but the drawing.** The engine's numbers are untouched —
- * the slice still starts and finishes where be-01 placed it, the table's Start
- * and End columns are unmoved, `data-start`/`data-finish` still carry the
- * engine's numbers verbatim, and dependency arrows and person links are still
- * drawn between them. Only {@link GanttBar.drawnSpan} and the horizon that has
- * to contain it know about this number.
- *
- * Whether an unestimated bar is painted at all is the detail switch's answer
- * (`declutter-one-button`): the panel narrows this list to the estimated slices
- * at rest and takes it whole once the switch is pressed (`drawnBars`), and the
- * dashed translucent outline and the `?` that say the span is a guess come with
- * the mark. The horizon reserves this width in **both** states, which is what
- * makes the switch a decision about paint and not about layout.
- */
-export const ASSUMED_UNESTIMATED_WORKDAYS = 2;
 
 /**
  * One slice drawn: where it starts and how wide it is on the workday axis,
@@ -555,14 +531,18 @@ export interface GanttBar {
   duration: number;
   /**
    * How wide the bar is **drawn**, in workdays: `duration` for an estimated
-   * slice, and {@link ASSUMED_UNESTIMATED_WORKDAYS} for one nobody has
-   * estimated.
+   * slice, and {@link ASSUMED_SLICE_WORKDAYS} for one nobody has estimated.
    *
-   * The one number on this bar that is not the engine's, and the only one the
-   * width is ever taken from. `duration` stays what be-01 computed, which is
-   * what `data-finish` and the hover text are written from — see
-   * {@link ASSUMED_UNESTIMATED_WORKDAYS} for why the two are allowed to differ
-   * and what says so on screen.
+   * **The same number the schedule placed the slice across**, since
+   * `assumed-duration-schedules` (2026-08-29). It used to be the drawing's own
+   * assumption over an engine that gave the slice no time at all; the engine
+   * assumes it now, both read the constant out of `@wbs/domain`, and `finish -
+   * start` on this bar is `drawnSpan`. The bar and the Start/End columns beside
+   * it can no longer disagree.
+   *
+   * It is still not `duration`, and must not become it: `duration` is expected
+   * days — what somebody estimated — and nobody estimated this slice. The two
+   * fields answer different questions and `estimated` is which one applies.
    */
   drawnSpan: number;
   /** How many workdays this bar can slip before the project's finish moves. */
@@ -1830,10 +1810,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         start: slice.earliestStart,
         finish: slice.earliestFinish,
         duration: slice.duration,
-        // The only place the drawing parts from the engine, and it parts from
-        // it here rather than in the panel so the horizon below can contain
-        // what is actually drawn. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
-        drawnSpan: slice.estimated ? slice.duration : ASSUMED_UNESTIMATED_WORKDAYS,
+        // The width, taken from the same constant be-01 placed the slice
+        // across rather than from `duration`, which is the effort nobody
+        // supplied. See {@link GanttBar.drawnSpan}.
+        drawnSpan: slice.estimated ? slice.duration : ASSUMED_SLICE_WORKDAYS,
         float: slice.float,
         critical: slice.critical,
         estimated: slice.estimated,
@@ -2042,9 +2022,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
 
   let horizon = 1;
   // Both ends of every bar: where the engine finishes it, and where the drawing
-  // does. An unestimated slice standing on the last workday is drawn
-  // {@link ASSUMED_UNESTIMATED_WORKDAYS} past its own finish, and a horizon
-  // taken from `finish` alone would end the canvas underneath it —
+  // does. The two agree on an unestimated slice since
+  // `assumed-duration-schedules` — both are {@link ASSUMED_SLICE_WORKDAYS} past
+  // its start — and both are read anyway, because they are computed apart and a
+  // horizon that trusted one of them could not see the day they stop agreeing.
   // `CHART_PAD_PX` in the panel is a band for pixel excursions and is not a
   // workday span to hide a bar in.
   for (const bar of bars) horizon = Math.max(horizon, bar.finish, bar.start + bar.drawnSpan);

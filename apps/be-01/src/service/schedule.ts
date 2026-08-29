@@ -1,4 +1,4 @@
-import { snapWorkdays } from '@wbs/domain';
+import { ASSUMED_SLICE_WORKDAYS, snapWorkdays } from '@wbs/domain';
 
 import type { WorkItem } from '../repository';
 import { deriveNumbers } from './derive-numbers';
@@ -489,7 +489,21 @@ function groupByWorkItem(
 
 /**
  * How long a slice occupies the calendar: its effort divided among the people
- * working on it at once.
+ * working on it at once, or — where nobody has estimated it —
+ * {@link ASSUMED_SLICE_WORKDAYS}.
+ *
+ * **The assumption is a duration and not an effort**, so `width` does not
+ * divide it. Nobody has said how much work this is, and dividing an assumption
+ * by the number of people who might share it would give a plan that lists four
+ * people on an unsized step a narrower guess than one that lists one. Two
+ * workdays is how long the slice is drawn and how long the schedule holds it,
+ * and those have to be the same number for the bar and the date columns beside
+ * it to agree.
+ *
+ * `null` and not falsiness: an explicit `0` is somebody saying this step costs
+ * nothing, which is an answer the assumption must not overrule. That is the
+ * same reading `estimated` and the anchor walk make, and it is the whole of the
+ * distinction this change rests on.
  *
  * **`E / 1 === E` exactly**, for every value that can reach {@link Slice.days}.
  * That is the whole of this change's identity claim and it is narrower than
@@ -507,9 +521,14 @@ function groupByWorkItem(
  * Proof: the division dropped, so duration is effort again, and `compresses six
  * days of effort into two when three may work at once` failed with a duration
  * of 6 where 2 was owed; watched 2026-08-12.
+ *
+ * Proof: the assumed arm removed, so an unestimated slice is zero days again,
+ * and `an entirely unestimated predecessor delays its successor` failed on
+ * `expected 0 to be 2`; watched 2026-08-29.
  */
 function durationOf(slice: Slice): number {
-  return (slice.days ?? 0) / slice.width;
+  if (slice.days === null) return ASSUMED_SLICE_WORKDAYS;
+  return slice.days / slice.width;
 }
 
 /**
@@ -1141,16 +1160,23 @@ function placeSlices(
       else fromPredecessor = Math.max(fromPredecessor, finish);
     }
     // A slice of no length is not work, so it neither waits for its assignee
-    // nor makes them busy: nobody is occupied for zero days. Without this an
-    // unestimated `QA` belonging to somebody would queue behind everything else
-    // they are doing and drag its work item's finish along with it — a row that
-    // ends on day 3 reported as ending on day 5 because a slice with nothing in
-    // it was placed there.
+    // nor makes them busy: nobody is occupied for zero days. Without this a
+    // `QA` somebody sized at zero would queue behind everything else its
+    // assignee is doing and drag its work item's finish along with it — a row
+    // that ends on day 3 reported as ending on day 5 because a slice with
+    // nothing in it was placed there.
     //
-    // Proof: the length dropped from this condition and `gives a slice nobody
-    // has estimated no place in the queue` failed — the empty `QA` came back at
-    // day 5 rather than day 3, `boundBy: 'person'`, taking its work item's
-    // finish with it; watched 2026-08-09.
+    // **Zero, and no longer "unestimated"**: since `assumed-duration-schedules`
+    // (2026-08-29) an unestimated slice's duration is
+    // {@link ASSUMED_SLICE_WORKDAYS} rather than 0, so it is above this line
+    // and does occupy its assignee — which is the change's D3, and the whole
+    // reason it reaches leveling at all.
+    //
+    // Proof: the length dropped from this condition and `gives a slice
+    // somebody sized at zero no place in the queue` failed — the empty `QA`
+    // came back at day 5 rather than day 3, `boundBy: 'person'`, taking its
+    // work item's finish with it; watched 2026-08-09, re-watched 2026-08-29
+    // against the renamed test.
     const duration = offsets[at + 1] - offsets[at];
     const personId = withResources && duration > 0 ? node.slice.personId : null;
     const busy = personId === null ? undefined : busyUntil.get(personId);
