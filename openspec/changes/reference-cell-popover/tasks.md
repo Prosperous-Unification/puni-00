@@ -32,4 +32,4 @@ while a dev server holds 3100/3200/4200.
 
 ## 5. The gate
 
-- [ ] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, and the **whole** `CI=1 E2E_PORT_SHIFT=500` Playwright gate. A change that edits `CELL` edits every cell in the table, so a filtered run proves nothing (`AGENTS.md`, `linked-row-hover`).
+- [x] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, and the **whole** `CI=1 E2E_PORT_SHIFT=500` Playwright gate. A change that edits `CELL` edits every cell in the table, so a filtered run proves nothing (`AGENTS.md`, `linked-row-hover`).
