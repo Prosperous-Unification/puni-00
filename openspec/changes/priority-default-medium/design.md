@@ -6,7 +6,7 @@ Not the constant 50, and not the band labelled `Medium`.
 
 - **Not 50**, because a project may re-cut its ladder: a project whose middle
   rung starts at 200 would get every new item stamped 50, which lands in its
-  *most important* band. The number has no meaning outside the ladder it is read
+  _most important_ band. The number has no meaning outside the ladder it is read
   against.
 - **Not `Medium`**, because a rung is renameable and `priority-band-style.ts`
   already refuses to key on the label for that exact reason — "a project may
@@ -39,13 +39,13 @@ Today's `BAND_INKS` comment says the five are "a **nominal** scale drawn from an
 ordinal one" held at one lightness band, so nothing reads as a heat map. That
 argument survives; what changes is the hue's meaning.
 
-| Rank | Band (default names) | Now | After |
-| ---- | -------------------- | --- | ----- |
-| 0 | Critical | `oklch(0.55 0.21 27)` | unchanged |
-| 1 | High | `oklch(0.62 0.17 52)` | unchanged |
-| 2 | Medium | `oklch(0.62 0.13 92)` | `oklch(0.58 0.02 265)` |
-| 3 | Low | `oklch(0.58 0.11 205)` | `oklch(0.59 0.06 240)` |
-| 4 | Lowest | `oklch(0.58 0.02 265)` | `oklch(0.58 0.12 240)` |
+| Rank | Band (default names) | Now                    | After                  |
+| ---- | -------------------- | ---------------------- | ---------------------- |
+| 0    | Critical             | `oklch(0.55 0.21 27)`  | unchanged              |
+| 1    | High                 | `oklch(0.62 0.17 52)`  | unchanged              |
+| 2    | Medium               | `oklch(0.62 0.13 92)`  | `oklch(0.58 0.02 265)` |
+| 3    | Low                  | `oklch(0.58 0.11 205)` | `oklch(0.59 0.06 240)` |
+| 4    | Lowest               | `oklch(0.58 0.02 265)` | `oklch(0.58 0.12 240)` |
 
 Tints stay the same hue at `14%`, as today.
 
@@ -56,8 +56,8 @@ he approved.
 Ranks 3 and 4 are two steps of one hue at one lightness, differing only in
 chroma, with **4 the more saturated**. This is the counter-intuitive part and it
 is deliberate: with neutral at the middle rung, "quietest" no longer means "least
-important" — it means "most ordinary". Chroma now measures *distance from
-ordinary* in both directions. A reader scanning for what is deprioritised looks
+important" — it means "most ordinary". Chroma now measures _distance from
+ordinary_ in both directions. A reader scanning for what is deprioritised looks
 for blue, and the bluest thing is the least important.
 
 **Ranks 3 and 4 must be told apart.** Two steps of one hue at one lightness is
