@@ -2,9 +2,9 @@
 
 ### Requirement: A cell that opens a popover is exempt from the cell clip
 
-Every table column whose cell can open a list, card, menu or editor over the
-rows below SHALL be exempt from the table cell's clip. The Tags and Services
-columns each render a creatable picker and SHALL be exempt.
+Every table column whose cell opens a list, card, menu or editor SHALL be exempt
+from the table cell's clip, because such a cell draws over the rows below. The
+Tags and Services columns each render a creatable picker and SHALL be exempt.
 
 A table cell that is clipped SHALL NOT be scrollable. Clipping SHALL be
 expressed so that a browser cannot scroll a cell to reveal a focused or opened

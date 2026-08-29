@@ -189,7 +189,7 @@ export const GANTT_CEILING_PX = 0.8 * 2160;
  * is visibly dissolving rather than sliced: a whole row's worth would swallow
  * the last legible one, and a hairline would read as an artefact.
  */
-export const GANTT_EDGE_FADE_PX = 20;
+const GANTT_EDGE_FADE_PX = 20;
 
 /**
  * The fade a panel with chart below the fold draws over its bottom edge.
@@ -208,7 +208,7 @@ export const GANTT_EDGE_FADE_PX = 20;
  * drawn on that colour, so this reads as the chart continuing under the edge
  * instead of as a border with something behind it.
  */
-export const GANTT_EDGE_FADE =
+const GANTT_EDGE_FADE =
   'linear-gradient(to top, var(--background), ' +
   'color-mix(in oklab, var(--background) 65%, transparent) 55%, transparent)';
 
@@ -241,7 +241,7 @@ export function chartBelowTheFold(port: {
  * rather than on zero, and a fade over a chart with half a pixel left under it
  * is a fade that never goes away.
  */
-export const AT_THE_LAST_ROW_PX = 1;
+const AT_THE_LAST_ROW_PX = 1;
 
 /**
  * The height a drag — or a stored height claiming to be one — settles at:
