@@ -155,6 +155,29 @@ describe('narrowTree — a typed name', () => {
     expect(ids(narrowed.matchIds)).toEqual(['a1']);
   });
 
+  it('a search matches the source', () => {
+    // A name renders inline markdown on all four faces since
+    // `markdown-work-item-names`, and this is one of the two places that
+    // deliberately did **not** change: a reader typing `blocked` must find a row
+    // named `**blocked**`, and a search over rendered text would also have to
+    // decide what a link's href is.
+    //
+    // Asserted rather than assumed, because "we did not touch it" is how a
+    // shared helper quietly gets touched. Proof: `matches` in `tree-search.ts`
+    // given the rendered reading instead — `name.replace(/[*_`~]/g, '')` — and
+    // this failed on `expected [] to deeply equal [ 'a' ]` for the source query
+    // and on `expected [ 'a' ] to deeply equal []` for the stripped one.
+    // Watched, 2026-08-29.
+    const marked = [row('a', null, '**blocked** on the ~~fuse~~ box')];
+
+    expect(ids(narrowTree(marked, asking({ query: 'blocked' })).matchIds)).toEqual(['a']);
+    // The source, markers and all — which is what an author searching for what
+    // they typed is asking for.
+    expect(ids(narrowTree(marked, asking({ query: '**blocked**' })).matchIds)).toEqual(['a']);
+    // And nothing matches a reading nobody typed: the markers are still there.
+    expect(ids(narrowTree(marked, asking({ query: 'blocked on the fuse' })).matchIds)).toEqual([]);
+  });
+
   it('hides a row that neither matches nor sits on a match’s line', () => {
     const narrowed = narrowTree(PLAN, asking({ query: 'skirting' }));
 

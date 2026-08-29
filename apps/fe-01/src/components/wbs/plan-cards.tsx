@@ -23,6 +23,7 @@ import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
 import { type CellElement, cellKey } from './editable-grid';
 import { POINTS } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
+import { renderName } from './inline-markdown';
 import { type CommitOutcome, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
@@ -2038,6 +2039,11 @@ export function PlanCards({
               autoSize
               rows={2}
               maxRestRows={8}
+              // The same rendering the table's Name cell gets, from the same
+              // function — see {@link renderName}. The notes under it are drawn
+              // as the text they are: this face shows them at rest, and a note
+              // is read here rather than in a hover a phone does not have.
+              renderFirstLine={renderName}
               className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
               value={composeNameCell(row.name, row.notes)}
               onAttach={(element) => {

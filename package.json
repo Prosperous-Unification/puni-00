@@ -36,6 +36,7 @@
     "openid-client": "^6.8.7",
     "pino": "^10.3.1",
     "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "whoiser": "^2.0.0-beta.10",
     "yaml": "^2"
   },

@@ -105,6 +105,7 @@ import {
 } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
 import { initialsOf } from './initials';
+import { renderName } from './inline-markdown';
 import {
   altMoveIn,
   type Command,
@@ -6845,6 +6846,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   multiline
                   autoSize
                   restShowsFirstLineOnly
+                  // The name's own markdown, read at rest. One component for
+                  // all four faces — see {@link InlineMarkdown} — and the box
+                  // under it still holds the raw source, which is what a reader
+                  // gets back the moment they write in the cell.
+                  renderFirstLine={renderName}
                   rows={1}
                   style={{
                     // The cell's width, not a width of its own: `22em` was one of

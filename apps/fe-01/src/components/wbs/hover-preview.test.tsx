@@ -25,34 +25,62 @@ describe('the hover preview reads as one document', () => {
     expect(preview.querySelector('li em')?.textContent).toBe('old');
   });
 
-  itDom('a name containing markdown and HTML reads as typed', () => {
-    // The name is a work item's name, not a document somebody wrote: it goes
-    // into the heading as text. Concatenating it into the markdown source
-    // would put every name through a parser that eats the punctuation people
-    // do type — asterisks, brackets, underscores — and shows something other
-    // than the cell does.
+  itDom('the heading is not made by the parser', () => {
+    // The heading is an `<h1>` this component writes and the emphasis inside it
+    // is content the parser made; the two never meet as a string. The rejected
+    // implementation is `<Markdown>{`# ${name}`}</Markdown>`, and this is the
+    // test that can see it.
     //
-    // The emphasis in the name is what makes this test able to see that, and
-    // it was added because the version without it could not. Proof: the
-    // heading rendered as markdown source instead — the body made
-    // `<Markdown>{`# ${name}\n\n${notes}`}</Markdown>` — and with the name
-    // `# not a heading <script>` the test **passed**, because `# # x` is a
-    // heading whose content is the literal `# x`. With `*not*` in the name it
-    // failed on `expected '# not a heading <script>alert(1)</script> and not
-    // emphasis' to be '# not a heading <script>alert(1)</script> and *not*
-    // emphasis'` and on `expected <em>not</em> to be null` — the parser
-    // reaching into a name. Watched, 2026-08-09.
+    // The punctuation matters and is the whole reason this case is written
+    // twice. Proof, the composition put back — the body made
+    // `<Markdown>{`# ${name}\n\n${notes}`}</Markdown>` — with the name
+    // `# not a heading <script>`, and it **passed**: `# # x` is a heading whose
+    // content is the literal `# x`, so the parser handed back the exact string
+    // the assertion was making (`AGENTS.md`, R5, `N name-title-body`). The name
+    // carries a `#` *and* an `*emphasis*` now, and the same composition was
+    // watched failing on
+    //   - Expected: `# not a heading <script>alert(1)</script> and *not* emphasis`
+    //   - Received: `# not a heading <script>alert(1)</script> and not emphasis`
+    // — the parser reaching into a name and eating its asterisks, which the
+    // `#` alone could never show. Watched, 2026-08-29.
     const typed = '# not a heading <script>alert(1)</script> and *not* emphasis';
     const preview = previewOf(typed, 'and the note is *rendered*');
 
     const heading = preview.querySelector('h1');
     expect(heading?.textContent).toBe(typed);
-    // Text and only text: no element the markdown parser made out of it.
+    // No element the parser made out of the name: the `#` opened no heading,
+    // and nothing inside a block the parser refused to make was re-parsed.
     expect(heading?.querySelector('em')).toBeNull();
+    expect(heading?.querySelector('h1, h2')).toBeNull();
     expect(preview.querySelector('script')).toBeNull();
-    // The notes keep their markdown — the name being literal is a property of
-    // the heading, not of the whole preview.
+    // The notes keep their markdown — the name reading literally is a property
+    // of what the parser was allowed to make of *it*, not of the whole preview.
     expect(preview.querySelector('em')?.textContent).toBe('rendered');
+  });
+
+  itDom('emphasis inside the heading still renders', () => {
+    // The other half of D2, and the half `name-title-body` did not have: the
+    // name's own inline markdown is read here as it is everywhere else.
+    //
+    // Proof: the heading's body put back to the bare `{name}` this file
+    // rendered until 2026-08-29 — the name as plain text — watched failing on
+    // `expected undefined to be 'not'`, and `a link in the name is followable
+    // from the preview` beside it on `expected undefined to be
+    // 'http://x.test/'`. Watched, 2026-08-29.
+    const preview = previewOf('*not* a heading', 'notes');
+
+    const heading = preview.querySelector('h1');
+    expect(heading?.querySelector('em')?.textContent).toBe('not');
+    expect(heading?.textContent).toBe('not a heading');
+  });
+
+  itDom('a link in the name is followable from the preview', () => {
+    // The one face where it is. In a Name cell the same link is styled text
+    // with its href in the tooltip — `inline-markdown.tsx` says why.
+    const preview = previewOf('see [the plan](http://x.test/)', 'notes');
+
+    const link = preview.querySelector('h1 a');
+    expect(link?.getAttribute('href')).toBe('http://x.test/');
   });
 
   itDom('the name out-sizes every heading a note makes', () => {

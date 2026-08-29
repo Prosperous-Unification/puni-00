@@ -801,6 +801,75 @@
     resize: none;
   }
 
+  /*
+   * The Name cell's two boxes, and which of them a reader sees.
+   *
+   * A name renders inline markdown at rest (`inline-markdown.tsx`), and a
+   * `<textarea>` holds characters — it cannot hold an `<em>`. So the rendered
+   * reading is a second box laid over the box that holds the text, and these
+   * two rules are the whole of the swap: at rest the textarea's own ink is
+   * transparent and the rendered box is what shows; the moment somebody writes
+   * in the cell the rendered box goes away and the source comes back.
+   *
+   * `color: transparent` rather than an opaque background on the box above it,
+   * because the textarea is what paints the search-match tint and the focus
+   * ring, and a second opaque box would hide both.
+   *
+   * Both rules are CSS rather than React state on purpose: a focus and a blur
+   * on every cell of the table would be two renders of a memoised column tree
+   * that nothing asked to be rebuilt (`LLM_README.md`'s first landmine).
+   *
+   * They are also the reason this pair cannot be proved in jsdom, which applies
+   * no stylesheet and computes no layout: the negative is in
+   * `e2e/name-markdown.spec.ts`, in a browser.
+   */
+  [data-grid] textarea[data-rendered-at-rest]:not(:focus) {
+    color: transparent;
+  }
+
+  [data-grid] textarea[data-rendered-at-rest]:focus + [data-cell-rendered] {
+    display: none;
+  }
+
+  /*
+   * The rendered box's own metrics, which are the **textarea's** metrics.
+   *
+   * `padding: 2px` and a 1px border are the user agent's own for a
+   * `<textarea>`, and this file restyles neither — "`border-color` alone, never
+   * the width or the style, because the browser's own metrics for these
+   * controls are what `table-frame.ts`'s columns were measured against", one
+   * rule up. So the drawn text sits exactly where the typed text sits.
+   *
+   * Here rather than in `cell-input.tsx`'s `style` object on purpose: a caller
+   * whose box has a padding of its own — the phone card's `p-2 text-base` —
+   * puts that class on **both** boxes, and a utility class outranks this layer
+   * while an inline style would outrank the class. One spelling, two boxes.
+   *
+   * Transparent border and background: the textarea underneath paints the
+   * search-match tint and the focus ring, and a second opaque box over it would
+   * hide both.
+   *
+   * `position: absolute` is what makes "nothing a name contains may change a
+   * row's height" true by construction — and there is deliberately no `bottom`
+   * and no clipping, so a rendered name that grew a block box spills visibly
+   * out of its row instead of being hidden inside it. That is the only way the
+   * browser gate can see that fault at all.
+   */
+  [data-cell-rendered] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 2px;
+    border: 1px solid transparent;
+    background: transparent;
+    pointer-events: none;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
   [data-grid] input:focus,
   [data-grid] textarea:focus {
     /* An outline rather than a shadow or a border: it takes no space, and at a

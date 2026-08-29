@@ -328,6 +328,64 @@ const everyMarkOnOneDay = (): GanttPlan =>
     personNames: new Map([['kat', 'Kat']]),
   });
 
+describe('the chart’s row labels read a name as the plan reads it', () => {
+  /**
+   * The fourth face of `InlineMarkdown`, and the one whose label is half this
+   * application's own words: the number is the plan's, and only the name goes
+   * through the parser.
+   *
+   * Proof: the label's body put back to `{rowWords(label.number, label.name)}`
+   * — the raw string this column drew until `markdown-work-item-names` —
+   * watched failing on `expected undefined to be 'now'`, 2026-08-29.
+   *
+   * The second fault written for this case was **watched passing**, and is
+   * recorded rather than shipped: putting the whole sentence through the
+   * parser, `<InlineMarkdown>{rowWords(…)}</InlineMarkdown>`, changes nothing
+   * this test — or any test — can see. A number in front of a name *suppresses*
+   * block parsing rather than causing it (`010 - # x` is a paragraph, because a
+   * heading marker has to start its line), and the inline grammar reads the
+   * same either way. So the split into `numberWords` and `nameWords` is
+   * structure — the button draws two halves, the tooltip says the whole — and
+   * this file makes no claim about it that it cannot watch fail (`AGENTS.md`,
+   * R5, `T1 column-widths-drag`).
+   */
+  itDom('renders emphasis in a label, and never parses the number in front of it', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('hull', 0, 2, { number: '010', name: 'Ship *now*' }),
+            rowAt('trim', 0, 2, { number: '020', name: '- buy milk' }),
+          ],
+          slices: [sliceAt('hull-dev', 'hull', 0, 2), sliceAt('trim-dev', 'trim', 0, 2)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const shipped = document.querySelector('[data-gantt-label="hull"]');
+    expect(shipped?.querySelector('em')?.textContent).toBe('now');
+    expect(shipped?.textContent).toBe('010 - Ship now');
+
+    // A block marker in a name is shown here as it is on every other face. The
+    // rule that makes that true is the component's, and its own negative is in
+    // `inline-markdown.test.tsx`; what this asserts is that this face uses it.
+    const milk = document.querySelector('[data-gantt-label="trim"]');
+    expect(milk?.textContent).toBe('020 - - buy milk');
+    expect(milk?.querySelector('li')).toBeNull();
+
+    // The tooltip is the whole sentence in its own source, so a label the
+    // column truncated can still be read as it was typed.
+    expect(shipped?.getAttribute('title')).toBe('010 - Ship *now*');
+  });
+});
+
 describe('every mark on the chart lands on the calendar day its workday is', () => {
   itDom('puts the bar, the caret, the tick, the axis cell and the label on day 7', () => {
     render(
@@ -2991,7 +3049,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
 /** Puts the plan on screen and opens the chart under it. */
 async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = {}): Promise<void> {
   render(<WbsTable projectId="p1" api={fakeApi(startDate, skew)} />);
-  await screen.findByText('Hull');
+  await screen.findByDisplayValue('Hull');
   fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
   await screen.findByLabelText('Gantt chart');
 }
@@ -3501,7 +3559,7 @@ describe('a chart that cannot be drawn', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(<WbsTable projectId="p1" api={fakeApi(MONDAY, skew)} subscribe={subscribe} />);
-    await screen.findByText('Hull');
+    await screen.findByDisplayValue('Hull');
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
     await screen.findByLabelText('Gantt chart');
     expect(faultWords()).toContain('The chart cannot be drawn');

@@ -34,6 +34,7 @@ import {
   type TagLabel,
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
+import { InlineMarkdown } from './inline-markdown';
 import { priorityBandStyleOf } from './priority-band-style';
 import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor } from './table-frame';
@@ -1402,7 +1403,21 @@ export function barFacts(
  * whole of why the empty name has words of its own here.
  */
 export const rowWords = (number: string, name: string): string =>
-  `${number} - ${name === '' ? '(unnamed)' : name}`;
+  `${numberWords(number)}${nameWords(name)}`;
+
+/**
+ * The half of {@link rowWords} that is the plan's own numbering, and the half
+ * that is the name — split because the label **draws** the second half through
+ * `InlineMarkdown` and still **says** the whole of it in its `title`.
+ *
+ * Two halves of one sentence rather than two spellings of it: the tooltip and
+ * the button are built from the same two functions, so a change to either
+ * reaches both.
+ */
+const numberWords = (number: string): string => `${number} - `;
+
+/** A row's name as the chart says it, which is words even when the name is empty. */
+const nameWords = (name: string): string => (name === '' ? '(unnamed)' : name);
 
 /**
  * What a not-before caret says on hover: the date the row cannot start before.
@@ -2696,7 +2711,22 @@ function GanttChart({
                     onPointRow(null, 'focus');
                   }}
                 >
-                  {rowWords(label.number, label.name)}
+                  {/*
+                    The number as the plan writes it, then the name as the
+                    reader wrote it — the fourth face of {@link InlineMarkdown},
+                    and the reason the two halves are separate functions above.
+
+                    The split is **structure, not a guard**: it is what lets the
+                    tooltip say the whole sentence in its own source while the
+                    button draws only half of it through the parser. Putting the
+                    whole sentence through instead was tried and changes nothing
+                    a test can see — a number in front of a name suppresses
+                    block parsing rather than causing it — so no check here
+                    claims otherwise (`gantt-panel.test.tsx`, and `AGENTS.md`'s
+                    R5).
+                  */}
+                  {numberWords(label.number)}
+                  <InlineMarkdown>{nameWords(label.name)}</InlineMarkdown>
                 </button>
               ))}
             </div>

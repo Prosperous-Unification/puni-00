@@ -810,6 +810,44 @@ describe('the plan on a phone', () => {
     });
   });
 
+  itDom(
+    'renders a card’s name as inline markdown, with its notes as the text they are',
+    async () => {
+      // The third of the four faces, through the same component as the other
+      // three — `inline-markdown.tsx`. The notes under the name are **not** put
+      // through it: this face shows them at rest, and a note is a note.
+      //
+      // Proof: `renderFirstLine` taken off this card's `CellInput`, so the card
+      // is the raw string it was before `markdown-work-item-names`. Watched
+      // failing, 2026-08-29, on `Error: the card for 010 draws no rendered name`.
+      const api = fakeApi();
+      widthIs(PHONE);
+      render(<WbsTable projectId="p1" api={api} />);
+      await addAWorkItem();
+
+      const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+      // Focused, typed into and left — the sequence the rendered box is written
+      // from. A `fireEvent.change` on its own is a value nobody has finished
+      // typing, and the rendered reading deliberately does not follow a keystroke.
+      box.focus();
+      fireEvent.change(box, { target: { value: 'Ship *now*\nthe fuse box is *old*' } });
+      box.blur();
+
+      const rendered = box.parentElement?.querySelector('[data-cell-rendered]');
+      if (!(rendered instanceof HTMLElement)) {
+        throw new Error('the card for 010 draws no rendered name');
+      }
+      await waitFor(() => {
+        expect(rendered.querySelector('em')?.textContent).toBe('now');
+      });
+      // One `em`, from the name: the note's own asterisks are shown, not parsed.
+      expect(rendered.querySelectorAll('em')).toHaveLength(1);
+      expect(rendered.textContent).toBe('Ship now\nthe fuse box is *old*');
+      // And the box under it still holds what somebody typed.
+      expect(box.value).toBe('Ship *now*\nthe fuse box is *old*');
+    },
+  );
+
   itDom('keeps a card’s notes on show at rest, capped at eight lines', async () => {
     // The card face is the one place a note is readable without editing it: a
     // phone has no hover, so the preview the table sends people to does not

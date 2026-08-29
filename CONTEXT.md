@@ -473,15 +473,27 @@ _Avoid_: help, shortcuts dialog, legend
 
 **Name cell**:
 The one box a work item's name and its notes are written in: the first line is the name,
-everything under it is the notes. At rest the cell shows the name alone, whole and wrapped;
-the notes appear while it is edited and in its hover preview. They stay two fields in
-storage — the cell is where they are composed for reading and split again on the way out.
+everything under it is the notes. At rest the cell shows the name alone, whole, wrapped and
+read as inline markdown; writing in it gives the source back. The notes appear while it is
+edited and in its hover preview. They stay two fields in storage — the cell is where they
+are composed for reading and split again on the way out.
 _Avoid_: title field, notes column, description
+
+**Inline markdown**:
+How a work item's name is read on every face that draws one — the Name cell, the hover
+preview's heading, a plan card and the chart's row label. Emphasis, strong, inline code,
+strikethrough and links parse; block syntax does not, and a heading, list, quote, fence,
+table or rule marker is shown as the characters it is rather than stripped. A name never
+changes the height of what it is drawn in, and a link is followable only from the hover
+preview. The export and the search read the source instead.
+_Avoid_: rich text, formatted name, markdown name
 
 **Hover preview**:
 The rendered reading of one work item, opened over its Name cell from the notes marker on
-that cell: the name as a level-one heading, the notes as markdown under it. The only place
-notes render; nowhere does raw HTML in either field become markup.
+that cell: the name as a level-one heading the application itself writes, with the name's
+own inline markdown inside it, and the notes as markdown under it. The name is never
+composed into the notes' markdown source. The only place notes render; nowhere does raw
+HTML in either field become markup.
 _Avoid_: tooltip, popover, notes preview
 
 **Notes marker**:

@@ -1,4 +1,11 @@
-import { type ComponentProps, useCallback, useEffect, useRef } from 'react';
+import {
+  type ComponentProps,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import type { CellElement } from './editable-grid';
 import { LiveField, type SendEdit } from './live-editing';
@@ -79,6 +86,29 @@ export interface CellInputProps extends PassedThrough {
    * would be the only place left to read a note.
    */
   restShowsFirstLineOnly?: boolean;
+  /**
+   * Draws the **first line** of this cell as something other than the raw text
+   * while nobody is writing in it.
+   *
+   * The Name cell's only, and what it draws is the name's inline markdown —
+   * `inline-markdown.tsx`. A `<textarea>` holds characters and cannot hold an
+   * `<em>`, so the rendered reading is a second box laid over the first: the
+   * textarea stays exactly what it was — the value, the measurement, the focus,
+   * the commit — and at rest its own ink is transparent and this box is what a
+   * reader sees. The two rules that arrange that are in `styles.css`, keyed on
+   * the `data-rendered-at-rest` attribute this prop adds.
+   *
+   * The overlay is **out of the flow** (`position: absolute`), which is what
+   * makes "nothing a name contains may change a row's height" true by
+   * construction rather than by measurement — and is why the browser gate
+   * measures the rendered box itself as well as the row it stands in.
+   *
+   * The lines under the first are drawn as the text they are: on the card face,
+   * which shows the notes at rest, they are a note nobody asked to have parsed
+   * twice. Where {@link CellInputProps.restShowsFirstLineOnly} is set there are
+   * no such lines to draw.
+   */
+  renderFirstLine?: (line: string) => ReactNode;
   /** What the server says this cell holds, as it should read on screen. */
   value: string;
   /**
@@ -136,6 +166,7 @@ export function CellInput({
   autoSize = false,
   maxRestRows = 4,
   restShowsFirstLineOnly = false,
+  renderFirstLine,
   ...rest
 }: CellInputProps) {
   /**
@@ -236,13 +267,45 @@ export function CellInput({
     [autoSize, maxRestRows, restShowsFirstLineOnly],
   );
 
+  /**
+   * What the box holds while nobody is writing in it, which is what the
+   * rendered box draws — see {@link CellInputProps.renderFirstLine}.
+   *
+   * **Not the `value` prop.** That is what the *server* last said, and the box
+   * is deliberately uncontrolled: it also holds a draft be-01 refused (rule 4
+   * of {@link LiveField}), and it holds what somebody has just typed for as
+   * long as the request is out. At rest the box's own ink is transparent, so a
+   * rendered box drawn from the server's value would show the reader the **old**
+   * name over their own edit — the whole of `D directory-page`'s lesson, in the
+   * window between a blur and an answer.
+   *
+   * Held rather than derived because the box is a DOM node with a value nothing
+   * in React owns. It is written at the three moments the box is at rest and
+   * never on a keystroke: the rendered box is not on screen while the cell has
+   * the focus, and a state write per keystroke is what {@link LiveField} exists
+   * to avoid.
+   */
+  const [restText, setRestText] = useState(value);
+
+  /**
+   * Measures the box and takes down what it now holds — the two things that
+   * have to happen together every time its text changes without a keystroke.
+   */
+  const showsAtRest = useCallback(
+    (node: CellElement | null): void => {
+      resize(node);
+      if (node !== null && renderFirstLine !== undefined) setRestText(node.value);
+    },
+    [resize, renderFirstLine],
+  );
+
   // Assigned during render rather than in an effect, and that is deliberate:
   // `commit` closes over the row this cell belongs to and is rebuilt on every
   // render, an effect would publish it one render late, and a chord can be
   // pressed before effects flush. `LiveField.send` says the same thing from
   // the other side.
   field.send = commit;
-  field.afterSync = resize;
+  field.afterSync = showsAtRest;
 
   // `resize` is a dependency as well as the value: it is rebuilt when the cap
   // changes, and the box has to be re-measured against the new one.
@@ -312,17 +375,24 @@ export function CellInput({
   };
 
   if (multiline) {
-    return (
+    const textBox = (
       <textarea
         // The same props an input takes; React accepts the overlap and the two
         // elements agree on everything this component uses.
         {...(rest as ComponentProps<'textarea'>)}
+        // The hook the two `styles.css` rules hang off: this box's ink goes
+        // transparent while it is not being written in, and the rendered box
+        // beside it goes away while it is.
+        data-rendered-at-rest={renderFirstLine === undefined ? undefined : ''}
         ref={(node) => {
           takeNode(node);
           // On attach as well as on change: a row arriving from a refresh has
           // never been typed in, and its name is exactly the one most likely
-          // to be long.
-          if (node !== null) resize(node);
+          // to be long. Through {@link showsAtRest} rather than `resize`,
+          // because `takeNode` above is where a draft be-01 refused is put
+          // back into the box, and the rendered box has to show that draft
+          // rather than the value the server still believes.
+          showsAtRest(node);
         }}
         {...shared}
         onChange={(event) => {
@@ -337,10 +407,52 @@ export function CellInput({
           rest.onFocus?.(event as unknown as React.FocusEvent<HTMLInputElement>);
         }}
         onBlur={(event) => {
-          resize(event.currentTarget);
+          // What the reader is leaving behind, taken down before the request
+          // goes out: the rendered box shows the edit at once rather than the
+          // name the server still has.
+          showsAtRest(event.currentTarget);
           void field.leave();
         }}
       />
+    );
+    if (renderFirstLine === undefined) return textBox;
+
+    const { name, notes } = splitNameCell(restText);
+    return (
+      // The positioned ancestor the rendered box is placed against, and nothing
+      // else: `block` so it takes the cell's width the way the textarea used to
+      // take it, and no box of its own to be seen. The Name cell's own
+      // positioned wrapper is one level up and stays where the notes marker and
+      // the hover preview are placed against it.
+      <span style={{ position: 'relative', display: 'block', minWidth: 0 }}>
+        {textBox}
+        <span
+          // Read by the box the reader sees; the textarea beside it is what the
+          // screen reader and the keyboard have, so this one is hidden from
+          // both — it has no tab stop, no role, and no name of its own to say
+          // twice.
+          aria-hidden="true"
+          data-cell-rendered={cellKey}
+          // The caller's own class and **not** its `style`: the class is what
+          // gives the box its padding and its type (the phone card's `p-2
+          // text-base`), and putting it on both boxes is what keeps the drawn
+          // text over the typed text — one spelling, two boxes. The `style`
+          // object is deliberately left off: the table's carries the
+          // search-match tint, which is the textarea's to paint and would be
+          // hidden by a second box painting it again. Everything else this box
+          // needs is the `[data-cell-rendered]` rule in `styles.css`, in a
+          // layer a caller's utility class outranks.
+          className={rest.className}
+        >
+          {renderFirstLine(name)}
+          {/*
+            The notes, where this face shows them at rest — as the text they
+            are. The newline is the separator `composeNameCell` writes, put back
+            so the two lines read as two lines under `white-space: pre-wrap`.
+          */}
+          {!restShowsFirstLineOnly && notes !== '' ? `\n${notes}` : null}
+        </span>
+      </span>
     );
   }
 

@@ -3335,12 +3335,38 @@ describe('the earliest-start cell', () => {
 });
 
 describe('names wrap and notes carry markdown', () => {
-  /** The wrapper the marker and the preview live on — the Name cell's own parent. */
+  /**
+   * The wrapper the marker and the preview live on — the Name `<td>`'s only
+   * child, and not the box's nearest span: since `markdown-work-item-names` the
+   * textarea sits inside a positioned wrapper of its own, so the rendered
+   * reading of the name can be laid over it (`cell-input.tsx`).
+   */
   const nameCellOf = (number: string): HTMLElement => {
-    const found = screen.getByLabelText(`Name of ${number}`).parentElement;
-    if (found === null) throw new Error(`name cell for ${number} has no wrapper`);
+    const found = screen.getByLabelText(`Name of ${number}`).closest('td')?.firstElementChild;
+    if (!(found instanceof HTMLElement)) throw new Error(`name cell for ${number} has no wrapper`);
     return found;
   };
+
+  /** The rendered reading of a Name cell — the box a reader sees while nobody is typing. */
+  const renderedNameOf = (number: string): HTMLElement => {
+    const box = nameCellOf(number).querySelector('[data-cell-rendered]');
+    if (!(box instanceof HTMLElement)) throw new Error(`no rendered name for ${number}`);
+    return box;
+  };
+
+  /** One row, named `typed` and saved. */
+  async function oneRowNamed(typed: string): Promise<HTMLTextAreaElement> {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(cell, { target: { value: typed } });
+    cell.blur();
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe(typed);
+    });
+    return cell;
+  }
 
   /** The one thing on a Name cell that opens its preview. */
   const notesMarkerOf = (number: string): HTMLElement =>
@@ -3377,6 +3403,52 @@ describe('names wrap and notes carry markdown', () => {
   const withScrollHeight = (node: HTMLElement, height: number) => {
     Object.defineProperty(node, 'scrollHeight', { value: height, configurable: true });
   };
+
+  /**
+   * Proof for the whole of 2.1: `renderFirstLine` taken off the Name column, so
+   * the cell is the raw string it was before `markdown-work-item-names`.
+   * Watched failing, 2026-08-29, on `Error: no rendered name for 010` in all
+   * three of `emphasis in a name is rendered`, `a heading marker in a name is
+   * shown, not eaten` and `editing a name shows its source`.
+   */
+  itDom('emphasis in a name is rendered', async () => {
+    const cell = await oneRowNamed('Ship *now*');
+
+    const rendered = renderedNameOf('010');
+    expect(rendered.querySelector('em')?.textContent).toBe('now');
+    expect(rendered.textContent).toBe('Ship now');
+    // The box under it is untouched: it still holds the source, which is what
+    // somebody clicking into the cell gets back.
+    expect(cell.value).toBe('Ship *now*');
+  });
+
+  itDom('a heading marker in a name is shown, not eaten', async () => {
+    await oneRowNamed('# not a heading');
+
+    const rendered = renderedNameOf('010');
+    expect(rendered.textContent).toBe('# not a heading');
+    expect(rendered.querySelector('h1')).toBeNull();
+  });
+
+  itDom('editing a name shows its source', async () => {
+    const cell = await oneRowNamed('Ship *now*');
+
+    // The swap itself is two `styles.css` rules — the box's ink goes
+    // transparent at rest and the rendered box goes away on focus — and jsdom
+    // applies no stylesheet, so what is asserted here is the hook they hang
+    // off and what each box holds. `e2e/name-markdown.spec.ts` is where the
+    // swap is watched.
+    expect(cell).toHaveAttribute('data-rendered-at-rest');
+    cell.focus();
+    expect(document.activeElement).toBe(cell);
+    expect(cell.value).toBe('Ship *now*');
+
+    // And the rendered box is furniture, not a control: no name of its own for
+    // a screen reader that already has the box, and no tab stop in the grid.
+    const rendered = renderedNameOf('010');
+    expect(rendered.getAttribute('aria-hidden')).toBe('true');
+    expect(rendered.querySelector('[tabindex], a, button')).toBeNull();
+  });
 
   itDom('grows the name box to fit a long name, focus or no focus', async () => {
     // Dany, 2026-08-06: the name "must wrap instead of cutting text". A
@@ -9573,8 +9645,15 @@ describe('the outline past the Number cap', () => {
 
     const indents = (number: string): { number: string; name: string } => {
       const numberSpan = document.querySelector<HTMLElement>(`span[title="${number}"]`);
-      const nameWrapper = screen.getByLabelText(`Name of ${number}`).closest('span');
-      if (numberSpan === null || nameWrapper === null) {
+      // The cell's own span, which is the `<td>`'s only child — not the
+      // textarea's nearest one. Since `markdown-work-item-names` the box sits
+      // inside a positioned wrapper of its own, so that the rendered reading of
+      // the name can be laid over it (`cell-input.tsx`), and that wrapper
+      // carries no indent.
+      const nameWrapper = screen
+        .getByLabelText(`Name of ${number}`)
+        .closest('td')?.firstElementChild;
+      if (numberSpan === null || !(nameWrapper instanceof HTMLElement)) {
         throw new Error(`no indent-carrying cells on screen for ${number}`);
       }
       return { number: numberSpan.style.paddingLeft, name: nameWrapper.style.paddingLeft };

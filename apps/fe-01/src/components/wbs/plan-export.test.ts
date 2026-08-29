@@ -934,6 +934,24 @@ describe('hostile text', () => {
     ).toContainEqual(expect.stringContaining('a\\|b'));
   });
 
+  it('an export carries the markdown source', () => {
+    // The name renders inline markdown on all four faces since
+    // `markdown-work-item-names`, and the export is deliberately not one of
+    // them: a spreadsheet cell is not a markdown surface, and a reader pasting
+    // `**blocked**` into Jira wants the asterisks.
+    //
+    // Asserted rather than assumed, because "we did not touch it" is how a
+    // shared helper quietly gets touched. Proof: the name routed through a
+    // renderer on the way out — `name.replace(/\*\*(.+?)\*\*/g, '$1')` in
+    // `planToMarkdown`'s row builder — watched failing on `expected [ '010',
+    // 'blocked', … ] to contain '**blocked**'`, and the CSV assertion beside it
+    // on the same string. Watched, 2026-08-29.
+    const marked = plan({ rows: [row({ id: 'a', number: '010', name: '**blocked**' })] });
+
+    expect(markdownRow(planToMarkdown(marked), '010')).toContain('**blocked**');
+    expect(planToCsv(marked)).toContain('**blocked**');
+  });
+
   it('keeps the note’s Markdown source as it was written', () => {
     const text = planToMarkdown(
       plan({ rows: [row({ id: 'a', number: '010', notes: '**bold** and `code`' })] }),

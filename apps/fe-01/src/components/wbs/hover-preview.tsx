@@ -2,9 +2,13 @@ import type { CSSProperties } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 
 import { HoverCard } from './hover-card';
+import { InlineMarkdown } from './inline-markdown';
 
 export interface HoverPreviewProps {
-  /** The work item's name, shown as the heading — as text, never as markdown source. */
+  /**
+   * The work item's name, shown as the heading — its own source, never composed
+   * into a larger markdown document. See {@link HoverPreview}.
+   */
   name: string;
   notes: string;
   /** Named in the popover so a hover on a busy table says which row it belongs to. */
@@ -20,10 +24,25 @@ export interface HoverPreviewProps {
  * preview of the notes on their own is a page of text with no title, hanging
  * beside a row whose name it does not say.
  *
- * The name is put into the heading as **text**. Composing `# ${name}` into the
- * markdown source would be a second parser over a field nobody writes markdown
- * in: a name starting with `#`, or holding an underscore or a bracket, would
- * read here as something other than what the cell shows.
+ * **The heading is structure this file writes; the emphasis inside it is
+ * content the parser made, and the two never meet as a string.** The name goes
+ * through {@link InlineMarkdown} *inside* an `<h1>` this component renders —
+ * never `<Markdown>{`# ${name}`}</Markdown>`. Composing the name into the
+ * markdown source would be a second parser over the whole field: a name
+ * starting with `#`, or holding an underscore or a bracket, would read here as
+ * something other than what the cell shows, and nothing the name contains can
+ * produce, close or escape an element this file writes itself.
+ *
+ * That half of `name-title-body`'s reasoning stands. The other half — "a field
+ * nobody writes markdown in" — was wrong about the field, and is reversed by
+ * `markdown-work-item-names` (Dany, 2026-08-29): a name carrying `**blocked**`
+ * or a link reads as one, on this face and on the three others, all four
+ * through the same component. Only the **inline** grammar parses; a `#` in a
+ * name is still the character somebody typed.
+ *
+ * A link is followable here and nowhere else — see
+ * {@link InlineMarkdownProps.linksFollowable}: this is a card with room for a
+ * click of its own, where a Name cell's click opens the editor.
  *
  * `react-markdown` renders to React elements and does **not** pass raw HTML
  * through — no `rehype-raw` here, deliberately. Notes are written by one
@@ -78,7 +97,7 @@ export function HoverPreview({ name, notes, number }: HoverPreviewProps) {
         `2em` and would put a name across three lines of a 420px popover.
       */}
       <h1 style={{ fontSize: `${String(NAME_SIZE_EM)}em`, fontWeight: 700, margin: '0 0 4px' }}>
-        {name}
+        <InlineMarkdown linksFollowable>{name}</InlineMarkdown>
       </h1>
       <Markdown components={noteHeadings}>{notes}</Markdown>
     </HoverCard>
