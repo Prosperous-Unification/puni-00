@@ -1277,6 +1277,10 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  * plan taller than the window still shrinks this frame to exactly the remainder
  * and still scrolls inside it, because this is the only shrinkable item in the
  * column — the toolbar, the height handle and the panel are all `shrink-0`.
+ * **That the panel is one of them is load-bearing** and is written down where it
+ * is set (`gantt-panel.tsx`): a shrinkable panel would take a share of every
+ * over-constraint this frame is meant to absorb, and a drag to the column's own
+ * room would settle shorter than it asked for.
  * `flex-grow: 0` is deliberate and is the whole change: nothing left over is
  * spent on a frame that has no rows to put in it.
  *

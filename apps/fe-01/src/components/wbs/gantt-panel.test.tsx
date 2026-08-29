@@ -16,6 +16,7 @@ import type {
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
+  appliedGanttHeight,
   axisNumberShown,
   barLabelFor,
   barText,
@@ -27,6 +28,7 @@ import {
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
   GanttPanel,
+  ganttRoomInColumn,
   ganttSvgFileName,
   initialsOf,
   isDayPx,
@@ -4461,28 +4463,82 @@ describe('the height a drag may settle at', () => {
     expect(clampedGanttHeight(-500, 900)).toBe(GANTT_MIN_PX);
   });
 
-  it('stops a drag above the ceiling at the ceiling, however tall the screen', () => {
+  it('stops a drag above the ceiling at the ceiling, however much room it is given', () => {
     expect(clampedGanttHeight(99999, 100000)).toBe(GANTT_CEILING_PX);
   });
 
-  it('keeps the chart to 80% of the viewport it is really on', () => {
-    expect(clampedGanttHeight(900, 1000)).toBe(800);
+  it('caps at the room it is given', () => {
+    // The room its own column has, and never a share of the window: the fault
+    // this replaced allowed 770px into a column with 488px for it, and put
+    // 245px of chart off the bottom of the screen with nothing to scroll to it
+    // (Chrome, 2026-08-29). Nothing here reads `window`.
+    expect(clampedGanttHeight(900, 488)).toBe(488);
+    expect(clampedGanttHeight(770, 488)).toBe(488);
   });
 
   it('leaves a height every bound allows alone', () => {
     expect(clampedGanttHeight(400, 1000)).toBe(400);
   });
 
-  it('holds the floor even on a viewport whose 80% is below it', () => {
-    // 80% of 90px is 72, under the 84px floor: the floor wins, because a
-    // panel below it shows nothing worth keeping open — the CSS max-height
-    // is what keeps it on such a screen, not the clamp.
-    expect(clampedGanttHeight(84, 90)).toBe(GANTT_MIN_PX);
+  it('holds the floor over a room below it', () => {
+    // A column with 50px to give is under the 84px floor: the floor wins,
+    // because a panel below it shows nothing worth keeping open — what bounds
+    // the chart on such a column is the panel's own `min-height` and its
+    // `overflow`, not this.
+    expect(clampedGanttHeight(84, 50)).toBe(GANTT_MIN_PX);
+    expect(clampedGanttHeight(400, 0)).toBe(GANTT_MIN_PX);
+  });
+});
+
+describe('the room a column has for the chart', () => {
+  itDom('answers nothing where nothing has been laid out', () => {
+    // jsdom measures every box at 0, so this is the whole of what it can say
+    // here — and it is exactly the contract both callers lean on: `null` is
+    // "nothing was laid out", and it is a **different** answer from the `0` a
+    // column that has genuinely run out of room gives. What the sum is really
+    // made of — the margins, the floors and the standing heights of the
+    // column's other children — needs a browser, and the oracle for it is
+    // `e2e/gantt.spec.ts`.
+    //
+    // Proof: with `lengthPx`'s finiteness guard replaced by a bare
+    // `Number.parseFloat`, this failed on `expected NaN to be null` — jsdom's
+    // empty-string `padding-top` poisoning the column height, and with it the
+    // fallback every jsdom drag case depends on. Watched 2026-08-29.
+    const column = document.createElement('div');
+    const panel = document.createElement('div');
+    column.append(document.createElement('p'), panel);
+    document.body.append(column);
+
+    expect(ganttRoomInColumn(column, panel)).toBeNull();
+  });
+});
+
+describe('the height a remembered claim is drawn at', () => {
+  // Pure: the claim is what the reader dragged, the room is what the column
+  // has today, and the drawn height is the second applied to the first.
+  it('draws nothing where nothing has been dragged', () => {
+    expect(appliedGanttHeight(null, 400)).toBeNull();
+    expect(appliedGanttHeight(null, null)).toBeNull();
+  });
+
+  it('clamps a height dragged in a tall window against a short column', () => {
+    expect(appliedGanttHeight(700, 300)).toBe(300);
+  });
+
+  it('gives the dragged height back when the column is tall enough again', () => {
+    // The same claim, unchanged by having been clamped once: the re-clamp is
+    // applied to what is drawn and never written over the claim itself.
+    expect(appliedGanttHeight(700, 900)).toBe(700);
+  });
+
+  it('draws the claim unclamped while nothing has measured the column', () => {
+    // `null` is "no layout yet" — the first paint, and every jsdom render.
+    expect(appliedGanttHeight(700, null)).toBe(700);
   });
 });
 
 describe('the height the panel is drawn at', () => {
-  const panelAt = (heightPx: number | null): HTMLElement => {
+  const panelAt = (heightPx: number | null, roomPx: number | null = null): HTMLElement => {
     render(
       <GanttPanel
         plan={planOf({
@@ -4493,6 +4549,7 @@ describe('the height the panel is drawn at', () => {
         scheduleError={null}
         generation={0}
         heightPx={heightPx}
+        roomPx={roomPx}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
         pointedRow={null}
@@ -4509,11 +4566,37 @@ describe('the height the panel is drawn at', () => {
     expect(panel.style.height).toBe('');
   });
 
-  itDom('is drawn at the override, under the live viewport cap', () => {
+  itDom('is drawn at the override', () => {
     const panel = panelAt(400);
     expect(panel.style.height).toBe('400px');
-    expect(panel.style.maxHeight).toBe('80vh');
     expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
+  });
+
+  itDom('the panel’s ceiling is its column, not the window', () => {
+    // The measured room — never `80vh`, and never any other reading of a window
+    // the panel does not live in. A `vh` here is the fault this change exists
+    // for: it let the panel be drawn 245px past the bottom of a column no
+    // ancestor scrolls (Chrome, 2026-08-29).
+    const ceiling = panelAt(400, 488).style.maxHeight;
+    expect(ceiling).toBe('488px');
+    expect(ceiling).not.toContain('vh');
+  });
+
+  itDom('falls back to the whole column where nothing has measured it', () => {
+    // `100%` of the flex column it is a child of — still the column, and still
+    // not the window. This is the jsdom case and the first paint's.
+    expect(panelAt(400, null).style.maxHeight).toBe('100%');
+  });
+
+  itDom('does not split an over-constraint with the table frame', () => {
+    // `shrink-0` is deliberate and `gantt-height-column-clamp` asked for it to
+    // go: a shrinkable panel shares an over-constraint with the frame in
+    // proportion to `shrink × basis`, and at the very height the clamp exists
+    // to allow that would land the chart short of the gesture. Containment is
+    // the clamp's and the `max-height`'s; the panel's rigidity is what makes a
+    // drag deliver what it asked for. The reasoning is `gantt-panel.tsx`'s and
+    // it is **reasoned, not measured** — see `verify.md`.
+    expect(panelAt(400).classList.contains('shrink-0')).toBe(true);
   });
 });
 

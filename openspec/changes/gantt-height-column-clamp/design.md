@@ -5,17 +5,17 @@
 Chrome, 2026-08-29, `localhost:4200`, viewport 963px tall, one project open with
 the chart shown. Read out of the live DOM, not inferred:
 
-| Quantity                                             | Value                                            |
-| ---------------------------------------------------- | ------------------------------------------------ |
-| plan column (`section.flex.min-h-0.flex-1.flex-col`) | top 49, bottom 955 → **906px**                   |
-| toolbar (`shrink-0`)                                 | 68                                               |
-| table region (`min-height: 320px`)                   | 320                                              |
-| handle                                               | 6                                                |
-| footer                                               | 24                                               |
-| **available for the panel**                          | **488**                                          |
-| `clampedGanttHeight` cap (`0.8 × 963`)               | **770**                                          |
-| panel after a 353px drag                             | 757, bottom at **1200** vs column bottom **955** |
-| `document.scrollHeight`                              | 963 — unchanged, no scrollbar                    |
+| Quantity | Value |
+| -------- | ----- |
+| plan column (`section.flex.min-h-0.flex-1.flex-col`) | top 49, bottom 955 → **906px** |
+| toolbar (`shrink-0`) | 68 |
+| table region (`min-height: 320px`) | 320 |
+| handle | 6 |
+| footer | 24 |
+| **available for the panel** | **488** |
+| `clampedGanttHeight` cap (`0.8 × 963`) | **770** |
+| panel after a 353px drag | 757, bottom at **1200** vs column bottom **955** |
+| `document.scrollHeight` | 963 — unchanged, no scrollbar |
 
 The 245px overhang is unreachable: every ancestor is `overflow: visible` inside
 a non-scrolling `h-full` column, so there is nothing to scroll to it.
@@ -55,7 +55,7 @@ non-full-screen case makes the browser the backstop: if the clamp is ever wrong
 again — a window resized after a drag, a toolbar that wraps to a second row —
 the chart shrinks instead of leaving the screen.
 
-This is deliberately a _second_ line of defence rather than the fix. The clamp is
+This is deliberately a *second* line of defence rather than the fix. The clamp is
 the fix, because a chart silently shrinking below what the reader dragged is its
 own confusing behaviour; the shrink only ever engages where the alternative is
 an unreachable overhang.
@@ -69,7 +69,7 @@ that is not on screen.
 A height dragged in a tall window and then read in a short one is the same fault
 wearing a different hat, and it is already reachable today through
 `rememberedGanttHeight`. The panel re-clamps against the current column on
-resize, so the stored number is a _claim_ and the column is the authority — the
+resize, so the stored number is a *claim* and the column is the authority — the
 same shape `rememberedHiddenColumns` uses for storage it does not trust.
 
 The stored value is **not** rewritten by a re-clamp: the reader asked for that
@@ -79,7 +79,7 @@ quietly forgotten it.
 ## D4 — why the existing browser suite did not catch this
 
 `e2e/gantt.spec.ts`'s `the chart edge the reader drags` asserts the panel's
-_height_ after a drag, and the height was correct every time — 337.71 then 757,
+*height* after a drag, and the height was correct every time — 337.71 then 757,
 exactly what was asked for. It never asserted where the panel's **bottom** was.
 
 A test that measures only the thing being set cannot see the thing being broken.

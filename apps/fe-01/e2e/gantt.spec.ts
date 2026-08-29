@@ -2228,6 +2228,87 @@ test.describe('the chart edge the reader drags', () => {
     expect(Math.abs(reopened.height - (3 * ROW_PX + 100))).toBeLessThanOrEqual(1.5);
   });
 
+  test('stays inside the column it lives in', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    // Far past anything the column can hold, and no further: this project's
+    // viewport is 900 tall, so a drag that ran off the top of it would be
+    // measuring Chromium's willingness to dispatch a move at a negative `y`
+    // rather than the clamp. The reported drag was 419px up in a column with
+    // 488px for the panel; 400 clears the room at this size several times over,
+    // and the old `0.8 × 900` cap would have allowed all of it.
+    await dragTheEdge(page, -400);
+
+    const panel = await rectOf(page, '[data-gantt-panel]');
+    // The plan's flex column, by the attribute the section already carries.
+    const column = await rectOf(page, 'section[data-slice-count]');
+    // **The assertion this test exists for.** Measured in Chrome 2026-08-29
+    // with the viewport clamp in force: the panel's bottom landed at 1200
+    // against a column bottom of 955 — 245px of chart drawn outside the box it
+    // lives in. A sub-pixel of tolerance, for the same reason every other
+    // measurement here carries one.
+    expect(panel.bottom, 'the chart is drawn past the bottom of its column').toBeLessThanOrEqual(
+      column.bottom + 1,
+    );
+
+    // And nothing scrolls to reach an overhang, which is what makes the line
+    // above the whole of the guarantee rather than half of it. This pair
+    // **passed through the fault** — `document.scrollHeight` was 963 against a
+    // 963px window with 245px of chart off the bottom, because every ancestor
+    // is `overflow: visible` inside a non-scrolling `h-full` column and an
+    // overflow nothing clips makes no scrollbar. It is here to say so, not to
+    // catch it.
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      ),
+      'the page grew instead',
+    ).toBe(0);
+    expect(panel.bottom, 'the chart is drawn past the bottom of the window').toBeLessThanOrEqual(
+      await page.evaluate(() => window.innerHeight),
+    );
+  });
+
+  /**
+   * The other half of the report, and the half this change does **not** fix.
+   *
+   * Measured on 2026-08-29: a drag of 178px up made the panel 178px taller and
+   * left `handleTop` where it was, at 569. The cause is not the panel's
+   * `shrink-0` and is not the clamp — it is that the column had 226px of
+   * positive free space **below** the panel, and a flex column with every item
+   * at `flex-grow: 0` leaves its leftover at the end. The panel spends that
+   * before the boundary can move, whatever it is allowed to shrink to.
+   *
+   * Where that leftover goes is `unified-scroll-docking`'s decision, taken
+   * deliberately: the frame is `flex: 0 1 auto` so that "nothing left over is
+   * spent on a frame that has no rows to put in it" (`table-frame.ts`), which
+   * is what put the leftover under the chart. Moving it back above the chart —
+   * a `margin-top: auto` on the panel, or the frame growing again — restores
+   * exactly the 508px of nothing between the last row and the chart that that
+   * change removed.
+   *
+   * So this is a decision to revisit, not a bug to patch, and it is left
+   * failing rather than quietly dropped. `test.fixme` and not a deletion: the
+   * assertion is right, and the day the leftover moves it should go green
+   * without being rewritten.
+   */
+  test.fixme('dragging up moves the boundary up', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+    const panelAtRest = await rectOf(page, '[data-gantt-panel]');
+    const handleAtRest = await rectOf(page, '[data-gantt-height-handle]');
+
+    await dragTheEdge(page, -150);
+
+    const panelDragged = await rectOf(page, '[data-gantt-panel]');
+    const handleDragged = await rectOf(page, '[data-gantt-height-handle]');
+    expect(panelDragged.height).toBeGreaterThan(panelAtRest.height);
+    expect(handleDragged.top, 'the boundary did not follow the pointer').toBeLessThan(
+      handleAtRest.top,
+    );
+  });
+
   /**
    * What the browser says it would hand a press at each point — the element it
    * hit-tests to, named the way a failure can be read.

@@ -20,6 +20,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -92,12 +93,14 @@ import {
   type TagLabel,
 } from './gantt-geometry';
 import {
+  appliedGanttHeight,
   clampedGanttHeight,
   DAY_PX,
   type DayPx,
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
   GanttPanel,
+  ganttRoomInColumn,
   isDayPx,
 } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
@@ -1425,6 +1428,13 @@ interface GanttHeightResize {
  * gesture with a jump. jsdom lays nothing out and measures every box at 0, so
  * a zero falls back to the override, then to the floor; the real from-height
  * is provable only in Chromium (`e2e/gantt.spec.ts`).
+ *
+ * **The room the gesture may spend is measured the same way and at the same
+ * moment** ({@link ganttRoomInColumn}), from the column this handle is a child
+ * of. Once per gesture rather than per move, for the from-height's reason: both
+ * ends of the sum are read off one layout, so a drag cannot be clamped against
+ * a column measured mid-flight against a panel that is already following the
+ * pointer.
  */
 function GanttHeightHandle({
   heightPx,
@@ -1434,9 +1444,14 @@ function GanttHeightHandle({
   heightPx: number | null;
   resize: GanttHeightResize;
 }) {
-  const grabbed = useRef<{ pointerId: number; fromY: number; fromHeight: number } | null>(null);
-  const heightAt = (clientY: number, from: { fromY: number; fromHeight: number }): number =>
-    clampedGanttHeight(from.fromHeight + (from.fromY - clientY), window.innerHeight);
+  const grabbed = useRef<{
+    pointerId: number;
+    fromY: number;
+    fromHeight: number;
+    roomPx: number;
+  } | null>(null);
+  const heightAt = (clientY: number, from: { fromY: number; fromHeight: number; roomPx: number }) =>
+    clampedGanttHeight(from.fromHeight + (from.fromY - clientY), from.roomPx);
 
   return (
     <div
@@ -1457,11 +1472,30 @@ function GanttHeightHandle({
         // gesture resizes. Absent means the handle was mounted without one,
         // which is an invariant broken, not a state to default.
         if (!(panel instanceof HTMLElement)) throw new Error('no chart under the height handle');
+        const column = event.currentTarget.parentElement;
+        // The plan's flex column, which is the box this gesture is bounded by.
+        // Absent means the handle was mounted outside it, an invariant broken
+        // rather than a state to default.
+        if (column === null) throw new Error('no column around the height handle');
         const measured = panel.getBoundingClientRect().height;
+        const room = ganttRoomInColumn(column, panel);
         grabbed.current = {
           pointerId: event.pointerId,
           fromY: event.clientY,
           fromHeight: measured > 0 ? measured : (heightPx ?? GANTT_MIN_PX),
+          // `null` is a column nothing has laid out — jsdom, and only jsdom.
+          // Falling back to the ceiling alone keeps those cases about the wiring
+          // they can actually see (the height following the pointer, the commit,
+          // the fallback) and leaves the room itself to Chromium, which is the
+          // only thing that can measure it. A **zero** room is a real answer and
+          // is not caught here: the floor in `clampedGanttHeight` wins over it,
+          // which is what the spec asks for.
+          //
+          // Proof: with the fallback taken out — `roomPx: room ?? 0` — `follows
+          // the pointer while dragged, and remembers where it was let go` failed
+          // on `expected '84px' to be '450px'`, every jsdom drag clamped to the
+          // floor by a column jsdom never laid out. Watched 2026-08-29.
+          roomPx: room ?? GANTT_CEILING_PX,
         };
       }}
       onPointerMove={(event) => {
@@ -2482,6 +2516,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     rememberedGanttHeight(projectId),
   );
   /**
+   * The plan's flex column — the box the chart panel is bounded by, and the
+   * only thing that can say how much room it has.
+   */
+  const ganttColumn = useRef<HTMLElement | null>(null);
+  /**
+   * How much room that column has for the panel right now, or `null` where
+   * nothing has measured it — the chart closed, and every jsdom render, which
+   * lays nothing out.
+   *
+   * Held as state rather than read at paint because it decides what is drawn:
+   * {@link ganttHeightPx} is the reader's *claim* and this is the authority on
+   * what that claim means in the column it is being drawn in today. The claim
+   * is never rewritten from here — a height dragged in a tall window comes back
+   * in full when the window does, which it could not if a re-clamp had stored
+   * itself over the top of it.
+   */
+  const [ganttRoomPx, setGanttRoomPx] = useState<number | null>(null);
+  /**
    * The day scale in force, and {@link DAY_PX} where this browser has never
    * picked one for this project.
    *
@@ -3111,6 +3163,49 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // `generation` with it.
     if (panel.querySelector('[data-gantt-axis]') === null) return;
     return linkPlanScroll(frame, panel);
+  }, [ganttOpen, renderer, chartRead.generation]);
+
+  /**
+   * Keeps {@link ganttRoomPx} on what the column really has, so a remembered
+   * height is drawn against today's window rather than the one it was dragged
+   * in.
+   *
+   * A layout effect, before the browser paints: measuring after the paint would
+   * show the unclamped height for a frame and then snatch it back.
+   *
+   * The panel is found through the handle rather than by `[data-gantt-panel]`,
+   * so the measurement is of whatever box sits under the handle — the chart,
+   * the cycle message, or {@link GanttFaultBoundary}'s stand-in. It is the same
+   * rule the handle itself uses at `pointerdown`, and the two agreeing is what
+   * makes a drag land where the re-clamp would have put it.
+   *
+   * **No loop, and that is a property of what is measured, not of a guard**:
+   * {@link ganttRoomInColumn} is invariant under the panel's own height, so the
+   * observer's answer after a re-clamp is the answer it gave before it, and
+   * React drops the identical state.
+   *
+   * `ResizeObserver` is absent in jsdom, where every box measures 0 and there
+   * is nothing to observe anyway; the room stays `null` there and the claim is
+   * drawn unclamped. Chromium is the oracle (`e2e/gantt.spec.ts`).
+   */
+  useLayoutEffect(() => {
+    const column = ganttColumn.current;
+    if (column === null || !ganttOpen) {
+      setGanttRoomPx(null);
+      return;
+    }
+    const measure = (): void => {
+      const panel = column.querySelector('[data-gantt-height-handle]')?.nextElementSibling;
+      if (!(panel instanceof HTMLElement)) return;
+      setGanttRoomPx(ganttRoomInColumn(column, panel));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const watchColumn = new ResizeObserver(measure);
+    watchColumn.observe(column);
+    return () => {
+      watchColumn.disconnect();
+    };
   }, [ganttOpen, renderer, chartRead.generation]);
 
   const latestRefresh = useRef(0);
@@ -10052,6 +10147,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       has the same pair on `<main>`, and `table-frame.ts` has the why.
     */
     <section
+      // The column the chart panel is bounded by, and the box
+      // {@link ganttRoomPx} is measured from. Every other reader finds it by
+      // `[data-slice-count]`, including the browser gate.
+      ref={ganttColumn}
       className="flex min-h-0 flex-1 flex-col"
       // How many slices the plan on screen was drawn from. The Gantt panel at
       // the bottom of this section draws them now, but only while it is open —
@@ -10754,7 +10853,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             startDate={startDate}
             scheduleError={scheduleError}
             generation={chartRead.generation}
-            heightPx={ganttHeightPx}
+            // The reader's claim, re-clamped against the column it is being
+            // drawn in — and the claim itself left alone, in state and in
+            // storage both, so a window that grows gives the dragged height
+            // back rather than having quietly forgotten it.
+            heightPx={appliedGanttHeight(ganttHeightPx, ganttRoomPx)}
+            roomPx={ganttRoomPx}
             dayPx={ganttDayPx}
             // Stored where it is set and nowhere else, exactly as a let-go drag
             // is: opening a project must not write to it.

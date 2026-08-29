@@ -182,23 +182,141 @@ export const GANTT_MIN_PX = 3 * ROW_PX;
 export const GANTT_CEILING_PX = 0.8 * 2160;
 
 /**
- * How much of the viewport's height an open chart may take: the live cap on a
- * drag, and the CSS `max-height` a remembered height is applied under — so a
- * height dragged on a tall monitor opens sane on a laptop, and the plan above
- * always keeps a strip of the screen.
- */
-export const GANTT_VIEWPORT_SHARE = 0.8;
-
-/**
  * The height a drag — or a stored height claiming to be one — settles at:
  * inside `[{@link GANTT_MIN_PX}, {@link GANTT_CEILING_PX}]` and no more than
- * {@link GANTT_VIEWPORT_SHARE} of `viewportPx`. The floor wins over a viewport
- * whose share is below it: a panel under the floor shows nothing, and on such
- * a screen it is the CSS `max-height` that bounds what is drawn, not this.
+ * `availablePx`, the room the panel's own column has for it
+ * ({@link ganttRoomInColumn}).
+ *
+ * **The room, and never a share of the viewport.** The panel does not live in
+ * the window — it lives in the plan's flex column, beside a toolbar, the table
+ * and whatever banners are up. Measured in Chrome on 2026-08-29 at a 963px
+ * viewport: the column had 488px for the panel and the old `0.8 ×
+ * window.innerHeight` cap allowed 770, so a drag put the panel's bottom at
+ * 1200 against a column bottom of 955 with every ancestor `overflow: visible`
+ * and no page scroll — 245px of chart nothing could reach.
+ *
+ * The floor wins over a room below it: a panel under the floor shows nothing.
+ * On a column that short the panel is drawn at the floor and clipped by the
+ * column, which is the honest answer — the alternative is a strip with no chart
+ * in it at all.
  */
-export function clampedGanttHeight(px: number, viewportPx: number): number {
-  const cap = Math.min(GANTT_CEILING_PX, GANTT_VIEWPORT_SHARE * viewportPx);
+export function clampedGanttHeight(px: number, availablePx: number): number {
+  // Proof: with the fault this replaced put back — `Math.min(GANTT_CEILING_PX,
+  // 0.8 * window.innerHeight)` — `caps at the room it is given` failed on
+  // `expected 614.4000000000001 to be 488`, the cap answering for jsdom's 768px
+  // window instead of the 488px column it was handed. Watched 2026-08-29.
+  const cap = Math.min(GANTT_CEILING_PX, availablePx);
   return Math.max(GANTT_MIN_PX, Math.min(px, cap));
+}
+
+/**
+ * How much height the flex column a Gantt panel lives in can give that panel,
+ * read out of the boxes the browser really laid out.
+ *
+ * The column's content height, less **what every other child of it insists on
+ * keeping**: its margins always, plus either the `min-height` it declares, if it
+ * can shrink to one, or the height it is standing at.
+ *
+ * **Measured, never derived.** Subtracting known figures — a nominal toolbar
+ * height, `TABLE_NEEDS_HEIGHT`, a banner — is the obvious alternative and it is
+ * wrong at exactly the sizes nobody tests: the toolbar is `flex-wrap` and takes
+ * a second row at some widths, and the banners come and go.
+ * {@link GanttHeightHandle} already takes the panel's own box for that reason;
+ * this is the same argument applied to the rest of the sum.
+ *
+ * **The panel's own height is not in the sum**, and that is the load-bearing
+ * property rather than a tidiness: the answer is the same whatever the panel is
+ * currently drawn at, so feeding it back into that height converges in one step
+ * — and, more to the point, a panel that is *already overflowing* still gets
+ * told the truth. A sum written the other way round — the panel's box, plus the
+ * slack under it, plus what the others could give up — reads the room off a
+ * broken layout as the broken height itself, because an overflowing column has
+ * no slack and its shrinkable child is already on its floor. That version was
+ * written first and is what this replaced.
+ *
+ * A child is credited with a `min-height` only where it declares a definite one
+ * **and** can shrink to it. Every other flex child has `min-height: auto` — its
+ * own content — which is not a floor this sum may count on, so such a child is
+ * counted at the height it stands at.
+ *
+ * **`null` is "nothing has been laid out", and it is a different answer from
+ * `0`.** jsdom measures every box at 0; a column that has genuinely run out of
+ * room measures a real height and keeps all of it, which is a `0` the floor in
+ * {@link clampedGanttHeight} then wins over. Collapsing the two would be the
+ * unknown converted to a default that R5 is about.
+ * Chromium is this function's only oracle (`e2e/gantt.spec.ts`).
+ */
+export function ganttRoomInColumn(column: HTMLElement, panel: HTMLElement): number | null {
+  const columnStyle = getComputedStyle(column);
+  const contentHeight =
+    column.getBoundingClientRect().height -
+    lengthPx(columnStyle.paddingTop) -
+    lengthPx(columnStyle.paddingBottom) -
+    lengthPx(columnStyle.borderTopWidth) -
+    lengthPx(columnStyle.borderBottomWidth);
+  // A column with no height is a column nothing has laid out. Deliberately not
+  // an `isFinite` test as well: a NaN here would mean a computed length came
+  // back as something other than a length, and answering "no layout" to that
+  // would hide it — the sum carries the NaN out instead, where a test can see
+  // it (`answers nothing where nothing has been laid out`).
+  if (contentHeight <= 0) return null;
+
+  let kept = 0;
+  for (const child of column.children) {
+    if (!(child instanceof HTMLElement)) continue;
+    const childStyle = getComputedStyle(child);
+    // Out of flow: it takes none of the column's height, so it holds none of it
+    // back either. The toast stack is the production case.
+    if (childStyle.position === 'fixed' || childStyle.position === 'absolute') continue;
+    // Margins are never collapsed in a flex container, so they add up.
+    kept += lengthPx(childStyle.marginTop) + lengthPx(childStyle.marginBottom);
+    if (child === panel) continue;
+    const standing = child.getBoundingClientRect().height;
+    const floorPx = Number.parseFloat(childStyle.minHeight);
+    kept +=
+      childStyle.flexShrink !== '0' && Number.isFinite(floorPx)
+        ? Math.min(standing, floorPx)
+        : standing;
+  }
+
+  return Math.max(0, contentHeight - kept);
+}
+
+/**
+ * A computed CSS length in px, and 0 for anything that is not one.
+ *
+ * The zero is jsdom, which answers every computed style with the empty string
+ * and every box with 0 — so {@link ganttRoomInColumn}'s column measures no
+ * height at all there and it answers `null` before any of these matter. In a
+ * browser these properties are always resolved lengths.
+ */
+function lengthPx(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * The height the panel is actually drawn at: the reader's claim, re-clamped
+ * against the room the column has for it **now**.
+ *
+ * The claim is not rewritten by a re-clamp, which is the whole point of keeping
+ * the two apart — a height dragged in a tall window is drawn shorter in a short
+ * one and comes back in full when the window does. Same shape as the remembered
+ * column widths: storage holds what the reader asked for, and the layout is the
+ * authority on what that means today.
+ *
+ * A `roomPx` of `null` is "nothing has measured the column" — jsdom, and the
+ * first paint before the measuring effect runs — and the claim is drawn
+ * unclamped, under the `max-height: 100%` the panel falls back to.
+ */
+export function appliedGanttHeight(claimPx: number | null, roomPx: number | null): number | null {
+  if (claimPx === null) return null;
+  // Proof: with the unmeasured case folded into the clamp instead — `return
+  // clampedGanttHeight(claimPx, roomPx ?? 0)` — `draws the claim unclamped
+  // while nothing has measured the column` failed on `expected 84 to be 700`,
+  // every jsdom render and every first paint collapsing to the floor. Watched
+  // 2026-08-29.
+  return roomPx === null ? claimPx : clampedGanttHeight(claimPx, roomPx);
 }
 
 /**
@@ -1706,6 +1824,7 @@ export function GanttPanel({
   scheduleError,
   generation,
   heightPx,
+  roomPx = null,
   // Resolved **here** and passed on explicitly, so {@link GanttChart} below
   // takes both as required: optional at the panel's boundary, decided once, and
   // never defaulted a second time somewhere that could disagree.
@@ -1737,6 +1856,7 @@ export function GanttPanel({
       startDate={startDate}
       generation={generation}
       heightPx={heightPx}
+      roomPx={roomPx}
       dayPx={dayPx}
       onPickDayPx={onPickDayPx}
       labelsShown={labelsShown}
@@ -1769,10 +1889,23 @@ interface GanttProps {
   /**
    * The panel height override in force, or `null` while nothing has been
    * dragged — which keeps the bounded default share, and stores nothing.
-   * A number is applied as the panel's own height under the
-   * {@link GANTT_VIEWPORT_SHARE} cap.
+   * A number is applied as the panel's own height, with {@link roomPx} stated
+   * beside it as a `max-height`.
+   *
+   * Already re-clamped by the caller ({@link appliedGanttHeight}) — this panel
+   * draws what it is handed.
    */
   heightPx: number | null;
+  /**
+   * The room the column this panel is in has for it, measured
+   * ({@link ganttRoomInColumn}), or `null` where nothing has measured it.
+   *
+   * Applied as the panel's `max-height` in place of the share of the viewport
+   * it used to carry — the panel is bounded by its column, which is the only
+   * box that can hide part of the chart. `null` falls back to `100%`, still the
+   * column and never the window: the column is this panel's containing block.
+   */
+  roomPx?: number | null;
   /**
    * How wide one day is drawn — one of {@link DAY_SCALES}.
    *
@@ -1876,6 +2009,7 @@ function GanttChart({
   startDate,
   generation,
   heightPx,
+  roomPx,
   dayPx,
   onPickDayPx,
   labelsShown,
@@ -2373,11 +2507,39 @@ function GanttChart({
         aria-label="Gantt chart"
         // Its own scroll area, in both directions: the plan above keeps its frame
         // and this takes a bounded share of what is left, so neither the page nor
-        // the section it sits in ever scrolls sideways. `shrink-0` with a max
-        // height rather than a flex basis — the table stays the editor and the
-        // chart takes what it needs up to the cap. A dragged height replaces the
-        // bounded share with its own number, under the live cap that keeps a
-        // height dragged on a tall monitor sane on a laptop.
+        // the section it sits in ever scrolls sideways. A max height rather than
+        // a flex basis — the table stays the editor and the chart takes what it
+        // needs up to the cap. A dragged height replaces the bounded share with
+        // its own number, under {@link roomPx} — the column's own room, measured.
+        //
+        // **`shrink-0` stays, and `gantt-height-column-clamp` asked for it to
+        // go.** The reasoning it was asked on is that a flex item with an
+        // explicit height and no give leaves an over-constrained column nothing
+        // to do but overflow — true, and it is what drew 245px of chart off the
+        // bottom of a window nothing scrolls (Chrome, 2026-08-29). But the
+        // browser resolves an over-constraint by *sharing* it out across every
+        // shrinkable item in proportion to `shrink × flex-basis`, and this
+        // column's other shrinkable item is the table frame, whose basis is its
+        // whole content. At the very height this clamp exists to allow — the
+        // column's room, where the frame must come down to its 20rem floor —
+        // the two would split that deficit and the chart would settle *shorter
+        // than the reader dragged it*, by its share. On the 2026-08-29 numbers:
+        // a 126px deficit split 446:512 leaves the panel at 444.7 where 512 was
+        // asked for. A chart that quietly ignores 67px of a gesture is its own
+        // bug, and it would land on every maximal drag rather than on the
+        // stale-column edge case the give-way was wanted for.
+        //
+        // So containment is the clamp's alone: {@link appliedGanttHeight} and
+        // the `max-height` below, both off one measured room. **Reasoned, not
+        // measured** — the flex resolution above was worked out from the spec
+        // and never watched in a browser, which is exactly what makes it the
+        // first thing to check when this is next opened in Chromium.
+        //
+        // Proof that this class is doing something: with it dropped, `does not
+        // split an over-constraint with the table frame` failed on `expected
+        // false to be true`. That is the class and not the layout — jsdom
+        // measures every box at 0 — and the layout half is a browser's.
+        // Watched 2026-08-29.
         //
         // `isolate` is what keeps the chart's own layering inside the chart. The
         // sticky label column, its corner and the calendar axis stack against
@@ -2416,7 +2578,21 @@ function GanttChart({
         style={
           fullScreen || heightPx === null
             ? undefined
-            : { height: heightPx, maxHeight: `${String(GANTT_VIEWPORT_SHARE * 100)}vh` }
+            : {
+                height: heightPx,
+                // The same bound the height was already clamped to, stated to
+                // the browser as well: `height` comes from a room measured on a
+                // render that has been laid out, and this is what holds the
+                // frame between a column changing and the observer that
+                // re-measures it saying so. No floor beside it — the clamp is
+                // the floor, and a `min-height` here would be a line whose
+                // removal nothing could see.
+                //
+                // Proof: with `'80vh'` restored here, `the panel's ceiling is
+                // its column, not the window` failed on `expected '80vh' to be
+                // '488px'`. Watched 2026-08-29.
+                maxHeight: roomPx ?? '100%',
+              }
         }
         onScroll={(scrollEvent) => {
           setScrolledPx(scrollEvent.currentTarget.scrollLeft);
