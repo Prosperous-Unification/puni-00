@@ -1,15 +1,23 @@
-import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import {
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
 
-/** One thing a row's menu offers: what it is called, and what taking it does. */
-export interface RowAction {
+/** One thing a menu offers: what it is called, and what taking it does. */
+export interface MenuAction {
   /** Stable within one menu — the React key, and what a caller names it by. */
   id: string;
   label: string;
   run: () => void;
   /**
-   * Why this item cannot be taken on this row, or absent when it can.
+   * Why this item cannot be taken here, or absent when it can.
    *
    * **Present-and-refused rather than absent**, which is the whole of what this
    * field buys. A frozen row's menu used to read `Duplicate / Unfreeze` with
@@ -18,18 +26,25 @@ export interface RowAction {
    * drag handle's `aria-disabled` was written for, in a menu.
    *
    * Rendered as the item's `title` and read out as its `aria-disabled`, and
-   * {@link ActionsMenu} refuses `run` while it is set. A reason and a refusal
+   * {@link MenuControl} refuses `run` while it is set. A reason and a refusal
    * from one field, because two fields is how an item comes to explain itself
    * and act anyway.
    */
   refusedBecause?: string;
 }
 
-export interface ActionsMenuProps {
-  /** The work item number this menu acts on, which is what names the button. */
-  number: string;
-  actions: readonly RowAction[];
-  /** Whether this row's menu is the open one. Held by the caller: one at a time. */
+export interface MenuControlProps {
+  /**
+   * The accessible name of the trigger **and** of the menu it opens — one name
+   * for both, because they are one control.
+   */
+  name: string;
+  /** The trigger's hover text, which is not its name: `Row actions` on a ⋯. */
+  title: string;
+  /** What the trigger shows — a glyph, a word, an icon. */
+  children: ReactNode;
+  actions: readonly MenuAction[];
+  /** Whether this menu is the open one. Held by the caller: one at a time. */
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
@@ -39,31 +54,40 @@ export interface ActionsMenuProps {
    */
   busy: boolean;
   /**
-   * Grows the ⋯ button to a 44px tap target, every other pixel unchanged.
-   *
-   * Optional and off by default, so the table's 40px `actions` column — sized
-   * for a mouse, not a finger — keeps the button it has always had. Cards are
-   * the one caller that turns this on.
+   * The trigger's **presentational** props only — className, style, `disabled`,
+   * a `data-` mark. Spread before the ones this component owns, so its name,
+   * its `aria-haspopup`/`aria-expanded`, its `title` and both of its handlers
+   * cannot be overridden by a caller: those are the menu's behaviour, and a
+   * caller that could replace them would be the second copy this component
+   * exists to prevent.
    */
-  touchSized?: boolean;
+  trigger?: ButtonHTMLAttributes<HTMLButtonElement> & { 'data-busy'?: '' };
+  /**
+   * Which edge of the trigger the item box hangs from. `right` for a control at
+   * the right edge of what it sits in, `left` for one in the middle of a row.
+   */
+  align?: 'left' | 'right';
 }
 
 /**
  * The box the items sit in.
  *
- * `right: 0` rather than `left: 0`: `actions` is the last column of the table,
- * and a 140px box hanging off the left edge of a 40px cell would open past the
- * end of the table instead of over it. It escapes the cell for the reason every
+ * `right: 0` is the row menu's: `actions` is the last column of the table, and
+ * a 140px box hanging off the left edge of a 40px cell would open past the end
+ * of the table instead of over it. It escapes the cell for the reason every
  * popover in this table does, and only because it is allowed to — see
  * `POPOVER_COLUMNS` in `wbs-table.tsx`, which exempts the `<td>` from `CELL`'s
  * clip. The z-index is the pickers', above all three of the sticky layers in
  * `table-frame.ts`, because an open menu has to be readable over a pinned
  * column and it closes the moment it has been used.
+ *
+ * A toolbar control is nowhere near an edge and hangs from its `left` instead,
+ * so the items line up under the word that opened them.
  */
-const MENU: CSSProperties = {
+const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '100%',
-  right: 0,
+  [align]: 0,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'stretch',
@@ -75,7 +99,7 @@ const MENU: CSSProperties = {
   borderRadius: 'var(--radius-md)',
   boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
   zIndex: 15,
-};
+});
 
 const ITEM: CSSProperties = {
   font: 'inherit',
@@ -90,10 +114,19 @@ const ITEM: CSSProperties = {
 };
 
 /**
- * One row's actions, behind one ⋯ button — the ARIA menu button pattern, hand
+ * A set of actions behind one button — the ARIA menu button pattern, hand
  * rolled the way `CreatablePicker`'s list is.
  *
- * Two narrowings of that pattern, both deliberate and both written down in
+ * **One copy, two callers, and that is the point.** A row's ⋯ ({@link
+ * ActionsMenu}) and the plan toolbar's `Freeze #` are the same keyboard, and
+ * the keyboard is where this component's history is: the item handler shipped a
+ * modifier guard that returned **without** `preventDefault`, so the browser
+ * fired the button's own click and took the item the guard had just refused
+ * (`AGENTS.md`, R5 #14). A second menu with a second copy of that handler is a
+ * second place for that fault to come back, which is why `plan-toolbar-controls`
+ * generalised this rather than writing one.
+ *
+ * Two narrowings of the ARIA pattern, both deliberate and both written down in
  * `openspec/changes/actions-menu/design.md`. It is **not a focus trap**: Tab
  * closes it and the browser's own Tab carries the focus on from the button,
  * which is what makes a menu in a table walked with Tab bearable. And the DOM
@@ -109,23 +142,29 @@ const ITEM: CSSProperties = {
  * taken the change, so a refused request leaves the focus here, where the
  * person left it.
  *
- * `open` is the caller's to hold, because at most one menu in the table may be
+ * `open` is the caller's to hold, because at most one menu on the page may be
  * open at a time: two open menus are two sets of items with the same accessible
  * names, which is ambiguous to a screen reader and to a test alike.
  */
-export function ActionsMenu({
-  number,
+export function MenuControl({
+  name,
+  title,
+  children,
   actions,
   open,
   onOpen,
   onClose,
   busy,
-  touchSized = false,
-}: ActionsMenuProps): React.JSX.Element {
+  trigger,
+  align = 'right',
+}: MenuControlProps): React.JSX.Element {
   // A menu owns the keyboard while it is open — `CONTEXT.md` says so, and this
   // is where that sentence is true. Cmd+Z fired through an open menu and undid
   // a rename behind it, observed live twice on 2026-08-09; the hook's own JSDoc
-  // has why the chords are still let through to the items below.
+  // has why the chords are still let through to the items below. This is also
+  // the whole of what "the freeze menu joins the inert-while-open set" means:
+  // `onCommandKey` is wired to cells and a toolbar menu is not one, so the
+  // page's own chords are the only ones that could reach past it.
   usePageShortcutsSuspended(open);
 
   const button = useRef<HTMLButtonElement | null>(null);
@@ -141,8 +180,8 @@ export function ActionsMenu({
    * not OK, and this is the failure it hides: the ref callbacks below are the
    * wiring that would break silently, leaving `aria-expanded="true"` on a
    * button that still has the focus and a menu no keyboard can reach. Thrown
-   * from an effect and never from `render`; `wbs-table.tsx` renders this with
-   * two actions and never with none.
+   * from an effect and never from `render`; both callers render this with at
+   * least two actions and never with none.
    * Proof, both halves watched on 2026-08-08: replaced by a bare `return`,
    * `refuses to open with nothing to focus` failed on `expected [Function] to
    * throw an error`; and with the throw in place and the item `ref` callbacks
@@ -153,12 +192,10 @@ export function ActionsMenu({
     if (!open) return;
     const item = itemElements.current.at(active);
     if (item === undefined || item === null) {
-      throw new Error(
-        `The actions menu for ${number} opened with no item ${String(active)} to focus.`,
-      );
+      throw new Error(`The ${name} menu opened with no item ${String(active)} to focus.`);
     }
     item.focus();
-  }, [open, active, number]);
+  }, [open, active, name]);
 
   /**
    * A press anywhere else closes the menu.
@@ -167,7 +204,7 @@ export function ActionsMenu({
    * "somewhere else", and waiting for the click would leave the menu open under
    * a text box that had already taken the caret. The press on this menu's own
    * button is inside the wrapper and so left alone — the button's own click
-   * then closes it, which is what makes ⋯ a toggle.
+   * then closes it, which is what makes the trigger a toggle.
    */
   useEffect(() => {
     if (!open) return undefined;
@@ -189,7 +226,7 @@ export function ActionsMenu({
     button.current?.focus();
   };
 
-  const takeAction = (action: RowAction): void => {
+  const takeAction = (action: MenuAction): void => {
     // Proof: this line removed, `shows its items as unavailable while a request
     // is in flight, and refuses them` failed on `Unable to find an accessible
     // element with the role "menuitem"` — the first Enter took the action and
@@ -217,30 +254,13 @@ export function ActionsMenu({
   return (
     <span ref={wrapper} style={{ position: 'relative', display: 'inline-block' }}>
       <button
+        {...trigger}
         ref={button}
         type="button"
-        // The number, because every row has one of these and `Actions` alone
-        // would name as many buttons as there are rows — to a screen reader and
-        // to a test alike. The items inside can be plainly named precisely
-        // because only one menu is ever open.
-        aria-label={`Actions for ${number}`}
+        aria-label={name}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Row actions"
-        style={
-          touchSized
-            ? {
-                font: 'inherit',
-                lineHeight: 1,
-                padding: '0 4px',
-                minWidth: 44,
-                minHeight: 44,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }
-            : { font: 'inherit', lineHeight: 1, padding: '0 4px' }
-        }
+        title={title}
         onClick={() => {
           if (open) {
             onClose();
@@ -269,10 +289,10 @@ export function ActionsMenu({
           openOnto(0);
         }}
       >
-        ⋯
+        {children}
       </button>
       {open && (
-        <div role="menu" aria-label={`Actions for ${number}`} style={MENU}>
+        <div role="menu" aria-label={name} style={menuBox(align)}>
           {actions.map((action, at) => (
             <button
               key={action.id}
@@ -359,5 +379,74 @@ export function ActionsMenu({
         </div>
       )}
     </span>
+  );
+}
+
+export interface ActionsMenuProps {
+  /** The work item number this menu acts on, which is what names the button. */
+  number: string;
+  actions: readonly MenuAction[];
+  /** Whether this row's menu is the open one. Held by the caller: one at a time. */
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  busy: boolean;
+  /**
+   * Grows the ⋯ button to a 44px tap target, every other pixel unchanged.
+   *
+   * Optional and off by default, so the table's 40px `actions` column — sized
+   * for a mouse, not a finger — keeps the button it has always had. Cards are
+   * the one caller that turns this on.
+   */
+  touchSized?: boolean;
+}
+
+/**
+ * One row's actions, behind one ⋯ button.
+ *
+ * The keyboard, the focus rules and the item guards are all {@link
+ * MenuControl}'s; what is here is the two things that are a *row's*: the name,
+ * and the tap target.
+ *
+ * The name carries the number, because every row has one of these and `Actions`
+ * alone would name as many buttons as there are rows — to a screen reader and
+ * to a test alike. The items inside can be plainly named precisely because only
+ * one menu is ever open.
+ */
+export function ActionsMenu({
+  number,
+  actions,
+  open,
+  onOpen,
+  onClose,
+  busy,
+  touchSized = false,
+}: ActionsMenuProps): React.JSX.Element {
+  return (
+    <MenuControl
+      name={`Actions for ${number}`}
+      title="Row actions"
+      actions={actions}
+      open={open}
+      onOpen={onOpen}
+      onClose={onClose}
+      busy={busy}
+      trigger={{
+        style: touchSized
+          ? {
+              font: 'inherit',
+              lineHeight: 1,
+              padding: '0 4px',
+              minWidth: 44,
+              minHeight: 44,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }
+          : { font: 'inherit', lineHeight: 1, padding: '0 4px' },
+      }}
+    >
+      ⋯
+    </MenuControl>
   );
 }

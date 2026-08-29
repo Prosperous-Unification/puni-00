@@ -242,6 +242,18 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
 }
 
 /**
+ * Freezes the plan's numbering through the toolbar's `Freeze #` menu.
+ *
+ * It was a button on the bar until `plan-toolbar-controls` and is one of two
+ * items behind one control now, so the six measurements below that need a lock
+ * on a row open the menu first. `verify.md` lists them.
+ */
+async function freezeNumbering(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Freeze #' }).click();
+  await page.getByRole('menuitem', { name: 'Freeze numbering' }).click();
+}
+
+/**
  * Opens the first row's earliest-start editor, the way a reader does.
  *
  * The cell is text at rest since `T2 compact-columns`, so there is no date
@@ -2540,7 +2552,7 @@ test.describe('the table, measured by a browser', () => {
     expect(ENVELOPE_NUMBER.length).toBe(NUMBER_ENVELOPE.length);
 
     // Frozen, so the lock is on the row and the measurement includes it.
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
 
     const needed = await numberCellNeeds(page, ENVELOPE_NUMBER);
@@ -2577,7 +2589,7 @@ test.describe('the table, measured by a browser', () => {
     expect(PAST_ENVELOPE_NUMBER.length).toBeGreaterThan(NUMBER_ENVELOPE.length);
     // Frozen, so both rows carry the lock and the two measurements below differ
     // by their numbers and by nothing else.
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
 
     const envelope = await numberCellNeeds(page, ENVELOPE_NUMBER);
@@ -2632,7 +2644,7 @@ test.describe('the table, measured by a browser', () => {
 
     // Frozen, so both carry the lock and the pair differs by its numbers alone
     // — the lock is 20px of the same cell and only one row would have had it.
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
 
     const [shallow, deep] = await Promise.all(CLIPPED_PAIR.map((n) => visibleNumberIn(page, n)));
@@ -2675,7 +2687,7 @@ test.describe('the table, measured by a browser', () => {
     expect(DEEPER_CLIPPED_PAIR[1].startsWith(`${DEEPER_CLIPPED_PAIR[0]}.`)).toBe(true);
     expect(DEEPER_CLIPPED_PAIR[0].split('.').length).toBe(5);
 
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
 
     const [shallow, deep] = await Promise.all(
@@ -2709,7 +2721,7 @@ test.describe('the table, measured by a browser', () => {
     await expect(deepest).toBeVisible();
     expect(DEEPEST_CLIPPED_PAIR[1].startsWith(`${DEEPEST_CLIPPED_PAIR[0]}.`)).toBe(true);
 
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
 
     const [shallow, deep] = await Promise.all(
@@ -3084,7 +3096,7 @@ test.describe('the Number column keeps its figures in a line', () => {
     // Watched 2026-08-12.
     const before = await numberLeftOf(page, '020');
 
-    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await freezeNumbering(page);
     await expect(page.locator('[aria-label="Number is frozen"]').first()).toBeVisible();
 
     // The precondition: a row that did not gain a lock proves nothing.
@@ -3095,5 +3107,121 @@ test.describe('the Number column keeps its figures in a line', () => {
       before,
       1,
     );
+  });
+});
+
+/**
+ * What the folded toolbar's controls asked for at 1280 **before**
+ * `plan-toolbar-controls`, in px — the figure this change is only done if it
+ * beat.
+ *
+ * A pinned number rather than a "narrower than it was" comparison, and that is
+ * the whole of the check: a relative assertion passes on a one-pixel
+ * improvement and on a regression that happens to land under whatever it is
+ * compared against. `AGENTS.md` records exactly this vacuity in
+ * `gantt-calendar-axis`, where a canvas was measured against an axis it had
+ * been sized from.
+ *
+ * **`null`, and the test is `fixme` until it is measured.** The change was
+ * implemented on a machine that could not run Chromium — ports 3100/3200/4200
+ * were held by a dev server, and `bun run e2e` reuses whatever holds them, so a
+ * run there measures another checkout (`LLM_README.md`'s landmine). The
+ * before-figure has to be read off the toolbar as it stood at `b3acb7b`:
+ *
+ * ```sh
+ * git stash                                   # or check out the parent commit
+ * CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts \
+ *   -g 'the folded toolbar fits its budget'   # fails on the null, printing `asked`
+ * ```
+ *
+ * See `openspec/changes/plan-toolbar-controls/verify.md`, "Measurements".
+ *
+ * A function rather than a `const`, and only so that this file's own
+ * `no-unnecessary-condition` lint can still be believed: TypeScript narrows a
+ * `const` initialised to `null` to exactly `null`, and the guard below then
+ * reads as dead code to the rule — which is the shape of a check that cannot
+ * fail. Through a declared return type it stays a real `number | null`.
+ */
+function foldedToolbarControlsBeforePx(): number | null {
+  return null;
+}
+
+/**
+ * The width the toolbar's controls ask for, and the figures that say what
+ * asking for it costs.
+ *
+ * **Not `scrollWidth` alone**, which `design.md` D5 asked for and which cannot
+ * fail here: the toolbar is `flex-wrap`, so it never overflows and its
+ * `scrollWidth` is its `clientWidth` whatever it holds. What shrinks when a
+ * label shrinks is the sum of the controls plus the gaps between them — and
+ * `lines`, the number of rows the bar wraps onto, is what that sum buys.
+ */
+async function foldedToolbarWidth(
+  page: Page,
+): Promise<{ asked: number; scrollWidth: number; clientWidth: number; lines: number }> {
+  return page.evaluate(() => {
+    const toolbar = document.querySelector('[data-toolbar]');
+    if (!(toolbar instanceof HTMLElement)) throw new Error('the plan drew no toolbar');
+    const controls = [...toolbar.children];
+    if (controls.length === 0) throw new Error('the toolbar drew no controls');
+    const style = getComputedStyle(toolbar);
+    const columnGap = Number.parseFloat(style.columnGap);
+    const rowGap = Number.parseFloat(style.rowGap);
+    if (!Number.isFinite(columnGap) || !Number.isFinite(rowGap)) {
+      throw new Error(`the toolbar's gaps do not read as lengths: ${style.columnGap}`);
+    }
+    const tallest = controls.reduce(
+      (highest, control) => Math.max(highest, control.getBoundingClientRect().height),
+      0,
+    );
+    if (tallest === 0) throw new Error('every toolbar control measured zero high');
+    return {
+      asked:
+        controls.reduce((total, control) => total + control.getBoundingClientRect().width, 0) +
+        columnGap * (controls.length - 1),
+      scrollWidth: toolbar.scrollWidth,
+      clientWidth: toolbar.clientWidth,
+      lines: Math.round((toolbar.getBoundingClientRect().height + rowGap) / (tallest + rowGap)),
+    };
+  });
+}
+
+test.describe('the plan toolbar’s own width', () => {
+  test('the folded toolbar fits its budget', async ({ page }) => {
+    // The point of `plan-toolbar-controls` was bar width, so the change is only
+    // done if the bar got narrower — measured, against a number, at the one
+    // viewport that number was taken at.
+    //
+    // Negative: `Expand all`'s and `Collapse all`'s words restored on the face
+    // of the two icon buttons, watched failing against the pinned figure.
+    // **Not yet watched** — see the figure above and `verify.md`.
+    const pinned = foldedToolbarControlsBeforePx();
+    test.fixme(
+      pinned === null,
+      'the pre-change figure is not measured yet — openspec/changes/plan-toolbar-controls/verify.md',
+    );
+    if (pinned === null) throw new Error('the pre-change figure is not measured yet');
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // Folded: no role unfolded and nothing typed in Find, which is the state
+    // the figure was taken in. Both are the default on a fresh plan, and are
+    // asserted rather than assumed — a toolbar also carrying a `1 of 2 rows`
+    // count is a different bar being measured.
+    await expect(page.getByLabel('Find')).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'Expand all' })).toBeVisible();
+
+    const measured = await foldedToolbarWidth(page);
+
+    expect(measured.asked, 'the toolbar asks for more room than it did before').toBeLessThanOrEqual(
+      pinned,
+    );
+    // The bar never overflows — it wraps — so this is a precondition on the
+    // measurement rather than the measurement itself: were it ever to fail, the
+    // `asked` figure above would be describing a bar that scrolls and `lines`
+    // would mean nothing.
+    expect(measured.scrollWidth).toBeLessThanOrEqual(measured.clientWidth);
+    // And what the room bought: `configurable-columns` measured a thirteenth
+    // control pushing this row to three lines at 1280.
+    expect(measured.lines, 'the toolbar wraps onto more rows than it did').toBeLessThanOrEqual(2);
   });
 });

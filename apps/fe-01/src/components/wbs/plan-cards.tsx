@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/modal';
 import type { Days, PriorityBandView, RoleView } from '@/lib/wbs-api';
 
-import { ActionsMenu, type RowAction } from './actions-menu';
+import { ActionsMenu, type MenuAction } from './actions-menu';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import {
@@ -397,7 +397,7 @@ export interface CardRowActionHandlers {
  * same refusal sentence on a frozen row — so a phone and a laptop read one
  * menu rather than a card inventing a second one.
  */
-const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): RowAction[] => [
+const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   {
     id: 'duplicate',
     label: 'Duplicate',

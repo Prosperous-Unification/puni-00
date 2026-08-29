@@ -13,8 +13,11 @@ import { cn } from '@/lib/utils';
  * This is the shadcn registry's own variant table with two removals. There is
  * no `asChild`, because it needs `@radix-ui/react-slot` and nothing in this app
  * renders a button as a link. And there is no `icon` size with a lucide glyph
- * in it: the icons this app has are text (`✕`, `⌨`), and a dependency added for
- * a component nothing renders is a dependency nobody maintains.
+ * in it: this app's icons are its own — text where a codepoint reads (`✕`) and
+ * inline SVG where one does not (`wbs/toolbar-icons.tsx`, since the plan
+ * toolbar's `⌨` turned out to be a hairline outline on macOS) — and a
+ * dependency added for a component nothing renders is one nobody maintains.
+ * `size="square"` is what those icon buttons take.
  *
  * **`border-0 bg-transparent` in the base is the one addition**, and it is here
  * rather than in `styles.css`'s reset on purpose. The registry assumes preflight

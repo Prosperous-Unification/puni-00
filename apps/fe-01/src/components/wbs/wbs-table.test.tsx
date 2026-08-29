@@ -644,6 +644,23 @@ const openRowMenu = (number: string) => {
 };
 
 /**
+ * Opens the toolbar's `Freeze #` menu and takes one of its two items.
+ *
+ * `Freeze numbering` and `Unfreeze all` were two buttons on the bar until
+ * `plan-toolbar-controls`; they are the items of one menu now, so every case
+ * that took either of them opens the menu first. Each such case is listed
+ * individually in that change's `verify.md` — a test that changed shape is a
+ * place the "same behaviour" claim is asserted rather than observed.
+ *
+ * The item names are unqualified, which is only unambiguous because a row's ⋯
+ * calls its own item `Unfreeze` rather than `Unfreeze all`.
+ */
+const takeFreezeAction = (label: string) => {
+  click('Freeze #');
+  fireEvent.click(screen.getByRole('menuitem', { name: label }));
+};
+
+/**
  * Opens a row's ⋯ menu and takes one of its items.
  *
  * The items are named plainly — `Duplicate`, not `Duplicate 010` — which is
@@ -1248,7 +1265,7 @@ describe('the WBS table', () => {
     click('Add work item');
     await screen.findByLabelText('Name of 010');
 
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
 
     await waitFor(() => {
       expect(screen.getByLabelText('Number is frozen')).toBeDefined();
@@ -1295,7 +1312,7 @@ describe('duplicating a branch', () => {
     const api = fakeApi();
     await shownRow(api);
 
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getByLabelText('Number is frozen')).toBeDefined();
     });
@@ -1474,7 +1491,7 @@ describe('the row actions menu', () => {
   itDom('gives the focus back to the ⋯ button after unfreezing', async () => {
     const api = fakeApi();
     await threeRows(api);
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
@@ -1497,7 +1514,7 @@ describe('the row actions menu', () => {
     // the same answer the drag handle gives on a frozen row.
     const api = fakeApi();
     await threeRows(api);
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
@@ -5358,7 +5375,7 @@ describe('dragging a row', () => {
     // returned on its null check and the frozen rule was never reached. Deleting
     // that rule left it passing. Both reviewers found it; it drags for real now.
     const api = await threeRoots();
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
@@ -5437,7 +5454,7 @@ describe('the drag handle as assistive technology meets it', () => {
 
   itDom('says on itself why a frozen row will not move', async () => {
     await threeRoots();
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
@@ -6864,7 +6881,7 @@ describe('moving rows with alt and the arrows', () => {
 
   itDom('refuses to move a frozen row and says why', async () => {
     const api = await threeRoots();
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
@@ -11127,13 +11144,13 @@ describe('a click made while a save is in flight', () => {
     await waitFor(() => {
       expect(toolbar.getAttribute('aria-busy')).toBe('true');
     });
-    // Takeable throughout, unlike `Freeze all` beside it: the click is queued
+    // Takeable throughout, unlike `Freeze #` beside it: the click is queued
     // rather than refused, which is the whole of `add-item-drops-clicks`.
     expect(add).toHaveProperty('disabled', false);
-    expect(screen.getByRole('button', { name: 'Freeze numbering' })).toHaveProperty(
-      'disabled',
-      true,
-    );
+    // The freeze menu's **trigger**, since `plan-toolbar-controls`: the two
+    // writes it holds were `disabled={busy}` buttons, and the one control that
+    // replaced them carries the same refusal in the same place.
+    expect(screen.getByRole('button', { name: 'Freeze #' })).toHaveProperty('disabled', true);
     expect(add.style.cursor).toBe('progress');
     expect(add.hasAttribute('data-busy')).toBe(true);
 
@@ -11160,6 +11177,157 @@ describe('a click made while a save is in flight', () => {
     expect(undo).toHaveProperty('disabled', true);
     expect(undo.style.cursor).toBe('');
     expect(undo.hasAttribute('data-busy')).toBe(false);
+  });
+});
+
+describe('the plan toolbar’s controls', () => {
+  /** Every control on the toolbar row, by the name a reader is told it has. */
+  const toolbarControlNames = (): string[] => {
+    const toolbar = document.querySelector<HTMLElement>('[data-toolbar]');
+    if (toolbar === null) throw new Error('the table rendered no toolbar');
+    return within(toolbar)
+      .getAllByRole('button')
+      .map((control) => control.getAttribute('aria-label') ?? control.textContent.trim());
+  };
+
+  itDom('one control offers both writes', async () => {
+    // The spec's first scenario, and the shape of the argument for it: a plan
+    // may be **partly** frozen — a row's own ⋯ unfreezes one row — so the two
+    // writes are not a toggle and must not be offered as one. One control, two
+    // items, both always there.
+    //
+    // Proof: `Unfreeze all` put back on the bar as a second `<Button>` beside
+    // the menu, this failed on `expected [ 'Freeze #', 'Unfreeze all' ] to
+    // deeply equal [ 'Freeze #' ]`. Watched, 2026-08-29.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByRole('button', { name: 'Add work item' });
+
+    expect(toolbarControlNames().filter((name) => /freeze/i.test(name))).toEqual(['Freeze #']);
+
+    click('Freeze #');
+
+    expect(screen.getByRole('menuitem', { name: 'Freeze numbering' })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: 'Unfreeze all' })).toBeDefined();
+    // Neither is refused on a plan in no particular state: `Unfreeze all` with
+    // nothing frozen is a no-op write, which is what it was as a button.
+    for (const label of ['Freeze numbering', 'Unfreeze all']) {
+      expect(screen.getByRole('menuitem', { name: label }).getAttribute('aria-disabled')).toBe(
+        'false',
+      );
+    }
+  });
+
+  itDom('takes each of the two writes when its item is taken', async () => {
+    // The writes themselves, once, at the new entry point — the eight cases
+    // re-pointed through `takeFreezeAction` say what freezing *does* to a row,
+    // and this one says the menu is wired to the two calls at all.
+    const api = fakeApi();
+    const asked: string[] = [];
+    api.freeze = () => {
+      asked.push('freeze');
+      return Promise.resolve();
+    };
+    api.unfreezeProject = () => {
+      asked.push('unfreeze-all');
+      return Promise.resolve();
+    };
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByRole('button', { name: 'Add work item' });
+
+    takeFreezeAction('Freeze numbering');
+    await waitFor(() => {
+      expect(asked).toEqual(['freeze']);
+    });
+
+    takeFreezeAction('Unfreeze all');
+    await waitFor(() => {
+      expect(asked).toEqual(['freeze', 'unfreeze-all']);
+    });
+  });
+
+  itDom('⌘+Z is inert while the freeze menu is open, and works again once it closes', async () => {
+    // The freeze menu joining the inert-while-open set, which for a **toolbar**
+    // menu is the page's own chords and nothing else: `onCommandKey` is wired
+    // to cells, and a menu item is not a cell, so a Ctrl+N fired at one could
+    // never have reached the plan and a test that fired it there could not
+    // fail. What can reach past an open menu is the page-level chord, and this
+    // is it — the same fault `⌘+Z is inert while a row’s ⋯ menu is open`
+    // watched on 2026-08-09, one menu along.
+    //
+    // Proof: `usePageShortcutsSuspended(open)` pinned to `false` in
+    // `MenuControl`, this failed on `expected [ 'undo' ] to deeply equal []`.
+    // Watched, 2026-08-29.
+    const api = await threeRoots();
+    api.answerStackWith({ ok: true, done: 'rename “Strip”', detail: null });
+    click('Freeze #');
+    const item = screen.getByRole('menuitem', { name: 'Freeze numbering' });
+
+    fireEvent.keyDown(item, { key: 'z', ctrlKey: true });
+
+    expect(api.stackCalls).toEqual([]);
+    // Still open: the chord was swallowed, not turned into a dismissal.
+    expect(screen.getByRole('menu', { name: 'Freeze #' })).toBeDefined();
+
+    fireEvent.keyDown(item, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('table'), { key: 'z', ctrlKey: true });
+
+    await waitFor(() => {
+      expect(api.stackCalls).toEqual(['undo']);
+    });
+  });
+
+  itDom('the controls are found by the names they always had', async () => {
+    // The expand/collapse pair as icon buttons. The names are the thing that
+    // did **not** change, and the proof that they held is the eight existing
+    // `Expand all`/`Collapse all` cases elsewhere in this file passing
+    // unchanged — this one adds only the half those cannot see: that the words
+    // are no longer on the face of the button.
+    //
+    // Proof: `aria-label` dropped from `Collapse all`, this failed on `Unable
+    // to find role="button" and name "Collapse all"` — and four cases that
+    // were not touched at all failed with it, which is the half that matters:
+    // `the expansion controls stand down while a search is on`, `collapses
+    // every branch and opens them all again`, `remembers each project
+    // separately`, and `stands the expansion controls down while a facet is on
+    // with nothing typed`. Two more in `plan-cards.test.tsx`. Watched,
+    // 2026-08-29.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    const collapse = await screen.findByRole('button', { name: 'Collapse all' });
+    const expand = screen.getByRole('button', { name: 'Expand all' });
+
+    expect(collapse.textContent).toBe('');
+    expect(expand.textContent).toBe('');
+    expect(collapse.querySelector('svg')).not.toBeNull();
+    expect(expand.querySelector('svg')).not.toBeNull();
+    // The hover words stay, which is the sighted reader's half of the name.
+    expect(collapse.getAttribute('title')).toBe('Close every branch');
+    expect(expand.getAttribute('title')).toBe('Open every branch');
+    // Two shapes, not one rotated: a plan-wide control and a row's `▾`/`▸` must
+    // not be the same drawing with two meanings.
+    expect(collapse.querySelector('svg')?.innerHTML).not.toBe(
+      expand.querySelector('svg')?.innerHTML,
+    );
+  });
+
+  itDom('the cheat sheet control carries a drawn icon', async () => {
+    // `⌨` (U+2328) has no colour presentation on macOS and renders as a
+    // hairline outline in the UI font at button size — the control's meaning
+    // was carried entirely by a codepoint whose rendering the app does not
+    // control.
+    //
+    // Proof: `⌨` put back as the button's child beside the icon, this failed on
+    // `expected '⌨' to be ''`. Watched, 2026-08-29.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    const control = await screen.findByRole('button', { name: 'Keyboard shortcuts' });
+
+    expect(control.textContent).toBe('');
+    const drawn = control.querySelector('svg');
+    expect(drawn).not.toBeNull();
+    expect(drawn?.getAttribute('aria-hidden')).toBe('true');
+    expect(drawn?.getAttribute('stroke')).toBe('currentColor');
   });
 });
 
@@ -12373,7 +12541,7 @@ describe('the command chords', () => {
 
   itDom('a frozen row refuses to arm and says how to unfreeze it', async () => {
     const api = await threeRoots();
-    click('Freeze numbering');
+    takeFreezeAction('Freeze numbering');
     await waitFor(() => {
       expect(api.rows[1]?.frozenNumber).toBe('020');
     });
@@ -13348,8 +13516,18 @@ describe('a phase changing, and what the table does about it', () => {
 
     // A reread of the whole project, which is what any edit and any socket
     // event makes this table do.
+    //
+    // Two changes of shape here, both `plan-toolbar-controls`', and neither a
+    // change of subject. The write is a **menu item** now, so it is taken
+    // outside the `act` — an async `act` batches its callback's updates until
+    // the end, so the menu the click opens is not on the page for the click
+    // that takes the item. And the caret is put back by hand, because every
+    // menu here returns the focus to its own trigger on the way out. The fault
+    // watched is unchanged: a reread that rebuilt the columns unmounts `box`,
+    // and the focus on a detached node is `<body>`.
+    takeFreezeAction('Freeze numbering');
+    box.focus();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Freeze numbering' }));
       await new Promise((resume) => setTimeout(resume, 0));
     });
 

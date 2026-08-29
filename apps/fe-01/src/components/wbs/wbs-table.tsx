@@ -26,7 +26,7 @@ import {
   useState,
 } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
@@ -48,7 +48,7 @@ import {
   type SliceView,
 } from '@/lib/wbs-api';
 
-import { ActionsMenu } from './actions-menu';
+import { ActionsMenu, MenuControl } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { type ColumnHintState, hintFor, ROLE_FINAL_HINT } from './column-hints';
@@ -163,6 +163,7 @@ import {
 } from './table-frame';
 import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
+import { CollapseIcon, ExpandIcon, KeyboardIcon } from './toolbar-icons';
 import {
   type FacetCriteria,
   type FilterCriteria,
@@ -1791,8 +1792,8 @@ function closingControlIn(target: EventTarget | null, surface: Element): HTMLBut
  *
  * - **`Add work item`**, which asks for the caret in the new row's name.
  * - **The readiness badge**, which walks to the cell estimating the next gap.
- * - **`⌨`**, which opens the cheat sheet — a dialog that focuses its own panel
- *   on mount and restores on unmount. Radix's restore lands on a timer, so it
+ * - **`Keyboard shortcuts`**, which opens the cheat sheet — a dialog that
+ *   focuses its own panel on mount and restores on unmount. Radix's restore lands on a timer, so it
  *   arrives *after* that and takes the focus off a dialog that is still open;
  *   measured in jsdom, where the panel had the focus with the restore refused
  *   and the `Plan actions` trigger had it without.
@@ -1803,8 +1804,8 @@ function closingControlIn(target: EventTarget | null, surface: Element): HTMLBut
  * rather than a thing to suppress. Suppressing it left them on `<body>`.
  *
  * Not `data-lands-in-plan`, which is what the first two do and what the review
- * asked for: `⌨` lands in a dialog instead, and a name that described two of
- * the three would be a name the third is filed under wrongly.
+ * asked for: the cheat sheet lands in a dialog instead, and a name that
+ * described two of the three would be a name the third is filed under wrongly.
  *
  * A DOM attribute rather than a list of labels here: the control that knows it
  * moves the focus is the control that says so, and a list would go stale the
@@ -3023,6 +3024,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * click, or every cell in the table remounts under the menu that was opened.
    */
   const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
+  /**
+   * Whether the toolbar's `Freeze #` menu is open.
+   *
+   * Its own flag rather than a place in {@link openMenuRowId}, because that one
+   * answers "which **row**", and the freeze menu belongs to the plan. The two
+   * may be open at once and no name collides when they are: the items here are
+   * `Freeze numbering` and `Unfreeze all`, a row's are `Duplicate`, `Unfreeze`
+   * and `Delete`.
+   *
+   * Not read by `columns` and it must not become so — landmine #1: a dependency
+   * that changes on a click remounts every cell in the table.
+   */
+  const [freezeMenuOpen, setFreezeMenuOpen] = useState(false);
   /**
    * The row one Ctrl+D has pointed at, waiting for the second one that deletes
    * it — or null, which is almost always.
@@ -9127,7 +9141,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // Present and refused on a frozen row rather than absent, and
                   // it carries the real `run` deliberately: an item whose action
                   // was stubbed out could not tell a working guard from a
-                  // missing one. {@link RowAction.refusedBecause} is what stops
+                  // missing one. {@link MenuAction.refusedBecause} is what stops
                   // it, and the test that watches it stop is the proof.
                   ...(row.original.frozenNumber === null
                     ? {}
@@ -9673,26 +9687,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const toolbarControls = (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        type="button"
-        onClick={() => void run(() => api.freeze(projectId))}
-        disabled={busy}
-        {...busyAffordance(busy)}
+      {/*
+        Both writes on the numbering, behind one control.
+
+        **A menu and not a toggle**, and that is the whole of `design.md` D4:
+        `Freeze numbering` freezes every current number and `Unfreeze all`
+        releases every frozen row, but a plan may be **partly** frozen — a row's
+        own ⋯ unfreezes one — so an `aria-pressed` button or a label that
+        swapped would claim a state this project does not have.
+
+        Both items are always present and both are enabled while the toolbar is
+        not busy. `Unfreeze all` on a plan with nothing frozen is a no-op write,
+        which is exactly what it was as a button; making it conditional would
+        need an "is anything frozen" read the toolbar does not have.
+
+        The trigger carries `disabled={busy}` and the affordance for the reason
+        the two buttons did: these are the plan's writes, and a click during a
+        refetch is a click be-01 would answer 409 to.
+      */}
+      <MenuControl
+        name="Freeze #"
+        title="Freeze the numbering as it stands, or release every frozen row"
+        align="left"
+        open={freezeMenuOpen}
+        onOpen={() => {
+          setFreezeMenuOpen(true);
+        }}
+        onClose={() => {
+          setFreezeMenuOpen(false);
+        }}
+        busy={busy}
+        actions={[
+          {
+            id: 'freeze',
+            label: 'Freeze numbering',
+            run: () => void run(() => api.freeze(projectId)),
+          },
+          {
+            id: 'unfreeze-all',
+            label: 'Unfreeze all',
+            run: () => void run(() => api.unfreezeProject(projectId)),
+          },
+        ]}
+        trigger={{
+          className: buttonVariants({ variant: 'outline', size: 'sm' }),
+          disabled: busy,
+          ...busyAffordance(busy),
+        }}
       >
-        Freeze numbering
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        type="button"
-        onClick={() => void run(() => api.unfreezeProject(projectId))}
-        disabled={busy}
-        {...busyAffordance(busy)}
-      >
-        Unfreeze all
-      </Button>
+        Freeze #
+      </MenuControl>
       <Button
         size="sm"
         type="button"
@@ -9717,14 +9761,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         Disabled while the Find box holds something, for the reason the
         triangles are hidden then: what is open during a search is the
         search's answer, and a button that appeared to do nothing would read
-        as broken. Not disabled by `busy`, unlike the buttons above: neither
+        as broken. Not disabled by `busy`, unlike the control above: neither
         asks be-01 for anything.
+
+        **Icon buttons whose names did not change.** Eighteen characters of a
+        width-constrained bar said what a chevron says, so the words moved from
+        the face of the button into its `aria-label` — which is where the two
+        facts "a smaller thing" and "the same control" are made one, exactly as
+        `project-page.tsx`'s `✎` already does. Every existing test and every
+        screen-reader path still finds `Expand all` and `Collapse all`, and that
+        the old cases pass **unchanged** is the proof the names held.
+
+        The chevron pair points apart to open and together to close, which is
+        deliberately **not** the `▾`/`▸` a row's own disclosure control uses:
+        one shape with a per-row meaning and a per-plan meaning is a shape a
+        reader disambiguates by position. See `toolbar-icons.tsx`.
       */}
       <Button
         variant="outline"
-        size="sm"
+        size="square"
         type="button"
         disabled={filtering}
+        aria-label="Collapse all"
         title={
           filtering
             ? 'Clear the filter first — a filter opens whatever it has to.'
@@ -9734,13 +9792,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           setExpanded({});
         }}
       >
-        Collapse all
+        <CollapseIcon />
       </Button>
       <Button
         variant="outline"
-        size="sm"
+        size="square"
         type="button"
         disabled={filtering}
+        aria-label="Expand all"
         title={
           filtering
             ? 'Clear the filter first — a filter opens whatever it has to.'
@@ -9750,7 +9809,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           setExpanded(true);
         }}
       >
-        Expand all
+        <ExpandIcon />
       </Button>
       {/*
         The schedule as something to look at, under the plan. `aria-pressed`
@@ -10029,7 +10088,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           setCheatSheetOpen(true);
         }}
       >
-        ⌨
+        {/*
+          Drawn, not named. This was `⌨` (U+2328) until 2026-08-29, and macOS
+          has no colour presentation for it: the system font falls back to a
+          hairline outline that is illegible at button size, and what the
+          control meant was carried entirely by a codepoint the app does not
+          control the rendering of.
+        */}
+        <KeyboardIcon />
       </Button>
       {/*
         Sharing the plan, which is what most of it is written for. All four

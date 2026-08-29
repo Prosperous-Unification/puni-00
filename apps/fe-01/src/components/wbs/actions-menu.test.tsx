@@ -2,7 +2,7 @@ import { cleanup, createEvent, fireEvent, render, screen } from '@testing-librar
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ActionsMenu, type RowAction } from './actions-menu';
+import { ActionsMenu, type MenuAction } from './actions-menu';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -22,7 +22,7 @@ function Harness({
   actions,
   busy = false,
 }: {
-  actions: readonly RowAction[];
+  actions: readonly MenuAction[];
   busy?: boolean;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -46,7 +46,7 @@ function Harness({
 }
 
 /** Two actions that record being taken, which is all the menu owes its caller. */
-function twoActions(taken: string[]): RowAction[] {
+function twoActions(taken: string[]): MenuAction[] {
   return [
     {
       id: 'duplicate',

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -1016,7 +1016,57 @@ describe('the toolbar sheet', () => {
     openTheSheet();
 
     expect(await screen.findByRole('button', { name: 'Add work item' })).toBeInTheDocument();
+    // Still found by the name it always had, now that it shows a chevron
+    // instead of the words — `plan-toolbar-controls`, and the whole point of
+    // holding the accessible name constant.
     expect(screen.getByRole('button', { name: 'Collapse all' })).toBeInTheDocument();
+  });
+
+  /**
+   * The sheet is `toolbarControls` rendered in a second place, so the freeze
+   * menu reaches the phone by construction — what this asserts is that it
+   * arrives as **one** entry and that it opens where a phone can read it.
+   *
+   * The trigger is exempt from the sheet's own close for `PhasesDialog`'s
+   * reason and by `PhasesDialog`'s mechanism: `closingControlIn` leaves a
+   * control carrying `aria-haspopup` alone, and closing the sheet on the click
+   * that opened the menu would unmount the menu with it.
+   *
+   * Proof: `Freeze numbering` and `Unfreeze all` put back as two `<Button>`s on
+   * `toolbarControls`, this failed on `expected [ 'Freeze #', 'Freeze
+   * numbering', 'Unfreeze all' ] to deeply equal [ 'Freeze #' ]`. Watched,
+   * 2026-08-29.
+   */
+  itDom('offers freezing once, as a menu that opens on the sheet', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+    const sheet = await screen.findByRole('dialog', { name: 'Plan actions' });
+
+    const freezing = within(sheet)
+      .getAllByRole('button')
+      .map((control) => control.getAttribute('aria-label') ?? control.textContent.trim())
+      .filter((name) => /freeze/i.test(name));
+    expect(freezing).toEqual(['Freeze #']);
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Freeze #' }));
+
+    // Open, and the sheet still under it.
+    expect(screen.getByRole('menuitem', { name: 'Freeze numbering' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Unfreeze all' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add work item' })).toBeInTheDocument();
+
+    // And taking an item is taking it on the plan, so the sheet goes: the item
+    // is a plain `<button>` and `closingControlIn` closes on exactly those.
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Freeze numbering' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Add work item' })).toBeNull();
+    });
   });
 
   /**
@@ -1156,7 +1206,7 @@ describe('the toolbar sheet', () => {
    * `data-lands-in-plan`: the cheat sheet focuses its own panel as it mounts,
    * and Radix's restore arrives on a timer after that.
    *
-   * Proof: the `data-takes-the-focus` attribute struck off the `⌨` button, this
+   * Proof: the `data-takes-the-focus` attribute struck off the `Keyboard shortcuts` button, this
    * failed on `expected <button …(5)></button> to be <div role="dialog" …(4)>
    * …(6)</div>` — the focus pulled off a dialog that was still open, leaving
    * its Escape (listened for on the backdrop) with nothing to hear it. Watched,

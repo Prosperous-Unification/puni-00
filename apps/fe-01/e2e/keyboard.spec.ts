@@ -424,6 +424,49 @@ test.describe('the command chords, in a browser', () => {
     await expect(page.getByRole('menu')).toHaveCount(0);
   });
 
+  test('a modified Enter or Space on a freeze menu item takes nothing', async ({ page }) => {
+    // The same leak, on the plan's own menu, and **jsdom cannot be this test's
+    // oracle**. A `<button>` fires a click of its own from Enter and from Space
+    // unless the keydown was prevented; jsdom performs no default action at
+    // all, so the unit suite can see the modifier guard deleted and can never
+    // see it left half-done — which is exactly how R5 #14 shipped. The item
+    // handler is `MenuControl`'s and shared with a row's ⋯, so this is the
+    // second caller of one guard rather than a second guard; the check is here
+    // because a second **caller** is a second way to reach it.
+    //
+    // `Unfreeze all` on a frozen plan, because a no-op write leaves nothing to
+    // observe: the lock on the rows is what says the item did or did not run.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
+
+    await page.getByRole('button', { name: 'Freeze #' }).click();
+    await page.getByRole('menuitem', { name: 'Freeze numbering' }).click();
+    const locks = page.locator('[aria-label="Number is frozen"]');
+    await expect(locks).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'Freeze #' }).click();
+    const unfreeze = page.getByRole('menuitem', { name: 'Unfreeze all' });
+    // The menu opens onto its first item, so the arrow is how the second one is
+    // reached — and a modified key aimed at the *wrong* item would prove
+    // nothing about the item it was aimed at.
+    await page.keyboard.press('ArrowDown');
+    await expect(unfreeze).toBeFocused();
+
+    for (const chord of ['ControlOrMeta+Enter', 'Shift+Enter', 'Shift+Space']) {
+      await page.keyboard.press(chord);
+      await page.waitForTimeout(200);
+      // Nothing released, and the menu still open under the hand reading it:
+      // an item that ran would have closed it on the way out.
+      expect(await locks.count(), `after ${chord}`).toBe(2);
+      await expect(unfreeze, `after ${chord}`).toBeVisible();
+      await expect(unfreeze, `after ${chord}`).toBeFocused();
+    }
+
+    // And the bare key still does what the menu is for.
+    await page.keyboard.press('Enter');
+    await expect(locks).toHaveCount(0);
+    await expect(page.getByRole('menu')).toHaveCount(0);
+  });
+
   test('a modified Enter, Space or ↓ does not open the ⋯ menu', async ({ page }) => {
     // The same fault one handler along, and a direct one rather than a default
     // click: the opening button recognized Enter, Space and ↓ and opened on

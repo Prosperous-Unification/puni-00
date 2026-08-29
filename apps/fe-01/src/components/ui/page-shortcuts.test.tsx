@@ -313,7 +313,7 @@ describe('a modal holds the page’s keyboard back', () => {
         </ModalContent>
       </Modal>,
     );
-    const behind = screen.getByRole('button', { name: 'Freeze numbering' });
+    const behind = screen.getByRole('button', { name: 'Freeze #' });
 
     press(behind, { key: 'z', metaKey: true });
     await settle();
@@ -338,7 +338,7 @@ describe('a modal holds the page’s keyboard back', () => {
     // aimed at a box somebody is typing in, so a Cmd+Z on a cell is one the
     // page would never have acted on and a test that pressed it there could
     // not fail. Tab out of the untrapped sheet reaches exactly this button.
-    const behind = screen.getByRole('button', { name: 'Freeze numbering' });
+    const behind = screen.getByRole('button', { name: 'Freeze #' });
 
     press(behind, { key: 'z', metaKey: true });
 
