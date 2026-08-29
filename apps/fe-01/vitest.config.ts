@@ -46,6 +46,32 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    /**
+     * The clock every test reads, pinned.
+     *
+     * `plan-mermaid.test.ts` parses its own emitted gantt with the real Mermaid
+     * lexer and asserts the `Date` that comes back, serialised with
+     * `.toISOString()`. Mermaid builds that `Date` from a bare `YYYY-MM-DD` at
+     * **local** midnight, so on a host at UTC+3 the same correct source parses
+     * to `2026-09-03T21:00:00Z` where the test says `2026-09-04T00:00:00Z`, and
+     * two cases fail for the tester's region rather than for the code.
+     *
+     * What is pinned here is the oracle, not a defect: the app emits a date
+     * string, which carries no offset, and nothing a reader sees changes with
+     * the host clock. CI has always run near UTC, so this makes every machine
+     * agree with the gate people already trust instead of the other way round.
+     *
+     * It is a workaround, not the fix. Those two assertions compare a UTC
+     * serialisation of a local-midnight `Date`; they should compare the local
+     * calendar day. Until they do, an unpinned run of this suite means
+     * something different in Kyiv than in CI.
+     */
+    // NOT set here: `test.env` writes `process.env` after the worker has
+    // started, and the timezone is read once before a test file loads, so
+    // `env: { TZ: 'UTC' }` changes nothing (watched: still 2 failed | 47
+    // passed). It is on the `test` target's command in `project.json`, which
+    // is before the process exists. Run this suite by hand the same way:
+    // `TZ=UTC bunx vitest run`.
     setupFiles: ['./vitest.setup.ts'],
     // The second pattern is not decoration: `vite-config.test.ts` lives beside
     // the config it describes, `src/**` never reached it, and so it had never

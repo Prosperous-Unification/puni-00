@@ -85,6 +85,20 @@ export default defineConfig({
     : [['list']],
   use: {
     baseURL: 'http://localhost:4200',
+    // The browser's region, pinned, because two checks in `keyboard.spec.ts`
+    // type a date into a native `<input type="date">` digit by digit and the
+    // field's segment order is the locale's. `05202026` is 20 May 2026 only
+    // where the order is month-day-year; on an `en-UA` host Chrome renders
+    // `dd.mm.yyyy` and the same keystrokes save 2026-02-05, so both cases fail
+    // for the tester's region rather than for the code. Measured on a
+    // developer's Mac, 2026-08-29: 203 passed / 3 failed, two of them these.
+    //
+    // `en-US` and not the host's, deliberately: this gate is a contract about
+    // what the application draws, and a contract that means something different
+    // per tester is not one. A check that a reader's own region is honoured
+    // would be a different test, and it does not exist yet.
+    locale: 'en-US',
+    timezoneId: 'UTC',
     screenshot: 'only-on-failure',
     // Keep the diagnostic trace when a check fails, but do not archive a trace
     // for every passing layout assertion. With 194 passing checks, `on` made

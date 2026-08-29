@@ -264,7 +264,8 @@
       did not. Task set to `state: review`; the main session reviews the four
       watched paths (`drizzle/**`, `libs/domain/**`, `service/schedule.ts`, auth)
       and merges.
-- [ ] 9.5 `LLM_README.md`'s wbs-mcp entry says **43 MCP tools**, and section 4's
+- [x] 9.5 `LLM_README.md`'s wbs-mcp entry says **43 MCP tools**, and section 4's
+      **Closed 2026-08-29 without work:** `LLM_README.md` reads 20 MCP tools and the live server exposes exactly 20 (counted 2026-08-29); the 43→47 premise did not survive `plan-commands`.
       four service routes make it **47**. Corrected there when this lands, not
       before: the number describes what is on `main`.
 

@@ -64,7 +64,8 @@ for, so every existing caller is unchanged`, `names the bundled Mermaid
 
 - [x] 5.1 `proposal.md`, this file, the delta spec, `verify.md`. **No
       `design.md`**, no citation table: PoC-mode contract, 2026-08-14.
-- [ ] 5.2 **Not done here: the Download as Markdown document button.**
+- [x] 5.2 **Not done here: the Download as Markdown document button.**
+      **Closed 2026-08-29 without work:** wire-export-buttons 1.1/2.1 built `copyAsMermaid` and `downloadMermaidDocument`; both controls are in `wbs-table.tsx`.
       `wbs-table.tsx` is another agent's file tonight, the same constraint M1
       shipped under. Left unticked deliberately — M2 is not reachable from the
       app until it lands. The patch is not drafted in `verify.md` this time

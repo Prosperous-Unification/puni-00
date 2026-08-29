@@ -71,7 +71,8 @@ in a circle`. Negative test: the `seen` set removed — verify.md fault 2,
 
 - [x] 6.1 `proposal.md`, this file, the delta spec, `verify.md`. **No
       `design.md`** and no citation table: PoC-mode contract, 2026-08-14.
-- [ ] 6.2 **Not done here: the Copy as Mermaid button.** `wbs-table.tsx` is
+- [x] 6.2 **Not done here: the Copy as Mermaid button.** `wbs-table.tsx` is
+      **Closed 2026-08-29 without work:** wire-export-buttons 1.1 built `copyAsMermaid`; the control is in `wbs-table.tsx`.
       another agent's file this afternoon and this change was told not to touch
       it. The exact patch — handler, button, and the test it needs — is in
       `verify.md`. Left unticked deliberately: M1 is not on screen until it

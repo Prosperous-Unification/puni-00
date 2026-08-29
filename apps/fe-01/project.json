@@ -8,17 +8,26 @@
     "serve": {
       "executor": "nx:run-commands",
       "continuous": true,
-      "options": { "command": "bunx vite", "cwd": "apps/fe-01" },
+      "options": {
+        "command": "bunx vite",
+        "cwd": "apps/fe-01"
+      },
       "cache": false
     },
     "build": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx vite build", "cwd": "apps/fe-01" },
+      "options": {
+        "command": "bunx vite build",
+        "cwd": "apps/fe-01"
+      },
       "outputs": ["{workspaceRoot}/dist/apps/fe-01"]
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx vitest run", "cwd": "apps/fe-01" }
+      "options": {
+        "command": "TZ=UTC bunx vitest run",
+        "cwd": "apps/fe-01"
+      }
     },
     "e2e": {
       "executor": "nx:run-commands",
