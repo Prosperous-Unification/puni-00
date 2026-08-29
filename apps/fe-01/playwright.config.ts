@@ -26,6 +26,45 @@ if (!existsSync(join(repoRoot, 'apps', 'fe-01', 'playwright.config.ts'))) {
 const isCi = process.env['CI'] !== undefined;
 
 /**
+ * How far this run's three servers stand from their usual ports.
+ *
+ * Zero in CI and by default, where the ports are free and the URLs in every
+ * runbook are the real ones. Non-zero is how a developer runs the gate while
+ * `bun run dev` holds 3100/3200/4200: `reuseExistingServer` is true off CI, so
+ * an unshifted local run does not start a stack at all — it measures whatever
+ * already answers, which on 2026-08-09 was another checkout entirely
+ * (`LLM_README.md`'s landmine). Shifting is the honest alternative to killing
+ * somebody's dev server.
+ *
+ * A shift moves **all three** tiers together and rewrites the URLs they hold
+ * about each other. Moving one is worse than moving none: be-01 would mint
+ * tokens for a gw-01 it cannot reach, and the failure arrives forty seconds
+ * later as a socket that never opens.
+ *
+ * @throws When `E2E_PORT_SHIFT` is set to something that is not a
+ * non-negative integer below 10000. An unusable shift silently read as zero is
+ * a run against the dev server wearing the costume of an isolated one.
+ */
+const portShift = ((): number => {
+  const asked = process.env['E2E_PORT_SHIFT'];
+  if (asked === undefined || asked === '') return 0;
+  const shift = Number(asked);
+  if (!Number.isInteger(shift) || shift < 0 || shift > 9999) {
+    throw new Error(
+      `E2E_PORT_SHIFT must be a whole number between 0 and 9999; got ${asked}. ` +
+        `It moves be-01, gw-01 and fe-01 together — 500 puts them on 3600/3700/4700.`,
+    );
+  }
+  return shift;
+})();
+
+const bePort = 3100 + portShift;
+const gwPort = 3200 + portShift;
+const fePort = 4200 + portShift;
+const beUrl = `http://localhost:${String(bePort)}`;
+const gwUrl = `http://localhost:${String(gwPort)}`;
+
+/**
  * A SQLite file this run alone will ever open.
  *
  * Never `apps/be-01/local.db`. The spec signs up a throwaway account and
@@ -84,7 +123,7 @@ export default defineConfig({
     ? [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : [['list']],
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL: `http://localhost:${String(fePort)}`,
     // The browser's region, pinned, because two checks in `keyboard.spec.ts`
     // type a date into a native `<input type="date">` digit by digit and the
     // field's segment order is the locale's. `05202026` is 20 May 2026 only
@@ -140,8 +179,14 @@ export default defineConfig({
       },
     },
   ],
+  // Every port and every cross-tier URL below comes from `portShift`, and none
+  // of them is written twice: an environment variable that moved a listener
+  // without moving what points at it is the shift half-applied, which boots
+  // three servers that cannot talk to each other.
   webServer: [
-    server('be-01', 'bun src/main.ts', 'http://localhost:3100/health', {
+    server('be-01', 'bun src/main.ts', `${beUrl}/health`, {
+      PORT: String(bePort),
+      GW_URL: gwUrl,
       DB_PATH: runDatabase,
       // Stated rather than inherited from `.env.example`: this file is brand
       // new, so it holds no schema at all, and a developer who turned startup
@@ -149,7 +194,19 @@ export default defineConfig({
       // on the first write.
       MIGRATE_ON_STARTUP: 'true',
     }),
-    server('gw-01', 'bun src/main.ts', 'http://localhost:3200/health'),
-    server('fe-01', 'bunx vite', 'http://localhost:4200'),
+    server('gw-01', 'bun src/main.ts', `${gwUrl}/health`, {
+      PORT: String(gwPort),
+      BE_URL: beUrl,
+    }),
+    // `VITE_*` rather than a flag: `loadEnv` in `vite.config.ts` prefers a
+    // prefixed variable already in the environment over the one in `.env`, so
+    // these reach both the dev proxy's upstreams and the client bundle's own
+    // idea of where the socket lives. `PORT` is read by `server.port` there.
+    server('fe-01', 'bunx vite', `http://localhost:${String(fePort)}`, {
+      PORT: String(fePort),
+      VITE_BE_URL: beUrl,
+      VITE_GW_URL: gwUrl,
+      VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
+    }),
   ],
 });

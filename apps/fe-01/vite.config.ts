@@ -139,7 +139,27 @@ export default defineConfig(({ command, mode }) => ({
     },
   },
   server: {
-    port: 4200,
+    /**
+     * 4200, or whatever `PORT` says — which is how the browser gate runs
+     * beside a dev server instead of measuring it.
+     *
+     * `bun run dev` holds 3100/3200/4200 and the Playwright config reuses
+     * whatever answers there (`reuseExistingServer: !isCi`), so a gate run
+     * from a second checkout has measured code it never built —
+     * `LLM_README.md`'s landmine, and the reason five queued e2e tasks say
+     * "written, not run". `E2E_PORT_SHIFT` moves the whole stack instead.
+     */
+    port: Number(process.env['PORT'] ?? 4200),
+    /**
+     * Refuse a busy port rather than sliding to the next one.
+     *
+     * Vite's default is to increment: with 4200 held it serves 4201 and says
+     * so on a line nobody reads, while Playwright waits on 4200 — and is
+     * answered, by the *other* checkout's server. A gate that silently
+     * measures somebody else's code is the fault this whole option exists to
+     * stop, so a taken port is an error here.
+     */
+    strictPort: true,
     // The dev server runs in a container behind the shared Caddy edge. The
     // default localhost bind is unreachable from another container, and Vite
     // rejects Host headers it was not told about -- which surfaces as a 403
