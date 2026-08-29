@@ -283,44 +283,59 @@ test('round-trips every desktop reference set with three reachable values in bot
 
 /**
  * 4b's own proof, and it has to be a browser's: every claim below is a
- * measurement of laid-out boxes — how tall a cell stands, what a point in it
+ * measurement of laid-out boxes — how tall a row stands, what a point in it
  * hits, how much width a floor took from the chips beside it. jsdom lays
- * nothing out and reads every one of them as zero (R5 #14–16).
+ * nothing out, so its green says nothing about any of them (R5 #14–16).
  *
  * Reported by Dany with a screenshot on 2026-08-29: a Tags cell three lines
- * tall, its inherited set drawn twice.
+ * tall, its inherited set drawn twice. The **resting** row height is the
+ * claim; a crowded cell is allowed to grow while it is being edited, and each
+ * assertion below says which of the two states it stands in.
  */
-test('rests a crowded reference cell on one line and opens it to reach every chip', async ({
+test('rests every reference row on one line and opens a crowded cell to reach every chip', async ({
   page,
 }) => {
   const seeded = await seed(page);
   await showReferenceColumns(page);
-  // 010 already states two tags; a third is the reported cell exactly. 020
-  // takes one team, which is the only set size a resting value could repeat.
+  // 010 already states two teams, two tags and two services; a third tag is
+  // the reported cell exactly. 020 takes one team, which is the only set size
+  // a resting value could repeat. 030 states nothing and is the baseline.
   await choose(page, 'Tags for 010', seeded.tags[2].name);
   await choose(page, 'Service or team for 020', seeded.teams[0].name);
   await page.reload();
 
   const cellOf = (label: string): Locator =>
     page.getByRole('combobox', { name: label, exact: true }).locator('xpath=ancestor::td[1]');
-  const crowded = cellOf('Tags for 010');
-  const bare = cellOf('Tags for 020');
-  const crowdedCell = await crowded.boundingBox();
-  const bareCell = await bare.boundingBox();
-  expect(crowdedCell, 'the crowded Tags cell has no painted box').not.toBeNull();
-  expect(bareCell, 'the empty Tags cell has no painted box').not.toBeNull();
-  if (crowdedCell === null || bareCell === null) throw new Error('a Tags cell was not painted');
+  const heightOf = async (label: string, what: string): Promise<number> => {
+    const box = await cellOf(label).boundingBox();
+    if (box === null) throw new Error(`${what} has no painted box`);
+    return box.height;
+  };
 
-  // One line, whatever the row states. A wrapping strip grows the row a line
-  // per chip, which is the whole of the report.
+  const bare = await heightOf('Tags for 030', 'the row that states nothing');
+  // Every row, not only the reported one. The fault this failed on was in the
+  // Services cell's wrapper, so a check that measured the Tags cell alone
+  // would have watched the wrong column: 010 carries chips in three
+  // dimensions, and 010.1 carries the inherited reading of all three plus the
+  // non-owner mark that stood beside them.
   expect(
-    crowdedCell.height,
+    await heightOf('Tags for 010', 'the crowded row'),
     'three tags stand the row taller than a row with none',
-  ).toBeLessThanOrEqual(bareCell.height + 1);
+  ).toBeLessThanOrEqual(bare + 1);
+  expect(
+    await heightOf('Tags for 010.1', 'the inheriting row'),
+    'an inherited set stands the row taller than a row with none',
+  ).toBeLessThanOrEqual(bare + 1);
+  expect(
+    await heightOf('Service or team for 020', 'the one-member row'),
+    'one own member stands the row taller than a row with none',
+  ).toBeLessThanOrEqual(bare + 1);
 
+  const crowded = cellOf('Tags for 010');
+  const crowdedCell = await crowded.boundingBox();
   const strip = crowded.locator('[data-reference-strip]');
   const stripBox = await strip.boundingBox();
-  if (stripBox === null) throw new Error('the crowded strip was not painted');
+  if (crowdedCell === null || stripBox === null) throw new Error('the crowded cell is not painted');
   expect(stripBox.width, 'the rest line spills out of its column').toBeLessThanOrEqual(
     crowdedCell.width + 1,
   );
@@ -342,6 +357,25 @@ test('rests a crowded reference cell on one line and opens it to reach every chi
   if (searchBox === null) throw new Error('the search holder was not painted');
   expect(searchBox.width, 'the search box still claims a width floor at rest').toBeLessThan(72);
 
+  // The rest line really is clipped — three chips do not fit in 120px — and
+  // the clip is what keeps the overflowing chip out of the column beside it.
+  // A bounding box cannot say this: `getBoundingClientRect` reports the
+  // unclipped layout box, so the last chip's rectangle hangs over the next
+  // column whether or not anything is painted there. Hit-testing is the only
+  // thing that knows.
+  expect(
+    await strip.evaluate((node) => node.scrollWidth > node.clientWidth),
+    'three chips fit the rest line, so this row proves no clipping at all',
+  ).toBe(true);
+  expect(
+    await hitsItself(strip.locator('[data-reference-chip]').last()),
+    'the clipped chip is still hit-testable, so the rest line does not clip',
+  ).toBe(false);
+  expect(
+    await strip.evaluate((node) => getComputedStyle(node).maskImage),
+    'the clipped rest line wears no truncation cue',
+  ).not.toBe('none');
+
   // Entering the cell is what brings a clipped member back into reach — the
   // state a member is removed from, and therefore the state it must be in.
   const box = page.getByRole('combobox', { name: 'Tags for 010', exact: true });
@@ -355,12 +389,10 @@ test('rests a crowded reference cell on one line and opens it to reach every chi
     ).toBe(true);
   }
   await box.blur();
-  const afterEditing = await crowded.boundingBox();
-  if (afterEditing === null) throw new Error('the crowded cell stopped being painted');
   expect(
-    afterEditing.height,
+    await heightOf('Tags for 010', 'the crowded row after editing'),
     'the row keeps the height it took while it was being edited',
-  ).toBeLessThanOrEqual(bareCell.height + 1);
+  ).toBeLessThanOrEqual(bare + 1);
 
   // Said once, per surface. The desktop's reading is the placeholder's `↳`.
   expect(
@@ -371,6 +403,26 @@ test('rests a crowded reference cell on one line and opens it to reach every chi
     await drawnSayings(cellOf('Service or team for 020'), seeded.teams[0].name),
     'the sole own member is drawn more than once',
   ).toBe(1);
+
+  // A ✕ pressed on the resting line removes its member — the gesture a reader
+  // makes, and the one that did nothing at all before the press was stopped
+  // from taking the focus: the focus wraps the strip, the wrap moved this
+  // button between `mousedown` and `mouseup`, and the browser fired no click.
+  const first = await chips.first().getAttribute('data-reference-chip');
+  if (first === null) throw new Error('the first chip carries no id');
+  await crowded
+    .getByRole('button', { name: /^Remove / })
+    .first()
+    .click();
+  await expect(
+    crowded.locator(`[data-reference-chip="${first}"]`),
+    'the chip a click removed at rest is still there',
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    cellOf('Tags for 010').locator(`[data-reference-chip="${first}"]`),
+    'the removal did not survive a reload',
+  ).toHaveCount(0);
 });
 
 test.describe('390x844 reference sheets', () => {

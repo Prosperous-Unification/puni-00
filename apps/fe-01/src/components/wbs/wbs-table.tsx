@@ -7886,7 +7886,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // still wear it.
             const nonOwner = live.current.nonOwnerNoteOf(row.original);
             return (
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
+              // The mark and the strip share **one** line, and this is the
+              // wrapper 4b found standing two lines tall.
+              //
+              // `ReferenceSetStrip` is a `display: flex` span, so it is
+              // block-level and claims the whole line: its hypothetical size
+              // beside a `flex: none` triangle is already the full width, and
+              // `wrap` therefore put it under the mark **every** time the mark
+              // was drawn — not in a crowded cell, in any cell with a
+              // non-owner note. Every reference cell's own strip measured
+              // 24.2px in Chromium while this wrapper measured 41.6 and the
+              // row 43.6 (measured in Chromium, 2026-08-29). `nowrap` shares
+              // the line instead: the mark keeps its size and the strip
+              // shrinks past it and clips.
+              //
+              // Proof: `wrap` restored here, `e2e/reference-cells.spec.ts`'s
+              // `three tags stand the row taller than a row with none` failed
+              // on `Expected: <= 27.1875 / Received: 43.640625` — with both
+              // flex containers inside the strip already saying `nowrap`,
+              // which is why the jsdom style assertions on them all passed
+              // while the row stood two lines tall. Watched 2026-08-29.
+              <span style={{ display: 'flex', flexWrap: 'nowrap', gap: 2, minWidth: 0 }}>
                 {nonOwner !== null && <MismatchMark kind="service" note={nonOwner} />}
                 <ReferenceSetStrip
                   label={`Services for ${row.original.number}`}

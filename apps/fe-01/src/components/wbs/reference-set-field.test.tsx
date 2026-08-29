@@ -289,6 +289,21 @@ describe('the reference strip on one rest line', () => {
     expect(strip().getAttribute('style')).not.toContain(REFERENCE_SET_EDGE_FADE);
   });
 
+  itDom('keeps a clipped chip out of the tab order and the focus off its press', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+
+    const remove = screen.getByRole('button', { name: 'Remove Platform team' });
+    expect(remove.tabIndex).toBe(-1);
+    // `fireEvent` answers false when the handler called `preventDefault`. The
+    // press must not focus this button: focus is what wraps the strip, and in
+    // Chromium the wrap moved the ✕ out from under the pointer between
+    // `mousedown` and `mouseup`, so no click ever landed.
+    expect(fireEvent.mouseDown(remove)).toBe(false);
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+    expect(screen.getByRole('button', { name: 'Remove Platform team' }).tabIndex).toBe(0);
+  });
+
   itDom('draws an inherited set once, in the box it is shown but not stored in', () => {
     render(
       <ReferenceSetStrip

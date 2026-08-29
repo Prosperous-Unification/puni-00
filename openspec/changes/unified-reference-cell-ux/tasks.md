@@ -27,11 +27,12 @@
 Reported by Dany with a screenshot on 2026-08-29, against the merged head: the
 Tags cell stands three lines tall and draws its inherited set twice.
 
-- [x] 4b.1 Rest both the strip and its chip group on one `nowrap` line, wrapping only while a crowded cell is being edited, and record the rest contract in the delta spec — tests: `reference-set-field.test.tsx` rest and editing cases; negative: inject `wrap` into each container singly (one `nowrap` beside one `wrap` still wraps, so a single injection proves nothing).
+- [x] 4b.1 Rest both the strip and its chip group — **and the Services cell's own mark/strip wrapper, which Chromium found standing two lines tall while both of them said `nowrap`** — on one line, wrapping only while a crowded cell is being edited, and record the rest contract in the delta spec — tests: `reference-set-field.test.tsx` rest and editing cases; negative: inject `wrap` into each container singly (one `nowrap` beside one `wrap` still wraps, so a single injection proves nothing).
 - [x] 4b.2 Drop the search box's 72px width floor at rest so the chips own the line, clip the rest line and fade its last pixels as the Depends-on cell does — tests: floor-at-rest/floor-while-editing and rest-fade cases; negative: restore `minWidth: 72` at rest, and drop the fade.
 - [x] 4b.3 Draw an inherited set once per surface: the desktop's `↳` placeholder, the sheet's `Inherited:` line — tests: count the **visible** nodes saying the inherited name in the strip and in the sheet; negative: put the strip's `Inherited:` span back and watch the count.
 - [x] 4b.4 Draw the sole own member once, as its chip: the add box beside it is empty whatever the set's size — test: count the visible nodes saying the member's name; negative: restore `restingValue`.
-- [ ] 4b.5 Chromium: a three-tag cell rests no taller than an empty one, its `+` and first chip stay visible, focusing it brings every chip into reach, and the inherited set is one visible node — test: `e2e/reference-cells.spec.ts`; each head withheld from the fix must fail a distinct named assertion.
+- [x] 4b.5 Chromium: every reference row — crowded, inheriting, one-member — rests no taller than a row that states nothing, the `+` and first chip stay unclipped, the rest line really clips, focusing brings every chip into reach, the row returns to its resting height, and each duplicate is one visible node — test: `e2e/reference-cells.spec.ts`; every fault re-injected and watched in the browser, and the full `CI=1 bun run e2e` run down to this machine's three baseline failures.
+- [x] 4b.6 A chip's ✕ must not take the focus on `mousedown`: the focus wraps the strip, the wrap moves the button, and the browser then fires no click at all — tests: jsdom `preventDefault` and tab-order cases, Chromium removal from the resting line; negative: drop the guard and watch the chip survive its own removal.
 
 ## 5. Close parity, rollback and delivery gates
 

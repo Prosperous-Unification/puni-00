@@ -162,6 +162,10 @@ the row it is hovered on`, `Expected: 0, Received: 42`) reproduced on the
 
 ### Task 4b — the Tags cell three lines tall, 2026-08-29
 
+**Read the browser section after this one with it.** Everything here is jsdom,
+every assertion in it is a **style-property** assertion, and the section below
+records the two faults they were all blind to.
+
 Reported by Dany with a screenshot against the merged head. Three causes, all
 confirmed in the source before any change: `flexWrap: 'wrap'` on both the strip
 and its chip group; the search box's `minWidth: 72` floor inside a 120px
@@ -178,7 +182,10 @@ Red first — with the new cases in place and the fix withheld,
 `expected [ 'Platform', 'Platform' ] to deeply equal [ 'Platform' ]`.
 
 Watched failures, each fault injected into the fixed tree on its own and then
-reverted (jsdom, `bunx vitest run src/components/wbs/reference-set-field.test.tsx`):
+reverted (jsdom, `bunx vitest run src/components/wbs/reference-set-field.test.tsx`).
+Each says a style property is what the design says — **not** that a row is one
+line tall, which is a layout fact jsdom cannot compute. The Chromium table
+below is the layout oracle for the same faults:
 
 | Fault injected                                            | Test that observed it                                                   | Failure                                                                                                                                                                                             |
 | --------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -204,60 +211,142 @@ being the team's name; the chip is that reading now and the box is asserted
 empty. `reference-set-field.test.tsx`'s first case asserted the strip's
 `Inherited: Core`; it now asserts the strip draws no such line at all.
 
-Green, this Mac, 2026-08-29 (`bunx nx run fe-01:…`):
+The counts, the browser gate and the final green are in the section below;
+this one's numbers were taken before the two faults it could not see were
+found.
+
+### Task 4b in a browser, 2026-08-29 — jsdom said yes and Chromium said no
+
+The jsdom work above was shipped as done and **was not**. Run on a free
+3100/3200/4200, `reference-cells.spec.ts` failed two cases:
 
 ```
+rests a crowded reference cell on one line and opens it to reach every chip
+Error: three tags stand the row taller than a row with none
+  Expected: <= 27.1875
+  Received:    43.640625
+
+round-trips every desktop reference set with three reachable values in both palettes
+Error: expect(locator).toHaveCount(expected) failed
+  Locator: [data-reference-set="tag"] … [data-reference-chip="ffd294e6-…"]
+  Expected: 0
+  Received: 1
+```
+
+Every one of the nine jsdom negatives had passed, and every one of them was a
+**style-property** assertion: `flex-wrap`, `min-width`, `overflow`,
+`mask-image`. jsdom computes no layout, so none of them could see a row's
+height, a hit test, or a chip that moved. R5 #14/#15/#16's rule, in its own
+words: a jsdom style assertion never substitutes for browser layout.
+
+**Fault one — the wrong column.** A probe in Chromium measured every cell of
+row 010: each reference strip stood at **24.2px**, one line, exactly as
+designed — and the Services cell's _wrapper_ stood at 41.6px and the row at
+43.6px. That wrapper is `wbs-table.tsx`'s
+`<span style={{display:'flex', flexWrap:'wrap'}}>` holding the non-owner
+mismatch mark beside the strip. `ReferenceSetStrip` is a `display: flex` span,
+so it is block-level and its hypothetical size is the whole line: beside a
+`flex: none` triangle it could never share one, and the wrapper wrapped it
+underneath **every time the mark was drawn**, crowded cell or not. The strip's
+own `nowrap` was correct and irrelevant. The wrapper is `nowrap` now.
+
+A `flex: 1` was added to `REFERENCE_SET_STRIP_STYLE` for that case and then
+**deleted**: with it removed all three Chromium cases still passed, because a
+flex item shrinks on `flex-shrink: 1` alone. R5 — the guard whose removal
+cannot be seen does not ship.
+
+**Fault two — the press that moved its own target.** The removal regression was
+not a stale locator. Instrumented in the browser, a click on a chip's ✕ at rest
+recorded:
+
+```
+EVENTS {"counts":{"down":1,"up":0,"click":0,"focusIn":1},
+        "before":{"x":690.7,"y":154.6},"movedTo":{"x":667.7,"y":172.5}}
+REMOVE {"stillThere":1,"requests":0,"patches":[]}
+```
+
+`mousedown` focused the button, `focusin` set `editing`, React flushed the
+discrete update, the strip wrapped, the ✕ moved 23px left and 18px down onto
+the second line, and the `mouseup` landed on whatever had taken its place. No
+`click`, no request, no removal — a chip's ✕ did nothing at all. This is R5
+#14/#15's fault class a fourth time: a discrete update inside a mouse gesture
+that moves the target out from under it. The press now calls `preventDefault`
+on `mousedown`, exactly as the `+` beside it does, and clipped chips are out of
+the tab order at rest for the Depends-on cell's stated reason — the browser
+scrolls an `overflow: hidden` box to show what it focused.
+
+### Watched in Chromium, each fault injected alone and reverted
+
+`CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts
+e2e/reference-cells.spec.ts`, `rests every reference row on one line and opens a
+crowded cell to reach every chip`:
+
+| Fault injected                              | Failure observed                                                                                                                                                                                                      |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Services wrapper back to `flexWrap: 'wrap'` | `three tags stand the row taller than a row with none`, `Expected: <= 27.1875 / Received: 43.640625`                                                                                                                  |
+| strip `flexWrap: 'wrap'` at rest            | the same assertion, `Received: 68.1875` — the reported three lines, measured                                                                                                                                          |
+| chip group `flexWrap: 'wrap'` at rest       | the same assertion, `Received: 56`                                                                                                                                                                                    |
+| `minWidth: 72` restored at rest             | `the search box still claims a width floor at rest`, `Expected: < 72 / Received: 72`                                                                                                                                  |
+| the ✕'s `preventDefault` deleted            | `the chip a click removed at rest is still there`, `Expected: 0 / Received: 1`                                                                                                                                        |
+| the rest fade deleted                       | `the clipped rest line wears no truncation cue`, `Expected: not "none"`                                                                                                                                               |
+| `restingValue` restored                     | `the sole own member is drawn more than once`, `Expected: 1 / Received: 2`                                                                                                                                            |
+| the strip's `Inherited:` span put back      | `an inherited set stands the row taller than a row with none`, `Expected: <= 27.1875 / Received: 56.5625` — the span's text wraps inside the line, which is the third line of the original report                     |
+| `overflow: 'visible'` at rest               | the case never reaches its assertion: the spilled chips cover the cell, and `choose()` times out on `<td data-column="tag"> intercepts pointer events`. Decisive, and not at the named line — recorded as it happened |
+
+The `flex-wrap`, `min-width`, `overflow` and `mask-image` cases in
+`reference-set-field.test.tsx` remain, and are **style assertions**: they say
+the property is what the design says, and the row heights above are the layout
+oracle for the same faults. The two duplication counts (`drawnSayings`) run in
+both, and the browser copy is the one that counts painted nodes.
+
+### The two states, said explicitly
+
+- **Rest** (nothing in the strip focused): one line, clipped, faded. Every row
+  height assertion stands here — 010 with three tags, 010.1 inheriting three,
+  020 with one own team, each `<= 27.1875 + 1`, the height of 030, which states
+  nothing.
+- **Editing** (focus anywhere in the strip, which is when the picker's list is
+  open): a crowded cell wraps so every chip is reachable, and the row grows
+  while it does. Only the chip hit-tests stand here. The row is measured again
+  after `blur()` and must be back at the resting height.
+
+### Full browser gate, this Mac, 2026-08-29
+
+```
+CI=1 bun run e2e
+  3 failed
+    [chromium] › e2e/deps-cell.spec.ts:430:3 › picks the add button up off the row it is hovered on, in both palettes
+    [chromium] › e2e/keyboard.spec.ts:471:3 › Escape leaves the stored day alone, blur and all
+    [chromium] › e2e/keyboard.spec.ts:615:3 › saves only the year that was typed, digit by digit, in a real Chrome
+  204 passed (6.0m)
+```
+
+All three are the known baseline for this machine (203 passed / 3 failed on
+`main` at `b3acb7b`), and none is this branch's: `deps-cell.spec.ts:430` fails
+on `Expected: 0 / Received: 42` unsettled animations, and both keyboard cases
+type US date order into an `en_UA` locale — `Expected "2026-05-20" / Received
+"2026-02-05"`. The count moved 203 → 204 because this branch adds one case.
+
+### Green after the fix
+
+```
+bunx nx run fe-01:test
  Test Files  1 failed | 56 passed (57)
-      Tests  2 failed | 1812 passed (1814)
+      Tests  2 failed | 1813 passed (1815)
 ```
 
-The two failures are `plan-mermaid.test.ts`'s `leaves a bar crossing a weekend
-exactly where it was told, manualEndTime true` and `still parses a point
-(unestimated/zero) as a real milestone with equal dates` — **pre-existing**:
-the same two fail at the branch point `b3acb7b` with 1804 passing, and this
-branch adds 8 passing cases to that same 1804.
+The two are `plan-mermaid.test.ts`'s weekend/milestone cases, pre-existing:
+the same two fail at the branch point `b3acb7b` with 1804 passing.
 
 ```
-✖ 1 problem (0 errors, 1 warning)
+✖ 1 problem (0 errors, 1 warning)     # wbs-table.tsx:4053, pre-existing useMemo deps
  NX   Successfully ran target lint for project fe-01
-```
-
-The warning is `wbs-table.tsx`'s `useMemo has unnecessary dependencies` at line
-4053, pre-existing and untouched: this branch's only edits to that file are the
-`REFERENCE_SET_EDGE_FADE` import and the constant it now aliases.
-
-```
-> bunx tsc --build --force apps/fe-01/tsconfig.app.json
-> bunx tsc --build --force apps/fe-01/tsconfig.e2e.json
  NX   Successfully ran target typecheck for project fe-01
 ```
 
 `bunx prettier --check` passes over every touched file, and
-`bunx @fission-ai/openspec@1.3.0 validate unified-reference-cell-ux --strict
---json` reports `"passed": 1, "failed": 0` over the edited delta spec.
-
-**Not run, and therefore not proved: every Chromium claim in 4b.5.** Ports
-3100/3200/4200 were held by another checkout's dev server for the whole of this
-session, and `reuseExistingServer: !isCi` would have measured that checkout
-rather than this one (`LLM_README.md`'s landmine, R5 #16's third hat). The
-spec is written and typechecked, never executed:
-`e2e/reference-cells.spec.ts`'s `rests a crowded reference cell on one line and
-opens it to reach every chip`, whose named assertions are `three tags stand the
-row taller than a row with none`, `the rest line spills out of its column`,
-`the add button is clipped or covered at rest`, `the first chip is clipped or
-covered at rest`, `the search box still claims a width floor at rest`, `tag
-chip N is out of reach while the cell is edited`, `the inherited set is drawn
-more than once` and `the sole own member is drawn more than once`. The heights,
-the hit-tests and the widths are all layout facts, so **jsdom's green says
-nothing about any of them** — the whole of 4b.5 and the two existing Chromium
-cases below it are owed a run with the ports free.
-
-Two existing Chromium assertions in that file were rewritten by this change and
-are owed the same run: `assertReachablePaint` now focuses a strip before
-measuring its three chips, because a resting 120px cell clips the third by
-design; and the desktop round trip asserted a visible `Inherited:` line, which
-is now the sheet's alone and reads as the child row's `↳ ` placeholder plus
-`[data-reference-inherited]` count 0.
+`bunx @fission-ai/openspec@1.3.0 validate unified-reference-cell-ux --strict --json`
+reports `"passed": 1, "failed": 0`.
 
 ## 3. Remote gate output to record after apply
 

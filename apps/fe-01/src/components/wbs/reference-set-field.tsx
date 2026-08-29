@@ -58,6 +58,13 @@ export const REFERENCE_SET_STRIP_STYLE = {
   flexWrap: 'nowrap',
   alignItems: 'center',
   gap: 4,
+  // Shrinks below its content, which is what lets a `nowrap` line clip instead
+  // of pushing its cell wider — and, in the Services cell, what lets the strip
+  // share a flex line with the mismatch mark beside it. A `flex: 1` was
+  // written here for that second case and deleted: taken out, all three
+  // Chromium cases still passed, because a flex item shrinks on
+  // `flex-shrink: 1` alone and the strip's content is wider than any of these
+  // columns. R5 — the guard whose removal cannot be seen does not ship.
   minWidth: 0,
 } as const;
 
@@ -128,6 +135,14 @@ export function ReferenceSetStrip({
    * because one `nowrap` beside one `wrap` still wraps — `rests every flex
    * container of a crowded cell on one line` failed on `expected 'wrap' to be
    * 'nowrap'` at the strip's assertion and at the chip group's in turn.
+   *
+   * All four of those are **style** assertions: jsdom computes no layout, so
+   * none of them can see a row's height. The layout oracle is
+   * `e2e/reference-cells.spec.ts`'s `three tags stand the row taller than a
+   * row with none`, where the same two injections were watched in Chromium at
+   * `Received: 68.1875` (strip) and `Received: 56` (chip group) against a
+   * resting `27.1875`. Watched 2026-08-29, after the jsdom-only round shipped
+   * a fix that did not work in a browser.
    */
   const wrapping = editing && own.length > 0;
   if (sourceIdsRef.current.join('\0') !== ownIds.join('\0')) {
@@ -193,6 +208,13 @@ export function ReferenceSetStrip({
         // `visible` failed on `expected 'visible' to be 'hidden'`, and the
         // mask deleted failed on `expected 'display: flex; flex-wrap: nowrap;
         // ali…' to contain 'linear-gradient(to right, #000 calc(1…'`.
+        //
+        // Both again in Chromium, which is where clipping is a fact rather
+        // than a property: the fade deleted failed `the clipped rest line
+        // wears no truncation cue` on `Expected: not "none"`, and
+        // `overflow: 'visible'` never reached an assertion at all — the
+        // spilled chips cover the cell, and clicking the box timed out on
+        // `<td data-column="tag"> intercepts pointer events`.
         overflow: editing ? 'visible' : 'hidden',
         ...(editing
           ? {}
@@ -236,6 +258,31 @@ export function ReferenceSetStrip({
               type="button"
               aria-label={removeLabel?.(entry) ?? `Remove ${entry.name} ${adapter.kind}`}
               disabled={pending}
+              // Out of the tab order while the rest line clips, the
+              // Depends-on cell's rule for the same reason: a sequential Tab
+              // can focus a chip that is not on screen, and the browser
+              // scrolls an `overflow: hidden` box to show what it focused,
+              // shifting a layout nobody asked to move. Tab enters the cell
+              // at the box, the box's focus wraps every chip back on screen,
+              // and the ✕s are focusable there.
+              tabIndex={editing ? undefined : -1}
+              // **The press must not take the focus.** Focus here is what
+              // makes the strip wrap, and a wrap is a re-layout: Chromium
+              // focused this button on `mousedown`, React flushed the
+              // discrete update, the ✕ moved from x=690.7,y=154.6 to
+              // x=667.7,y=172.5 — onto the second line — and the `mouseup`
+              // landed on whatever had taken its place. Measured on the real
+              // page, 2026-08-29: `{down: 1, up: 0, click: 0, focusIn: 1}`
+              // and not one request sent. A chip's ✕ did nothing at all.
+              //
+              // The same guard the `+` above carries, for the same reason,
+              // and R5 #14/#15's fault class a fourth time: a discrete update
+              // inside a mouse gesture that moves the target out from under
+              // it. `preventDefault` on `mousedown` suppresses the focus, not
+              // the click.
+              onMouseDown={(pressed) => {
+                pressed.preventDefault();
+              }}
               className={REFERENCE_SET_REMOVE_CLASS}
               onClick={() => void remove(entry.id)}
             >
@@ -267,6 +314,11 @@ export function ReferenceSetStrip({
         'Platform', 'Platform' ] to deeply equal [ 'Platform' ]` — a count of
         the **visible** nodes saying it, because both readings answer to one
         accessible name.
+
+        And both in Chromium, where the floor is a width rather than a
+        property: `the search box still claims a width floor at rest` failed on
+        `Expected: < 72 / Received: 72`, and `the sole own member is drawn more
+        than once` on `Expected: 1 / Received: 2`.
       */}
       <span data-reference-search="" style={{ flex: 1, minWidth: editing ? 72 : 0 }}>
         <CreatablePicker
@@ -356,6 +408,13 @@ export function ReferenceSetSheet({
           ]` and the sheet's own case on `expected [ 'Inherited: Core from
           010', …(1) ] to deeply equal [ 'Inherited: Core from 010' ]`.
           Watched, 2026-08-29.
+
+          It is a layout fault as well as a duplicate one, and Chromium says
+          so: this line has no `nowrap`, so its text wraps inside the strip's
+          one line and stands the row up. With it restored, `an inherited set
+          stands the row taller than a row with none` failed on `Expected: <=
+          27.1875 / Received: 56.5625` — two of the three lines of the
+          original report, measured.
         */}
         {adapter.inheritedLabel !== undefined && (
           <p data-reference-inherited="">Inherited: {adapter.inheritedLabel}</p>

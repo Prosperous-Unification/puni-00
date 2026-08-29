@@ -18,10 +18,15 @@ its search box's placeholder, a phone sheet says it as its own `Inherited:`
 line, and neither MUST draw both. The search box MUST hold no member of the set
 at any size; the chips are the row's stated value.
 
-A resting table cell MUST stand on one line whatever its set's size, clipping
-what it cannot fit and marking the clip. Editing the cell MUST bring every
-member of a stated set into reach; an empty cell MUST NOT grow when it is
-entered.
+A resting table cell MUST stand on one line whatever its set's size — including
+every wrapper the cell puts around the control — clipping what it cannot fit
+and marking the clip. Editing the cell MUST bring every member of a stated set
+into reach; an empty cell MUST NOT grow when it is entered, and the row MUST
+return to its resting height when the focus leaves.
+
+Removing a member MUST NOT depend on the cell keeping still: pressing a chip's
+remove control MUST NOT move that control, so the press MUST NOT change what
+the cell is showing before the click it belongs to has landed.
 
 #### Scenario: the three directory-backed cells speak one interaction language
 
@@ -44,6 +49,13 @@ entered.
 - **THEN** the resting cell MUST stand no taller than the same cell with no members
 - **AND** its add control and first chip MUST remain unclipped, with the clipped line marked
 - **AND** entering the box MUST bring every chip into reach
+
+#### Scenario: a chip is removed from the resting line
+
+- **GIVEN** a resting cell whose row states several members
+- **WHEN** a chip's remove control is pressed and released
+- **THEN** that member MUST be removed and the removal MUST survive a reload
+- **AND** the press MUST NOT move the control out from under the pointer
 
 #### Scenario: an inherited set is drawn once per surface
 
