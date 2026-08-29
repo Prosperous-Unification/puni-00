@@ -567,6 +567,13 @@ export type WorkItemRefusal =
    */
   | 'unknown_service'
   /**
+   * A work item type the directory no longer holds, decided inside the write's
+   * own transaction — see {@link WorkItemPatch.typeIds}. The fourth picker, and
+   * a fourth reason for the third reason's argument: told only that "a label is
+   * gone", a reader now has four pickers to reopen and no way to choose.
+   */
+  | 'unknown_type'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.

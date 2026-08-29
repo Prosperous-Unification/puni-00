@@ -28,6 +28,8 @@ import {
   workItem,
   workItemService,
   workItemTag,
+  workItemType,
+  workItemWorkItemType,
   workItemTeam,
 } from './schema';
 
@@ -138,6 +140,17 @@ export class WorkItemRepository implements WorkItemStore {
       .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(workItemService.serviceId));
+    // The fourth dimension's join, read exactly as the three above it — and the
+    // only one whose result needs no walk afterwards. A type does not inherit
+    // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so what
+    // comes back here is already the answer a reader gets, where the other three
+    // are the *stated* sets that `effectiveTeamsOf` and its neighbours resolve.
+    const typed = await this.db
+      .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
+      .from(workItemWorkItemType)
+      .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemWorkItemType.typeId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
@@ -150,11 +163,16 @@ export class WorkItemRepository implements WorkItemStore {
     for (const each of serviced) {
       servicesOf.set(each.workItemId, [...(servicesOf.get(each.workItemId) ?? []), each.serviceId]);
     }
+    const typesOf = new Map<string, string[]>();
+    for (const each of typed) {
+      typesOf.set(each.workItemId, [...(typesOf.get(each.workItemId) ?? []), each.typeId]);
+    }
     return rows.map((row) => ({
       ...row,
       teamIds: teamsOf.get(row.id) ?? [],
       tagIds: tagsOf.get(row.id) ?? [],
       serviceIds: servicesOf.get(row.id) ?? [],
+      typeIds: typesOf.get(row.id) ?? [],
     }));
   }
 
@@ -237,7 +255,14 @@ export class WorkItemRepository implements WorkItemStore {
       // nothing, and answered `ok` with the row it had found: every face
       // reporting a successful write that never happened. Found by the tests
       // rather than by reading, 2026-08-19.
-      patch.tagIds === undefined
+      patch.tagIds === undefined &&
+      // Proof: this line deleted and `a type set is undone whole` fails on
+      // `expected [] to deeply equal [ "…" ]` — a patch naming only the types
+      // takes the no-field branch, writes nothing and answers `ok` with the row
+      // it found, every face reporting a write that never happened. The tag
+      // line's own red, one dimension over, and the third time this exact
+      // omission has been made in this condition. Watched 2026-08-30.
+      patch.typeIds === undefined
     ) {
       const found = await this.findById(id);
       return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
@@ -271,6 +296,9 @@ export class WorkItemRepository implements WorkItemStore {
       teamIds: wantedTeams,
       tagIds: wantedTags,
       serviceIds: wantedServices,
+      // Off the `SET` for `tagIds`' blunter reason: there is no column for it
+      // either. `work_item_work_item_type` is the whole of the fact.
+      typeIds: wantedTypes,
       ...fields
     } = patch;
     const written =
@@ -390,6 +418,21 @@ export class WorkItemRepository implements WorkItemStore {
         // refuse a request whose only fault is repetition.
         if (held.length < new Set(wantedTags).size) return { ok: false, reason: 'unknown_tag' };
       }
+      // The fourth dimension's refusal, read in this transaction for the tag's
+      // reason unchanged: `work_item_work_item_type.type_id` cascades, so a type
+      // removed between a precheck and this write leaves nothing for a foreign
+      // key to catch, and a reader would get a 500 where the honest answer names
+      // the type. The empty set is skipped rather than run against `IN ()`,
+      // which SQLite refuses.
+      if (wantedTypes !== undefined && wantedTypes.length > 0) {
+        const held = tx
+          .select({ id: workItemType.id })
+          .from(workItemType)
+          .where(inArray(workItemType.id, [...wantedTypes]))
+          .all();
+        // Counted against the **distinct** ids asked for, `unknown_tag`'s rule.
+        if (held.length < new Set(wantedTypes).size) return { ok: false, reason: 'unknown_type' };
+      }
       const rows = tx
         .update(workItem)
         .set({
@@ -447,6 +490,25 @@ export class WorkItemRepository implements WorkItemStore {
         if (distinct.length > 0) {
           tx.insert(workItemTag)
             .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .run();
+        }
+      }
+      // The type set, written exactly as the tag set above and for its reasons:
+      // the whole set, `[]` written by the delete alone, deduplicated because
+      // the primary key would refuse the repeat, and no column beside it to keep
+      // in step.
+      //
+      // What differs is only what `[]` *means* to a reader afterwards. An empty
+      // tag set puts the row back to inheriting its ancestors'; an empty type
+      // set is the answer — a row with no types has none
+      // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The write
+      // is identical; the reading is not.
+      if (wantedTypes !== undefined) {
+        tx.delete(workItemWorkItemType).where(eq(workItemWorkItemType.workItemId, id)).run();
+        const distinct = [...new Set(wantedTypes)];
+        if (distinct.length > 0) {
+          tx.insert(workItemWorkItemType)
+            .values(distinct.map((typeId) => ({ workItemId: id, typeId })))
             .run();
         }
       }

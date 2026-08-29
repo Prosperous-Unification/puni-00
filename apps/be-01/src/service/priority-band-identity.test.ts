@@ -405,7 +405,7 @@ describe('a priority ladder moves no date', () => {
         return slice;
       }),
       workItems: tree.workItems.map(
-        ({ teamIds, tagIds, serviceIds, actuals, measures, progress, state, ...row }) => {
+        ({ teamIds, tagIds, serviceIds, typeIds, actuals, measures, progress, state, ...row }) => {
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
           // `tagIds` is lifted the same way by `tags` (R10-B) and asserted **empty**
           // for `actuals`' reason: the oracle predates the dimension, nothing in
@@ -419,6 +419,19 @@ describe('a priority ladder moves no date', () => {
           // them is task 10.2's own claim — the read path widened from a column to
           // a join and invented nothing on the way.
           expect(serviceIds).toEqual([]);
+          // `typeIds` is lifted and asserted empty for `serviceIds`' reason
+          // exactly, one dimension over: the oracle predates `work-item-types`,
+          // no row in the replayed plans carries one, and the empty set on every
+          // one of them is this change's own claim.
+          //
+          // It carries a second claim the other three cannot. A type does not
+          // inherit (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`),
+          // so `[]` here is the whole answer rather than the stated half of one —
+          // and on a corpus where nothing is typed at all, an inheriting walk
+          // added out of symmetry with `effectiveTagsOf` would be invisible here.
+          // The negative for that lives in `work-item-type.test.ts`, on a tree
+          // that does carry a type.
+          expect(typeIds).toEqual([]);
           expect(actuals).toEqual({});
           // `measures` is lifted by `token-tracking` (R10-C) and asserted empty
           // for `actuals`' reason, one table over. The oracle predates
