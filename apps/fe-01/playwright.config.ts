@@ -99,6 +99,19 @@ export default defineConfig({
     // would be a different test, and it does not exist yet.
     locale: 'en-US',
     timezoneId: 'UTC',
+    // Both of these are for determinism generally. **Neither fixes the two
+    // date-typing cases in `keyboard.spec.ts`, and that was measured, not
+    // assumed.** On an `en_UA` host those two type `05202026` into a native
+    // `<input type="date">` and save `2026-02-05` instead of `2026-05-20`,
+    // because Chrome renders the control's segment order from something
+    // neither `locale` nor `--lang=en-US` reaches — both were tried, and both
+    // left the pair failing identically (2 failed | 16 passed).
+    //
+    // So those two remain red on a non-US host and green in CI. The real fix is
+    // in the tests, not here: an assertion about *chords* should not depend on
+    // the order a browser draws date segments in. Until one of them stops
+    // typing digits into a native control, treat that pair as environmental.
+    launchOptions: { args: ['--lang=en-US'] },
     screenshot: 'only-on-failure',
     // Keep the diagnostic trace when a check fails, but do not archive a trace
     // for every passing layout assertion. With 194 passing checks, `on` made

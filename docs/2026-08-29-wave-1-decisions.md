@@ -46,6 +46,19 @@ CI's green is the one people trust. Two failures each, reproduced six times:
   month-day-year. This host is `en_UA`, Chrome draws `dd.mm.yyyy`, and the same
   keystrokes saved `2026-02-05`.
 
+**Correction, measured after the fact: the Playwright half does not work.**
+`locale: 'en-US'`, `timezoneId: 'UTC'` and a `--lang=en-US` launch flag were all
+tried, and the two `keyboard.spec.ts` cases still fail identically on this host
+(2 failed | 16 passed). Chrome draws a native `<input type="date">`'s segment
+order from something none of them reaches. They are kept for general
+determinism, and the pair is now recorded as **environmental**: red on a non-US
+host, green in CI. The real fix is in those tests — an assertion about keyboard
+_chords_ should not depend on how a browser orders date segments — and that is
+its own change. The claim that this pin fixed them was wrong.
+
+The vitest half **does** work and is verified: `bunx nx run fe-01:test` passes
+whole, where it was `2 failed | 1812 passed` before.
+
 **This masks no product defect.** The app emits a date _string_, which carries no
 offset; nothing a reader sees changes with the host clock. What is pinned is the
 oracle.
