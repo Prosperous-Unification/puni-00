@@ -2,7 +2,7 @@
 
 **Change:** `websocket-url-credentials`  
 **Mode:** prod mode — public authentication path  
-**State:** merge candidate pending fresh exact-head gates and peer reviews
+**State:** merge candidate pending final exact-head CI and main-session decision
 
 ## Baseline implementation evidence
 
@@ -48,17 +48,60 @@ gateway branch has a dedicated upgrade test whose deletion was watched red at
 4 passed / 1 failed. The restored h2puni focused gate is gw-01 **57/0** and
 fe-01 **1,754/0**, with both lint and typecheck targets green.
 
-## Exact-head gates owed
+## Post-merge QA — TASK-175, 2026-08-29
 
-- [ ] h2puni affected tests, lint, typecheck, build, global format, and strict
-      OpenSpec validation
-- [ ] GitHub `gate` and `pixels` on the exact rebased head
-- [ ] verified sealed Gemini artifact on the complete diff
-- [ ] verified sealed Anthropic peer artifact on the complete diff
-- [ ] main-session prod review; lane A does not merge this branch
+Both PRs merged on 2026-08-27 (#163 as `9ecd06a2`, #166 as `25151d93`) with the
+Anthropic peer seat unavailable; Dany allowed the builder to merge and the
+structural peer review stayed owed. Lane q settled it on 2026-08-29:
+
+- `anthropic/claude-opus-5` (the required peer of `openai/gpt-5.6-sol`):
+  APPROVE-WITH-FINDINGS, 0 Critical / 2 Important / 2 Minor / 1 Nit.
+- `gemini/antigravity-cli` on the same complete diff, pinned to a detached
+  `25151d93` worktree: APPROVE, 0 findings.
+
+Both verdicts are sealed artifacts in the ops repo
+(`queue/reviews/task175-ws-auth-{opus,gemini}.txt`).
+
+The two Important findings are fixed on `fix/task175-ws-identity-fail-closed`:
+
+| Finding                               | Fault                                                                                                                                                                                        | Watched red                                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity-less socket served as `anon` | An upgrade that passed `beforeHandle` but failed the `open` recheck stayed open; `message` fell back to `clientId = 'anon'` and would subscribe to any project                               | Reverting the `app.ts` close, `ws-auth.integration.test.ts` fails at 2,011 ms on "socket stayed open without an identity" — 5 passed / 1 failed |
+| Runbook misstated registration        | `docs/runbook-dev-deploy.md` said OIDC mode "does not mount" `/api/auth/register`; it is mounted unconditionally and gated by `AUTH_PASSWORD_REGISTER` (default false), not by the auth mode | n/a — documentation                                                                                                                             |
+
+Live check performed against dev at 16:58Z on 2026-08-29:
+`GET https://dev.wbs.bulletpoints.club/api/auth/me` answered HTTP 401 with body
+exactly `{"error":"invalid_token"}`, so PR #166's repaired probe matches the real
+be-01 and the pre-#166 `missing_token` expectation really was a false failure.
+
+The remaining browser criteria were discharged in Browser Use Cloud session
+`47920860-2216-4943-b2f9-eaaf71caa169`. Instrumentation installed before the
+application at both the page constructor and CDP network layers observed 14
+socket constructions, every URL exactly `wss://dev.wbs.bulletpoints.club/ws`,
+11 successful 101 handshakes, 15 sent / 46 received frames, and zero query
+strings or credentials. A forced close produced a replacement socket 0.5 s
+later on the same clean URL and that socket exchanged frames. At 396 seconds
+after the session's last close, the Caddy file log held exactly the matching
+11 `/ws` records, all 101 with URI `/ws` and no credentials. Project switching,
+phone-width rendering, and sign-out also passed; sign-out returned auth/me 401
+and opened no further socket. All five TASK-175 acceptance criteria are closed.
+
+## Exact-head gates — PR #181
+
+- [x] h2puni watched red: reverting the fail-closed guard fails at 2,009 ms,
+      5 passed / 1 failed. Deleting only the independent in-flight-message
+      guard fails the new frame-race case on one forbidden backend forward,
+      58 passed / 1 failed; restored exact head passes gw-01 59/59 plus lint,
+      typecheck, build, and global format on Bun 1.3.14
+- [ ] GitHub `gate` and `pixels` on the final exact head
+- [x] verified sealed Gemini artifact on the complete shipped #163/#166 diff
+- [x] verified sealed Anthropic peer artifact on the complete shipped #163/#166 diff
+- [ ] main-session prod review and merge of PR #181
+
+No migration path changed in PR #181, so forward and rollback migration
+rehearsals are not applicable.
 
 ## Decision
 
-- [ ] PASS — return to main-session review when every exact-head item above is
-      recorded green
-- [ ] MERGE — main-session decision only after prod review
+- [ ] PASS — final exact-head CI is green and main-session review finds no blocker
+- [ ] MERGE — main-session decision after the prod review
