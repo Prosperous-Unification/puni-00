@@ -715,7 +715,13 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // priority is a number on a row, not a constraint against a calendar, so
     // there is no day zero to give the plan and no disabled state to clear.
     await expect(field).toBeEnabled();
-    await expect(field.locator('[data-card-priority]')).toHaveCount(0);
+    // `Medium 50` and not an empty chip: since `priority-default-medium` every
+    // created work item carries the project's rank-2 default, so the starting
+    // state this line establishes is "ordinary", not "unset". Asserting the
+    // count was 0 here until that change, and it is kept as an assertion rather
+    // than deleted because it is now the only place the new default is read
+    // back on the phone face at all.
+    await expect(field.locator('[data-card-priority]')).toHaveText('Medium 50');
 
     await field.click();
     await expect(page.getByRole('dialog', { name: 'Priority for 010' })).toBeVisible();
