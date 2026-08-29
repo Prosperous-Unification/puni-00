@@ -9451,12 +9451,29 @@ describe('the widths the table is laid out by', () => {
         // than the column and leaves the cell rather than sizing it.
         // `priority` since `priority-bands`: the Prio cell opens the five band
         // lines over a 48px column, which is now the narrowest clip in the table.
-        (['depends', 'name', 'team', 'actions', 'not-before', 'priority'].includes(column) ||
+        // `tag` and `service` since `reference-cell-popover`: each renders a
+        // `CreatablePicker`, exactly as `team` does, and their absence from
+        // this set was the 2026-08-29 report — a Tags cell that scrolled
+        // itself to show the list it had opened, drawing its own strip above
+        // its own row.
+        ([
+          'depends',
+          'name',
+          'team',
+          'tag',
+          'service',
+          'actions',
+          'not-before',
+          'priority',
+        ].includes(column) ||
           column.endsWith('-assignee') ||
           // A folded role's cell opens the `@` people picker over a 96px
           // column, which is the narrowest clip in the table.
           column.endsWith('-final'));
-      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
+      // `clip`, not `hidden`: a hidden box is a scroll container the browser
+      // may scroll to reveal what opened inside it, and a clip box has no
+      // scrollport at all. See {@link CELL}.
+      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'clip');
     }
   });
 
@@ -9589,11 +9606,25 @@ describe('the widths the table is laid out by', () => {
     // `gives every cell the chrome its declared width is measured with` both
     // failed on `expected 'hidden' to be 'visible'`. Watched, 2026-08-08.
     expect(cellOf('role-qa-final').style.overflow).toBe('visible');
-    expect(cellOf('final-total').style.overflow).toBe('hidden');
+    expect(cellOf('final-total').style.overflow).toBe('clip');
+
+    // The other two reference cells, and their absence from `POPOVER_COLUMNS`
+    // was the 2026-08-29 Tags report: all three render a `CreatablePicker`,
+    // only `team` was listed, and a Tags cell's open list made its `<td>` 94px
+    // of content in a 26px row — which Chromium answered by scrolling the cell
+    // 22px, drawing the strip above its own row with the `+` off screen.
+    // Proof: `'tag'` removed from `POPOVER_COLUMNS`, this failed on
+    // `expected 'clip' to be 'visible'`; `'service'` removed, the line after
+    // it failed the same way. Watched, 2026-08-29.
+    expect(cellOf('tag').style.overflow).toBe('visible');
+    expect(cellOf('service').style.overflow).toBe('visible');
 
     // Still an exception. If the backstop had simply been dropped everywhere,
     // every assertion above would pass and this one would not.
-    expect(cellOf('float').style.overflow).toBe('hidden');
+    //
+    // `clip`, not `hidden` — see {@link CELL}. A clipped cell is not a scroll
+    // container, so no browser can scroll it to show what opened inside it.
+    expect(cellOf('float').style.overflow).toBe('clip');
 
     // And the wrappers are still the positioned ancestors — which is what
     // decides *where* each popover opens. `top: 100%` against a static wrapper

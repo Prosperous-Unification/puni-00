@@ -4,17 +4,17 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 0. Ordering
 
-- [ ] 0.1 **After `unified-reference-cell-ux`** (including its section 4b): the Type cell adopts that change's settled strip, and building it first means building it twice.
+- [x] 0.1 **After `unified-reference-cell-ux`** (including its section 4b): the Type cell adopts that change's settled strip, and building it first means building it twice.
 
 ## 1. Storage
 
-- [ ] 1.1 Migration: `work_item_type (id, name)` unique on name, and `work_item_work_item_type (work_item_id, type_id)` with the pair as primary key and both foreign keys cascading — additive forward, `down.sql` dropping both — test: `migrate-down.test.ts` round trip; migration lint green.
-- [ ] 1.2 Repository: list, create (refusing a duplicate name as a modeled conflict, never a 500), remove, and full-replacement write of a work item's types — test: `work-item-type.test.ts` `a type name is unique in the directory`, `a work item carries several types`, `removing a type from the directory takes it off every row`; negative: the unique index dropped, watched failing on the duplicate case.
+- [x] 1.1 Migration: `work_item_type (id, name)` unique on name, and `work_item_work_item_type (work_item_id, type_id)` with the pair as primary key and both foreign keys cascading — additive forward, `down.sql` dropping both — test: `migrate-down.test.ts` round trip; migration lint green.
+- [x] 1.2 Repository: list, create (refusing a duplicate name as a modeled conflict, never a 500), remove, and full-replacement write of a work item's types — test: `work-item-type.test.ts` `a type name is unique in the directory`, `a work item carries several types`, `removing a type from the directory takes it off every row`; negative: the unique index dropped, watched failing on the duplicate case.
 
 ## 2. Service, commands, wire
 
-- [ ] 2.1 The directory service exposes the vocabulary beside tags; `patchWorkItem` gains `typeIds` and `typeRefs` resolved like `tagIds`/`tagRefs` — test: `plan-commands.test.ts` `types are replaced wholesale`, `a ref minted in the same batch resolves`; negative: the replacement made additive, watched failing on a removed type coming back.
-- [ ] 2.2 The plan payload carries each work item's `typeIds` and the directory's types; undo/redo restore the previous set — test: payload shape case, `plan-history` undo case; negative: undo restoring an empty set, watched failing.
+- [x] 2.1 The directory service exposes the vocabulary beside tags; `patchWorkItem` gains `typeIds` and `typeRefs` resolved like `tagIds`/`tagRefs` — test: `plan-commands.test.ts` `types are replaced wholesale`, `a ref minted in the same batch resolves`; negative: the replacement made additive, watched failing on a removed type coming back.
+- [x] 2.2 The plan payload carries each work item's `typeIds` and the directory's types; undo/redo restore the previous set — test: payload shape case, `plan-history` undo case; negative: undo restoring an empty set, watched failing.
 
 ## 3. The cell and the column
 

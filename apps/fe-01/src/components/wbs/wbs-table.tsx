@@ -397,6 +397,15 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
   'depends',
   'name',
   'team',
+  // The other two reference cells, and their absence here was the whole of the
+  // 2026-08-29 Tags report. All three render a `CreatablePicker`; only `team`
+  // was ever listed, so a Tags cell's open list made its `<td>` 94px of content
+  // in a 26px row and Chromium **scrolled the cell** to reveal it —
+  // `td.scrollTop === 22`, measured in the running dev server, the strip drawn
+  // 21px above the row it belongs to and the `+` scrolled out of sight.
+  // A column that grows a popover and does not join this set is this bug again.
+  'tag',
+  'service',
   'actions',
   'not-before',
   // The Prio cell's band list, since `priority-bands`. The column is 48px and a
