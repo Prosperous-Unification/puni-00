@@ -905,6 +905,155 @@ export const workItemTag = sqliteTable(
 export type WorkItemTagRow = typeof workItemTag.$inferSelect;
 
 /**
+ * What kind of work a row **is** — `Story`, `Bug`, `Spike`, `Epic`.
+ *
+ * The fourth reference dimension, after the team (_who_ does it), the service
+ * (what it is delivered _for_) and the tag (what kind of thing it is _about_).
+ * A plan tracked against Jira carries an issue type per row and the table had
+ * nowhere to put it, so readers encoded it in the name (`[BUG] …`) or in a
+ * {@link tag} — which made one vocabulary carry two unrelated things and made
+ * the filter's tag facet a mix of vocabulary and taxonomy.
+ *
+ * **A tag says what a row is _about_; a type says what a row _is_.**
+ * `regulatory` and `Bug` are not the same kind of statement, and one row answers
+ * both. That separation is why this is a table and not three more tags.
+ *
+ * **Not anything the scheduler may read.** No size, no pool, no per-project
+ * capacity table beside this one, so nothing can ask how many Bugs may run at
+ * once — asserted by `service-untouched.test.ts`, not claimed here. A type is a
+ * label; it decides nothing.
+ *
+ * **Global — no project column**, mirroring {@link tag} and {@link serviceTeam}.
+ *
+ * `name` is `NOT NULL` and carries a unique index, which is what lets a rename
+ * answer `taken` with the surviving name instead of writing a second row that
+ * reads identically — {@link tag}'s `tag_name`, one dimension over.
+ */
+export const workItemType = sqliteTable(
+  'work_item_type',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('work_item_type_name').on(t.name)],
+);
+
+export type WorkItemTypeRow = typeof workItemType.$inferSelect;
+
+/**
+ * A system a work item's work also lives in — `jira-issue`, `github-pr`.
+ *
+ * A growing vocabulary, {@link tag}'s shape, and **seeded** where the tag is
+ * deliberately empty: these names are exactly what `systemOfUrl` in
+ * `libs/domain` has patterns for, so an unseeded table means a pasted GitHub URL
+ * types itself and then fails to store on a foreign key. The seed and the
+ * pattern list are one fact, asserted by `external-system.test.ts` reading the
+ * migration's own text.
+ */
+export const externalSystem = sqliteTable(
+  'external_system',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('external_system_name').on(t.name)],
+);
+
+export type ExternalSystemRow = typeof externalSystem.$inferSelect;
+
+/**
+ * Which types one work item carries — **several**, on Dany's call (2026-08-29),
+ * the way it carries several tags rather than the single value a Jira issue type
+ * would suggest. That decision is why this is a join table with a composite key
+ * and not a `type_id` column on {@link workItem}.
+ *
+ * The pair is the primary key because the pair is the fact: "this row is a Bug"
+ * is either stated or not, and a second row saying it again would be a second
+ * answer to one question. {@link workItemTag}'s shape, deliberately identical
+ * and deliberately unjoined to it.
+ *
+ * **Inheritance is not computed for this dimension, and it is the one rule this
+ * table does not share with {@link workItemTag}.** A row's types are its own; an
+ * unset type is unset and reads as nothing, never as an ancestor's. There is
+ * therefore no `effectiveTypesOf` beside `effectiveTagsOf`, and its absence is
+ * load-bearing rather than an omission — see
+ * `docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`, which also records why the
+ * tag dimension is being decided in the opposite direction at the same time.
+ *
+ * Both sides cascade, for {@link workItemTag}'s reasons unchanged: a type is a
+ * label, deleting the label takes the labelling with it, and the outgoing
+ * release's plain `DELETE FROM work_item` must not hit a constraint it cannot
+ * see while blue and green share one SQLite file.
+ *
+ * Indexed by type, because the directory asks "what would removing this type
+ * touch" of every project at once and the primary key answers only the other
+ * direction — {@link workItemTag}'s `work_item_tag_by_tag`.
+ */
+export const workItemWorkItemType = sqliteTable(
+  'work_item_work_item_type',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    typeId: text('type_id')
+      .notNull()
+      .references(() => workItemType.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.workItemId, t.typeId] }), index('wiwit_by_type').on(t.typeId)],
+);
+
+export type WorkItemWorkItemTypeRow = typeof workItemWorkItemType.$inferSelect;
+
+/**
+ * Where one work item's work also exists: a link, and deliberately nothing else.
+ *
+ * **No status, no title, no fetched state.** Nothing in this release reads an
+ * external system, and there is no column here that could hold a cached answer
+ * from one — a stale `state` would make the plan claim something about a Jira
+ * issue it has not looked at since.
+ *
+ * **`id` is the key, not the pair, and that is where this stops resembling
+ * {@link workItemTag}.** A labelling is either stated or not, so the pair is the
+ * fact there. A ref is not a labelling: a row may honestly link to two different
+ * GitHub PRs, and a `(work_item, system)` key would refuse the second. Nothing
+ * here is unique; the write path deduplicates by URL rather than the schema
+ * refusing it.
+ *
+ * `systemId` is `NOT NULL` — a ref with no system is refused at the write as a
+ * modeled 4xx rather than stored as a row no dot can draw. The value is the
+ * **derived name, stored** (design D1) and never re-derived on read.
+ *
+ * `position` orders the list as it was built; ordering by hand is a non-goal, so
+ * nothing writes a position but the append.
+ *
+ * Both sides cascade. `workItemId` for {@link workItemTag}'s reason unchanged —
+ * the outgoing release's plain `DELETE FROM work_item` must not hit a constraint
+ * it cannot see. `systemId` is the heavier one: deleting a system takes the
+ * **links** with it, not a label off a row, which is why the route counts first
+ * and refuses with 409 unless `?cascade=1`.
+ */
+export const workItemExternalRef = sqliteTable(
+  'work_item_external_ref',
+  {
+    id: text('id').primaryKey(),
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    systemId: text('system_id')
+      .notNull()
+      .references(() => externalSystem.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    index('wier_by_work_item').on(t.workItemId, t.position),
+    index('wier_by_system').on(t.systemId),
+  ],
+);
+
+export type WorkItemExternalRefRow = typeof workItemExternalRef.$inferSelect;
+
+/**
  * What a work item is delivered **for** — `Payments`, `Search`, `Billing`.
  *
  * Dany, 2026-08-20: _"I need to have service and team as separate entities"_,

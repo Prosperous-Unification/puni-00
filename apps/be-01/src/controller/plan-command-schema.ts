@@ -76,7 +76,7 @@ const VARIANTS: Schema[] = [
       patch: {
         type: 'object',
         description:
-          'Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds (ids), teamRefs, tagRefs, serviceRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived.',
+          'Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds, typeIds (ids), teamRefs, tagRefs, serviceRefs, typeRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived.',
       },
     },
     ['patch'],
@@ -250,6 +250,26 @@ const VARIANTS: Schema[] = [
   variant('deleteTag', 'Remove a tag from the directory.', {
     tagId: id('The tag.'),
     tagRef: ref('The tag'),
+    ...cascade,
+  }),
+  variant(
+    'createWorkItemType',
+    'Add a work item type to the directory.',
+    {
+      ref: id('A name for the type, usable by later commands in this batch.'),
+      name: id('The type.'),
+    },
+    ['name'],
+  ),
+  variant(
+    'patchWorkItemType',
+    'Rename a work item type.',
+    { typeId: id('The type.'), typeRef: ref('The type'), name: id('Its new name.') },
+    ['name'],
+  ),
+  variant('deleteWorkItemType', 'Remove a work item type from the directory.', {
+    typeId: id('The type.'),
+    typeRef: ref('The type'),
     ...cascade,
   }),
   variant(

@@ -63,6 +63,8 @@ function fakeDirectory(
   putTags: (next: { id: string; name: string }[]) => void;
   /** The same for services — the third vocabulary, and the Services card's list. */
   putServices: (next: { id: string; name: string }[]) => void;
+  /** The same for work item types — the fourth vocabulary. */
+  putWorkItemTypes: (next: { id: string; name: string }[]) => void;
   holdWrites: () => void;
   releaseWrites: () => void;
 } {
@@ -70,6 +72,7 @@ function fakeDirectory(
   let heldTeams = [...teams];
   /** The tag vocabulary this deployment holds. Empty unless a case puts one in. */
   let heldTags: { id: string; name: string }[] = [];
+  let heldWorkItemTypes: { id: string; name: string }[] = [];
   /** The service vocabulary, the same way. */
   let heldServices: { id: string; name: string }[] = [];
   let patchRefusal: DirectoryWrite<PersonView> | Error | null = null;
@@ -117,6 +120,7 @@ function fakeDirectory(
     },
     listTeams: () => Promise.resolve(heldTeams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(heldTags.map((tag) => ({ ...tag }))),
+    listWorkItemTypes: () => Promise.resolve(heldWorkItemTypes.map((each) => ({ ...each }))),
     listServices: () => Promise.resolve(heldServices.map((service) => ({ ...service }))),
     // The service half of the fake, and it is the tag half with the word
     // changed — which is the point: the page's four vocabularies go through one
@@ -175,6 +179,39 @@ function fakeDirectory(
     },
     putTags(next: { id: string; name: string }[]) {
       heldTags = [...next];
+    },
+    // The type half of the fake, and it is the tag half with the word changed —
+    // the point the service comment above already makes: four vocabularies, one
+    // rename and one removal each, and a fake that answered types differently
+    // would be testing a second directory.
+    addWorkItemType(name: string) {
+      api.added.push(name);
+      const workItemType = { id: `w${String(heldWorkItemTypes.length + 1)}`, name };
+      heldWorkItemTypes = [...heldWorkItemTypes, workItemType];
+      return Promise.resolve(workItemType);
+    },
+    renameWorkItemType(id: string, name: string) {
+      heldWorkItemTypes = heldWorkItemTypes.map((each) =>
+        each.id === id ? { ...each, name } : each,
+      );
+      const written = heldWorkItemTypes.find((each) => each.id === id);
+      if (written === undefined) throw new Error('not_found');
+      return Promise.resolve({ ok: true as const, entry: written });
+    },
+    removeWorkItemType(id: string, cascade: boolean) {
+      api.removals.push([id, cascade]);
+      if (removalUsage !== null && !cascade) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'in_use' as const,
+          usage: removalUsage,
+        });
+      }
+      heldWorkItemTypes = heldWorkItemTypes.filter((each) => each.id !== id);
+      return Promise.resolve({ ok: true as const });
+    },
+    putWorkItemTypes(next: { id: string; name: string }[]) {
+      heldWorkItemTypes = [...next];
     },
     addPerson(name: string, teamIds: readonly string[]) {
       api.added.push(name);
@@ -1089,6 +1126,56 @@ describe('the Tags section, and what it deliberately has not got', () => {
     // member count is the thing this is asserting the absence of.
     expect(row.textContent).not.toMatch(/member/i);
     expect(within(row).queryByRole('spinbutton')).toBeNull();
+  });
+
+  itDom('creates, renames and removes a work item type, once be-01 has answered', async () => {
+    // The fourth vocabulary's whole round trip on this page, and it is asserted
+    // **after the server answers** rather than optimistically — `AGENTS.md`, `D
+    // directory-page`: the page re-reads after every write, so an optimistic page
+    // and a patient one land on the same screen and the only difference is the
+    // window between the request and the answer. `holdWrites` is that window.
+    const api = fakeDirectory(
+      [{ id: 'p1', name: 'Ada', teamIds: ['t1'] }],
+      [{ id: 't1', name: 'Platform' }],
+    );
+    api.putWorkItemTypes([{ id: 'w1', name: 'Bug' }]);
+    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+
+    const box = await screen.findByLabelText('Name of Bug');
+    const row = box.closest('li');
+    if (row === null) throw new Error('the type is not in a row');
+
+    // What it has: a name to rename and a ✕ to remove. What it has not: a
+    // capacity, for the tag row's reason — nothing about a type is ever spent.
+    expect(within(row).getByLabelText('Remove Bug')).toBeTruthy();
+    expect(row.textContent).not.toMatch(/member/i);
+    expect(within(row).queryByRole('spinbutton')).toBeNull();
+
+    fireEvent.change(box, { target: { value: 'Defect' } });
+    fireEvent.blur(box);
+    await screen.findByLabelText('Name of Defect');
+
+    fireEvent.change(screen.getByLabelText('New work item type'), { target: { value: 'Spike' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add type' }));
+    await screen.findByLabelText('Name of Spike');
+    expect(api.added).toContain('Spike');
+  });
+
+  itDom('says a type is made in a plan cell too, which no other vocabulary can be', async () => {
+    // The empty-state sentence, and the one line on this card that is not the
+    // Tags card's with a word changed. Tags promise "the plan's Tags column
+    // appears once one exists"; the Types column is in `DEFAULT_HIDDEN_COLUMNS`
+    // and appears from `Columns`, never on its own, so a card that borrowed the
+    // tag sentence would promise a column that never arrives.
+    //
+    // Proof: the sentence replaced by the Tags card's wording, watched failing on
+    // the `Columns` mention being absent. Watched 2026-08-30.
+    const api = fakeDirectory([], []);
+    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+
+    const empty = await screen.findByText(/No types yet/);
+    expect(empty.textContent).toMatch(/Columns/);
+    expect(empty.textContent).toMatch(/Types cell/);
   });
 
   itDom('adds a tag, and says why the plan had no column until now', async () => {

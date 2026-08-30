@@ -304,7 +304,25 @@ export interface WorkItemView {
    */
   serviceIds?: string[];
   /**
-   * Who does this work, by step id.
+   * What kind of work this row **is**, by type id — `Story`, `Bug`, `Spike`.
+   *
+   * The fourth dimension, and the one whose empty set means something different
+   * from the three above it. Empty here is the **answer**: a row with no types
+   * has none, and does not take an ancestor's. There is no `effectiveTypesOf`
+   * beside `effectiveTagsOf`, and its absence is load-bearing —
+   * `docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`.
+   *
+   * That makes this the only one of the four a cell can draw without walking the
+   * tree, and the only one whose chips are all removable: nothing on it was
+   * stated somewhere else.
+   *
+   * **Optional on the wire, required on a `TreeRow`** — `tagIds`' swap window
+   * exactly. `undefined` is "the be-01 that answered has never heard of types";
+   * `toTree` folds it to `[]`, which is the one place it may.
+   */
+  typeIds?: string[];
+  /**
+   * Who does this work, by role id.
    *
    * `string | undefined` rather than `string`: a step nobody is assigned to is
    * **absent** from this object, and a type saying otherwise would have every
@@ -429,6 +447,20 @@ export interface TeamView {
  * page renders tags with no capacity column has learned the model rule.
  */
 export interface TagView {
+  id: string;
+  name: string;
+}
+
+/**
+ * One work item type in the global directory — {@link TagView}'s two columns,
+ * and for its reason plus one of its own.
+ *
+ * A tag has no size because nothing about a tag is spent. A type has none for
+ * that reason and because the change that added it rules out a type deciding
+ * anything: no colour, no default, no ordering weight. It is a label, and a
+ * reader's taxonomy is not this tool's to interpret.
+ */
+export interface WorkItemTypeView {
   id: string;
   name: string;
 }
@@ -697,6 +729,17 @@ export interface DirectoryApi {
   listTags(): Promise<TagView[]>;
   /** Every service in the global directory, by name. */
   listServices(): Promise<ServiceView[]>;
+  /** Every work item type in the global directory, by name. */
+  listWorkItemTypes(): Promise<WorkItemTypeView[]>;
+  /** Adds a work item type — `addTag`'s shape. Idempotent by name at be-01. */
+  addWorkItemType(name: string): Promise<WorkItemTypeView>;
+  renameWorkItemType(typeId: string, name: string): Promise<DirectoryWrite<WorkItemTypeView>>;
+  /**
+   * Removes a work item type. Without `cascade` a type anything carries is
+   * refused with the usage naming what would be unlabelled — `removeTag`'s
+   * shape, and the same 409-then-confirm gesture.
+   */
+  removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoval>;
   addTag(name: string): Promise<TagView>;
   renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
@@ -1072,6 +1115,21 @@ export interface ProjectApi {
        * ids.
        */
       serviceIds?: readonly string[];
+      /**
+       * What kind of work this row **is**, **whole**: the set as it will stand,
+       * not a delta against the one that is there — `tagIds`' rule and every one
+       * of its reasons, including undo needing a before-value that restores.
+       *
+       * `[]` takes every type off and is the only spelling of it. Unlike the
+       * three above, `[]` here does not put the row back to inheriting: a row
+       * with no types has none
+       * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`).
+       *
+       * Refused with a 404 (`unknown_type`) for an id the directory does not
+       * carry — the **whole** patch — decided inside be-01's own write
+       * transaction. At most 10 ids.
+       */
+      typeIds?: readonly string[];
     },
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
@@ -1090,6 +1148,17 @@ export interface ProjectApi {
   listServices(): Promise<ServiceView[]>;
   /** Adds a service — `addTag`'s shape. Idempotent by name at be-01. */
   addService(name: string): Promise<ServiceView>;
+  /** Every work item type in the global directory, by name. */
+  listWorkItemTypes(): Promise<WorkItemTypeView[]>;
+  /**
+   * Adds a work item type — `addTag`'s shape, idempotent by name at be-01.
+   *
+   * The plan cell creates through this from the first, unlike the tag's, which
+   * was read-only here for two weeks: a type has no directory page to be made on
+   * before its column exists, so naming one in the cell is the only way the
+   * vocabulary ever gets a first member.
+   */
+  addWorkItemType(name: string): Promise<WorkItemTypeView>;
   addTag(name: string): Promise<TagView>;
   renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
@@ -1689,6 +1758,20 @@ export function httpDirectoryApi(token: string): DirectoryApi {
       const body = await send<{ services: ServiceView[] }>('/api/services', token);
       return body.services;
     },
+    async listWorkItemTypes() {
+      const body = await send<{ workItemTypes: WorkItemTypeView[] }>('/api/work-item-types', token);
+      return body.workItemTypes;
+    },
+    addWorkItemType: (name) =>
+      directoryCreate<WorkItemTypeView>(token, { kind: 'createWorkItemType', name }),
+    renameWorkItemType: (typeId, name) =>
+      directoryWrite<WorkItemTypeView>(token, {
+        kind: 'patchWorkItemType',
+        typeId,
+        name,
+      }),
+    removeWorkItemType: (typeId, cascade) =>
+      directoryRemove(token, { kind: 'deleteWorkItemType', typeId, cascade }),
     addService: (name) => directoryCreate<ServiceView>(token, { kind: 'createService', name }),
     renameService: (id, name) =>
       directoryWrite<ServiceView>(token, { kind: 'patchService', serviceId: id, name }),
@@ -1776,6 +1859,8 @@ export function httpProjectApi(token: string): ProjectApi {
     listTags: () => directory.listTags(),
     listServices: () => directory.listServices(),
     addService: (name) => directory.addService(name),
+    listWorkItemTypes: () => directory.listWorkItemTypes(),
+    addWorkItemType: (name) => directory.addWorkItemType(name),
     addTag: (name) => directory.addTag(name),
     renameTag: (tagId, name) => directory.renameTag(tagId, name),
     removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),

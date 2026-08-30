@@ -94,6 +94,11 @@ const COLUMN_HINTS = new Map<string, string>([
       'not refused — services move no dates. Blank inherits the services above.',
   ],
   [
+    'type',
+    'What kind of work this is — Story, Bug, Spike. Unlike teams, tags and services, a blank ' +
+      'inherits nothing: a row carries only the types somebody put on it. Types move no dates.',
+  ],
+  [
     'in-parallel',
     'How many people may work on this item at once. Blank means one at a time. It compresses ' +
       'the item’s own effort across that many of its team’s people — never past the team’s size, ' +

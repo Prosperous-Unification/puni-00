@@ -20,6 +20,18 @@ export interface TreeRow extends WorkItemView {
    * same one.
    */
   serviceIds: string[];
+  /**
+   * Required here where {@link WorkItemView} has it optional, `tagIds`' rule and
+   * the same swap window.
+   *
+   * The default is `[]`, and for this dimension `[]` is the **whole** answer
+   * rather than the unstated half of one: a row with no types has none and takes
+   * no ancestor's (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`).
+   * So an outgoing be-01's silence and a row nobody has typed arrive at every
+   * surface as the same answer — which for the three dimensions above means "ask
+   * the ancestors", and here means "there is nothing".
+   */
+  typeIds: string[];
 }
 
 /**
@@ -47,7 +59,13 @@ export function toTree(flat: readonly WorkItemView[]): TreeRow[] {
   const rows = new Map<string, TreeRow>(
     flat.map((item) => [
       item.id,
-      { ...item, tagIds: item.tagIds ?? [], serviceIds: item.serviceIds ?? [], subRows: [] },
+      {
+        ...item,
+        tagIds: item.tagIds ?? [],
+        serviceIds: item.serviceIds ?? [],
+        typeIds: item.typeIds ?? [],
+        subRows: [],
+      },
     ]),
   );
   const roots: TreeRow[] = [];

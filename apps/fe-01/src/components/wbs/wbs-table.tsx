@@ -38,6 +38,7 @@ import type {
   TagView,
   TeamCapacityView,
   TeamView,
+  WorkItemTypeView,
 } from '@/lib/wbs-api';
 import {
   type Days,
@@ -80,6 +81,7 @@ import {
   type Point,
   POINTS,
   sendableTrio,
+  showTrio,
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
@@ -2240,6 +2242,7 @@ const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['team', 'Teams'],
   ['tag', 'Tags'],
   ['service', 'Services'],
+  ['type', 'Types'],
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
@@ -2865,6 +2868,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * that offers ids instead of names is a filter nobody can aim.
    */
   const [services, setServices] = useState<ServiceView[]>([]);
+  const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
   /**
    * How many of each team this plan may have at work at once, as be-01 sent it
    * with the tree.
@@ -3314,20 +3318,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // arrive afterwards and repair it. Only the newest request may write.
     const generation = latestRefresh.current + 1;
     latestRefresh.current = generation;
-    const [tree, loadedSteps, loadedTeams, loadedTags, loadedServices, loadedPeople] =
-      await Promise.all([
-        api.tree(projectId),
-        api.steps(projectId),
-        api.listTeams(),
-        // Beside the teams rather than behind them: both are global lists the
-        // pickers need before a reader can tick anything, and a second round trip
-        // would put the tag facet a frame behind the team one.
-        api.listTags(),
-        // And the third dimension in the same breath, for that reason a third
-        // time: the service facet names its options out of this list.
-        api.listServices(),
-        api.listPeople(),
-      ]);
+    const [
+      tree,
+      loadedRoles,
+      loadedTeams,
+      loadedTags,
+      loadedServices,
+      loadedWorkItemTypes,
+      loadedPeople,
+    ] = await Promise.all([
+      api.tree(projectId),
+      api.roles(projectId),
+      api.listTeams(),
+      // Beside the teams rather than behind them: both are global lists the
+      // pickers need before a reader can tick anything, and a second round trip
+      // would put the tag facet a frame behind the team one.
+      api.listTags(),
+      // And the third dimension in the same breath, for that reason a third
+      // time: the service facet names its options out of this list.
+      api.listServices(),
+      // And the fourth, a fourth time. Loaded even though the column is hidden
+      // by default: a reader who turns Types on from `Columns` gets a picker
+      // that already has the vocabulary, rather than one that is empty until the
+      // next refresh — and the type facet is built from this list the same way.
+      api.listWorkItemTypes(),
+      api.listPeople(),
+    ]);
     if (projectId !== activeProject.current) return;
     if (generation !== latestRefresh.current) return;
     // This read landed, so whatever the last failed one left behind is over.
@@ -3342,6 +3358,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setTags(loadedTags);
     setServices(loadedServices);
+    setWorkItemTypes(loadedWorkItemTypes);
     setPeople(loadedPeople);
     const drawn = toTree(tree.workItems);
     setWorkItems(drawn);
@@ -4119,6 +4136,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // up: a leaf under a `regulatory` parent is regulatory, and a filter
             // reading stored labels would not find it.
             tagIds: effectiveTags.get(row.id)?.tagIds ?? [],
+            // The row's **own** set, and no `effectiveTypes` map beside the two
+            // above because there is no such walk: a type does not inherit
+            // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so
+            // the stored set is already the effective reading.
+            typeIds: row.typeIds,
             // The **effective** service, for the same reason a third time, and
             // `?? null` because absence from the map is how this walk spells
             // "nobody above this row states one".
@@ -4229,6 +4251,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     stepName: (stepId) => steps.find((step) => step.id === stepId)?.name ?? '(unknown)',
     tagName: (tagId) =>
       tags.find((each) => each.id === tagId)?.name ?? 'a tag this plan has not loaded',
+    typeName: (typeId) =>
+      workItemTypes.find((each) => each.id === typeId)?.name ?? 'a type this plan has not loaded',
     // Names a service since task 6.3 pulled `listServices` forward out of 7.6.
     // The fallback is the one every lookup here keeps: a saved view can hold an
     // id whose service the directory has since removed, and printing the id
@@ -5747,18 +5771,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
-   * What the folded step column's cell reads: the pending shorthand if there
-   * is one, and otherwise be-01's computed final figure.
+   * What the folded role column's cell reads: the pending shorthand if there
+   * is one, and otherwise the stored estimate as {@link showTrio} prints it.
    *
-   * The one cell in the table whose value at rest is not what typing into it
-   * takes. That is deliberate and it is the point: a plan is read by the final
-   * figure, and the trio behind it is what an estimator types. The draft wins
-   * while it exists for the same reason a box's does — it is what the person
-   * typed and has not been told off about yet.
+   * **The stored trio, not be-01's computed final figure**, since
+   * `estimate-triple-visible`. The figure was what this cell showed from
+   * `role-columns-fold` until 2026-08-29, on the reasoning that a plan is read
+   * by the final figure and the trio behind it is only what an estimator
+   * types. Two things were wrong with it. The three numbers somebody chose
+   * left the screen the moment they landed — Dany, 2026-08-29: *"i want to
+   * keep seeing the values i've put in"* — with a hover card or an unfold as
+   * the only ways back, and unfolding one role folds another. And it made this
+   * the one box in the grid whose value at rest was not a legal way to have
+   * typed what it stood for: `2.2` over a stored `2/2/3` stores
+   * `2.2/2.2/2.2` when it is typed back.
+   *
+   * The figure has not gone anywhere — it stands beside the box, muted, where
+   * it says something the shorthand does not. See the folded cell's
+   * `data-folded-final`.
+   *
+   * The draft still wins while it exists, for the reason a box's does: it is
+   * what the person typed and has not been told off about yet.
    */
   const combinedValue = useCallback(
-    (row: TreeRow, stepId: string): string =>
-      drafts[combinedDraftKey(row.id, stepId)] ?? showFinal(row.finalDays[stepId]),
+    (row: TreeRow, roleId: string): string =>
+      drafts[combinedDraftKey(row.id, roleId)] ?? showTrio(row.estimates[roleId]),
     [drafts],
   );
 
@@ -6161,6 +6198,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       run(async () => {
         const service = await api.addService(name);
         await api.patch(id, { serviceIds: [...current, service.id] });
+      }),
+    [api, run],
+  );
+
+  /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
+  const setTypesOf = useCallback(
+    (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { typeIds: [...typeIds] })),
+    [api, run],
+  );
+
+  /**
+   * Adds a type nobody had yet and labels the work item with it, in one go —
+   * `createTagFor`'s shape.
+   *
+   * This is the **only** way a type vocabulary ever gets a first member: unlike a
+   * tag, which the directory page can create before any column shows it, a type's
+   * column is hidden by default and its cell is where naming happens.
+   */
+  const createTypeFor = useCallback(
+    (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
+      run(async () => {
+        // be-01 is idempotent by name, so two browsers typing `Bug` at once end
+        // up on one type rather than two.
+        const workItemType = await api.addWorkItemType(name);
+        await api.patch(id, { typeIds: [...current, workItemType.id] });
       }),
     [api, run],
   );
@@ -6580,13 +6643,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     tags,
     services,
+    workItemTypes,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
+    setTypesOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
+    createTypeFor,
     assignTo,
     createPersonFor,
     toggleStep,
@@ -6657,13 +6723,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     tags,
     services,
+    workItemTypes,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
+    setTypesOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
+    createTypeFor,
     assignTo,
     createPersonFor,
     toggleStep,
@@ -7982,6 +8051,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           },
         }),
         column.display({
+          id: 'type',
+          header: 'Types',
+          cell: ({ row }) => {
+            // The reference family's fourth cell, and the shortest of them,
+            // because everything the other three do about inheritance is absent
+            // here by design.
+            //
+            // No `inherited` read, no `↳` placeholder, no `title` explaining an
+            // ancestor: a work item type does not inherit, so a blank cell means
+            // "nobody has said" and nothing else
+            // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The
+            // three cells above all have to distinguish "states none of its own"
+            // from "has none at all"; this one does not, and the missing lines
+            // are the difference.
+            //
+            // Every chip is removable for the same reason — nothing drawn here
+            // was stated somewhere else, so there is no chip that would need its
+            // ✕ withheld the way an inherited tag's does.
+            const own = row.original.typeIds;
+            return (
+              <ReferenceSetStrip
+                label={`Types for ${row.original.number}`}
+                addLabel={`Add a type to ${row.original.number}`}
+                removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
+                placeholder={own.length > 0 ? 'add' : 'search'}
+                adapter={{
+                  kind: 'type',
+                  entries: live.current.workItemTypes,
+                  ownIds: own,
+                  replace: (typeIds) => live.current.setTypesOf(row.original.id, typeIds),
+                  create: (name, current) =>
+                    live.current.createTypeFor(row.original.id, name, current),
+                }}
+                gridCell={{
+                  dataCell: cellKey(row.original.id, 'type'),
+                  onTabKey: (e) => {
+                    live.current.onTabKey(e, row.original.id, 'type');
+                  },
+                  onCommandKey: (e) => {
+                    live.current.onCommandKey(e, row.original, 'type');
+                  },
+                  onAltMove: (e) => {
+                    live.current.onAltMove(e, row.original, 'type');
+                  },
+                }}
+              />
+            );
+          },
+        }),
+        column.display({
           id: 'in-parallel',
           meta: { spokenHeading: 'People at once' },
           // A two-person mark, not `In parallel` and not `PAR`: the column is
@@ -8178,8 +8297,41 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // screen to disagree with it, and a leaf, because a parent's
                 // figure is a sum of what is below it and nothing to type into.
                 const shorthand = !unfolded && !row.original.rolledUp;
-                // Nobody on this step and exactly one person on another: they are
-                // assumed to be doing this step too. The same rule the unfolded
+                // What this row holds, off the row: the trio as it would be
+                // typed, and the figure the project's estimate method makes of
+                // it. Both read through `row.original` and **not** through
+                // `combinedValue` beside them, which answers with the draft
+                // where there is one. That is right for the box somebody is
+                // typing in and wrong for the pair below, for the reason
+                // {@link FoldedRoleCard}'s points give at length: a figure is
+                // what be-01 holds, and one recomputed per keystroke would
+                // stand `2.2` beside `9/9/` claiming to be its answer.
+                const stored = showTrio(row.original.estimates[role.id]);
+                const final = showFinal(row.original.finalDays[role.id]);
+                // What this cell says without a box in it — a parent's roll-up
+                // while the role is folded, and every row's while it is
+                // unfolded. The trio when it is the only place the trio is, and
+                // the figure once the three boxes are on screen beside it: an
+                // unfolded role already prints `2 | 2 | 3`, and a fourth column
+                // repeating it would be the fold's own reading with nothing
+                // folded.
+                const atRest = unfolded ? final : stored;
+                // The figure earns its pixels only where it says something the
+                // cell does not say already. A flat trio prints as `5` and its
+                // figure is `5` under every estimate method, so an unguarded
+                // cell read `5 · 5` — and the column is 96px, shared with an
+                // assignee. Unfolded, `atRest` **is** the figure and the
+                // comparison closes the column back down to one reading.
+                //
+                // One condition and not two: a row with no estimate has neither
+                // a trio nor a figure, so a `final !== ''` beside this would be
+                // a check that cannot fail (`AGENTS.md`, R5, `T1
+                // column-widths-drag`). be-01 computes `finalDays` from
+                // `estimates` in the same call — see `WorkItemRow.finalDays` —
+                // so the two are absent together.
+                const finalSaysMore = final !== atRest;
+                // Nobody on this role and exactly one person on another: they are
+                // assumed to be doing this phase too. The same rule the unfolded
                 // column has, in the cell that is always on screen — which is the
                 // whole reason the assignee stopped folding away. Read through
                 // {@link assigneeOn}, which is where a card reads it too.
@@ -8438,7 +8590,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         }
                       />
                     ) : (
-                      showFinal(row.original.finalDays[step.id])
+                      // A parent's folded cell reads the shape its leaves do —
+                      // a column that printed a trio on a leaf and a bare
+                      // figure one row up would be two readings of one heading.
+                      // A parent's trio is the sum of its descendants', per
+                      // point, and the method applied to that sum is the sum of
+                      // the methods applied (PERT is linear), so the pair below
+                      // cannot contradict the leaves it is made of.
+                      atRest
+                    )}
+                    {finalSaysMore && (
+                      // `2/2/3 · 2.2`: the trio a person typed, and what the
+                      // project's estimate method makes of it. Muted and normal
+                      // weight, the treatment the assignee beside it has, for
+                      // the same reason — the bold thing in this cell is what
+                      // somebody chose, and both of these are the plan's answer
+                      // about it. The row's own total days is where a plan is
+                      // read at a glance, and it is unchanged.
+                      //
+                      // `flex: none`, so a narrow column takes its pixels out
+                      // of the box rather than out of this: the figure is three
+                      // characters and the box scrolls, and a clipped `2.` is
+                      // worse than a clipped trio the box can still be read in.
+                      //
+                      // **10px, the type this table's headings are set in
+                      // (`column-rebalance`), and it is load-bearing rather
+                      // than decorative.** At the row's own 13px the widest
+                      // trio anybody has typed here in anger — `20/24/30`,
+                      // live on dev, 2026-08-22 — did not fit: the box clipped
+                      // by 8px in a 96px column, measured in Chromium. The
+                      // caption size buys that back and leaves the figure
+                      // reading as the annotation it is rather than as a
+                      // second figure competing with the trio.
+                      // Proof: written at the row's own type instead, `holds a
+                      // trio and its figure on one line of a folded role cell`
+                      // failed on `the trio does not fit the box beside its
+                      // figure — Expected: <= 0, Received: 8`. Watched in
+                      // Chromium, 2026-08-30.
+                      <span
+                        data-folded-final={role.id}
+                        style={{
+                          marginLeft: 3,
+                          flex: 'none',
+                          whiteSpace: 'nowrap',
+                          fontWeight: 'normal',
+                          fontSize: 10,
+                          color: 'var(--muted-foreground)',
+                        }}
+                      >
+                        · {final}
+                      </span>
                     )}
                     {problem !== null && ' !'}
                     {doing !== null && (
@@ -8528,7 +8729,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           // 3.7 days'`.
                           days: showDays(row.original.estimates[step.id], point),
                         }))}
-                        final={showFinal(row.original.finalDays[step.id])}
+                        // The same read as the figure beside the box, and the
+                        // same local: a card that computed its own would be a
+                        // second opinion about one number, one element away.
+                        final={final}
                         doing={doing}
                         problem={problem}
                       />

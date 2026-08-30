@@ -53,6 +53,18 @@ export interface RowFacets {
    */
   serviceIds: readonly string[];
   /**
+   * What kind of work this row **is** — the row's **own** types, and this is the
+   * one facet in this interface that is not an effective reading.
+   *
+   * Not an oversight and not a shortcut: a work item type does not inherit, so
+   * there is no walk to take and the stored set already **is** the effective one
+   * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The three
+   * fields above carry a warning that reading stored labels finds the parent and
+   * loses every child; here there is no child to lose, because a child of an
+   * `Epic` is not an `Epic`.
+   */
+  typeIds: readonly string[];
+  /**
    * Whether the teams doing this row's work own the service it delivers —
    * `builtByNonOwner` over the effective reading of both, against the
    * directory's ownership map.
@@ -116,6 +128,8 @@ export interface FilterCriteria {
    * with one of them is the row's business, not the control's.
    */
   serviceIds: readonly string[];
+  /** Type ids — the vocabulary is global, so an id means the same thing on every plan. */
+  typeIds: readonly string[];
   /**
    * Only rows built by a team that does not own the service they deliver.
    *
@@ -151,6 +165,7 @@ export const NO_FACETS: FacetCriteria = {
   teamIds: [],
   tagIds: [],
   serviceIds: [],
+  typeIds: [],
   builtByNonOwner: false,
   assignedOutsideTeam: false,
   assigneeIds: [],
@@ -190,6 +205,7 @@ function anyFacetChosen(criteria: FilterCriteria): boolean {
     criteria.teamIds.length > 0 ||
     criteria.tagIds.length > 0 ||
     criteria.serviceIds.length > 0 ||
+    criteria.typeIds.length > 0 ||
     criteria.builtByNonOwner ||
     criteria.assignedOutsideTeam ||
     criteria.assigneeIds.length > 0 ||
@@ -226,6 +242,7 @@ export interface FilterLabels {
   teamName: (teamId: string) => string;
   tagName: (tagId: string) => string;
   serviceName: (serviceId: string) => string;
+  typeName: (typeId: string) => string;
   personName: (personId: string) => string;
   stepName: (stepId: string) => string;
 }
@@ -262,6 +279,10 @@ export function filterWords(criteria: FilterCriteria, labels: FilterLabels): str
   // "team Platform or Payments" for a team and a service would be a sentence
   // neither the control nor the predicate means.
   chosen('service', criteria.serviceIds, labels.serviceName);
+  // The fourth dimension's own phrase, for the third's reason: independent of
+  // the three beside it, so folding it in would say something neither the
+  // control nor the predicate means.
+  chosen('type', criteria.typeIds, labels.typeName);
   chosen('assignee', criteria.assigneeIds, labels.personName);
   // The bands travel as their labels rather than as ids — what the ladder calls
   // the rung is what the control offers and what a reader recognises.
@@ -365,6 +386,10 @@ export function narrowTree(
     // inheritance (task 6.2). `carriesAnyChosen` is an intersection, so a row
     // delivering two services answers to a tick on either.
     carriesAnyChosen(criteria.serviceIds, row.facets.serviceIds) &&
+    // Against `row.facets.typeIds`, which is the row's **own** set — and unlike
+    // the three above, that is the whole reading rather than half of one. There
+    // is no inheritance to lose a child to here.
+    carriesAnyChosen(criteria.typeIds, row.facets.typeIds) &&
     carriesAnyChosen(criteria.assigneeIds, row.facets.assigneeIds) &&
     carriesAnyChosen(
       criteria.priorityBands,

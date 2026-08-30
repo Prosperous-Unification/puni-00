@@ -49,5 +49,21 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
         return { error: 'unauthenticated' };
       }
       return { services: await directory.listServices() };
+    })
+    .get('/work-item-types', async ({ headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return { workItemTypes: await directory.listWorkItemTypes() };
+    })
+    .get('/external-systems', async ({ headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return { externalSystems: await directory.listExternalSystems() };
     });
 }

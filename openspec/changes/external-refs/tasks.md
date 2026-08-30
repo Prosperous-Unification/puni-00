@@ -4,19 +4,19 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 1. Storage and the vocabulary
 
-- [ ] 1.1 Migration: `external_system (id, name)` unique on name, seeded with the known systems; `work_item_external_ref (id, work_item_id, system_id, url, position)` cascading from the work item — additive forward, `down.sql` dropping both — test: `migrate-down.test.ts` round trip; migration lint green.
-- [ ] 1.2 Repository: full-replacement write of a work item's refs, creating an unknown system name on the way — test: `external-ref.test.ts` `a work item holds several refs to one system`, `naming an unknown system saves it`; negative: the replacement made additive, watched failing on a removed ref coming back.
+- [x] 1.1 Migration: `external_system (id, name)` unique on name, seeded with the known systems; `work_item_external_ref (id, work_item_id, system_id, url, position)` cascading from the work item — additive forward, `down.sql` dropping both — test: `migrate-down.test.ts` round trip; migration lint green.
+- [x] 1.2 Repository: full-replacement write of a work item's refs, creating an unknown system name on the way — test: `external-ref.test.ts` `a work item holds several refs to one system`, `naming an unknown system saves it`; negative: the replacement made additive, watched failing on a removed ref coming back.
 
 ## 2. Deriving the system, once
 
-- [ ] 2.1 `systemOfUrl(url)` in `libs/domain`: an ordered host+path pattern list answering a canonical name or `null` — test: `external-system.test.ts` one case per known system plus `an unmatched URL is left to the reader`; negative: the GitHub pull-request pattern loosened to the host alone, watched failing on a GitHub issue URL typed as a PR.
-- [ ] 2.2 Derivation runs at the write and the answer is **stored**; reads never derive — test: `a new rule does not re-type an existing ref`, adding a pattern in the test and asserting the stored value; negative: the read path made to derive, watched failing on that case. This is the change's one irreversible-by-accident rule.
-- [ ] 2.3 A ref with no system is refused at the write as a modeled 4xx, never a 500 — test: `the ref SHALL NOT be stored until a system is named`.
+- [x] 2.1 `systemOfUrl(url)` in `libs/domain`: an ordered host+path pattern list answering a canonical name or `null` — test: `external-system.test.ts` one case per known system plus `an unmatched URL is left to the reader`; negative: the GitHub pull-request pattern loosened to the host alone, watched failing on a GitHub issue URL typed as a PR.
+- [x] 2.2 Derivation runs at the write and the answer is **stored**; reads never derive — test: `a new rule does not re-type an existing ref`, adding a pattern in the test and asserting the stored value; negative: the read path made to derive, watched failing on that case. This is the change's one irreversible-by-accident rule.
+- [x] 2.3 A ref with no system is refused at the write as a modeled 4xx, never a 500 — test: `the ref SHALL NOT be stored until a system is named`.
 
 ## 3. Commands, wire, undo
 
-- [ ] 3.1 `patchWorkItem` gains `externalRefs` (full list) — test: `plan-commands.test.ts` `refs are replaced wholesale`; negative: partial merge, watched failing.
-- [ ] 3.2 The plan payload carries each work item's refs and the system vocabulary; undo restores the previous list — test: payload shape case, `plan-history` undo case; negative: undo restoring an empty list, watched failing.
+- [x] 3.1 `patchWorkItem` gains `externalRefs` (full list) — test: `plan-commands.test.ts` `refs are replaced wholesale`; negative: partial merge, watched failing.
+- [x] 3.2 The plan payload carries each work item's refs and the system vocabulary; undo restores the previous list — test: payload shape case, `plan-history` undo case; negative: undo restoring an empty list, watched failing.
 
 ## 4. The dot column
 

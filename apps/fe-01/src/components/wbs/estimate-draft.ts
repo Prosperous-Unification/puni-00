@@ -149,6 +149,37 @@ export function parseTrioShorthand(typed: string): TrioShorthand {
 }
 
 /**
+ * A stored estimate as the shorthand that would type it — `2/3/8`, or `5`
+ * where all three points agree, or `''` where there is no estimate at all.
+ *
+ * {@link parseTrioShorthand}'s inverse, and it lives beside it for that
+ * reason: a printer written where its parser cannot see it is how the two come
+ * to disagree about which strings are one estimate. `estimate-draft.test.ts`
+ * asserts the round trip rather than the spelling alone.
+ *
+ * **This is what a folded role's cell holds at rest**, since
+ * `estimate-triple-visible`. Until then the cell showed be-01's computed final
+ * figure, which cost two things: the three numbers somebody chose left the
+ * screen the moment they landed (Dany, 2026-08-29 — *"i want to keep seeing
+ * the values i've put in"*), and the box was the one in the grid whose value
+ * was not a legal way to have typed what it stood for — retyping `2.2` over
+ * `2/2/3` stores `2.2/2.2/2.2`. The figure is still on screen, muted, beside
+ * the box; see `wbs-table.tsx`'s folded cell.
+ *
+ * The collapse is not a shortening for its own sake. `5` is what a person
+ * types to mean all three are five, and the long form printed back would show
+ * them a trio they did not type — the same objection {@link trioProblem}
+ * makes to repairing one. It is exactly the single-number form
+ * {@link parseTrioShorthand} reads, so the round trip holds through it.
+ */
+export function showTrio(days: Days | undefined): string {
+  if (days === undefined) return '';
+  const [optimistic, realistic, pessimistic] = POINTS.map((point) => String(days[point]));
+  if (optimistic === realistic && realistic === pessimistic) return optimistic;
+  return `${optimistic}/${realistic}/${pessimistic}`;
+}
+
+/**
  * Whether every box of a trio now reads empty.
  *
  * The one thing {@link sendableTrio} returning null does not tell its caller.

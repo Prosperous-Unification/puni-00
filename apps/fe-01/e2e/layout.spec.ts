@@ -1035,6 +1035,118 @@ test.describe('the table, measured by a browser', () => {
     ).toEqual([]);
   });
 
+  test('holds a trio and its figure on one line of a folded role cell', async ({ page }) => {
+    // `estimate-triple-visible`. The seeded plan estimates 010 `2/3/8` and
+    // leaves 020 unestimated, so the two rows are the same row with and
+    // without this change's content in it.
+    //
+    // **jsdom is the oracle for what the cell says and can be the oracle for
+    // neither of the two things below** (`AGENTS.md`, R5 #14/#15): whether the
+    // figure fits beside the box in 96px, and whether a row that holds both is
+    // still one line tall.
+    //
+    // Both names are cut to one line first — the seed's are two sentences long
+    // and wrap at this width, and a wrapped name is a taller row for a reason
+    // that has nothing to do with an estimate.
+    for (const [label, name] of [
+      ['Name of 010', 'Survey'],
+      ['Name of 020', 'Draft'],
+    ] as const) {
+      const box = page.getByLabel(label);
+      await box.fill(name);
+      await box.blur();
+      await expect(box).toHaveValue(name);
+    }
+    await expect(page.getByLabel('Dev estimate for 010')).toHaveValue('2/3/8');
+
+    const measure = () =>
+      page.evaluate(() => {
+        const rows = [...document.querySelectorAll('tbody tr')];
+        // The count, not `rows[1] === undefined`: without
+        // `noUncheckedIndexedAccess` an index into this array types as
+        // `Element`, so the nullish test is one the compiler has already
+        // decided and eslint refuses as unreachable. The length is a fact
+        // about the page, and the second row is what the first is compared
+        // against below.
+        if (rows.length < 2) {
+          throw new Error(`the plan has ${String(rows.length)} rows; this needs two`);
+        }
+        const cell = rows[0]?.querySelector('td[data-column$="-final"]');
+        const box = cell?.querySelector('input');
+        const figure = cell?.querySelector('[data-folded-final]');
+        if (
+          !(cell instanceof HTMLElement) ||
+          !(box instanceof HTMLInputElement) ||
+          !(figure instanceof HTMLElement)
+        ) {
+          throw new Error('the first row has no folded role cell with a box and a figure in it');
+        }
+        const cellBox = cell.getBoundingClientRect();
+        const boxBox = box.getBoundingClientRect();
+        const figureBox = figure.getBoundingClientRect();
+        return {
+          said: figure.textContent,
+          cell: { id: 'the role column', x: cellBox.x, width: cellBox.width },
+          box: { id: 'the trio box', x: boxBox.x, width: boxBox.width },
+          figure: { id: 'the derived figure', x: figureBox.x, width: figureBox.width },
+          // Whether the box is showing its whole value or scrolling it. This
+          // is the assertion the change exists for: a trio nobody can read is
+          // the figure-only cell again with more characters in it.
+          clipped: box.scrollWidth - box.clientWidth,
+          estimated: rows[0].getBoundingClientRect().height,
+          bare: rows[1].getBoundingClientRect().height,
+        };
+      });
+
+    /** What this cell has to hold at rest, whatever else it holds. */
+    const holdsItsContents = (measured: Awaited<ReturnType<typeof measure>>): void => {
+      // Both boxes have area before anything is asserted about where they are.
+      // A zero-width rectangle sits inside every cell there is, and an overlap
+      // check against one is a check that cannot fail — `G gantt-calendar-axis`,
+      // R5 #16.
+      expect(measured.box.width).toBeGreaterThan(0);
+      expect(measured.figure.width).toBeGreaterThan(0);
+      expect(measured.cell.width).toBe(96);
+      expect(findOverrun(measured.cell, measured.box)).toBe(undefined);
+      expect(findOverrun(measured.cell, measured.figure)).toBe(undefined);
+      // Proof: the figure drawn at the row's own 13px rather than the table's
+      // 10px caption size, this failed on the wide case — `the trio does not
+      // fit the box beside its figure — Expected: <= 0, Received: 8`. Watched
+      // in Chromium, 2026-08-30, and it is why the figure is set small.
+      expect(
+        measured.clipped,
+        'the trio does not fit the box beside its figure',
+      ).toBeLessThanOrEqual(0);
+      // Proof: the cell wrapper's `display: flex` written as `display: block`,
+      // so the figure drops under the box — this failed on `Expected: 26.1875
+      // / Received: 44.375`, a row two lines tall. Watched in Chromium,
+      // 2026-08-30.
+      expect(
+        measured.estimated,
+        'a row holding a trio and a figure is taller than one holding neither',
+      ).toBeCloseTo(measured.bare, 1);
+      expect(measured.estimated).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
+    };
+
+    const seeded = await measure();
+    expect(seeded.said).toBe('· 3.7');
+    holdsItsContents(seeded);
+
+    // The widest trio this column has been asked to hold in anger: `20/24/30`,
+    // typed live on dev by `wbs-e2e-planning-qa` on 2026-08-22 and quoted in
+    // `wbs-table.tsx` beside the Enter that sends it. Eight characters and a
+    // four-character figure is what the 96px budget has to survive, and it is
+    // the case the design is chosen against rather than the seed's short one.
+    const estimate = page.getByLabel('Dev estimate for 010');
+    await estimate.fill('20/24/30');
+    await estimate.blur();
+    await expect(page.locator('[data-folded-final]').first()).toHaveText('· 24.3');
+
+    const wide = await measure();
+    expect(wide.said).toBe('· 24.3');
+    holdsItsContents(wide);
+  });
+
   test('puts the pinned columns exactly where they are declared to sit', async ({ page }) => {
     await scrollFrameTo(page, 0);
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({

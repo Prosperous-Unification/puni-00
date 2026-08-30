@@ -371,6 +371,64 @@ export interface LabelledWorkItem extends WorkItem {
    * inherits; see `effectiveServicesOf` in `libs/domain`.
    */
   serviceIds: readonly string[];
+  /**
+   * What kind of work the row **is**, 0..n — `Story`, `Bug`, `Spike`, `Epic`.
+   *
+   * The fourth dimension, and the one whose empty case does **not** mean what
+   * the other three's does. Empty here means the row has no type, full stop: it
+   * does not inherit, there is no `effectiveTypesOf` beside `effectiveTagsOf`,
+   * and a reader may take this array as the whole answer. A child of an `Epic`
+   * is emphatically not an `Epic`, which is the argument in
+   * `docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`.
+   *
+   * That makes this the only one of the four a face can draw without walking the
+   * tree, and the only one whose chips are all removable — nothing on it was
+   * stated somewhere else.
+   *
+   * Ordered by type id, `teamIds`' rule and for its reason: two reads of an
+   * unchanged plan answer the same array.
+   */
+  typeIds: readonly string[];
+  /**
+   * Where this row's work also exists, in the order the refs were added.
+   *
+   * **Not a label set, and the only reference-shaped field here that is a list
+   * of records rather than of ids.** A tag or a service is a name from a
+   * vocabulary; a ref is a vocabulary name *plus* the address of one thing, and
+   * two refs into the same system are two different links rather than one fact
+   * stated twice.
+   *
+   * Nothing inherits here either: a ref is on the row that carries it.
+   */
+  externalRefs: readonly ExternalRef[];
+}
+
+/**
+ * One link out of a work item: which system, and where.
+ *
+ * `systemId` is the **stored** derivation (design D1) — `systemOfUrl` answered
+ * it when the ref was written and nothing re-derives it on read, so a ref keeps
+ * the type it was given when the rule later changes.
+ *
+ * `url` is a string and not a parsed URL: it is stored as typed, and every
+ * surface that renders it as a link checks the scheme first. A `javascript:`
+ * URL written by a peer edit is the fault that rule exists for.
+ */
+export interface ExternalRef {
+  id: string;
+  systemId: string;
+  url: string;
+}
+
+/**
+ * One external system in the global directory — {@link Tag}'s two columns.
+ *
+ * Seeded where the tag is empty: these names are what `systemOfUrl` can answer,
+ * so the vocabulary and the deriving rule are one fact.
+ */
+export interface ExternalSystem {
+  id: string;
+  name: string;
 }
 
 /**
@@ -401,6 +459,33 @@ export interface Tag {
  */
 export type TagWritten =
   | { ok: true; tag: Tag; projectIds: readonly string[] }
+  | { ok: false; reason: 'taken' | 'not_found' };
+
+/**
+ * One work item type in the global directory: an id and a name, nothing else.
+ *
+ * {@link Tag}'s two columns, for {@link Tag}'s reason — nothing about a type is
+ * ever spent — and for one more of its own: the change that adds this dimension
+ * rules out a type deciding anything, so there is deliberately no colour here,
+ * no default, no ordering weight and no `isDefault`. A type is a label, and a
+ * reader's taxonomy is not the tool's to interpret.
+ */
+export interface WorkItemType {
+  id: string;
+  name: string;
+}
+
+/**
+ * What a work item type rename answered — {@link TagWritten}'s shape, one
+ * dimension over, including `taken` carrying no surviving name because the
+ * caller typed it.
+ *
+ * `projectIds` is every project holding a row that carries the type, read in the
+ * rename's own transaction so the events published after it name the plans that
+ * were labelled when it happened.
+ */
+export type WorkItemTypeWritten =
+  | { ok: true; workItemType: WorkItemType; projectIds: readonly string[] }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 /**
@@ -533,6 +618,44 @@ export interface WorkItemPatch {
    * must name the tag rather than be a 500, and only the transaction can.
    */
   tagIds?: readonly string[];
+  /**
+   * What kind of work this row **is**, **whole**: the set as it will stand,
+   * never a member to add or remove — {@link tagIds}'s rule and every one of its
+   * reasons, including the undo journal needing a before-value that restores.
+   *
+   * `[]` takes every type off and is the only spelling of it. Unlike
+   * {@link tagIds}, `[]` here also has no inheritance behind it to fall back to:
+   * a row with no types has no types, so this is the one dimension where the
+   * empty set and the answer a reader sees are the same thing
+   * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`).
+   *
+   * An id the directory no longer holds refuses the **whole** patch with
+   * `unknown_type`, decided **inside the transaction that performs the update**
+   * — {@link tagIds}'s argument unchanged: the join cascades, so an id removed
+   * between a precheck and this write leaves nothing for a foreign key to catch,
+   * and the refusal a reader gets must name the type rather than be a 500.
+   */
+  typeIds?: readonly string[];
+  /**
+  /**
+   * Where this row's work also exists, **whole**: the list as it will stand.
+   *
+   * `tagIds`' replacement rule and its undo argument, with one difference that
+   * matters — the members are records, so "the same list" means the same refs in
+   * the same order rather than the same set of ids. `[]` removes every ref.
+   *
+   * A ref whose `systemId` the directory does not hold refuses the **whole**
+   * patch with `unknown_system`, decided inside the write's transaction:
+   * `work_item_external_ref.system_id` cascades, so a system removed between a
+   * precheck and the write leaves nothing for a foreign key to catch.
+   */
+  externalRefs?: readonly ExternalRefWrite[];
+}
+
+/** A ref as a caller states it — no `id`, because the store mints one per row. */
+export interface ExternalRefWrite {
+  systemId: string;
+  url: string;
 }
 
 /**
@@ -583,6 +706,8 @@ export type WorkItemPatched =
         | 'unknown_team'
         | 'unknown_tag'
         | 'unknown_service'
+        | 'unknown_type'
+        | 'unknown_system'
         | 'not_before_reason_needs_a_date';
     };
 
@@ -1265,6 +1390,39 @@ export interface DirectoryStore {
    * the labelling — all in one transaction, bumping every row that lost one.
    */
   removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /** Every work item type in the global directory, by name. */
+  listWorkItemTypes(): Promise<WorkItemType[]>;
+  /**
+   * Adds a work item type idempotently **by name**, answering the row that is
+   * there — {@link DirectoryStore.addTag}'s rule and its reason: the list is
+   * typed into by everybody, two people adding `Bug` at the same moment both
+   * pass a check-then-insert, and only the unique index stops the second.
+   */
+  addWorkItemType(toAdd: WorkItemType): Promise<WorkItemType>;
+  /** Renames one work item type, refusing a name another type holds. */
+  renameWorkItemType(typeId: string, name: string): Promise<WorkItemTypeWritten>;
+  /**
+   * What points at one work item type right now — a fast path for the
+   * confirmation, never the authority for it.
+   * {@link DirectoryStore.removeWorkItemType} decides.
+   */
+  usageOfWorkItemType(typeId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what carries the type, refuses an unconfirmed removal that would
+   * unlabel anything, and otherwise deletes the type — letting the cascade take
+   * the labelling — all in one transaction, bumping every row that lost one.
+   */
+  removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * Every external system in the global directory, by name.
+   *
+   * Read-only: the vocabulary is seeded by the migration and grows only when a
+   * ref names a system that is not there — which the write path does, rather
+   * than a route of its own. There is no rename and no removal, and that absence
+   * is the change's own non-goal: removing a system takes every **link** with
+   * it, not a label off a row, and nothing has asked for that yet.
+   */
+  listExternalSystems(): Promise<ExternalSystem[]>;
   /** Every service in the global directory, by name. */
   listServices(): Promise<Service[]>;
   /**
