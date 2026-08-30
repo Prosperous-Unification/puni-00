@@ -18,17 +18,17 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 3. The cell and the column
 
-- [ ] 3.1 `type` added to `COLUMN_WIDTHS` at 120, to `hideableColumnIds` in table order (after `tag`), and to `DEFAULT_HIDDEN_COLUMNS` — test: `table-frame.test.ts` `the default table is the table it was`, asserting the **pinned** pre-change folded figure; negative: `type` removed from the hidden defaults, watched failing on that figure by 120px.
-- [ ] 3.2 The Type cell as a `ReferenceSetStrip` with the `type` adapter: chips, search, create-on-name, full-replacement write — test: `wbs-table.test.tsx` `naming a type the directory does not hold creates it`, `an unset type shows nothing and inherits nothing`; negative: the Teams cell's inheritance rule copied in, watched failing on the parent's `Epic` appearing.
+- [x] 3.1 `type` added to `COLUMN_WIDTHS` at 120, to `hideableColumnIds` in table order (after `tag`), and to `DEFAULT_HIDDEN_COLUMNS` — test: `table-frame.test.ts` `the default table is the table it was`, asserting the **pinned** pre-change folded figure; negative: `type` removed from the hidden defaults, watched failing on that figure by 120px.
+- [x] 3.2 The Type cell as a `ReferenceSetStrip` with the `type` adapter: chips, search, create-on-name, full-replacement write — test: `wbs-table.test.tsx` `naming a type the directory does not hold creates it`, `an unset type shows nothing and inherits nothing`; negative: the Teams cell's inheritance rule copied in, watched failing on the parent's `Epic` appearing.
 
 ## 4. Filter and directory page
 
-- [ ] 4.1 A type facet listing the types present on the plan — test: `the facet lists what the plan carries`; negative: the facet sourced from the directory rather than the plan, watched failing on `Epic` being offered.
-- [ ] 4.2 The directory page edits the type vocabulary beside tags — test: `directory-page.test.tsx` create/rename/remove cases, asserting **after** the server has answered (`AGENTS.md`, `D directory-page`: an optimistic page and a patient one land on the same screen, so assert in the window the fault lives in — hold the request in flight).
+- [x] 4.1 A type facet listing the types present on the plan — test: `the facet lists what the plan carries`; negative: the facet sourced from the directory rather than the plan, watched failing on `Epic` being offered.
+- [x] 4.2 The directory page edits the type vocabulary beside tags — test: `directory-page.test.tsx` create/rename/remove cases, asserting **after** the server has answered (`AGENTS.md`, `D directory-page`: an optimistic page and a patient one land on the same screen, so assert in the window the fault lives in — hold the request in flight).
 
 ## 5. In a browser
 
-- [ ] 5.1 Chromium at 1280 and 390×844: the column shown from `Columns`, a row of three types the same height as a row of none, the chip run clipped rather than wrapped — negative: `flex-wrap: wrap` on the strip, watched failing on the measured height. jsdom computes no layout.
+- [ ] 5.1 **Not done, and blocked on a browser rather than on code.** Chromium at 1280 and 390×844: the column shown from `Columns`, a row of three types the same height as a row of none, the chip run clipped rather than wrapped — negative: `flex-wrap: wrap` on the strip, watched failing on the measured height. jsdom computes no layout.
 
 ## 6. Gate
 
