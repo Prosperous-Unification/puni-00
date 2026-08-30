@@ -1337,6 +1337,32 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  * that state, where the frame ends a few pixels under the last row and there is
  * white space below it that the picker is not allowed to reach into.
  */
+/**
+ * The slack between the table frame and the docked chart group.
+ *
+ * `flex: 1 1 0` so it takes every pixel the column has left over, which is what
+ * docks the height handle, the chart panel and the status line to the bottom of
+ * the column rather than leaving them stacked under a short plan with half a
+ * screen of white beneath them.
+ *
+ * **`minHeight: 0` is not tidiness — it is what keeps the drag working.**
+ * `ganttRoomInColumn` credits a flex child with its `min-height` only where the
+ * child declares a definite one *and* can shrink to it, and counts it at its
+ * standing height otherwise. A spacer counted at its standing height would be
+ * counted at the slack itself, so the room would come back as nearly nothing and
+ * a drag could not grow the chart. With the floor declared it contributes 0, and
+ * the room is the same number it was before this element existed.
+ *
+ * That is not hypothetical: an `mt-auto` on the handle was tried first and did
+ * exactly that, because Chromium resolves an auto margin on a flex item to its
+ * used value and the room sum reads margins. 113px of chart before the drag and
+ * 113px after, in Chromium.
+ */
+export const GANTT_DOCK_SLACK: CSSProperties = {
+  flex: '1 1 0',
+  minHeight: 0,
+};
+
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
   flex: '0 1 auto',

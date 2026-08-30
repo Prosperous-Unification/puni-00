@@ -212,7 +212,17 @@ test.describe('the steps surface, in a browser', () => {
     await qa.click();
     await qa.fill('2/3/8');
     await page.getByLabel('Name of 010').click();
-    await expect(qa).toHaveValue('3.7');
+    // **`2/3/8`, not the `3.7` this asserted until `estimate-triple-visible`.**
+    // The folded cell used to collapse a typed trio to its PERT figure the moment
+    // it was left; that change is precisely the decision that it keeps the trio
+    // and shows what it comes to beside it. `layout.spec.ts` asserts the same
+    // value for the Dev cell.
+    //
+    // What this case actually needs from the line is unchanged and is why it is
+    // still here: be-01 has a real estimate on QA to count, so the removal below
+    // has something to name. The figure it settles to was never this test's
+    // subject.
+    await expect(qa).toHaveValue('2/3/8');
 
     await page.getByRole('button', { name: 'Steps', exact: true }).click();
     await page.getByRole('button', { name: 'Remove QA' }).click();

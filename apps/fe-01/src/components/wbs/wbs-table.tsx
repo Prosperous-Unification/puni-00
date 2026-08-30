@@ -153,6 +153,7 @@ import {
   floorFor,
   frameLayout,
   type FrameLayoutState,
+  GANTT_DOCK_SLACK,
   hideableColumnIds,
   hierarchyIndentFor,
   numberIndentFor,
@@ -11150,6 +11151,39 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         and the toggle that mounts it is in the same one toolbar the sheet
         opens.
       */}
+      {/*
+        The slack, given somewhere to live so the chart docks to the bottom of
+        the column instead of floating in the middle of it.
+
+        Dany, 2026-08-30, on a four-row plan: "i need the whole gantt panel to go
+        down". This is the other half of `unified-scroll-docking` and it reverses
+        that change's *outcome* rather than its reasoning. `TABLE_FRAME` went to
+        `flex-grow: 0` on 2026-08-11 to stop a short plan putting 508px of
+        nothing between its last row and the chart — which it did, by moving the
+        same emptiness **below** the chart, where it is worse: the chart stopped
+        being docked to anything. Measured in Chromium at 1600×1000 on a one-row
+        plan, before this element existed: column 943px, children 439px, **528px
+        of dead space under the panel**.
+
+        **A spacer and not `mt-auto` on the handle, and that is the whole reason
+        this is an element rather than a class.** An auto margin was tried first
+        and it docked the panel correctly — and broke the drag, because
+        `getComputedStyle` resolves `margin-top: auto` on a flex item to its
+        *used* value, so `ganttRoomInColumn` read the absorbed slack as margin
+        the column had spent and answered a room of nearly nothing. Dragging the
+        handle up then could not grow the chart at all: 113px before the drag and
+        113px after it, watched in Chromium.
+
+        This element is free of that by the rule that function already documents:
+        it is shrinkable and declares a definite `min-height`, so it is credited
+        its floor of 0 rather than the height it stands at, and the room is the
+        number it was before. Both halves are asserted in `e2e/gantt.spec.ts`.
+
+        Rendered only while the chart is open. With it closed the column has no
+        docked group to push down and the frame's own `flex-grow: 0` is the whole
+        story, exactly as `unified-scroll-docking` left it.
+      */}
+      {ganttOpen && <div aria-hidden="true" style={GANTT_DOCK_SLACK} />}
       {ganttOpen && <GanttHeightHandle heightPx={ganttHeightPx} resize={resizeGantt} />}
       {ganttOpen && (
         // The boundary wraps the panel and nothing else, which is the whole of

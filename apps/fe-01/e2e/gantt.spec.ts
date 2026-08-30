@@ -2856,3 +2856,86 @@ test.describe('the pointed row, across both faces', () => {
     await expect(name).toHaveValue('Survey the racking bef');
   });
 });
+
+test.describe('the chart docks to the bottom of its column', () => {
+  /**
+   * Dany, 2026-08-30, looking at a four-row plan: _"i need the whole gantt panel
+   * to go down"_.
+   *
+   * The chart was stacked directly under a short plan's table frame and left
+   * half a screen of white below it — measured in Chromium at 1600×1000 on a
+   * one-row plan: the column 943px, its children 439px, **528px of dead space
+   * under the panel**. Every child was `flex-grow: 0`, so the room a short plan
+   * did not use went to nobody.
+   *
+   * `GANTT_DOCK_SLACK` is where it goes now. Both halves are asserted here
+   * because jsdom lays nothing out and can see neither.
+   */
+  test('sits at the column’s bottom edge however short the plan is', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    // The column's bottom against its last **in-flow** child's. Read in the page
+    // rather than through a selector: `div:last-of-type` picks the toast stack,
+    // which is `position: fixed` and 0×0, and the first cut of this failed on
+    // exactly that — `is drawn with no area: 0×0`.
+    const docked = await page.evaluate(() => {
+      const column = document.querySelector('[data-slice-count]');
+      if (column === null) throw new Error('the chart column is not on the page');
+      const inFlow = [...column.children].filter((child) => {
+        const position = getComputedStyle(child).position;
+        return position !== 'fixed' && position !== 'absolute';
+      });
+      const last = inFlow.at(-1);
+      if (last === undefined) throw new Error('the column has no in-flow children');
+      return {
+        columnBottom: column.getBoundingClientRect().bottom,
+        lastBottom: last.getBoundingClientRect().bottom,
+        columnHeight: column.getBoundingClientRect().height,
+      };
+    });
+    const panel = await rectOf(page, '[data-gantt-height-handle] + *');
+
+    expect(docked.columnHeight, 'the column was not laid out').toBeGreaterThan(0);
+    expect(panel.height, 'the panel was not laid out').toBeGreaterThan(0);
+    // Nothing left over: the docked group ends where the column does.
+    //
+    // Proof: `GANTT_DOCK_SLACK` deleted, watched failing with 528px between the
+    // two on a one-row plan.
+    expect(
+      docked.columnBottom - docked.lastBottom,
+      'the column has room left under its last child, so the chart is not docked',
+    ).toBeLessThanOrEqual(NEARLY);
+  });
+
+  test('and the handle still grows the chart, which an auto margin stopped', async ({ page }) => {
+    // **The half that was broken by the first attempt at the docking above.**
+    // `mt-auto` on the handle docked the panel correctly and killed the drag:
+    // Chromium resolves an auto margin on a flex item to its *used* value, and
+    // `ganttRoomInColumn` reads margins, so the room came back as nearly nothing
+    // and the chart could not grow. 113px before the drag and 113px after it.
+    //
+    // The spacer is free of that because it declares a definite `min-height` and
+    // can shrink to it, so the room sum credits it 0 rather than the slack it is
+    // standing in — the rule that function already documents.
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    const before = await rectOf(page, '[data-gantt-height-handle] + *');
+    const handle = page.locator('[data-gantt-height-handle]');
+    const grip = await handle.boundingBox();
+    if (grip === null) throw new Error('the height handle is not on the page');
+
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y - 200, { steps: 12 });
+    await page.mouse.up();
+
+    const after = await rectOf(page, '[data-gantt-height-handle] + *');
+    expect(after.height, 'dragging the handle up did not grow the chart').toBeGreaterThan(
+      before.height + 50,
+    );
+    // And it is still docked, so the growth came out of the slack above it.
+    expect(Math.abs(after.bottom - before.bottom)).toBeLessThanOrEqual(NEARLY);
+  });
+});
