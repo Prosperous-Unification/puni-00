@@ -75,7 +75,31 @@ async function chooseTheme(page: Page, answer: 'Light' | 'Dark'): Promise<void> 
   // an interpolated `oklab(…)` belonging to neither palette. Drained rather
   // than waited out: nothing in this app animates without end.
   // `dark-mode.spec.ts` has the measurement that made this necessary.
-  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  //
+  // **The two states that do not count are named, rather than the two that
+  // do** — `dark-mode.spec.ts`'s `settled` and `priority-ramp.spec.ts`'s, whose
+  // reasoning this file was missing. A *finished* `CSSTransition` is never
+  // dropped from `getAnimations()` for a subtree Chromium has stopped
+  // recalculating, so `length === 0` is not a state this page reaches at all
+  // and the poll could only ever time out.
+  //
+  // Measured rather than reasoned, 2026-08-30, driving this same flip in
+  // Playwright's own Chromium: the count falls 155 → 42 at about 425ms and
+  // stays there, every one `finished`, `fill: backwards`, on the buttons and
+  // the search box — 36 on `BUTTON`, 6 on `INPUT`, one per animated property.
+  // 42 is exactly the number this check had been failing on
+  // (`Expected: 0 / Received: 42`), on `main`, for both sessions working this
+  // repo, dismissed by each of us as a known environmental red.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document
+            .getAnimations()
+            .filter((a) => a.playState !== 'finished' && a.playState !== 'idle').length,
+      ),
+    )
+    .toBe(0);
 }
 
 let account = 0;
@@ -470,7 +494,17 @@ test.describe('the deps cell offers an always-visible add button', () => {
       // The row under the pointer but not the affordance: the surface the
       // patch is judged against is the row's *hovered* colour, not its rest.
       await page.getByLabel('Name of 010').hover();
-      await expect.poll(() => depsCell.evaluate((td) => td.getAnimations().length)).toBe(0);
+      // The same rule one element down: a finished transition lingers on the
+      // cell's own list too, so the running ones are what this waits out.
+      await expect
+        .poll(() =>
+          depsCell.evaluate(
+            (td) =>
+              td.getAnimations().filter((a) => a.playState !== 'finished' && a.playState !== 'idle')
+                .length,
+          ),
+        )
+        .toBe(0);
       const rowColour = await bgOf(depsCell);
       // Nothing painted on the button yet, or the reads below would compare a
       // hover state with itself.
