@@ -72,6 +72,35 @@ describe('vite dev server config', () => {
   it('keeps port 4200 so the compose mapping and the Caddy upstream stay correct', () => {
     expect(serveConfig({ VITE_BE_URL: BE_URL, VITE_GW_URL: GW_URL }).server?.port).toBe(4200);
   });
+
+  it('serves wherever PORT says, so a gate can run beside a dev server', () => {
+    // The browser gate's `E2E_PORT_SHIFT` moves all three tiers, and this is
+    // fe-01's half of it. Without this the gate cannot start a stack of its own
+    // while `bun run dev` holds 4200 — `reuseExistingServer` is true off CI, so
+    // it silently measures whatever already answers there, which on 2026-08-09
+    // was a different checkout entirely (`LLM_README.md`'s landmine).
+    //
+    // Proof: `Number(process.env['PORT'] ?? 4200)` put back to a bare `4200`,
+    // this failed on `expected 4200 to be 4700`. Watched, 2026-08-29.
+    process.env['PORT'] = '4700';
+    try {
+      expect(serveConfig({ VITE_BE_URL: BE_URL, VITE_GW_URL: GW_URL }).server?.port).toBe(4700);
+    } finally {
+      delete process.env['PORT'];
+    }
+  });
+
+  it('refuses a port already in use rather than sliding to the next one', () => {
+    // Vite's default is to increment: with 4200 held it serves 4201, says so on
+    // a line nobody reads, and Playwright — waiting on 4200 — is answered by
+    // the other server. A gate that silently measures somebody else's checkout
+    // is exactly the fault the shift above exists to end, so a taken port has
+    // to be an error.
+    //
+    // Proof: `strictPort` deleted, this failed on `expected undefined to be
+    // true`. Watched, 2026-08-29.
+    expect(serveConfig({ VITE_BE_URL: BE_URL, VITE_GW_URL: GW_URL }).server?.strictPort).toBe(true);
+  });
 });
 
 // Proof: five faults, injected one at a time into `vite.config.ts` and

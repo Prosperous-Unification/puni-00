@@ -21,6 +21,7 @@ import {
   barLabelFor,
   barText,
   CHART_PAD_PX,
+  chartBelowTheFold,
   clampedGanttHeight,
   DAY_PX,
   DAY_SCALES,
@@ -3015,6 +3016,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
     listTeams: () => Promise.resolve(skew.teams ?? teams),
     listTags: () => Promise.resolve([]),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
@@ -4545,6 +4547,33 @@ describe('the height a drag may settle at', () => {
     // `overflow`, not this.
     expect(clampedGanttHeight(84, 50)).toBe(GANTT_MIN_PX);
     expect(clampedGanttHeight(400, 0)).toBe(GANTT_MIN_PX);
+  });
+});
+
+describe('how much chart is below the panel’s bottom edge', () => {
+  // Pure arithmetic, no DOM — and that is the whole of what this file may say
+  // about the fade. **Whether the cue is drawn is a claim about layout**, and
+  // jsdom lays nothing out: every box measures 0, so `scrollHeight`,
+  // `clientHeight` and `scrollTop` are all 0 here and the panel reads "nothing
+  // below" whatever it is holding. The browser is the oracle, in
+  // `e2e/gantt.spec.ts` under `the bottom edge of a chart dragged short`.
+  it('answers nothing where the box holds the whole chart', () => {
+    expect(chartBelowTheFold({ scrollHeight: 252, clientHeight: 252, scrollTop: 0 })).toBe(0);
+  });
+
+  it('answers what is left under a shrunk box', () => {
+    expect(chartBelowTheFold({ scrollHeight: 252, clientHeight: 92, scrollTop: 0 })).toBe(160);
+    expect(chartBelowTheFold({ scrollHeight: 252, clientHeight: 92, scrollTop: 60 })).toBe(100);
+  });
+
+  it('answers nothing at the last row, and at an overscroll past it', () => {
+    // The reader's own offset is in the sum, which is what makes the cue lift
+    // when they reach the end rather than staying for as long as the chart
+    // overflows at all.
+    expect(chartBelowTheFold({ scrollHeight: 252, clientHeight: 92, scrollTop: 160 })).toBe(0);
+    // A browser mid-bounce reports a `scrollTop` past its own end; that is the
+    // last row too, not a negative amount of chart.
+    expect(chartBelowTheFold({ scrollHeight: 252, clientHeight: 92, scrollTop: 200 })).toBe(0);
   });
 });
 

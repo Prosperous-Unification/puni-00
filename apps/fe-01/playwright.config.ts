@@ -26,42 +26,43 @@ if (!existsSync(join(repoRoot, 'apps', 'fe-01', 'playwright.config.ts'))) {
 const isCi = process.env['CI'] !== undefined;
 
 /**
- * How far this run moves its three servers off 3100/3200/4200, from
- * `E2E_PORT_SHIFT`.
+ * How far this run's three servers stand from their usual ports.
  *
- * The gate wants the ports to itself — `LLM_README.md`'s landmine is 66 tests
- * passing green against a `bun run dev` from another checkout — and a developer
- * wants their dev server to stay up. A shift gives both: `E2E_PORT_SHIFT=800`
- * runs the whole stack on 3900/4000/5000 beside a dev server holding the usual
- * three. Parallel worktrees each take a shift of their own.
+ * Zero in CI and by default, where the ports are free and the URLs in every
+ * runbook are the real ones. Non-zero is how a developer runs the gate while
+ * `bun run dev` holds 3100/3200/4200: `reuseExistingServer` is true off CI, so
+ * an unshifted local run does not start a stack at all — it measures whatever
+ * already answers, which on 2026-08-09 was another checkout entirely
+ * (`LLM_README.md`'s landmine). Shifting is the honest alternative to killing
+ * somebody's dev server.
  *
- * A shifted run **never** reuses a listening server (see {@link server}): the
- * shift exists precisely because something else is already up, and reuse is the
- * exact fault it is avoiding.
+ * A shift moves **all three** tiers together and rewrites the URLs they hold
+ * about each other. Moving one is worse than moving none: be-01 would mint
+ * tokens for a gw-01 it cannot reach, and the failure arrives forty seconds
+ * later as a socket that never opens.
  *
- * @throws When `E2E_PORT_SHIFT` is set to anything but a whole number in
- * `0..40000`. A shift that silently read as `0` would start the gate on the
- * dev server's own ports, which is the failure this variable exists to prevent
- * (`AGENTS.md` R5: unknown is not OK).
+ * @throws When `E2E_PORT_SHIFT` is set to something that is not a
+ * non-negative integer below 10000. An unusable shift silently read as zero is
+ * a run against the dev server wearing the costume of an isolated one.
  */
-function readPortShift(): number {
+const portShift = ((): number => {
   const asked = process.env['E2E_PORT_SHIFT'];
   if (asked === undefined || asked === '') return 0;
   const shift = Number(asked);
-  if (!Number.isInteger(shift) || shift < 0 || shift > 40_000) {
+  if (!Number.isInteger(shift) || shift < 0 || shift > 9999) {
     throw new Error(
-      `E2E_PORT_SHIFT must be a whole number of ports between 0 and 40000; got ${asked}. ` +
-        `It moves be-01/gw-01/fe-01 off 3100/3200/4200 together — 800 puts them on ` +
-        `3900/4000/5000.`,
+      `E2E_PORT_SHIFT must be a whole number between 0 and 9999; got ${asked}. ` +
+        `It moves be-01, gw-01 and fe-01 together — 500 puts them on 3600/3700/4700.`,
     );
   }
   return shift;
-}
+})();
 
-const portShift = readPortShift();
 const bePort = 3100 + portShift;
 const gwPort = 3200 + portShift;
 const fePort = 4200 + portShift;
+const beUrl = `http://localhost:${String(bePort)}`;
+const gwUrl = `http://localhost:${String(gwPort)}`;
 
 /**
  * A SQLite file this run alone will ever open.
@@ -97,11 +98,7 @@ const server = (app: string, command: string, url: string, env?: Record<string, 
   // than as a server that is up — which is the whole reason all three URLs are
   // waited on instead of only Vite's. A signup against a be-01 that has not
   // migrated is a 500 the spec would report as a broken table.
-  //
-  // A shifted run never reuses: `E2E_PORT_SHIFT` is asked for *because*
-  // something else holds the default ports, so anything already listening on a
-  // shifted one is another gate's stack rather than this checkout's.
-  reuseExistingServer: !isCi && portShift === 0,
+  reuseExistingServer: !isCi,
   timeout: 120_000,
   stdout: 'pipe' as const,
   stderr: 'pipe' as const,
@@ -182,15 +179,14 @@ export default defineConfig({
       },
     },
   ],
-  // Every port below is {@link portShift}ed together, and each server is told
-  // where the other two are: be-01 mints the token gw-01 verifies, gw-01 calls
-  // be-01, and Vite proxies `/api/*` and `/ws` to both. Miss one and the stack
-  // starts on the shifted ports while pointing at the unshifted ones — which is
-  // a gate talking to whatever dev server happens to be up.
+  // Every port and every cross-tier URL below comes from `portShift`, and none
+  // of them is written twice: an environment variable that moved a listener
+  // without moving what points at it is the shift half-applied, which boots
+  // three servers that cannot talk to each other.
   webServer: [
-    server('be-01', 'bun src/main.ts', `http://localhost:${String(bePort)}/health`, {
+    server('be-01', 'bun src/main.ts', `${beUrl}/health`, {
       PORT: String(bePort),
-      GW_URL: `http://localhost:${String(gwPort)}`,
+      GW_URL: gwUrl,
       DB_PATH: runDatabase,
       // Stated rather than inherited from `.env.example`: this file is brand
       // new, so it holds no schema at all, and a developer who turned startup
@@ -198,24 +194,19 @@ export default defineConfig({
       // on the first write.
       MIGRATE_ON_STARTUP: 'true',
     }),
-    server('gw-01', 'bun src/main.ts', `http://localhost:${String(gwPort)}/health`, {
+    server('gw-01', 'bun src/main.ts', `${gwUrl}/health`, {
       PORT: String(gwPort),
-      BE_URL: `http://localhost:${String(bePort)}`,
+      BE_URL: beUrl,
     }),
-    // `--strictPort` so a busy port is a refusal rather than Vite quietly
-    // taking the next one — the served app would then be on a port nothing in
-    // this file is looking at, and `baseURL` would reach the other server.
-    // The `VITE_*` three are read by `vite.config.ts`'s `edgeRoutes` through
-    // `loadEnv`, which prefers a process variable over the `.env` beside it.
-    server(
-      'fe-01',
-      `bunx vite --port ${String(fePort)} --strictPort`,
-      `http://localhost:${String(fePort)}`,
-      {
-        VITE_BE_URL: `http://localhost:${String(bePort)}`,
-        VITE_GW_URL: `http://localhost:${String(gwPort)}`,
-        VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
-      },
-    ),
+    // `VITE_*` rather than a flag: `loadEnv` in `vite.config.ts` prefers a
+    // prefixed variable already in the environment over the one in `.env`, so
+    // these reach both the dev proxy's upstreams and the client bundle's own
+    // idea of where the socket lives. `PORT` is read by `server.port` there.
+    server('fe-01', 'bunx vite', `http://localhost:${String(fePort)}`, {
+      PORT: String(fePort),
+      VITE_BE_URL: beUrl,
+      VITE_GW_URL: gwUrl,
+      VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
+    }),
   ],
 });

@@ -247,6 +247,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
     listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
     create: (_projectId: string, input: { parentId: string | null; name?: string }) => {
