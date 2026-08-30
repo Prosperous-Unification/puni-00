@@ -80,12 +80,51 @@ async function seedPlan(page: Page): Promise<void> {
   }
 }
 
-/** Types one priority into a row's Prio cell and waits for the cell to hold it. */
+/**
+ * Types one priority into a row's Prio cell and waits for the **band** to land.
+ *
+ * The value and the paint are two different events, and waiting for the first
+ * is how this spec produced a red that meant nothing. `toHaveValue` reads the
+ * box's own draft, which Enter leaves in place immediately; the colour comes
+ * from `priorityBandStyleOf` on the priority the **server** answered with, one
+ * round trip later. Between the two the cell is an unprioritised cell — no
+ * `color`, no weight, the table's own ink — and three cells measured in that
+ * window are three copies of one colour.
+ *
+ * That is not hypothetical. On 2026-08-30, at a load average of 555 with three
+ * browser gates sharing the machine, both palettes failed on
+ * `expected 0 to be greater than or equal to 0.05` — the **exact** red this
+ * spec's injected fault produces, with the colour table perfectly correct. The
+ * assertion could not tell "these two ranks are the same colour" from "neither
+ * rank has a colour yet", so its red was ambiguous and its green was luck.
+ *
+ * The signal is the cell's **`title`**, and picking it took two goes.
+ * `font-weight` was the first answer — `priority-cell.tsx` sets 600 from
+ * `paint !== null` alone — and it is a check that cannot fail *because of this
+ * very change*: a created work item now carries the ladder's rank 2 default, so
+ * every row is painted a band from birth and 600 is already there before
+ * anything is typed. Watched: with the write held 3s and this wait in place,
+ * both palettes still failed, in 1.6s, having waited for nothing.
+ *
+ * `title` is built from `paint.words`, which is `${label} — priority ${n}` off
+ * the **stored** number, so it says which priority landed rather than that some
+ * priority did. It is not a colour, so waiting on it is not waiting for the
+ * answer the assertions below measure.
+ */
 async function setPriority(page: Page, number: string, priority: number): Promise<void> {
   const cell = page.getByLabel(`Priority for ${number}`);
   await cell.fill(String(priority));
   await cell.press('Enter');
   await expect(cell).toHaveValue(String(priority));
+  // Proof: this line deleted, the spec run with `POST …/commands` held 3s by a
+  // `page.route` handler, failed on `expected 0 to be greater than or equal to
+  // 0.05` in both palettes — the load-average-555 red of 2026-08-30 reproduced
+  // on an idle machine, with the colour table untouched. With the line in place
+  // the same delayed run passes.
+  await expect(
+    cell,
+    `the ${String(priority)} chip on ${number} never took its band's paint`,
+  ).toHaveAttribute('title', new RegExp(`priority ${String(priority)}\\.`));
 }
 
 /** The one button in the header that opens the account menu — `dark-mode.spec.ts`' locator. */
@@ -227,6 +266,21 @@ test.describe('the priority ramp, in a browser', () => {
       // The middle rung is the commonest value on any screen now that a create
       // stamps it, and it must not carry a hue anybody can name.
       expect(ordinary.chroma).toBeLessThan(NEUTRAL_CHROMA);
+
+      // **Each cool rung carries a hue of its own, said before the two are
+      // compared.** A margin is a difference, and a difference of zero has two
+      // causes: the ramp collapsed, or nothing was painted at all. The second
+      // is what a contended machine produces, and the line below cannot tell
+      // the two apart — so the ambiguity is removed here rather than left in
+      // the message. `setPriority` now waits for the paint, which is the fix;
+      // this is the assertion that says so out loud if that wait ever stops
+      // working. Both cool inks carry more chroma than the neutral rung by
+      // construction (0.06 and 0.12 against 0.02), so the floor they are held
+      // to is the one the middle rung is held under.
+      expect(low.chroma, 'the Low rung was never painted its band').toBeGreaterThan(NEUTRAL_CHROMA);
+      expect(lowest.chroma, 'the Lowest rung was never painted its band').toBeGreaterThan(
+        NEUTRAL_CHROMA,
+      );
 
       // Proof: ranks 3 and 4 in `BAND_INKS` set to one value, watched failing on
       // this line in both palettes. A `toBeDefined`-shaped assertion on either

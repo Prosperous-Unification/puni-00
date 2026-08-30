@@ -1,8 +1,9 @@
 # verify — `priority-default-medium`
 
-Slices 1, 2 and 3 are implemented and verified. Slice 4's Chromium spec is
-**written but not executed** and slice 5 is not run — see "Skipped or unavailable
-checks".
+All five slices are implemented and verified. Slices 1–3 were verified on
+2026-08-29; slice 4's Chromium spec and slice 5's whole browser gate were run on
+2026-08-30 and are recorded in "The browser, 2026-08-30" below. What is still
+**not** run is named in "Skipped or unavailable checks".
 
 ## The colours, as shipped
 
@@ -88,31 +89,105 @@ priority` — the leaf is now created unprioritised, with the reason written bes
 
 Nothing else in 1172 be-01 cases or 1810 fe-01 cases changed behaviour.
 
+## The browser, 2026-08-30 (slices 4.1 and 5.1)
+
+Run from this worktree, ports shifted by 700 (be-01 3800, gw-01 3900, fe-01 4900)
+so the gate never reuses the dev server holding 3100/3200/4200 —
+`LLM_README.md`'s landmine, R5 #18.
+
+| Command                                                                                          | Result                                                                                   |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `CI=1 E2E_PORT_SHIFT=700 nx run fe-01:e2e -- --repeat-each=5 …/priority-ramp.spec.ts`            | **pass** — `10 passed (19.3s)`                                                           |
+| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- env CI=1 E2E_PORT_SHIFT=700 … fe-01:e2e` | **228 passed / 3 failed (6.3m)** — the three named below, none of them this change's     |
+| `bunx openspec validate --all --json`                                                            | **pass** — `items: 91, passed: 91, failed: 0`                                            |
+| `bunx nx run-many -t test -p fe-01 be-01`                                                        | **pass** — be-01 `1203 pass / 0 fail`; fe-01 `Test Files 60 passed`, `Tests 1885 passed` |
+| `bunx nx run fe-01:lint` / `be-01:lint`                                                          | **pass** — both `Successfully ran target lint`                                           |
+| `bunx nx run fe-01:typecheck` / `be-01:typecheck`                                                | **pass** — both `Successfully ran target typecheck`                                      |
+| `bunx prettier --check` on every changed file                                                    | **pass** — `All matched files use Prettier code style!`                                  |
+
+The three reds in the whole gate are pre-existing and were **not** touched:
+
+```
+  ✘   19 …deps-cell.spec.ts:432:3 › picks the add button up off the row it is hovered on, in both palettes
+       Expected: 0 / Received: 42            (an animation poll; fails identically on main)
+  ✘  110 …keyboard.spec.ts:516:3 › Escape leaves the stored day alone, blur and all
+  ✘  114 …keyboard.spec.ts:660:3 › saves only the year that was typed, digit by digit, in a real Chrome
+```
+
+The keyboard pair is the host-locale date-typing case `AGENTS.md` and
+`playwright.config.ts` both record; `deps-cell.spec.ts:432` was re-run against
+`main` by the coordinator overnight and fails there with the same
+`Expected: 0 / Received: 42`.
+
+### The `Received: 0` that was the spec's fault and not the ramp's
+
+An overnight whole-gate run on a machine at **load average 555** failed _both_
+palettes of `diverges around the middle rung` on
+`expected 0 to be greater than or equal to 0.05` — byte-for-byte the red this
+spec's own injected fault produces — and the same spec then passed 10/10 alone on
+a quiet machine. Neither result could be believed, so the cause was reproduced
+rather than argued about.
+
+**It was the spec.** `setPriority` waited for `toHaveValue`, which reads the
+box's own draft and is true the instant Enter is pressed; the colour arrives one
+round trip later, off the priority the server answered with. Measured in that
+window, all three cells are unpainted, so the margin between two of them is `0` —
+the fault's number, with the colour table perfectly correct. Reproduced on an
+idle machine by holding `POST …/commands` for 3s with a `page.route` handler:
+
+```
+Expected: >= 0.05
+Received:    0                     ← both palettes, colour table untouched
+```
+
+`setPriority` now waits for the cell's `title`, which is built from the **stored**
+priority (`${label} — priority ${n}`), and the same delayed run passes — 8.3s per
+case rather than 1.6s, which is the wait doing its work.
+
+**The first fix for it was a check that cannot fail, and this change is why.**
+`font-weight: 600` was the obvious signal — `priority-cell.tsx` sets it from
+`paint !== null` alone — but a created work item now carries the ladder's rank 2
+default, so every row is painted a band from birth and 600 is already there
+before anything is typed. Watched: with the write held 3s and that wait in place,
+both palettes still failed, in 1.6s, having waited for nothing. Nineteenth of the
+kind, caught before it shipped.
+
+Two assertions were added beside it so that a `0` can never again mean two
+things: each cool rung's own chroma is asserted above the neutral ceiling
+_before_ the two are compared, so an unpainted cell fails on its own line with
+its own words (`the Low rung was never painted its band`, `Received:
+0.021185341837755327` — the table's inherited ink) rather than on the margin.
+
+### Failure proofs (R5), in Chromium, both palettes
+
+| Check                         | Fault injected                           | Watched                                                                                                                                                                                                                                          |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ranks 3 and 4 are told apart  | rank 3's ink set to rank 4's             | **yes, both palettes** — `Expected: >= 0.05` / `Received: 0`, `priority-ramp.spec.ts:289`                                                                                                                                                        |
+| the middle rank is neutral    | rank 2 put back to `oklch(0.62 0.13 92)` | **yes, both palettes** — `Expected: < 0.03` / `Received: 0.12659194333338525`, line 268                                                                                                                                                          |
+| all three rungs are legible   | rank 2 set to `oklch(0.85 0.02 265)`     | **yes, light palette** — `Expected: >= 3` / `Received: 1.5813443452229643`, line 300. Dark passes, and must: no one ink can fail 3:1 against a near-white _and_ a near-black surface, so this is watched in the palette the fault is a fault in. |
+| the paint is waited for       | the `title` wait deleted, write held 3s  | **yes, both palettes** — `Expected: >= 0.05` / `Received: 0`                                                                                                                                                                                     |
+| the paint wait is not vacuous | that wait written as `font-weight: 600`  | **yes** — the delayed run failed anyway, in 1.6s: every row carries a default priority now, so 600 is free                                                                                                                                       |
+
+### One fixture repaired
+
+`seedPlan` clicked `New project` directly. A create arms a rename that lands one
+round trip after the table appears, and `create-project.ts` is the one place that
+knows it — this file was written the day before that fixture existed and was the
+one create site `d2024a3` did not reach. It now goes through `createProject`.
+This closes a documented race rather than a red that was observed.
+
 ## Skipped or unavailable checks
 
-- **Slice 4.1's Chromium spec is written and never executed.**
-  `apps/fe-01/e2e/priority-ramp.spec.ts` measures the Prio cell's painted ink in
-  both palettes — rank 2 neutral, ranks 3 and 4 apart by a chroma margin, all
-  three at 3:1 or better against the composited surface. It was **not run**:
-  ports 3100/3200/4200 are held by a dev server, and `reuseExistingServer:
-!isCi` would have measured a different checkout (`LLM_README.md`'s landmine,
-  R5 #18). It typechecks and lints; nothing else about it is verified, and its
-  thresholds — in particular the `READABLE = 3` contrast floor — are **claims
-  until a browser reads them**.
-- **Slice 4.1's negative is therefore unwatched in a browser.** The same fault
-  (ranks 3 and 4 set equal) was watched red in jsdom on the chroma margin, which
-  is the same quantity the browser spec asserts, but jsdom cannot see a Chromium
-  parse failure or a contrast ratio.
-- **The whole `CI=1` Playwright gate is not run** — same reason. A change that
-  edits a shared colour table owes the _whole_ browser gate (`AGENTS.md`,
-  `linked-row-hover`), not a filtered run, and that is slice 5.1.
-- **`bin/h2puni-gate.sh` is not run** — this session was scoped to the four Nx
-  targets above.
-- **`fe-01:test` needs `TZ=UTC` on this machine.** Two cases in
-  `plan-mermaid.test.ts` (`leaves a bar crossing a weekend exactly where it was
-told, manualEndTime true` and `still parses a point (unestimated/zero) as a
-real milestone with equal dates`) fail under `Europe/Kyiv` on
-  `expected '2026-09-03T21:00:00.000Z' to be '2026-09-04T00:00:00.000Z'` — a
-  three-hour offset. **Pre-existing and unrelated**: confirmed by running that
-  file alone both ways, 2 fail local / 49 pass with `TZ=UTC`, and neither case
-  touches a priority.
+- **`bin/h2puni-gate.sh` is not run.** It is the h2puni host gate and this work
+  was done on a Mac; the per-project Nx targets it wraps (`test`, `lint`,
+  `typecheck` for `fe-01` and `be-01`) were run individually and are in the table
+  above. `format:check`, the secrets scan and the migration lint were **not**
+  run here — CI runs all three on push.
+- **The three reds above were not re-measured against `main` in this session.**
+  The keyboard pair is documented in `AGENTS.md` as environmental; the
+  `deps-cell` one is the coordinator's overnight measurement against `main`,
+  quoted rather than repeated.
+- **`fe-01:test` needs `TZ=UTC` on this machine**, which its Nx target now
+  supplies (`TZ=UTC bunx vitest run` in `project.json`). Two cases in
+  `plan-mermaid.test.ts` fail under `Europe/Kyiv` on a three-hour offset;
+  pre-existing, unrelated, and neither touches a priority.
