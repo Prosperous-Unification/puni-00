@@ -1820,7 +1820,9 @@ test.describe('the table, measured by a browser', () => {
 
     // Three, which is the state D14 says already scrolled — and nothing had
     // ever watched scroll.
-    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    // Through `Project settings` and its `Phases` tab, since `project-config-modal`.
+    await page.getByRole('button', { name: 'Project settings' }).click();
+    await page.getByRole('tab', { name: 'Phases' }).click();
     await page.getByLabel('New phase').fill('Design');
     await page.getByRole('button', { name: 'Add phase' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();

@@ -9,8 +9,8 @@ import {
   bandRangeWords,
   draftsOf,
   ladderOfDrafts,
-  PrioritiesDialog,
-} from './priorities-dialog';
+  PrioritiesPanel,
+} from './priorities-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -18,22 +18,37 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-/** Everything the dialog is given, with each call recorded. */
-function stubbed(bands: readonly PriorityBandView[] = DEFAULT_PRIORITY_BANDS) {
+/**
+ * Everything the panel is given, with each call recorded.
+ *
+ * Rendered bare, without the modal around it — see `teams-panel.test.tsx` for
+ * why. The panel's two contracts with the shell, `onDirtyChange` and `onDone`,
+ * are recorded so the cases below can watch them kept.
+ */
+function stubbed(
+  bands: readonly PriorityBandView[] = DEFAULT_PRIORITY_BANDS,
+  setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(async () => {
+    await Promise.resolve();
+  }),
+) {
   // Typed, and not decoration: an untyped `vi.fn` records its calls as `[]`, so
   // `mock.calls.at(0)?.at(0)` reads as `void` and the assertions below become a
   // lint error rather than a check on what was sent.
-  const setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(async () => {
-    await Promise.resolve();
-  });
   const onChanged = vi.fn(async () => {
     await Promise.resolve();
   });
-  render(<PrioritiesDialog bands={bands} setBands={setBands} onChanged={onChanged} />);
-  // Opened through its own trigger, because the trigger is the component's:
-  // Radix restores the focus to it on close and to nothing without one.
-  fireEvent.click(screen.getByRole('button', { name: 'Priorities' }));
-  return { setBands, onChanged };
+  const onDirtyChange = vi.fn();
+  const onDone = vi.fn();
+  render(
+    <PrioritiesPanel
+      bands={bands}
+      setBands={setBands}
+      onChanged={onChanged}
+      onDirtyChange={onDirtyChange}
+      onDone={onDone}
+    />,
+  );
+  return { setBands, onChanged, onDirtyChange, onDone };
 }
 
 /** Lets the two awaits a save makes — the call, then the reread — settle. */
@@ -105,7 +120,7 @@ describe('what the boxes amount to', () => {
     // A default outside its own band is a real refusal and it is **be-01's**:
     // `priorityLadderProblem` is the one guard, and a second copy here is a rule
     // free to disagree with the one that answers the request. The same bargain
-    // `TeamsDialog` makes with `0` and `1001`.
+    // `TeamsPanel` makes with `0` and `1001`.
     const drafts = draftsOf(DEFAULT_PRIORITY_BANDS).map((draft, at) =>
       at === 0 ? { ...draft, defaultValue: '90' } : draft,
     );
@@ -117,7 +132,7 @@ describe('what the boxes amount to', () => {
   });
 });
 
-describe('the priorities dialog', () => {
+describe('the priorities section', () => {
   itDom('shows the plan’s ladder, each rung as its name, its start and its number', () => {
     stubbed();
 
@@ -156,9 +171,9 @@ describe('the priorities dialog', () => {
   });
 
   itDom('holds the drafts until Save, so a cut can be moved past its neighbour', async () => {
-    // The one place this deliberately differs from `TeamsDialog`, which commits
+    // The one place this deliberately differs from `TeamsPanel`, which commits
     // per box on blur. Moving `High` down to 15 is an invalid ladder until
-    // `Medium` moves too, and a dialog that committed per box would refuse every
+    // `Medium` moves too, and a panel that committed per box would refuse every
     // intermediate state somebody has to type through.
     const { setBands } = stubbed();
 
@@ -181,16 +196,10 @@ describe('the priorities dialog', () => {
   });
 
   itDom('says what be-01 refused, in words, and keeps what was typed', async () => {
-    const setBands = vi.fn(() =>
+    const setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(() =>
       Promise.reject(new Error('band_default_must_be_inside_its_own_band')),
     );
-    const onChanged = vi.fn(async () => {
-      await Promise.resolve();
-    });
-    render(
-      <PrioritiesDialog bands={DEFAULT_PRIORITY_BANDS} setBands={setBands} onChanged={onChanged} />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Priorities' }));
+    const { onChanged, onDone } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
 
     fireEvent.change(screen.getByLabelText('Critical writes'), { target: { value: '90' } });
     save();
@@ -198,28 +207,25 @@ describe('the priorities dialog', () => {
 
     // A sentence about the ladder, not the wire code — the refusal is about a box
     // somebody is looking at, and it belongs on this surface rather than in a
-    // toast in the corner of the page this dialog is covering.
+    // toast in the corner of the page this modal is covering.
     expect(screen.getByRole('alert').textContent).toContain('has to fall inside that band');
     // The draft is kept: the number on screen is what the sentence is about, and
     // resetting it to be-01's would leave a sentence explaining a value nobody
     // could see.
     expect(screen.getByLabelText<HTMLInputElement>('Critical writes').value).toBe('90');
     expect(onChanged).not.toHaveBeenCalled();
+    // And nothing asked the modal to close over the sentence.
+    expect(onDone).not.toHaveBeenCalled();
   });
 
   itDom('says a sentence when the proxy answers, not the status it answered with', async () => {
     // C3's P2-2 and C5's R5 #18, written here rather than rediscovered a third
     // time: `(http_502)` beside a box somebody is typing in is a word about HTTP
     // where a sentence about their plan belongs.
-    const setBands = vi.fn(() => Promise.reject(new Error('http_502')));
-    render(
-      <PrioritiesDialog
-        bands={DEFAULT_PRIORITY_BANDS}
-        setBands={setBands}
-        onChanged={() => Promise.resolve()}
-      />,
+    const setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(() =>
+      Promise.reject(new Error('http_502')),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Priorities' }));
+    stubbed(DEFAULT_PRIORITY_BANDS, setBands);
     fireEvent.change(screen.getByLabelText('Critical writes'), { target: { value: '12' } });
     save();
     await settle();
@@ -238,14 +244,89 @@ describe('the priorities dialog', () => {
     expect(screen.getByRole('alert').textContent).toContain('whole number');
   });
 
-  itDom('leaves nothing half-typed behind when it is closed', async () => {
-    stubbed();
+  itDom('asks to close once the ladder has landed', async () => {
+    // The panel closes nothing itself; `Save` asks the modal through `onDone`,
+    // and only after the reread — a close before it would show the reader a
+    // plan still in the old names.
+    const { onDone, onChanged } = stubbed();
+
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+    save();
+    await settle();
+
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  itDom('Cancel puts the ladder back and asks to close', async () => {
+    // The drafts are the only thing to discard, and they are discarded here
+    // rather than on the way out: the panel says it is clean by asking, and a
+    // box still holding `Blocker` while it said so would be a lie.
+    const { onDone, setBands } = stubbed();
 
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Priorities' }));
 
     expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Critical');
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(setBands).not.toHaveBeenCalled();
+  });
+});
+
+describe('what the section tells the modal it is holding', () => {
+  itDom(
+    'is clean on mount, dirty from the first keystroke, and clean again on Cancel',
+    async () => {
+      const { onDirtyChange } = stubbed();
+      expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+      fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+      expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await settle();
+      expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    },
+  );
+
+  itDom('reads a box typed back to what be-01 has as clean', () => {
+    // The comparison is against the ladder as saved, field by field, so a box
+    // somebody changed and then changed back is not an edit to lose.
+    const { onDirtyChange } = stubbed();
+
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Critical' } });
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  itDom('stays dirty for as long as the ladder is in the air, then asks to close', async () => {
+    // Held open so the assertion is made in the window the fault lives in. Once
+    // the ladder lands the panel asks the modal to close through `onDone`; in
+    // the modal that unmounts it and the report is withdrawn from the cleanup.
+    // Rendered bare, the boxes still say `Blocker` against a `bands` prop nobody
+    // has reread, so the honest report here is still `true` — what changes is
+    // that `onDone` has been called.
+    let land = (): void => {
+      throw new Error('the ladder never left');
+    };
+    const setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          land = resolve;
+        }),
+    );
+    const { onDirtyChange, onDone } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
+
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+    save();
+    await settle();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(onDone).not.toHaveBeenCalled();
+
+    land();
+    await settle();
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

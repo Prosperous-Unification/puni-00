@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TeamCapacityView, TeamView } from '@/lib/wbs-api';
 
-import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
+import { teamsOnThePlan, TeamsPanel } from './teams-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -23,10 +23,20 @@ const BACKEND: TeamView = { id: 't-backend', name: 'Backend', serviceIds: [] };
 const PLATFORM: TeamView = { id: 't-platform', name: 'Platform', serviceIds: [] };
 const DESIGN: TeamView = { id: 't-design', name: 'Design', serviceIds: [] };
 
-/** Everything the dialog is given, with each call recorded. */
-function stubbed(overrides: Partial<Parameters<typeof TeamsDialog>[0]> = {}) {
+/**
+ * Everything the panel is given, with each call recorded.
+ *
+ * Rendered bare, without the modal around it: this suite is about what the
+ * section sends and says, and `project-settings-modal.test.tsx` is about the
+ * shell — who opens it, who closes it, and what it refuses to close over. The
+ * two contracts the panel has with that shell, `onDirtyChange` and `onDone`,
+ * are recorded here so the cases below can watch the panel keep them.
+ */
+function stubbed(overrides: Partial<Parameters<typeof TeamsPanel>[0]> = {}) {
   const setCapacity = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
+  const onDirtyChange = vi.fn();
+  const onDone = vi.fn();
   const props = {
     teams: [
       { id: 't-backend', name: 'Backend', stated: 2, rows: 4 },
@@ -34,13 +44,12 @@ function stubbed(overrides: Partial<Parameters<typeof TeamsDialog>[0]> = {}) {
     ],
     setCapacity,
     onChanged,
+    onDirtyChange,
+    onDone,
     ...overrides,
   };
-  render(<TeamsDialog {...props} />);
-  // Opened through its own trigger, because the trigger is the component's:
-  // Radix restores the focus to it on close and to nothing without one.
-  fireEvent.click(screen.getByRole('button', { name: 'Teams' }));
-  return { setCapacity, onChanged, props };
+  render(<TeamsPanel {...props} />);
+  return { setCapacity, onChanged, onDirtyChange, onDone, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -198,7 +207,7 @@ describe('stating how many of a team are at work at once on this plan', () => {
     // surface in this app already has an arm for: `send` throws
     // `Error('http_502')` for a proxy error, and without a 5xx arm the
     // grammatical fallback prints `That capacity could not be changed
-    // (http_502).` into a dialog somebody is typing a number into. That is the
+    // (http_502).` into a panel somebody is typing a number into. That is the
     // defect `wbs-table.tsx` fixed for `not_found` and `http_500` on 2026-08-09,
     // reappearing in the refusal helper written to replace the one it was fixed
     // in.
@@ -239,6 +248,12 @@ describe('stating how many of a team are at work at once on this plan', () => {
   });
 
   itDom('Escape puts the box back to what the plan says', async () => {
+    // On the box's own `onKeyDown` now, where the dialog this panel was could
+    // not put it: Radix's `DismissableLayer` listens on `document`, so the
+    // dialog had to take Escape on `onEscapeKeyDown` and `preventDefault` it to
+    // keep the surface open. The panel does not need to stop anything — the
+    // modal reads this section as dirty for as long as the draft exists, and
+    // refuses the same Escape as a close on its own account.
     const { setCapacity } = stubbed();
 
     fireEvent.change(boxFor('Backend'), { target: { value: '9' } });
@@ -301,10 +316,10 @@ describe('stating how many of a team are at work at once on this plan', () => {
 
   itDom('Done keeps the surface open when be-01 refuses what it sent', async () => {
     // A refusal is about the number on screen, and the number is only on screen
-    // while the dialog is. Closing over the top of one would leave the reader
-    // with a plan that did not change and nothing anywhere saying why.
+    // while the panel is. Asking to close over the top of one would leave the
+    // reader with a plan that did not change and nothing anywhere saying why.
     const setCapacity = vi.fn(() => Promise.reject(new Error('size_must_be_at_most_1000')));
-    stubbed({ setCapacity });
+    const { onDone } = stubbed({ setCapacity });
 
     fireEvent.change(boxFor('Platform'), { target: { value: '1001' } });
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
@@ -312,19 +327,21 @@ describe('stating how many of a team are at work at once on this plan', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('at most 1000');
     expect(boxFor('Platform').value).toBe('1001');
+    expect(onDone).not.toHaveBeenCalled();
   });
 
-  itDom('Done closes once every box it kept has landed', async () => {
+  itDom('Done asks to close once every box it kept has landed', async () => {
     // The other half of the one above: a change that is accepted still leaves
-    // through the button, and a dialog that stayed open on success would read as
-    // a save that failed silently.
-    stubbed();
+    // through the button, and a panel that stayed open on success would read as
+    // a save that failed silently. The panel does not close anything itself any
+    // more — it asks the modal, which is what `onDone` is.
+    const { onDone } = stubbed();
 
     fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     await settle();
 
-    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   itDom('says so when no work on the plan is labelled with a team', () => {
@@ -344,5 +361,73 @@ describe('stating how many of a team are at work at once on this plan', () => {
     expect(screen.getByText(/another plan sharing a team is not affected/i)).toBeTruthy();
     expect(boxFor('Platform').title).toContain('This plan does not limit');
     expect(boxFor('Backend').title).toContain('on this plan');
+  });
+});
+
+describe('what the section tells the modal it is holding', () => {
+  itDom('reports a draft the moment it is typed, and withdraws it once it has landed', async () => {
+    // `project-config-modal` D3: the modal refuses to close while any section
+    // says it holds something, and this is the section saying so. Clean on
+    // mount, dirty from the first keystroke, clean again once be-01 has the
+    // number and the plan has been reread.
+    const { onDirtyChange } = stubbed();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.blur(boxFor('Platform'));
+    await settle();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  itDom('stays dirty for as long as a number is in the air', async () => {
+    // A write in flight is as much a thing to lose as a draft: closing over it
+    // leaves the reader with no answer to whether it landed. The request is
+    // held open here so the assertion is made in the window the fault lives in.
+    let land: (() => void) | undefined;
+    const setCapacity = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          land = resolve;
+        }),
+    );
+    const { onDirtyChange } = stubbed({ setCapacity });
+
+    fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
+    fireEvent.blur(boxFor('Platform'));
+    await settle();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    if (land === undefined) throw new Error('the request never left');
+    land();
+    await settle();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  itDom('keeps saying dirty while a refused number is still on screen', async () => {
+    // The refusal keeps the draft, so the section still holds something the
+    // reader has not resolved — and the modal must not close over the sentence
+    // that explains it.
+    const setCapacity = vi.fn(() => Promise.reject(new Error('size_must_be_at_most_1000')));
+    const { onDirtyChange } = stubbed({ setCapacity });
+
+    fireEvent.change(boxFor('Platform'), { target: { value: '1001' } });
+    fireEvent.blur(boxFor('Platform'));
+    await settle();
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  itDom('withdraws the report when it leaves the screen', () => {
+    // The modal unmounts its panels on close; a section that has gone must not
+    // be able to hold the next open shut.
+    const { onDirtyChange } = stubbed();
+    fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    cleanup();
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 });

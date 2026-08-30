@@ -13694,14 +13694,64 @@ describe('the chords reach the picker cells and the date cell', () => {
   });
 });
 
+describe('the project’s settings behind one control', () => {
+  /**
+   * `project-config-modal` slice 3.1: the three project-level dialogs — teams,
+   * priorities, phases — are one modal behind one toolbar control, and the
+   * three separate triggers are gone.
+   *
+   * Proof: a `<Button>Teams</Button>` left mounted in `toolbarControls` beside
+   * the new control, and this failed on `expected null not to be … <button>`
+   * — the "no separate control" half; watched 2026-08-30.
+   */
+  itDom('one control opens every project setting, and no separate control remains', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    const toolbar = document.querySelector('[data-toolbar]');
+    if (toolbar === null) throw new Error('the plan has no toolbar');
+    const named = (name: string): HTMLElement[] =>
+      [...toolbar.querySelectorAll('button')].filter(
+        (button) => (button.getAttribute('aria-label') ?? button.textContent.trim()) === name,
+      );
+    expect(named('Project settings')).toHaveLength(1);
+    expect(named('Teams')).toHaveLength(0);
+    expect(named('Priorities')).toHaveLength(0);
+    expect(named('Phases')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Project settings' });
+    expect(
+      [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
+    ).toEqual(['Teams', 'Priorities', 'Phases']);
+  });
+});
+
 describe('a phase changing, and what the table does about it', () => {
-  /** The Phases surface, from the toolbar button somebody really clicks. */
+  /**
+   * The Phases section, from the toolbar control somebody really clicks and
+   * then the tab inside it — the two gestures `project-config-modal` made of
+   * the one button this used to be.
+   */
   const openPhases = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Phases' }));
   };
 
-  const closePhases = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  /**
+   * Closes the modal, retrying while a write is still landing: the modal
+   * refuses its ✕ while any section reports a change in flight, and the
+   * section's `busy` clears a microtask after the reread that put the new
+   * column on the table — so the first click after `Remove Design` appears
+   * can be one the modal is entitled to refuse.
+   */
+  const closePhases = async (): Promise<void> => {
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   };
 
   /*
@@ -13718,7 +13768,7 @@ describe('a phase changing, and what the table does about it', () => {
     fireEvent.change(screen.getByLabelText('New phase'), { target: { value: name } });
     fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
     await screen.findByRole('button', { name: `Remove ${name}` });
-    closePhases();
+    await closePhases();
     await screen.findByRole('button', { name: `Unfold ${name} estimates` });
   }
 
@@ -13729,7 +13779,7 @@ describe('a phase changing, and what the table does about it', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Remove ${name}` })).toBeNull();
     });
-    closePhases();
+    await closePhases();
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Unfold ${name} estimates` })).toBeNull();
     });
