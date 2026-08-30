@@ -405,7 +405,18 @@ describe('a priority ladder moves no date', () => {
         return slice;
       }),
       workItems: tree.workItems.map(
-        ({ teamIds, tagIds, serviceIds, typeIds, actuals, measures, progress, state, ...row }) => {
+        ({
+          teamIds,
+          tagIds,
+          serviceIds,
+          typeIds,
+          externalRefs,
+          actuals,
+          measures,
+          progress,
+          state,
+          ...row
+        }) => {
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
           // `tagIds` is lifted the same way by `tags` (R10-B) and asserted **empty**
           // for `actuals`' reason: the oracle predates the dimension, nothing in
@@ -432,6 +443,11 @@ describe('a priority ladder moves no date', () => {
           // The negative for that lives in `work-item-type.test.ts`, on a tree
           // that does carry a type.
           expect(typeIds).toEqual([]);
+          // `externalRefs` is lifted and asserted empty for `serviceIds`' reason exactly:
+          // the oracle predates `external-refs`, no row in the replayed plans links to
+          // anything, and the empty list on every one of them is that change's own
+          // claim — the payload grew a field and moved no date.
+          expect(externalRefs).toEqual([]);
           expect(actuals).toEqual({});
           // `measures` is lifted by `token-tracking` (R10-C) and asserted empty
           // for `actuals`' reason, one table over. The oracle predates

@@ -97,6 +97,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, roles(shed.id, 'Dev'));
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260830020000_add_external_ref',
       '20260830010000_add_work_item_type',
       '20260824020000_add_solution_ref',
     ]);

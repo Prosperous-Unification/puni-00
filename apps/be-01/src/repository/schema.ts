@@ -928,6 +928,27 @@ export const workItemType = sqliteTable(
 export type WorkItemTypeRow = typeof workItemType.$inferSelect;
 
 /**
+ * A system a work item's work also lives in — `jira-issue`, `github-pr`.
+ *
+ * A growing vocabulary, {@link tag}'s shape, and **seeded** where the tag is
+ * deliberately empty: these names are exactly what `systemOfUrl` in
+ * `libs/domain` has patterns for, so an unseeded table means a pasted GitHub URL
+ * types itself and then fails to store on a foreign key. The seed and the
+ * pattern list are one fact, asserted by `external-system.test.ts` reading the
+ * migration's own text.
+ */
+export const externalSystem = sqliteTable(
+  'external_system',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('external_system_name').on(t.name)],
+);
+
+export type ExternalSystemRow = typeof externalSystem.$inferSelect;
+
+/**
  * Which types one work item carries — **several**, on Dany's call (2026-08-29),
  * the way it carries several tags rather than the single value a Jira issue type
  * would suggest. That decision is why this is a join table with a composite key
@@ -969,6 +990,55 @@ export const workItemWorkItemType = sqliteTable(
 );
 
 export type WorkItemWorkItemTypeRow = typeof workItemWorkItemType.$inferSelect;
+
+/**
+ * Where one work item's work also exists: a link, and deliberately nothing else.
+ *
+ * **No status, no title, no fetched state.** Nothing in this release reads an
+ * external system, and there is no column here that could hold a cached answer
+ * from one — a stale `state` would make the plan claim something about a Jira
+ * issue it has not looked at since.
+ *
+ * **`id` is the key, not the pair, and that is where this stops resembling
+ * {@link workItemTag}.** A labelling is either stated or not, so the pair is the
+ * fact there. A ref is not a labelling: a row may honestly link to two different
+ * GitHub PRs, and a `(work_item, system)` key would refuse the second. Nothing
+ * here is unique; the write path deduplicates by URL rather than the schema
+ * refusing it.
+ *
+ * `systemId` is `NOT NULL` — a ref with no system is refused at the write as a
+ * modeled 4xx rather than stored as a row no dot can draw. The value is the
+ * **derived name, stored** (design D1) and never re-derived on read.
+ *
+ * `position` orders the list as it was built; ordering by hand is a non-goal, so
+ * nothing writes a position but the append.
+ *
+ * Both sides cascade. `workItemId` for {@link workItemTag}'s reason unchanged —
+ * the outgoing release's plain `DELETE FROM work_item` must not hit a constraint
+ * it cannot see. `systemId` is the heavier one: deleting a system takes the
+ * **links** with it, not a label off a row, which is why the route counts first
+ * and refuses with 409 unless `?cascade=1`.
+ */
+export const workItemExternalRef = sqliteTable(
+  'work_item_external_ref',
+  {
+    id: text('id').primaryKey(),
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    systemId: text('system_id')
+      .notNull()
+      .references(() => externalSystem.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    index('wier_by_work_item').on(t.workItemId, t.position),
+    index('wier_by_system').on(t.systemId),
+  ],
+);
+
+export type WorkItemExternalRefRow = typeof workItemExternalRef.$inferSelect;
 
 /**
  * What a work item is delivered **for** — `Payments`, `Search`, `Billing`.

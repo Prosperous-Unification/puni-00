@@ -15,6 +15,8 @@ import type {
   ServiceTeam,
   ServiceTeamWritten,
   ServiceWritten,
+  ExternalRef,
+  ExternalSystem,
   Tag,
   TagWritten,
   WorkItemType,
@@ -36,6 +38,8 @@ import {
   teamService,
   workItem,
   workItemService,
+  externalSystem,
+  workItemExternalRef,
   workItemTag,
   workItemType,
   workItemWorkItemType,
@@ -174,12 +178,36 @@ function usageRowsIn(
   for (const each of typed) {
     typesOf.set(each.workItemId, [...(typesOf.get(each.workItemId) ?? []), each.typeId]);
   }
+  // The refs, read in the same transaction as the three label dimensions and
+  // for the same reason: `LabelledWorkItem` carries them, and a row handed over
+  // without its refs would report a removal that touches nothing. Ordered by
+  // `position` so the list reads as it was built.
+  const referenced = reader
+    .select({
+      id: workItemExternalRef.id,
+      workItemId: workItemExternalRef.workItemId,
+      systemId: workItemExternalRef.systemId,
+      url: workItemExternalRef.url,
+    })
+    .from(workItemExternalRef)
+    .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemExternalRef.position))
+    .all();
+  const refsOf = new Map<string, ExternalRef[]>();
+  for (const each of referenced) {
+    refsOf.set(each.workItemId, [
+      ...(refsOf.get(each.workItemId) ?? []),
+      { id: each.id, systemId: each.systemId, url: each.url },
+    ]);
+  }
   const workItems = rows.map((row) => ({
     ...row,
     teamIds: teamsOf.get(row.id) ?? [],
     tagIds: tagsOf.get(row.id) ?? [],
     serviceIds: servicesOf.get(row.id) ?? [],
     typeIds: typesOf.get(row.id) ?? [],
+    externalRefs: refsOf.get(row.id) ?? [],
   }));
   const projects = reader
     .select({ id: project.id, name: project.name })
@@ -720,6 +748,14 @@ export class DirectoryRepository implements DirectoryStore {
         removal: { workItemIds: labelled.map((each) => each.id), projectIds: projectsOf(labelled) },
       };
     });
+  }
+
+  /** Every external system in the global directory, by name. */
+  async listExternalSystems(): Promise<ExternalSystem[]> {
+    return this.db
+      .select({ id: externalSystem.id, name: externalSystem.name })
+      .from(externalSystem)
+      .orderBy(asc(externalSystem.name));
   }
 
   /**

@@ -2925,6 +2925,11 @@
         "operationId": "getApiWork-item-types"
       }
     },
+    "/api/external-systems": {
+      "get": {
+        "operationId": "getApiExternal-systems"
+      }
+    },
     "/api/projects/{id}/history": {
       "get": {
         "summary": "One plan’s history — every command run on it, newest first",

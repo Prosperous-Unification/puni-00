@@ -92,6 +92,17 @@ export function inMemoryDirectory(): DirectoryStore {
         members: [],
         capacityOf: new Map<string, number>(),
       }),
+    // Seeded, as the migration seeds the real table: `systemOfUrl` can answer
+    // these names, so a fake that answered an empty list would let a ref write
+    // fail here for a reason the real store does not have.
+    listExternalSystems: () =>
+      Promise.resolve([
+        { id: 'sys-jira-issue', name: 'jira-issue' },
+        { id: 'sys-github-pr', name: 'github-pr' },
+        { id: 'sys-github-issue', name: 'github-issue' },
+        { id: 'sys-confluence-page', name: 'confluence-page' },
+        { id: 'sys-slack-message', name: 'slack-message' },
+      ]),
     removeTag(tagId) {
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
