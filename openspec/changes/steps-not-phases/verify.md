@@ -212,6 +212,28 @@ That anchor is the reason this was caught rather than shipped as a sweep of a
 page the word had left. A check that can only pass is worth as little as one that
 can only fail.
 
+**The repair pass failed silently once, and the gate is what found it.** The
+rename script and its repair pass run as a pair; the repair aborted on the first
+anchor whose text had drifted — the sweep's `Proof:`, reworded when the sweep
+moved to the settings modal — and every entry after it never ran. The tree was
+left half-repaired: the rename had eaten the `stale` regexes and test names that
+spell the old word on purpose, so `no rendered string says Phase or Role` was
+matching `/step|steps/` and failed on
+`expected [ 'text: Steps', …(15) ] to deeply equal []`, with two more in the
+steps panel.
+
+**It was invisible because of how it was run, not how it was written.** The
+output was piped into `grep -c '^fixed'`, which printed `0`; the `SystemExit`
+went to the exit code the pipe discarded, and `0` read as "nothing needed
+fixing". A script that stops early and a caller that cannot see it stop is the
+same fault as a check that cannot fail.
+
+Fixed in both places: the repair now **collects** every drifted anchor and
+reports them all before exiting non-zero, so one stale anchor can no longer hide
+the entries behind it, and its exit code is read rather than piped away. Two
+anchors were re-pointed at the reshaped panel test, and the pass now runs to
+`EXIT=0` with every entry either applied or already true.
+
 **The one real behaviour fix survived, and was re-measured.**
 `schedule-benchmark.test.ts`'s outer loop is still `parent` rather than `step`.
 `assumed-duration-schedules` moved the fixture's figure from 175 to 188 on main,

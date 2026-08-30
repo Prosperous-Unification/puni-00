@@ -1006,15 +1006,15 @@ describe('the WBS table', () => {
       among them — it is a different vocabulary that shares four letters, and
       `steps-not-phases` design D1 keeps it.
 
-      Proof: the trigger's label and `<ModalTitle>` in the steps face spelled
-      back to `Steps`. This failed on `expected [ 'text: Steps' ] to deeply
-      equal []`. Watched 2026-08-29, and again after the panel split.
+      Proof: the steps section's tab label in `project-settings-modal.tsx`
+      spelled back to `Phases`. This failed on `expected [ 'text: Phases' ] to
+      deeply equal []`. Watched 2026-08-29, and again after the panel split.
     */
-    const stale = /\b(step|steps|step|steps)\b/i;
+    const stale = /\b(phase|phases|role|roles)\b/i;
     const said: string[] = [];
     // Text **node** by text node, not `body.textContent`: that concatenates
     // adjacent elements with no separator, so a toolbar reads
-    // `PrioritiesStepsFilters` and `\bSteps\b` matches nothing at all. The
+    // `PrioritiesPhasesFilters` and `\bPhases\b` matches nothing at all. The
     // first cut of this sweep did exactly that and could not see the label.
     const words: string[] = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);

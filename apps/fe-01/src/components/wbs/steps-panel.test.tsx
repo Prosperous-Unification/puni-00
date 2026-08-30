@@ -99,15 +99,15 @@ describe('the steps a project holds', () => {
     // dev', 'step-qa' ], …, [ 'depends' ] ]`. Watched, 2026-08-28.
   });
 
-  itDom('says nothing on this panel that reads Step or Step', () => {
+  itDom('says nothing on this panel that reads Phase or Role', () => {
     // The panel's own surface. What it is *called* is the settings modal's tab,
     // asserted in `project-settings-modal.test.tsx` — this panel renders no
     // title of its own since `project-config-modal` split it out of the dialog
-    // it used to be. `Step` was the word on every control here until
-    // `steps-not-phases`, and `Step` was the same thing below.
+    // it used to be. `Phase` was the word on every control here until
+    // `steps-not-phases`, and `Role` was the same thing below.
     const { container } = stubbed();
 
-    expect(container.textContent).not.toMatch(/step|step/i);
+    expect(container.textContent).not.toMatch(/phase|role/i);
     // Non-vacuous: the panel really drew its controls, so an empty match is a
     // reading rather than an empty container.
     expect(screen.getByRole('button', { name: 'Remove Dev' })).toBeDefined();
@@ -573,7 +573,7 @@ describe('the sentences on their own', () => {
     });
 
     expect(sentence).toContain('the step QA');
-    expect(sentence).not.toMatch(/step|step/i);
+    expect(sentence).not.toMatch(/phase|role/i);
   });
 
   it('names both counts, even the one that is zero', () => {

@@ -260,7 +260,7 @@ describe('work item routes', () => {
     ]);
   });
 
-  it('has no payload field named stepId', async () => {
+  it('has no payload field named roleId', async () => {
     const { token, send, projectId, devId } = await setup();
     await send(`/api/projects/${projectId}/commands`, token, {
       method: 'POST',
@@ -282,14 +282,14 @@ describe('work item routes', () => {
 
     /*
       Every key at every depth, because the wire is the contract and a single
-      surviving `stepId` on one nested shape is the whole of what design D3
+      surviving `roleId` on one nested shape is the whole of what design D3
       refused to ship a compatibility layer for. The **values** are ids the
       project generated, so only the names are read.
 
       Proof: `scheduledSlices` in `work-item.service.ts` given the old spelling
-      back — `.map(([id, placed]) => ({ id, stepId: placed.stepId, ...placed }))`.
+      back — `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))`.
       This failed on `expect(received).toEqual(expected)` with
-      `+ [ "slices[0].stepId", "slices[1].stepId" ]`. Watched 2026-08-29.
+      `+ [ "slices[0].roleId", "slices[1].roleId" ]`. Watched 2026-08-29.
 
       The **first** site tried was `slicesOf`'s own push, and that one passed:
       the payload's slices are rebuilt from the scheduler's placement, so a
@@ -307,7 +307,7 @@ describe('work item routes', () => {
       if (node === null || typeof node !== 'object') return;
       for (const [key, value] of Object.entries(node)) {
         const here = at === '' ? key : `${at}.${key}`;
-        if (/^(step|steps|stepId|stepIds)$/.test(key)) stale.push(here);
+        if (/^(role|roles|roleId|roleIds)$/.test(key)) stale.push(here);
         // The estimate and actual records are keyed by a step's **id**, so
         // their keys are the project's uuids and not names to be read. Their
         // values still are.

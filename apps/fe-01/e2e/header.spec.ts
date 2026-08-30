@@ -115,7 +115,7 @@ function measureOpenListbox(page: Page): Promise<{
 /**
  * Hovers the first offered entry and reads the hover card back.
  *
- * The card is `role="tooltip"`, the same step the Name-cell and Gantt cards
+ * The card is `role="tooltip"`, the same role the Name-cell and Gantt cards
  * use, so it is scoped by that rather than by a class. The hover is the whole
  * of the trigger: the change this test protects removes the native `title`
  * and its delay, so `hover()` followed by an immediate read is the claim —
