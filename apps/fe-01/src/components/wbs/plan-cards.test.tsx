@@ -1066,8 +1066,9 @@ describe('the toolbar sheet', () => {
    * menu reaches the phone by construction — what this asserts is that it
    * arrives as **one** entry and that it opens where a phone can read it.
    *
-   * The trigger is exempt from the sheet's own close for `PhasesDialog`'s
-   * reason and by `PhasesDialog`'s mechanism: `closingControlIn` leaves a
+   * The trigger is exempt from the sheet's own close for the reason and by the
+   * mechanism `PhasesDialog` established — that surface is
+   * `ProjectSettingsModal` now: `closingControlIn` leaves a
    * control carrying `aria-haspopup` alone, and closing the sheet on the click
    * that opened the menu would unmount the menu with it.
    *
