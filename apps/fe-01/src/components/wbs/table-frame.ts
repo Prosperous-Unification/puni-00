@@ -259,6 +259,24 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // the most this budget can hold, and a fourth dimension would have to take a
   // column away rather than add one.
   ['service', 120],
+  // The type cell, 120 like the three label dimensions beside it, and the first
+  // of them that costs the folded budget **nothing**: it is in
+  // {@link DEFAULT_HIDDEN_COLUMNS}, so the default table is the table it was to
+  // the pixel and a reader who wants the dimension turns it on in `Columns`.
+  //
+  // That is the answer to the sentence three entries up — "a fourth dimension
+  // would have to take a column away rather than add one". This is the fourth
+  // dimension, and it takes nothing away because it is not on screen until
+  // somebody asks for it. The exemption budget is untouched: `tag` and `service`
+  // are still the two that spend it.
+  //
+  // Hidden by default and not exempted-when-empty, which is the *other* shape
+  // this could have taken. An exemption reads the directory and renders the
+  // column only where a type exists — but the first type has to be creatable
+  // before the column exists, and unlike a tag (created on the directory page) a
+  // type is created **in the cell** by naming one. A column that appears once you
+  // have used it, and cannot be used until it appears, is not a column.
+  ['type', 120],
   // People at once, and this is the tightest column in the table: a two-person
   // icon for a heading and three digits of value, right-aligned. 32px is 24px of
   // mark room plus the 8px of padding the declared width includes — enough for
@@ -362,7 +380,7 @@ export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLA
  * 1259`; `team` struck from here, on `expected 1187 to be 1067`. Watched,
  * 2026-08-28.
  */
-export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service'];
+export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service', 'type'];
 
 /**
  * The columns a project's table shows before anybody has hidden or shown one —
@@ -398,6 +416,7 @@ export function hideableColumnIds(roleIds: readonly string[]): readonly string[]
     'team',
     'tag',
     'service',
+    'type',
     'in-parallel',
     ...roleIds,
     'final-total',

@@ -642,19 +642,27 @@ describe('how wide the phases make the table', () => {
     // assertions under it are only why it is true.
     expect(foldedTableMinWidth([], DATED)).toBe(1067);
     expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1259);
-    expect(DEFAULT_HIDDEN_COLUMNS).toEqual(['team', 'service']);
+    expect(DEFAULT_HIDDEN_COLUMNS).toEqual(['team', 'service', 'type']);
     expect(DEFAULT_COLUMN_SET).toContain('tag');
     expect(DEFAULT_COLUMN_SET).not.toContain('team');
     expect(DEFAULT_COLUMN_SET).not.toContain('service');
+    expect(DEFAULT_COLUMN_SET).not.toContain('type');
     // Every declared column is still declared — a hidden column has to lay
     // out on the deployments that show it.
-    for (const id of ['team', 'tag', 'service']) {
+    for (const id of ['team', 'tag', 'service', 'type']) {
       expect(FIXED_COLUMNS).toContain(id);
       expect(widthFor(id, DATED)).toBe(120);
     }
     // Proof: `tag` put into `DEFAULT_HIDDEN_COLUMNS`, this file failed on
     // `expected 1139 to be 1259` and `expected […] to include 'tag'`; `team`
     // struck from it, on `expected 1187 to be 1067`. Watched, 2026-08-28.
+    //
+    // And the fourth dimension's own: `type` **struck from**
+    // `DEFAULT_HIDDEN_COLUMNS` — the arrival `work-item-types` had to not cost
+    // anything — failed the two figures above by exactly its 120px, on
+    // `expected 1187 to be 1067`. That is the whole claim of that change's task
+    // 3.1: a column that is declared, laid out and offerable, and that the
+    // default table does not pay for. Watched, 2026-08-30.
   });
 
   it('subtracts what the reader has hidden, a whole role included', () => {
@@ -664,7 +672,14 @@ describe('how wide the phases make the table', () => {
     expect(foldedTableMinWidth([], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'depends'])).toBe(
       1067 - widthFor('depends', DATED),
     );
-    expect(foldedTableMinWidth([], DATED, ['service'])).toBe(1067 + widthFor('team', DATED));
+    // Teams shown, Services and Types still hidden: the reader has turned **one**
+    // column on, so the table is one column wider. Written as the whole hide-list
+    // rather than as `['service']` because `DEFAULT_HIDDEN_COLUMNS` grew a third
+    // member — a two-name list here would silently be showing Types as well, and
+    // the assertion would be about a reader nobody described.
+    expect(foldedTableMinWidth([], DATED, ['service', 'type'])).toBe(
+      1067 + widthFor('team', DATED),
+    );
     // A hidden role takes its folded column with it, and nothing else.
     expect(
       foldedTableMinWidth(['role-dev', 'role-qa'], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'role-qa']),
@@ -685,6 +700,7 @@ describe('how wide the phases make the table', () => {
       'team',
       'tag',
       'service',
+      'type',
       'in-parallel',
       'role-dev',
       'role-qa',

@@ -265,7 +265,17 @@ describe('every plan schedules identically across the migration', () => {
           return slice;
         }),
         workItems: tree.workItems.map(
-          ({ teamIds, tagIds, serviceIds, actuals, measures, progress, state, ...row }) => {
+          ({
+            teamIds,
+            tagIds,
+            serviceIds,
+            typeIds,
+            actuals,
+            measures,
+            progress,
+            state,
+            ...row
+          }) => {
             // The arity claim, and the only place it is made: the set the join
             // answered is exactly the singleton of the label the oracle recorded.
             //
@@ -292,6 +302,20 @@ describe('every plan schedules identically across the migration', () => {
             // them is task 10.2's own claim — the read path widened from a column to
             // a join and invented nothing on the way.
             expect(serviceIds).toEqual([]);
+            // `typeIds` is lifted and asserted empty for `serviceIds`' reason
+            // exactly, one dimension over: the oracle predates `work-item-types`,
+            // no row in the replayed plans carries one, and the empty set on every
+            // one of them is this change's own claim.
+            //
+            // It carries a second claim the other three cannot. A type does not
+            // inherit (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`),
+            // so `[]` here is the whole answer rather than the stated half of one:
+            // an inheriting walk added to this dimension out of symmetry with
+            // `effectiveTagsOf` would leave every descendant of a typed row
+            // carrying a type nobody wrote, and on a corpus where nothing is typed
+            // at all that fault is invisible *here* — which is why the negative for
+            // it lives in `work-item-type.test.ts`, on a tree that does carry one.
+            expect(typeIds).toEqual([]);
             // Lifted for `teamIds`' reason and asserted for the same one:
             // `actual-days` (R6 H2) put this key on every row and the oracle
             // predates the table. Empty on all sixteen replayed plans is the

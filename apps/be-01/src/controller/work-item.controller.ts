@@ -100,6 +100,21 @@ export const MOST_TAGS_ON_ONE_ITEM = 50;
 export const MOST_SERVICES_ON_ONE_ITEM = 10;
 
 /**
+ * How many work item types one row may carry.
+ *
+ * {@link MOST_SERVICES_ON_ONE_ITEM}'s number rather than the tag's, and for its
+ * argument: a type vocabulary is the closed handful an issue tracker ships —
+ * Story, Bug, Spike, Epic, Task — not the open taxonomy a tag list becomes. Ten
+ * is far past a row that honestly is several things at once and small enough
+ * that hitting it means a mistake.
+ *
+ * A separate constant and not shared with the service, for the reason that one
+ * gives: the caps move for different reasons, and one number would tie a
+ * taxonomy's bound to a vocabulary's.
+ */
+export const MOST_TYPES_ON_ONE_ITEM = 10;
+
+/**
  * The label set a patch names, whole, or `undefined` where it names none —
  * tags and, since task 10.2, services.
  *
@@ -390,6 +405,7 @@ function parsePatch(body: unknown): {
   serviceIds?: readonly string[];
   maxParallel?: number | null;
   tagIds?: readonly string[];
+  typeIds?: readonly string[];
 } {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -415,6 +431,7 @@ function parsePatch(body: unknown): {
     serviceIds: asOptionalLabelIds(raw['serviceIds'], 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
     maxParallel: asOptionalParallelism(raw['maxParallel'], 'maxParallel'),
     tagIds: asOptionalLabelIds(raw['tagIds'], 'tagIds', MOST_TAGS_ON_ONE_ITEM),
+    typeIds: asOptionalLabelIds(raw['typeIds'], 'typeIds', MOST_TYPES_ON_ONE_ITEM),
   };
 }
 
@@ -533,6 +550,7 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
           MOST_SERVICES_ON_ONE_ITEM,
         ),
         tagRefs: asOptionalLabelIds(patchRaw['tagRefs'], 'tagRefs', MOST_TAGS_ON_ONE_ITEM),
+        typeRefs: asOptionalLabelIds(patchRaw['typeRefs'], 'typeRefs', MOST_TYPES_ON_ONE_ITEM),
         teamRefs: asOptionalLabelIds(patchRaw['teamRefs'], 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
       });
       return {
@@ -617,6 +635,7 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
     case 'createTeam':
     case 'createTag':
     case 'createService':
+    case 'createWorkItemType':
       return { kind, ...ref, name: asText(raw['name'], 'name') };
     case 'createPerson':
       return present({
@@ -662,6 +681,13 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
         tagRef: asOptionalId(raw['tagRef'], 'tagRef'),
         name: asText(raw['name'], 'name'),
       });
+    case 'patchWorkItemType':
+      return present({
+        kind,
+        typeId: asOptionalId(raw['typeId'], 'typeId'),
+        typeRef: asOptionalId(raw['typeRef'], 'typeRef'),
+        name: asText(raw['name'], 'name'),
+      });
     case 'patchService':
       return present({
         kind,
@@ -688,6 +714,13 @@ function parseKind(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCom
         kind,
         tagId: asOptionalId(raw['tagId'], 'tagId'),
         tagRef: asOptionalId(raw['tagRef'], 'tagRef'),
+        cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      });
+    case 'deleteWorkItemType':
+      return present({
+        kind,
+        typeId: asOptionalId(raw['typeId'], 'typeId'),
+        typeRef: asOptionalId(raw['typeRef'], 'typeRef'),
         cascade: asOptionalFlag(raw['cascade'], 'cascade'),
       });
     case 'deleteService':
