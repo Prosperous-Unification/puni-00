@@ -1858,14 +1858,21 @@ test.describe('the table, measured by a browser', () => {
     // One, which is the case the regression said no longer fits. It has the
     // most room of the three.
     for (const phase of ['Design', 'QA']) {
-      await page.getByRole('button', { name: 'Phases', exact: true }).click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.getByRole('button', { name: 'Project settings' }).click();
+      await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+      await page.getByRole('tab', { name: 'Phases' }).click();
       // No estimate stands on either of these two — `seedPlan` estimates Dev
       // alone — so each removal is one press with no cascade to confirm.
       await page.getByRole('button', { name: `Remove ${phase}` }).click();
       await expect(page.getByRole('button', { name: `Remove ${phase}` })).toHaveCount(0);
-      await page.keyboard.press('Escape');
-      await expect(page.getByRole('dialog')).toHaveCount(0);
+      // The modal refuses Escape while a section still holds a write in
+      // flight (`project-config-modal` D3), and the removal's reread lands a
+      // moment after the button goes. Pressing until the surface is gone is
+      // the honest wait: a single press is a race this test does not own.
+      await expect(async () => {
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+      }).toPass();
     }
     const onePhase = await roleIdsOnScreen();
     expect(onePhase).toHaveLength(1);
