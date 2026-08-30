@@ -361,6 +361,7 @@ export function MenuControl({
                 // `a modified Enter or Space on a menu item takes nothing`
                 // failed on Shift+Enter with a third row on screen. Watched,
                 // 2026-08-09.
+                event.preventDefault();
                 // A **bare** Enter takes the item. Cmd/Ctrl+Enter is the
                 // table's next-or-create chord, and the routing matrix says an
                 // open menu is inert to it.
@@ -369,7 +370,6 @@ export function MenuControl({
                 // to have a length of 3 but got 4` — Duplicate taken by a
                 // keystroke nobody aimed at it. Watched, 2026-08-08.
                 if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-                event.preventDefault();
                 takeAction(action);
               }}
             >
