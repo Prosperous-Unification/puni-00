@@ -3016,6 +3016,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
     listTeams: () => Promise.resolve(skew.teams ?? teams),
     listTags: () => Promise.resolve([]),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),

@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
+  ExternalRef,
   FrozenNumber,
   LabelledWorkItem,
   Reparented,
@@ -27,7 +28,11 @@ import {
   tag,
   workItem,
   workItemService,
+  externalSystem,
+  workItemExternalRef,
   workItemTag,
+  workItemType,
+  workItemWorkItemType,
   workItemTeam,
 } from './schema';
 
@@ -138,6 +143,17 @@ export class WorkItemRepository implements WorkItemStore {
       .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(workItemService.serviceId));
+    // The fourth dimension's join, read exactly as the three above it — and the
+    // only one whose result needs no walk afterwards. A type does not inherit
+    // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so what
+    // comes back here is already the answer a reader gets, where the other three
+    // are the *stated* sets that `effectiveTeamsOf` and its neighbours resolve.
+    const typed = await this.db
+      .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
+      .from(workItemWorkItemType)
+      .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemWorkItemType.typeId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
@@ -150,11 +166,38 @@ export class WorkItemRepository implements WorkItemStore {
     for (const each of serviced) {
       servicesOf.set(each.workItemId, [...(servicesOf.get(each.workItemId) ?? []), each.serviceId]);
     }
+    const typesOf = new Map<string, string[]>();
+    for (const each of typed) {
+      typesOf.set(each.workItemId, [...(typesOf.get(each.workItemId) ?? []), each.typeId]);
+    }
+    // The refs, in `position` order, which is the order they were added — the
+    // one read here that is a list of records rather than of ids, because a ref
+    // carries an address as well as a vocabulary name.
+    const referenced = await this.db
+      .select({
+        id: workItemExternalRef.id,
+        workItemId: workItemExternalRef.workItemId,
+        systemId: workItemExternalRef.systemId,
+        url: workItemExternalRef.url,
+      })
+      .from(workItemExternalRef)
+      .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemExternalRef.position));
+    const refsOf = new Map<string, ExternalRef[]>();
+    for (const each of referenced) {
+      refsOf.set(each.workItemId, [
+        ...(refsOf.get(each.workItemId) ?? []),
+        { id: each.id, systemId: each.systemId, url: each.url },
+      ]);
+    }
     return rows.map((row) => ({
       ...row,
       teamIds: teamsOf.get(row.id) ?? [],
       tagIds: tagsOf.get(row.id) ?? [],
       serviceIds: servicesOf.get(row.id) ?? [],
+      typeIds: typesOf.get(row.id) ?? [],
+      externalRefs: refsOf.get(row.id) ?? [],
     }));
   }
 
@@ -237,7 +280,19 @@ export class WorkItemRepository implements WorkItemStore {
       // nothing, and answered `ok` with the row it had found: every face
       // reporting a successful write that never happened. Found by the tests
       // rather than by reading, 2026-08-19.
-      patch.tagIds === undefined
+      patch.tagIds === undefined &&
+      // Proof: this line deleted and `a type set is undone whole` fails on
+      // `expected [] to deeply equal [ "…" ]` — a patch naming only the types
+      // takes the no-field branch, writes nothing and answers `ok` with the row
+      // it found, every face reporting a write that never happened. The tag
+      // line's own red, one dimension over, and the third time this exact
+      // omission has been made in this condition. Watched 2026-08-30.
+      patch.typeIds === undefined &&
+      // Proof: this line deleted and `a ref list is undone whole` fails at its
+      // `expectDone` — a patch naming only the refs takes the no-field branch,
+      // writes nothing and answers `ok` with the row it found. The tag line's
+      // own red, a third time in this one condition.
+      patch.externalRefs === undefined
     ) {
       const found = await this.findById(id);
       return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
@@ -271,6 +326,12 @@ export class WorkItemRepository implements WorkItemStore {
       teamIds: wantedTeams,
       tagIds: wantedTags,
       serviceIds: wantedServices,
+      // Off the `SET` for `tagIds`' blunter reason: there is no column for it
+      // either. `work_item_work_item_type` is the whole of the fact.
+      typeIds: wantedTypes,
+      // Off the `SET` for `tagIds`' reason: `work_item_external_ref` is the whole
+      // of the fact and there is no column for it.
+      externalRefs: wantedRefs,
       ...fields
     } = patch;
     const written =
@@ -390,6 +451,34 @@ export class WorkItemRepository implements WorkItemStore {
         // refuse a request whose only fault is repetition.
         if (held.length < new Set(wantedTags).size) return { ok: false, reason: 'unknown_tag' };
       }
+      // The fourth dimension's refusal, read in this transaction for the tag's
+      // reason unchanged: `work_item_work_item_type.type_id` cascades, so a type
+      // removed between a precheck and this write leaves nothing for a foreign
+      // key to catch, and a reader would get a 500 where the honest answer names
+      // the type. The empty set is skipped rather than run against `IN ()`,
+      // which SQLite refuses.
+      if (wantedTypes !== undefined && wantedTypes.length > 0) {
+        const held = tx
+          .select({ id: workItemType.id })
+          .from(workItemType)
+          .where(inArray(workItemType.id, [...wantedTypes]))
+          .all();
+        // Counted against the **distinct** ids asked for, `unknown_tag`'s rule.
+        if (held.length < new Set(wantedTypes).size) return { ok: false, reason: 'unknown_type' };
+      }
+      // The systems every named ref points at, refused in this transaction for
+      // the tag's reason unchanged: `work_item_external_ref.system_id` cascades,
+      // so a system removed between a precheck and this write leaves nothing for
+      // a foreign key to catch.
+      if (wantedRefs !== undefined && wantedRefs.length > 0) {
+        const wantedSystems = [...new Set(wantedRefs.map((each) => each.systemId))];
+        const held = tx
+          .select({ id: externalSystem.id })
+          .from(externalSystem)
+          .where(inArray(externalSystem.id, wantedSystems))
+          .all();
+        if (held.length < wantedSystems.length) return { ok: false, reason: 'unknown_system' };
+      }
       const rows = tx
         .update(workItem)
         .set({
@@ -447,6 +536,57 @@ export class WorkItemRepository implements WorkItemStore {
         if (distinct.length > 0) {
           tx.insert(workItemTag)
             .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .run();
+        }
+      }
+      // The type set, written exactly as the tag set above and for its reasons:
+      // the whole set, `[]` written by the delete alone, deduplicated because
+      // the primary key would refuse the repeat, and no column beside it to keep
+      // in step.
+      //
+      // What differs is only what `[]` *means* to a reader afterwards. An empty
+      // tag set puts the row back to inheriting its ancestors'; an empty type
+      // set is the answer — a row with no types has none
+      // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The write
+      // is identical; the reading is not.
+      if (wantedTypes !== undefined) {
+        tx.delete(workItemWorkItemType).where(eq(workItemWorkItemType.workItemId, id)).run();
+        const distinct = [...new Set(wantedTypes)];
+        if (distinct.length > 0) {
+          tx.insert(workItemWorkItemType)
+            .values(distinct.map((typeId) => ({ workItemId: id, typeId })))
+            .run();
+        }
+      }
+      // The ref list, replaced whole and **positioned**, which is the one thing
+      // the three label writes above do not have to do: a set has no order and a
+      // list does, so the index is written rather than left to the read.
+      //
+      // Deduplicated **by URL**, not by the pair: two refs into one system are
+      // two different links (a row may honestly name two GitHub PRs), and the
+      // only untidiness worth collapsing is the same address twice. The schema
+      // deliberately refuses neither, so this is where it happens.
+      //
+      // Ids are minted here rather than taken from the caller: a ref's identity
+      // is the store's, and accepting one would let a client rewrite another
+      // row's ref by naming its id.
+      if (wantedRefs !== undefined) {
+        tx.delete(workItemExternalRef).where(eq(workItemExternalRef.workItemId, id)).run();
+        const seen = new Set<string>();
+        const distinct = wantedRefs.filter((each) =>
+          seen.has(each.url) ? false : (seen.add(each.url), true),
+        );
+        if (distinct.length > 0) {
+          tx.insert(workItemExternalRef)
+            .values(
+              distinct.map((each, at) => ({
+                id: crypto.randomUUID(),
+                workItemId: id,
+                systemId: each.systemId,
+                url: each.url,
+                position: at,
+              })),
+            )
             .run();
         }
       }

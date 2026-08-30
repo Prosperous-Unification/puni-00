@@ -1,6 +1,7 @@
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
 
 import type {
+  ExternalRef,
   DirectoryStore,
   FrozenNumber,
   Repositioned,
@@ -74,6 +75,21 @@ export function inMemoryWorkItems(
    * the real store, nothing here reads it back.
    */
   const servicesOf = new Map<string, readonly string[]>();
+  /**
+   * The type sets, `servicesOf`'s shape and for its reason: no column to derive
+   * from, so a type set arrives on the patch and nowhere else.
+   *
+   * Unlike the three above it, what this map holds is the *whole* answer rather
+   * than the stated half of one — a type does not inherit
+   * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so no walk
+   * stands between this and what a reader sees.
+   */
+  const typesOf = new Map<string, readonly string[]>();
+  /**
+   * The refs each work item carries, in order — `servicesOf`'s shape, holding
+   * records rather than ids because a ref is a vocabulary name plus an address.
+   */
+  const refsOf = new Map<string, readonly ExternalRef[]>();
 
   /** The join rows one write owes, as `WorkItemRepository` derives them. */
   const joinFor = (row: WorkItem): readonly string[] =>
@@ -97,6 +113,8 @@ export function inMemoryWorkItems(
             teamIds: teamsOf.get(row.id) ?? [],
             tagIds: tagsOf.get(row.id) ?? [],
             serviceIds: servicesOf.get(row.id) ?? [],
+            typeIds: typesOf.get(row.id) ?? [],
+            externalRefs: refsOf.get(row.id) ?? [],
           })),
       );
     },
@@ -197,6 +215,20 @@ export function inMemoryWorkItems(
       // empty set rather than a delete so a later read answers the same either
       // way, which is what `listByProject`'s `?? []` above already means.
       if (wantedServices !== undefined) servicesOf.set(id, [...new Set(wantedServices)]);
+      // The type set, whole and deduplicated, only where the patch names the
+      // dimension — the real store's write, mirrored, `wantedServices`' line
+      // exactly.
+      const wantedTypes = patch.typeIds;
+      if (wantedTypes !== undefined) typesOf.set(id, [...new Set(wantedTypes)]);
+      // The ref list, whole and in order, only where the patch names it — the
+      // real store's write mirrored, ids minted here as they are there.
+      const wantedRefs = patch.externalRefs;
+      if (wantedRefs !== undefined) {
+        refsOf.set(
+          id,
+          wantedRefs.map((each) => ({ id: crypto.randomUUID(), ...each })),
+        );
+      }
       return { ok: true, workItem: updated };
     },
     move(id, parentId, position, respaced) {
@@ -229,6 +261,8 @@ export function inMemoryWorkItems(
         byId.delete(id);
         teamsOf.delete(id);
         servicesOf.delete(id);
+        typesOf.delete(id);
+        refsOf.delete(id);
       }
       return Promise.resolve();
     },

@@ -15,8 +15,12 @@ import type {
   ServiceTeam,
   ServiceTeamWritten,
   ServiceWritten,
+  ExternalRef,
+  ExternalSystem,
   Tag,
   TagWritten,
+  WorkItemType,
+  WorkItemTypeWritten,
   TeamPatch,
   TeamWithServices,
 } from './index';
@@ -34,7 +38,11 @@ import {
   teamService,
   workItem,
   workItemService,
+  externalSystem,
+  workItemExternalRef,
   workItemTag,
+  workItemType,
+  workItemWorkItemType,
   workItemTeam,
 } from './schema';
 
@@ -55,6 +63,13 @@ function isDuplicateTeamName(err: unknown): boolean {
 /** The same translation as {@link isDuplicateTeamName}, for the tag name index. */
 function isDuplicateTagName(err: unknown): boolean {
   return err instanceof Error && err.message.includes('UNIQUE constraint failed: tag.name');
+}
+
+/** The same translation as {@link isDuplicateTagName}, for the type name index. */
+function isDuplicateWorkItemTypeName(err: unknown): boolean {
+  return (
+    err instanceof Error && err.message.includes('UNIQUE constraint failed: work_item_type.name')
+  );
 }
 
 /** The same translation as {@link isDuplicateTeamName}, for the service name index. */
@@ -148,11 +163,51 @@ function usageRowsIn(
   for (const each of serviced) {
     servicesOf.set(each.workItemId, [...(servicesOf.get(each.workItemId) ?? []), each.serviceId]);
   }
+  // And the types, for the same reason as the three above: `LabelledWorkItem`
+  // carries four dimensions and a row handed over without one would report a
+  // removal that touches nothing. This one needs no walk on the way out — a
+  // type does not inherit, so what the row states is what it has.
+  const typed = reader
+    .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
+    .from(workItemWorkItemType)
+    .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemWorkItemType.typeId))
+    .all();
+  const typesOf = new Map<string, string[]>();
+  for (const each of typed) {
+    typesOf.set(each.workItemId, [...(typesOf.get(each.workItemId) ?? []), each.typeId]);
+  }
+  // The refs, read in the same transaction as the three label dimensions and
+  // for the same reason: `LabelledWorkItem` carries them, and a row handed over
+  // without its refs would report a removal that touches nothing. Ordered by
+  // `position` so the list reads as it was built.
+  const referenced = reader
+    .select({
+      id: workItemExternalRef.id,
+      workItemId: workItemExternalRef.workItemId,
+      systemId: workItemExternalRef.systemId,
+      url: workItemExternalRef.url,
+    })
+    .from(workItemExternalRef)
+    .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemExternalRef.position))
+    .all();
+  const refsOf = new Map<string, ExternalRef[]>();
+  for (const each of referenced) {
+    refsOf.set(each.workItemId, [
+      ...(refsOf.get(each.workItemId) ?? []),
+      { id: each.id, systemId: each.systemId, url: each.url },
+    ]);
+  }
   const workItems = rows.map((row) => ({
     ...row,
     teamIds: teamsOf.get(row.id) ?? [],
     tagIds: tagsOf.get(row.id) ?? [],
     serviceIds: servicesOf.get(row.id) ?? [],
+    typeIds: typesOf.get(row.id) ?? [],
+    externalRefs: refsOf.get(row.id) ?? [],
   }));
   const projects = reader
     .select({ id: project.id, name: project.name })
@@ -695,6 +750,131 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /** Every external system in the global directory, by name. */
+  async listExternalSystems(): Promise<ExternalSystem[]> {
+    return this.db
+      .select({ id: externalSystem.id, name: externalSystem.name })
+      .from(externalSystem)
+      .orderBy(asc(externalSystem.name));
+  }
+
+  /**
+   * Every work item type in the global directory, by name —
+   * {@link DirectoryRepository.listTags}' shape.
+   */
+  async listWorkItemTypes(): Promise<WorkItemType[]> {
+    return this.db
+      .select({ id: workItemType.id, name: workItemType.name })
+      .from(workItemType)
+      .orderBy(asc(workItemType.name));
+  }
+
+  /**
+   * Adds a work item type, idempotently **by name**, answering the row that is
+   * there — {@link DirectoryRepository.addTag}'s shape and every one of its
+   * reasons, including returning the *earlier* row when two callers raced.
+   */
+  async addWorkItemType(toAdd: WorkItemType): Promise<WorkItemType> {
+    await this.db.insert(workItemType).values(toAdd).onConflictDoNothing();
+    const rows = await this.db
+      .select({ id: workItemType.id, name: workItemType.name })
+      .from(workItemType)
+      .where(eq(workItemType.name, toAdd.name))
+      .limit(1);
+    const found = rows.at(0);
+    if (found === undefined) throw new Error(`work item type vanished after insert: ${toAdd.name}`);
+    return found;
+  }
+
+  /**
+   * Renames one work item type — {@link DirectoryRepository.renameTag}'s shape
+   * exactly, including what it deliberately does **not** do: the work items are
+   * not bumped, because a rename changes what a label is called and not which
+   * rows carry it, so no journal entry is made stale by it.
+   */
+  async renameWorkItemType(typeId: string, name: string): Promise<WorkItemTypeWritten> {
+    await Promise.resolve();
+    try {
+      return this.db.transaction((tx) => {
+        const rows = tx
+          .update(workItemType)
+          .set({ name })
+          .where(eq(workItemType.id, typeId))
+          .returning({ id: workItemType.id, name: workItemType.name })
+          .all();
+        const renamed = rows.at(0);
+        if (renamed === undefined) return { ok: false, reason: 'not_found' };
+        return { ok: true, workItemType: renamed, projectIds: this.projectsTyped(tx, typeId) };
+      });
+    } catch (err) {
+      if (isDuplicateWorkItemTypeName(err)) return { ok: false, reason: 'taken' };
+      throw err;
+    }
+  }
+
+  /**
+   * What points at one work item type right now — a **fast path** for the
+   * confirmation, never the authority for it.
+   * {@link DirectoryRepository.removeWorkItemType} decides.
+   *
+   * No `teamId` argument and so no capacity read, for {@link usageOfTag}'s
+   * reason: a type has no pool and nothing about it is ever spent.
+   */
+  async usageOfWorkItemType(typeId: string): Promise<DirectoryUsageRows> {
+    await Promise.resolve();
+    return usageRowsIn(this.db, this.projectsTyped(this.db, typeId), []);
+  }
+
+  /**
+   * Counts what carries the type, refuses an unconfirmed removal that would
+   * unlabel anything, and otherwise deletes the type — all in one transaction.
+   * {@link DirectoryRepository.removeTag}'s shape and its argument.
+   *
+   * The work items are still bumped, and that is not optional: their type sets
+   * changed, so a journal entry holding the old revision must not undo against a
+   * plan whose labelling has moved under it. The cascade does not move a
+   * revision, so this does it explicitly.
+   *
+   * Proof: `bumpWorkItems` removed and `moves the revision of every row that
+   * lost a type` fails on the row coming back at the revision it had — the same
+   * stale undo `removeTag` carries a proof for, watched 2026-08-30.
+   */
+  async removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoved> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const labelled = tx
+        .select({ id: workItem.id, projectId: workItem.projectId })
+        .from(workItemWorkItemType)
+        .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
+        .where(eq(workItemWorkItemType.typeId, typeId))
+        .all();
+      if (!cascade && labelled.length > 0) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: usageRowsIn(tx, projectsOf(labelled), []),
+        };
+      }
+      bumpWorkItems(
+        tx,
+        labelled.map((each) => each.id),
+      );
+      // The `work_item_work_item_type` rows are **not** deleted here: `type_id`
+      // cascades, for `work_item_tag`'s reason unchanged — a label may be taken
+      // by the database where a statement about somebody's work may not.
+      const removed = tx
+        .delete(workItemType)
+        .where(eq(workItemType.id, typeId))
+        .returning({ id: workItemType.id })
+        .all();
+      if (removed.length === 0) return { ok: false, reason: 'not_found' };
+      return {
+        ok: true,
+        removal: { workItemIds: labelled.map((each) => each.id), projectIds: projectsOf(labelled) },
+      };
+    });
+  }
+
   /**
    * What points at one service right now — a **fast path** for the
    * confirmation, never the authority for it.
@@ -935,6 +1115,24 @@ export class DirectoryRepository implements DirectoryStore {
         .from(workItemTag)
         .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
         .where(eq(workItemTag.tagId, tagId))
+        .all(),
+    );
+  }
+
+  /**
+   * {@link projectsTagged} for the fourth dimension: the projects holding a row
+   * that carries this type, read through the join because there is no column.
+   * That method line for line, and the sameness is deliberate — the two
+   * dimensions are stored alike and differ only in whether a *read* walks the
+   * tree, which this query does not do for either.
+   */
+  private projectsTyped(reader: Reader, typeId: string): string[] {
+    return projectsOf(
+      reader
+        .select({ projectId: workItem.projectId })
+        .from(workItemWorkItemType)
+        .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
+        .where(eq(workItemWorkItemType.typeId, typeId))
         .all(),
     );
   }

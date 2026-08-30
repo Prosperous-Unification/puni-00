@@ -36,6 +36,7 @@ import type {
   PriorityBandView,
   ServiceView,
   TagView,
+  WorkItemTypeView,
   TeamCapacityView,
   TeamView,
 } from '@/lib/wbs-api';
@@ -2240,6 +2241,7 @@ const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['team', 'Teams'],
   ['tag', 'Tags'],
   ['service', 'Services'],
+  ['type', 'Types'],
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
@@ -2865,6 +2867,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * that offers ids instead of names is a filter nobody can aim.
    */
   const [services, setServices] = useState<ServiceView[]>([]);
+  const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
   /**
    * How many of each team this plan may have at work at once, as be-01 sent it
    * with the tree.
@@ -3314,20 +3317,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // arrive afterwards and repair it. Only the newest request may write.
     const generation = latestRefresh.current + 1;
     latestRefresh.current = generation;
-    const [tree, loadedRoles, loadedTeams, loadedTags, loadedServices, loadedPeople] =
-      await Promise.all([
-        api.tree(projectId),
-        api.roles(projectId),
-        api.listTeams(),
-        // Beside the teams rather than behind them: both are global lists the
-        // pickers need before a reader can tick anything, and a second round trip
-        // would put the tag facet a frame behind the team one.
-        api.listTags(),
-        // And the third dimension in the same breath, for that reason a third
-        // time: the service facet names its options out of this list.
-        api.listServices(),
-        api.listPeople(),
-      ]);
+    const [
+      tree,
+      loadedRoles,
+      loadedTeams,
+      loadedTags,
+      loadedServices,
+      loadedWorkItemTypes,
+      loadedPeople,
+    ] = await Promise.all([
+      api.tree(projectId),
+      api.roles(projectId),
+      api.listTeams(),
+      // Beside the teams rather than behind them: both are global lists the
+      // pickers need before a reader can tick anything, and a second round trip
+      // would put the tag facet a frame behind the team one.
+      api.listTags(),
+      // And the third dimension in the same breath, for that reason a third
+      // time: the service facet names its options out of this list.
+      api.listServices(),
+      // And the fourth, a fourth time. Loaded even though the column is hidden
+      // by default: a reader who turns Types on from `Columns` gets a picker
+      // that already has the vocabulary, rather than one that is empty until the
+      // next refresh — and the type facet is built from this list the same way.
+      api.listWorkItemTypes(),
+      api.listPeople(),
+    ]);
     if (projectId !== activeProject.current) return;
     if (generation !== latestRefresh.current) return;
     // This read landed, so whatever the last failed one left behind is over.
@@ -3342,6 +3357,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setTags(loadedTags);
     setServices(loadedServices);
+    setWorkItemTypes(loadedWorkItemTypes);
     setPeople(loadedPeople);
     const drawn = toTree(tree.workItems);
     setWorkItems(drawn);
@@ -4119,6 +4135,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // up: a leaf under a `regulatory` parent is regulatory, and a filter
             // reading stored labels would not find it.
             tagIds: effectiveTags.get(row.id)?.tagIds ?? [],
+            // The row's **own** set, and no `effectiveTypes` map beside the two
+            // above because there is no such walk: a type does not inherit
+            // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so
+            // the stored set is already the effective reading.
+            typeIds: row.typeIds,
             // The **effective** service, for the same reason a third time, and
             // `?? null` because absence from the map is how this walk spells
             // "nobody above this row states one".
@@ -4229,6 +4250,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     phaseName: (roleId) => roles.find((role) => role.id === roleId)?.name ?? '(unknown)',
     tagName: (tagId) =>
       tags.find((each) => each.id === tagId)?.name ?? 'a tag this plan has not loaded',
+    typeName: (typeId) =>
+      workItemTypes.find((each) => each.id === typeId)?.name ?? 'a type this plan has not loaded',
     // Names a service since task 6.3 pulled `listServices` forward out of 7.6.
     // The fallback is the one every lookup here keeps: a saved view can hold an
     // id whose service the directory has since removed, and printing the id
@@ -6165,6 +6188,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run],
   );
 
+  /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
+  const setTypesOf = useCallback(
+    (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { typeIds: [...typeIds] })),
+    [api, run],
+  );
+
+  /**
+   * Adds a type nobody had yet and labels the work item with it, in one go —
+   * `createTagFor`'s shape.
+   *
+   * This is the **only** way a type vocabulary ever gets a first member: unlike a
+   * tag, which the directory page can create before any column shows it, a type's
+   * column is hidden by default and its cell is where naming happens.
+   */
+  const createTypeFor = useCallback(
+    (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
+      run(async () => {
+        // be-01 is idempotent by name, so two browsers typing `Bug` at once end
+        // up on one type rather than two.
+        const workItemType = await api.addWorkItemType(name);
+        await api.patch(id, { typeIds: [...current, workItemType.id] });
+      }),
+    [api, run],
+  );
+
   /** Adds a tag nobody had yet and labels the work item with it, in one go. */
   const createTagFor = useCallback(
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
@@ -6580,13 +6629,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     tags,
     services,
+    workItemTypes,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
+    setTypesOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
+    createTypeFor,
     assignTo,
     createPersonFor,
     toggleRole,
@@ -6657,13 +6709,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     tags,
     services,
+    workItemTypes,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
+    setTypesOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
+    createTypeFor,
     assignTo,
     createPersonFor,
     toggleRole,
@@ -7978,6 +8033,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   }}
                 />
               </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'type',
+          header: 'Types',
+          cell: ({ row }) => {
+            // The reference family's fourth cell, and the shortest of them,
+            // because everything the other three do about inheritance is absent
+            // here by design.
+            //
+            // No `inherited` read, no `↳` placeholder, no `title` explaining an
+            // ancestor: a work item type does not inherit, so a blank cell means
+            // "nobody has said" and nothing else
+            // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The
+            // three cells above all have to distinguish "states none of its own"
+            // from "has none at all"; this one does not, and the missing lines
+            // are the difference.
+            //
+            // Every chip is removable for the same reason — nothing drawn here
+            // was stated somewhere else, so there is no chip that would need its
+            // ✕ withheld the way an inherited tag's does.
+            const own = row.original.typeIds;
+            return (
+              <ReferenceSetStrip
+                label={`Types for ${row.original.number}`}
+                addLabel={`Add a type to ${row.original.number}`}
+                removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
+                placeholder={own.length > 0 ? 'add' : 'search'}
+                adapter={{
+                  kind: 'type',
+                  entries: live.current.workItemTypes,
+                  ownIds: own,
+                  replace: (typeIds) => live.current.setTypesOf(row.original.id, typeIds),
+                  create: (name, current) =>
+                    live.current.createTypeFor(row.original.id, name, current),
+                }}
+                gridCell={{
+                  dataCell: cellKey(row.original.id, 'type'),
+                  onTabKey: (e) => {
+                    live.current.onTabKey(e, row.original.id, 'type');
+                  },
+                  onCommandKey: (e) => {
+                    live.current.onCommandKey(e, row.original, 'type');
+                  },
+                  onAltMove: (e) => {
+                    live.current.onAltMove(e, row.original, 'type');
+                  },
+                }}
+              />
             );
           },
         }),

@@ -567,6 +567,20 @@ export type WorkItemRefusal =
    */
   | 'unknown_service'
   /**
+   * A work item type the directory no longer holds, decided inside the write's
+   * own transaction — see {@link WorkItemPatch.typeIds}. The fourth picker, and
+   * a fourth reason for the third reason's argument: told only that "a label is
+   * gone", a reader now has four pickers to reopen and no way to choose.
+   */
+  | 'unknown_type'
+  /**
+   * An external system the directory no longer holds, decided inside the write's
+   * own transaction — `unknown_service`'s rule, a fourth time and for the same
+   * reason: told only that "a label is gone", a reader has four pickers to
+   * reopen and no way to choose.
+   */
+  | 'unknown_system'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
@@ -861,6 +875,17 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // stale. The parallelism line's own red, one dimension over. Watched
   // 2026-08-19.
   if (patch.tagIds !== undefined) named.push('tagIds');
+  // The tag line's own reason, one dimension over: a patch naming only the types
+  // journals nothing without it, and the next undo reaches past the unjournalled
+  // write to an entry that write already made stale.
+  //
+  // Proof: this line deleted and `puts a replaced type set back, whole` fails at
+  // its `expectDone` on `refused: stale_undo`. Watched 2026-08-30.
+  if (patch.typeIds !== undefined) named.push('typeIds');
+  // The tag line's reason, one dimension over: a patch naming only the refs
+  // journals nothing without it, and the next undo reaches past the unjournalled
+  // write to an entry that write already made stale.
+  if (patch.externalRefs !== undefined) named.push('externalRefs');
   return named;
 }
 
@@ -945,6 +970,35 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   // the whole failure mode this field's design is about — nothing else in the
   // suite notices. Watched 2026-08-19, see verify.md.
   if (patch.tagIds !== undefined) out.tagIds = before.tagIds;
+  // **The whole prior set**, for `tagIds`' reason exactly — a set-valued field's
+  // inverse cannot be a member of the set or a delta against it, and any spelling
+  // that carries one id restores one and drops the rest while reporting success.
+  //
+  // `[]` is a legal before-value and means the row carried no type. For the other
+  // three dimensions that empty set also puts the row back to *inheriting*; here
+  // it does not, because there is nothing to inherit
+  // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The undo is
+  // written the same way and lands somewhere simpler.
+  //
+  // Proof: written as `out.typeIds = before.typeIds.slice(0, 1)` — the scalar
+  // habit, keeping "the type" — and `puts a replaced type set back, whole` fails
+  // on one of the two restored ids missing from the array: a pressable undo that
+  // reports **done** and leaves the row carrying one of the two labels it had.
+  // Watched 2026-08-30.
+  if (patch.typeIds !== undefined) out.typeIds = before.typeIds;
+  // **The whole prior list**, for `tagIds`' reason and with one more of its own:
+  // the members are records, so the inverse has to restore the same refs in the
+  // same order. The stored `id`s are dropped on the way back — the store mints
+  // fresh ones, and an undo that tried to restore an id would be asserting an
+  // identity the row no longer has.
+  //
+  // `[]` is a legal before-value and means the row carried no refs.
+  if (patch.externalRefs !== undefined) {
+    out.externalRefs = before.externalRefs.map((each) => ({
+      systemId: each.systemId,
+      url: each.url,
+    }));
+  }
   // `before.maxParallel` is a number and never null — the column is `NOT NULL`
   // — so the inverse of a reset to 1 is the stored number itself rather than a
   // second null.
