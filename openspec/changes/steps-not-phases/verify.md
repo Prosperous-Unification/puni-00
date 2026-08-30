@@ -103,15 +103,16 @@ and three in `wbs-table.test.tsx` (`expected 'clip' to be 'hidden'` plus two
 
 ## Commands
 
-| Command                                                                                                                                | Result                                                                            |
-| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `bunx nx run-many -t typecheck --projects=domain,be-01,fe-01,mcp-01`                                                                   | pass                                                                              |
-| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- bunx nx run-many -t test --projects=domain,mcp-01,be-01,fe-01 --skip-nx-cache` | **pass, all four** — `NX Successfully ran target test for 4 projects`             |
-| `bunx nx format:check --all`                                                                                                           | pass, after three `--write` passes (it is not idempotent on these docs)           |
-| `bunx nx run-many -t lint`                                                                                                             | pass — one pre-existing `react-hooks/exhaustive-deps` warning from main, 0 errors |
-| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                                                                                       | run; `openapi.json` committed beside the routes                                   |
-| `bunx openspec validate --all --json`                                                                                                  | pass — 92 of 92                                                                   |
-| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                                                                                        | pending                                                                           |
+| Command                                                                                                                                | Result                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck --projects=domain,be-01,fe-01,mcp-01`                                                                   | pass                                                                                                                                                                                                          |
+| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- bunx nx run-many -t test --projects=domain,mcp-01,be-01,fe-01 --skip-nx-cache` | **pass, all four** — `NX Successfully ran target test for 4 projects`                                                                                                                                         |
+| `bunx nx format:check --all`                                                                                                           | pass, after three `--write` passes (it is not idempotent on these docs)                                                                                                                                       |
+| `bunx nx run-many -t lint`                                                                                                             | pass — one pre-existing `react-hooks/exhaustive-deps` warning from main, 0 errors                                                                                                                             |
+| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                                                                                       | run; `openapi.json` committed beside the routes                                                                                                                                                               |
+| `bunx openspec validate --all --json`                                                                                                  | pass — 92 of 92                                                                                                                                                                                               |
+| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/h2puni-gate.sh`                                                                                      | every product project green — `be-01` 1207, `fe-01` 60 files, `mcp-01` 105, `domain` 128, and the libs; ten failures in `tool-dagger` / `tool-devsync` / `tool-bootstrap`, all timeouts under load, see below |
+| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- env CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                             | 231 passed, 1 skipped, 4 failed — **none of the four this change's**, see below                                                                                                                               |
 
 ## Failure proofs (R5)
 
@@ -169,6 +170,45 @@ here rather than left for somebody to find. No other stored key carries the word
 one name in one file, beside `ProjectRepository.stepsOf`. It is
 `assignmentFieldsOf` now, with the reason on the symbol.
 
+## The browser gate, and the four it fails
+
+`231 passed, 1 skipped, 4 failed` on shift 600. Each of the four is attributed,
+and two of them were attributed by **running them on `origin/main` itself**
+rather than by reasoning from the diff.
+
+1. `keyboard.spec.ts:516` `Escape leaves the stored day alone, blur and all`
+2. `keyboard.spec.ts:660` `saves only the year that was typed, digit by digit, in
+a real Chrome`
+
+   The documented pair: date-segment typing against a non-US host locale,
+   known-failing here and named as such before this change started.
+
+3. `deps-cell.spec.ts:432` `picks the add button up off the row it is hovered on,
+in both palettes` — its own drain, not this change. Fixed on main by
+   `26d6166` (`fix(e2e): the theme drain waits for running animations, not an
+empty list`), which landed after this branch's previous merge. Merged in, and
+   the whole spec then runs `10 passed` on main.
+
+4. `plan-surface.spec.ts:253` `docks the chart under the last row rather than at
+the bottom of the window` — **red on `origin/main` already, and this change
+   does not touch it.**
+
+   `Error: 527px between the last row and the chart, against 215px anything asked
+for` · `Expected: <= 217.4375` · `Received: 527.4375`. Run on a detached
+   `origin/main` at `26d6166`: `1 failed, 5 passed`, the _identical_ message.
+   `git diff origin/main` over `plan-surface.spec.ts`, `table-frame.ts` and
+   `wbs-table.tsx` shows no line changed here beyond the domain word.
+
+   It is `unified-scroll-docking`'s test, and `eb8968d` (`fix(wbs): the whole
+Gantt panel goes down`) deliberately reversed its outcome — its own message
+   says so: "The gap is back above the chart on a short plan and that is the
+   accepted cost." `gantt-resize-scroll`'s `verify.md` records that
+   `plan-surface` was **not run**; only `gantt.spec.ts` was. So the older test
+   asserting the opposite was never re-read, and main's browser gate has been
+   red since. That is somebody else's to resolve — either the test states a rule
+   the product no longer holds and should be rewritten, or the docking change
+   went further than intended. This change only reports it.
+
 ## Skipped or unavailable checks
 
 - The physical table and column rename is **not** in this change and is not
@@ -180,5 +220,11 @@ one name in one file, beside `ProjectRepository.stepsOf`. It is
   now says what the routes do — the write routes serve, the project read lists
   them under `steps`, and every verb at `/roles` is a 404 — and the test asserts
   exactly that.
-- `bin/h2puni-gate.sh` is h2puni's; this ran on the Mac, where whole-suite runs
-  took `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh`.
+- **The three `tool-*` suites were not proved green by the gate run.**
+  `tool-dagger`, `tool-devsync` and `tool-bootstrap` failed ten cases in it, every
+  one a timeout rather than an assertion: `configure.sh` cases blowing a 5000ms
+  limit at 15–18 seconds, and — the tell — `with-heavy-lock > refuses
+**immediately** with exit 75 while another heavy operation owns the lock`
+  timing out at 5001.19ms. Three other agents' heavy runs were live on this host
+  at the time. `git diff origin/main..HEAD -- tools/ bin/` is **empty**, so this
+  change cannot reach any of them. Re-run alone under the lock to confirm.
