@@ -25,8 +25,8 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Width, in a browser
 
-- [ ] 4.1 `e2e/layout.spec.ts`: the folded toolbar at 1280 is no wider than before, with the pre-change figure pinned as a number — test: `the toolbar keeps its 1280 budget with one settings control`; negative: two of the old triggers restored beside the new control, watched failing on the pinned figure. Run `CI=1` on shifted ports, never the shared dev server.
+- [x] 4.1 **`e2e/project-settings.spec.ts`, not `layout.spec.ts`** — a new file rather than a case in that one, because it is about the toolbar's chrome rather than the table's columns, which is the split `header.spec.ts`/`layout.spec.ts` already draws. The pinned figure is what the bar **lays out** (1445.33px over 18 controls at a 6px gap, 2 rows), not its content width: at 1280 the bar already wraps, so its content width is its own 1248px whatever is on it and that reading cannot fail. `verify.md` has the argument. The folded toolbar at 1280 is no wider than before, with the pre-change figure pinned as a number — test: `the toolbar keeps its 1280 budget with one settings control`; negative: two of the old triggers restored beside the new control, watched failing on the pinned figure. Run `CI=1` on shifted ports, never the shared dev server.
 
 ## 5. Gate
 
-- [ ] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, `CI=1` Playwright. A change that edits a shared modal path runs the **whole** browser gate, not a filtered run (`AGENTS.md`, `linked-row-hover`).
+- [x] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, `CI=1` Playwright. A change that edits a shared modal path runs the **whole** browser gate, not a filtered run (`AGENTS.md`, `linked-row-hover`) — **and it earned its cost**: the whole run found three stale openers in two specs that every jsdom suite and every filtered browser run passed straight through. `h2puni-gate.sh` is that host's; this is a Mac, so its commands ran individually under `bin/with-heavy-lock.sh`, with the `tool-*` projects excluded by a reachability proof rather than skipped. Figures in `verify.md`.

@@ -76,18 +76,18 @@ cases moved to the modal suite.
 
 ## Commands
 
-| Command                                                                                       | Result                                                                                          |
-| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `bunx tsc --build --force apps/fe-01/tsconfig.app.json`                                       | clean                                                                                           |
-| `bunx tsc --build --force apps/fe-01/tsconfig.e2e.json`                                       | clean                                                                                           |
-| `bunx eslint` over every touched file                                                         | 0 errors (the one `exhaustive-deps` warning is `main`'s)                                        |
-| `vitest run` `teams-panel` / `priorities-panel` / `phases-panel` / `project-settings-modal`   | **24 / 18 / 30 / 15 pass**, 0 fail                                                              |
-| `vitest run wbs-table.test.tsx plan-cards.test.tsx`                                           | **667 pass**, 0 fail (after one stale opener re-pointed)                                        |
-| `git diff --stat main..HEAD -- apps/be-01 apps/gw-01 apps/mcp-01 libs tools bin`              | **empty** — this change reaches fe-01 and nothing else                                          |
-| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | **61 files, 1925 pass, 0 fail**; all four targets green                                         |
-| `bunx nx format:check --all`                                                                  | clean                                                                                           |
-| `bunx openspec validate --all --json`                                                         | **88 of 88**                                                                                    |
-| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | run 1: **239 planned / 239 ran / 232 passed, 6 failed, 1 skipped**; run 2 after the fixes below |
+| Command                                                                                       | Result                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx tsc --build --force apps/fe-01/tsconfig.app.json`                                       | clean                                                                                                                                                                        |
+| `bunx tsc --build --force apps/fe-01/tsconfig.e2e.json`                                       | clean                                                                                                                                                                        |
+| `bunx eslint` over every touched file                                                         | 0 errors (the one `exhaustive-deps` warning is `main`'s)                                                                                                                     |
+| `vitest run` `teams-panel` / `priorities-panel` / `phases-panel` / `project-settings-modal`   | **24 / 18 / 30 / 15 pass**, 0 fail                                                                                                                                           |
+| `vitest run wbs-table.test.tsx plan-cards.test.tsx`                                           | **667 pass**, 0 fail (after one stale opener re-pointed)                                                                                                                     |
+| `git diff --stat main..HEAD -- apps/be-01 apps/gw-01 apps/mcp-01 libs tools bin`              | **empty** — this change reaches fe-01 and nothing else                                                                                                                       |
+| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | **61 files, 1925 pass, 0 fail**; all four targets green                                                                                                                      |
+| `bunx nx format:check --all`                                                                  | clean                                                                                                                                                                        |
+| `bunx openspec validate --all --json`                                                         | **88 of 88**                                                                                                                                                                 |
+| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | run 1: 239 / 239 / 232 pass, 6 fail. run 2, after the fixes below: **239 planned / 239 ran / 236 passed, 2 failed, 1 skipped** — the two are the host's documented date pair |
 
 The reachability line is the attribution for the three `tool-*` projects that
 time out under load on this host (`openspec/HANDOFF-2026-08-30.md`): a diff that
@@ -127,6 +127,12 @@ a control the phone gained with this change that nothing had ever measured.
 Both of this change's own browser cases passed in that run: `the toolbar keeps its
 1280 budget with one settings control` (224) and `opens on its control, offers
 three sections, and closes back onto it` (225).
+
+**Run 2, after the three fixes and after merging `main`: 239 planned, 239 ran,
+236 passed, 2 failed, 1 skipped.** The two are `keyboard.spec.ts:516` and `:660`,
+the non-US-host date pair `apps/fe-01/playwright.config.ts` documents and which
+fail on `main` as well. Every count read with the escapes stripped and
+planned-vs-ran reconciled, per `openspec/HANDOFF-2026-08-30.md`.
 
 ## The toolbar budget, and the reading that would have been unfailable
 
