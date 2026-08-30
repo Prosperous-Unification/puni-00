@@ -21,19 +21,19 @@ import {
   assignment,
   dependency,
   estimate,
+  externalSystem,
   roleMeasure,
   roleProgress,
   service,
   serviceTeam,
   tag,
   workItem,
-  workItemService,
-  externalSystem,
   workItemExternalRef,
+  workItemService,
   workItemTag,
+  workItemTeam,
   workItemType,
   workItemWorkItemType,
-  workItemTeam,
 } from './schema';
 
 /**

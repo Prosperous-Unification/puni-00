@@ -6,6 +6,8 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
+  ExternalRef,
+  ExternalSystem,
   PersonAdded,
   PersonInsert,
   PersonPatch,
@@ -15,18 +17,17 @@ import type {
   ServiceTeam,
   ServiceTeamWritten,
   ServiceWritten,
-  ExternalRef,
-  ExternalSystem,
   Tag,
   TagWritten,
-  WorkItemType,
-  WorkItemTypeWritten,
   TeamPatch,
   TeamWithServices,
+  WorkItemType,
+  WorkItemTypeWritten,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
 import {
   assignment,
+  externalSystem,
   person,
   personTeam,
   project,
@@ -37,13 +38,12 @@ import {
   tag,
   teamService,
   workItem,
-  workItemService,
-  externalSystem,
   workItemExternalRef,
+  workItemService,
   workItemTag,
+  workItemTeam,
   workItemType,
   workItemWorkItemType,
-  workItemTeam,
 } from './schema';
 
 /**

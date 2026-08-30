@@ -36,9 +36,9 @@ import type {
   PriorityBandView,
   ServiceView,
   TagView,
-  WorkItemTypeView,
   TeamCapacityView,
   TeamView,
+  WorkItemTypeView,
 } from '@/lib/wbs-api';
 import {
   type Days,
