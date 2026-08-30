@@ -111,6 +111,14 @@ export default defineConfig(({ command, mode }) => ({
       //   gate vacuous, which is the property that matters (AGENTS.md R5, and
       //   the one vacuous check ever found in the gate itself).
       '@wbs/domain/workday': resolve(__dirname, '../../libs/domain/src/workday.ts'),
+      // The same bargain again, and this one is a single number: the workdays
+      // the schedule gives a slice nobody estimated. be-01 places the slice
+      // across it and the chart draws the bar across it, so a second copy here
+      // is a bar whose width contradicts the Start and End columns beside it.
+      '@wbs/domain/assumed-duration': resolve(
+        __dirname,
+        '../../libs/domain/src/assumed-duration.ts',
+      ),
       // The same module-not-barrel import, one file along: `effective-team.ts`
       // is pure and dependency-free, and the rule it holds — a leaf's team is
       // its own label or the nearest ancestor's — is the one be-01 pools on.

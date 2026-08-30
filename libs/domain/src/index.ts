@@ -1,3 +1,4 @@
+export * from './assumed-duration';
 export * from './capacity';
 export * from './dependency-reach';
 // `effective-label` is deliberately absent: it is the walk the three dimensions
