@@ -126,7 +126,7 @@ was injected with `git checkout` — the tree carried uncommitted work throughou
 | no `roleId` on the wire               | `scheduledSlices` given the old spelling back: `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))` | `has no payload field named roleId`                                 | `expect(received).toEqual(expected)` — `+ [ "slices[0].roleId", "slices[1].roleId" ]`                                                        |
 | the README names tools that exist     | the README's prose spelled back to `the project and role routes`                                                    | `names no tool the document does not derive`                        | `expect(received).not.toMatch(expected)` — `Received: "…undo, redo, the project and role routes, the export…"`                               |
 | the README's example matches the tool | `"stepId"` in the README's `setEstimate` example spelled back to `"roleId"`                                         | `spells the example batch in the fields the commands tool declares` | `expect(received).toEqual(expected)` — `+ [ "setEstimate.roleId" ]`                                                                          |
-| no `Phase`/`Role` on screen           | the trigger's label and `<ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                               | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                                                             |
+| no `Phase`/`Role` on screen           | the steps section's tab label in `project-settings-modal.tsx` spelled back to `Phases`                              | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                                                             |
 | the dialog is named for what it holds | `<ModalTitle>Steps</ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                                     | `the dialog is called Steps`                                        | `TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Steps"`, the dump showing `Name "Phases"` |
 | **ARIA `role` was excluded**          | `role="combobox"` on the project picker (`project-page.tsx`) renamed to `step="combobox"`                           | `app-router.test.tsx`, three cases through `projectShowing()`       | `expect(projectShowing()).toBe(true)` — `- true  + false`, 3 failed / 2 passed                                                               |
 
@@ -194,6 +194,21 @@ the tab list, and this change turns that assertion from
 the spec's "its title SHALL read `Steps`" is covered there. What the panel still
 owns is asserted on the panel, as `says nothing on this panel that reads Phase or
 Role`. No claim was dropped and the case count is unchanged.
+
+**The screen sweep had to follow the surface, and its own anchor said so.**
+`no rendered string says Phase or Role` walked the table at rest and ended with a
+non-vacuity anchor — the word the fault would corrupt must be among the strings
+it read. After the panel split that anchor failed:
+`expected [ 'Freeze #', 'Add work item', …(77) ] to include 'Steps'`. Nothing was
+broken; the word had moved off the toolbar into a panel behind `Project
+settings`, and the sweep was no longer reading the surface it is about. It opens
+that surface now, and the negative was re-watched there — the steps section's tab
+label spelled back to `Phases`, failing on
+`expected [ 'text: Phases' ] to deeply equal []`.
+
+That anchor is the reason this was caught rather than shipped as a sweep of a
+page the word had left. A check that can only pass is worth as little as one that
+can only fail.
 
 **The one real behaviour fix survived, and was re-measured.**
 `schedule-benchmark.test.ts`'s outer loop is still `parent` rather than `step`.

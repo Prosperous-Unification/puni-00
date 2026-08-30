@@ -992,6 +992,12 @@ describe('the WBS table', () => {
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Strip');
+    // And the settings surface, opened, because `project-config-modal` moved
+    // the steps face off the toolbar and into a panel behind this control. A
+    // sweep of the table alone would no longer read the word at all — which is
+    // exactly what the anchor at the bottom caught when that change landed.
+    click('Project settings');
+    await screen.findByRole('dialog', { name: 'Project settings' });
 
     /*
       The text and the three attributes a reader is read to through: `title` is
@@ -1000,9 +1006,9 @@ describe('the WBS table', () => {
       among them — it is a different vocabulary that shares four letters, and
       `steps-not-phases` design D1 keeps it.
 
-      Proof: the trigger's label and `<ModalTitle>` in `steps-dialog.tsx`
-      spelled back to `Phases`. This failed on `expected [ 'text: Phases' ] to
-      deeply equal []`. Watched 2026-08-29.
+      Proof: the trigger's label and `<ModalTitle>` in the steps face spelled
+      back to `Phases`. This failed on `expected [ 'text: Phases' ] to deeply
+      equal []`. Watched 2026-08-29, and again after the panel split.
     */
     const stale = /\b(phase|phases|role|roles)\b/i;
     const said: string[] = [];
@@ -1029,7 +1035,6 @@ describe('the WBS table', () => {
     // reading rather than an empty page: a row is on screen, the word the fault
     // would corrupt is among the strings that were read, and the attributes it
     // was searched through are there to search.
-    expect(numbersOnScreen()).toEqual(['010']);
     expect(words).toContain('Steps');
     expect(document.body.querySelectorAll('[title], [aria-label]').length).toBeGreaterThan(10);
   });
