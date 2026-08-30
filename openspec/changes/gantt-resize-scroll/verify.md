@@ -24,7 +24,7 @@ than a preference:
 
 - **Painted, not masked.** A `mask-image` on the scroll box — the obvious read
   of the `REFERENCE_SET_EDGE_FADE` idiom — fades the panel's content to whatever
-  is *behind* the panel, which is the page in the same `--background`. Tried in
+  is _behind_ the panel, which is the page in the same `--background`. Tried in
   Chromium: on the light palette the cut row dissolves into the identical colour
   it was already drawn on. Painting the background over the content says the
   same thing in a way both palettes can show.
@@ -56,15 +56,15 @@ assert to the pixel (`… expected the panel to be 150px taller`).
 Every fault injected on its own, reverted before the next, all in Chromium at
 1400×900 on `E2E_PORT_SHIFT=900`, 2026-08-29/30.
 
-| Fault injected                                                              | Test that observed it                                        | Failure message                                                                                                                                                       |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The cue never drawn: `{false && (…)}` for `{moreBelow && (…)}`               | `fades while there is chart below it, and lifts at the last row` | `page.evaluate: Error: nothing on the page at [data-gantt-more-below]`                                                                                                |
-| The cue always drawn: `{true && (…)}`                                       | the same case, at rest                                        | `a chart with nothing below it is still fading its edge … Expected: 0, Received: 1`                                                                                    |
-| The reader's offset dropped: `chartBelowTheFold` returning `scrollHeight - clientHeight` | the same case, at the last row                    | `the fade is still over the chart at its last row … Expected: 0, Received: 1`                                                                                          |
-| `min-w-full` struck from the cue's class list                               | the same case, on a chart narrower than its panel             | `the fade does not reach across the panel … Expected: >= 1367, Received: 536`                                                                                          |
-| `width: '100%'` for `width: chartSpanPx ?? '100%'`                          | `covers the visible band with the calendar scrolled right`    | `the fade does not reach across the panel … Expected: >= 1367, Received: -656`                                                                                        |
-| `sticky top-0` struck from `[data-gantt-axis]`                              | `keeps the calendar over the bars, and every bar on its own label` | `the calendar rode up with the chart … Expected: <= 1, Received: 56`                                                                                              |
-| The label column's sticky corner spacer deleted                             | the same case                                                 | `these bars are not on their own row`, four entries against `[]`, the first `010.2: bar 566.3524780273438–584.2725219726562 against label 533.3125–561.3125`           |
+| Fault injected                                                                           | Test that observed it                                              | Failure message                                                                                                                                              |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The cue never drawn: `{false && (…)}` for `{moreBelow && (…)}`                           | `fades while there is chart below it, and lifts at the last row`   | `page.evaluate: Error: nothing on the page at [data-gantt-more-below]`                                                                                       |
+| The cue always drawn: `{true && (…)}`                                                    | the same case, at rest                                             | `a chart with nothing below it is still fading its edge … Expected: 0, Received: 1`                                                                          |
+| The reader's offset dropped: `chartBelowTheFold` returning `scrollHeight - clientHeight` | the same case, at the last row                                     | `the fade is still over the chart at its last row … Expected: 0, Received: 1`                                                                                |
+| `min-w-full` struck from the cue's class list                                            | the same case, on a chart narrower than its panel                  | `the fade does not reach across the panel … Expected: >= 1367, Received: 536`                                                                                |
+| `width: '100%'` for `width: chartSpanPx ?? '100%'`                                       | `covers the visible band with the calendar scrolled right`         | `the fade does not reach across the panel … Expected: >= 1367, Received: -656`                                                                               |
+| `sticky top-0` struck from `[data-gantt-axis]`                                           | `keeps the calendar over the bars, and every bar on its own label` | `the calendar rode up with the chart … Expected: <= 1, Received: 56`                                                                                         |
+| The label column's sticky corner spacer deleted                                          | the same case                                                      | `these bars are not on their own row`, four entries against `[]`, the first `010.2: bar 566.3524780273438–584.2725219726562 against label 533.3125–561.3125` |
 
 ### One assertion with no proof, and it says so in the file
 
@@ -79,7 +79,7 @@ saying it is there to say so rather than to catch it — the same treatment
 
 The first cut asserted the cue's left and right edges separately. The left one
 **cannot fail for the fault the case exists for**: a cue that slides away with
-the calendar slides *left*, so `left <= panel.left` passes for it. Both were
+the calendar slides _left_, so `left <= panel.left` passes for it. Both were
 replaced by one overlap number (`bandCovered`), which falls for a cue that is
 too narrow and for one displaced either way, and that number is what the two
 width faults above were watched on. `T1 column-widths-drag`'s lesson, applied
@@ -95,13 +95,13 @@ reason all seven proofs are browser proofs.
 
 ## Commands
 
-| Command                                                                       | Result |
-| ----------------------------------------------------------------------------- | ------ |
-| `bunx nx typecheck fe-01`                                                     | PASS   |
-| `bunx nx lint fe-01`                                                          | TBD    |
-| `bunx nx test fe-01`                                                          | TBD    |
-| `CI=1 E2E_PORT_SHIFT=900 bunx nx run fe-01:e2e -- apps/fe-01/e2e/gantt.spec.ts` | TBD  |
-| `bunx openspec validate --all --json`                                         | **92/92 valid** (after the inherited fix below) |
+| Command                                                                         | Result                                          |
+| ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `bunx nx typecheck fe-01`                                                       | PASS                                            |
+| `bunx nx lint fe-01`                                                            | TBD                                             |
+| `bunx nx test fe-01`                                                            | TBD                                             |
+| `CI=1 E2E_PORT_SHIFT=900 bunx nx run fe-01:e2e -- apps/fe-01/e2e/gantt.spec.ts` | TBD                                             |
+| `bunx openspec validate --all --json`                                           | **92/92 valid** (after the inherited fix below) |
 
 ## Inherited, not caused
 
@@ -109,15 +109,15 @@ Two things arrived with the `fix/reference-cell-popover` merge this worktree was
 told to take (it carries the `E2E_PORT_SHIFT` support the gate is run on).
 
 1. `wbs-table.test.tsx`'s `gives every cell the chrome its declared width is
-   measured with` failed on `expected 'clip' to be 'hidden'`. That branch changed
-   `CELL.overflow` from `hidden` to `clip` and updated the *other* cell-chrome
+measured with` failed on `expected 'clip' to be 'hidden'`. That branch changed
+   `CELL.overflow` from `hidden` to `clip` and updated the _other_ cell-chrome
    case, not this loop; it also added `tag` and `service` to `POPOVER_COLUMNS`
    without adding them to this loop's exempt list. Both fixed here — a stale
    assertion restored to an already-precise spec, which R4 does not ask a change
    for. Nothing else in that branch was touched.
 2. `openspec validate --all --json` refused `reference-cell-popover` on
    `MODIFIED "A cell that opens a popover is exempt from the cell clip" must
-   contain SHALL or MUST` — with a `SHALL` plainly in the requirement's second
+contain SHALL or MUST` — with a `SHALL` plainly in the requirement's second
    line. The validator reads the **first line** of a requirement's text and no
    further; measured here by reflowing that sentence so the `SHALL` lands on
    line one and watching 92/92 go valid. The wording is reflowed, not changed.
