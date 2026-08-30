@@ -188,48 +188,69 @@ untouched tree, injected the fault, quoted the failure, restored, and confirmed
 green again. The seventh and eighth were watched by this session. **One of the
 eight was vacuous as written and is replaced; it is the last row.**
 
-| Check                                         | Fault injected                                                                                                                                  | Test that saw it fail                                                                                                                                          | Failure text                                                                                                                           |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| the panels stay mounted (D2)                  | the three `hidden` tabpanels rendered conditionally on `shown === id`                                                                           | `a half-typed value survives a look at another section`                                                                                                        | `AssertionError: expected '' to be '7'`                                                                                                |
-| a dirty section refuses the close (D3, modal) | `requestClose`'s `if (first !== undefined) {…}` refusal deleted                                                                                 | `an in-flight write holds the modal open and is shown`; `the ✕ is refused the same way, and says which section is holding`                                     | `Unable to find an accessible element with the role "dialog" and name "Project settings"` — both                                       |
-| …and the priorities section reports it        | `const dirty = false` in `priorities-panel.tsx`                                                                                                 | `an in-flight write holds the modal open and is shown`                                                                                                         | the same, the modal closed over a ladder in flight                                                                                     |
-| …and the teams section reports it             | `const dirty = false` in `teams-panel.tsx`                                                                                                      | `the ✕ is refused the same way, and says which section is holding`                                                                                             | the same, over a typed capacity                                                                                                        |
-| …and the phases section reports it            | `const dirty = false` in `phases-panel.tsx`                                                                                                     | `refuses to close over a confirmation nobody has answered`                                                                                                     | the same, over an open removal                                                                                                         |
-| the remembered section is a claim (D4)        | `isSettingsSection` guard replaced by `return stored as SettingsSection`                                                                        | `an unrecognised remembered section is dropped, and the first is shown`                                                                                        | `expect(element).toHaveAttribute("aria-selected", "true")` — `Received: aria-selected="false"`                                         |
-| one control, no separate ones (3.1)           | `<Button>Teams</Button>` left mounted beside `<ProjectSettingsModal>` in `toolbarControls`                                                      | `one control opens every project setting, and no separate control remains`                                                                                     | `AssertionError: expected [ <button …(2)></button> ] to have a length of +0 but got 1`                                                 |
-| the toolbar budget (4.1)                      | one control added whose name matches none of the three, so the precondition passes and the bar is merely wider                                  | `the toolbar keeps its 1280 budget with one settings control`                                                                                                  | `1465px of controls to lay out, against the 1445.33px the bar had with three buttons` — `Expected: <= 1447.33 / Received: 1464.703125` |
-| the focus comes back to the trigger (3.2)     | **`data-takes-the-focus` on the trigger — watched PASSING; see below.** Replaced by: `ModalTrigger` swapped for a plain `Button` with `onClick` | `closing project settings puts the focus back on its trigger` (`plan-cards`); `a clean modal closes from any section, and gives the focus back to its control` | `expected <body style><div>…(1)</div></body> to be <button …(4)>…(1)</button>` — both                                                  |
+| Check                                         | Fault injected                                                                                                                                                                                      | Test that saw it fail                                                                                                                                          | Failure text                                                                                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| the panels stay mounted (D2)                  | the three `hidden` tabpanels rendered conditionally on `shown === id`                                                                                                                               | `a half-typed value survives a look at another section`                                                                                                        | `AssertionError: expected '' to be '7'`                                                                            |
+| a dirty section refuses the close (D3, modal) | `requestClose`'s `if (first !== undefined) {…}` refusal deleted                                                                                                                                     | `an in-flight write holds the modal open and is shown`; `the ✕ is refused the same way, and says which section is holding`                                     | `Unable to find an accessible element with the role "dialog" and name "Project settings"` — both                   |
+| …and the priorities section reports it        | `const dirty = false` in `priorities-panel.tsx`                                                                                                                                                     | `an in-flight write holds the modal open and is shown`                                                                                                         | the same, the modal closed over a ladder in flight                                                                 |
+| …and the teams section reports it             | `const dirty = false` in `teams-panel.tsx`                                                                                                                                                          | `the ✕ is refused the same way, and says which section is holding`                                                                                             | the same, over a typed capacity                                                                                    |
+| …and the phases section reports it            | `const dirty = false` in `phases-panel.tsx`                                                                                                                                                         | `refuses to close over a confirmation nobody has answered`                                                                                                     | the same, over an open removal                                                                                     |
+| the remembered section is a claim (D4)        | `isSettingsSection` guard replaced by `return stored as SettingsSection`                                                                                                                            | `an unrecognised remembered section is dropped, and the first is shown`                                                                                        | `expect(element).toHaveAttribute("aria-selected", "true")` — `Received: aria-selected="false"`                     |
+| one control, no separate ones (3.1)           | `<Button>Teams</Button>` left mounted beside `<ProjectSettingsModal>` in `toolbarControls`                                                                                                          | `one control opens every project setting, and no separate control remains`                                                                                     | `AssertionError: expected [ <button …(2)></button> ] to have a length of +0 but got 1`                             |
+| the toolbar budget (4.1)                      | two extra labelled buttons whose names match none of the three, so the precondition passes and the bar is merely wider — **watched passing against the pre-change pin, which is why there are two** | `the toolbar keeps its 1280 budget with one settings control`                                                                                                  | `1428px of controls to lay out, against the 1265px this change left` — `Expected: <= 1267 / Received: 1428.015625` |
+| the focus comes back to the trigger (3.2)     | **`data-takes-the-focus` on the trigger — watched PASSING; see below.** Replaced by: `ModalTrigger` swapped for a plain `Button` with `onClick`                                                     | `closing project settings puts the focus back on its trigger` (`plan-cards`); `a clean modal closes from any section, and gives the focus back to its control` | `expected <body style><div>…(1)</div></body> to be <button …(4)>…(1)</button>` — both                              |
 
 **The three `dirty = false` faults were also run against `a half-typed value
 survives a look at another section`, which passed every time.** Expected and
 recorded: the panels stay mounted whatever they report, so that test cannot see a
 reporting fault and is not a substitute for the three above it.
 
-### The budget negative, and the assertion the obvious fault never reaches
+### The budget negative, and two faults that taught it two different things
 
-Slice 4.1's `Proof:` first named one fault: restore `Teams` and `Priorities`
-beside the settings control. Watched, that fails — and **on the wrong
-assertion**. The test checks a precondition first (no separate Teams, Priorities
-or Phases control remains), so the run stops at `expect(locator).toHaveCount(
-expected) — Expected: 0 / Received: 1` with the width assertion **never
-evaluated**. A `Proof:` naming only that fault would be evidence for the
-precondition and none at all for the budget it is written under.
+This check was wrong twice before it was right, and both mistakes are the
+audit's item 10 again.
 
-The fault that reaches the width is one control whose **name matches none of the
-three**, so the precondition passes and the bar is merely wider:
-`<Button variant="outline" size="sm">Capacity planning and priorities</Button>`.
-Watched failing on
+**First, the fault the `Proof:` named never reached the assertion.** Restoring
+`Teams` and `Priorities` beside the settings control trips the test's
+**precondition** — `expect(locator).toHaveCount(expected) — Expected: 0 /
+Received: 1` — and the run stops there with the width assertion never evaluated.
+A `Proof:` naming only that fault is evidence for the precondition and none at
+all for the budget it is written under.
+
+**Second, and worse: with a fault that did reach it, the assertion was nearly
+vacuous.** A subagent re-ran the same fault with _short_ labels (`Squad`,
+`Precedence`, so the precondition passes) and **both tests passed**. Measured:
+
+| bar                                    | laid out at 1280 |
+| -------------------------------------- | ---------------- |
+| the bar this change leaves             | **1265px**       |
+| with two extra labelled buttons        | 1428px           |
+| the pin, taken from the pre-change bar | 1447.33px        |
+
+Folding three controls into one really did save ~180px, so a ceiling set at the
+**pre-change** figure carries 182px of slack — and two whole extra toolbar
+buttons fit inside it. D5's words ("no wider than before") are satisfied by an
+improvement already banked, and the check cannot see a regression that eats it.
+The first fault only tripped it because its label happened to be long enough to
+spend 200px.
+
+**The fix is two pins.** `LAID_OUT_BEFORE_AT_1280 = 1445.33` stays as the record
+of what the change bought, asserted loosely; `LAID_OUT_NOW_AT_1280 = 1265` is the
+guard — the bar may not grow from where this change left it. The short-label
+fault, watched **passing** against the first, fails against the second on
 
 ```
-Error: 1465px of controls to lay out, against the 1445.33px the bar had with three buttons
-Expected: <= 1447.33
-Received:    1464.703125
+Error: 1428px of controls to lay out, against the 1265px this change left
+Expected: <= 1267
+Received:    1428.015625
 ```
 
-Both are recorded, because they prove different lines. This is `AGENTS.md`'s
-**"inject the fault the check is about, not the one that is easy to inject"**,
-and it is the second time in this change that a `Proof:` written before the run
-named something the run did not do — the first being the vacuous one below.
+and the clean tree is green, 2 planned / 2 ran / 2 passed.
+
+**A budget pinned to a figure the code has already beaten is not a budget.** That
+is `plan-toolbar-controls-gate`'s own lesson — it pinned its budget to the bar
+_before_ the one it guarded — arriving from the opposite direction one change
+later, and it took an adversarial re-run to see it.
 
 ### The vacuous one, and what it was replaced with
 
