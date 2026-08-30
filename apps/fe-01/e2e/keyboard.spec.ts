@@ -3,6 +3,102 @@ import { expect, type Locator, type Page, type Request, test } from '@playwright
 import { createProject } from './create-project';
 
 /**
+ * The order this Chrome puts the segments of a native date input in.
+ *
+ * **Measured, not assumed, and that is the whole point of this helper.** Two
+ * checks below type a date digit by digit, and `05202026` is 20 May 2026 only
+ * where the order is month-day-year. `playwright.config.ts` pins
+ * `locale: 'en-US'` and passes `--lang=en-US`, and **neither reaches the
+ * control**: on an `en_UA` host Chrome still draws `dd.mm.yyyy` and the same
+ * keystrokes saved 2026-02-05. Both cases were red for the tester's region
+ * rather than for the code, measured 2026-08-29 and again 2026-08-30.
+ *
+ * The order is read off a throwaway `<input type="date">` appended to the page,
+ * typed into with the real keyboard and removed again — a real control taking
+ * real keystrokes, which is the only thing that can answer this, and one that
+ * never touches the application's state. `0102` is the discriminator: under
+ * month-day it reads 2 January, under day-month 1 February.
+ *
+ * Throws on any other order rather than guessing one (R5 — unknown is not OK).
+ * A year-first locale would need a third arm, and inventing one nobody has run
+ * is how a helper comes to be confidently wrong.
+ *
+ * Proof: the `day-month` arm made to answer `month-day` — the arm **this** host
+ * takes — and `saves only the year that was typed, digit by digit, in a real
+ * Chrome` failed on `Expected: "2026-05-20" / Received: "2026-02-05"`, which is
+ * the exact value `playwright.config.ts` predicted for a `dd.mm.yyyy` host.
+ * Watched in Chromium, 2026-08-30.
+ *
+ * **Only one arm is exercised per host, and that is worth saying out loud.**
+ * Faulting the `month-day` arm here changed nothing, because this Chrome never
+ * reaches it: the check that arm is right is a US-ordered host running this
+ * same suite, which nobody has done since the helper was written. The `throw`
+ * is what stops a third order being silently mistaken for one of these two.
+ */
+let knownSegmentOrder: 'month-day' | 'day-month' | undefined;
+
+/**
+ * Warms {@link dateSegmentOrder} before a delicate editor is on screen.
+ *
+ * The probe focuses a control of its own, and a row's date editor is unmounted
+ * the moment it loses the focus — so probing at the point of typing closes the
+ * very editor the caller is about to type into. Written that way first: both
+ * date cases failed on `locator.pressSequentially: Test timeout of 60000ms
+ * exceeded`, the editor gone. Called once per worker; the answer is cached.
+ */
+async function learnDateOrder(page: Page): Promise<void> {
+  await dateSegmentOrder(page);
+}
+
+async function dateSegmentOrder(page: Page): Promise<'month-day' | 'day-month'> {
+  if (knownSegmentOrder !== undefined) return knownSegmentOrder;
+  await page.evaluate(() => {
+    const probe = document.createElement('input');
+    probe.type = 'date';
+    probe.id = 'segment-order-probe';
+    document.body.append(probe);
+    probe.focus();
+  });
+  await page.keyboard.type('01022026', { delay: 10 });
+  const read = await page.evaluate(() => {
+    const probe = document.querySelector('#segment-order-probe');
+    if (!(probe instanceof HTMLInputElement)) throw new Error('the probe went missing');
+    const seen = probe.value;
+    probe.remove();
+    return seen;
+  });
+  if (read === '2026-01-02') return (knownSegmentOrder = 'month-day');
+  if (read === '2026-02-01') return (knownSegmentOrder = 'day-month');
+  throw new Error(
+    `this Chrome ordered a date input's segments in a way neither arm covers: typing 01022026 ` +
+      `gave ${read || '(nothing)'}. Add the arm rather than guessing one.`,
+  );
+}
+
+/**
+ * Types an ISO day into a native date input the way a person would, in whatever
+ * segment order this browser draws.
+ *
+ * Typed rather than `fill`ed everywhere it is used, and the difference is the
+ * subject of the checks that use it: since 2026-08-23 a `fill` is a *picked*
+ * day — value set, no keydown — and a pick is sent the moment it lands, so a
+ * filled date leaves those tests nothing to abandon.
+ */
+async function typeDateInto(page: Page, box: Locator, iso: string): Promise<void> {
+  // A match rather than a destructured `split`, and the difference is that this
+  // one can fail: without `noUncheckedIndexedAccess` an index into `split`'s
+  // `string[]` types as `string`, so a nullish test on it is one the compiler
+  // has already decided and eslint refuses as unreachable — a check that cannot
+  // fail (`AGENTS.md`, R5). The shape is what is actually unknown here.
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (parts === null) throw new Error(`not an ISO day: ${iso}`);
+  const [, year, month, day] = parts;
+  const order = await dateSegmentOrder(page);
+  const digits = order === 'month-day' ? `${month}${day}${year}` : `${day}${month}${year}`;
+  await box.pressSequentially(digits, { delay: 30 });
+}
+
+/**
  * The command chords, in a browser.
  *
  * `wbs-table.test.tsx` proves the routing matrix — chord × cell class ×
@@ -541,6 +637,7 @@ test.describe('the command chords, in a browser', () => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
     await setProjectStart(page);
 
+    await learnDateOrder(page);
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
     const editor = page.locator('tbody input[type="date"]');
     // **Typed, not `fill`ed, and the difference is the subject of this test.**
@@ -552,7 +649,7 @@ test.describe('the command chords, in a browser', () => {
     //
     // Watched, 2026-08-23: with `fill`, this failed on `Expected: "—" /
     // Received: "1 Jul"` — the day saved before Escape was ever pressed.
-    await editor.pressSequentially('07012026', { delay: 30 });
+    await typeDateInto(page, editor, '2026-07-01');
     await expect(editor).toHaveValue('2026-07-01');
     await page.keyboard.press('Escape');
 
@@ -588,13 +685,14 @@ test.describe('the command chords, in a browser', () => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
     await setProjectStart(page);
 
+    await learnDateOrder(page);
     const starts = page.getByLabel('Project start date');
     // Typed rather than `fill`ed, for the reason the row's case above gives:
     // a `fill` is a pick now and a pick is already sent, so it would leave this
     // test nothing to abandon. `pressSequentially` focuses the box itself,
     // which also puts the caret on the first segment — clicking it first would
     // put the caret wherever the pointer landed.
-    await starts.pressSequentially('09092026', { delay: 30 });
+    await typeDateInto(page, starts, '2026-09-09');
     await expect(starts).toHaveValue('2026-09-09');
     await page.keyboard.press('Escape');
 
@@ -682,6 +780,7 @@ test.describe('the command chords, in a browser', () => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
     await setProjectStart(page);
 
+    await learnDateOrder(page);
     await page.getByLabel('Earliest start for 010', { exact: true }).click();
     const editor = page.locator('tbody input[type="date"]');
     await expect(editor).toHaveAttribute('type', 'date');
@@ -697,15 +796,14 @@ test.describe('the command chords, in a browser', () => {
     // exactly that), and `pressSequentially` focuses too, which leaves the
     // caret where a freshly-focused date input puts it — the first segment.
     //
-    // Typed as a person types it: the segments in the order Chrome puts the
-    // caret through them, one keystroke at a time.
-    await editor.pressSequentially('05202026', { delay: 30 });
+    // Typed as a person types it, one keystroke at a time, in the order this
+    // Chrome puts the caret through the segments — measured, not assumed.
+    await typeDateInto(page, editor, '2026-05-20');
 
-    // The whole year is in the box, which is also this test saying out loud
-    // what it assumes about the browser: Chrome's date input takes the segments
-    // in `MM DD YYYY` order under the `en-US` locale Playwright runs in, so
-    // `05202026` is 20 May 2026 and a locale change would fail here rather than
-    // somewhere further down.
+    // The whole year is in the box. This no longer assumes an order:
+    // `typeDateInto` reads the one this Chrome actually draws off a throwaway
+    // control first, because `locale: 'en-US'` does not reach the segments and
+    // this case spent a year red on every non-US host for that reason alone.
     await expect(editor).toHaveValue('2026-05-20');
 
     await page.getByLabel('Name of 010').click();

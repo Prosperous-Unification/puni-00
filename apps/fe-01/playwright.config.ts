@@ -191,10 +191,14 @@ export default defineConfig({
     // neither `locale` nor `--lang=en-US` reaches — both were tried, and both
     // left the pair failing identically (2 failed | 16 passed).
     //
-    // So those two remain red on a non-US host and green in CI. The real fix is
-    // in the tests, not here: an assertion about *chords* should not depend on
-    // the order a browser draws date segments in. Until one of them stops
-    // typing digits into a native control, treat that pair as environmental.
+    // **Fixed in the tests on 2026-08-30, which is where this comment always
+    // said the fix belonged.** `keyboard.spec.ts` now reads the order this
+    // Chrome actually draws off a throwaway `<input type="date">` before it
+    // types into a real one (`dateSegmentOrder`), so the pair is green on this
+    // `dd.mm.yyyy` host and stays green on a US one. The two settings below are
+    // kept for the determinism they do buy; neither is load-bearing for dates
+    // any more, and the paragraph above is left standing because it is the
+    // measurement that sent the fix to the right place.
     launchOptions: { args: ['--lang=en-US'] },
     screenshot: 'only-on-failure',
     // Keep the diagnostic trace when a check fails, but do not archive a trace

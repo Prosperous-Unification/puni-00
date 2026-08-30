@@ -144,29 +144,51 @@ describe('block markdown in a name is shown, not eaten', () => {
 
 describe('a link in a name', () => {
   /**
-   * Proof: `a` mapped to `LinkFollowable` unconditionally — a real `<a href>`
-   * in the cell. Watched failing, 2026-08-29, on
-   * `expected <a data-name-link="true" …(5)></a> to be null`. An anchor is a
-   * tab stop as well as a click target, which is the half of this a browser is
-   * the only witness to.
+   * **The proof that used to stand here described the behaviour these cases now
+   * assert**, and is deleted rather than left to read as a guard.
+   *
+   * It was: `a` mapped to `LinkFollowable` unconditionally — a real `<a href>`
+   * in the cell — watched failing on `expected <a data-name-link="true" …(5)></a>
+   * to be null`, 2026-08-29. On 2026-08-30 Dany asked for exactly that anchor,
+   * so the fault became the feature and the comment became a claim about a
+   * check that can no longer fail.
+   *
+   * What separates the two faces now is `tabIndex` and `pointer-events`, not
+   * the tag. jsdom witnesses the first; only a browser witnesses the second, and
+   * `e2e/name-markdown.spec.ts` holds it with its own watched negative
+   * (`page.waitForEvent: Test timeout` with the `pointer-events` rule deleted).
    */
-  itDom('is not followable and adds no tab stop where the grid draws it', () => {
+  itDom('is followable but adds no tab stop where the grid draws it', () => {
+    // **This case asserted `querySelector('a')` was null until 2026-08-30.**
+    // A link in the grid was drawn as a `<span>` so that the cell's own click
+    // kept opening the editor; Dany asked for it to be followable, and the two
+    // are kept apart by `tabIndex` and `pointer-events` rather than by the tag.
+    // What jsdom can witness is the first of those; whether a pointer actually
+    // reaches the anchor is a browser's answer and lives in
+    // `e2e/name-markdown.spec.ts`.
     const drawn = nameAs('see [the plan](http://x.test/)');
 
-    expect(drawn.querySelector('a')).toBeNull();
-    const link = drawn.querySelector('[data-name-link]');
+    const link = drawn.querySelector('a');
     expect(link?.textContent).toBe('the plan');
-    // The href is readable — it is just not clickable from a cell.
+    expect(link?.getAttribute('href')).toBe('http://x.test/');
     expect(link?.getAttribute('title')).toBe('http://x.test/');
-    // No tab stop: nothing in the cell the keyboard can land on but the box.
-    expect(drawn.querySelector('[tabindex]')).toBeNull();
+    // Out of the grid's tab order, which is a matrix of cells: a link somebody
+    // typed into a name is not one of them.
+    expect(link?.getAttribute('tabindex')).toBe('-1');
+    expect(drawn.querySelector('[tabindex="0"]')).toBeNull();
   });
 
-  itDom('is followable on the face that asks for it', () => {
+  itDom('is a tab stop on the face that asks for it', () => {
     const drawn = nameAs('see [the plan](http://x.test/)', true);
 
     const link = drawn.querySelector('a');
     expect(link?.getAttribute('href')).toBe('http://x.test/');
-    expect(link?.getAttribute('rel')).toBe('noreferrer');
+    // `noopener` beside `noreferrer` although the latter implies it in every
+    // browser this ships to — the pair is the rule `external-refs` writes down
+    // for a followable external link, and one spelling is cheaper than two.
+    expect(link?.getAttribute('rel')).toBe('noreferrer noopener');
+    // The card's link is reachable by keyboard, which is the whole difference
+    // from the grid's above.
+    expect(link?.getAttribute('tabindex')).toBeNull();
   });
 });
