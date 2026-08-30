@@ -251,9 +251,10 @@ export interface WorkItemView {
    * `tech-debt`, `q3-must-have`.
    *
    * In be-01's order (by tag id), so two reads of an unchanged plan give the
-   * same array. Empty means this row states nothing and takes its ancestor's
-   * set; `effectiveTagsOf` in `libs/domain` is the reading, and it is literally
-   * the same walk `teamIds` above uses.
+   * same array. **What this row states, and only that** — since ADR 0008 the
+   * tags in force on it are these *plus* every ancestor's, and `effectiveTagsOf`
+   * in `libs/domain` is that reading. It is no longer the walk `teamIds` above
+   * uses: a team is overridden by a nearer statement, a tag is added to.
    *
    * **Independent of `teamIds` in every respect.** A row states either, both or
    * neither, and inheriting one says nothing about the other. There is no

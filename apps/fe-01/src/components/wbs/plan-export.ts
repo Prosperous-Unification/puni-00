@@ -527,16 +527,30 @@ function teamCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTeams>
  * What the three dimensions must **not** share is a cell — a row on `Platform`,
  * `regulatory` and `Payments` answers three different questions, and one column
  * holding them would be a document saying something the model does not. Sharing
- * the *rendering* is the opposite move and the safe one.
+ * the *rendering* is the opposite move and was the safe one until ADR 0008.
+ *
+ * **It no longer shares {@link labelCell}, and that is the accumulation
+ * showing.** That function's `(inherited from …)` is one parenthesis for the
+ * whole cell, because an overriding dimension has exactly one stating row. A
+ * tag cell now carries `Ready; Risk (inherited from 010 Compliance)` — some of
+ * it written here, some of it in force from one row and some from another — so
+ * the source is per name or it is a lie about which of them was typed on this
+ * row. The separator stays `; `, which is the rule R3's import matches names by
+ * and the one thing about this cell that must not fork.
  */
 function tagCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTags>, row: ExportRow) {
-  const effective = inForce.get(row.id);
-  return labelCell(
-    plan,
-    plan.tags,
-    effective && { ids: effective.tagIds, fromId: effective.fromId },
-    row,
-  );
+  const inHand = inForce.get(row.id);
+  if (inHand === undefined) return '';
+  return inHand
+    .map((each) => {
+      const name = nameOf(plan.tags, each.tagId);
+      if (each.fromId === row.id) return name;
+      const from = plan.rows.find((candidate) => candidate.id === each.fromId);
+      return from === undefined
+        ? `${name} (inherited)`
+        : `${name} (inherited from ${from.number} ${from.name})`;
+    })
+    .join('; ');
 }
 
 /**

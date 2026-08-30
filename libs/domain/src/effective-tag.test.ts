@@ -9,14 +9,18 @@ const row = (id: string, parentId: string | null, ...tagIds: string[]): TagsLabe
   tagIds,
 });
 
+/** `id@statedBy` per tag in force, which is the whole of what this walk answers. */
+const said = (found: Map<string, readonly { tagId: string; fromId: string }[]>, id: string) =>
+  found.get(id)?.map((each) => `${each.tagId}@${each.fromId}`);
+
 describe('effectiveTagsOf', () => {
   it('reaches an untagged leaf from the parent above it', () => {
     const rows = [row('parent', null, 'regulatory'), row('leaf', 'parent')];
 
     const found = effectiveTagsOf(rows);
 
-    expect(found.get('leaf')).toEqual({ tagIds: ['regulatory'], fromId: 'parent' });
-    expect(found.get('parent')).toEqual({ tagIds: ['regulatory'], fromId: 'parent' });
+    expect(said(found, 'leaf')).toEqual(['regulatory@parent']);
+    expect(said(found, 'parent')).toEqual(['regulatory@parent']);
   });
 
   it('inherits an ancestor’s whole set, not its first member', () => {
@@ -30,74 +34,118 @@ describe('effectiveTagsOf', () => {
 
     const found = effectiveTagsOf(rows);
 
-    expect(found.get('leaf')?.tagIds).toEqual(['regulatory', 'tech-debt']);
+    expect(said(found, 'leaf')).toEqual(['regulatory@parent', 'tech-debt@parent']);
   });
 
-  it('lets a leaf’s own set beat its parent’s, whole and in both directions', () => {
-    // Override, not union — R2's Q4, confirmed for teams on 2026-08-13 and taken
-    // unchanged for tags. The leaf states `q3-must-have` and is on it **alone**,
-    // with no trace of the two above it.
+  it('keeps every ancestor’s tags when a row states one of its own', () => {
+    // The 2026-08-29 report, in one assertion: 010 carries `Risk` and `Review`,
+    // 010.1 inherits both, somebody adds `Ready` to 010.1 — and under override
+    // the two inherited ones stopped being in force at all. A tag says what kind
+    // of thing the work is, and a child of a risky parent is still risky, so
+    // stating one adds a word rather than replacing the sentence.
+    //
+    // ADR 0008 supersedes the override half of Dany's 2026-08-13 Q4 answer, for
+    // tags alone. `lets a leaf’s own set beat its parent’s` — the assertion this
+    // one replaces — is still true of teams and of services, in their own files.
+    //
+    // Proof: the `for (const above of carried)` half of `accumulate` deleted —
+    // the override this replaces — and this failed on
+    // `expect(received).toEqual(expected)`, `Expected - 2 / Received + 0`, with
+    // `"risk@parent"` and `"review@parent"` gone from `[ "ready@leaf" ]`.
+    // Watched 2026-08-29.
+    const rows = [row('parent', null, 'risk', 'review'), row('leaf', 'parent', 'ready')];
+
+    const found = effectiveTagsOf(rows);
+
+    expect(said(found, 'leaf')).toEqual(['ready@leaf', 'risk@parent', 'review@parent']);
+  });
+
+  it('accumulates every ancestor in the chain, not only the nearest', () => {
+    // Override stopped at the first statement it met; a union cannot, and this
+    // is the assertion that says so. A grandparent's word is as much in force on
+    // the leaf as its parent's.
+    //
+    // Proof: the inherited half of `accumulate` deleted — the same injection the
+    // case above names, because an override walk cannot tell "only the nearest"
+    // from "none at all" — and this failed on `Expected - 2 / Received + 0`,
+    // with `"q3@parent"` and `"tech-debt@grandparent"` gone from
+    // `[ "urgent@leaf" ]`. Watched 2026-08-29.
     const rows = [
-      row('parent', null, 'regulatory', 'tech-debt'),
-      row('leaf', 'parent', 'q3-must-have'),
-      row('other-parent', null, 'q3-must-have'),
-      row('other-leaf', 'other-parent', 'tech-debt'),
+      row('grandparent', null, 'tech-debt'),
+      row('parent', 'grandparent', 'q3'),
+      row('leaf', 'parent', 'urgent'),
     ];
 
     const found = effectiveTagsOf(rows);
 
-    expect(found.get('leaf')).toEqual({ tagIds: ['q3-must-have'], fromId: 'leaf' });
-    expect(found.get('other-leaf')?.tagIds).toEqual(['tech-debt']);
+    expect(said(found, 'leaf')).toEqual(['urgent@leaf', 'q3@parent', 'tech-debt@grandparent']);
+    expect(said(found, 'parent')).toEqual(['q3@parent', 'tech-debt@grandparent']);
   });
 
-  it('gives the nearer ancestor’s set to a leaf between two', () => {
-    const rows = [
-      row('grandparent', null, 'tech-debt', 'regulatory'),
-      row('parent', 'grandparent', 'q3-must-have'),
-      row('leaf', 'parent'),
-    ];
+  it('a row restating an ancestor’s tag states it itself, once', () => {
+    // Two rows saying `risk` is one tag in force, and the **nearer** statement
+    // owns it: the ✕ in the Tags cell is decided on `fromId`, so a reader who
+    // wrote `risk` on this row must be able to take it off this row. Drawn twice
+    // it would be a cell describing the tree rather than the work.
+    //
+    // Proof: the `claimed` guard on `accumulate`'s inherited half deleted, and
+    // this failed on `expect(received).toEqual(expected)`, `Expected - 0 /
+    // Received + 1`, with `"risk@parent"` standing beside `"risk@leaf"`.
+    // Watched 2026-08-29.
+    const rows = [row('parent', null, 'risk'), row('leaf', 'parent', 'risk')];
 
     const found = effectiveTagsOf(rows);
 
-    expect(found.get('leaf')).toEqual({ tagIds: ['q3-must-have'], fromId: 'parent' });
+    expect(said(found, 'leaf')).toEqual(['risk@leaf']);
   });
 
-  it('reads an empty set as unstated, so it inherits rather than meaning untagged', () => {
-    // `[]` is _unstated_ and there is no second state meaning "deliberately no
-    // tag". A row whose set is empty is on its ancestor's, and a plan with
-    // nothing above it is absent from the map — one spelling of unstated, which
-    // is the same call the team dimension made and the same one the export has
-    // carried since it was written: an empty cell means nobody typed it.
-    const inherits = effectiveTagsOf([row('parent', null, 'regulatory'), row('leaf', 'parent')]);
-    expect(inherits.get('leaf')?.tagIds).toEqual(['regulatory']);
+  it('reads an empty set as adding nothing, and no tag anywhere as absence', () => {
+    // `[]` is a row that has said nothing, which under accumulation is simply a
+    // row that added no word: it carries what is above it, exactly as it did
+    // under override. What changed is only the non-empty case. A plan with
+    // nothing above a row leaves it absent from the map — one spelling of "no
+    // tags at all", which is the call the export has carried since it was
+    // written: an empty cell means nobody typed it.
+    const carries = effectiveTagsOf([row('parent', null, 'regulatory'), row('leaf', 'parent')]);
+    expect(said(carries, 'leaf')).toEqual(['regulatory@parent']);
 
     const nothing = effectiveTagsOf([row('parent', null), row('leaf', 'parent')]);
     expect(nothing.size).toBe(0);
   });
 
-  it('names the ancestor the set came from, so a reader can be told', () => {
-    // The `fromId` half of the reading, and what `plan-cards.tsx`'s `↳` chip
-    // renders: "regulatory — inherited from 010 Compliance" cannot be said
-    // without it, and a consumer showing an inherited tag would be showing an
-    // unexplained one.
-    const rows = [row('a', null, 'regulatory'), row('b', 'a'), row('c', 'b'), row('d', 'c')];
+  it('names the row each tag came from, so a reader can be told', () => {
+    // The `fromId` half of the reading, and what the Tags cell's inherited chip
+    // renders: "Risk — inherited from 010 Compliance" cannot be said without it,
+    // and a consumer showing an inherited tag would be showing an unexplained
+    // one. **Per tag** and not per row, which is what accumulation cost: `leaf`
+    // below carries two tags from two different rows in one cell.
+    //
+    // Proof: `accumulate`'s `push(above)` replaced by `push({ tagId:
+    // above.tagId, fromId: statedBy })` and this failed on
+    // `- "far@far-up" / + "far@near-up"` — a tag claiming to have been written
+    // where it is drawn, which is a ✕ on a chip that cannot remove it.
+    // Watched 2026-08-29.
+    const rows = [
+      row('far-up', null, 'far'),
+      row('mid', 'far-up'),
+      row('near-up', 'mid', 'near'),
+      row('leaf', 'near-up'),
+    ];
 
     const found = effectiveTagsOf(rows);
 
-    for (const id of ['b', 'c', 'd']) expect(found.get(id)?.fromId).toBe('a');
+    expect(said(found, 'leaf')).toEqual(['near@near-up', 'far@far-up']);
   });
 
   it('resolves a chain of untagged rows once, and hands each of them the same answer', () => {
     // The memoisation, asserted the only way it is observable from outside:
     // every row the deepest walk passed through holds **the same object**, which
-    // a per-row re-walk cannot produce.
+    // a per-row re-walk cannot produce. It survives the fork away from
+    // `effectiveLabelsOf` because `accumulate` returns what it was handed when a
+    // row states nothing — see its `Proof:`.
     //
-    // This case is why `effectiveLabelsOf` takes a `wrap` rather than returning
-    // its own shape for each dimension to convert afterwards: a conversion over
-    // the finished map builds a fresh object per entry, every one of them equal
-    // and none of them identical, and this assertion is what caught that while
-    // the shared walk was being written. The order of `rows` is load-bearing —
-    // deepest first, so `d`'s walk is the one that reaches the tag.
+    // The order of `rows` is load-bearing — deepest first, so `d`'s walk is the
+    // one that reaches the tag.
     const rows = [row('d', 'c'), row('c', 'b'), row('b', 'a'), row('a', null, 'regulatory')];
 
     const found = effectiveTagsOf(rows);
@@ -108,23 +156,33 @@ describe('effectiveTagsOf', () => {
   });
 
   it('refuses a parent chain that runs in a circle', () => {
-    // R5. A cycle has no nearest ancestor, so there is no set to fall back to,
-    // and without the guard the walk does not come back at all — which is why
-    // the assertion is on the throw and the injected fault is watched as a hang.
-    // The error is the tag dimension's own, not the team one's: a reader handed
-    // a `TeamAncestryCycleError` while filtering by tag would go looking in the
-    // wrong half of the model.
+    // R5. A cycle has no top, so there is no finite set of ancestors to
+    // accumulate, and without the guard the walk does not come back at all —
+    // which is why the assertion is on the throw and the injected fault is
+    // watched as a hang. The error is the tag dimension's own, not the team
+    // one's: a reader handed a `TeamAncestryCycleError` while filtering by tag
+    // would go looking in the wrong half of the model.
     const rows = [row('a', 'b'), row('b', 'a')];
+
+    expect(() => effectiveTagsOf(rows)).toThrow(TagAncestryCycleError);
+  });
+
+  it('refuses a circle above a row that is itself outside it', () => {
+    // The cycle a leaf only reaches by climbing. Accumulation has to walk the
+    // **whole** chain before it can answer for `leaf`, so there is no arm here
+    // that could answer from the row's own tags and never notice the loop.
+    const rows = [row('a', 'b', 'x'), row('b', 'a'), row('leaf', 'a', 'own')];
 
     expect(() => effectiveTagsOf(rows)).toThrow(TagAncestryCycleError);
   });
 
   it('answers for a row whose parent is not in the list', () => {
     // A parent from another project, or one that has been removed: the walk runs
-    // out of rows rather than throwing, and the row is simply untagged.
-    const rows = [row('orphan', 'elsewhere')];
-
-    expect(effectiveTagsOf(rows).size).toBe(0);
+    // out of rows rather than throwing, and the row carries only its own tags.
+    expect(effectiveTagsOf([row('orphan', 'elsewhere')]).size).toBe(0);
+    expect(said(effectiveTagsOf([row('orphan', 'elsewhere', 'own')]), 'orphan')).toEqual([
+      'own@orphan',
+    ]);
   });
 });
 
@@ -137,16 +195,18 @@ describe('the two dimensions, read together', () => {
     tagIds: readonly string[],
   ) => ({ id, parentId, teamIds, tagIds });
 
-  it('overrides one dimension while inheriting the other, and the mirror case', () => {
+  it('overrides the team while accumulating the tags, and the mirror case', () => {
     // The property the whole design rests on, and the one a reader is most
-    // likely to doubt: inheritance is **per dimension, independently**. A row
-    // that states tags and no teams keeps its ancestor's teams; a row that
-    // states teams and no tags keeps its ancestor's tags. Neither statement
-    // touches the other dimension, because they are two walks over two fields.
+    // likely to doubt: inheritance is **per dimension, independently** — and
+    // since ADR 0008 the two dimensions no longer even inherit by the same rule.
+    // A row that states tags keeps its ancestor's tags **and** its ancestor's
+    // teams; a row that states teams keeps its ancestor's tags and loses its
+    // ancestor's teams. Neither statement touches the other dimension, because
+    // they are two walks over two fields.
     //
     // Proof: `effectiveTagsOf` pointed at `row.teamIds` and this fails with the
-    // tag half reading `['platform']` — a plan whose filter facet lists teams
-    // under the tag heading. Watched 2026-08-19, see verify.md.
+    // tag half reading `platform` — a plan whose filter facet lists teams under
+    // the tag heading. Watched 2026-08-19 and again 2026-08-29.
     const rows = [
       both('parent', null, ['platform'], ['regulatory']),
       both('tags-only', 'parent', [], ['tech-debt']),
@@ -156,13 +216,14 @@ describe('the two dimensions, read together', () => {
     const teams = effectiveTeamsOf(rows);
     const tags = effectiveTagsOf(rows);
 
-    // States tags, inherits teams.
-    expect(tags.get('tags-only')).toEqual({ tagIds: ['tech-debt'], fromId: 'tags-only' });
+    // States tags, inherits teams — and keeps the tag above it, which is the
+    // half ADR 0008 changed.
+    expect(said(tags, 'tags-only')).toEqual(['tech-debt@tags-only', 'regulatory@parent']);
     expect(teams.get('tags-only')).toEqual({ teamIds: ['platform'], fromId: 'parent' });
 
-    // The mirror: states teams, inherits tags.
+    // The mirror: states teams, and the team above it is gone.
     expect(teams.get('teams-only')).toEqual({ teamIds: ['design'], fromId: 'teams-only' });
-    expect(tags.get('teams-only')).toEqual({ tagIds: ['regulatory'], fromId: 'parent' });
+    expect(said(tags, 'teams-only')).toEqual(['regulatory@parent']);
   });
 
   it('keeps a row out of one map while it is in the other', () => {

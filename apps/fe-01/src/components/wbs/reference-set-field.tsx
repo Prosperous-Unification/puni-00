@@ -30,6 +30,12 @@ export interface ReferenceSetEntry {
   name: string;
 }
 
+/** One member in force from above, and the row a reader has to go to to remove it. */
+export interface InheritedReferenceEntry extends ReferenceSetEntry {
+  /** The stating row, as a reader knows it — `010 Compliance`, never an id. */
+  fromRow: string;
+}
+
 export interface ReferenceSetAdapter {
   kind: ReferenceSetKind;
   entries: readonly ReferenceSetEntry[];
@@ -41,8 +47,35 @@ export interface ReferenceSetAdapter {
    * table cell has 120px and says the same thing in the search box's
    * placeholder ink with a leading `↳` — one reading per surface, because two
    * of them in one cell is two of the lines the Tags column grew.
+   *
+   * **The overriding dimensions' shape**, which since ADR 0008 is teams and
+   * services. It cannot describe an accumulating one: "while its own is empty"
+   * is the whole of what it says, and a row states `Ready` while carrying `Risk`
+   * from `010`. Tags pass {@link inheritedEntries} instead.
    */
   inheritedLabel?: string;
+  /**
+   * The members in force from above that this row does not state, drawn as chips
+   * beside its own.
+   *
+   * **Chips rather than a placeholder**, because a row that states members of
+   * its own still carries these: the box is not empty, so there is no
+   * placeholder left to say it in. That is the accumulating dimension's shape,
+   * which since ADR 0008 is tags and tags alone — teams and services override,
+   * so a row that states any carries none of its ancestor's and
+   * {@link inheritedLabel} is the whole of what they need.
+   *
+   * No adapter passes both: they are the same claim in two shapes, and drawing
+   * both put `↳ Risk, Review` and `Inherited: Risk, Review` in one 120px cell on
+   * 2026-08-29. The `type` kind passes **neither**, and that absence is
+   * load-bearing rather than an omission — a type does not inherit at all
+   * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so there is
+   * nothing above a row for either field to describe.
+   *
+   * These wear no ✕ — a member comes off where it was written, and `fromRow` is
+   * what the chip's `title` says instead.
+   */
+  inheritedEntries?: readonly InheritedReferenceEntry[];
   replace: (ids: string[]) => Promise<CommitOutcome>;
   create: (name: string, current: string[]) => Promise<CommitOutcome>;
 }
@@ -125,6 +158,20 @@ export const REFERENCE_SET_ADD_CLASS =
 export const REFERENCE_SET_CHIP_CLASS =
   'bg-muted inline-flex max-w-full items-center gap-0.5 rounded px-1 text-xs';
 export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0';
+/**
+ * The inherited chip's ink: the own chip's box, dimmed and outlined instead of
+ * filled.
+ *
+ * A reader has to be able to tell, at a glance and without a pointer, which
+ * words this row wrote and which it is carrying — that is the whole of what
+ * `tags-accumulate` adds to a cell, and a chip that looked the same would make
+ * the accumulation a lie about who said what. `border-dashed` rather than a
+ * second fill because the filled `bg-muted` is already the row's own, and two
+ * fills in one 120px cell read as two kinds of value rather than one value in
+ * two states.
+ */
+export const REFERENCE_SET_INHERITED_CHIP_CLASS =
+  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full items-center gap-0.5 rounded border border-dashed px-1 text-xs';
 
 /** Shared compact editor for directory-backed work-item reference sets. */
 export function ReferenceSetStrip({
@@ -143,6 +190,16 @@ export function ReferenceSetStrip({
     (id) => adapter.entries.find((entry) => entry.id === id) ?? { id, name: id },
   );
   const offered = adapter.entries.filter((entry) => !ownIds.includes(entry.id));
+  /**
+   * The members in force from above, minus anything this row already states.
+   *
+   * Filtered here as well as in `effectiveTagsOf` because this strip is also the
+   * phone sheet's body and the sheet re-projects `ownIds` while a write is in
+   * flight: for the moment between "somebody added `Risk`, which the parent also
+   * states" and the tree read that lands it, the two lists would both hold it
+   * and the cell would draw `Risk` twice.
+   */
+  const inherited = (adapter.inheritedEntries ?? []).filter((entry) => !ownIds.includes(entry.id));
   const sourceIdsRef = useRef(ownIds);
   const projectedIdsRef = useRef(ownIds);
   const pendingRef = useRef(false);
@@ -165,6 +222,13 @@ export function ReferenceSetStrip({
    * never wraps: it has nothing to wrap, and the wrap is what made the
    * Depends-on cell two lines tall the moment it was clicked into
    * (`deps-single-line`, measured in Chromium).
+   *
+   * **`own` and not `own` plus the inherited chips**, and that is the rule
+   * rather than an oversight: the wrap exists to put a ✕ back in reach, and an
+   * inherited chip has none. A cell that carries three inherited tags and states
+   * nothing has nothing anybody could act on hiding behind the clip, so it stays
+   * on the line it rests on and the panel does not open a row taller than it
+   * needs to be.
    *
    * Proof, three faults, all watched 2026-08-29 in
    * `reference-set-field.test.tsx`. Forced to `false`, `wraps both containers
@@ -442,6 +506,34 @@ export function ReferenceSetStrip({
               >
                 ×
               </button>
+            </span>
+          ))}
+          {/*
+            What this row carries without having said it — drawn **after** its
+            own members, which is `effectiveTagsOf`'s order and therefore the
+            order every face reads.
+
+            Three things make an inherited chip a different thing from an own
+            one, and all three are here rather than in a comment: the `↳` a
+            reader already knows from the Team cell's placeholder, the muted
+            outlined ink, and **no ✕ at all**. A tag comes off where somebody
+            wrote it; a ✕ here would have to either edit an ancestor from a
+            descendant's cell or do nothing, and both are worse than the
+            absence.
+
+            `data-reference-inherited-chip` and not `data-reference-chip`: the
+            two are different claims — one is what the row states and the write
+            path sends, the other is what it reads — and every existing selector
+            that counts a row's own members means the first.
+          */}
+          {inherited.map((entry) => (
+            <span
+              key={entry.id}
+              data-reference-inherited-chip={entry.id}
+              title={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
+              className={REFERENCE_SET_INHERITED_CHIP_CLASS}
+            >
+              <span className="truncate">↳ {entry.name}</span>
             </span>
           ))}
         </span>

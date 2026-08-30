@@ -9,9 +9,10 @@ import { effectiveLabelsOf } from './effective-label';
  * read the same rule.
  *
  * `serviceIds` is a **set**, the `tagIds` shape (Dany, 2026-08-21 07:46 — "can
- * be several services"). Empty is _unstated_ — the state that inherits — and
- * there is deliberately no third "deliberately no service" state, for the
- * reason there is none for teams or tags (Dany, 2026-08-13, Q4).
+ * be several services"). Empty is _unstated_ — the state that inherits, which is
+ * a stronger claim here than on {@link TagsLabelled} since ADR 0008 — and there
+ * is deliberately no third "deliberately no service" state, for the reason there
+ * is none for teams (Dany, 2026-08-13, Q4).
  *
  * This field was `serviceId: string | null` until chunk 12, when the scope
  * change landed. The walk underneath never moved: it was set-shaped all along
@@ -41,9 +42,11 @@ export interface EffectiveServices {
    * The row that carries the service — this row itself, or the nearest ancestor
    * above it that states one.
    *
-   * Carried rather than reduced to a boolean for {@link EffectiveTags.fromId}'s
+   * Carried rather than reduced to a boolean for {@link TagInForce.fromId}'s
    * reason: "Payments — inherited from 010 Backend" is the sentence the service
-   * cell has to say, and a `true` cannot say it.
+   * cell has to say, and a `true` cannot say it. One id is enough here and is
+   * not enough there: an overriding answer has exactly one stating row, and an
+   * accumulating one has as many as it has members.
    */
   fromId: string;
 }
@@ -59,10 +62,16 @@ export class ServiceAncestryCycleError extends Error {
 /**
  * Every row's effective service: its own, or the nearest ancestor's.
  *
- * The rule is `effectiveTeamsOf`'s and `effectiveTagsOf`'s, unchanged and
- * deliberately so — most-specific wins; override rather than union; unstated
- * spelled only as absence from the map. The walk is literally the same code, in
+ * The rule is `effectiveTeamsOf`'s, unchanged and deliberately so —
+ * most-specific wins; override rather than union; unstated spelled only as
+ * absence from the map. The walk is literally the same code, in
  * `effective-label.ts`, and every proof comment about its faults is there.
+ *
+ * It was `effectiveTagsOf`'s too until `tags-accumulate` (ADR 0008) made tags
+ * union down the tree. A service is **what is being delivered**, and a row
+ * naming its own services means those services instead of its parent's; it is
+ * not a word about the work that a descendant keeps carrying. That is why this
+ * dimension stayed on the overriding walk when the tag one left it.
  *
  * **Set-shaped throughout**, since the 2026-08-21 scope change. It was
  * set-shaped inside and single-valued at the edges before it, which is why the

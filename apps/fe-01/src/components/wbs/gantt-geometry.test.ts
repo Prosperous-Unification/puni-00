@@ -47,7 +47,7 @@ const rowAt = (
   // default and named by the tests that are about them, so a fixture never has
   // to state a team it is not asking about.
   team: { state: 'none' },
-  tags: { state: 'none' },
+  tags: { own: [], inherited: [] },
   trioByRole: new Map(),
   waitsFor: [],
   ...extras,
@@ -1352,34 +1352,40 @@ describe('tags reach the bar and nothing that computes a position', () => {
   });
 
   it('carries the row’s tags onto every bar drawn for that row', () => {
-    const chart = layOutGantt(planWith({ state: 'named', names: ['Compliance', 'Rework'] }));
+    const stated = { own: ['Compliance', 'Rework'], inherited: [] };
+    const chart = layOutGantt(planWith(stated));
 
     // Both of the tagged row's bars, because the surface is built per bar: a
     // reader hovering the QA bar of a compliance job is owed the same sentence
     // as one hovering its Dev bar.
     expect(chart.bars.map((bar) => [bar.sliceId, bar.tags])).toEqual([
-      ['strip-dev', { state: 'named', names: ['Compliance', 'Rework'] }],
-      ['strip-qa', { state: 'named', names: ['Compliance', 'Rework'] }],
-      ['sand-dev', { state: 'none' }],
+      ['strip-dev', stated],
+      ['strip-qa', stated],
+      ['sand-dev', { own: [], inherited: [] }],
     ]);
   });
 
-  it('carries an inherited set with the ancestor it came from', () => {
-    const inherited = {
-      state: 'inherited',
-      names: ['Compliance'],
-      fromRow: '010 Backend',
+  it('carries a stated and an inherited tag together, each with its source', () => {
+    // The pair a row holds since ADR 0008, which the override shape could not
+    // express at all: `Ready` written here, `Compliance` still in force from
+    // `010`. A bar's hover text has to be able to say both.
+    const both = {
+      own: ['Ready'],
+      inherited: [{ id: 'compliance', name: 'Compliance', fromRow: '010 Backend' }],
     } as const;
-    const chart = layOutGantt(planWith(inherited));
+    const chart = layOutGantt(planWith(both));
 
-    expect(chart.bars[0].tags).toEqual(inherited);
+    expect(chart.bars[0].tags).toEqual(both);
   });
 
   it('places every mark at the same number tagged and untagged', () => {
-    const untagged = layOutGantt(planWith({ state: 'none' }));
-    const tagged = layOutGantt(planWith({ state: 'named', names: ['Compliance', 'Rework'] }));
+    const untagged = layOutGantt(planWith({ own: [], inherited: [] }));
+    const tagged = layOutGantt(planWith({ own: ['Compliance', 'Rework'], inherited: [] }));
     const inherited = layOutGantt(
-      planWith({ state: 'inherited', names: ['Compliance'], fromRow: '010 Backend' }),
+      planWith({
+        own: [],
+        inherited: [{ id: 'compliance', name: 'Compliance', fromRow: '010 Backend' }],
+      }),
     );
 
     expect(everythingElse(tagged)).toEqual(everythingElse(untagged));
@@ -1396,8 +1402,8 @@ describe('tags reach the bar and nothing that computes a position', () => {
     // nothing — the lesson `tag-empty-diff.test.ts` was rewritten for. A
     // one-workday shift in a slice has to come out as a difference here, or the
     // comparison is not measuring the chart.
-    const untagged = layOutGantt(planWith({ state: 'none' }));
-    const moved = layOutGantt(planWith({ state: 'none' }, { earliestStart: 1 }));
+    const untagged = layOutGantt(planWith({ own: [], inherited: [] }));
+    const moved = layOutGantt(planWith({ own: [], inherited: [] }, { earliestStart: 1 }));
 
     expect(everythingElse(moved)).not.toEqual(everythingElse(untagged));
   });

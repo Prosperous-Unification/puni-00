@@ -65,7 +65,7 @@ const rowAt = (
   // default and named by the tests that are about them, so a fixture never has
   // to state a team it is not asking about.
   team: { state: 'none' },
-  tags: { state: 'none' },
+  tags: { own: [], inherited: [] },
   trioByRole: new Map(),
   waitsFor: [],
   ...extras,
@@ -1477,15 +1477,30 @@ describe('the chart is drawn in calendar days', () => {
             rowAt('strip', 0, 3, {
               number: '010',
               name: 'Strip',
-              tags: { state: 'named', names: ['Compliance', 'Rework'] },
+              tags: { own: ['Compliance', 'Rework'], inherited: [] },
             }),
             rowAt('sand', 3, 5, {
               number: '020',
               name: 'Sand',
-              tags: { state: 'inherited', names: ['Compliance'], fromRow: '000 Hull' },
+              tags: {
+                own: [],
+                inherited: [{ id: 'compliance', name: 'Compliance', fromRow: '000 Hull' }],
+              },
+            }),
+            rowAt('wax', 5, 7, {
+              number: '030',
+              name: 'Wax',
+              tags: {
+                own: ['Ready'],
+                inherited: [{ id: 'compliance', name: 'Compliance', fromRow: '000 Hull' }],
+              },
             }),
           ],
-          slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5),
+            sliceAt('wax-dev', 'wax', 5, 7),
+          ],
         })}
         startDate={null}
         scheduleError={null}
@@ -1503,7 +1518,20 @@ describe('the chart is drawn in calendar days', () => {
     // The ancestor named, for the team's reason and more strongly: the row this
     // bar sits on names no tag at all, so a bare `Tags Compliance` here is a
     // word with no source anywhere on screen.
-    expect(linesOf(surfaceOn('sand-dev'))).toContain('Tags Compliance — inherited from 000 Hull');
+    expect(linesOf(surfaceOn('sand-dev'))).toContain('Tags Compliance (inherited from 000 Hull)');
+    // The row ADR 0008 exists for, and the one the old sentence could not say:
+    // `Ready` was typed here, `Compliance` is still in force from `000 Hull`,
+    // and both are on the bar with only the second carrying a source. A single
+    // `— inherited from` after the list would put the wrong source on `Ready`.
+    //
+    // Proof: `tagWords` rewritten to the pre-0008 sentence —
+    // `Tags ${[...own, ...inherited.map((each) => each.name)].join(', ')}`, no
+    // per-name source — and the **inherited-only** assertion above it failed
+    // first, on `expected [ '020 - Sand', …(7) ] to include 'Tags Compliance
+    // (inherited from 000 H…'`. Watched 2026-08-30.
+    expect(linesOf(surfaceOn('wax-dev'))).toContain(
+      'Tags Ready, Compliance (inherited from 000 Hull)',
+    );
   });
 
   itDom('says nothing at all about tags on a plan nobody has tagged', () => {

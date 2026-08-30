@@ -1465,6 +1465,47 @@ describe('what a card says about capacity', () => {
     expect(serviceOnCard()).toBeNull();
   });
 
+  itDom('keeps a parent’s tags on a card whose row states one of its own', async () => {
+    // The phone's half of the 2026-08-29 report. `010` is `Risk`, `010.1` states
+    // `Ready`, and both are on the child's card — the stated one plain, the
+    // carried one behind `↳` and under its own attribute, because a reader with
+    // no table to check against has to be able to tell which word this row
+    // wrote.
+    //
+    // Proof: `CardTagsField`'s inherited span deleted and this failed on
+    // `expected null to be '↳ Risk'`; the two spans merged into one
+    // `data-card-tags` and it failed on `expected 'Ready ↳ Risk' to be 'Ready'`
+    // — the accumulation drawn as though the row had written all of it. Both
+    // watched 2026-08-30.
+    await aPlan((rows, _teams, api) => {
+      api.tags.push({ id: 'g-risk', name: 'Risk' });
+      api.tags.push({ id: 'g-ready', name: 'Ready' });
+      rows[0].tagIds = ['g-risk'];
+      rows[1].parentId = rows[0].id;
+      rows[1].tagIds = ['g-ready'];
+    }, 2);
+
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-card-tags-field]')];
+    const child = cards[1];
+    expect(child.querySelector('[data-card-tags]')?.textContent).toBe('Ready');
+    expect(child.querySelector('[data-card-tags-inherited]')?.textContent).toBe('↳ Risk');
+    expect(child.getAttribute('title')).toBe(
+      // `(unnamed)` because the fixture creates rows with no name at all —
+      // the tree's own words for a row nobody has titled, which is what the
+      // card would show a reader too.
+      'Risk — inherited from 010 (unnamed). Remove it there.',
+    );
+    // Every word in force is in the name the control answers to, because a
+    // reader navigating by voice or by label gets no chips at all. The number
+    // is `020` and not `010.1`: this fixture nests by writing `parentId`
+    // straight onto the fake's rows, which does not renumber. The nesting is
+    // what the walk reads, and the number is what the card prints.
+    expect(child.getAttribute('aria-label')).toBe('Tags for 020: Ready, Risk');
+    // The stating row carries nothing and says so by drawing no second span.
+    expect(cards[0].querySelector('[data-card-tags]')?.textContent).toBe('Risk');
+    expect(cards[0].querySelector('[data-card-tags-inherited]')).toBeNull();
+  });
+
   itDom('prints the three labels in the order the table puts its columns in', async () => {
     // `Service/team`, `Tags`, `Services` — `wbs-table.tsx`'s column list, and
     // therefore this card's chip order. A reader moving between the two faces
@@ -2220,7 +2261,7 @@ function renderCards(
       hasCalendar={false}
       setNotBefore={() => undefined}
       setPriority={() => Promise.resolve('landed')}
-      tagLabel={() => ({ state: 'none' })}
+      tagLabel={() => ({ own: [], inherited: [] })}
       tags={[]}
       setTags={() => undefined}
       createTag={() => undefined}

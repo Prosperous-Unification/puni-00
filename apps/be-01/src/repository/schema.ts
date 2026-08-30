@@ -862,12 +862,15 @@ export type TagRow = typeof tag.$inferSelect;
  * `?cascade=1`, and then deletes the tag and lets the database remove the
  * labelling. Nothing in be-01 deletes rows from this table on its own.
  *
- * **Inheritance is not stored here.** A row with no rows in this table inherits
- * its ancestor's tags, and one with rows overrides them — override, per
- * dimension, independently, R2's Q4. That is computed by `effectiveTagsOf` on
- * every read, exactly as `effectiveTeamsOf` computes the other dimension, and
- * nothing denormalised is ever written. Blank means inherit; there is no third
- * "deliberately none" state, exactly as there is none for teams.
+ * **Inheritance is not stored here.** A row's tags in force are its rows in this
+ * table **plus** every ancestor's, unioned — accumulate, not override, since
+ * `tags-accumulate` and `docs/adr/0008-tags-accumulate-down-the-tree.md`, which
+ * supersedes the override half of R2's Q4 for this dimension alone.
+ * `effectiveTagsOf` computes it on every read and nothing denormalised is ever
+ * written; `effectiveTeamsOf` still overrides, in a walk of its own. There is no
+ * third "deliberately none" state, exactly as there is none for teams — and
+ * under accumulation there is nothing for one to mean: a row cannot un-say what
+ * an ancestor said, it can only be edited where it was said.
  *
  * Indexed by tag, because the directory asks "what would removing this tag
  * touch" of every project at once and the primary key answers only the other

@@ -406,6 +406,17 @@ describe('a priority ladder moves no date', () => {
    * is the strongest form of this change's central claim: the scheduler does not
    * read a tag.
    *
+   * **They are the row's STATED tags, and they must stay stated.**
+   * `tags-accumulate` (ADR 0008) made the *effective* set a union of every
+   * ancestor's, and this assertion survived it untouched because no replayed row
+   * states a tag and this payload has never carried the effective reading. If it
+   * ever goes red on a tag, the fix is not to lift `effectiveTagsOf` in here:
+   * this file's claim is a replay-fidelity one, so an effective assertion would
+   * report every future inheritance-rule change as a fidelity regression — and,
+   * because an effective set is a function of tree shape, would test the walk
+   * sixteen times inside a file about band identity, leaving a red unable to say
+   * which of the two had broken.
+   *
    * **`measures` is lifted by `token-tracking` (R10-C)**, and asserted empty for
    * `actuals`' reason exactly, one table over.
    */

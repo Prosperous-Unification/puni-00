@@ -368,6 +368,65 @@ describe('the reference strip on one rest line', () => {
     expect(drawnSayings(strip(), 'Core')).toEqual(['↳ Core']);
   });
 
+  itDom('draws what it carries beside what it states, and only the second removably', () => {
+    // ADR 0008's cell, in the state the 2026-08-29 report is about: `Platform`
+    // written on this row, `Core` still in force from `010`. Both are on screen,
+    // the inherited one wears the `↳` and — the assertion that matters — it has
+    // no ✕ at all. A tag comes off where it was written.
+    //
+    // Proof, two faults, both watched 2026-08-30. The `inherited.map(…)` block
+    // emptied and this failed on `expected [] to deeply equal [ '↳ Core' ]` —
+    // the accumulation drawn as nothing at all, which is the report with the fix
+    // half-applied. And a `<button aria-label={`Remove ${entry.name}
+    // ${adapter.kind}`}>` added inside the inherited chip: it failed on
+    // `expected [ <button …(4)></button>, …(1) ] to have a length of 1 but got
+    // 2`, a ✕ offering to take a word off the row that did not write it.
+    render(
+      <ReferenceSetStrip
+        label="Teams"
+        adapter={adapter({
+          ownIds: ['team-1'],
+          inheritedLabel: undefined,
+          inheritedEntries: [{ id: 'team-9', name: 'Core', fromRow: '010 Hull' }],
+        })}
+        placeholder="add"
+      />,
+    );
+
+    expect(drawnSayings(strip(), 'Platform')).toEqual(['Platform']);
+    expect(drawnSayings(strip(), 'Core')).toEqual(['↳ Core']);
+    expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Remove Platform team' })).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-reference-inherited-chip="team-9"]')?.getAttribute('title'),
+    ).toBe('Core — inherited from 010 Hull. Remove it there.');
+  });
+
+  itDom('drops an inherited member the row has since stated, so it is drawn once', () => {
+    // The window the sheet leaves open: it re-projects `ownIds` the moment a
+    // write lands, and the tree read that would drop the tag from the inherited
+    // list arrives after it. Without the filter the cell draws `Core` twice —
+    // once as the row's own chip and once as the ancestor's — for as long as
+    // that window is open.
+    //
+    // Proof: the `.filter((entry) => !ownIds.includes(entry.id))` on `inherited`
+    // deleted, and this failed on `expected [ 'Platform', '↳ Platform' ] to
+    // deeply equal [ 'Platform' ]`. Watched 2026-08-30.
+    render(
+      <ReferenceSetStrip
+        label="Teams"
+        adapter={adapter({
+          ownIds: ['team-1'],
+          inheritedLabel: undefined,
+          inheritedEntries: [{ id: 'team-1', name: 'Platform', fromRow: '010 Hull' }],
+        })}
+        placeholder="add"
+      />,
+    );
+
+    expect(drawnSayings(strip(), 'Platform')).toEqual(['Platform']);
+  });
+
   itDom('draws the sole own member once, as its chip', () => {
     render(
       <ReferenceSetStrip

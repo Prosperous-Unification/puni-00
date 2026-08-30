@@ -165,11 +165,16 @@ describe('the three dimensions, read together', () => {
     serviceIds: readonly string[],
   ) => ({ id, parentId, teamIds, tagIds, serviceIds });
 
-  it('overrides the service while inheriting teams and tags, and the mirrors', () => {
+  it('overrides the service while inheriting teams and accumulating tags, and the mirrors', () => {
     // Task 2.4, and the property the design rests on: inheritance is **per
     // dimension, independently**. Two dimensions made that easy to believe;
     // three is where a shared walk would show a leak, because a row now states
     // one dimension while two others are silent.
+    //
+    // Since ADR 0008 the tag dimension no longer inherits by this file's rule at
+    // all — it accumulates — so this case is also the fence that says the fork
+    // stayed on its own side. A service or a team stating a set still means that
+    // set **instead**; only the tag arms below read as a union.
     //
     // Proof: `effectiveServicesOf` pointed at a second dimension's field and
     // this fails — the service half reads a team id, so a plan grouped by
@@ -191,14 +196,18 @@ describe('the three dimensions, read together', () => {
       fromId: 'service-only',
     });
     expect(teams.get('service-only')).toEqual({ teamIds: ['platform'], fromId: 'parent' });
-    expect(tags.get('service-only')).toEqual({ tagIds: ['regulatory'], fromId: 'parent' });
+    expect(tags.get('service-only')).toEqual([{ tagId: 'regulatory', fromId: 'parent' }]);
 
-    // States teams, inherits the service (and the tags).
+    // States teams, inherits the service (and carries the tag).
     expect(teams.get('teams-only')).toEqual({ teamIds: ['design'], fromId: 'teams-only' });
     expect(services.get('teams-only')).toEqual({ serviceIds: ['payments'], fromId: 'parent' });
 
-    // States tags, inherits the service (and the teams).
-    expect(tags.get('tags-only')).toEqual({ tagIds: ['tech-debt'], fromId: 'tags-only' });
+    // States tags, inherits the service (and the teams) — and **keeps** the
+    // parent's tag beside its own, which the other two dimensions do not do.
+    expect(tags.get('tags-only')).toEqual([
+      { tagId: 'tech-debt', fromId: 'tags-only' },
+      { tagId: 'regulatory', fromId: 'parent' },
+    ]);
     expect(services.get('tags-only')).toEqual({ serviceIds: ['payments'], fromId: 'parent' });
   });
 

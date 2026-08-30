@@ -85,12 +85,18 @@ export class TeamAncestryCycleError extends Error {
  * them, which is quadratic in the depth, and the renderers would each hold their
  * own walk. One walk, memoised, six readers.
  *
- * **The walk itself lives in `effective-label.ts`** since R10-B, because tags
- * inherit by the same rule and two copies of it would be two places for it to
- * drift. This function is the team vocabulary over that walk: the row shape it
- * accepts, the result shape it answers, and the error it throws are all still
- * about teams, and every proof comment about the walk's faults is at the shared
- * one. `effectiveTagsOf` is its sibling.
+ * **The walk itself lives in `effective-label.ts`** since R10-B, because the
+ * service dimension inherits by the same rule and two copies of it would be two
+ * places for it to drift. This function is the team vocabulary over that walk:
+ * the row shape it accepts, the result shape it answers, and the error it throws
+ * are all still about teams, and every proof comment about the walk's faults is
+ * at the shared one. `effectiveServicesOf` is its sibling.
+ *
+ * **`effectiveTagsOf` is not**, since `tags-accumulate` (ADR 0008): tags union
+ * down the tree, teams override. That is a model difference — a team answers who
+ * does the work and one owner is a decision, a tag answers what kind of thing
+ * the work is and a child of a `Risk` parent is still risky — and it is why the
+ * two walks are apart rather than one walk with a flag.
  *
  * @throws {TeamAncestryCycleError} when the parent chain loops. Unknown is not
  * OK: a cycle has no nearest ancestor, so there is no set to fall back to and a
