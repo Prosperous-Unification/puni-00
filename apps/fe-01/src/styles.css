@@ -870,6 +870,24 @@
     overflow-wrap: break-word;
   }
 
+  /*
+   * The one thing on the drawn box a pointer may hit.
+   *
+   * The box takes no pointer so that a click anywhere in the cell reaches the
+   * textarea under it and opens the editor. A link is the exception Dany asked
+   * for on 2026-08-30: a name that reads as a link with no way to follow it is
+   * a link drawn as decoration. `auto` here and nowhere else, so the exception
+   * is exactly the link's own pixels.
+   *
+   * Proof: this rule deleted, `a link in a name is not a tab stop but can be
+   * followed` failed on `page.waitForEvent: Test timeout of 60000ms exceeded`
+   * — no popup at all, because the click went through the link to the box
+   * under it. Watched in Chromium, 2026-08-30.
+   */
+  [data-cell-rendered] a {
+    pointer-events: auto;
+  }
+
   [data-grid] input:focus,
   [data-grid] textarea:focus {
     /* An outline rather than a shadow or a border: it takes no space, and at a

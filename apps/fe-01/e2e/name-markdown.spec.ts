@@ -35,6 +35,12 @@ const NAMES = {
   heading: '# heading',
   /** A list marker, the other half of D3's block case. */
   list: '- list',
+  /**
+   * A link whose source is far longer than its reading, which is the whole of
+   * the row-height claim below: eighty-odd characters of source, forty-odd
+   * drawn. Dany's own, from `010.1.1` on 2026-08-30.
+   */
+  link: 'hey **hey** hey [The San Juan Mountains are beautiful](https://en.wikipedia.org/wiki/San_Juan_Mountains)',
 } as const;
 
 /** The four rows, in the order they are made. */
@@ -203,31 +209,147 @@ test.describe('the Name cell shows one of its two boxes at a time', () => {
     expect(await rendered.evaluate(boxMetrics)).toEqual(await box.evaluate(boxMetrics));
   });
 
-  test('a link in a name is not a tab stop and cannot be followed', async ({ page }) => {
+  test('a link in a name is not a tab stop but can be followed', async ({ page }) => {
+    // **This test asserted the opposite until 2026-08-30.** A link in the grid
+    // was a `<span>`: not followable, on the reasoning that the cell's own
+    // click opens the editor. Dany reversed that half — _"can you make the
+    // links in markdown of the workitem clickable"_ — having drawn a link in a
+    // name and found no way to follow it from the face it is read on. The tab
+    // half is unreversed and is asserted here beside the new behaviour, so the
+    // two cannot drift apart.
     await seedRows(page, 1);
 
     const box = page.getByLabel('Name of 010');
     await writeInto(box, 'see [the plan](http://example.test/plan)');
 
     const drawn = await renderedNameOf(page, '010');
-    await expect(drawn.locator('[data-name-link]')).toHaveText('the plan');
-    // No anchor, so nothing to follow and nothing for Tab to land on. The
-    // rendered box takes no pointer either, so a click on the link is a click
-    // into the cell, which is what opens the editor.
-    await expect(drawn.locator('a')).toHaveCount(0);
+    const link = drawn.locator('[data-name-link]');
+    await expect(link).toHaveText('the plan');
+    await expect(link).toHaveAttribute('href', 'http://example.test/plan');
+    await expect(link).toHaveAttribute('target', '_blank');
+    // `noopener` beside `noreferrer`, which is what `external-refs` writes down
+    // as the rule for a followable external link.
+    await expect(link).toHaveAttribute('rel', 'noreferrer noopener');
+
+    // **Not a tab stop.** The grid's tab order is a matrix of cells and a link
+    // somebody typed is not one of them, so Tab from the name goes to the next
+    // column rather than into the anchor inside it.
+    await expect(link).toHaveAttribute('tabindex', '-1');
+    await box.focus();
+    await page.keyboard.press('Tab');
     expect(
-      await drawn.evaluate((node) => getComputedStyle(node).pointerEvents),
-      'the rendered name takes the pointer the box under it needs',
-    ).toBe('none');
-    // A real click at the point the link is drawn at, through `page.mouse`
-    // rather than `drawn.click()`. Playwright's own actionability check refuses
-    // the latter — "<textarea …> intercepts pointer events" — which is the very
-    // thing this line exists to prove, so using the locator's click made the
-    // test fail on the behaviour it was asserting. `force: true` would be the
-    // wrong escape: it bypasses hit-testing, and hit-testing IS the claim.
-    const at = await drawn.boundingBox();
-    if (at === null) throw new Error('the rendered name has no box to click');
+      await page.evaluate(() => document.activeElement?.getAttribute('data-name-link') !== null),
+      'Tab out of the name landed on the link inside it',
+    ).toBe(false);
+
+    // **The box still owns every pixel but the link's.** A real click through
+    // `page.mouse` rather than `drawn.click()`: Playwright's actionability
+    // check is itself hit-testing, which is the claim, and `force: true` would
+    // bypass the very thing being proved.
+    const whole = await drawn.boundingBox();
+    if (whole === null) throw new Error('the rendered name has no box to click');
+    await page.mouse.click(whole.x + whole.width - 2, whole.y + whole.height / 2);
+    await expect(box, 'a click past the link did not reach the editor').toBeFocused();
+    await box.blur();
+
+    // **And the link's own pixels follow it.** The href is answered from a
+    // route rather than from the network: unrouted, the popup opens and lands
+    // on `chrome-error://chromewebdata/`, which proves the click was followed
+    // but says nothing about *where*. Routed, the popup's own URL is the
+    // assertion. Nothing outside this browser is contacted either way.
+    await page
+      .context()
+      .route('http://example.test/**', (taken) =>
+        taken.fulfill({ status: 200, contentType: 'text/html', body: '<title>the plan</title>' }),
+      );
+
+    const at = await link.boundingBox();
+    if (at === null) throw new Error('the link has no box to click');
+    const opened = page.waitForEvent('popup');
     await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
-    await expect(box).toBeFocused();
+    const followed = await opened;
+    expect(followed.url(), 'the link opened somewhere other than its href').toBe(
+      'http://example.test/plan',
+    );
+    await followed.close();
+  });
+
+  test('a javascript: URL in a name is not a link at all', async ({ page }) => {
+    // The rule `external-refs` 5.3 names, made load-bearing the day a name's
+    // links became followable: a scheme that is not `http`/`https` renders as
+    // text with no `href`, so a name somebody else typed cannot run script by
+    // being clicked. `react-markdown`'s own `urlTransform` is what refuses it,
+    // and this is the assertion that says so on the production path rather
+    // than in its changelog.
+    await seedRows(page, 1);
+
+    const box = page.getByLabel('Name of 010');
+    await writeInto(box, 'see [the plan](javascript:alert(1))');
+
+    const drawn = await renderedNameOf(page, '010');
+    const link = drawn.locator('[data-name-link]');
+    await expect(link).toHaveText('the plan');
+    expect(
+      await link.getAttribute('href'),
+      'a javascript: URL was written into the href of a name',
+    ).not.toContain('javascript:');
+  });
+});
+
+test.describe('a row is as tall as the name it shows', () => {
+  test('a link whose source outruns its reading does not grow the row', async ({ page }) => {
+    // Dany, 2026-08-30, on row `010.1.1`: "the row is expanded when the
+    // rendered markdown does not need this expansion; it expands because the
+    // orig text md version needs this expansion not the renderd one".
+    //
+    // The Name cell is two boxes and only one of them is in the flow: the
+    // `<textarea>` holding the **source**. It auto-sizes to its own
+    // `scrollHeight`, so a link whose source is twice its reading wrapped the
+    // box and took the row with it, while the drawn box beside it was one
+    // short line. **Only a browser can see this** — jsdom wraps nothing and
+    // measures every box at 0 (`AGENTS.md`, R5 #14/#15).
+    await seedRows(page, 2);
+
+    // The plain row first, and it is the control: whatever a row of one line
+    // is at this width, both of these must be it.
+    await writeInto(page.getByLabel('Name of 010'), NAMES.plain);
+    await writeInto(page.getByLabel('Name of 020'), NAMES.link);
+
+    // The reading is on screen before anything is measured, or a run where the
+    // markdown never rendered would compare two plain rows and pass.
+    const drawn = await renderedNameOf(page, '020');
+    await expect(drawn.locator('[data-name-link]')).toHaveText(
+      'The San Juan Mountains are beautiful',
+    );
+    await expect(drawn.locator('strong')).toHaveText('hey');
+
+    const rowOf = (number: string) =>
+      page.getByLabel(`Name of ${number}`).locator('xpath=ancestor::tr[1]');
+    const plain = await heightOf(rowOf('010'), 'the row of a plain name');
+    const linked = await heightOf(rowOf('020'), 'the row of a linked name');
+
+    // The source really is longer than the reading, or the two rows would be
+    // the same height for a reason that has nothing to do with the fix. This
+    // is the precondition the fault needs to exist at all.
+    const source = await page.getByLabel('Name of 020').evaluate((node) => {
+      if (!(node instanceof HTMLTextAreaElement))
+        throw new Error('the Name cell is not a textarea');
+      const was = node.style.height;
+      node.style.height = 'auto';
+      const measured = node.scrollHeight;
+      node.style.height = was;
+      return measured;
+    });
+    const reading = await heightOf(drawn, 'the rendered name of 020');
+    expect(
+      source,
+      'the source of this name fits one line, so there is no fault to fix',
+    ).toBeGreaterThan(reading + 1);
+
+    // Proof: `drawnBoxHeight` made to answer `null`, so the textarea measures
+    // its own source again — this failed on `Expected: 26.1875 / Received: 42`,
+    // the row 15.8px taller than the reading in it. Watched in Chromium,
+    // 2026-08-30.
+    expect(linked, 'the row is as tall as the source, not as the reading').toBeCloseTo(plain, 0);
   });
 });

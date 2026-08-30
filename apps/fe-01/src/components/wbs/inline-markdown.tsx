@@ -105,26 +105,60 @@ interface LinkProps {
 }
 
 /**
- * A link in a table cell: its text, its styling, and its href in the tooltip.
+ * A link drawn inside the grid: followable by a pointer and invisible to Tab.
  *
- * **Not an `<a>`, deliberately.** The Name cell's own click opens the editor
- * and the grid's tab order is a matrix of cells; an anchor inside one would put
- * a second click target in the cell and a tab stop inside the grid, between a
- * name and the next column. The hover preview is where a link is followable —
- * {@link InlineMarkdownProps.linksFollowable}.
+ * **It was a `<span>` until 2026-08-30**, on the reasoning that the Name cell's
+ * own click opens the editor and an anchor inside one would put a second click
+ * target in the cell and a tab stop in the grid's matrix of cells. Dany
+ * reversed the first half — _"can you make the links in markdown of the
+ * workitem clickable"_ — having drawn a link in a name and found there was no
+ * way to follow it from the face it is read on.
+ *
+ * The second half stands, and this is how both are kept:
+ *
+ * - `tabIndex={-1}`, so Tab still steps from a name to the next column rather
+ *   than into a link inside it. The grid's tab order is a matrix and a link
+ *   somebody typed is not a cell in it.
+ * - `pointer-events: auto` on the anchor alone (`styles.css`), against the
+ *   `none` its box carries: a click on the **link** follows it, a click
+ *   anywhere else in the cell falls through to the box under it and opens the
+ *   editor, exactly as before.
+ *
+ * The drawn box is `aria-hidden`, so this anchor is not the accessible route to
+ * the link and is not meant to be — {@link LinkFollowable} on the hover preview
+ * is, and it is a real tab stop on a real card.
+ *
+ * `noopener` beside `noreferrer` although the latter implies it in every
+ * browser this ships to: the pair is what `external-refs` writes down as the
+ * rule for a followable external link, and one spelling is cheaper than two.
  */
-function LinkAsText({ href, children }: LinkProps) {
+function LinkInGrid({ href, children }: LinkProps) {
   return (
-    <span data-name-link title={href} style={LINK_INK}>
+    <a
+      data-name-link
+      href={href}
+      title={href}
+      style={LINK_INK}
+      target="_blank"
+      rel="noreferrer noopener"
+      tabIndex={-1}
+    >
       {children}
-    </span>
+    </a>
   );
 }
 
-/** A link on a face that has room for one: the hover preview's. */
-function LinkFollowable({ href, children }: LinkProps) {
+/** A link on a face that has room for one: the hover preview's, title and notes alike. */
+export function LinkFollowable({ href, children }: LinkProps) {
   return (
-    <a data-name-link href={href} title={href} style={LINK_INK} target="_blank" rel="noreferrer">
+    <a
+      data-name-link
+      href={href}
+      title={href}
+      style={LINK_INK}
+      target="_blank"
+      rel="noreferrer noopener"
+    >
       {children}
     </a>
   );
@@ -151,7 +185,7 @@ function inlineComponents(source: string, linksFollowable: boolean): Components 
     // The wrapper markdown always makes, rendered as a fragment: no block box,
     // no margin, and so no height of its own in a cell.
     p: ({ children }) => <>{children}</>,
-    a: linksFollowable ? LinkFollowable : LinkAsText,
+    a: linksFollowable ? LinkFollowable : LinkInGrid,
   };
 }
 

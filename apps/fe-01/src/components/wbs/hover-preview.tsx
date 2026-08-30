@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 
 import { HoverCard } from './hover-card';
-import { InlineMarkdown } from './inline-markdown';
+import { InlineMarkdown, LinkFollowable } from './inline-markdown';
 
 export interface HoverPreviewProps {
   /**
@@ -40,9 +40,14 @@ export interface HoverPreviewProps {
  * through the same component. Only the **inline** grammar parses; a `#` in a
  * name is still the character somebody typed.
  *
- * A link is followable here and nowhere else — see
+ * A link is a **tab stop** here and nowhere else — see
  * {@link InlineMarkdownProps.linksFollowable}: this is a card with room for a
- * click of its own, where a Name cell's click opens the editor.
+ * click of its own, and the one face where the anchor is not `aria-hidden`. In
+ * the grid a link is followable by pointer alone (`LinkInGrid`), because the
+ * grid's tab order is a matrix of cells and a link somebody typed is not one.
+ * The notes under the heading are drawn through the same link component as the
+ * name above it, which is the whole of "the title's links and the body's are
+ * one thing" (Dany, 2026-08-30).
  *
  * `react-markdown` renders to React elements and does **not** pass raw HTML
  * through — no `rehype-raw` here, deliberately. Notes are written by one
@@ -82,6 +87,17 @@ const noteHeadings: Components = {
   h1: noteHeadingSized('h1', '1.15em'),
   h2: noteHeadingSized('h2', '1.08em'),
   h3: noteHeadingSized('h3', '1.02em'),
+  /**
+   * The notes' links, drawn the way the name's are.
+   *
+   * Left to `react-markdown`'s own `a` until 2026-08-30, which is a bare
+   * `<a href>`: the user agent's `-webkit-link` blue on a light page and a
+   * periwinkle nothing names on a dark one — the exact fault `LINK_INK` exists
+   * for — following in **this** tab, which throws away every unsent draft on
+   * the plan behind it, and carrying no `rel`. Dany asked for the title's links
+   * and the body's alike, so they are now one component.
+   */
+  a: LinkFollowable,
 };
 
 export function HoverPreview({ name, notes, number }: HoverPreviewProps) {

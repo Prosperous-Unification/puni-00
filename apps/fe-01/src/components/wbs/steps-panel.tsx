@@ -108,7 +108,7 @@ export interface StepsPanelProps extends SettingsSectionReport {
   depReach: DependencyReach;
   /**
    * Writes the project's reach. Every date on the plan may move on it, which is
-   * why the caller re-reads through {@link PhasesDialogProps.onChanged}
+   * why the caller re-reads through {@link StepsPanelProps.onChanged}
    * afterwards like every other change made here.
    */
   setDepReach: (reach: DependencyReach) => Promise<void>;

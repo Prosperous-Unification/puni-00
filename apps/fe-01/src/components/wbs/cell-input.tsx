@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -15,6 +16,35 @@ type PassedThrough = Omit<
   ComponentProps<'input'>,
   'value' | 'defaultValue' | 'onChange' | 'onBlur' | 'ref'
 >;
+
+/**
+ * The height of the box the reader is actually looking at, where that is not
+ * the box the text lives in.
+ *
+ * Under {@link CellInputProps.renderFirstLine} a cell is two boxes: a
+ * `<textarea>` holding the markdown **source**, and an `aria-hidden` box drawing
+ * the **rendered** reading over it. Only the textarea is in the flow, so it is
+ * the textarea's height that becomes the row's — and the two do not wrap alike.
+ * `[The San Juan Mountains are beautiful](https://en.wikipedia.org/…)` is one
+ * short line rendered and two long ones as source, so a row grew to fit text
+ * nobody can see (Dany, 2026-08-30, row `010.1.1`).
+ *
+ * The drawn box is `position: absolute` with `top/left/right` pinned, so it is
+ * the width of the cell and as tall as its own content — which is exactly the
+ * measurement wanted. Its padding and border are the textarea's own
+ * (`styles.css`), so the two heights are in the same units and neither needs
+ * correcting to the other.
+ *
+ * Answers `null` where there is no drawn box — every cell that is not rendering
+ * markdown, and every one that has the focus, where the drawn box is
+ * `display: none` and the source is what is on screen. `offsetParent` is the
+ * cheapest thing that distinguishes those: a `display: none` element has none.
+ */
+function drawnBoxHeight(node: HTMLTextAreaElement): number | null {
+  const drawn = node.parentElement?.querySelector('[data-cell-rendered]');
+  if (!(drawn instanceof HTMLElement) || drawn.offsetParent === null) return null;
+  return drawn.scrollHeight;
+}
 
 export interface CellInputProps extends PassedThrough {
   /**
@@ -248,7 +278,7 @@ export function CellInput({
       // rather than copied — a second `indexOf('\n')` here is how the box and
       // the field come to disagree about where the first line ends.
       if (clamped) node.value = splitNameCell(whole).name;
-      node.style.height = `${String(node.scrollHeight)}px`;
+      node.style.height = `${String(drawnBoxHeight(node) ?? node.scrollHeight)}px`;
       if (clamped) {
         node.value = whole;
         node.setSelectionRange(selection.start, selection.end, selection.direction);
@@ -312,6 +342,32 @@ export function CellInput({
   useEffect(() => {
     field.serverSaid(value);
   }, [field, value, resize]);
+
+  /**
+   * Re-measures once the drawn box holds what it is about to draw.
+   *
+   * {@link showsAtRest} calls {@link resize} and *then* writes
+   * {@link restText}, so the measurement inside it reads the drawn box as it
+   * was one name ago — the height of the previous reading, on the new one. A
+   * layout effect keyed on the text is the first moment the drawn box holds
+   * the new content, and it runs before the browser paints, so the corrected
+   * height is the only one anybody sees.
+   *
+   * `useLayoutEffect` and not `useEffect` for exactly that: the same thing on
+   * a passive effect is a frame of the wrong row height per edit.
+   *
+   * Proof: written as `useEffect`, `the row is as tall as the reading, not as
+   * the source` still passed — a passive effect flushes before Playwright can
+   * ask, so the browser cannot be the oracle for the flicker and this one is
+   * left as a reasoned choice rather than a claim. What the test *does* watch
+   * is the effect deleted altogether — see `e2e/name-markdown.spec.ts`.
+   */
+  useLayoutEffect(() => {
+    const node = box.current;
+    if (!autoSize || renderFirstLine === undefined) return;
+    if (!(node instanceof HTMLTextAreaElement)) return;
+    resize(node);
+  }, [restText, autoSize, renderFirstLine, resize]);
 
   /**
    * Re-measures the clamped height when the window changes size.

@@ -824,6 +824,61 @@ test.describe('the Name cell answers from its marker alone', () => {
     expect(await preview.locator('li em').textContent()).toBe('unsurveyed');
   });
 
+  test('a link in the notes is followable, and drawn like the name’s', async ({ page }) => {
+    // Dany, 2026-08-30: _"can you make the links in markdown of the workitem
+    // clickable - both the title and body links"_. The title's were already
+    // anchors; the notes were rendered by a bare `<Markdown>` with no `a`
+    // mapping at all, so their links took the user agent's own blue, carried
+    // no `rel`, and followed in **this** tab — which throws away every unsent
+    // draft on the plan behind them.
+    //
+    // Both faces are asserted here rather than only the new one: they are one
+    // component now, and a test that watches half of that cannot see them come
+    // apart again.
+    const name = page.getByLabel('Name of 010');
+    await name.fill(
+      'A [survey](http://example.test/survey)\n\nbook [the lift](http://example.test/lift)',
+    );
+    await name.blur();
+    await page.getByLabel('Notes on 010').hover();
+
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    const inTitle = preview.locator('h1 [data-name-link]');
+    const inBody = preview.locator('p [data-name-link]');
+    await expect(inTitle).toHaveText('survey');
+    await expect(inBody).toHaveText('the lift');
+
+    // Proof: the `a: LinkFollowable` entry removed from `noteHeadings`, this
+    // failed on `expect(locator).toHaveText … Expected: "the lift" … element(s)
+    // not found` — earlier than the `target` assertion below, because
+    // react-markdown's own `a` carries no `data-name-link` for the body
+    // locator to find at all. Watched in Chromium, 2026-08-30.
+    for (const link of [inTitle, inBody]) {
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noreferrer noopener');
+    }
+
+    // One ink, both faces — and not the user agent's, which is `-webkit-link`
+    // blue on a light page and a periwinkle nothing names on a dark one.
+    const inkOf = (at: Locator) => at.evaluate((node) => getComputedStyle(node).color);
+    expect(await inkOf(inBody), 'the notes’ links are inked unlike the name’s').toBe(
+      await inkOf(inTitle),
+    );
+
+    // And the card takes the pointer, so the link is reachable at all: this is
+    // the one card in the table that does.
+    await page
+      .context()
+      .route('http://example.test/**', (taken) =>
+        taken.fulfill({ status: 200, contentType: 'text/html', body: '<title>lift</title>' }),
+      );
+    const opened = page.waitForEvent('popup');
+    await inBody.click();
+    const followed = await opened;
+    expect(followed.url()).toBe('http://example.test/lift');
+    await followed.close();
+  });
+
   test('scrolls a note taller than the preview once the pointer is on it', async ({ page }) => {
     // The one card that scrolls, and the only way to scroll it is to put the
     // pointer on it — which means crossing the name box between the marker at
