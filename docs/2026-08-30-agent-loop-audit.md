@@ -236,8 +236,16 @@ lines were the _first_ session's correction arriving through a merge of
 conflicts.
 
 Same shape as `eb8968d` (item 5's neighbour): a real number supporting a wrong
-story until somebody read the commit that produced it. **`git diff` answers "what
-changed here"; only `merge-base` answers "who wrote it".**
+story until somebody read the commit that produced it. The session that made
+both calls named what they share, and together they are a rule rather than two
+anecdotes: **both times a number was taken off a summary view and authorship or
+intent inferred from it.** `git show --stat` on a _merge_ commit attributes every
+line the merge carries, including the ones it imports; a measured pixel figure
+says nothing about why the pixels moved.
+
+**The summary tells you what changed; only the history tells you who changed it
+and why.** `git merge-base --is-ancestor` and `git merge-tree` are the cheap
+answers, and both run in under a second.
 
 ### Three artefacts that look like conclusions
 
