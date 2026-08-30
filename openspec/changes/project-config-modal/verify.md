@@ -76,23 +76,57 @@ cases moved to the modal suite.
 
 ## Commands
 
-| Command                                                                                       | Result                                                   |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `bunx tsc --build --force apps/fe-01/tsconfig.app.json`                                       | clean                                                    |
-| `bunx tsc --build --force apps/fe-01/tsconfig.e2e.json`                                       | clean                                                    |
-| `bunx eslint` over every touched file                                                         | 0 errors (the one `exhaustive-deps` warning is `main`'s) |
-| `vitest run` `teams-panel` / `priorities-panel` / `phases-panel` / `project-settings-modal`   | **24 / 18 / 30 / 15 pass**, 0 fail                       |
-| `vitest run wbs-table.test.tsx plan-cards.test.tsx`                                           | **667 pass**, 0 fail (after one stale opener re-pointed) |
-| `git diff --stat main..HEAD -- apps/be-01 apps/gw-01 apps/mcp-01 libs tools bin`              | **empty** — this change reaches fe-01 and nothing else   |
-| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | **61 files, 1925 pass, 0 fail**; all four targets green  |
-| `bunx nx format:check --all`                                                                  | clean                                                    |
-| `bunx openspec validate --all --json`                                                         | **88 of 88**                                             |
-| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | _running — the budget spec is pinned and committed_      |
+| Command                                                                                       | Result                                                                                          |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `bunx tsc --build --force apps/fe-01/tsconfig.app.json`                                       | clean                                                                                           |
+| `bunx tsc --build --force apps/fe-01/tsconfig.e2e.json`                                       | clean                                                                                           |
+| `bunx eslint` over every touched file                                                         | 0 errors (the one `exhaustive-deps` warning is `main`'s)                                        |
+| `vitest run` `teams-panel` / `priorities-panel` / `phases-panel` / `project-settings-modal`   | **24 / 18 / 30 / 15 pass**, 0 fail                                                              |
+| `vitest run wbs-table.test.tsx plan-cards.test.tsx`                                           | **667 pass**, 0 fail (after one stale opener re-pointed)                                        |
+| `git diff --stat main..HEAD -- apps/be-01 apps/gw-01 apps/mcp-01 libs tools bin`              | **empty** — this change reaches fe-01 and nothing else                                          |
+| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | **61 files, 1925 pass, 0 fail**; all four targets green                                         |
+| `bunx nx format:check --all`                                                                  | clean                                                                                           |
+| `bunx openspec validate --all --json`                                                         | **88 of 88**                                                                                    |
+| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | run 1: **239 planned / 239 ran / 232 passed, 6 failed, 1 skipped**; run 2 after the fixes below |
 
 The reachability line is the attribution for the three `tool-*` projects that
 time out under load on this host (`openspec/HANDOFF-2026-08-30.md`): a diff that
 does not touch `tools/` or `bin/` cannot reach them, however starved the machine
 is when they run, so the gate is fe-01's four targets plus format and openspec.
+
+## What the whole browser gate caught that nothing else could
+
+The first full run reconciled — `Running 239 tests`, 239 numbered, 232 + 6 + 1 =
+239 — and its six failures split three ways:
+
+| Failure                                                            | Whose                                                                        |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `keyboard.spec.ts:516`, `:660`                                     | the host's documented non-US date pair                                       |
+| `plan-surface.spec.ts:253`                                         | fixed on `main` at `1ac9344`; this branch was behind and has since merged it |
+| `layout.spec.ts:1736`, `mobile.spec.ts:376`, `mobile.spec.ts:1372` | **this change's, and missed by every filtered run**                          |
+
+The three were stale openers: `mobile.spec.ts` was never swept at all, and
+`layout.spec.ts` had a second `Phases` opener past the one that was fixed. Each
+clicked a toolbar button that no longer exists and died on a 60-second locator
+timeout or a missing dialog — invisible to the jsdom suites, which were green
+throughout, and invisible to a filtered browser run of the specs this change
+"obviously" touched.
+
+That is `AGENTS.md`'s `linked-row-hover` rule paid a second time: **a change that
+edits a shared surface has no business believing a filtered run.**
+
+One of the three needed more than a rename. `layout.spec.ts`'s phase-removal loop
+pressed Escape once per phase; the modal refuses a close while a section holds a
+write in flight, and the removal's reread lands a moment after the `Remove` button
+goes — so a single press raced. It presses until the surface is gone now, which is
+the honest wait for a surface that is allowed to refuse.
+
+And `mobile.spec.ts`'s 44px sweep now measures the settings modal's **tab list**,
+a control the phone gained with this change that nothing had ever measured.
+
+Both of this change's own browser cases passed in that run: `the toolbar keeps its
+1280 budget with one settings control` (224) and `opens on its control, offers
+three sections, and closes back onto it` (225).
 
 ## The toolbar budget, and the reading that would have been unfailable
 
