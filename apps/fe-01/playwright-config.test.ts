@@ -104,6 +104,28 @@ describe('the browser gate’s port shift', () => {
     await expect(loadConfig('10000')).rejects.toThrow('E2E_PORT_SHIFT');
   });
 
+  it('refuses a shift that lands one tier on another tier’s usual port', async () => {
+    // The three tiers sit at 3100/3200/4200, so 100 puts be-01 on gw-01's port
+    // and 1000 puts gw-01 on fe-01's. An agent asked for 1000 and got
+    // `http://localhost:4200/health is already used` from a gateway that had
+    // collided with a frontend — and on a developer's machine 4200 is the dev
+    // server this whole mechanism exists to run beside (2026-08-30).
+    //
+    // Refused rather than nudged: the shift is written into runbooks and agent
+    // instructions, and a silently adjusted 1000 means something other than
+    // what the person typed.
+    //
+    // Proof: the guard removed, this failed on `promise resolved … instead of
+    // rejecting`, and a real run on 1000 died on the gateway's health URL.
+    await expect(loadConfig('1000')).rejects.toThrow('4200');
+    await expect(loadConfig('100')).rejects.toThrow('3200');
+    await expect(loadConfig('1100')).rejects.toThrow('4200');
+    // And a shift that clears all three is still accepted, or the guard would
+    // be refusing everything and this file could not tell.
+    const servers = serversOf(await loadConfig('500'));
+    expect(servers).toHaveLength(3);
+  });
+
   it('gives each run a database of its own, under the workspace root', async () => {
     // Never `apps/be-01/local.db`: the specs sign up throwaway accounts and
     // write plans, and doing that to a developer's own dev database is how a

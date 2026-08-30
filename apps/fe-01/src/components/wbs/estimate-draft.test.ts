@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Days } from '@/lib/wbs-api';
+
 import {
   isTrioEmpty,
   parseTrioShorthand,
   sendableTrio,
+  showTrio,
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
@@ -195,5 +198,54 @@ describe('isTrioEmpty', () => {
     expect(isTrioEmpty(trio('5', '', ''))).toBe(false);
     expect(isTrioEmpty(trio('', '', '0'))).toBe(false);
     expect(isTrioEmpty(trio('1', '2', '3'))).toBe(false);
+  });
+});
+
+describe('showTrio', () => {
+  it('says nothing about an estimate that does not exist', () => {
+    // A role nobody has estimated is ordinary, and the cell that shows it is
+    // an empty box with a placeholder — not a `0/0/0` nobody typed.
+    expect(showTrio(undefined)).toBe('');
+  });
+
+  it('prints a trio as the shorthand that types it', () => {
+    expect(showTrio({ optimistic: 2, realistic: 3, pessimistic: 8 })).toBe('2/3/8');
+    expect(showTrio({ optimistic: 0.5, realistic: 1.5, pessimistic: 2 })).toBe('0.5/1.5/2');
+    // A zero optimistic point is a number somebody typed, not an absence.
+    expect(showTrio({ optimistic: 0, realistic: 1, pessimistic: 4 })).toBe('0/1/4');
+  });
+
+  it('collapses three equal points to the one number that stores them', () => {
+    // `5` is what a person types to mean all three are five, and it stores
+    // exactly what `5/5/5` stores. Printing the long form back would show
+    // somebody a trio they did not type in place of the number they did.
+    //
+    // Proof: the equality branch deleted so every trio prints long, this
+    // failed on `expected '5/5/5' to be '5'`. Watched 2026-08-29.
+    expect(showTrio({ optimistic: 5, realistic: 5, pessimistic: 5 })).toBe('5');
+    expect(showTrio({ optimistic: 0, realistic: 0, pessimistic: 0 })).toBe('0');
+  });
+
+  it('prints what the parser reads back', () => {
+    // The property the folded cell rests on: its value at rest is a trio
+    // shorthand this module accepts, so typing the shown value back stores the
+    // estimate that is already stored. Before this change the cell showed a
+    // computed figure — `2.2` for `2/2/3` — and typing that back stored
+    // `2.2/2.2/2.2`, a different estimate.
+    //
+    // Proof: the collapse widened to the optimistic point for every trio, this
+    // failed on `expected { kind: 'trio', days: { …(3) } } to deeply equal {
+    // kind: 'trio', days: { …(3) } }` — received `2/2/2` where `2/3/8` was
+    // stored. Watched 2026-08-29.
+    const stored: Days[] = [
+      { optimistic: 2, realistic: 3, pessimistic: 8 },
+      { optimistic: 5, realistic: 5, pessimistic: 5 },
+      { optimistic: 0, realistic: 0, pessimistic: 0 },
+      { optimistic: 0.5, realistic: 1.5, pessimistic: 2 },
+      { optimistic: 2, realistic: 2, pessimistic: 3 },
+    ];
+    for (const days of stored) {
+      expect(parseTrioShorthand(showTrio(days))).toEqual({ kind: 'trio', days });
+    }
   });
 });
