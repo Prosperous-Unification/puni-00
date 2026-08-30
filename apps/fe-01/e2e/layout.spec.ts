@@ -3238,12 +3238,18 @@ test.describe('the Number column keeps its figures in a line', () => {
  * assertion is decoration. The pin has to be this bar's own width for the
  * fault to have anything to exceed.
  *
- * Measured in Chromium at 1280×900 on 2026-08-29, both figures read off this
- * same test with the budget temporarily set to 1:
+ * Measured in Chromium at 1280×900 on 2026-08-30, both figures read off this
+ * same test with the budget temporarily set to 1, on a host **holding the
+ * heavy-work lock** so that nothing else was laying anything out at the time:
  *
  * - this bar: `asked` **1552.734375**
  * - the two labels restored (`size="sm"`, the words as the child, no
  *   `aria-label`, no icon): `asked` **1658.828125** — 106.09px wider
+ *
+ * Both reproduce to the last of those digits across runs, and across a machine
+ * under load and one that is idle — a width is a layout, not a race. The pair
+ * was also read identically before and after `work-item-types` added the Types
+ * column, which touches the table rather than the bar above it.
  *
  * Pinned at **1600**: the measured 1552.73 plus about 47px, which is headroom
  * for font-metric drift between this Mac's Chromium and CI's Linux one and is
@@ -3314,7 +3320,7 @@ test.describe('the plan toolbar’s own width', () => {
     // the two icon buttons (`size="sm"`, the label as the child, no
     // `aria-label`, no icon) — failed on `the toolbar asks for more room than
     // its budget · Expected: <= 1600 · Received: 1658.828125`. Watched in
-    // Chromium at 1280×900, 2026-08-29.
+    // Chromium at 1280×900 under the heavy-work lock, 2026-08-30.
     await page.setViewportSize({ width: 1280, height: 900 });
     // Folded: no role unfolded and nothing typed in Find, which is the state
     // the figure was taken in. Both are the default on a fresh plan, and are

@@ -296,6 +296,17 @@ proof was watched **passing**. Replaced by the widest trio anybody has actually 
 type, `Expected: <= 0, Received: 8`. **Inject the fault the check is about, not the one that
 is easy to inject.**
 
+One more on 2026-08-30 in `plan-toolbar-controls`, and it **did not ship**: the plan asked for
+the check and the plan's own shape was the vacuity. `tasks.md` 5.1 said to pin the folded
+toolbar's width **before** the change and assert the bar got narrower, with the negative being
+`Expand all` and `Collapse all` given their text labels back. But the pre-change bar carried
+those labels _and_ `Freeze numbering` and `Unfreeze all` as two buttons where there is now one
+`Freeze #` menu, so the faulted bar is **narrower** than the before-figure and `asked <=
+before` passes with the fault in — a pin measured against a bar that no longer exists. The pin
+is the shipped bar's own budget instead (1552.734375 measured, 1600 pinned), and the fault was
+then watched failing on `Expected: <= 1600 · Received: 1658.828125`, 106px above it. **A
+before-and-after pin is only a check when the fault rebuilds the whole "before".**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 
