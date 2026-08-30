@@ -1,5 +1,6 @@
 import {
   addWorkdays,
+  type DependencyReach,
   effectiveTeamsOf,
   type EstimateMethod,
   finalDays,
@@ -1212,6 +1213,16 @@ export class WorkItemService {
      */
     priorityBands: PriorityBand[];
     estimateMethod: EstimateMethod;
+    /**
+     * How far into a predecessor this project's dependencies reach.
+     *
+     * On the wire so that the **drawing** and the schedule cannot disagree: the
+     * chart routes a dependency arrow out of the slice the reach names, and a
+     * client that guessed would draw an arrow leaving a slice the engine never
+     * joined the edge to. It is reported, never accepted — see
+     * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+     */
+    depReach: DependencyReach;
     startDate: IsoDate | null;
     /**
      * The project row's own revision, which moves on its name, restriction,
@@ -1358,7 +1369,20 @@ export class WorkItemService {
     try {
       // The projection **and** the slices: a row's column shows its own span,
       // and a chart draws the slices the span is a projection of.
-      const planned = schedule(rows, edges, slices, notBefore, slotsOf);
+      // The reach comes off the project being scheduled, read beside the ladder
+      // and the capacity above and handed straight to the engine. It is
+      // deliberately **not** a request parameter: the schedule is the server's
+      // answer, and a client-supplied scheduling rule is a rule two clients can
+      // disagree about while looking at the same plan.
+      //
+      // Read from `project`, which is this call's own row, so two projects on
+      // different reaches in one process each get their own.
+      //
+      // Proof: `project.depReach` replaced by a module-level `let heldReach`
+      // memoised on the first plan read — the read hoisted out of the run — and
+      // `each project is scheduled by its own reach` failed on `Expected: 5 /
+      // Received: 3` for the second project's successor; watched 2026-08-29.
+      const planned = schedule(rows, edges, slices, notBefore, slotsOf, project.depReach);
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;
@@ -1479,6 +1503,7 @@ export class WorkItemService {
         .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
       priorityBands,
       estimateMethod: project.estimateMethod,
+      depReach: project.depReach,
       startDate: project.startDate,
       projectRevision: project.revision,
     };

@@ -348,17 +348,42 @@ describe('schedule — a work item’s roles run one after another', () => {
 });
 
 describe('schedule — where a dependency lands on the slices', () => {
-  it('waits for the predecessor’s anchor and runs beside its later roles', () => {
-    // The anchor rule (`dep-waits-on-first-role`, 2026-08-11): the edge leaves
-    // `a`'s first slice, so `b` starts when `a`'s Dev finishes on day 3 and
-    // `a`'s QA runs 3→5 alongside it. Under the whole-item rule this replaced,
-    // `b` sat at 5→6.
+  it('waits for the whole predecessor by default', () => {
+    // The default reach (`dep-reach-whole-item`, Dany 2026-08-29): the edge
+    // leaves `a`'s **last** slice, so `b` starts when `a`'s QA finishes on day
+    // 5 and nothing of `a` runs beside it. No `reach` is passed, which is the
+    // point — the argument's default is the column's default.
     const rows = [item('a'), item('b')];
 
     const found = planSlices(
       rows,
       [edge('a', 'b')],
       [work('a', DEV, 3), work('a', QA, 2), work('b', DEV, 1), work('b', QA, null)],
+    );
+
+    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
+    // `b`'s own QA is unestimated and two assumed workdays wide since
+    // `assumed-duration-schedules`, so the row spans 5→8 while the Dev slice
+    // this case is about still runs 5→6. The wait is what moved; the length of
+    // `b` is somebody else's change.
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 5, earliestFinish: 8 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+  });
+
+  it('waits for the predecessor’s anchor and runs beside its later roles', () => {
+    // The same plan on the `anchor-slice` reach (`dep-waits-on-first-role`,
+    // 2026-08-11): the edge leaves `a`'s first estimated slice, so `b` starts
+    // when `a`'s Dev finishes on day 3 and `a`'s QA runs 3→5 alongside it.
+    // Kept as the figures that arm is measured by.
+    const rows = [item('a'), item('b')];
+
+    const found = planSlices(
+      rows,
+      [edge('a', 'b')],
+      [work('a', DEV, 3), work('a', QA, 2), work('b', DEV, 1), work('b', QA, null)],
+      undefined,
+      undefined,
+      'anchor-slice',
     );
 
     expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 4 });

@@ -91,6 +91,18 @@ export const project = sqliteTable(
      */
     estimateMethod: text('estimate_method').notNull().default('pert'),
     /**
+     * Which of the two `DependencyReach`es this project's dependencies use —
+     * how far into a predecessor a dependency reaches.
+     *
+     * Text for {@link estimateMethod}'s reason, and defaulted to `whole-item`
+     * so **every project that already exists** takes the rule Dany chose on
+     * 2026-08-29 rather than keeping the August `anchor-slice` one. That is a
+     * real change to every plan with a multi-step predecessor, and it is the
+     * point of the column: see
+     * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+     */
+    depReach: text('dep_reach').notNull().default('whole-item'),
+    /**
      * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a project
      * that has not been placed on a calendar.
      *
@@ -1438,10 +1450,14 @@ export const assignment = sqliteTable(
 export type AssignmentRow = typeof assignment.$inferSelect;
 
 /**
- * A finish-to-start dependency: `successor` cannot start until `predecessor`'s
- * **anchor slice** — its first slice in role order — finishes; the
- * predecessor's later roles run in parallel with the successor
- * (`service/schedule.ts`).
+ * A finish-to-start dependency: `successor` cannot start until the
+ * `predecessor` slice the project's {@link project.depReach} names has
+ * finished — its **last** step under `whole-item`, its **anchor slice** under
+ * `anchor-slice`, where the steps behind that anchor then run in parallel with
+ * the successor (`service/schedule.ts`'s `reachedSliceOf`). The reach is stored
+ * on the project and nothing about it is stored here: an edge is the same edge
+ * either way, and which slice it leaves is decided when the schedule is
+ * computed.
  *
  * Either end may be a parent, and that is the point — "all of 010's first-role
  * work before any of 020" is what a planner writes, and drawing an edge from

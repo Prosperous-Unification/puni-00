@@ -1,4 +1,5 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
+import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import {
   addWorkdays,
   calendarDaysBetween,
@@ -292,8 +293,9 @@ export interface EstimateTrio {
  * mirroring the tree is identity rather than synchronisation. `schedule` is
  * the work item's projection and carries no more of it than the layout
  * reads: a dependency arrow lands on a row's start — the arrow *leaves* the
- * predecessor's anchor slice, selected from `slices`, never this
- * projection's finish — and a parent's projection is spanned as a bracket
+ * predecessor slice {@link GanttPlan.depReach} names, selected from `slices`
+ * rather than read off this projection — and a parent's projection is spanned
+ * as a bracket
  * the panel has drawn no mark from since `gantt-declutter` — see
  * {@link PlacedBracket}.
  */
@@ -549,6 +551,17 @@ export interface GanttPlan {
    * becomes a style anywhere in this app.
    */
   priorityBands: readonly PriorityBandView[];
+  /**
+   * How far into a predecessor this plan's dependencies reach — be-01's own
+   * `project.dep_reach`, off the same payload as the slices.
+   *
+   * Read by {@link reachedSliceOf}, and the reason it is on the plan rather
+   * than a prop of the panel is the one that matters: the arrow has to leave
+   * the slice the **engine** joined the edge to. An arrow drawn from the anchor
+   * over a schedule computed whole-item points at a successor that starts much
+   * later and reads as slack that is not there.
+   */
+  depReach: DependencyReach;
 }
 
 /** A row's label: what the sticky-left column prints, and which row of the chart it belongs to. */
@@ -660,24 +673,27 @@ export interface GanttSummaryBracket {
 }
 
 /**
- * A stored dependency drawn: the predecessor's **anchor** to the successor's
- * start — the anchor slice's span for a leaf predecessor, and for a parent the
- * latest-finishing anchor among its leaves. Never the projection finish: the
- * predecessor's later roles run in parallel with the successor, so an arrow
- * from the projection would point backwards past the start it lands on.
+ * A stored dependency drawn: the predecessor's **reached** slice to the
+ * successor's start — that slice's span for a leaf predecessor, and for a
+ * parent the latest-finishing one among its leaves. Which slice it is comes
+ * from the plan's {@link GanttPlan.depReach} and from nothing else, so the
+ * drawing cannot disagree with the schedule: under `anchor-slice` the
+ * predecessor's later steps run beside the successor and an arrow from the
+ * projection would point backwards past the start it lands on, while under
+ * `whole-item` the reached slice **is** the projection's finish.
  */
 export interface GanttDependencyArrow {
   predecessorId: string;
   successorId: string;
   fromRowIndex: number;
   /**
-   * Where the anchor begins.
+   * Where the reached slice begins.
    *
    * Not a coordinate the arrow is drawn at — the line leaves `fromFinish`. It
-   * is carried because a **span** is what a calendar reading needs: an anchor
-   * of no days at all — an unestimated first role — is on no workday, and its
-   * finish then has to be read as its own start rather than as the end of the
-   * workday before it. See {@link placeOnCalendar}.
+   * is carried because a **span** is what a calendar reading needs: a reached
+   * slice of no days at all — a step nobody estimated — is on no workday, and
+   * its finish then has to be read as its own start rather than as the end of
+   * the workday before it. See {@link placeOnCalendar}.
    */
   fromStart: number;
   fromFinish: number;
@@ -2027,20 +2043,21 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
    * function to throw an error, but it didn't`: the chart came back quietly
    * short one arrow. Watched 2026-08-11.
    */
-  const anchorSpanOf = (
+  const reachedSpanOf = (
     predecessorId: string,
     successorId: string,
   ): { start: number; finish: number } => {
-    const anchor = anchorSliceOf(
+    const reached = reachedSliceOf(
+      plan.depReach,
       predecessorId,
       leavesUnder,
       slicesByWorkItem,
       rolesById,
       (leafId) =>
         `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
-        `payload, so the arrow has no anchor to leave from`,
+        `payload, so the arrow has no slice to leave from`,
     );
-    return { start: anchor.slice.earliestStart, finish: anchor.slice.earliestFinish };
+    return { start: reached.slice.earliestStart, finish: reached.slice.earliestFinish };
   };
 
   const arrows: GanttDependencyArrow[] = [];
@@ -2056,13 +2073,13 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       if (from !== undefined || to !== undefined) droppedLinks.dependencies += 1;
       continue;
     }
-    const anchor = anchorSpanOf(edge.predecessorId, edge.successorId);
+    const reached = reachedSpanOf(edge.predecessorId, edge.successorId);
     arrows.push({
       predecessorId: edge.predecessorId,
       successorId: edge.successorId,
       fromRowIndex: from.rowIndex,
-      fromStart: anchor.start,
-      fromFinish: anchor.finish,
+      fromStart: reached.start,
+      fromFinish: reached.finish,
       toRowIndex: to.rowIndex,
       toStart: to.row.schedule.earliestStart,
     });
@@ -2409,15 +2426,18 @@ export function startFloorByRow(
     }
     try {
       // Which stored dependency is the one holding this row: the latest-
-      // finishing anchor among its predecessors, which is the floor be-01 took
-      // when it wrote `boundBy: 'predecessor'`. Resolved only for that floor —
-      // a row held by a person, a pool or its own earlier role has a sentence
-      // that names something else, and walking every edge to say nothing is a
-      // walk per row of every plan.
+      // finishing **reached** slice among its predecessors, which is the floor
+      // be-01 took when it wrote `boundBy: 'predecessor'`. Through the plan's
+      // own reach, for the arrow's reason: a sentence naming a step the engine
+      // did not wait for is a confident sentence about the wrong slice.
+      // Resolved only for that floor — a row held by a person, a pool or its
+      // own earlier role has a sentence that names something else, and walking
+      // every edge to say nothing is a walk per row of every plan.
       const dependencyAnchor =
         anchor.slice.boundBy !== 'predecessor'
           ? undefined
-          : latestAnchorAmong(
+          : latestReachedAmong(
+              plan.depReach,
               predecessorsOf.get(row.id) ?? [],
               leavesUnder,
               slicesByWorkItem,
@@ -2495,7 +2515,8 @@ export interface FloorCalendar {
  * a confident sentence about the wrong dependency, which is worse than the
  * general sentence this row read yesterday. So the row keeps that instead.
  */
-function latestAnchorAmong(
+function latestReachedAmong(
+  reach: DependencyReach,
   predecessorIds: readonly string[],
   leavesUnder: ReadonlyMap<string, string[]>,
   slicesByWorkItem: ReadonlyMap<string, GanttSlice[]>,
@@ -2504,23 +2525,24 @@ function latestAnchorAmong(
 ): PlacedSlice | undefined {
   let latest: PlacedSlice | undefined;
   for (const predecessorId of predecessorIds) {
-    let anchor: PlacedSlice;
+    let reached: PlacedSlice;
     try {
-      anchor = anchorSliceOf(
+      reached = reachedSliceOf(
+        reach,
         predecessorId,
         leavesUnder,
         slicesByWorkItem,
         rolesById,
         (leafId) =>
           `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
-          `payload, so the wait has no anchor to name`,
+          `payload, so the wait has no slice to name`,
       );
     } catch (error) {
       if (!(error instanceof GanttDataError)) throw error;
       return undefined;
     }
-    if (latest === undefined || anchor.slice.earliestFinish > latest.slice.earliestFinish) {
-      latest = anchor;
+    if (latest === undefined || reached.slice.earliestFinish > latest.slice.earliestFinish) {
+      latest = reached;
     }
   }
   return latest;
@@ -2560,28 +2582,36 @@ function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, strin
 }
 
 /**
- * The slice a dependency on `predecessorId` actually waits for: a leaf's first
- * slice in role order **that somebody estimated**, its last slice when nobody
- * estimated any of them, and for a parent the latest-finishing anchor among its
- * leaves (design.md D6).
+ * The slice a dependency on `predecessorId` actually waits for, under the
+ * project's own `reach`; for a parent, the latest-finishing such slice among
+ * its leaves (`dep-waits-on-first-role`'s design.md D6).
  *
- * Selected from the payload and never recomputed from estimates: the walk is
- * be-01's, read off the `estimated` flag the wire carries, so the slice named
- * here is the slice the engine joined the edge to.
+ * - `whole-item`: the leaf's **last** slice in step order — the projection's
+ *   finish, which is where an arrow left before August and leaves again.
+ * - `anchor-slice`: the leaf's first slice **somebody estimated**, and its last
+ *   when nobody estimated any of them.
+ *
+ * Both arms mirror be-01's `reachedSliceOf` line for line, and both are
+ * **selected from the payload** rather than recomputed from estimates: the
+ * `estimated` flag the wire carries is the engine's own, so the slice named
+ * here is the slice the engine joined the edge to. The reach comes off the same
+ * payload as the slices for the same reason — a drawing keyed on a rule the
+ * schedule was not computed under is an arrow that lies about slack.
  *
  * The whole {@link PlacedSlice} rather than its span, which is the difference
  * from what {@link layOutGantt} used to keep privately: an arrow needs two
  * numbers, and a sentence naming the wait needs the work item and the role.
  *
  * `saying` is the caller's own wording for the failure, since the same walk
- * serves an arrow with no anchor to leave from and a row with no wait to name.
+ * serves an arrow with no slice to leave from and a row with no wait to name.
  *
  * @throws GanttDataError when a leaf under the predecessor has no slice in the
  * payload at all. be-01 emits at least one slice per leaf, so that is a broken
  * promise rather than a hidden row — and a link silently dropped would hide
  * exactly the wait these surfaces exist to show.
  */
-function anchorSliceOf(
+function reachedSliceOf(
+  reach: DependencyReach,
   predecessorId: string,
   leavesUnder: ReadonlyMap<string, string[]>,
   slicesByWorkItem: ReadonlyMap<string, GanttSlice[]>,
@@ -2589,17 +2619,20 @@ function anchorSliceOf(
   saying: (leafId: string) => string,
 ): PlacedSlice {
   const leafIds = leavesUnder.get(predecessorId) ?? [predecessorId];
-  const anchors = leafIds.map((leafId) => {
+  const reached = leafIds.map((leafId) => {
     const own = inRoleOrder(slicesByWorkItem.get(leafId) ?? [], rolesById);
-    const anchor = own.find((each) => each.slice.estimated) ?? own.at(-1);
-    if (anchor === undefined) throw new GanttDataError(saying(leafId));
-    return anchor;
+    const found =
+      reach === 'whole-item'
+        ? own.at(-1)
+        : (own.find((each) => each.slice.estimated) ?? own.at(-1));
+    if (found === undefined) throw new GanttDataError(saying(leafId));
+    return found;
   });
   // Never empty, so the pick below has a seed: the walk maps a childless id
   // to itself, a parent to its children's leaves, and the `??` arm is one id.
-  let latest = anchors[0];
-  for (const anchor of anchors) {
-    if (anchor.slice.earliestFinish > latest.slice.earliestFinish) latest = anchor;
+  let latest = reached[0];
+  for (const each of reached) {
+    if (each.slice.earliestFinish > latest.slice.earliestFinish) latest = each;
   }
   return latest;
 }

@@ -285,10 +285,17 @@ conversion from tokens or from days exists, because neither is one.
 _Avoid_: actual hours, time spent, effort
 
 **Dependency**:
-One work item waiting for another's anchor slice to finish before it starts; the
-predecessor's later roles run in parallel with it. Either end may be a parent, which
-means every leaf beneath it. Held once per pair, in one direction.
+One work item waiting for another's reached slice to finish before it starts — which of
+the predecessor's slices that is comes from the project's Dependency reach. Either end may
+be a parent, which means every leaf beneath it. Held once per pair, in one direction.
 _Avoid_: link, blocker, edge (outside the graph code)
+
+**Dependency reach**:
+A project's answer to how far into a predecessor its dependencies reach: `whole-item`, the
+predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
+behind it running alongside the successor. Stored per project, read by the scheduler, never
+sent by a client. `whole-item` unless the project says otherwise.
+_Avoid_: dependency mode, wait rule, link type
 
 **Slice**:
 One leaf work item's work for one role — the unit a schedule is computed in. A leaf in a
@@ -297,10 +304,11 @@ _Avoid_: task, bar, segment, phase, item×role
 
 **Anchor slice**:
 A work item's first slice in role order that somebody estimated — the one a dependency
-waits on. A role listed in front of it and left unestimated is stepped over, and having an
-assumed duration does not make it the anchor. Reordering a project's roles moves what every
-dependency waits for. Where nothing is estimated the anchor is the work item's finish,
-which is its steps' assumed durations end to end.
+waits on where the project's Dependency reach is `anchor-slice`. A role listed in front of
+it and left unestimated is stepped over, and having an assumed duration does not make it
+the anchor. Reordering a project's roles moves what every such dependency waits for. Where
+nothing is estimated the anchor is the work item's finish, which is its steps' assumed
+durations end to end — the one case where both reaches name the same slice.
 _Avoid_: dev slice, first slice, handoff point
 
 **Projection**:

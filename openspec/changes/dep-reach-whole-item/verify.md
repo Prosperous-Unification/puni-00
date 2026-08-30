@@ -1,46 +1,113 @@
 # verify — `dep-reach-whole-item`
 
-Not yet implemented.
+Implemented 2026-08-29/30 on `feat/dep-reach-whole-item`, rebased onto
+`origin/main` at `b8259d9`.
 
 ## What this change is expected to move
 
 Every existing project's dates, wherever a dependency's predecessor has more
 than one estimated step. That is the intent, not a regression, and the evidence
-for it is section "Identity, re-derived" below rather than a green suite.
+for it is the identity section below rather than a green suite.
+
+## Ordering against `project-config-modal`
+
+`tasks.md` 0.1 queued this change behind `project-config-modal`, whose stated
+cost of running first is "a fourth toolbar dialog that change then deletes". It
+was run first anyway, because the reach's UI adds **no** dialog: it is a
+section inside the existing `PhasesDialog`, which is the steps surface
+`project-config-modal` slice 1.3 extracts wholesale into `StepsPanel`. The
+toolbar gains no control — the only edit to `toolbarControls` is two props on
+the `<PhasesDialog>` already mounted there. `project-config-modal` is
+unimplemented on `main`; the two meet as a mechanical merge in one file.
 
 ## Identity, re-derived
 
-| Fixture           | Reach          | Dates before | Dates after | Expected to move |
-| ----------------- | -------------- | ------------ | ----------- | ---------------- |
-| no dependencies   | both           | pending      | pending     | no               |
-| single-step chain | both           | pending      | pending     | no               |
-| multi-step chain  | `whole-item`   | pending      | pending     | **yes**          |
-| multi-step chain  | `anchor-slice` | pending      | pending     | no               |
+| Fixture                                                         | Reach          | Before             | After               | Moved   |
+| --------------------------------------------------------------- | -------------- | ------------------ | ------------------- | ------- |
+| 1000 seeded two-role plans, **no** dependencies                 | both           | oracle             | oracle, bit for bit | no      |
+| 1000 seeded three-role plans, **no** dependencies               | both           | oracle             | oracle, bit for bit | no      |
+| 1000 seeded **single-step** plans, edges and all                | both           | oracle             | oracle, bit for bit | no      |
+| 1000 seeded two-role plans **with** edges                       | `anchor-slice` | August figures     | unchanged           | no      |
+| 1000 seeded two-role plans **with** edges                       | `whole-item`   | August figures     | later starts        | **yes** |
+| `schedule-priority.test.ts`'s pinned contention plan            | default        | August's re-derive | the `94ed488` pin   | **yes** |
+| `schedule-benchmark.test.ts`'s 220-row plan, `waitingForPerson` | default        | 175                | 159                 | **yes** |
 
-A fixture in the "no" rows that moved is a bug in the reach's plumbing. A
-fixture in the "yes" row that did not move means the column default never
-reached it.
+The last two are worth reading as evidence rather than bookkeeping. Both were
+**re-derived** at `dep-waits-on-first-role` and both are now back to the exact
+figures the engine gave before 2026-08-11 — 159 was that fixture's pre-August
+`waitingForPerson`, and the three moved slices in the priority pin are back at
+`c-a/role-qa` 7→8 `roleOrder`, `c-c/role-dev` 8→10.5, `c-p1/role-qa` float 3.5.
+Neither was aimed at; both fell out of the default.
+
+`existing plans move to the whole-item rule` is the corpus form of the same
+claim, and it asserts the direction as well as the movement: under `whole-item`
+a row may only ever start **later** than it did under `anchor-slice`, never
+earlier, over all 1000 plans.
+
+## Deviations from `tasks.md`
+
+- **2.1/2.3's engine tests live in `schedule-shapes.test.ts`, not
+  `schedule.test.ts`.** `schedule.test.ts`'s fixtures are single-role, where a
+  reach decides nothing; the multi-role helpers and every existing anchor-rule
+  fixture are in `schedule-shapes.test.ts`. The scenario names are the spec's.
+  `schedule.test.ts` keeps one pair — `waits for the whole predecessor by
+default` and the `anchor-slice` case beside it.
+- **2.3's per-project negative is at the service, not the engine.** The engine
+  case (`two plans in one run keep their own reaches`) catches a memo inside
+  `reachedSliceOf`; the fault the task names — the read hoisted out of the run —
+  lives in `work-item.service.ts`, so the negative was injected there.
+- **The migration is stamped `20260830120000`, not `20260829120000`.** It was
+  written before `work_item_type` and `external_ref` landed on `main`; a stamp
+  sorting **before** an already-applied migration applies out of order on every
+  database that took that release.
+- **The ADR is 0010.** 0008 and 0009 were both taken while this branch was open.
+- **The `Start` column's "Waits for …" sentence is keyed on the reach too.**
+  Not in `tasks.md`, but it is resolved through the same walk as the arrow, and
+  leaving it on the anchor would print a confident sentence naming a step the
+  engine did not wait for — D4's own failure, one surface along.
 
 ## Commands
 
-| Command                                                                           | Result  |
-| --------------------------------------------------------------------------------- | ------- |
-| `bin/h2puni-gate.sh`                                                              | not run |
-| `openspec validate --all --json`                                                  | not run |
-| migration lint                                                                    | not run |
-| `CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts` (whole gate) | not run |
+| Command                                                                                         | Result                                                      |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `bun test src/` in `apps/be-01`                                                                 | 1217 pass, 0 fail (88 files), after the `origin/main` merge |
+| `bunx tsc --build --force apps/be-01/tsconfig.lib.json`                                         | clean                                                       |
+| `bunx tsc --build --force apps/fe-01/tsconfig.app.json`                                         | clean                                                       |
+| `bunx nx run fe-01:test` (under the host lock)                                                  | see below                                                   |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts …/20260830120000_add_dep_reach/*.sql` | clean                                                       |
+| `bunx openspec validate --all --json`                                                           | 90/90 passed                                                |
+| `bunx prettier --check` over every touched tree                                                 | clean                                                       |
+| `CI=1 E2E_PORT_SHIFT=1300 bunx nx run fe-01:e2e`                                                | see below                                                   |
 
 ## Failure proofs (R5)
 
-| Check                                     | Fault injected                               | Test that saw it fail                                           | Watched |
-| ----------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- | ------- |
-| an unrecognised reach throws              | throw replaced by `?? 'whole-item'`          | `an unrecognised stored reach is refused`                       | pending |
-| the whole-item arm reaches the last slice | arm returning the anchor                     | `a project's reach decides what a successor waits for`          | pending |
-| the reach touches only the predecessor    | reach applied to the successor's end too     | `a parent predecessor expands to its leaves under either reach` | pending |
-| the reach is read per project             | the read hoisted out of the run              | two projects on different reaches                               | pending |
-| the arrow follows the schedule            | origin left at the anchor under `whole-item` | `the arrow leaves the finish under the whole-item reach`        | pending |
-| the column default reached existing rows  | —                                            | `existing plans move to the whole-item rule`                    | pending |
+Every row was injected and watched by hand. The `Proof:` comment beside each
+check names the same fault and the same words.
+
+| Check                                       | Fault injected                                                                   | Test that saw it fail                                                     | Failure text                                                                                                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the column default reaches existing rows    | `DEFAULT 'whole-item'` → `DEFAULT 'anchor-slice'`                                | `puts every project already on disk onto the whole-item reach…`           | `expect(received).toEqual(expected)` — `{"dep_reach": "whole-item"}` against a received `{"dep_reach": "anchor-slice"}`                              |
+| the column comes off again                  | `down.sql` → `UPDATE project SET dep_reach = 'whole-item';` (valid, no drop)     | the same case                                                             | `expect(received).not.toContain(expected)` / `Expected to not contain: "dep_reach"`                                                                  |
+| an unrecognised stored reach throws         | the throw → `isDependencyReach(row.depReach) ? row.depReach : 'whole-item'`      | `an unrecognised stored reach is refused`                                 | `Expected substring or pattern: /unknown dependency reach/` / `Received: "(resolved without throwing)"`                                              |
+| the `whole-item` arm reaches the last slice | `reachedSliceOf`'s `whole-item` arm returning the anchor index                   | `a project's reach decides what a successor waits for`                    | `expect(received).toMatchObject(expected)` — `{earliestStart: 5, earliestFinish: 7}` against a received `{earliestStart: 3, earliestFinish: 5, …}`   |
+| …over the whole corpus                      | the same fault                                                                   | `holds the whole-item reach's own invariants over every multi-role plan…` | `seed 3: r1c0 starts 6, before r0c0g0 finishes at 8.666666666666666`                                                                                 |
+| …and the change actually lands              | the same fault                                                                   | `existing plans move to the whole-item rule`                              | `expect(received).toBeGreaterThan(expected)` / `Expected: > 100` / `Received: 0`                                                                     |
+| the `anchor-slice` arm is still the anchor  | `reachedSliceOf` reduced to `return slices.length - 1`                           | `never moves a successor when a predecessor's later slices grow…`         | `seed 3: r1c0 moved from 8.666666666666666 to 11.333333333333332 when only later slices grew`                                                        |
+| the reach touches only the predecessor      | the edge joined to `reachedNodeOf(successorId)` instead of `firstNodeOf`         | `a parent predecessor expands to its leaves under either reach`           | `expect(received).toMatchObject(expected)` — `Q` `{earliestStart: 5, earliestFinish: 11}` against a received `{earliestStart: 0, earliestFinish: 7}` |
+| the reach is read per project               | `project.depReach` → a module-level `heldReach ??= project.depReach`             | `each project is scheduled by its own reach`                              | `expect(received).toBe(expected)` / `Expected: 5` / `Received: 3`                                                                                    |
+| the arrow follows the schedule              | `reachedSliceOf`'s `whole-item` arm replaced by the anchor walk                  | `the arrow leaves the finish under the whole-item reach`                  | `expected { predecessorId: 'strip', …(6) } to match object { fromStart: 7, fromFinish: 9, …(1) }` (and the parent case beside it)                    |
+| the wait's **sentence** follows it too      | `latestReachedAmong(plan.depReach, …)` → `latestReachedAmong('anchor-slice', …)` | `names the last step under the whole-item reach`                          | `expected 'Waits for Strip (Dev) — finishes 7 Sep' to be 'Waits for Strip (QA) — finishes 10 Sep'`                                                   |
+| the chosen reach is written                 | `attempt(() => setDepReach(reach))` → `attempt(() => Promise.resolve())`         | `the reach is chosen and written`                                         | `expected "spy" to be called with arguments: [ 'anchor-slice' ]` / `Received:` / `Number of calls: 0`                                                |
+| the dialog is not optimistic                | a local `useState` mirror set before the request and read by `checked`           | `does not move the choice while the write is still in flight`             | `expect(element).toBeChecked()` / `Received element is not checked: <input checked="" class="mt-1" name="dep-reach" type="radio" …`                  |
+
+### Not injected, and why
+
+- **The cycle refusal.** `refuses a cycle under either reach` asserts the throw
+  under both values rather than watching a fault: `hasCycle` is untouched by
+  this change and its own negatives predate it. What this case guards is the
+  claim that the reach cannot reach around the cycle check — a claim that would
+  otherwise stop being true quietly.
 
 ## Skipped or unavailable checks
 
-None recorded yet.
+Recorded as this change ran; see the report for anything still open.

@@ -1,3 +1,4 @@
+import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { Project, Role, StoredDependency, WorkItem } from '../repository';
@@ -333,13 +334,61 @@ describe('a captured live plan, through the slice engine', () => {
     // It is the opposite claim now, and deliberately so (design D3). A role the
     // project lists is a step of the work, and a step nobody has sized is work
     // of unknown length rather than no work: every leaf grows by one assumed
-    // duration, so every finish moves out by exactly two workdays from the run
-    // above and the project ends on 7.666… instead of 5.666…. Nothing anybody
-    // estimated changed — `duration` and `estimated` are asserted against the
-    // capture, unmoved, for every row.
+    // duration. Nothing anybody estimated changed — `duration` and `estimated`
+    // are asserted against the capture, unmoved, for every row.
+    //
+    // **Re-derived at `dep-reach-whole-item` (2026-08-30), and the growth
+    // compounds now.** "Every finish moves out by exactly two workdays" was
+    // true while a dependency waited on its predecessor's *anchor*: a new step
+    // added at the end of a predecessor sat behind that anchor and held nobody
+    // up. Under the `whole-item` default a successor waits for the predecessor's
+    // **last** slice, which is the new step — so a row gains two workdays for
+    // its own unsized step *and* inherits its predecessors'. This capture is a
+    // three-row chain and shows both: `010` and `020` move out by 2, and `030`,
+    // which waits for one of them, by 4.
+    //
+    // Written as a walk over `dependsOn` rather than as three pinned numbers,
+    // so the claim is the rule and not this capture's shape — a longer chain
+    // would compound further and this still describes it.
     const tree = await replay(['role-nobody-estimated']);
 
     const bare = await replay([]);
+    /**
+     * How far this row's finish must move: its own new unsized step, plus
+     * whatever the predecessor it waits longest for gained. Recursive because
+     * the wait is transitive under `whole-item` — a chain of three compounds
+     * twice.
+     */
+    const dependsOnOf = new Map(tree.workItems.map((each) => [each.id, each.dependsOn]));
+    const parentOf = new Map(tree.workItems.map((each) => [each.id, each.parentId]));
+    const childrenOf = new Map<string, string[]>();
+    for (const each of tree.workItems) {
+      if (each.parentId === null) continue;
+      childrenOf.set(each.parentId, [...(childrenOf.get(each.parentId) ?? []), each.id]);
+    }
+    /**
+     * Every id this row actually waits for: its own, and every ancestor's — a
+     * dependency declared on a parent reaches every leaf beneath it, which is
+     * the rule `expandToLeaves` holds and the reason a leaf with an empty
+     * `dependsOn` can still inherit a wait.
+     */
+    const waitsFor = (id: string): string[] => {
+      const own = [...(dependsOnOf.get(id) ?? [])];
+      const parent = parentOf.get(id) ?? null;
+      return parent === null ? own : [...own, ...waitsFor(parent)];
+    };
+    /** A parent's finish is its latest leaf's, so its growth is theirs. */
+    const owedGrowth = (id: string): number => {
+      const children = childrenOf.get(id);
+      if (children !== undefined) return Math.max(...children.map(owedGrowth));
+      return ASSUMED_SLICE_WORKDAYS + Math.max(0, ...waitsFor(id).map(owedGrowth));
+    };
+    /** And a parent's start is its earliest leaf's. */
+    const owedStartGrowth = (id: string): number => {
+      const children = childrenOf.get(id);
+      if (children !== undefined) return Math.min(...children.map(owedStartGrowth));
+      return Math.max(0, ...waitsFor(id).map(owedGrowth));
+    };
     for (const [at, row] of tree.workItems.entries()) {
       expect(row.schedule.duration).toBe(capturedRows[at].schedule.duration);
       expect(row.schedule.estimated).toBe(capturedRows[at].schedule.estimated);
@@ -356,10 +405,14 @@ describe('a captured live plan, through the slice engine', () => {
       expect(
         row.schedule.earliestFinish - bare.workItems[at].schedule.earliestFinish,
         row.number,
-      ).toBeCloseTo(2, 12);
-      expect(row.schedule.earliestStart, row.number).toBe(
-        bare.workItems[at].schedule.earliestStart,
-      );
+      ).toBeCloseTo(owedGrowth(row.id), 12);
+      // A row with no predecessor still starts where it did; one behind a
+      // predecessor that grew starts that much later, which is the half of the
+      // compounding that is visible on the start rather than the finish.
+      expect(
+        row.schedule.earliestStart - bare.workItems[at].schedule.earliestStart,
+        row.number,
+      ).toBeCloseTo(owedStartGrowth(row.id), 12);
     }
   });
 });

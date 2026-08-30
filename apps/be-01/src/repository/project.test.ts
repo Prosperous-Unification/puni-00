@@ -44,6 +44,7 @@ function project(name: string, createdAt: number): Project {
     ownerId,
     restricted: false,
     estimateMethod: 'pert',
+    depReach: 'whole-item',
     startDate: null,
     solutionRef: null,
     revision: 0,
@@ -97,6 +98,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, roles(shed.id, 'Dev'));
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260830120000_add_dep_reach',
       '20260830020000_add_external_ref',
       '20260830010000_add_work_item_type',
       '20260824020000_add_solution_ref',
@@ -277,6 +279,44 @@ describe('ProjectRepository', () => {
     }
 
     expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate method/);
+  });
+
+  it('patches the dependency reach', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+
+    const updated = await repo.update(shed.id, { depReach: 'anchor-slice' });
+
+    expect(updated).toMatchObject({ depReach: 'anchor-slice', name: 'Rewire the shed' });
+    expect(await repo.findById(shed.id)).toMatchObject({ depReach: 'anchor-slice' });
+  });
+
+  it('an unrecognised stored reach is refused', async () => {
+    // `dep_reach` is text and SQLite will hold anything. Reading `first-role`
+    // back as either value schedules the plan by a rule nobody chose — the two
+    // answers differ by every date behind a multi-step predecessor — so this is
+    // the R5 case: unknown is not OK, and the read throws.
+    //
+    // Written past the repository for the reason the estimate-method case above
+    // is: the *stored* value is the wrong one, which no request validation
+    // reaches. A value from a future release read by an older colour mid-swap
+    // arrives exactly this way.
+    //
+    // Proof: the throw in `toProject` replaced by
+    // `isDependencyReach(row.depReach) ? row.depReach : 'whole-item'` and this
+    // failed on `Expected substring or pattern: /unknown dependency reach/`,
+    // `Received: "(resolved without throwing)"` — the project came back read,
+    // silently, under a rule nobody chose. Watched 2026-08-29.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run(`UPDATE project SET dep_reach = 'first-role' WHERE id = '${shed.id}'`);
+    } finally {
+      db.close();
+    }
+
+    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown dependency reach/);
   });
 
   it('costs one statement however many projects there are', async () => {

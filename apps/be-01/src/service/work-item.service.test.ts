@@ -90,6 +90,7 @@ beforeEach(async () => {
     ownerId: OWNER,
     restricted: false,
     estimateMethod: 'pert',
+    depReach: 'whole-item',
     startDate: null,
     revision: 0,
     createdAt: 1,
@@ -542,6 +543,7 @@ describe('the plan waits for the people in it', () => {
       ownerId: OWNER,
       restricted: false,
       estimateMethod: 'pert',
+      depReach: 'whole-item',
       startDate: null,
       revision: 0,
       createdAt: 1,
@@ -1355,6 +1357,89 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   });
 });
 
+describe('the project’s dependency reach', () => {
+  const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
+
+  /**
+   * A project of its own on `reach`, holding `Dev` then `QA`, with `A` (Dev 3,
+   * QA 2) and `B` (Dev 1) and `B` depending on `A`.
+   *
+   * Its own project rather than the fixture's, because the fixture has one role
+   * and a reach decides nothing on a plan with one step.
+   */
+  async function chainOn(reach: 'whole-item' | 'anchor-slice') {
+    const id = crypto.randomUUID();
+    const dev = crypto.randomUUID();
+    const qa = crypto.randomUUID();
+    await projects.create(
+      {
+        id,
+        name: `Chain on ${reach}`,
+        ownerId: OWNER,
+        restricted: false,
+        estimateMethod: 'pert',
+        depReach: reach,
+        startDate: null,
+        revision: 0,
+        createdAt: 1,
+      },
+      [
+        { id: dev, projectId: id, name: 'Dev', position: 10 },
+        { id: qa, projectId: id, name: 'QA', position: 20 },
+      ],
+    );
+    const made = async (name: string) => {
+      const outcome = await service.create(id, OWNER, { parentId: null, afterId: null, name });
+      if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+      return outcome.result.id;
+    };
+    const a = await made('A');
+    const b = await made('B');
+    await service.setEstimate(a, OWNER, dev, flat(3));
+    await service.setEstimate(a, OWNER, qa, flat(2));
+    await service.setEstimate(b, OWNER, dev, flat(1));
+    await dependencies.add({ projectId: id, predecessorId: a, successorId: b });
+    return { id, a, b };
+  }
+
+  /** One work item's earliest start out of the payload, or a throw. */
+  async function startOf(projectId: string, workItemId: string): Promise<number> {
+    const tree = await service.tree(projectId);
+    const row = tree?.workItems.find((each) => each.id === workItemId);
+    if (row === undefined) throw new Error(`${workItemId} is not in the payload`);
+    return row.schedule.earliestStart;
+  }
+
+  it('each project is scheduled by its own reach', async () => {
+    // The reach is read from the project being scheduled, so two projects in
+    // one process must not share one answer. Both orders, so a hoisted read is
+    // visible whichever plan happened to be read first.
+    //
+    // Proof: `project.depReach` in `work-item.service.ts` replaced by a
+    // module-level `heldReach ??= project.depReach` and this failed on
+    // `expect(received).toBe(expected) / Expected: 5 / Received: 3` for the
+    // whole-item plan's `B`; watched 2026-08-29.
+    const anchored = await chainOn('anchor-slice');
+    const whole = await chainOn('whole-item');
+
+    // `A`'s Dev finishes on day 3 and its QA on day 5.
+    expect(await startOf(anchored.id, anchored.b)).toBe(3);
+    expect(await startOf(whole.id, whole.b)).toBe(5);
+    // Read again in the other order: the second read of each must answer what
+    // the first did.
+    expect(await startOf(whole.id, whole.b)).toBe(5);
+    expect(await startOf(anchored.id, anchored.b)).toBe(3);
+  });
+
+  it('reports the project’s reach on the wire beside the dates it produced', async () => {
+    // The chart draws a dependency arrow out of the slice the reach names, so
+    // the value that decided the dates has to travel with them.
+    const anchored = await chainOn('anchor-slice');
+
+    expect((await service.tree(anchored.id))?.depReach).toBe('anchor-slice');
+  });
+});
+
 describe('the project’s estimate method', () => {
   /** A leaf with one three-point estimate, and the tree read back. */
   async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {
@@ -1690,6 +1775,7 @@ describe('the slices the schedule placed, on the wire', () => {
         ownerId: OWNER,
         restricted: false,
         estimateMethod: 'pert',
+        depReach: 'whole-item',
         startDate: null,
         revision: 0,
         createdAt: 1,
@@ -1838,8 +1924,13 @@ describe('the slices the schedule placed, on the wire', () => {
     // own because the dates in this payload were computed from it. `priorityBands`
     // is `priority-bands`', and it rides here for a different reason: no date
     // here came from it, and every face draws every priority through it.
+    // `depReach` is `dep-reach-whole-item`'s, and it rides here for a third
+    // reason: every date here was computed from it *and* the chart has to draw
+    // its arrows out of the slice it names, so a client without it would draw a
+    // chart that disagrees with the dates beside it.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
+      'depReach',
       'estimateMethod',
       'priorityBands',
       'projectRevision',
@@ -1861,6 +1952,7 @@ describe('the slices the schedule placed, on the wire', () => {
       schedule: { duration: 3, earliestStart: 0, earliestFinish: 3, estimated: true },
     });
     expect(tree?.waitingForPerson).toBe(0);
+    expect(tree?.depReach).toBe('whole-item');
     expect(tree?.scheduleError).toBeNull();
   });
 });

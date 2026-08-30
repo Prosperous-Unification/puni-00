@@ -239,6 +239,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         teamCapacities: [],
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
+        depReach: 'whole-item' as const,
         startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,
         undoable: false,

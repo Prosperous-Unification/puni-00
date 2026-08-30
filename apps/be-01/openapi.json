@@ -287,6 +287,13 @@
                       "pessimistic"
                     ]
                   },
+                  "depReach": {
+                    "type": "string",
+                    "enum": [
+                      "whole-item",
+                      "anchor-slice"
+                    ]
+                  },
                   "startDate": {
                     "anyOf": [
                       {
@@ -344,6 +351,13 @@
                       "pessimistic"
                     ]
                   },
+                  "depReach": {
+                    "type": "string",
+                    "enum": [
+                      "whole-item",
+                      "anchor-slice"
+                    ]
+                  },
                   "startDate": {
                     "anyOf": [
                       {
@@ -399,6 +413,13 @@
                       "optimistic",
                       "realistic",
                       "pessimistic"
+                    ]
+                  },
+                  "depReach": {
+                    "type": "string",
+                    "enum": [
+                      "whole-item",
+                      "anchor-slice"
                     ]
                   },
                   "startDate": {

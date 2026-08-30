@@ -96,16 +96,28 @@ describe('the leveled pass, at the size of a real plan', () => {
     // Leveling binds here: without that this measures the pass that already
     // existed rather than the one this change added.
     // The exact figure, so a fixture that quietly stops queueing is visible:
-    // 188 of the 200 work items wait for the person on them. 159 under the
-    // whole-item dependency rule; the anchor rule (`dep-waits-on-first-role`,
-    // 2026-08-11) releases successors at their predecessors' first-role
-    // finishes, more slices contend for the same people at once, and the
-    // person became the strictly-latest floor on sixteen more rows, taking it
-    // to 175. `assumed-duration-schedules` (2026-08-29) takes it to 188: this
-    // fixture leaves one slice in seven unestimated, those slices are on
-    // somebody, and a slice with a width occupies its assignee where a slice of
-    // no length did not.
-    expect(found.waitingForPerson).toBe(188);
+    // 177 of the 200 work items wait for the person on them, on the default
+    // `whole-item` reach. The `anchor-slice` figure is asserted beside it
+    // rather than described, because two rules have moved this number and one
+    // figure could no longer say which:
+    //
+    // - 159 — whole-item waits, unestimated slices of no length (before 2026-08-11)
+    // - 175 — `dep-waits-on-first-role`: anchor waits release successors
+    //   earlier, so more slices contend for the same people at once
+    // - 188 — `assumed-duration-schedules`: one slice in seven here is
+    //   unestimated, those slices are on somebody, and a slice with a width
+    //   occupies its assignee where a slice of no length did not
+    // - 177 — `dep-reach-whole-item`'s default, which takes the waits back to
+    //   the whole work item while keeping the assumed widths
+    //
+    // 188 is `main`'s own figure for this fixture, and the `anchor-slice` arm
+    // reproducing it exactly is the cross-check that this change moved the
+    // **reach** and nothing else.
+    expect(found.waitingForPerson).toBe(177);
+    expect(
+      schedule(plan.rows, plan.edges, plan.slices, undefined, undefined, 'anchor-slice')
+        .waitingForPerson,
+    ).toBe(188);
   });
 
   it('schedules 600 slices in under 20ms', () => {

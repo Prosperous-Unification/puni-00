@@ -6,6 +6,7 @@
 // functions and no runtime dependency at all, which is the same bargain
 // `plan-export.ts` and `gantt-geometry.ts` already make with `effective-team`
 // and `workday`.
+import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 
 /**
@@ -974,6 +975,16 @@ export interface ProjectApi {
      */
     priorityBands: PriorityBandView[];
     estimateMethod: EstimateMethod;
+    /**
+     * How far into a predecessor this plan's dependencies reach.
+     *
+     * **Every date in this payload was computed from it**, on be-01, and the
+     * chart draws a dependency arrow out of the slice it names — so it rides
+     * with the slices rather than being read separately. It is reported here
+     * and written through {@link ProjectApi.setDepReach}; nothing sends it with
+     * a read.
+     */
+    depReach: DependencyReach;
     startDate: string | null;
     /**
      * The project row's own revision: its name, restriction, estimate method,
@@ -1005,6 +1016,14 @@ export interface ProjectApi {
   redo(projectId: string): Promise<UndoResult>;
   /** Changes how the project turns its three-point estimates into one number. */
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
+  /**
+   * Changes how far into a predecessor this project's dependencies reach.
+   *
+   * A `PATCH` on the project like the estimate method, and for the same reason:
+   * it is a stored choice about the plan, not a parameter of a read. Every date
+   * in the plan may move on it, so the caller reads the tree again.
+   */
+  setDepReach(projectId: string, reach: DependencyReach): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   /**
@@ -1841,6 +1860,7 @@ export function httpProjectApi(token: string): ProjectApi {
         teamCapacities: TeamCapacityView[];
         priorityBands: PriorityBandView[];
         estimateMethod: EstimateMethod;
+        depReach: DependencyReach;
         startDate: string | null;
         projectRevision: number;
         undoable: boolean;
@@ -1886,6 +1906,12 @@ export function httpProjectApi(token: string): ProjectApi {
       await send(`/api/projects/${projectId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({ estimateMethod: method }),
+      });
+    },
+    async setDepReach(projectId, reach) {
+      await send(`/api/projects/${projectId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ depReach: reach }),
       });
     },
     async roles(projectId) {

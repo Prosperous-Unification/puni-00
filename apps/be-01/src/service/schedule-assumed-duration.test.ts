@@ -260,10 +260,25 @@ describe('an assumed duration is not an estimate', () => {
       slice('B', DESIGN, 1),
     ];
 
-    const found = schedule(rows, [edge('A', 'B')], slices);
+    // **The reach is named, and it has to be since `dep-reach-whole-item`
+    // (2026-08-30).** This case is about the anchor walk, and the anchor walk
+    // is one arm of a project's choice rather than the engine's only rule. Left
+    // on the default it would schedule `whole-item`, `B` would wait for `A`'s
+    // assumed `QA` at day 8, and the assertion below would fail for a reason
+    // that has nothing to do with the trap it was written for.
+    const found = schedule(rows, [edge('A', 'B')], slices, undefined, undefined, 'anchor-slice');
 
     expect(planned(found, 'A', DESIGN)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
     expect(planned(found, 'A', DEV)).toMatchObject({ earliestStart: 2, earliestFinish: 6 });
     expect(projectionOf(found, 'B').earliestStart).toBe(6);
+
+    // And the same plan on the default reach, so the two rules are told apart
+    // here rather than only in `schedule-shapes.test.ts`: `A`'s `QA` is
+    // assumed, not estimated, but `whole-item` does not ask whether anybody
+    // estimated it — it asks for the last slice. `B` waits until day 8.
+    const whole = schedule(rows, [edge('A', 'B')], slices);
+
+    expect(planned(whole, 'A', QA)).toMatchObject({ earliestStart: 6, earliestFinish: 8 });
+    expect(projectionOf(whole, 'B').earliestStart).toBe(8);
   });
 });
