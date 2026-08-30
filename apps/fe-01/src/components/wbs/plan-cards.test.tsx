@@ -247,6 +247,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
     listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
     create: (_projectId: string, input: { parentId: string | null; name?: string }) => {
@@ -1825,6 +1826,9 @@ describe('the trio behind a phase’s figure, on a card', () => {
     document.querySelector(`[data-phase-final="${roleId}"]`);
   const detailOnCard = (roleId: string): HTMLDetailsElement | null =>
     document.querySelector(`details[data-phase-detail="${roleId}"]`);
+  /** The muted figure beside the phase's box, or null where the box says it already. */
+  const finalBesideBox = (roleId: string): HTMLElement | null =>
+    document.querySelector(`[data-card-final="${roleId}"]`);
 
   itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
     const api = fakeApi();
@@ -1854,6 +1858,41 @@ describe('the trio behind a phase’s figure, on a card', () => {
       expect(finalOnCard(DEV.id)?.textContent).toBe('Final 3.7 days');
     },
   );
+
+  itDom('keeps the trio in the phase box, with the figure beside it', async () => {
+    // The table's folded cell on the face a phone reads — one rule, two faces.
+    // Until `estimate-triple-visible` this box read `3.7` and the trio was
+    // behind the `o·r·p` tap below it, so the numbers somebody typed were off
+    // screen on the face with no hover to get them back.
+    //
+    // Proof, both watched 2026-08-29. The `data-card-final` span never
+    // rendered: this failed on `expected undefined to be '· 3.7'`.
+    // `combinedValue` put back to the final figure: on `expected '3.7' to be
+    // '2/3/8'`.
+    const api = fakeApi();
+    const created = await api.create('p1', { parentId: null });
+    await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('2/3/8');
+    expect(finalBesideBox(DEV.id)?.textContent).toBe('· 3.7');
+  });
+
+  itDom('says a flat trio once on a card too', async () => {
+    // `5` stores `5/5/5` and every estimate method answers `5`; a card that
+    // printed both would read `5 · 5` beside a phase name.
+    const api = fakeApi();
+    const created = await api.create('p1', { parentId: null });
+    await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('5');
+    expect(finalBesideBox(DEV.id)).toBeNull();
+  });
 
   itDom('opens on a tap and stays shut until one', async () => {
     const api = fakeApi();

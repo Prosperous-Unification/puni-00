@@ -13,22 +13,29 @@ set -euo pipefail
 #
 # See {@link resolveHeavyLockPath} for why the path is not $TMPDIR on macOS.
 
-# Host-wide path for the heavy-work lock.
+# The one canonical host-wide path for the heavy-work lock.
 #
-# `$WBS_HEAVY_LOCK` overrides, so a test can point two runs at a private mutex.
-# Otherwise: h2puni's cache dir on Linux, and `/tmp` on macOS — NOT `$TMPDIR`,
-# which macOS sets per-user-per-login-session (`/var/folders/…`), so two agents
-# under different sessions would take two different locks and both proceed.
+# **No environment override, and that absence is the point.** An earlier cut of
+# this took `$WBS_HEAVY_LOCK` so a test could aim two runs at a private mutex —
+# and `tool-dagger/src/heavy-lock.test.ts` caught it, because a caller able to
+# choose its own lock path is a caller able to opt out of the lock: two heavy
+# runs set it differently, take two different mutexes, and both proceed. That is
+# the exact failure this file exists to prevent, reintroduced by its own test
+# seam.
+#
+# Tests get their seam from {@link with_heavy_lock}'s first argument instead,
+# which is a path they pass explicitly. Production reaches it through
+# `bin/with-heavy-lock.sh`, which calls this and takes what it is given.
+#
+# h2puni's cache dir on Linux, and `/tmp` on macOS — NOT `$TMPDIR`, which macOS
+# sets per-user-per-login-session (`/var/folders/…`), so two agents under
+# different sessions would take two different locks and both proceed.
 resolve_heavy_lock_path() {
-  if [[ -n ${WBS_HEAVY_LOCK:-} ]]; then
-    printf '%s\n' "$WBS_HEAVY_LOCK"
-    return
-  fi
   case "$(uname -s)" in
     Linux) printf '%s\n' /home/puni1/.cache/wbs-heavy-work.lock ;;
     Darwin) printf '%s\n' /tmp/wbs-heavy-work.lock ;;
     *)
-      printf 'heavy lock: unsupported platform %s; set WBS_HEAVY_LOCK\n' "$(uname -s)" >&2
+      printf 'heavy lock: unsupported platform %s\n' "$(uname -s)" >&2
       return 1
       ;;
   esac

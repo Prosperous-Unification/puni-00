@@ -259,6 +259,24 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // the most this budget can hold, and a fourth dimension would have to take a
   // column away rather than add one.
   ['service', 120],
+  // The type cell, 120 like the three label dimensions beside it, and the first
+  // of them that costs the folded budget **nothing**: it is in
+  // {@link DEFAULT_HIDDEN_COLUMNS}, so the default table is the table it was to
+  // the pixel and a reader who wants the dimension turns it on in `Columns`.
+  //
+  // That is the answer to the sentence three entries up — "a fourth dimension
+  // would have to take a column away rather than add one". This is the fourth
+  // dimension, and it takes nothing away because it is not on screen until
+  // somebody asks for it. The exemption budget is untouched: `tag` and `service`
+  // are still the two that spend it.
+  //
+  // Hidden by default and not exempted-when-empty, which is the *other* shape
+  // this could have taken. An exemption reads the directory and renders the
+  // column only where a type exists — but the first type has to be creatable
+  // before the column exists, and unlike a tag (created on the directory page) a
+  // type is created **in the cell** by naming one. A column that appears once you
+  // have used it, and cannot be used until it appears, is not a column.
+  ['type', 120],
   // People at once, and this is the tightest column in the table: a two-person
   // icon for a heading and three digits of value, right-aligned. 32px is 24px of
   // mark room plus the 8px of padding the declared width includes — enough for
@@ -362,7 +380,7 @@ export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLA
  * 1259`; `team` struck from here, on `expected 1187 to be 1067`. Watched,
  * 2026-08-28.
  */
-export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service'];
+export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service', 'type'];
 
 /**
  * The columns a project's table shows before anybody has hidden or shown one —
@@ -398,6 +416,7 @@ export function hideableColumnIds(roleIds: readonly string[]): readonly string[]
     'team',
     'tag',
     'service',
+    'type',
     'in-parallel',
     ...roleIds,
     'final-total',
@@ -1100,7 +1119,24 @@ export const CELL: CSSProperties = {
   boxSizing: 'border-box',
   padding: '1px 4px',
   verticalAlign: 'top',
-  overflow: 'hidden',
+  /**
+   * `clip`, and never `hidden`, because a hidden box is a **scroll container**.
+   *
+   * The two clip identically and differ in the thing that matters here: an
+   * `overflow: hidden` element has a scrollport the browser may scroll to
+   * reveal a focused or newly opened descendant, and `overflow: clip` has none
+   * at all — `scrollTop` on it cannot be anything but zero.
+   *
+   * That difference is a shipped bug. A Tags cell's picker opened a list inside
+   * a 26px cell whose column had been left out of `opensAPopover`; the cell's
+   * content became 94px tall, Chromium scrolled it by 22px to show what had
+   * opened, and the row then drew its own strip 21px above itself with the `+`
+   * scrolled out of sight (measured 2026-08-29). The exemption is the fix for
+   * that column. This is the fix for the class: with `clip`, a column somebody
+   * forgets to exempt draws a cut-off list — which is visibly wrong — instead
+   * of silently moving a row's contents out of its row.
+   */
+  overflow: 'clip',
 };
 
 /**

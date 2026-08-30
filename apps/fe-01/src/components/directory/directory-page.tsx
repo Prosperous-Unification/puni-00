@@ -37,6 +37,7 @@ import {
   type ServiceView,
   type TagView,
   type TeamView,
+  type WorkItemTypeView,
 } from '@/lib/wbs-api';
 
 export interface DirectoryPageProps {
@@ -56,7 +57,7 @@ export interface DirectoryPageProps {
  * `commitRename`'s parameter and `askToRemove`'s — the moment a fourth arm
  * arrived. Two copies that agree are a fact; four are a chore.
  */
-export type DirectoryKind = 'person' | 'team' | 'tag' | 'service';
+export type DirectoryKind = 'person' | 'team' | 'tag' | 'service' | 'type';
 
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
@@ -199,7 +200,9 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const [people, setPeople] = useState<PersonView[]>([]);
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [tags, setTags] = useState<TagView[]>([]);
+  const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [newWorkItemType, setNewWorkItemType] = useState('');
   const [services, setServices] = useState<ServiceView[]>([]);
   const [newService, setNewService] = useState('');
   const [problem, setProblem] = useState<DirectoryRefusal | null>(null);
@@ -253,12 +256,14 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const read = useCallback(async () => {
     const generation = latestRead.current + 1;
     latestRead.current = generation;
-    const [foundPeople, foundTeams, foundTags, foundServices] = await Promise.all([
-      directory.listPeople(),
-      directory.listTeams(),
-      directory.listTags(),
-      directory.listServices(),
-    ]);
+    const [foundPeople, foundTeams, foundTags, foundServices, foundWorkItemTypes] =
+      await Promise.all([
+        directory.listPeople(),
+        directory.listTeams(),
+        directory.listTags(),
+        directory.listServices(),
+        directory.listWorkItemTypes(),
+      ]);
     // Proof: this line deleted, `and only the newest read may write the screen`
     // alone failed, on `expected null not to be null` — a superseded read
     // putting the name somebody had just changed back on the panel. Watched
@@ -267,6 +272,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     setPeople(foundPeople);
     setTeams(foundTeams);
     setTags(foundTags);
+    setWorkItemTypes(foundWorkItemTypes);
     setServices(foundServices);
   }, [directory]);
 
@@ -418,6 +424,12 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       rename: (id, name) => directory.renameService(id, name),
       remove: (id, cascade) => directory.removeService(id, cascade),
     },
+    // A type has nothing but a name, like a tag and a service — the map's own
+    // reason for existing, one dimension over.
+    type: {
+      rename: (id, name) => directory.renameWorkItemType(id, name),
+      remove: (id, cascade) => directory.removeWorkItemType(id, cascade),
+    },
   };
 
   /**
@@ -568,6 +580,31 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     void attempt(async () => {
       await directory.addTag(clean);
       setNewTag('');
+    });
+  }
+
+  /**
+   * Adds a work item type — {@link submitNewTag}'s shape, and the **only** one
+   * of these four whose argument is the opposite of the tag's.
+   *
+   * A tag cannot be created from its plan cell, so this page is where the
+   * vocabulary is made. A type *can* be, and has to be: its column is hidden by
+   * default (`table-frame.ts`), so a reader who has never opened `Columns` will
+   * never see a Types cell, and a vocabulary only makeable here would be one
+   * nobody finds. This form is the second way in rather than the only one — for
+   * seeing the whole list at once and renaming a typo, which is the half of the
+   * tag argument that does apply.
+   */
+  function submitNewWorkItemType(event: FormEvent): void {
+    event.preventDefault();
+    const clean = newWorkItemType.trim();
+    if (clean === '') {
+      setProblem({ reason: 'refused', code: 'name_required' });
+      return;
+    }
+    void attempt(async () => {
+      await directory.addWorkItemType(clean);
+      setNewWorkItemType('');
     });
   }
 
@@ -1090,6 +1127,87 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                 />
                 <Button type="submit" className={TAP} disabled={busy}>
                   Add tag
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/*
+            Work item types: the fourth sibling, and it has the Tags card's
+            shape for the Tags card's reasons — no capacity column, no
+            membership chips, because nothing about a type is ever spent and
+            nobody belongs to one.
+
+            **The empty-state sentence is the one line that differs from the
+            Tags card's, and it differs because the column does.** Tags say
+            "the plan's Tags column appears once one exists"; the Types column
+            is hidden by default and appears from `Columns`, never on its own.
+            A card that borrowed the tag sentence would promise a column that
+            never arrives.
+          */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Work item types</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 pt-4">
+              {workItemTypes.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No types yet. Add one below, or name one in a plan&rsquo;s Types cell — turn the
+                  column on from <strong>Columns</strong> to see it.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {workItemTypes.map((workItemType) => (
+                    <li key={workItemType.id} className="flex items-center gap-2">
+                      <Input
+                        className={`${TAP} min-w-0 flex-1`}
+                        aria-label={`Name of ${workItemType.name}`}
+                        value={nameShown(workItemType)}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const typed = event.currentTarget.value;
+                          setRenamed((current) => ({ ...current, [workItemType.id]: typed }));
+                        }}
+                        onBlur={() => {
+                          commitRename('type', workItemType);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitRename('type', workItemType);
+                          }
+                          if (event.key === 'Escape') forgetNameDraft(workItemType.id);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={TAP_SQUARE}
+                        aria-label={`Remove ${workItemType.name}`}
+                        disabled={busy}
+                        onClick={() => {
+                          askToRemove('type', workItemType);
+                        }}
+                      >
+                        <span aria-hidden="true">✕</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form className="flex items-center gap-2" onSubmit={submitNewWorkItemType}>
+                <Input
+                  className={`${TAP} min-w-0 flex-1`}
+                  aria-label="New work item type"
+                  placeholder="Name"
+                  value={newWorkItemType}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setNewWorkItemType(event.currentTarget.value);
+                  }}
+                />
+                <Button type="submit" className={TAP} disabled={busy}>
+                  Add type
                 </Button>
               </form>
             </CardContent>

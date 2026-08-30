@@ -275,6 +275,27 @@ assertions in `e2e/hover-cards.spec.ts` failed, in both palettes. It was found b
 **whole** browser gate rather than the new tests in it — a change that edits a shared CSS rule has
 no business believing a filtered run.
 
+Five more on 2026-08-30 in `estimate-triple-visible`, and **none shipped** — one family, and
+the family is worth the name: **an assertion made outside the window the fault lives in.**
+Four of them were the same mechanism. The folded estimate cell is an _uncontrolled_ box: it
+holds what was typed from the keystroke onwards, and only the round trip replaces that with
+what the row now says. So `await waitFor(() => expect(cell.value).toBe('2/3/10'))` is
+satisfied by its **first** sample, before the answer it is about, and it was watched passing
+with the whole change reverted. Wait on something only the answer can produce — the figure
+beside the cell, the row's total days — and _then_ read the box. The third was subtler and
+the same shape: typing a cell's own value back into itself proves nothing, because
+`LiveField` diffs it against its baseline and sends nothing at all; the round trip has to be
+made through a **second** row. The fourth assumed a draft where there is none — the folded
+cell writes no draft on a keystroke (`onTyped` belongs to the `@` list), so "typed and not
+left" is not the draft window and a live-preview fault was invisible in it; the window opens
+on the blur that holds a refusal. And the fifth is `G gantt-calendar-axis` again in a browser:
+the assertion that a 96px cell still shows its whole trio was proved by giving the figure
+beside it `flex: 1` — which makes both children share the slack, so nothing clips and the
+proof was watched **passing**. Replaced by the widest trio anybody has actually typed here,
+`20/24/30`, it found the design genuinely broken: the box clipped by 8px at the row's own
+type, `Expected: <= 0, Received: 8`. **Inject the fault the check is about, not the one that
+is easy to inject.**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

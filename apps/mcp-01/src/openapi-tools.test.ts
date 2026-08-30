@@ -244,7 +244,7 @@ describe('toolsFromDocument, on the committed document', () => {
    * project's gate can see is a count that drifts silently; the routes landed at
    * `2ad567c` in chunk 7 and were noticed at `e82b023` in chunk 14.
    */
-  it('is 20 tools, so a route that appears must be decided about', () => {
+  it('is 22 tools, so a route that appears must be decided about', () => {
     // **51 to 19 with `plan-commands`.** Every single-item plan and directory
     // write is excluded — a model gets one write tool, `commands`, and cannot
     // pick the slow path — and the batch route arrives. What stays: the reads,
@@ -252,7 +252,21 @@ describe('toolsFromDocument, on the committed document', () => {
     // edits, the export, and the directory's own batch route (the directory
     // has no project). The single-item routes are gone from be-01, so nothing
     // needs excluding beyond the five classes.
-    expect(tools).toHaveLength(20);
+    // **20 to 22 with `work-item-types` and `external-refs`.** Two reads —
+    // `GET /api/work-item-types` and `GET /api/external-systems` — and the
+    // decision is that both belong, for the reason `getApiTags` already is one:
+    // a model asked to type or link a row has to know what vocabulary exists
+    // before it can name a member, and the alternative is guessing an id.
+    //
+    // Neither is a write, so neither meets an exclusion class; the vocabularies
+    // are **written** through `postApiDirectoryCommands` like every other
+    // directory edit, which is why no new exclusion is needed and
+    // `EXCLUDED_PATHS` stays at five.
+    //
+    // This drift arrived as a red in `mcp-01` from a change gated on `-p be-01`,
+    // which is the failure mode the comment above already records — noticed here
+    // by the whole-workspace gate rather than four chunks late.
+    expect(tools).toHaveLength(22);
     expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 
@@ -290,7 +304,13 @@ describe('toolsFromDocument, on the committed document', () => {
         oneOf: { title: string; description: string; properties: { kind: { enum: string[] } } }[];
       };
     };
-    expect(list.items.oneOf).toHaveLength(33);
+    // **33 to 36 with `work-item-types`**: `createWorkItemType`,
+    // `patchWorkItemType` and `deleteWorkItemType`, the same trio every other
+    // directory vocabulary carries. The count is pinned rather than derived so a
+    // command kind cannot arrive in be-01 without a model being told about it —
+    // which is precisely what this red is, arriving from a change gated on
+    // `-p be-01`.
+    expect(list.items.oneOf).toHaveLength(36);
     for (const variant of list.items.oneOf) {
       expect(variant.description.length).toBeGreaterThan(10);
       expect(variant.properties.kind.enum).toEqual([variant.title]);

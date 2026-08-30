@@ -6,6 +6,7 @@ export * from './effective-service';
 export * from './effective-tag';
 export * from './effective-team';
 export * from './estimate';
+export * from './external-system';
 export * from './label-mismatch';
 export * from './not-before';
 export * from './priority-band';

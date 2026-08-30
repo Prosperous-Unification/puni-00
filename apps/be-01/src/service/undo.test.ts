@@ -1442,6 +1442,69 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     return row.tagIds;
   }
 
+  async function typeNamed(name: string): Promise<string> {
+    const made = await directoryStore.addWorkItemType({ id: crypto.randomUUID(), name });
+    return made.id;
+  }
+
+  /** The types the plan read gives for one row, which is the only place they live. */
+  async function typesOn(id: string): Promise<readonly string[]> {
+    const row = (await workItemStore.listByProject(projectId)).find((each) => each.id === id);
+    if (row === undefined) throw new Error(`no work item ${id}`);
+    return row.typeIds;
+  }
+
+  it('puts a replaced type set back, whole', async () => {
+    // `puts a replaced tag set back, whole`'s seam, one dimension over, and the
+    // same silent failure: a scalar before-value makes the undo report done with
+    // the row carrying one of the two labels it had, and nothing anywhere says a
+    // second was lost.
+    //
+    // Proof, two faults both watched 2026-08-30:
+    //   `revertTo`'s type line written as `before.typeIds.slice(0, 1)` — failed
+    //   on the restored set holding one of the two ids.
+    //   `namedFields`' type line deleted, so the patch journals nothing — failed
+    //   at `expectDone` on `refused: stale_undo`, the undo reaching past the
+    //   unjournalled write to an entry that write had already made stale.
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    const epic = await typeNamed('Epic');
+
+    // Sorted, because the store answers in type-id order and the ids are random.
+    await workItems.patch(id, ownerId, { typeIds: [bug, spike] });
+    expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
+
+    await workItems.patch(id, ownerId, { typeIds: [epic] });
+    expect(await typesOn(id)).toEqual([epic]);
+
+    expectDone(await undone());
+
+    expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
+  });
+
+  it('takes a first type set off again, rather than leaving one behind', async () => {
+    // The empty before-value, which is the arm an `if (before.typeIds.length)`
+    // guard would quietly drop: the row had no types, so the inverse of labelling
+    // it is `[]` rather than an absent field, and an absent field would leave the
+    // label the undo exists to remove.
+    //
+    // For the other three dimensions `[]` also means "back to inheriting". Here
+    // it does not, because there is nothing to inherit
+    // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`) — which makes
+    // this the one dimension where the undo's result is unambiguous on its face.
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    expect(await typesOn(id)).toEqual([]);
+
+    await workItems.patch(id, ownerId, { typeIds: [bug] });
+    expect(await typesOn(id)).toEqual([bug]);
+
+    expectDone(await undone());
+
+    expect(await typesOn(id)).toEqual([]);
+  });
+
   it('puts a replaced tag set back, whole', async () => {
     // **The seam this whole field is designed around.** The row carries two
     // tags, a patch replaces them with a third, and the undo has to restore

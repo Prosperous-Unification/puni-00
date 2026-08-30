@@ -45,6 +45,9 @@ const isCi = process.env['CI'] !== undefined;
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.
  */
+/** Where the three tiers sit when nothing has moved them. */
+const DEFAULT_PORTS = [3100, 3200, 4200];
+
 const portShift = ((): number => {
   const asked = process.env['E2E_PORT_SHIFT'];
   if (asked === undefined || asked === '') return 0;
@@ -53,6 +56,25 @@ const portShift = ((): number => {
     throw new Error(
       `E2E_PORT_SHIFT must be a whole number between 0 and 9999; got ${asked}. ` +
         `It moves be-01, gw-01 and fe-01 together — 500 puts them on 3600/3700/4700.`,
+    );
+  }
+  // **A shift may not land one tier on another tier's usual port.** 1000 puts
+  // gw-01 on 4200, which is fe-01's own default and, on a developer's machine,
+  // the dev server they are trying to run beside: an agent asked for 1000 and
+  // got `http://localhost:4200/health is already used` from a gateway that had
+  // collided with a frontend (2026-08-30). 100 is the same fault one tier over,
+  // landing be-01 on gw-01's 3200.
+  //
+  // Refused rather than nudged, because the shift is written into runbooks and
+  // agent instructions: a silently adjusted 1000 is a number that means
+  // something different from what the person typed.
+  const shifted = [3100 + shift, 3200 + shift, 4200 + shift];
+  const collision = shifted.find((port) => DEFAULT_PORTS.includes(port));
+  if (shift !== 0 && collision !== undefined) {
+    throw new Error(
+      `E2E_PORT_SHIFT=${String(shift)} puts a tier on ${String(collision)}, which is another ` +
+        `tier's usual port. The three tiers sit at 3100/3200/4200, so a shift may not be 100, ` +
+        `1000 or 1100. Try 500, or any shift that clears all three.`,
     );
   }
   return shift;

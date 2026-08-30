@@ -1,0 +1,46 @@
+-- Reverses 20260830010000_add_work_item_type.
+--
+-- Dropping these loses the whole of the type dimension: the vocabulary anybody
+-- typed, and every statement of the form "this row is a Bug". The loss is total
+-- in one direction and harmless in the other, and that asymmetry is why this
+-- rollback is safe to run.
+--
+-- **No date moves, either way.** The scheduler reads work items, estimates,
+-- dependencies, capacity and the calendar, and it does not read either of these
+-- tables — the defining property of the dimension, asserted by
+-- `service-untouched.test.ts` rather than claimed here. A plan scheduled against
+-- a database with these tables and the same plan after this rollback come out
+-- identical.
+--
+-- Nothing else is touched in the stronger sense either: no write to
+-- `work_item_type` or `work_item_work_item_type` has ever written to a team, a
+-- tag, an estimate, an actual, a progress state or a date.
+--
+-- **What comes back is the ambiguity the dimension was added to remove**, and it
+-- is a vocabulary ambiguity rather than a planning one: readers go back to
+-- encoding the type in the name (`[BUG] …`) or in a tag, which is what made the
+-- tag facet a mix of vocabulary and taxonomy in the first place. That is the
+-- state the tool was in before this migration and the state it returns to.
+--
+-- The filter degrades rather than breaks: `FilterCriteria.typeIds` is a field on
+-- a request, the type predicate matches rows that no longer exist, and an empty
+-- facet narrows nothing. A saved view holding a type id reads as an empty facet
+-- on the next load.
+--
+-- Undo and redo are unaffected in shape and lossy in one arm: `command_journal`
+-- is not touched, so every entry stays pressable, but an entry whose command
+-- carries `typeIds` names a table that is no longer there and fails when applied.
+-- That is the position every rollback of an additive migration leaves its kinds
+-- in.
+--
+-- The indexes go with the tables they are on, and `work_item_work_item_type`
+-- goes first: its rows reference `work_item_type`, and dropping the referenced
+-- table first would leave a foreign key pointing at nothing for the length of one
+-- statement. All four statements run solely when the release that added them is
+-- being taken away — a forward migration here is additive so blue and green can
+-- share one file mid-swap, and reversing an additive change is destructive by
+-- definition, which is why it lives here and not there.
+DROP INDEX IF EXISTS `wiwit_by_type`;--> statement-breakpoint
+DROP TABLE IF EXISTS `work_item_work_item_type`;--> statement-breakpoint
+DROP INDEX IF EXISTS `work_item_type_name`;--> statement-breakpoint
+DROP TABLE IF EXISTS `work_item_type`;

@@ -19,8 +19,8 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Both palettes, in a browser
 
-- [ ] 4.1 `e2e/` spec reading the computed ink of a rank 2, rank 3 and rank 4 chip in **both** palettes: rank 2 neutral, ranks 3 and 4 distinguishable, all three legible against the page — negative: rank 3 and rank 4 set equal, watched failing in both palettes. A change that edits a shared colour table runs the **whole** browser gate (`AGENTS.md`, `linked-row-hover`).
+- [x] 4.1 `e2e/` spec reading the computed ink of a rank 2, rank 3 and rank 4 chip in **both** palettes: rank 2 neutral, ranks 3 and 4 distinguishable, all three legible against the page — negative: rank 3 and rank 4 set equal, watched failing in both palettes. A change that edits a shared colour table runs the **whole** browser gate (`AGENTS.md`, `linked-row-hover`).
 
 ## 5. Gate
 
-- [ ] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, the whole `CI=1` Playwright gate on shifted ports.
+- [x] 5.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, the whole `CI=1` Playwright gate on shifted ports.
