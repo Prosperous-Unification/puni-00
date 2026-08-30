@@ -1305,15 +1305,27 @@ test.describe('the chart under a plan being edited', () => {
     await expect(firstBar).toHaveAttribute('data-finish', '4');
 
     // An estimate edit stretches the open bar: 2/4/6 → 8/10/12 is ten days by
-    // PERT. The dependent `010.2` follows to day 10 — its own not-before still
-    // names day 4, and the dependency out-floors it.
+    // PERT. The dependent `010.2` follows — its own not-before still names day
+    // 4, and the dependency out-floors it.
+    //
+    // **It follows to day 12, not day 10, and the two workdays between are the
+    // whole of what `dep-reach-whole-item` and `assumed-duration-schedules`
+    // compose to.** Under the anchor rule `010.2` waited for `010.1`'s first
+    // *estimated* slice — its `Dev`, finishing at 10. Under `whole-item`, now
+    // the default, it waits for the whole work item, and `010.1`'s last slice
+    // is a `QA` nobody estimated, which since `assumed-duration-schedules`
+    // takes two workdays rather than none. So `010.1` is 0→10 then 10→12, and
+    // `010.2` is 12→16. Measured on the merged tree rather than re-derived:
+    // every bar's `data-start`/`data-finish` read out of the page, 2026-08-30.
     const estimate = page.getByLabel('Dev estimate for 010.1');
     await estimate.fill('8/10/12');
     const savedEstimate = savedCommand(page, 'setEstimate');
     await estimate.blur();
     await savedEstimate;
     await expect(firstBar).toHaveAttribute('data-finish', '10');
-    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="14"]')).toBeVisible();
+    // `010.1`'s own assumed `QA`, which is the slice the dependency now reaches.
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="12"]')).toBeVisible();
+    await expect(page.locator('[data-gantt-bar][data-start="12"][data-finish="16"]')).toBeVisible();
 
     // A not-before edit past everything else moves the row's bar to the day it
     // names: 2026-09-07 is workday 20 of a plan starting Monday 2026-08-10.

@@ -148,6 +148,48 @@ lands just after the PATCH the helper awaits.
 Third stale opener found by this route today, after `mobile.spec.ts` and
 `layout.spec.ts`. All three were invisible to jsdom and to any filtered run.
 
+## The gate on the merged tree, and the one fixture the composition moved
+
+Run on `a66c78f` (= `origin/main ac8c882` + `5fa16ac`), serialised under the
+canonical lock, every count read with the escapes stripped and planned-vs-ran
+reconciled.
+
+| Command                                                                 | Result                                                                                   |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `nx run-many -t test lint typecheck build -p fe-01 be-01 domain mcp-01` | **be-01 1227, fe-01 1939 (61 files), domain 130, mcp-01 103 — 0 fail**, all four targets |
+| `nx format:check --all`                                                 | clean                                                                                    |
+| `openspec validate --all --json`                                        | **89 of 89**                                                                             |
+| migration lint on `20260830120000_add_dep_reach`                        | clean; `down.sql` present; stamp sorts last after `work_item_type` and `external_ref`    |
+| `CI=1 E2E_PORT_SHIFT=1900 nx run fe-01:e2e`                             | **241 planned / 241 ran / 237 passed, 3 failed, 1 skipped**                              |
+
+Two of the three are the host's documented `keyboard.spec.ts` date pair. **The
+third was real, and it is this change composing with
+`assumed-duration-schedules`.**
+
+`gantt.spec.ts`'s `redraws the open chart as each schedule input changes`
+asserted the dependent bar at `data-start="10"`. Measured on the merged tree —
+every bar's attributes read out of the page rather than re-derived:
+
+| bar                                | start → finish |
+| ---------------------------------- | -------------- |
+| `010.1` `Dev`                      | 0 → 10         |
+| `010.1` `QA` (nobody estimated it) | **10 → 12**    |
+| `010.2` `Dev`                      | **12 → 16**    |
+| `010.2` `QA`                       | 16 → 18        |
+
+Under the anchor rule `010.2` waited for `010.1`'s first **estimated** slice —
+its `Dev`, finishing at 10. Under `whole-item` it waits for the whole work item,
+and `010.1`'s last slice is a `QA` nobody estimated, which since
+`assumed-duration-schedules` takes two workdays rather than none. The fixture
+now asserts both bars, so the two workdays between them are stated rather than
+implied.
+
+**This is the compounding this document and `assumed-duration-schedules`'
+`verify.md` both predicted in prose, appearing as a number for the first time.**
+Neither change moves that fixture alone; only the pair does. It was invisible to
+1939 jsdom tests and to this change's own earlier browser gate, which ran on a
+pre-ask-3 tree.
+
 ## Skipped or unavailable checks
 
 Recorded as this change ran; see the report for anything still open.
