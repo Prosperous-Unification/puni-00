@@ -6,9 +6,9 @@ import { createProject } from './create-project';
  * The plan as one surface, measured by a browser.
  *
  * Two claims, and neither of them can be made anywhere else. jsdom lays nothing
- * out, so "the chart sits under the last row rather than at the bottom of the
- * window" and "the chart is showing the row the table is showing" are both
- * claims about boxes a rendering engine put somewhere.
+ * out, so "the column wastes no room under the chart" and "the chart is showing
+ * the row the table is showing" are both claims about boxes a rendering engine
+ * put somewhere.
  *
  * Both come from the Browser Use Cloud audit of 2026-08-11
  * (`notes/wbs-cloud-test-run-2026-08-11.md`, Group C):
@@ -16,6 +16,13 @@ import { createProject } from './create-project';
  * - "508px dead white space on small plans (Gantt docked to viewport bottom)."
  * - "Table and Gantt scroll independently — can never read row N beside bar N;
  *   Gantt papers over it with a duplicate truncated 176px label column."
+ *
+ * **The first claim's answer was reversed on 2026-08-30.** The audit's 508px was
+ * removed by pulling the chart *up* to the last row; Dany then asked for the
+ * opposite — _"i need the whole gantt panel to go down"_ (`eb8968d`) — so the
+ * slack moved above the chart and the chart went to the column's bottom edge.
+ * The dead space is still gone; it is the side it was reclaimed from that
+ * changed. The short-plan case below carries the history.
  *
  * `header.spec.ts` still owns the other half of the frame's height — that a
  * plan **taller** than the window still ends the frame at the bottom of it —
@@ -42,16 +49,6 @@ const NEARLY = 2;
  * `plan-scroll-link.ts`).
  */
 const A_ROW_APART = 0.05;
-
-/**
- * The white space the audit measured between a short plan and its chart, in px.
- *
- * `notes/wbs-cloud-test-run-2026-08-11.md`: "508px dead white space on small
- * plans (Gantt docked to viewport bottom)". Quoted rather than re-derived — it
- * is the number this change exists to remove, and it is a measurement somebody
- * took in a browser on a day.
- */
-const AUDITED_DEAD_SPACE = 508;
 
 /** A plan short enough that the frame could never be filled by it. */
 const SHORT_PLAN = 3;
@@ -250,9 +247,35 @@ test.beforeEach(() => {
 });
 
 test.describe('the plan and its chart as one surface', () => {
-  test('docks the chart under the last row rather than at the bottom of the window', async ({
-    page,
-  }) => {
+  /**
+   * **This case asserted the opposite rule until 2026-08-30, and Dany reversed
+   * it.** It read `docks the chart under the last row rather than at the bottom
+   * of the window`: the chart hugged the plan's last row and the slack fell
+   * below the chart. `eb8968d` — his words, on a four-row plan: _"i need the
+   * whole gantt panel to go down"_ — put the slack **above** the chart instead,
+   * via `GANTT_DOCK_SLACK`, and the chart group now ends at the column's own
+   * bottom however short the plan is.
+   *
+   * That change did not edit this file, so the two rules sat on `main` together
+   * and this case was red: `527.4375px` of gap against a `217.4375px`
+   * frame-derived allowance. Both figures come from the frame's own computed
+   * style, so it was never two tests measuring different things — it was one
+   * layout with two contradictory owners. Reproduced independently by a second
+   * session before this rewrite.
+   *
+   * **What is asserted now is the same concern in its new place.** The original
+   * complaint was 508px of white nobody asked for; the guarantee is still "the
+   * column wastes nothing", and the only thing that moved is which side of the
+   * chart the reclaimed space is on. The consequence, stated because it is what
+   * a reader will see: on a short plan there is now a large gap **between the
+   * table and the chart**, and that gap is the feature.
+   *
+   * `gantt.spec.ts`'s `sits at the column's bottom edge however short the plan
+   * is` makes the same claim from the column's side. This one makes it from the
+   * window's, which is what catches a column that docks correctly inside a page
+   * that has itself grown a scrollbar.
+   */
+  test('ends the chart at the window’s bottom however short the plan is', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedPlan(page, signedInAs, SHORT_PLAN);
     await openTheChart(page, SHORT_PLAN);
@@ -263,26 +286,32 @@ test.describe('the plan and its chart as one surface', () => {
       measured.rowsPastTheFrame,
       'the seeded plan fills its frame, so this measures nothing',
     ).toBe(0);
-    // The audit measured 508px of nothing here. What is left is declared: the
-    // picker room a dependency list on the last row opens into, and the last
-    // few pixels of the frame's 20rem floor. Both are space something asked
-    // for, and both are named in `table-frame.ts`.
-    expect(
-      measured.gap,
-      `${String(Math.round(measured.gap))}px between the last row and the chart, against ${String(
-        Math.round(measured.reserved),
-      )}px anything asked for`,
-    ).toBeLessThanOrEqual(measured.reserved + NEARLY);
-    // And it is nowhere near what the audit found, which is the claim a reader
-    // would recognise. Half of it is a bound this cannot creep past on a
-    // rounding change.
-    expect(measured.gap, 'the dead space is back').toBeLessThan(AUDITED_DEAD_SPACE / 2);
-    // And the space that was between them is now under the chart, which is what
-    // says the chart came up rather than the plan going down.
+    // The claim, and the whole of what `eb8968d` bought: nothing is left under
+    // the chart on a plan far too short to fill the column. 16px rather than
+    // `NEARLY`, matching the tall-plan case below — the two now assert one rule
+    // at both ends of the fixture range instead of opposite ones.
+    //
+    // Proof: `GANTT_DOCK_SLACK` deleted from `table-frame.ts`, watched failing
+    // on `the column stops 528px short of the window`; watched 2026-08-30.
     expect(
       measured.belowChart,
-      'the chart is still docked to the bottom of the window',
-    ).toBeGreaterThan(100);
+      `the column stops ${String(Math.round(measured.belowChart))}px short of the window`,
+    ).toBeLessThanOrEqual(16);
+    // And what reaches the bottom is the chart itself, not a control strip that
+    // parted company with it and got there alone.
+    expect(
+      measured.underTheScrollBox,
+      `the control strip stands ${String(
+        Math.round(measured.underTheScrollBox),
+      )}px off the chart it belongs to`,
+    ).toBeLessThanOrEqual(NEARLY);
+    // The reclaimed space is above the chart now, so the gap this case used to
+    // bound is *expected* to be large — but not unbounded. It cannot exceed the
+    // window, which is what a slack that grew without limit would do.
+    expect(
+      measured.gap,
+      `${String(Math.round(measured.gap))}px between the last row and the chart, past the window`,
+    ).toBeLessThan(measured.windowHeight);
     expect(measured.pageOverflow, 'the page scrolls vertically behind the frame').toBe(0);
   });
 
