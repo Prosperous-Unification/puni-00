@@ -246,7 +246,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    *
    * C3 had a second, sharper reason here — `commitSize` short-circuited on the
    * size it believed be-01 held, so typing what a stale screen showed sent
-   * nothing at all. That box moved to the plan's own `TeamsDialog` in
+   * nothing at all. That box moved to the plan's own `TeamsPanel` in
    * `capacity-per-project`, and the short-circuit went with it. The guard stays:
    * the stale-name hazard is enough on its own, and every one of the three call
    * sites is still ungated without it.
@@ -371,7 +371,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    *
    * Escape is the other way a draft goes — {@link forgetNameDraft}, which since
    * `capacity-per-project` is the only draft this page holds: the size box that
-   * made these two functions two moved to the plan's own `TeamsDialog`.
+   * made these two functions two moved to the plan's own `TeamsPanel`.
    */
   const forgetDraft = (id: string) => {
     setRenamed((current) => withoutDraft(current, id));
@@ -465,7 +465,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   /*
     `sizeShown` and `commitSize` lived here, with C3's whole argument about what
     an empty box and a non-finite draft mean. They are in
-    `components/wbs/teams-dialog.tsx` now, because the number is one plan's rather
+    `components/wbs/teams-panel.tsx` now, because the number is one plan's rather
     than the deployment's — `capacity-per-project`, Dany 2026-08-13, design.md D5.
     The two local decisions and both of their watched negatives moved with them.
   */
@@ -640,7 +640,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * five on `Unable to find role="dialog"` (no confirmation ever drawn) and
    * `removes an entry nothing points at on the first request` on
    * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
-   * fault `phases-dialog` already knows. Watched 2026-08-09.
+   * fault `phases-panel` already knows. Watched 2026-08-09.
    */
   function askToRemove(kind: DirectoryKind, entry: { id: string; name: string }): void {
     void attempt(async () => {

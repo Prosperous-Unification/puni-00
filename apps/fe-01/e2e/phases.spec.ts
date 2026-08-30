@@ -147,7 +147,7 @@ test.describe('the phases surface, in a browser', () => {
    * A bare Enter in the new-phase box adds the phase, through the browser's own
    * implicit form submission and nothing this repository wrote.
    *
-   * `phases-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` is the
+   * `phases-panel.test.tsx`'s `leaves a bare Enter to the form it is in` is the
    * jsdom half, and on its own it is satisfied by the environment rather than by
    * the code: jsdom performs **no** implicit submission at all, so a keydown it
    * dispatches never reaches a `submit` handler whatever `onChord` does with it.
@@ -155,7 +155,7 @@ test.describe('the phases surface, in a browser', () => {
    * "nothing here submits on Enter ever". Only a browser can.
    *
    * Proof: an unconditional `event.preventDefault()` at the top of `onChord` in
-   * `phases-dialog.tsx` — the fault the jsdom test is blind to — this failed on
+   * `phases-panel.tsx` — the fault the jsdom test is blind to — this failed on
    * `expect(locator).toBeVisible() … waiting for getByRole('button', { name:
    * 'Remove Design' })`, the phase never added, while `leaves a bare Enter to
    * the form it is in` went on passing. Watched in Chromium, 2026-08-09.
