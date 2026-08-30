@@ -13,7 +13,29 @@ if [ ! -r "$ENV_PATH" ]; then
   printf 'unreadable MCP environment: %s\n' "$ENV_PATH" >&2
   exit 1
 fi
-if [ "$(stat -c '%a' "$ENV_PATH")" != 600 ]; then
+# The permission bits, read the way this platform spells them.
+#
+# `stat -c '%a'` is GNU. macOS ships BSD `stat`, which **refuses the flag
+# outright** — `stat: illegal option -- c` — so the substitution was empty here
+# and `"" != 600` fired on every Mac: the preflight refused a correctly-moded
+# 600 file and could never accept one.
+#
+# Worse than a false refusal, it made the sibling check pass for the wrong
+# reason. `refuses an MCP environment whose permissions expose deployment
+# settings` asserts a refusal on an 0644 file — and an erroring `stat` refuses
+# everything, so that case passed on this platform **with the mode comparison
+# doing nothing at all**. It would have gone on passing with the whole `if`
+# deleted.
+#
+# `%Lp` is BSD's octal permission bits without the file type. Written as a
+# `case` on `uname` rather than a `||` fallback on purpose: a fallback cannot
+# tell "this platform spells it differently" from "this file cannot be read",
+# and the second must never be read as a mode.
+case "$(uname -s)" in
+  Darwin) env_mode=$(stat -f '%Lp' "$ENV_PATH") ;;
+  *) env_mode=$(stat -c '%a' "$ENV_PATH") ;;
+esac
+if [ "$env_mode" != 600 ]; then
   printf 'MCP environment must have mode 600: %s\n' "$ENV_PATH" >&2
   exit 1
 fi
