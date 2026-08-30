@@ -8,9 +8,9 @@ Two things are recorded here, and the second is the one worth keeping:
 
 1. **The plan** — what Dany asked for, what is actually on `main`, who owns
    which branch, and what is left.
-2. **What the loop got wrong** — six measurements that were green, or red, for
+2. **What the loop got wrong** — nine measurements that were green, or red, for
    reasons other than the ones claimed. Every one was found by checking rather
-   than by reasoning, and four of them were mine.
+   than by reasoning, and six of them were mine.
 
 ---
 
@@ -70,7 +70,7 @@ deliberate deferral rather than an omission.
 
 ---
 
-## Part 2 — six measurements that meant something else
+## Part 2 — nine measurements that meant something else
 
 R5 says a check whose failure has never been observed is a claim, not a gate.
 The loop produced a matching family: **a result whose _cause_ has never been
@@ -161,6 +161,36 @@ the port arithmetic rather than measuring the host.** The guard knows the three
 defaults, which a config can know; it cannot know what else is running, and it
 cannot know what the machine itself listens on. Both facts were available before
 either fix was written.
+
+## 7. Three more, found while landing the last two asks
+
+**A test that passed "under either reach" was passing because the two arms
+coincided on that fixture.** `a predecessor nobody estimated is reached at its own
+finish under either reach` held while zero-length slices made the anchor's finish
+and the last slice's finish the same day; with assumed durations they are day 5
+and day 7, and it asserts per-arm numbers now. A check that is green under two
+rules is not thereby insensitive to the rule — it may be that the fixture cannot
+tell them apart. Same shape as the vacuous checks above, one layer up. (Found by
+the other session; the "either" was this session's.)
+
+**A correct habit and an incorrect instruction can coexist indefinitely.** The
+handoff told readers to reconcile a Playwright run with `grep -E "Running [0-9]+
+tests"`. Playwright colourises that line with escapes _between the words_, so the
+grep matches nothing and "no count found" reads exactly like "not a partial run".
+The author of the instruction had been stripping escapes with `sed` all day and
+never noticed the instruction did not say so — **the person who writes a recipe
+rarely runs it as written.** Fixed with the literal `sed` in the doc.
+
+**A `Proof:` comment is a claim until the run.** `project-config-modal` slice
+3.2 says "the control carries no `data-takes-the-focus`", and the comment on its
+test said that attribute had been injected and watched failing. Run in isolation
+by a subagent, it **passed with the fault in**: the sheet reads that mark only off
+a control that closes the sheet, and a control that opens its own surface never
+does. Replaced by the fault that is real (the `ModalTrigger` swapped for a plain
+`Button`), watched failing in two suites. The other seven negatives for that
+change were watched by subagents in detached worktrees before the comments were
+believed, which is the discipline this item argues for: **never write "watched"
+before the watching.**
 
 ### Three artefacts that look like conclusions
 
