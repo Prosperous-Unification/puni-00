@@ -3089,8 +3089,12 @@ async function seedTwoStepChain(page: Page): Promise<void> {
 
 /** Picks a reach in the Phases dialog and closes it again. */
 async function chooseTheReach(page: Page, option: string): Promise<void> {
-  await page.getByRole('button', { name: 'Phases', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Phases' })).toBeVisible();
+  // Two gestures since `project-config-modal`: the toolbar's one `Project
+  // settings` control, then its `Phases` tab. The reach lives on that section
+  // because it is a statement about how the steps above it chain.
+  await page.getByRole('button', { name: 'Project settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Phases' }).click();
   const saved = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' &&
@@ -3099,8 +3103,13 @@ async function chooseTheReach(page: Page, option: string): Promise<void> {
   );
   await page.getByRole('radio', { name: new RegExp(option) }).click();
   await saved;
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Phases' })).toHaveCount(0);
+  // The modal refuses a close while any section holds a write in flight
+  // (`project-config-modal` D3), and the reach's own re-read lands just after
+  // the PATCH awaited above. Press until the surface is gone rather than once.
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Project settings' })).toHaveCount(0);
+  }).toPass();
 }
 
 test.describe('how far a dependency reaches, from the chart', () => {
