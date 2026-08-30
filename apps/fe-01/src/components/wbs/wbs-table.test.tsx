@@ -15485,14 +15485,18 @@ describe('the columns a reader has hidden', () => {
     // Not written back on read: opening a project must not change what is
     // remembered about it.
     expect(stored()).toBe(claimed);
-    // And the Phases dialog, which quotes the folded width of the columns on
+    // And the Phases section, which quotes the folded width of the columns on
     // screen, opens: `foldedTableMinWidth` throws on an id it does not know,
-    // so the sanitised list — not the stored one — is what reaches it.
+    // so the sanitised list — not the stored one — is what reaches it. The
+    // panel is mounted the moment the settings modal opens, whichever tab is
+    // in front, so the throw would happen on the first click.
     // Proof: `hiddenColumnIds` handed `storedHiddenColumns` unfiltered, this
     // failed with `UnknownColumnError: No declared width for column "role-
     // nope"` on the click below. Watched, 2026-08-28.
-    click('Phases');
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    click('Project settings');
+    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Phases' }));
+    expect(screen.getByLabelText('New phase')).toBeVisible();
   });
 
   itDom('hides a role whole and leaves Days and the dates alone', async () => {
