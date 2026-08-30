@@ -3,11 +3,19 @@
 Implemented on 2026-08-29 in a worktree at `b3acb7b`. Slices 1–4 were done then.
 Slices 3.3, 5.1 and 6.1 were written but **not executed** — there was no browser
 on that machine — and were finished on **2026-08-30** on branch
-`feat/plan-toolbar-controls-gate`, merged up to `origin/main` **twice** — main
-moved 28 commits and then 10 more while this ran — so that every figure below
-describes the bar as `work-item-types`, the reference-cell rework and
-`estimate-triple-visible` left it. The figures did not move across either merge;
-that is stated under "Measurements" rather than assumed.
+`feat/plan-toolbar-controls-gate`, merged up to `origin/main` **five times** —
+main moved 28 commits, then 10, 4, 4 and 16 more while this ran — so that every
+figure below describes the bar as `work-item-types`, the reference-cell rework,
+`estimate-triple-visible`, `assumed-duration-schedules` and the Gantt dock left
+it. The figures did not move across any of the five merges; that is stated under
+"Measurements" rather than assumed.
+
+**Every browser run below is reconciled before it is believed.** A killed
+Playwright run exits 0 with a summary describing only the fragment it reached,
+and a fragment that happens to contain the case being measured reads exactly
+like a pass — so each run's `Running N tests` is checked against its own
+passed + failed + skipped. The whole gate: `Running 237 tests`, and
+`233 passed + 3 failed + 1 skipped = 237`.
 
 **The browser is real now, and the ports are its own.** `E2E_PORT_SHIFT=800`
 (landed on main as `10ccc41`/`3ea2ade`) moves be-01/gw-01/fe-01 to
@@ -24,6 +32,20 @@ Read in Chromium at 1280×900 on 2026-08-30, on a host holding the heavy-work
 lock, off `the folded toolbar fits its budget` with its budget temporarily
 forced to 1 so that the assertion prints what it measured.
 
+**Is this figure pinnable on this machine at all?** Asked before it was
+believed, because a number that holds once is not a pin. The bar was read
+**twice in a row under the same lock**, nothing else running either time:
+
+```
+== E1: this bar, first quiet reading ==   Received: 1552.734375
+== E2: this bar, second quiet reading ==  Received: 1552.734375
+```
+
+Identical to the last digit — and identical again to the readings taken hours
+earlier on a **loaded** host, and across all five merges of `main` this branch
+took. It is pinnable on this machine; had it moved between two quiet runs, this
+section would say so instead of naming a number that held once.
+
 | Figure                                                       | Value           |
 | ------------------------------------------------------------ | --------------- |
 | folded toolbar controls at 1280, this bar (`asked`, px)      | **1552.734375** |
@@ -33,10 +55,10 @@ forced to 1 so that the assertion prints what it measured.
 | pinned budget (`FOLDED_TOOLBAR_BUDGET_PX`)                   | **1600**        |
 
 Both figures reproduce to the last digit across runs, across a loaded host and
-an idle one, and across two merges of `main` — `work-item-types` and
-`estimate-triple-visible`, thirty-eight commits between them. A width is a
-layout, not a race, and both of those changes are in the table rather than on
-the bar above it.
+an idle one, and across five merges of `main` — sixty-two commits, including
+`work-item-types`, `estimate-triple-visible`, `assumed-duration-schedules` and
+the Gantt dock. A width is a layout, not a race, and every one of those changes
+is in the table or the chart rather than on the bar above them.
 
 **The figure `tasks.md` 5.1 asked for would have been a check that cannot
 fail, and that is the third correction to this slice.** 5.1 said to pin the
@@ -133,7 +155,7 @@ heavy-work lock for their whole run.
 | Command                                                                         | Result                                                                                                     |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `bunx openspec validate --all --json`                                           | **pass** — 91/91 changes valid, 0 failed                                                                   |
-| `CI=1 E2E_PORT_SHIFT=800 bunx nx run fe-01:e2e` (whole gate, no grep)           | 229 passed, 4 failed, 1 skipped — none of the 4 reachable from this diff                                   |
+| `CI=1 E2E_PORT_SHIFT=800 bunx nx run fe-01:e2e` (whole gate, no grep)           | 233 passed, 3 failed, 1 skipped of 237 planned — none of the 3 reachable from this diff                    |
 | `bin/h2puni-gate.sh` (`format:check --all`, then test/lint/typecheck/build ×23) | `fe-01`, `be-01`, `gw-01`, `mcp-01` and the libs pass; 3 `tools/*` test targets fail on macOS host tooling |
 | `bunx nx run fe-01:test` (inside the gate)                                      | **pass** — 1885 tests, 60 files, 0 failed                                                                  |
 | `bunx nx run fe-01:lint` (inside the gate)                                      | **pass** — 0 errors, 1 pre-existing warning                                                                |
@@ -148,42 +170,48 @@ heavy-work lock for their whole run.
 ### The whole browser gate
 
 ```
-  4 failed
-    [chromium] › apps/fe-01/e2e/deps-cell.spec.ts:432:3 › the deps cell offers an always-visible add button › picks the add button up off the row it is hovered on, in both palettes
+Running 237 tests using 1 worker
+  3 failed
     [chromium] › apps/fe-01/e2e/keyboard.spec.ts:525:3 › the command chords, in a browser › Escape leaves the stored day alone, blur and all
     [chromium] › apps/fe-01/e2e/keyboard.spec.ts:669:3 › the command chords, in a browser › saves only the year that was typed, digit by digit, in a real Chrome
-    [chromium] › apps/fe-01/e2e/phases.spec.ts:204:3 › the phases surface, in a browser › a removal names what it would take, and takes nothing until the box is ticked
+    [chromium] › apps/fe-01/e2e/plan-surface.spec.ts:253:3 › the plan and its chart as one surface › docks the chart under the last row rather than at the bottom of the window
   1 skipped
-  229 passed (7.4m)
+  233 passed (6.3m)
 ```
 
-**None of the four is this change's, and each was identified rather than
+`233 + 3 + 1 = 237`, the count it planned — so this is the whole suite and not
+a fragment of one.
+
+**None of the three is this change's, and each was identified rather than
 assumed.** `git diff origin/main --stat` for this branch touches
-`apps/fe-01/e2e/layout.spec.ts`, `apps/fe-01/e2e/keyboard.spec.ts` and three
-markdown files — no production source at all — so none of the four is reachable
-from it.
+`apps/fe-01/e2e/layout.spec.ts` and `apps/fe-01/e2e/keyboard.spec.ts` —
+comments in both — and three markdown files. **No production source at all**, so
+nothing here can reach a spec about a chart or a date field.
 
 - The two `keyboard.spec.ts` cases are the documented locale pair: they type
   digits into a native `<input type="date">` and this host renders `dd.mm.yyyy`,
   so they fail on `Expected: "2026-07-01" / Received: "2026-01-07"` and
   `Expected: "2026-05-20" / Received: "2026-02-05"` — the month-and-day swap
   `playwright.config.ts` and `AGENTS.md` both describe.
-- `deps-cell.spec.ts:432` polls `document.getAnimations().length` to zero and
-  fails on `Expected: 0 / Received: 42`, the same figure it gives on `main`.
-- **`phases.spec.ts:204` is a live regression on `main`, and it belongs to
-  `estimate-triple-visible` rather than here.** Its line 217 asserts a folded QA
-  cell reads `3.7`; it now reads `2/3/8`, because `7afcc62 feat(wbs): a folded
-role's cell keeps the trio, and shows what it comes to` changed exactly that
-  contract without carrying `phases.spec.ts` with it. Reported rather than
-  fixed: a spec that belongs to another change is not this one's to edit.
+- `plan-surface.spec.ts:253` is a **stale test** rather than a regression:
+  `527px between the last row and the chart, against 215px anything asked for ·
+Expected: <= 217.4375 · Received: 527.4375`. The Gantt dock changed where the
+  chart sits and its spec has not caught up; another session owns the
+  correction, so it is left alone here.
+
+Two failures this file recorded earlier in the day are **gone**, and neither was
+touched here: `deps-cell.spec.ts:432`'s animation poll was a fault in its own
+theme drain, fixed on `main` (`26d6166`), and `phases.spec.ts:204` was
+`estimate-triple-visible` leaving a spec behind, fixed on `main` (`a4648e4`)
+after this file reported it.
 
 The 1 skipped is `gantt.spec.ts`'s pre-existing `test.fixme` — **no longer**
 this change's own. `the folded toolbar fits its budget` is `fixme` no more, and
 both new browser cases pass:
 
 ```
-  ✓  [chromium] › apps/fe-01/e2e/keyboard.spec.ts:429:3 › a modified Enter or Space on a freeze menu item takes nothing
-  ✓  [chromium] › apps/fe-01/e2e/layout.spec.ts:3314:3 › the folded toolbar fits its budget
+  ✓  110 [chromium] › apps/fe-01/e2e/keyboard.spec.ts:429:3 › a modified Enter or Space on a freeze menu item takes nothing (1.5s)
+  ✓  170 [chromium] › apps/fe-01/e2e/layout.spec.ts:3314:3 › the folded toolbar fits its budget (910ms)
 ```
 
 ### `bin/h2puni-gate.sh`
@@ -317,11 +345,13 @@ host could **not** answer, stated rather than glossed.
    the margin the drift would have to exceed to matter. CI's Linux Chromium has
    not yet run it. If it disagrees it fails loudly, printing both numbers, and
    the figure is re-measured there.
-3. **Four browser cases stay red and none was "fixed"** — see "Commands". Two
-   `keyboard.spec.ts` date cases and one `deps-cell.spec.ts` animation poll are
-   the documented host failures; `phases.spec.ts:204` is a live regression that
-   `estimate-triple-visible` left on `main` and is **reported, not repaired**,
-   because it is another change's spec.
+3. **Three browser cases stay red and none was "fixed"** — see "Commands". Two
+   are the documented `keyboard.spec.ts` date-segment pair, which fail for this
+   host's locale rather than for the code. `plan-surface.spec.ts:253` is a stale
+   test the Gantt dock left on `main`, **reported and left alone** because
+   another session owns its correction. Two earlier red cases —
+   `deps-cell.spec.ts:432` and `phases.spec.ts:204` — were fixed on `main` while
+   this ran and now pass here.
 4. **`nx format:check --all` and the gate ran before this file's own last
    edits.** `verify.md` and `tasks.md` are formatted and staged through
    lefthook's pre-commit `format` and `lint` hooks, which is what actually
