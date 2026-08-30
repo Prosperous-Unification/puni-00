@@ -84,15 +84,34 @@ cases moved to the modal suite.
 | `vitest run` `teams-panel` / `priorities-panel` / `phases-panel` / `project-settings-modal`   | **24 / 18 / 30 / 15 pass**, 0 fail                       |
 | `vitest run wbs-table.test.tsx plan-cards.test.tsx`                                           | **667 pass**, 0 fail (after one stale opener re-pointed) |
 | `git diff --stat main..HEAD -- apps/be-01 apps/gw-01 apps/mcp-01 libs tools bin`              | **empty** — this change reaches fe-01 and nothing else   |
-| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | _pending — queued behind three other sessions' gates_    |
-| `bunx nx format:check --all`                                                                  | _pending_                                                |
-| `bunx openspec validate --all --json`                                                         | _pending_                                                |
-| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | _pending — after the budget spec below exists_           |
+| `bunx nx run-many -t test lint typecheck build -p fe-01`, under the canonical lock            | **61 files, 1925 pass, 0 fail**; all four targets green  |
+| `bunx nx format:check --all`                                                                  | clean                                                    |
+| `bunx openspec validate --all --json`                                                         | **88 of 88**                                             |
+| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised, escapes stripped, planned = ran | _running — the budget spec is pinned and committed_      |
 
 The reachability line is the attribution for the three `tool-*` projects that
 time out under load on this host (`openspec/HANDOFF-2026-08-30.md`): a diff that
 does not touch `tools/` or `bin/` cannot reach them, however starved the machine
 is when they run, so the gate is fe-01's four targets plus format and openspec.
+
+## The toolbar budget, and the reading that would have been unfailable
+
+`tasks.md` 4.1 asks that "the folded toolbar at 1280 is no wider than before,
+with the pre-change figure pinned as a number". Measured on `main` at `1ac9344`
+in Chromium, the obvious reading of that sentence **cannot fail**: the bar's
+content width at 1280 is `1248px`, which is the bar's own width, because the
+eighteen controls already wrap to a **second row**. A full bar measures its own
+width whatever is on it — the check would pass with three buttons added and pass
+with ten removed.
+
+What does move is what the bar has to **lay out**: every control's width plus the
+gaps between them, `1445.33px` over 18 controls at a 6px gap, across `2` rows.
+Both are pinned in `e2e/project-settings.spec.ts`, and the spec asserts a
+precondition first — at least 16 controls — so a bar that lost something else
+cannot satisfy the budget by shrinking.
+
+That is `plan-toolbar-controls-gate`'s own lesson applied one change later: a
+budget pinned to the wrong bar, or resolved from the current one, is decoration.
 
 ## Failure proofs (R5)
 
