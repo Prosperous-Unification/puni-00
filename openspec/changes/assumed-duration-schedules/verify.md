@@ -159,7 +159,8 @@ Each answers exactly as it did. None of the six call sites was touched.
 | `bunx nx run-many -t lint`                                                  | **23/23 pass**                      |
 | `bunx nx format:write --all`                                                | applied                             |
 | `CI=1 E2E_PORT_SHIFT=1500 nx run fe-01:e2e -- apps/fe-01/e2e/gantt.spec.ts` | **39 passed**                       |
-| `CI=1 E2E_PORT_SHIFT=1500` whole Playwright gate                            | see "Skipped or unavailable checks" |
+| `CI=1 E2E_PORT_SHIFT=1900` whole Playwright gate, serialised                | **232 passed, 4 failed, 1 skipped** |
+| `bunx nx run-many -t test typecheck -p be-01 fe-01 domain mcp-01`           | 1213 / 1899 / 128 / 103, 0 fail     |
 | `bunx openspec validate --all --json`                                       | **valid**                           |
 
 `E2E_PORT_SHIFT=1500`, and **not** the 1700 later assigned. A shift `S` takes
@@ -225,7 +226,25 @@ blank — the same schedule, a different sentence:
 - `bin/h2puni-gate.sh` was **not** run: this is a Mac and that gate is h2puni's.
   The five commands it wraps were run individually, the whole-suite ones under
   `bin/with-heavy-lock.sh`.
-- The **whole** Playwright gate was not run to completion here; `gantt.spec.ts`
+
+### The whole browser gate, run and read (2026-08-30)
+
+**232 passed, 4 failed, 1 skipped**, serialised under the canonical heavy lock
+on shift 1900. **All four fail on `main` without this change**, and none is
+reachable from it:
+
+| Failure                        | Why it is not this change's                                                                                                                                                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `keyboard.spec.ts:516`, `:660` | The documented non-US-host pair: Chrome renders `dd.mm.yyyy` segments here, so `05202026` saves 2026-02-05. `apps/fe-01/playwright.config.ts` records `locale` and `--lang` both tried and both failing to reach the segment order.                                                                                                  |
+| `deps-cell.spec.ts:432`        | A real bug, **fixed on `main` at `26d6166`** after this run: `chooseTheme` waited for `getAnimations().length` to reach 0, which a page with 42 _finished_ `fill: backwards` transitions never does. Green once merged.                                                                                                              |
+| `plan-surface.spec.ts:253`     | **A live regression on `main` from `eb8968d`** — the docking overshoot, `527.4375px` against a `217.4375px` frame-derived allowance. Independently measured on clean `main` by the other session. Not a dependency or duration path: that fixture seeds three flat items and one estimate and contains no `Add a dependency` at all. |
+
+An earlier run of this gate on shift **1500** reported 229/4 and is **discarded**:
+another agent's suite held the same ports, so nothing in that number says what it
+measured. This one held the lock alone.
+
+- Superseded: the whole Playwright gate was not run to completion earlier;
+  `gantt.spec.ts`
   was, in full, on shifted ports. Every other spec is a claim about the table,
   the keyboard or the directory rather than about dates, and none of them seeds a
   plan whose assertions read a schedule — but that is a reading of the specs and
