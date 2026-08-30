@@ -59,7 +59,12 @@ run_suite() {
   HEAVY_LOCK_WAIT_SECONDS=60 WBS_HEAVY_LOCK=$lock "$sh" "$runner" -- true || status=$?
   local waited=$((SECONDS - started))
   expect_status 0 "$status" "3a: a queueing run gets its turn"
-  if [[ $waited -ge 4 ]]; then pass "3b: it waited ${waited}s for the holder"; else fail "3b: it waited only ${waited}s, so it did not queue"; fi
+  # 3s against a 6s holder. The queueing run polls every 5s, so a genuine queue
+  # cannot come back under ~5 — but the holder is a real process and a loaded host
+  # can be slow to start it, which shortens the window without meaning anything.
+  # A run that did not queue at all returns in milliseconds, so 3 still separates
+  # the two cases by an order of magnitude.
+  if [[ $waited -ge 3 ]]; then pass "3b: it waited ${waited}s for the holder"; else fail "3b: it waited only ${waited}s, so it did not queue"; fi
   wait "$holder_job"
 
   status=0
@@ -75,7 +80,12 @@ run_suite() {
   HEAVY_LOCK_WAIT_SECONDS=15 WBS_HEAVY_LOCK="$readonly_dir/lock" "$sh" "$runner" -- true || status=$?
   waited=$((SECONDS - started))
   expect_status 70 "$status" "5a: an unwritable lock directory throws"
-  if [[ $waited -lt 5 ]]; then pass "5b: it threw at once rather than spinning (${waited}s)"; else fail "5b: it spun ${waited}s against a lock nobody can take"; fi
+  # 10s, not 5, against a 15s budget. The fault this watches turned a 0s exit-70
+  # into a **16s** spin, so anything below the budget still catches it — and the
+  # tighter bound was load-sensitive: this suite runs on a machine that may have a
+  # full Nx gate on it, where a "0s" operation can take several. A negative whose
+  # verdict depends on how busy the host is reports on the host, not on the code.
+  if [[ $waited -lt 10 ]]; then pass "5b: it threw at once rather than spinning (${waited}s)"; else fail "5b: it spun ${waited}s against a lock nobody can take"; fi
   chmod 700 "$readonly_dir" && rm -rf "$readonly_dir"
 
   # Case 6 — the guard is the pid-format check. Broken, it reclaims a lock whose

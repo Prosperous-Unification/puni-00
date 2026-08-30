@@ -2129,6 +2129,27 @@ test.describe('a bar on a touch screen', () => {
  * recorded.
  */
 
+/**
+ * Grabs the edge, drags it `travel` px down (negative is up) with real
+ * moves, and measures the panel **before letting go**. Mid-flight, not
+ * after: the release commits the height on its own, so a follow that died
+ * would be papered over by the commit — this run's first negative, watched
+ * doing exactly that with the move application short-circuited and both
+ * tests green through it. The mid-drag height is what the pointer is owed.
+ */
+async function dragTheEdge(page: Page, travel: number): Promise<Rect> {
+  const grip = await page.locator('[data-gantt-height-handle]').boundingBox();
+  if (grip === null) throw new Error('the height handle is not on the page');
+  const fromX = grip.x + grip.width / 2;
+  const fromY = grip.y + grip.height / 2;
+  await page.mouse.move(fromX, fromY);
+  await page.mouse.down();
+  await page.mouse.move(fromX, fromY + travel, { steps: 8 });
+  const midFlight = await rectOf(page, '[data-gantt-panel]');
+  await page.mouse.up();
+  return midFlight;
+}
+
 test.describe('the chart edge the reader drags', () => {
   /**
    * Every `wbs.ganttHeight.*` value this page holds. The project's id is
@@ -2141,27 +2162,6 @@ test.describe('the chart edge the reader drags', () => {
         .filter((key) => key.startsWith('wbs.ganttHeight.'))
         .map((key) => localStorage.getItem(key) ?? ''),
     );
-
-  /**
-   * Grabs the edge, drags it `travel` px down (negative is up) with real
-   * moves, and measures the panel **before letting go**. Mid-flight, not
-   * after: the release commits the height on its own, so a follow that died
-   * would be papered over by the commit — this run's first negative, watched
-   * doing exactly that with the move application short-circuited and both
-   * tests green through it. The mid-drag height is what the pointer is owed.
-   */
-  async function dragTheEdge(page: Page, travel: number): Promise<Rect> {
-    const grip = await page.locator('[data-gantt-height-handle]').boundingBox();
-    if (grip === null) throw new Error('the height handle is not on the page');
-    const fromX = grip.x + grip.width / 2;
-    const fromY = grip.y + grip.height / 2;
-    await page.mouse.move(fromX, fromY);
-    await page.mouse.down();
-    await page.mouse.move(fromX, fromY + travel, { steps: 8 });
-    const midFlight = await rectOf(page, '[data-gantt-panel]');
-    await page.mouse.up();
-    return midFlight;
-  }
 
   test('gives the chart the screen the pointer asks for, remembers it, and resets', async ({
     page,
@@ -2384,6 +2384,265 @@ test.describe('the chart edge the reader drags', () => {
     const inFlight = await rectOf(page, '[data-gantt-panel]');
     await page.mouse.up();
     expect(Math.abs(inFlight.height - (before.height + 120))).toBeLessThanOrEqual(1.5);
+  });
+});
+
+/**
+ * The bottom edge of a panel the reader has dragged short.
+ *
+ * Dany's report, 2026-08-29, with screenshots: dragging the divider down leaves
+ * the chart cut through a row, and macOS draws its scrollbars as overlays —
+ * invisible until something moves them. Measured in Chromium against the dev
+ * server at `height: 124` over a `scrollHeight` of 196: the panel scrolls, and
+ * reads as broken.
+ *
+ * **Every check here is one jsdom cannot make**, which is the whole reason the
+ * block is in this file rather than in `gantt-panel.test.tsx`. A fold is
+ * `scrollHeight` against `clientHeight`, a sticky axis is a paint position, and
+ * a bar sitting on its own label is two rectangles: jsdom answers 0 to all of
+ * them and would watch every fault below pass. That is the fault class
+ * `AGENTS.md` R5 counts five shipped instances of.
+ */
+test.describe('the bottom edge of a chart dragged short', () => {
+  /** What the panel's scroll box says about itself, as the browser has it. */
+  const scrollOf = (
+    page: Page,
+  ): Promise<{ clientHeight: number; scrollHeight: number; scrollTop: number }> =>
+    page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (!(panel instanceof HTMLElement)) throw new Error('the Gantt panel is not on the page');
+      return {
+        clientHeight: panel.clientHeight,
+        scrollHeight: panel.scrollHeight,
+        scrollTop: panel.scrollTop,
+      };
+    });
+
+  /**
+   * Drags the edge down and refuses to go on unless the chart really overflows
+   * the panel afterwards.
+   *
+   * The premise of every case here is that there is chart below the edge. A
+   * panel that still held all of it would draw no cue and take the bottom half
+   * of each test with it — the check would be about a chart that is not there,
+   * which is the shape of vacuity this repository keeps a tally of.
+   */
+  async function shrinkPastTheChart(page: Page, travel: number): Promise<void> {
+    await dragTheEdge(page, travel);
+    const port = await scrollOf(page);
+    expect(
+      port.scrollHeight,
+      'the panel still holds the whole chart, so there is no fold to test',
+    ).toBeGreaterThan(port.clientHeight + 1);
+  }
+
+  /** The painted fade, which is drawn only while there is chart below the edge. */
+  const fade = (page: Page): Locator => page.locator('[data-gantt-more-below]');
+
+  /** Puts the panel at a scroll offset and says where it landed. */
+  const scrollThePanel = (page: Page, to: number): Promise<number> =>
+    page.evaluate((offset) => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (!(panel instanceof HTMLElement)) throw new Error('the Gantt panel is not on the page');
+      panel.scrollTop = offset;
+      return panel.scrollTop;
+    }, to);
+
+  /**
+   * How much of the panel's visible width the fade really covers, in CSS
+   * pixels — their overlap, not the fade's own width.
+   *
+   * One number rather than an assertion on each edge, and that is R5's doing:
+   * a fade that slides away with the calendar goes **left**, so a `left <=
+   * panel.left` check passes for the very fault the case exists to catch and
+   * could never be watched failing. The overlap falls for a fade that is too
+   * narrow and for one displaced either way.
+   */
+  const bandCovered = (fade: Rect, panel: Rect): number =>
+    Math.min(fade.right, panel.right) - Math.max(fade.left, panel.left);
+
+  test('fades while there is chart below it, and lifts at the last row', async ({ page }) => {
+    // Seven rows: enough that a dragged panel cannot hold them, few enough that
+    // the panel at rest can — the two halves of this case are the same fixture
+    // at two heights.
+    await seedPlan(page, nextAccount(), { extraRows: 4 });
+    await openTheChart(page);
+
+    const atRest = await scrollOf(page);
+    expect(
+      atRest.scrollHeight,
+      'the chart already overflows the panel at rest, so the cue below says nothing',
+    ).toBeLessThanOrEqual(atRest.clientHeight + 1);
+    // Proof: with the condition dropped — `{true && (…)}` in place of
+    // `{moreBelow && (…)}` — this failed on `a chart with nothing below it is
+    // still fading its edge … Expected: 0, Received: 1`. Watched in Chromium
+    // 2026-08-29.
+    await expect(fade(page), 'a chart with nothing below it is still fading its edge').toHaveCount(
+      0,
+    );
+
+    await shrinkPastTheChart(page, 120);
+
+    // Proof: with the cue never drawn — `{false && (…)}` in place of
+    // `{moreBelow && (…)}` — this failed on `page.evaluate: Error: nothing on
+    // the page at [data-gantt-more-below]`. Watched in Chromium 2026-08-29.
+    const cue = await rectOf(page, '[data-gantt-more-below]');
+    const panel = await rectOf(page, '[data-gantt-panel]');
+    expect(
+      Math.abs(cue.bottom - panel.bottom),
+      'the fade is not on the edge it is about',
+    ).toBeLessThanOrEqual(NEARLY);
+    expect(cue.top, 'the fade covers the whole panel rather than its edge').toBeGreaterThan(
+      panel.top,
+    );
+    // Proof: with `min-w-full` struck from the cue's class list, this failed on
+    // `the fade does not reach across the panel … Expected: >= 1367, Received:
+    // 536` — the fade as wide as the chart's own content (176px of names and a
+    // six-day calendar) on a 1368px panel. Watched in Chromium 2026-08-29.
+    expect(
+      bandCovered(cue, panel),
+      'the fade does not reach across the panel',
+    ).toBeGreaterThanOrEqual(panel.width - NEARLY);
+
+    // At the last row there is nothing below to promise, and the cue goes.
+    //
+    // Proof: with the reader's own offset dropped from the sum —
+    // `chartBelowTheFold` returning `scrollHeight - clientHeight` — this failed
+    // on `the fade is still over the chart at its last row … Expected: 0,
+    // Received: 1`. That is the fault worth catching here rather than the cue
+    // deleted: a chart that overflows at all would fade for ever, whatever the
+    // reader did about it. Watched in Chromium 2026-08-29.
+    const bottom = await scrollThePanel(page, 10_000);
+    expect(bottom, 'the panel did not scroll, so the cue had no reason to lift').toBeGreaterThan(0);
+    await expect(fade(page), 'the fade is still over the chart at its last row').toHaveCount(0);
+
+    // And it comes back on the way up: the cue is a fact about where the reader
+    // is, not a one-way switch. **Here to say so rather than to catch it** —
+    // every fault that stops the cue tracking the scroll leaves it drawn at the
+    // last row, so it is the line above that goes red, and this one has never
+    // been watched failing on its own.
+    await scrollThePanel(page, 0);
+    await expect(fade(page), 'the fade did not come back above the last row').toHaveCount(1);
+  });
+
+  test('covers the visible band with the calendar scrolled right', async ({ page }) => {
+    // Wide enough that 1400px cannot hold it — `holds the labels at the left
+    // edge` uses the same 80-workday horizon — and tall enough that a dragged
+    // panel cannot either.
+    await seedPlan(page, nextAccount(), { estimate: '40/40/40', extraRows: 4 });
+    await openTheChart(page);
+    await shrinkPastTheChart(page, 120);
+    await scrollChartFullyRight(page);
+
+    // The cue lives in the panel's own scroll box, so a cue as wide as the box
+    // is one pinned at the content's left edge: it slides away with the
+    // calendar and leaves the fold it is about bare.
+    //
+    // Proof: with the measured span replaced by the box — `width: '100%'` in
+    // place of `width: chartSpanPx ?? '100%'` — this failed on `the fade does
+    // not reach across the panel … Expected: >= 1367, Received: -656`: the cue
+    // had scrolled 656px past the panel's left edge and covered none of it.
+    // Watched in Chromium 2026-08-29.
+    const cue = await rectOf(page, '[data-gantt-more-below]');
+    const panel = await rectOf(page, '[data-gantt-panel]');
+    expect(
+      bandCovered(cue, panel),
+      'the fade does not reach across the panel',
+    ).toBeGreaterThanOrEqual(panel.width - NEARLY);
+  });
+
+  test('keeps the calendar over the bars, and every bar on its own label', async ({ page }) => {
+    // Costed extras, because this case is about bars: uncosted rows draw a
+    // label and nothing beside it, and there would be nothing to pair.
+    await seedPlan(page, nextAccount(), { extraRows: 4, costedExtras: true });
+    await openTheChart(page);
+    await shrinkPastTheChart(page, 120);
+
+    const moved = await scrollThePanel(page, 2 * ROW_PX);
+    expect(moved, 'the panel did not scroll, so nothing was carried past the axis').toBeGreaterThan(
+      0,
+    );
+
+    // The dates stay put. A calendar that rides up with the chart takes every
+    // bar's day with it, and a reader who scrolled two rows is looking at a
+    // chart that no longer says when anything happens.
+    //
+    // Proof: with `sticky top-0` struck from `[data-gantt-axis]`'s class list,
+    // this failed on `the calendar rode up with the chart … Expected: <= 1,
+    // Received: 56` — the two rows the panel had been scrolled by. Watched in
+    // Chromium 2026-08-29.
+    const stuck = await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (!(panel instanceof HTMLElement)) throw new Error('the Gantt panel is not on the page');
+      const axis = panel.querySelector('[data-gantt-axis]');
+      if (axis === null) throw new Error('the chart drew no calendar axis');
+      // The panel's own top border is not content: the axis stands under it.
+      const border = Number.parseFloat(getComputedStyle(panel).borderTopWidth);
+      if (!Number.isFinite(border)) throw new Error('the panel has no computed top border');
+      return {
+        contentTop: panel.getBoundingClientRect().top + border,
+        axisTop: axis.getBoundingClientRect().top,
+      };
+    });
+    expect(
+      Math.abs(stuck.axisTop - stuck.contentTop),
+      'the calendar rode up with the chart',
+    ).toBeLessThanOrEqual(NEARLY);
+
+    // And a name is still level with its own bar. The label column scrolls
+    // vertically with the chart and holds only horizontally — the corner over
+    // it is what keeps the first name beside the first cell rather than under
+    // the axis, and a chart whose rows have slipped a row against their names
+    // is worse than one that is merely cut.
+    //
+    // Proof: with the label column's sticky corner spacer deleted — the one row
+    // of height that puts the first name beside the first cell — this failed on
+    // `these bars are not on their own row`, four entries against an empty
+    // array, the first `010.2: bar 566.3524780273438–584.2725219726562 against
+    // label 533.3125–561.3125`. Watched in Chromium 2026-08-29.
+    const paired = await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (!(panel instanceof HTMLElement)) throw new Error('the Gantt panel is not on the page');
+      const axis = panel.querySelector('[data-gantt-axis]');
+      if (axis === null) throw new Error('the chart drew no calendar axis');
+      // Only what the reader can see under the calendar: a bar scrolled out of
+      // the box is nobody's evidence about alignment.
+      const band = {
+        top: axis.getBoundingClientRect().bottom,
+        bottom: panel.getBoundingClientRect().bottom,
+      };
+      const labels = new Map<string, DOMRect>();
+      for (const label of panel.querySelectorAll('[data-gantt-label]')) {
+        const id = label.getAttribute('data-gantt-label') ?? '';
+        labels.set(id, label.getBoundingClientRect());
+      }
+      const checked: string[] = [];
+      const slipped: string[] = [];
+      for (const bar of panel.querySelectorAll('[data-gantt-bar]')) {
+        const box = bar.getBoundingClientRect();
+        if (box.top < band.top || box.bottom > band.bottom) continue;
+        // A slice id is `${workItemId} ${roleId}`, and the label is the
+        // work item's.
+        const sliceId = bar.getAttribute('data-gantt-bar') ?? '';
+        const rowId = sliceId.split(' ')[0] ?? '';
+        const label = labels.get(rowId);
+        if (label === undefined) throw new Error(`the bar ${sliceId} has no row label to sit on`);
+        checked.push(rowId);
+        if (box.top < label.top - 1 || box.bottom > label.bottom + 1) {
+          const number = bar.getAttribute('aria-label')?.split(' - ')[0] ?? rowId;
+          slipped.push(
+            `${number}: bar ${String(box.top)}–${String(box.bottom)} against label ` +
+              `${String(label.top)}–${String(label.bottom)}`,
+          );
+        }
+      }
+      return { checked, slipped };
+    });
+    expect(
+      paired.checked.length,
+      'no bar was on screen under the calendar, so nothing was compared',
+    ).toBeGreaterThan(0);
+    expect(paired.slipped, 'these bars are not on their own row').toEqual([]);
   });
 });
 

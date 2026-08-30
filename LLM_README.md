@@ -94,25 +94,25 @@ contract: `docs/runbook-prod-deploy.md`.**
   banded-hover rule's `:not()` chain and never land on a row the pointer already hovers, or the rule
   is unmatchable and the stripe stops tinting. Negative must hover that row (`linked-row-hover`).
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
-  code. The check parses the route for this environment's host and reads the upstream on the
-  tier's port (`routedColorFromAdminConfig`); a substring test until 2026-08-04, which matched
-  `be-01-blue` inside dev's `dev-be-01-blue` and read prod's colour wrong.
+  code — `routedColorFromAdminConfig` parses the route and reads the tier's port. A substring
+  test until 2026-08-04 matched `be-01-blue` inside `dev-be-01-blue` and read prod's colour wrong.
 - `be-01.internal` resolves to **both colours** mid-swap (round-robin). Two releases, one DB file.
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
   `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` anywhere else under
   `apps/be-01/src`, because `busy_timeout`/`foreign_keys` are per-connection and a direct
-  `new Database()` silently loses them. `boot.ts` opens through `openConnection` in that same
-  file for the same reason, and closes through the handle it returns — reaching into drizzle's
-  `$client` is the same bypass one layer along.
+  `new Database()` — or a reach into drizzle's `$client` — silently loses them. `boot.ts` opens
+  and closes through `openConnection` for that reason.
 - **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`) — 66 tests
-  green against another checkout, 2026-08-09, and a reused server keeps its own `DB_PATH`, so
-  signups land in your `local.db`. Run `CI=1 bunx playwright test --config …` with the ports free.
+  green against another checkout, 2026-08-09, and a reused server keeps its own `DB_PATH`. Run
+  `CI=1 E2E_PORT_SHIFT=<n>` on free ports; a killed run leaves its shifted servers up.
+- **A whole-workspace run is not the sum of per-project runs.** Six import-sort errors reached
+  `main` on 2026-08-30 green in every per-project run — imports inserted by regex rather than by
+  editing the block. Per-project lint was scoped to a place the fault was not: gate before merging.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
-- Server umask is `0002` — give sensitive files their mode at birth, never chmod after
-  (`configure.sh` does not yet honour this; see findings).
+- Server umask is `0002` — mode at birth, never chmod after (`configure.sh` does not; see findings).
 - `--platform linux/amd64` is pinned **on the Dagger publish path**, which is the only supported one.
   A hand-run `docker build` from the Dockerfiles is not pinned. Dev is arm64, server is amd64.
 

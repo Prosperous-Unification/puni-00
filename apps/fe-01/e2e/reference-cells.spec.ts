@@ -260,9 +260,24 @@ test('round-trips every desktop reference set with three reachable values in bot
     await page.mouse.move(0, 0);
   }
 
-  await page.getByRole('button', { name: `Remove ${seeded.teams[0].name} team` }).click();
-  await page.getByRole('button', { name: `Remove ${seeded.tags[0].name} from 010` }).click();
-  await page.getByRole('button', { name: `Remove ${seeded.services[0].name} from 010` }).click();
+  // Opened first, and that is the contract rather than a workaround. A rest
+  // line is one clipped line: a chip past the column's edge is drawn as a
+  // sliver and its `✕` may be under the search box beside it, which — being
+  // later in the DOM — takes the press. Reaching it is what opening the cell
+  // is *for*, and the panel wraps every chip into reach.
+  //
+  // Written without the focus, this timed out at 60s on `<input …
+  // aria-label="Tags for 010"> from <span data-reference-search> subtree
+  // intercepts pointer events` — the whole-gate run, 2026-08-29, and the fault
+  // that put `overflow: hidden` on the chip group.
+  const removeFrom = async (label: string, button: string): Promise<void> => {
+    await page.getByRole('combobox', { name: label, exact: true }).focus();
+    await page.getByRole('button', { name: button }).click();
+    await page.getByRole('combobox', { name: label, exact: true }).blur();
+  };
+  await removeFrom('Service or team for 010', `Remove ${seeded.teams[0].name} team`);
+  await removeFrom('Tags for 010', `Remove ${seeded.tags[0].name} from 010`);
+  await removeFrom('Services for 010', `Remove ${seeded.services[0].name} from 010`);
   await page.getByRole('button', { name: 'Stop 040 waiting for 010' }).click();
   await page.reload();
 

@@ -696,7 +696,7 @@
                             },
                             "patch": {
                               "type": "object",
-                              "description": "Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds (ids), teamRefs, tagRefs, serviceRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived."
+                              "description": "Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds, typeIds (ids), teamRefs, tagRefs, serviceRefs, typeRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived."
                             }
                           },
                           "required": [
@@ -1542,6 +1542,88 @@
                             "tagRef": {
                               "type": "string",
                               "description": "The tag — the `ref` an earlier command in this batch gave it."
+                            },
+                            "cascade": {
+                              "type": "boolean",
+                              "description": "Take the labels or memberships that use it off as well. Absent refuses an entry still in use."
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "title": "createWorkItemType",
+                          "description": "Add a work item type to the directory.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "createWorkItemType"
+                              ]
+                            },
+                            "ref": {
+                              "type": "string",
+                              "description": "A name for the type, usable by later commands in this batch."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The type."
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "title": "patchWorkItemType",
+                          "description": "Rename a work item type.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "patchWorkItemType"
+                              ]
+                            },
+                            "typeId": {
+                              "type": "string",
+                              "description": "The type."
+                            },
+                            "typeRef": {
+                              "type": "string",
+                              "description": "The type — the `ref` an earlier command in this batch gave it."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Its new name."
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "title": "deleteWorkItemType",
+                          "description": "Remove a work item type from the directory.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "deleteWorkItemType"
+                              ]
+                            },
+                            "typeId": {
+                              "type": "string",
+                              "description": "The type."
+                            },
+                            "typeRef": {
+                              "type": "string",
+                              "description": "The type — the `ref` an earlier command in this batch gave it."
                             },
                             "cascade": {
                               "type": "boolean",
@@ -1751,7 +1833,7 @@
                             },
                             "patch": {
                               "type": "object",
-                              "description": "Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds (ids), teamRefs, tagRefs, serviceRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived."
+                              "description": "Any of: name, notes, startNoEarlierThan (ISO date or null), startNoEarlierThanReason, priority (whole number ≥ 1 or null), teamIds, tagIds, serviceIds, typeIds (ids), teamRefs, tagRefs, serviceRefs, typeRefs (refs from this batch), maxParallel. Never number or frozenNumber — those are derived."
                             }
                           },
                           "required": [
@@ -2609,6 +2691,88 @@
                         },
                         {
                           "type": "object",
+                          "title": "createWorkItemType",
+                          "description": "Add a work item type to the directory.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "createWorkItemType"
+                              ]
+                            },
+                            "ref": {
+                              "type": "string",
+                              "description": "A name for the type, usable by later commands in this batch."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The type."
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "title": "patchWorkItemType",
+                          "description": "Rename a work item type.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "patchWorkItemType"
+                              ]
+                            },
+                            "typeId": {
+                              "type": "string",
+                              "description": "The type."
+                            },
+                            "typeRef": {
+                              "type": "string",
+                              "description": "The type — the `ref` an earlier command in this batch gave it."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Its new name."
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "title": "deleteWorkItemType",
+                          "description": "Remove a work item type from the directory.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "deleteWorkItemType"
+                              ]
+                            },
+                            "typeId": {
+                              "type": "string",
+                              "description": "The type."
+                            },
+                            "typeRef": {
+                              "type": "string",
+                              "description": "The type — the `ref` an earlier command in this batch gave it."
+                            },
+                            "cascade": {
+                              "type": "boolean",
+                              "description": "Take the labels or memberships that use it off as well. Absent refuses an entry still in use."
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
                           "title": "createService",
                           "description": "Add a service to the directory.",
                           "properties": {
@@ -2754,6 +2918,16 @@
     "/api/services": {
       "get": {
         "operationId": "getApiServices"
+      }
+    },
+    "/api/work-item-types": {
+      "get": {
+        "operationId": "getApiWork-item-types"
+      }
+    },
+    "/api/external-systems": {
+      "get": {
+        "operationId": "getApiExternal-systems"
       }
     },
     "/api/projects/{id}/history": {

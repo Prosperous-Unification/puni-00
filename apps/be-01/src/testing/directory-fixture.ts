@@ -8,6 +8,7 @@ import type {
   Service,
   ServiceTeam,
   Tag,
+  WorkItemType,
 } from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
@@ -36,6 +37,7 @@ export function inMemoryDirectory(): DirectoryStore {
   const teams = new Map<string, ServiceTeam>();
   const tags = new Map<string, Tag>();
   const services = new Map<string, Service>();
+  const workItemTypes = new Map<string, WorkItemType>();
   const people = new Map<string, Person>();
   const memberships = new Map<string, Set<string>>();
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
@@ -90,10 +92,64 @@ export function inMemoryDirectory(): DirectoryStore {
         members: [],
         capacityOf: new Map<string, number>(),
       }),
+    // Seeded, as the migration seeds the real table: `systemOfUrl` can answer
+    // these names, so a fake that answered an empty list would let a ref write
+    // fail here for a reason the real store does not have.
+    listExternalSystems: () =>
+      Promise.resolve([
+        { id: 'sys-jira-issue', name: 'jira-issue' },
+        { id: 'sys-github-pr', name: 'github-pr' },
+        { id: 'sys-github-issue', name: 'github-issue' },
+        { id: 'sys-confluence-page', name: 'confluence-page' },
+        { id: 'sys-slack-message', name: 'slack-message' },
+      ]),
     removeTag(tagId) {
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       tags.delete(tagId);
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+    },
+    listWorkItemTypes: () =>
+      Promise.resolve([...workItemTypes.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    // `addTag`'s shape and its caveat: idempotent by name as the repository is at
+    // its unique index, with no cascade, because an in-memory store models no
+    // foreign keys. The type write path's own tests run against real SQLite.
+    addWorkItemType(toAdd) {
+      const already = [...workItemTypes.values()].find((each) => each.name === toAdd.name);
+      if (already !== undefined) return Promise.resolve(already);
+      workItemTypes.set(toAdd.id, toAdd);
+      return Promise.resolve(toAdd);
+    },
+    renameWorkItemType(typeId, name) {
+      const found = workItemTypes.get(typeId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      // The unique index, modelled, for `renameTag`'s reason: a fixture that let
+      // two `Bug` types exist would let a caller's `taken` branch pass untested.
+      const held = [...workItemTypes.values()].some(
+        (each) => each.name === name && each.id !== typeId,
+      );
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const renamed = { id: typeId, name };
+      workItemTypes.set(typeId, renamed);
+      return Promise.resolve({ ok: true, workItemType: renamed, projectIds: [] });
+    },
+    // Not modelled beyond the shape, for `usageOfTag`'s reason exactly: no work
+    // items and no foreign keys here, so the counting that decides a removal
+    // cannot exist in this store.
+    usageOfWorkItemType: () =>
+      Promise.resolve({
+        workItems: [],
+        projects: [],
+        assignments: [],
+        roles: [],
+        people: [],
+        members: [],
+        capacityOf: new Map<string, number>(),
+      }),
+    removeWorkItemType(typeId) {
+      const found = workItemTypes.get(typeId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      workItemTypes.delete(typeId);
       return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
     },
     listServices: () =>
