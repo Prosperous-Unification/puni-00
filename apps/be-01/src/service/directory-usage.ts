@@ -223,6 +223,37 @@ export function directoryUsageOfTag(rows: DirectoryUsageRows, tagId: string): Di
 }
 
 /**
+ * What removing one **work item type** would take with it: the labelling, and
+ * nothing else — {@link directoryUsageOfTag}'s shape and every one of its
+ * absences.
+ *
+ * No `capacity_released`, because a type has no pool: no size on the table and
+ * no per-project capacity beside it, so there is nothing a removal could give
+ * back. `label_removed` rather than `label_nulled`, because there is no column
+ * to null — a row's types are rows in `work_item_work_item_type`, and what a
+ * cascade takes is the row.
+ *
+ * **No inherited arm, and here that is not a judgement call.** For a tag it is
+ * one: an inherited tag exists and the function chooses not to name the rows
+ * that only inherit it, because losing one moves no date. For a type there is
+ * nothing to choose — the dimension does not inherit at all
+ * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so the rows
+ * that state the type are the only rows a removal touches, and the confirmation
+ * naming exactly those is complete rather than a deliberate narrowing.
+ *
+ * Read off the row's own set, which for this dimension is also the whole of what
+ * a reader sees.
+ */
+export function directoryUsageOfWorkItemType(
+  rows: DirectoryUsageRows,
+  typeId: string,
+): DirectoryUsage {
+  return usageFrom(rows, (row) =>
+    row.typeIds.includes(typeId) ? [{ kind: 'label_removed' }] : [],
+  );
+}
+
+/**
  * What removing one **service** would take with it: the label, and nothing else.
  *
  * `label_removed` rather than `label_nulled`, and the difference is literal:

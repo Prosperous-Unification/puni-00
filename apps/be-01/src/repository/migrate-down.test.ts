@@ -167,6 +167,8 @@ const ROLE_MEASURE = '20260821140000_add_role_measure';
 const PERSON_KIND = '20260821150000_add_person_kind';
 const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
+const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
+const EXTERNAL_REF = '20260830020000_add_external_ref';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -265,6 +267,8 @@ describe('readMigrationFolders', () => {
       PERSON_KIND,
       OIDC_IDENTITY,
       SOLUTION_REF,
+      WORK_ITEM_TYPE,
+      EXTERNAL_REF,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -366,11 +370,15 @@ describe('rollbackTo, against a real database', () => {
         PERSON_KIND,
         OIDC_IDENTITY,
         SOLUTION_REF,
+        WORK_ITEM_TYPE,
+        EXTERNAL_REF,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        EXTERNAL_REF,
+        WORK_ITEM_TYPE,
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
@@ -449,6 +457,8 @@ describe('rollbackTo, against a real database', () => {
         PERSON_KIND,
         OIDC_IDENTITY,
         SOLUTION_REF,
+        WORK_ITEM_TYPE,
+        EXTERNAL_REF,
       ]);
     } finally {
       db.cleanup();
@@ -462,6 +472,8 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        EXTERNAL_REF,
+        WORK_ITEM_TYPE,
         SOLUTION_REF,
         OIDC_IDENTITY,
         PERSON_KIND,
@@ -519,7 +531,15 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      expect(rollbackTo(db.path, FOLDER, SOLUTION_REF)).toEqual([]);
+      // The newest applied is `external_ref`, so rolling back *to* it reverses
+      // nothing. Each step down names everything newer than its target, newest
+      // first — which is the half a shared stamp would silently empty.
+      expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TYPE)).toEqual([EXTERNAL_REF]);
+      // Only the type, because the line above already reversed the ref —
+      // `rollbackTo` performs the rollback rather than describing it, so each
+      // step here starts from what the previous one left.
+      expect(rollbackTo(db.path, FOLDER, SOLUTION_REF)).toEqual([WORK_ITEM_TYPE]);
       expect(rollbackTo(db.path, FOLDER, OIDC_IDENTITY)).toEqual([SOLUTION_REF]);
       // And the one before it still answers with exactly what is newer than it,
       // which is the half of this case a shared stamp would silently empty.

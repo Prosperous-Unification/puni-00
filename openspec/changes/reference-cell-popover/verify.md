@@ -99,22 +99,66 @@ layout, so a row's height, a cell's scroll offset and a list's painted height
 are all invisible to it — `AGENTS.md` R5 #14/#15 and the four repeats after
 them.
 
+## A fourth fault, found only by the whole gate
+
+A filtered run could not have seen it, which is the argument for task 5.1.
+
+With three tags in a 120px cell the chip group shrinks below its content, and a
+`visible` overflow drew the last chip **straight across the search box beside
+it**. The box is later in the DOM, so it took the press: measured live at
+`chips` 750–835 with a `scrollWidth` of 101, the last chip's own box running to
+851, and the input standing at 839. Playwright reported it as `<input …
+aria-label="Tags for 010"> from <span data-reference-search> subtree intercepts
+pointer events` — a 60-second timeout on a `✕` that a person would simply have
+found dead.
+
+The group clips at rest now and does not while the panel is open, where the
+chips wrap into reach and there is nothing to clip. `round-trips every desktop
+reference set` opens each cell before taking a member off it, which is the
+gesture the panel exists for.
+
 ## What was run
 
 ```
-bunx vitest run --root apps/fe-01 src/components/wbs/reference-set-field.test.tsx \
-  src/components/wbs/table-frame.test.ts          → 64 passed
-bunx vitest run --root apps/fe-01 src/components/wbs/wbs-table.test.tsx \
-  -t "does not clip the cells whose popovers"     → 1 passed
-CI=1 E2E_PORT_SHIFT=500 nx run fe-01:e2e -- apps/fe-01/e2e/reference-cells.spec.ts
-                                                 → 3 passed
+bunx vitest run --root apps/fe-01 reference-set-field.test.tsx table-frame.test.ts
+                                                      → 64 passed
+bunx vitest run --root apps/fe-01 wbs-table.test.tsx   → 547 passed
+bunx vitest run --root apps/fe-01 vite-config.test.ts
+                     playwright-config.test.ts        → 16 passed
+CI=1 E2E_PORT_SHIFT=500 nx run fe-01:e2e               → 220 passed, 3 failed
+bunx openspec validate reference-cell-popover --json   → 1 passed, 0 failed
 ```
+
+**The three browser failures are this machine's, not this change's, and each was
+checked rather than assumed:**
+
+| Failure                                   | Evidence it is not this change                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keyboard.spec.ts` Escape/date-typing, ×2 | Recorded in `AGENTS.md` and in `playwright.config.ts`'s own comments: Chrome draws a native `input[type=date]`'s segments in the host's order, and neither `locale: 'en-US'` nor `--lang=en-US` changes it. Green in CI, red on a non-US host. |
+| `deps-cell.spec.ts:432` animation poll    | **Re-run against `main` tonight** in a baseline worktree: fails identically, `Expected: 0 / Received: 42`. Pre-existing.                                                                                                                       |
+
+`wbs-table.test.tsx` was also run against `main` (547 passed) and against this
+branch (547 passed), because an earlier run of the full suite reported 30
+failures. That run was worthless: source files were being edited while it read
+them. **Do not edit a tree during a long suite** — the failures it invents look
+exactly like the ones it would find.
 
 The port shift itself was proved before anything depended on it: be-01 on 3600,
 gw-01 on 3700, Vite on 4700, three specs green, while `bun run dev` held
 3100/3200/4200 in the same checkout.
 
-## Not done
+## Not done, and one thing that cannot be
 
-The whole-gate run required by task 5.1 is recorded in this file's final state.
-Nothing here has been merged or pushed.
+`bin/h2puni-gate.sh` was **not** run, and on this machine it cannot be: it
+delegates to `bin/with-heavy-lock.sh`, which hardcoded a Linux path and used
+`flock`, so it exits 127 on macOS. Every local run has therefore always been
+unserialised — a check in the gate itself that could not fail, found tonight by
+another session and fixed on `fix/heavy-work-lock`. The individual targets that
+script would have run were run directly instead, and are listed above.
+
+A killed gate leaves its `webServer` children alive on the shifted ports, so a
+shift is not reusable after a kill until they are cleared:
+`for p in 3600 3700 4700; do kill $(lsof -ti :$p); done`. `CI=1` refuses rather
+than silently measuring the orphan, which is the right failure.
+
+Nothing here has been pushed.

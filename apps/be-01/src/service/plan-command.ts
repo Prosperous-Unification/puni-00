@@ -33,7 +33,12 @@ export type PlanCommand =
     }
   | ({
       kind: 'patchWorkItem';
-      patch: WorkItemPatch & { serviceRefs?: string[]; tagRefs?: string[]; teamRefs?: string[] };
+      patch: WorkItemPatch & {
+        serviceRefs?: string[];
+        tagRefs?: string[];
+        teamRefs?: string[];
+        typeRefs?: string[];
+      };
     } & Target)
   | ({
       kind: 'moveWorkItem';
@@ -80,6 +85,9 @@ export type PlanCommand =
   | { kind: 'createTag'; ref?: string; name: string }
   | { kind: 'patchTag'; tagId?: string; tagRef?: string; name: string }
   | { kind: 'deleteTag'; tagId?: string; tagRef?: string; cascade?: boolean }
+  | { kind: 'createWorkItemType'; ref?: string; name: string }
+  | { kind: 'patchWorkItemType'; typeId?: string; typeRef?: string; name: string }
+  | { kind: 'deleteWorkItemType'; typeId?: string; typeRef?: string; cascade?: boolean }
   | { kind: 'createService'; ref?: string; name: string }
   | { kind: 'patchService'; serviceId?: string; serviceRef?: string; name: string }
   | { kind: 'deleteService'; serviceId?: string; serviceRef?: string; cascade?: boolean };
@@ -124,6 +132,9 @@ export const PLAN_COMMAND_KINDS: readonly PlanCommandKind[] = [
   'createTag',
   'patchTag',
   'deleteTag',
+  'createWorkItemType',
+  'patchWorkItemType',
+  'deleteWorkItemType',
   'createService',
   'patchService',
   'deleteService',
