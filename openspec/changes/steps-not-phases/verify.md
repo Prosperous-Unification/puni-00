@@ -1,9 +1,9 @@
 # verify — `steps-not-phases`
 
-Branched from `fix/reference-cell-popover` (`7ac1285`) and then merged twice with
-`origin/main`, which moved 37 commits under it — `work-item-types` through the
+Branched from `fix/reference-cell-popover` (`7ac1285`) and then merged **four
+times** with `origin/main`, which moved 60-odd commits under it — `work-item-types` through the
 UI, `external-refs`, `estimate-triple-visible`, `gantt-resize-scroll`, the
-toolbar budget, the host-wide heavy lock. Base at the second merge: `a4648e4`.
+toolbar budget, the host-wide heavy lock. Base at the fourth merge: `a32c94b`.
 
 **How the merge was done, because a rename cannot be three-way merged.** Every
 conflicting hunk took `-X theirs` — main's code is main's — and the mechanical
@@ -220,11 +220,18 @@ Gantt panel goes down`) deliberately reversed its outcome — its own message
   now says what the routes do — the write routes serve, the project read lists
   them under `steps`, and every verb at `/roles` is a 404 — and the test asserts
   exactly that.
-- **The three `tool-*` suites were not proved green by the gate run.**
-  `tool-dagger`, `tool-devsync` and `tool-bootstrap` failed ten cases in it, every
-  one a timeout rather than an assertion: `configure.sh` cases blowing a 5000ms
-  limit at 15–18 seconds, and — the tell — `with-heavy-lock > refuses
-**immediately** with exit 75 while another heavy operation owns the lock`
-  timing out at 5001.19ms. Three other agents' heavy runs were live on this host
-  at the time. `git diff origin/main..HEAD -- tools/ bin/` is **empty**, so this
-  change cannot reach any of them. Re-run alone under the lock to confirm.
+- **The three `tool-*` suites do not pass on this host, and neither reason is
+  this change's.** `tool-dagger`, `tool-devsync` and `tool-bootstrap` failed the
+  same ten cases on two separate gate runs. `git diff origin/main..HEAD -- tools/ bin/`
+  is **empty**, so this change cannot reach a line of any of them. The ten split
+  two ways:
+  - **Eight are starvation**, not assertions. `configure.sh` cases blowing a
+    60000ms limit at 284s, 282s and 287s of wall clock, four more blowing 5000ms
+    at 15–17s, and the tell — `with-heavy-lock > refuses **immediately** with
+exit 75 while another heavy operation owns the lock` timing out at 5001ms.
+    Three other agents' heavy runs were live on this host through both gates.
+  - **Two are the platform.** `dev MCP preflight` fails in 30ms and 53ms with
+    `stat: illegal option -- c`. `bin/dev-mcp-preflight.sh:16` calls
+    `stat -c '%a'`, which is GNU syntax; macOS ships BSD `stat`, which wants
+    `-f '%Lp'`. These two fail on any Mac and pass on CI's Linux, and they are
+    older than this change.
