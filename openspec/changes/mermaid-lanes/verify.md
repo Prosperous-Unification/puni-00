@@ -143,7 +143,121 @@ gantt
 Watched: `sectionTitle` = `["Ada", "Bo"]`, no error, same task set as `phase`
 (this fixture happens to have one person per role) but grouped the other way.
 
-## What is NOT in this branch: a toolbar control
+## The toolbar control — landed 2026-08-30, task 4.2
+
+**The gap below is closed.** Everything from "What is NOT in this branch"
+onwards is left as written, because it is the record of what the first pass
+shipped and why; this section is what changed after it.
+
+### Shape, and why this one
+
+A `<select>` labelled **`Mermaid lanes`**, offering `SECTION_MODES` itself
+(`outline` / `step` / `assignee`), at the foot of the plan toolbar's **Export
+`<details>` panel** — under the five export buttons, two of which it governs.
+
+- **Inside the Export panel, not on the bar.** `plan-toolbar-controls` pinned
+  the folded toolbar at **1600px** at 1280 (`e2e/layout.spec.ts`,
+  `FOLDED_TOOLBAR_BUDGET_PX`), and the pin is the sum of `[data-toolbar]`'s
+  **children** plus the gaps. The panel is `absolute`, so the `<details>` the
+  toolbar lays out is its `summary` and nothing else — a control in the panel
+  costs the pin exactly nothing. Measured rather than assumed, below.
+- **A `<select>`, not three buttons and not a menu.** Mermaid has one grouping
+  channel, so the three modes are mutually exclusive and a picker is the
+  honest control; three buttons would also have been three toolbar children
+  had they gone on the bar. `closingControlIn` dismisses the phone's toolbar
+  sheet on a `<button>` inside it and not on a `<select>`, so a picker is also
+  the only shape that survives being used on a phone before the export it
+  configures is clicked.
+- **Remembered per browser** under `wbs.mermaidSectionMode`, one key for the
+  browser rather than one per project — `wbs.ganttDetail`'s side of that line,
+  not `wbs.ganttHeight.<projectId>`'s: a grouping is an answer about what an
+  exported document is for, and a reader who wants assignee lanes wants them
+  in the next plan too. Read as a claim at the boundary
+  (`rememberedMermaidSectionMode`), and anything that is not one of the three
+  takes the key with it.
+- **Both call sites wired**: `copyAsMermaid` →
+  `planToMermaid(planForExport(), mermaidSectionMode)` and
+  `downloadMermaidDocument` → `planToMermaidDocument(plan, mermaidSectionMode)`.
+  Nothing in `plan-mermaid.ts` needed to change for it beyond exporting
+  `SECTION_MODES` and `isSectionMode`, exactly as this file predicted.
+
+### Files
+
+| file                                                 | what                                                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `apps/fe-01/src/components/wbs/plan-mermaid.ts`      | `SECTION_MODES` array (the union derived from it) and `isSectionMode`, the boundary check |
+| `apps/fe-01/src/components/wbs/wbs-table.tsx`        | the key, its read/write pair, the state, the two call sites, the picker                   |
+| `apps/fe-01/src/components/wbs/wbs-table.test.tsx`   | eight cases under `sharing the plan > the lane the Mermaid exports are grouped into`      |
+| `apps/fe-01/src/components/wbs/plan-mermaid.test.ts` | one case: the list and the guard have not drifted apart                                   |
+
+### The gate, run on this Mac (2026-08-30)
+
+| command                                | result                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bunx nx run fe-01:test`               | **1,951 passed, 61 files**, green, 165s                                                                                        |
+| `bunx nx run fe-01:lint`               | green — 0 errors, 1 pre-existing warning at `wbs-table.tsx:4310`                                                               |
+| `bunx nx run fe-01:typecheck`          | green (`tsc --build --force`, app and e2e projects)                                                                            |
+| `bunx openspec validate mermaid-lanes` | `Change 'mermaid-lanes' is valid`                                                                                              |
+| `bunx nx format:check --all`           | flags two files, **both another agent's** in-flight be-01/domain work; the four files above are clean under `prettier --write` |
+
+The browser gate, on the shifted ports this checkout was given
+(`CI=1 E2E_PORT_SHIFT=800`, be/gw/fe on 3900/4000/5000 — never the dev
+server's 3100/3200/4200):
+
+| command                                                         | result                                                                                                          |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `playwright test … layout.spec.ts -g "folded toolbar"`          | **1 passed**, 4.0s                                                                                              |
+| the same with `FOLDED_TOOLBAR_BUDGET_PX` temporarily set to `1` | `Expected: <= 1 · Received: **1372.671875**` — the bar's own width with the picker in, 227px under the 1600 pin |
+
+**No new browser test.** The one claim here that needs a layout is "the picker
+costs the toolbar nothing", and `the folded toolbar fits its budget` already
+makes it against a pinned number; a second spec asserting the same width would
+be a second name for one check. The jsdom side asserts the other half — that
+the picker is inside `[data-export-panel]`, which is what makes the width claim
+true — and that assertion was watched failing with the control moved onto the
+bar.
+
+### The four watched reds
+
+Every fault was injected into the shipped tree, the filtered run read, and the
+tree restored from a copy before the next one. The `Proof:` comments beside the
+checks quote these, and were written **from** them (`name-links-and-height`'s
+lesson: a guessed `Proof:` is indistinguishable from an observed one).
+
+| #   | fault injected                                                                       | observed                                                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `rememberedMermaidSectionMode`'s refusal replaced by `return claimed as SectionMode` | **2 failed, 6 passed** — `refuses a remembered lane this app does not offer…` on `expected '"assignees"' to be null`, `refuses remembered lanes that are not JSON at all…` on `expected '{not json' to be null`                       |
+| 2   | the picker's `<label>` moved out of the `<details>` and onto the toolbar beside it   | **1 failed, 7 passed** — `offers the three lanes inside the Export menu…` on `AssertionError: expected null to be <select …(2)>…(3)</select>`                                                                                         |
+| 3   | `copyAsMermaid`'s call site reverted to `planToMermaid(planForExport())`             | **3 failed, 5 passed** — all three clipboard readers, e.g. `expected 'gantt\n    title Rewire the shed\n   …' to contain 'section Dev'`                                                                                               |
+| 4   | `downloadMermaidDocument`'s call site reverted to `planToMermaidDocument(plan)`      | **1 failed, 7 passed** — `bundles the downloaded document in the same lane` on `expected '**Project:** Rewire the shed\n**Final…' to contain 'section Dev'` — and only that one, since the other seven go through the other call site |
+
+**One assertion that does not discriminate, and is labelled as such in the
+test.** In the two refusal cases, `expect(lanes().value).toBe('outline')`
+passed **with the fault in**: a `<select>` whose `value` matches no `<option>`
+falls back to its first, so the picker reads `outline` either way. The dropped
+key is the assertion that moves, and the comment beside it now says so rather
+than leaving a future reader to believe both halves are gates
+(`AGENTS.md`: delete — or at least name — the guard whose removal you cannot
+see).
+
+**One line deliberately not given a negative**, and named in its own comment:
+the `if (!isSectionMode(asked)) return;` in the picker's `onChange` is
+TypeScript narrowing over a `string`-typed `value` whose options are
+`SECTION_MODES` itself, so nothing a browser can produce fails it. It is the
+same line the `Plan with` picker beside it carries. The real boundary is the
+storage read, which is fault #1 above.
+
+### What this still does not do
+
+- **No `displayMode: compact`** — the brief's other M3 line item is still out,
+  for the reason below.
+- **`tasks.md`, `proposal.md` and this file's earlier sections still say
+  `phase`** where the code says `step`, a drift from the steps rename that
+  landed after this change was written. Left alone deliberately: rewriting the
+  record of what was shipped is worse than a stale word, and the delta spec's
+  scenario names are the only place it is load-bearing.
+
+## What was NOT in this branch: a toolbar control
 
 **Nothing in the app can ask for `phase` or `assignee`.** `wbs-table.tsx` is
 two other agents' file tonight and this change was told not to touch it.

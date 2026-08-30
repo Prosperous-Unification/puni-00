@@ -31,6 +31,19 @@ searched away.
 The export SHALL name no team, in every grouping mode. The exported table
 names it.
 
+**The plan's Export menu SHALL offer the grouping mode as a picker**, beside
+the two Mermaid actions it governs — `Copy as Mermaid` and `Download as
+Markdown` — so that all three modes are reachable from the app rather than
+from a caller nobody can be. The picker SHALL offer exactly the three modes
+and no others, SHALL open on the default a caller who states no preference
+gets, and both Mermaid exports SHALL be drawn in whichever mode it is on.
+
+**A browser SHALL remember the mode it was left on**, across plans and across
+reloads: a grouping is an answer about what an exported document is for, not
+about one plan's share of one screen. A remembered answer that is not one of
+the three SHALL be refused and forgotten, and the export SHALL fall back to
+the default — never drawn in a grouping no control can return to.
+
 Wherever a grouping mode scatters one section's tasks across the row list —
 `phase` and `assignee` both can, since two different rows can share a role or
 a person — the block SHALL still draw that section as one contiguous run of
@@ -67,6 +80,23 @@ task lines, never as two separately headed bands of the same name.
   for the role
 - **AND** the roleless slice SHALL appear in its own section, after every
   named role's
+
+#### Scenario: the Export menu's picker chooses the grouping
+
+- **GIVEN** a plan on a calendar with a placed slice, and a page with a
+  clipboard
+- **WHEN** the Export menu's grouping picker is set to a mode and
+  `Copy as Mermaid` is clicked
+- **THEN** the clipboard's block SHALL be sectioned by that mode
+- **AND** `Download as Markdown` SHALL bundle a fence sectioned the same way
+
+#### Scenario: a remembered grouping this app does not offer
+
+- **GIVEN** a browser holding a remembered grouping that is not one of the
+  three
+- **WHEN** the plan is opened
+- **THEN** the picker SHALL read the default grouping
+- **AND** the remembered answer SHALL be forgotten
 
 #### Scenario: grouping by assignee gathers one person's slices into a single section
 

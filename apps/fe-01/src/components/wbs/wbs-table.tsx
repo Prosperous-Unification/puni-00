@@ -130,7 +130,14 @@ import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes'
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
-import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
+import {
+  DEFAULT_SECTION_MODE,
+  isSectionMode,
+  planToMermaid,
+  planToMermaidDocument,
+  SECTION_MODES,
+  type SectionMode,
+} from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
 import { PriorityCell, priorityTyped } from './priority-cell';
@@ -900,6 +907,68 @@ function rememberGanttLabels(projectId: string, labelsShown: boolean): void {
 /** Forgets the remembered name column for `projectId` — the fourth part of a {@link Layout reset}. */
 function forgetGanttLabels(projectId: string): void {
   localStorage.removeItem(ganttLabelsKey(projectId));
+}
+
+/**
+ * Where this browser remembers what the two Mermaid exports group their bars
+ * into sections by.
+ *
+ * **One key for the browser, not one per project**, and that is where it sides
+ * with `wbs.ganttDetail` rather than with {@link ganttLabelsKey} above it. A
+ * column's width or a panel's height is this plan's share of this screen, so it
+ * is answered per plan; grouping a fence by assignee is an answer about **what
+ * an exported document is for** — a reader who pastes lane-coloured charts into
+ * a status update wants them lane-coloured in every plan, and having to say so
+ * again in the next one is the fault this remembers away.
+ */
+const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
+
+/**
+ * The grouping this browser last picked for the Mermaid exports, or none where
+ * it has never picked one — which exports under {@link DEFAULT_SECTION_MODE}.
+ *
+ * The stored value is a claim, not a fact: user-editable storage read at a
+ * boundary. Checked with {@link isSectionMode} against the same
+ * {@link SECTION_MODES} list the picker offers — **not** against `typeof
+ * claimed === 'string'` — because a string that is not one of the three is a
+ * grouping `sectionOf` has no branch for and the picker has no option for, so a
+ * fence exported under it would be a document no control could get back to.
+ * Anything else takes the key with it.
+ *
+ * Deliberately not the "unknown is not OK" throw, for
+ * {@link rememberedGanttHeight}'s reason: the alternative is a plan nobody can
+ * open until they clear storage by hand, over a preference about a `section`
+ * line.
+ */
+function rememberedMermaidSectionMode(): SectionMode | null {
+  const stored = localStorage.getItem(MERMAID_SECTION_MODE_KEY);
+  if (stored === null) return null;
+  const claimed = parsedOrNothing(stored);
+  // Proof: this refusal replaced by `return claimed as SectionMode`.
+  // `refuses a remembered lane this app does not offer, and drops the key`
+  // failed on `expected '"assignees"' to be null` and `refuses remembered
+  // lanes that are not JSON at all, and drops the key` on `expected '{not
+  // json' to be null` — `2 failed | 6 passed`, the refused answer left in
+  // storage to be read again next time. Note what did **not** fail: the
+  // picker still read `outline`, because a `<select>` whose value matches no
+  // option falls back to its first. The dropped key is the observable half.
+  // Watched 2026-08-30.
+  if (!isSectionMode(claimed)) {
+    localStorage.removeItem(MERMAID_SECTION_MODE_KEY);
+    return null;
+  }
+  return claimed;
+}
+
+/**
+ * Writes the grouping the Mermaid exports are drawn with.
+ *
+ * Called when the picker is used and at no other time, for
+ * {@link rememberGanttLabels}'s reason: opening a plan must not write to what
+ * is remembered about it.
+ */
+function rememberMermaidSectionMode(sectionMode: SectionMode): void {
+  localStorage.setItem(MERMAID_SECTION_MODE_KEY, JSON.stringify(sectionMode));
 }
 
 /**
@@ -2600,6 +2669,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [ganttLabelsShown, setGanttLabelsShown] = useState<boolean>(
     () => rememberedGanttLabels(projectId) ?? true,
+  );
+  /**
+   * What the two Mermaid exports group their bars into sections by, and
+   * {@link DEFAULT_SECTION_MODE} where this browser has never picked.
+   *
+   * Resolved rather than `SectionMode | null` for {@link ganttLabelsShown}'s
+   * reason: there is no such thing as a fence written with its `section` lines
+   * in no grouping at all.
+   *
+   * Not swapped by the project effect below, unlike the four layout answers
+   * there: {@link MERMAID_SECTION_MODE_KEY} is one key for the browser, so
+   * there is nothing per project to swap in.
+   */
+  const [mermaidSectionMode, setMermaidSectionMode] = useState<SectionMode>(
+    () => rememberedMermaidSectionMode() ?? DEFAULT_SECTION_MODE,
   );
   /**
    * Swaps the widths and the panel height whole when the project does.
@@ -4648,9 +4732,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * Puts the plan's chart on the clipboard as a Mermaid gantt, or says why there
    * is none. Same three clipboard outcomes as `copyAsMarkdown`, plus a fourth
    * this one has: a plan a gantt cannot be drawn of at all.
+   *
+   * Drawn in the grouping the Export menu's picker is on, which is the whole of
+   * how {@link SectionMode}'s other two modes are reachable from the app.
    */
   const copyAsMermaid = useCallback(() => {
-    const diagram = planToMermaid(planForExport());
+    const diagram = planToMermaid(planForExport(), mermaidSectionMode);
     if (!diagram.drawn) {
       pushToast({ kind: 'error', text: diagram.refusal });
       return;
@@ -4668,7 +4755,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
       },
     );
-  }, [planForExport, pushToast]);
+  }, [mermaidSectionMode, planForExport, pushToast]);
 
   /**
    * Downloads the plan as a CSV, without asking be-01 for anything.
@@ -4700,11 +4787,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the table beneath it — or says why there is no diagram to bundle. Refuses
    * exactly where {@link copyAsMermaid} refuses, and for the same reason: a
    * document is the fence plus the table, and there is nothing to bundle around
-   * a sentence.
+   * a sentence. Grouped by the same picker {@link copyAsMermaid} reads: one
+   * choice for the fence, whichever way it leaves the app.
    */
   const downloadMermaidDocument = useCallback(() => {
     const plan = planForExport();
-    const bundle = planToMermaidDocument(plan);
+    const bundle = planToMermaidDocument(plan, mermaidSectionMode);
     if (!bundle.drawn) {
       pushToast({ kind: 'error', text: bundle.refusal });
       return;
@@ -4716,7 +4804,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     anchor.download = planFileName(plan, 'md');
     anchor.click();
     URL.revokeObjectURL(url);
-  }, [planForExport, pushToast]);
+  }, [mermaidSectionMode, planForExport, pushToast]);
 
   /**
    * The work items between `rowId` and the root, nearest first.
@@ -10495,6 +10583,57 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           >
             Download what’s on screen
           </Button>
+          {/*
+            The one setting among the five actions, and it governs two of them:
+            `Copy as Mermaid` and `Download as Markdown` both write their fence
+            through it. Mermaid has exactly one grouping channel and it is
+            `section`, so a fence can be lanes of outline, of step, or of
+            person, and never of two at once — which is why this is a picker
+            rather than three buttons or three tick boxes.
+
+            Inside the Export menu rather than on the bar, and that is a
+            measurement rather than a taste: the panel is `absolute`, so the
+            `<details>` the toolbar lays out is its summary and nothing else,
+            and a control in here costs the folded toolbar's budget (`e2e/
+            layout.spec.ts`, 1600px at 1280) exactly nothing. It also sits
+            where the two exports it is about already are.
+
+            A `<select>` rather than a `<Button>`: {@link closingControlIn}
+            closes the phone's sheet on a `<button>` inside it, and a picker
+            that dismissed the sheet before the export it configures could be
+            reached would be a setting nobody can spend.
+          */}
+          <label className="mt-1 flex items-center justify-between gap-1 text-xs">
+            Mermaid lanes
+            <select
+              className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+              // No `aria-label`: the `<label>` wrapping it already names it,
+              // which is where it parts from `Final estimate` below — that one
+              // reads `Plan with` on screen and needs the name spelling out.
+              title="What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"
+              value={mermaidSectionMode}
+              onChange={(e) => {
+                const asked = e.target.value;
+                // Narrowing, **not** a guard, and no negative test is owed for
+                // it: `value` is typed `string` and the options are
+                // {@link SECTION_MODES} itself, so nothing a browser can put
+                // here fails it. The same line the `Plan with` picker below
+                // carries, for the same reason. The real boundary is
+                // {@link rememberedMermaidSectionMode}, which reads storage.
+                if (!isSectionMode(asked)) return;
+                // Stored where it is picked and nowhere else, exactly as the
+                // chart's own rung is: opening a plan must not write to it.
+                setMermaidSectionMode(asked);
+                rememberMermaidSectionMode(asked);
+              }}
+            >
+              {SECTION_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </details>
       <label className="ml-auto flex items-center gap-1 text-sm">

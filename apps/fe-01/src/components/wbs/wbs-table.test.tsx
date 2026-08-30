@@ -12015,6 +12015,184 @@ describe('sharing the plan', () => {
     expect(downloads.names).toHaveLength(0);
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
+
+  describe('the lane the Mermaid exports are grouped into', () => {
+    /** Where this browser's one answer lives — not per project, unlike the four layout keys. */
+    const KEY = 'wbs.mermaidSectionMode';
+
+    /** The picker, or a thrown error rather than a null the assertions walk into. */
+    const lanes = (): HTMLSelectElement =>
+      screen.getByLabelText<HTMLSelectElement>('Mermaid lanes');
+
+    /**
+     * One named row on a calendar, which is the least a fence can be drawn of.
+     *
+     * The start date is what the two Mermaid exports refuse without, so every
+     * test below that reads a fence needs it — `NOT_ON_A_CALENDAR` otherwise,
+     * and a refusal carries no `section` line to assert about.
+     */
+    const plannedRowOnACalendar = async (): Promise<void> => {
+      await onePlannedRow();
+      typeIntoDate('Project start date', '2026-08-03');
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+          false,
+        );
+      });
+    };
+
+    itDom('offers the three lanes inside the Export menu, and opens on outline', () => {
+      const api = fakeApi();
+      render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+      const picker = lanes();
+      expect([...picker.options].map((option) => option.value)).toEqual([
+        'outline',
+        'step',
+        'assignee',
+      ]);
+      expect(picker.value).toBe('outline');
+      // Where it lives is the whole reason it is a `<select>` in a panel rather
+      // than three buttons on the bar: the Export `<details>`'s panel is
+      // `absolute`, so a control in it costs the folded toolbar's 1600px budget
+      // (`e2e/layout.spec.ts`) nothing at all.
+      //
+      // Proof: the `<label>` moved out of the `<details>` and onto the toolbar
+      // beside it — `1 failed | 7 passed` on `AssertionError: expected null to
+      // be <select …(2)>…(3)</select>`, the picker no longer inside the Export
+      // menu. Watched, 2026-08-30.
+      expect(
+        document.querySelector('[data-toolbar] details[data-export] [data-export-panel] select'),
+      ).toBe(picker);
+    });
+
+    itDom('copies the fence grouped by step when the picker says step', async () => {
+      const copied: string[] = [];
+      stubClipboard((text) => {
+        copied.push(text);
+        return Promise.resolve();
+      });
+      await plannedRowOnACalendar();
+
+      fireEvent.change(lanes(), { target: { value: 'step' } });
+      click('Copy as Mermaid');
+
+      await waitFor(() => {
+        expect(toastTexts()).toEqual(['Copied as Mermaid.']);
+      });
+      const [diagram] = copied;
+      // The row's one slice is estimated under `Dev`, so the two lanes name the
+      // fence's sections differently and the assertion can tell them apart —
+      // which is what a `toContain('section')` could not.
+      //
+      // Proof: `copyAsMermaid`'s call site reverted to
+      // `planToMermaid(planForExport())`, the shape M3 shipped with —
+      // `3 failed | 5 passed`, this one on `AssertionError: expected 'gantt\n
+      // title Rewire the shed\n …' to contain 'section Dev'`, with the two
+      // other fence readers below it. Watched, 2026-08-30.
+      expect(diagram).toContain('section Dev');
+      expect(diagram).not.toContain('section 010 Strip, sand & paint');
+    });
+
+    itDom('copies the fence grouped by assignee when the picker says assignee', async () => {
+      const copied: string[] = [];
+      stubClipboard((text) => {
+        copied.push(text);
+        return Promise.resolve();
+      });
+      await plannedRowOnACalendar();
+
+      fireEvent.change(lanes(), { target: { value: 'assignee' } });
+      click('Copy as Mermaid');
+
+      await waitFor(() => {
+        expect(toastTexts()).toEqual(['Copied as Mermaid.']);
+      });
+      const [diagram] = copied;
+      // Nobody is on this row, and the absent case is the one worth asserting:
+      // it is a section of its own rather than a dropped bar.
+      expect(diagram).toContain('section unassigned');
+      expect(diagram).not.toContain('section 010 Strip, sand & paint');
+    });
+
+    itDom('bundles the downloaded document in the same lane', async () => {
+      const downloads = captureDownloads();
+      await plannedRowOnACalendar();
+
+      fireEvent.change(lanes(), { target: { value: 'step' } });
+      click('Download as Markdown');
+
+      const file = downloads.blobs.at(0);
+      if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+      const text = new TextDecoder().decode(await readBlobBytes(file));
+      // One picker for both exports: a fence that leaves as a file and a fence
+      // that leaves on the clipboard are the same document.
+      //
+      // Proof: `downloadMermaidDocument`'s call site reverted to
+      // `planToMermaidDocument(plan)` — `1 failed | 7 passed`, on
+      // `AssertionError: expected '**Project:** Rewire the shed\n**Final…' to
+      // contain 'section Dev'`, and it is the only one of the eight that moves:
+      // the clipboard readers go through the other call site. Watched,
+      // 2026-08-30.
+      expect(text).toContain('section Dev');
+      expect(text).not.toContain('section 010 Strip, sand & paint');
+    });
+
+    itDom('writes the lane that was picked, and nothing before it is', async () => {
+      await plannedRowOnACalendar();
+      // Opening a plan must not write to it, the rule every remembered answer
+      // in this file keeps.
+      expect(localStorage.getItem(KEY)).toBeNull();
+
+      fireEvent.change(lanes(), { target: { value: 'assignee' } });
+
+      expect(localStorage.getItem(KEY)).toBe(JSON.stringify('assignee'));
+    });
+
+    itDom('opens on the remembered lane, and exports in it', async () => {
+      const copied: string[] = [];
+      stubClipboard((text) => {
+        copied.push(text);
+        return Promise.resolve();
+      });
+      localStorage.setItem(KEY, JSON.stringify('step'));
+      await plannedRowOnACalendar();
+
+      expect(lanes().value).toBe('step');
+      click('Copy as Mermaid');
+
+      await waitFor(() => {
+        expect(toastTexts()).toEqual(['Copied as Mermaid.']);
+      });
+      // The stored answer reaches the document and not merely the control: a
+      // picker reading `step` over a fence still grouped by outline is the
+      // whole feature failing quietly, the same claim the day-scale rung makes.
+      expect(copied[0]).toContain('section Dev');
+      expect(localStorage.getItem(KEY)).toBe(JSON.stringify('step'));
+    });
+
+    itDom('refuses a remembered lane this app does not offer, and drops the key', async () => {
+      // A string, and JSON, and not one of the three: `sectionOf` has no branch
+      // for it and the picker has no option for it, so a fence exported under
+      // it would be a document no control could get back to.
+      localStorage.setItem(KEY, JSON.stringify('assignees'));
+      await plannedRowOnACalendar();
+
+      // The dropped key is the assertion that discriminates. The picker's own
+      // value does not: a `<select>` whose `value` matches no `<option>` falls
+      // back to its first, so it reads `outline` with the refusal in place and
+      // with it deleted alike — watched doing exactly that.
+      expect(lanes().value).toBe('outline');
+      expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
+    itDom('refuses remembered lanes that are not JSON at all, and drops the key', async () => {
+      localStorage.setItem(KEY, '{not json');
+      await plannedRowOnACalendar();
+
+      expect(lanes().value).toBe('outline');
+      expect(localStorage.getItem(KEY)).toBeNull();
+    });
+  });
 });
 
 describe('the keyboard cheat sheet', () => {

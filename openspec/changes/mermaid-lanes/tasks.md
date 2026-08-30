@@ -52,13 +52,15 @@ through to the bundled document (M2), same fence either way`.
 
 - [x] 4.1 `proposal.md`, this file, the delta spec, `verify.md`. **No
       `design.md`** and no citation table: PoC-mode contract, 2026-08-14.
-- [ ] 4.2 **Not done here: a toolbar control to reach `phase`/`assignee` at
-      all.** `wbs-table.tsx` is two other agents' file tonight and this change
-      was told not to touch it. Ships with the `outline` default; the other
-      two modes exist in the writer and are tested, but nothing in the app can
-      ask for them. The exact gap M1 and M2 both left the same way — and which
-      went unwired for a day and cost a P1 in the 2026-08-15 cloud regression
-      (`notes/wbs-cloud-regression-2026-08-15.md` §5). `verify.md` names the
-      shape of the control this owes (a picker beside the two Copy buttons,
-      remembered per browser on the `wbs.ganttDetail` pattern). Left unticked
-      deliberately: M3 is not reachable from the app until it lands.
+- [x] 4.2 **The toolbar control that reaches `step`/`assignee`** — landed
+      2026-08-30, the gap this change deliberately left open and named in
+      three places. A `<select>` inside the plan toolbar's Export menu,
+      labelled `Mermaid lanes`, offering `SECTION_MODES` itself and remembered
+      per browser under `wbs.mermaidSectionMode`; both Mermaid call sites
+      (`copyAsMermaid`, `downloadMermaidDocument`) read it. In the Export
+      panel rather than on the bar because the panel is `absolute`, so the
+      control costs the folded toolbar's 1600px pin (`e2e/layout.spec.ts`)
+      nothing — measured at 1372.67px with it in. Storage is read as a claim:
+      an answer that is not one of the three takes the key with it, watched
+      failing. Eight new cases in `wbs-table.test.tsx` and one in
+      `plan-mermaid.test.ts`; the four watched reds are in `verify.md`.

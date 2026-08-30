@@ -10,11 +10,13 @@ import {
 } from './plan-export';
 import {
   DEFAULT_SECTION_MODE,
+  isSectionMode,
   NO_SCHEDULE_TO_DRAW,
   NOT_ON_A_CALENDAR,
   NOTHING_PLACED,
   planToMermaid,
   planToMermaidDocument,
+  SECTION_MODES,
   type SectionMode,
 } from './plan-mermaid';
 
@@ -493,6 +495,20 @@ describe('the section choice (M3)', () => {
     if (!result.drawn) throw new Error('expected a document');
     expect(result.text).toContain('section Dev');
     expect(result.text).not.toContain('section 010 Strip');
+  });
+
+  it('admits the three groupings it offers and nothing else', () => {
+    // The boundary the toolbar's picker reads a browser's remembered answer
+    // through — `wbs-table.tsx`'s `rememberedMermaidSectionMode`, whose two
+    // refusal tests are the watched ones. Here the list and the type are
+    // asserted not to have drifted apart: `SECTION_MODES` is what both the
+    // `<option>`s and this guard are built from.
+    for (const mode of SECTION_MODES) expect(isSectionMode(mode)).toBe(true);
+    expect(SECTION_MODES).toEqual(['outline', 'step', 'assignee']);
+    expect(DEFAULT_SECTION_MODE).toBe('outline');
+    for (const claimed of ['assignees', 'phase', 'Outline', '', null, undefined, 0, ['step']]) {
+      expect(isSectionMode(claimed)).toBe(false);
+    }
   });
 });
 

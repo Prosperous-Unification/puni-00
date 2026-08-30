@@ -79,11 +79,30 @@ const UNKNOWN_NAME = '(unknown)';
  *   by section index — grouping by assignee is the one way this document can
  *   partially recover that lane structure, the same one
  *   `refs/gantt/gantt_chart_v2.py` was built around.
+ *
+ * An array rather than a hand-written union, so the three the type admits and
+ * the three a control can offer or a browser can have remembered are one list:
+ * {@link isSectionMode} is the boundary check the toolbar's picker reads
+ * storage through, and a fourth mode added to a union alone would be a mode no
+ * control offers and no stored answer is allowed to name.
  */
-export type SectionMode = 'outline' | 'step' | 'assignee';
+export const SECTION_MODES = ['outline', 'step', 'assignee'] as const;
+export type SectionMode = (typeof SECTION_MODES)[number];
 
 /** What a caller gets who does not ask — M1's own behaviour, unchanged. */
 export const DEFAULT_SECTION_MODE: SectionMode = 'outline';
+
+/**
+ * Whether `claimed` is one of the three groupings — the boundary check for a
+ * mode read back out of a browser's storage or off a `<select>`'s value.
+ *
+ * `readonly string[]` rather than a cast on `claimed`: the array is `as const`,
+ * so `includes` would otherwise refuse every string that is not already one of
+ * the three, which is exactly the question being asked.
+ */
+export function isSectionMode(claimed: unknown): claimed is SectionMode {
+  return typeof claimed === 'string' && (SECTION_MODES as readonly string[]).includes(claimed);
+}
 
 /**
  * The character a colon in somebody's text becomes: U+2236 RATIO.
