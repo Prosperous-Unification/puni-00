@@ -41,6 +41,20 @@ const isCi = process.env['CI'] !== undefined;
  * tokens for a gw-01 it cannot reach, and the failure arrives forty seconds
  * later as a socket that never opens.
  *
+ * **Two concurrent runs need shifts more than 100 apart, not merely
+ * different.** The tiers themselves sit 100 apart, so shift `S` occupies
+ * `3100+S / 3200+S / 4200+S` and any two shifts differing by exactly 100
+ * overlap — the higher run's be-01 lands on the lower run's gw-01. Two agents
+ * were given 1200 and 1300 on 2026-08-30 and one gate refused with
+ * `http://localhost:4400/health is already used`, which is `CI=1` doing its
+ * job: `reuseExistingServer` is false there, so Playwright refused rather than
+ * measuring the other checkout's stack.
+ *
+ * The check below cannot catch that case and is not meant to: it compares a
+ * shift against the **defaults**, which a config can know, and says nothing
+ * about what else is running on the host, which it cannot. Space assignments
+ * by 500 and the question does not arise.
+ *
  * @throws When `E2E_PORT_SHIFT` is set to something that is not a
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.
@@ -74,7 +88,8 @@ const portShift = ((): number => {
     throw new Error(
       `E2E_PORT_SHIFT=${String(shift)} puts a tier on ${String(collision)}, which is another ` +
         `tier's usual port. The three tiers sit at 3100/3200/4200, so a shift may not be 100, ` +
-        `1000 or 1100. Try 500, or any shift that clears all three.`,
+        `1000 or 1100. Try 500, or any shift that clears all three — and if another run is ` +
+        `already using a shift, keep more than 100 between them, or your be-01 takes its gw-01.`,
     );
   }
   return shift;
