@@ -19,27 +19,30 @@ import { createProject } from './create-project';
 const NEARLY = 2;
 
 /**
- * The toolbar's controls at 1280 on a fresh project **before** this change, with
- * ,  and  as three labelled buttons — measured on
- * `main` at `1ac9344` in this file's own Chromium, on a project with no rows.
+ * What the plan toolbar has to lay out at 1280 on a fresh project — every
+ * control's width plus the gaps between them — **before** this change and
+ * **after** it. Both measured in this file's own Chromium, on a project with no
+ * rows: `before` on `main` at `1ac9344` with `Teams`, `Priorities` and `Phases`
+ * as three labelled buttons; `now` on this change.
  *
- * Two numbers, and why they are not the one D5 seems to ask for. "The folded
- * toolbar at 1280 is no wider than before" reads as a content width — and that
- * figure on `main` is **1248px, which is the bar's own width**, because at 1280
- * the eighteen controls already wrap to a **second row**. A bar that is already
- * full measures 1248 whatever is on it: the check would pass with three buttons
- * added and pass with ten removed, which is a check that cannot fail.
+ * Two pins, and the second is the one that guards anything. D5 asks that the
+ * folded toolbar at 1280 be "no wider than before", and the obvious reading —
+ * the bar's content width — cannot fail at all: at 1280 the controls already
+ * wrap, so the bar measures its own 1248px whatever is on it. Measuring what it
+ * `laidOut` fixes that, but pinning it at the pre-change figure leaves 182px
+ * of slack, because folding three controls into one really did save that much.
+ * A check with 182px of headroom does not notice two whole extra labelled
+ * buttons, and was watched passing with exactly that fault on 2026-08-30.
  *
- * What can be measured is what the bar has to **lay out** — every control's
- * width plus the gaps between them, `1445.33px` over 18 controls at a 6px gap —
- * and how many rows that took (`2`). Removing two labelled buttons and adding
- * one square one has to reduce the first and cannot increase the second.
+ * So `BEFORE` is kept as documentation of the improvement and asserted loosely,
+ * and `NOW` is the regression guard: the bar may not grow from where this change
+ * left it. That is the assertion with the negative under it.
  *
  * Both pinned rather than re-derived, for `plan-toolbar-controls-gate`'s reason:
- * the bar they describe no longer exists to be measured, and a budget resolved
- * from the current bar is decoration.
+ * a budget resolved from the bar it is measuring is decoration.
  */
 const LAID_OUT_BEFORE_AT_1280 = 1445.33;
+const LAID_OUT_NOW_AT_1280 = 1265;
 const ROWS_BEFORE_AT_1280 = 2;
 
 /** Registers a throwaway account and opens an empty project. */
@@ -90,30 +93,32 @@ test.describe('the project settings control, in a browser', () => {
     expect(measured.controls, 'the toolbar lost controls beyond the three').toBeGreaterThanOrEqual(
       16,
     );
-    // No more to lay out than before, and no more rows than before — the whole
-    // of D5's measurable claim. The pins are the old bar's figures, so a bar
-    // that grew back would fail here even if it still fitted the window.
-    //
-    // **Two faults, because the first never reaches this line.** Restoring
-    // `<Button>Teams</Button>` and `<Button>Priorities</Button>` beside the
-    // settings control fails on the **precondition** above — `Expected: 0 /
-    // Received: 1`, the Teams control being back — and the run stops there
-    // with this assertion unevaluated. A `Proof:` naming only that fault would
-    // be evidence for the precondition and none at all for the budget.
-    //
-    // Proof: one control added whose name matches none of the three, so the
-    // precondition still passes and the bar is merely wider —
-    // `<Button variant="outline" size="sm">Capacity planning and
-    // priorities</Button>` in `toolbarControls`. Watched failing on
-    // `1465px of controls to lay out, against the 1445.33px the bar had with
-    // three buttons`, `Expected: <= 1447.33 / Received: 1464.703125`;
-    // 2026-08-30. Both faults are in `verify.md`.
+    // The claim D5 states, kept as the record of what folding three controls
+    // into one bought: 180px, and the bar is no wider than it was.
     expect(
       measured.laidOut,
       `${String(Math.round(measured.laidOut))}px of controls to lay out, against the ${String(
         LAID_OUT_BEFORE_AT_1280,
       )}px the bar had with three buttons`,
     ).toBeLessThanOrEqual(LAID_OUT_BEFORE_AT_1280 + NEARLY);
+
+    // The guard. The bar may not grow from where this change left it — which is
+    // 180px below the figure above, and the whole reason that figure cannot be
+    // the assertion.
+    //
+    // Proof: two extra labelled buttons added to `toolbarControls` with names
+    // matching none of the three the precondition names (`Squad`, `Precedence`,
+    // so the precondition still passes). Against `BEFORE` that fault was
+    // watched **passing** — 1428px against a 1447.33px ceiling. Against this
+    // line it fails on `1428px of controls to lay out, against the 1265px this
+    // change left`. Watched 2026-08-30, both arms.
+    expect(
+      measured.laidOut,
+      `${String(Math.round(measured.laidOut))}px of controls to lay out, against the ${String(
+        LAID_OUT_NOW_AT_1280,
+      )}px this change left`,
+    ).toBeLessThanOrEqual(LAID_OUT_NOW_AT_1280 + NEARLY);
+
     expect(measured.rows, 'the toolbar wraps to more rows than it did').toBeLessThanOrEqual(
       ROWS_BEFORE_AT_1280,
     );
