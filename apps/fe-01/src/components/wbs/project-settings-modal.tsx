@@ -123,9 +123,15 @@ export interface ProjectSettingsModalProps {
  * The trigger lives here for the reason the three dialogs each held their own:
  * Radix's `onCloseAutoFocus` cancels the default restore and focuses its
  * **trigger**, so a modal opened without a `ModalTrigger` puts the focus on
- * nothing at all. It carries no `data-takes-the-focus`: it opens a surface that
- * focuses its own panel, and Radix's restore to this button is the right answer
- * — the distinction `wbs-table.tsx` already draws for `⌨` versus `Add work item`.
+ * nothing at all — watched, `plan-cards.test.tsx`'s `closing project settings
+ * puts the focus back on its trigger` failing on `expected <body …> to be
+ * <button …>` with a plain `Button` in its place. It carries no
+ * `data-takes-the-focus`, and that is a description rather than a guard: the
+ * sheet reads that mark only off a control that closes the sheet, and a control
+ * that opens a surface of its own never does (`closingControlIn`), so the
+ * attribute's presence or absence here changes nothing. The distinction
+ * `wbs-table.tsx` draws for `⌨` versus `Add work item` is the right one; it is
+ * just not one this button is ever asked.
  */
 export function ProjectSettingsModal({
   projectId,
@@ -202,10 +208,12 @@ export function ProjectSettingsModal({
    * Radix handler can `preventDefault()` the dismissal it would otherwise
    * perform on its own.
    *
-   * Proof: the `dirtyRef.current.size > 0` refusal removed, and `an in-flight
-   * write holds the modal open and is shown` failed on `Unable to find an
-   * accessible element with the role "dialog"` — Escape closed over a ladder
-   * still travelling. Watched 2026-08-30.
+   * Proof: the `if (first !== undefined)` refusal below deleted, so this always
+   * closes, and both `an in-flight write holds the modal open and is shown` and
+   * `the ✕ is refused the same way, and says which section is holding` failed
+   * on `Unable to find an accessible element with the role "dialog" and name
+   * "Project settings"` — the close went through over a ladder still
+   * travelling and over a typed capacity. Watched 2026-08-30.
    */
   function requestClose(): boolean {
     const first = SECTIONS.map((s) => s.id).find((id) => dirtyRef.current.has(id));

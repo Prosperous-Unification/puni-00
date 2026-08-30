@@ -1158,15 +1158,26 @@ describe('the toolbar sheet', () => {
   });
 
   /**
-   * `project-config-modal` slice 3.2: the control carries no `data-takes-the-focus`,
-   * so closing the modal hands the focus back to the control that opened it —
-   * Radix's own restore, which the sheet lets happen for every control that does
-   * not aim the caret itself. The modal focuses its own panel on open; a control
-   * marked as taking the focus would have refused the restore and left it on
-   * `<body>`.
+   * `project-config-modal` slice 3.2: closing the modal hands the focus back to
+   * the control that opened it, from inside the sheet — Radix's own restore to
+   * its **trigger**.
    *
-   * Proof: `{...{ [TAKES_THE_FOCUS]: '' }}` put on the settings trigger, and
-   * this failed on `expected <body …> to be <button …>`; watched 2026-08-30.
+   * **What does not guard this, and was claimed to.** The slice is written as
+   * "the control carries no `data-takes-the-focus`", and the first cut of this
+   * comment said that attribute had been injected and watched failing. It was
+   * watched **passing**: {@link closingControlIn} never returns a control that
+   * opens a surface of its own (`aria-haspopup`), so nothing ever reads the
+   * attribute off this trigger and its presence changes nothing. `AGENTS.md`'s
+   * "delete the guard whose removal you cannot see" — here there was nothing to
+   * delete, only a claim to withdraw. Found by an isolated re-run of the
+   * negative, 2026-08-30.
+   *
+   * Proof, the fault that is real: the `ModalTrigger` swapped for a plain
+   * `Button` with an `onClick`, so Radix's `onCloseAutoFocus` cancels the default
+   * restore and has no trigger to put the focus on. This failed on
+   * `expected <body …> to be <button …>` — the focus left on `<body>` — and so
+   * did `project-settings-modal.test.tsx`'s `a clean modal closes from any
+   * section, and gives the focus back to its control`. Watched 2026-08-30.
    */
   itDom('closing project settings puts the focus back on its trigger', async () => {
     const api = fakeApi();
