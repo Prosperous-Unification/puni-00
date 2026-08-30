@@ -4,7 +4,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 0. Ordering
 
-- [ ] 0.1 **After `dep-reach-whole-item`** — **not honoured, deliberately.** The behaviour slice 2.2 protects is the engine's only rule today, so its test is written against the engine as it stands and becomes that change's `anchor-slice` case verbatim. What the merge has to do is in `verify.md` under Ordering.
+- [x] 0.1 **After `dep-reach-whole-item`** — **not honoured, deliberately.** The behaviour slice 2.2 protects is the engine's only rule today, so its test is written against the engine as it stands and becomes that change's `anchor-slice` case verbatim. What the merge has to do is in `verify.md` under Ordering. **Resolved 2026-08-30:** `dep-reach-whole-item` merged and did it — `the anchor reach still means first estimated` now schedules on a named `anchor-slice` reach and asserts the `whole-item` default at day 8 beside it.
 
 ## 1. One shared constant
 

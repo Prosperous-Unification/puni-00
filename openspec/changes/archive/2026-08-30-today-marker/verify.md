@@ -80,3 +80,7 @@ The panel reads `new Date()` at render, so the six marker cases drive it with
 the assertions touch nothing timed, and a suite that leaves fake timers running
 poisons every test after it. There is an `afterEach` restoring them as well, for
 the case where the render itself throws.
+
+## CI at the head
+
+Run 33329987249 on `main` (2026-08-30, the archive commit carrying this change): **success**, 12m46s — format, run-many, secrets scan, doc caps, compose files, migration lint.

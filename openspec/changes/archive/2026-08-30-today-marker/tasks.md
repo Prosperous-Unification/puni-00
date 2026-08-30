@@ -34,4 +34,4 @@
 - [x] 4.3 Spec delta: `wbs-domain`, both requirements leading with `SHALL` —
       `openspec validate` reads only the first line of a requirement body.
 - [x] 4.4 `verify.md` with the three watched reds.
-- [ ] 4.5 CI green at the head.
+- [x] 4.5 CI green at the head. **2026-08-30:** merged long since; CI green on the main head that carries it — run 33329987249 (`chore(openspec): archive the three changes that landed tonight`), success, 12m46s.

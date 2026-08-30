@@ -4,7 +4,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 0. Ordering
 
-- [ ] 0.1 **After `steps-not-phases`**, so the section is called `Steps` once rather than renamed twice. Runnable before it at the cost of a follow-up rename. **Not honoured, by agreement with that change's owner (2026-08-30):** `steps-not-phases` had seven conflicts against `main` and no honest ETA, so this was built against `phases-dialog.tsx` on `main` and the section is called `Phases`; the mechanical rename lands inside that change's own sweep, which already covers every `Phases`→`Steps` string. Its `no rendered string says Phase or Role` test will catch the tab label. See `verify.md`, Ordering.
+- [x] 0.1 **After `steps-not-phases`**, so the section is called `Steps` once rather than renamed twice. Runnable before it at the cost of a follow-up rename. **Not honoured, by agreement with that change's owner (2026-08-30):** `steps-not-phases` had seven conflicts against `main` and no honest ETA, so this was built against `phases-dialog.tsx` on `main` and the section is called `Phases`; the mechanical rename lands inside that change's own sweep, which already covers every `Phases`→`Steps` string. Its `no rendered string says Phase or Role` test will catch the tab label. See `verify.md`, Ordering. **Resolved 2026-08-30:** `steps-not-phases` merged and its sweep renamed the section — `project-settings-modal.tsx` labels the tab `Steps` and mounts `StepsPanel`; nothing rendered says `Phases`.
 
 ## 1. The three dialogs become three panels
 
