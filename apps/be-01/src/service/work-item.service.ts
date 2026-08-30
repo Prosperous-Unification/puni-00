@@ -303,7 +303,7 @@ function slicesOf(
  * would drift, and the drift would show up as a confirmation naming the wrong
  * people.
  *
- * Named for what it returns rather than for the word `step`: it was `phasesOf`
+ * Named for what it returns rather than for the word `step`: it was `stepsOf`
  * until `steps-not-phases`, and `stepsOf` would have collided with
  * `ProjectRepository.stepsOf` in this same file, which answers something else
  * entirely — a project's steps, not one row's assignment fields.

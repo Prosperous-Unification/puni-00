@@ -18,7 +18,7 @@ const itDom = hasDom ? it : it.skip;
  * so a change could have deleted the way out of the app and every test would
  * have stayed green. `F shadcn-foundation` learned that lesson on the auth
  * panel's heading and wrote the rule down: where a swap finds no assertion on a
- * role or a name, the swap writes one.
+ * step or a name, the swap writes one.
  *
  * Watched failures for every test here are quoted in
  * `openspec/changes/header-fits-a-row/verify.md`.
@@ -126,7 +126,7 @@ describe('the account menu', () => {
  *
  * Three answers rather than a switch, because "follow the machine" is an answer
  * of its own — `lib/theme.ts` has the reasoning, and `theme.test.ts` the
- * resolution. What is asserted here is only the menu: the roles a reader meets,
+ * resolution. What is asserted here is only the menu: the steps a reader meets,
  * which item the menu opens onto now that there are four, and that the keyboard
  * reaches all of them.
  *

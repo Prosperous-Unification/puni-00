@@ -1007,14 +1007,14 @@ describe('the WBS table', () => {
       `steps-not-phases` design D1 keeps it.
 
       Proof: the trigger's label and `<ModalTitle>` in the steps face spelled
-      back to `Phases`. This failed on `expected [ 'text: Phases' ] to deeply
+      back to `Steps`. This failed on `expected [ 'text: Steps' ] to deeply
       equal []`. Watched 2026-08-29, and again after the panel split.
     */
-    const stale = /\b(phase|phases|role|roles)\b/i;
+    const stale = /\b(step|steps|step|steps)\b/i;
     const said: string[] = [];
     // Text **node** by text node, not `body.textContent`: that concatenates
     // adjacent elements with no separator, so a toolbar reads
-    // `PrioritiesPhasesFilters` and `\bPhases\b` matches nothing at all. The
+    // `PrioritiesStepsFilters` and `\bSteps\b` matches nothing at all. The
     // first cut of this sweep did exactly that and could not see the label.
     const words: string[] = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);

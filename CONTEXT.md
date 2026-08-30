@@ -67,7 +67,7 @@ _Avoid_: discipline, type, category
 The order a project works its steps in — `Dev` before `QA` before whatever was added
 after them. One order for the whole project, held per step, and the order every list of
 them is read in.
-_Avoid_: phase order, role order, sequence, priority
+_Avoid_: step order, step order, sequence, priority
 
 **Assumed assignee**:
 The person a work item with exactly one assignment is taken to be doing every step's work
@@ -293,7 +293,7 @@ _Avoid_: link, blocker, edge (outside the graph code)
 **Slice**:
 One leaf work item's work for one step — the unit a schedule is computed in. A leaf in a
 project holding two steps is two slices, run one after the other in step order.
-_Avoid_: task, bar, segment, phase, role, item×step
+_Avoid_: task, bar, segment, step, step, item×step
 
 **Anchor slice**:
 A work item's first slice in step order that somebody estimated — the one a dependency
