@@ -174,16 +174,20 @@ describe('priority never overrides a hard constraint', () => {
     expect(planned(found, 'a', QA)).toMatchObject({ earliestStart: 4, earliestFinish: 6 });
   });
 
-  it('gives a slice nobody has estimated no place in the queue, whatever its priority', () => {
+  it('gives a slice somebody sized at zero no place in the queue, whatever its priority', () => {
     // A slice of no length is not work: it neither waits for its assignee nor
     // makes them busy. Ranking it first must not change that — a priority decides
     // an order, and an empty slice occupies nobody for any of it.
+    //
+    // Written with `null` until `assumed-duration-schedules` (2026-08-29), when
+    // an unestimated slice stopped being a slice of no length. Zero days is the
+    // case that survives: somebody said this step costs nothing, and the
+    // priority still does not turn that into a place in the queue. The numbers
+    // below did not move with the rewrite — they are the same three days of
+    // `kat`'s time — because a stated zero schedules exactly as an absent
+    // estimate used to.
     const rows = [item('a', null, 1), item('b', null, 2)];
-    const slices = [
-      slice('a', DEV, null, 'kat'),
-      slice('a', QA, 3, 'kat'),
-      slice('b', DEV, 2, 'kat'),
-    ];
+    const slices = [slice('a', DEV, 0, 'kat'), slice('a', QA, 3, 'kat'), slice('b', DEV, 2, 'kat')];
 
     const found = schedule(rows, [], slices);
 
@@ -275,6 +279,16 @@ describe('a priority written up the tree reaches the leaves', () => {
  * project's new finish, float 3.5 → 6.5. Everything else is untouched, which is
  * the point: the anchor rule moves what waits on a dependency and nothing else.
  * Priority is still what this pin is *for*; the plan still priorities nothing.
+ *
+ * **Re-derived again at `assumed-duration-schedules` (2026-08-29)**, and by one
+ * slice: `c-p1/role-qa`, which nobody estimated and `sam` is on. It used to sit
+ * at 4→4 with six and a half days of slack, occupying nobody; it is now two
+ * workdays wide, so it queues behind `sam`'s other work at 10.5→12.5, becomes
+ * critical, and takes the project's finish from 10.5 to 12.5 — which gives
+ * `c-b`, `c-d` and `c-p2` two more days of float each and carries `c-p1` and
+ * `c-parent` out to the new end. `waitingForPerson` counts it: 2 → 3. Every
+ * estimated slice's own start and finish is untouched, which is the line this
+ * change draws — the assumption reaches unsized work and nothing else.
  */
 const CONTENTION_ROWS: readonly WorkItem[] = [
   item('c-a'),
@@ -381,9 +395,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
-        latestStart: 8.5,
-        latestFinish: 10.5,
-        float: 1.5,
+        latestStart: 10.5,
+        latestFinish: 12.5,
+        float: 3.5,
         critical: false,
         personId: 'kat',
         boundBy: 'person',
@@ -417,9 +431,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
-        latestStart: 7.5,
-        latestFinish: 10.5,
-        float: 3.5,
+        latestStart: 9.5,
+        latestFinish: 12.5,
+        float: 5.5,
         critical: false,
         personId: 'ro',
         boundBy: 'predecessor',
@@ -451,15 +465,15 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         effort: 0,
         width: 1,
         estimated: false,
-        earliestStart: 4,
-        earliestFinish: 4,
+        earliestStart: 10.5,
+        earliestFinish: 12.5,
         latestStart: 10.5,
-        latestFinish: 10.5,
-        float: 6.5,
-        critical: false,
+        latestFinish: 12.5,
+        float: 0,
+        critical: true,
         personId: 'sam',
-        boundBy: 'roleOrder',
-        resourcePredecessorId: null,
+        boundBy: 'person',
+        resourcePredecessorId: 'c-a/role-qa',
         capacityPredecessorIds: [],
       },
       'c-p2/role-dev': {
@@ -471,9 +485,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
-        latestStart: 6.5,
-        latestFinish: 7.5,
-        float: 6.5,
+        latestStart: 8.5,
+        latestFinish: 9.5,
+        float: 8.5,
         critical: false,
         personId: 'ro',
         boundBy: 'projectStart',
@@ -508,9 +522,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
-        latestStart: 8.5,
-        latestFinish: 10.5,
-        float: 1.5,
+        latestStart: 10.5,
+        latestFinish: 12.5,
+        float: 3.5,
         critical: false,
       },
       'c-c': {
@@ -528,18 +542,18 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
-        latestStart: 7.5,
-        latestFinish: 10.5,
-        float: 3.5,
+        latestStart: 9.5,
+        latestFinish: 12.5,
+        float: 5.5,
         critical: false,
       },
       'c-p1': {
         duration: 4,
         estimated: true,
         earliestStart: 0,
-        earliestFinish: 4,
+        earliestFinish: 12.5,
         latestStart: 0,
-        latestFinish: 10.5,
+        latestFinish: 12.5,
         float: 0,
         critical: true,
       },
@@ -548,23 +562,27 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
-        latestStart: 6.5,
-        latestFinish: 7.5,
-        float: 6.5,
+        latestStart: 8.5,
+        latestFinish: 9.5,
+        float: 8.5,
         critical: false,
       },
       'c-parent': {
         duration: 0,
         estimated: true,
         earliestStart: 0,
-        earliestFinish: 4,
+        earliestFinish: 12.5,
         latestStart: 0,
-        latestFinish: 10.5,
+        latestFinish: 12.5,
         float: 0,
         critical: true,
       },
     });
 
-    expect(found.waitingForPerson).toBe(2);
+    // Three, not two, since `assumed-duration-schedules`: `c-p1`'s unestimated
+    // `QA` now occupies `sam` for two workdays and therefore queues behind
+    // `sam`'s other work, which is a third row the reader is told is waiting
+    // for a person. The count is honest about a slice that really is held.
+    expect(found.waitingForPerson).toBe(3);
   });
 });

@@ -5,9 +5,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
-  // The same six the app is built with. `@wbs/domain/workday`,
-  // `@wbs/domain/effective-team`, `@wbs/domain/effective-tag`,
-  // `@wbs/domain/effective-service`, `@wbs/domain/label-mismatch` and
+  // The same seven the app is built with. `@wbs/domain/workday`,
+  // `@wbs/domain/assumed-duration`, `@wbs/domain/effective-team`,
+  // `@wbs/domain/effective-tag`, `@wbs/domain/effective-service`,
+  // `@wbs/domain/label-mismatch` and
   // `@wbs/domain/priority-band` are the pure modules and *not* the lib's index
   // barrel, which re-exports arktype-touching validators this bundle excludes —
   // see `vite.config.ts`.
@@ -33,6 +34,10 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@wbs/domain/workday': resolve(__dirname, '../../libs/domain/src/workday.ts'),
+      '@wbs/domain/assumed-duration': resolve(
+        __dirname,
+        '../../libs/domain/src/assumed-duration.ts',
+      ),
       '@wbs/domain/effective-team': resolve(__dirname, '../../libs/domain/src/effective-team.ts'),
       '@wbs/domain/effective-tag': resolve(__dirname, '../../libs/domain/src/effective-tag.ts'),
       '@wbs/domain/effective-service': resolve(

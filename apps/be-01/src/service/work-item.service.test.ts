@@ -680,23 +680,37 @@ describe('the plan waits for the people in it', () => {
 
     const tree = await service.tree(two.projectId);
 
-    // `ada` works through all three slices: the first work item's `Dev`, then
-    // the second's, then the QA nobody named her for. The first work item is
-    // therefore 0→4 with a gap in the middle of it, rather than 0→3.
+    // `ada` works through every slice of both work items: the first's `Dev`,
+    // then the second's, then the two `QA`s nobody named her for. The first
+    // work item is therefore 0→4 with a gap in the middle of it, rather than
+    // 0→3.
+    //
+    // Re-derived at `assumed-duration-schedules` (2026-08-29): the second work
+    // item's `QA` is unestimated, so it is two workdays wide and queues behind
+    // `ada`'s other work rather than taking no time at the row's own start.
+    // `ada`'s day, in order: `Rewire` Dev 0→2, `Test the rewire` Dev 2→3, that
+    // row's assumed QA 3→5, and `Rewire`'s own QA 5→6. Both rows are still
+    // pulled apart by the one person on them, which is what this test is about.
     expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
       earliestStart: 2,
-      earliestFinish: 3,
+      earliestFinish: 5,
     });
     expect(tree?.workItems.find((w) => w.id === covered.result.id)?.schedule).toMatchObject({
       earliestStart: 0,
-      earliestFinish: 4,
+      earliestFinish: 6,
     });
     expect(tree?.waitingForPerson).toBe(2);
   });
 
   it('stops assuming at two, and lets the second person work alongside the first', async () => {
     // The same plan with `QA` named as well: `grace` does the QA, so `ada` is
-    // free the moment her own `Dev` is done and the next work item follows it.
+    // free the moment her own `Dev` is done and the next work item follows it —
+    // `Test the rewire`'s `Dev` still starts on day 2, which is the claim.
+    //
+    // Re-derived at `assumed-duration-schedules` (2026-08-29): that row's own
+    // `QA` is unestimated, so it takes two workdays behind its `Dev` and the
+    // row ends on day 5 rather than day 3. `ada` is who it waits for, and only
+    // because it is `ada`'s next piece of work — `grace` is unaffected.
     const two = await twoRoleProject();
     const covered = (await service.create(two.projectId, OWNER, {
       parentId: null,
@@ -719,7 +733,7 @@ describe('the plan waits for the people in it', () => {
 
     expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
       earliestStart: 2,
-      earliestFinish: 3,
+      earliestFinish: 5,
     });
   });
 

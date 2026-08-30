@@ -1,3 +1,4 @@
+export * from './assumed-duration';
 export * from './capacity';
 // `effective-label` is deliberately absent: it is the walk the three dimensions
 // share, not a fourth thing to read a plan with.
