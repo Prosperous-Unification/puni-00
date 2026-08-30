@@ -13,11 +13,18 @@ still open that cell's editor.
 A URL whose scheme is neither `http` nor `https` SHALL render as text and SHALL
 NOT carry that URL as an `href`.
 
-#### Scenario: a link in a name opens in a new context
+#### Scenario: a modified click follows the link
 
 - **GIVEN** a work item whose name holds `[the plan](http://example.test/plan)`
-- **WHEN** the drawn link is clicked
-- **THEN** a new browsing context SHALL open at `http://example.test/plan`
+- **WHEN** the drawn link is clicked with Ctrl or Meta held
+- **THEN** the browser SHALL perform the anchor's own navigation and the cell
+  editor SHALL NOT take the focus
+
+#### Scenario: a plain click edits instead of following
+
+- **GIVEN** the same work item
+- **WHEN** the drawn link is clicked with no modifier
+- **THEN** the cell's editor SHALL take the focus and nothing SHALL navigate
 
 #### Scenario: the cell still opens where the link is not
 

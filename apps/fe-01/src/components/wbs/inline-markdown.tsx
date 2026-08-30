@@ -142,10 +142,54 @@ function LinkInGrid({ href, children }: LinkProps) {
       target="_blank"
       rel="noreferrer noopener"
       tabIndex={-1}
+      // **A bare click belongs to the cell, not to the link.** Dany asked for
+      // followable links on 2026-08-30 and then, having used them, for
+      // `⌘/Ctrl+click` only (2026-08-31): a name is a field somebody edits many
+      // times for every once they follow something in it, and a plain click
+      // that navigated made the commonest gesture the surprising one.
+      //
+      // The modified click is not handled here at all — it is the browser's own
+      // "open in a new tab", which this only has to not swallow. What is
+      // cancelled is the unmodified one, and cancelling it is not enough on its
+      // own: the anchor takes the pointer (`[data-cell-rendered] a` in
+      // `styles.css`), so the textarea underneath never sees the click and the
+      // editor would simply not open. {@link openEditorUnder} hands the click
+      // on by focusing the box the drawn text is laid over.
+      // Proof: this guard removed, so every click is cancelled — `a link in a
+      // name is followed by ⌘-click, and edited by a plain one` failed on
+      // `browserContext.waitForEvent: Test timeout of 60000ms exceeded`: no tab
+      // opened at all, the modified click swallowed with the plain one.
+      // Watched in Chromium, 2026-08-31.
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openEditorUnder(event.currentTarget);
+      }}
     >
       {children}
     </a>
   );
+}
+
+/**
+ * Gives a plain click on a drawn link to the cell it is drawn over.
+ *
+ * The drawn box is `position: absolute` over a `<textarea>` holding the same
+ * text, and `[data-cell-rendered]` takes no pointer *except* on an anchor — so
+ * a click the anchor cancels stops there and reaches nothing. Focusing the box
+ * is what "the click opened the editor" means everywhere else in the grid.
+ *
+ * Throws rather than shrugging if the box is not there (R5): the drawn box only
+ * exists as a sibling of the textarea it draws, so its absence is a broken
+ * invariant and not a state to render around.
+ */
+function openEditorUnder(link: HTMLAnchorElement): void {
+  const drawn = link.closest('[data-cell-rendered]');
+  const box = drawn?.parentElement?.querySelector('textarea, input');
+  if (!(box instanceof HTMLElement)) {
+    throw new Error('a drawn link has no cell box under it to give the click to');
+  }
+  box.focus();
 }
 
 /** A link on a face that has room for one: the hover preview's, title and notes alike. */

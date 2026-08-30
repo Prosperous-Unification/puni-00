@@ -209,14 +209,19 @@ test.describe('the Name cell shows one of its two boxes at a time', () => {
     expect(await rendered.evaluate(boxMetrics)).toEqual(await box.evaluate(boxMetrics));
   });
 
-  test('a link in a name is not a tab stop but can be followed', async ({ page }) => {
-    // **This test asserted the opposite until 2026-08-30.** A link in the grid
-    // was a `<span>`: not followable, on the reasoning that the cell's own
-    // click opens the editor. Dany reversed that half — _"can you make the
-    // links in markdown of the workitem clickable"_ — having drawn a link in a
-    // name and found no way to follow it from the face it is read on. The tab
-    // half is unreversed and is asserted here beside the new behaviour, so the
-    // two cannot drift apart.
+  test('a link in a name is followed by ⌘-click, and edited by a plain one', async ({ page }) => {
+    // **This test has been rewritten twice in two days, and both turns are
+    // worth keeping.** A link in the grid was a `<span>` — not followable at
+    // all — on the reasoning that the cell's own click opens the editor. Dany
+    // reversed that on 2026-08-30 ("make the links in markdown of the workitem
+    // clickable"), and then, having used it, asked for the middle position on
+    // 2026-08-31: _"clicking the links in the markdown - make it so that it is
+    // only clickable for cmd + click"_.
+    //
+    // So a name is a field first and a document second: the plain click, which
+    // somebody makes dozens of times an hour, opens the editor, and the
+    // deliberate modified click follows the link. The tab half has never moved
+    // and is asserted beside both, so the three cannot drift apart.
     await seedRows(page, 1);
 
     const box = page.getByLabel('Name of 010');
@@ -252,25 +257,40 @@ test.describe('the Name cell shows one of its two boxes at a time', () => {
     await expect(box, 'a click past the link did not reach the editor').toBeFocused();
     await box.blur();
 
-    // **And the link's own pixels follow it.** The href is answered from a
-    // route rather than from the network: unrouted, the popup opens and lands
-    // on `chrome-error://chromewebdata/`, which proves the click was followed
-    // but says nothing about *where*. Routed, the popup's own URL is the
-    // assertion. Nothing outside this browser is contacted either way.
-    await page
-      .context()
-      .route('http://example.test/**', (taken) =>
-        taken.fulfill({ status: 200, contentType: 'text/html', body: '<title>the plan</title>' }),
-      );
-
+    // **A plain click on the link's own pixels opens the editor too**, which is
+    // the whole of the 2026-08-31 change and the half easiest to lose: the
+    // anchor takes the pointer, so cancelling its navigation without handing
+    // the click on would leave the commonest gesture in the grid doing nothing
+    // at all.
     const at = await link.boundingBox();
     if (at === null) throw new Error('the link has no box to click');
-    const opened = page.waitForEvent('popup');
     await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+    await expect(box, 'a plain click on the link did not open the editor').toBeFocused();
+    await box.blur();
+    await expect(drawn).toBeVisible();
+
+    // **And the modified click is left alone.** What this change controls is
+    // one thing: the handler returns without `preventDefault` when a modifier
+    // is held, so the browser performs the anchor's own default. That is what
+    // is asserted — the editor does **not** take the focus, and a second page
+    // appears in the context.
+    //
+    // Its URL is deliberately not asserted. A modified click opens a
+    // **background** tab, which Chromium creates before it loads; both
+    // `page.waitForEvent('popup')` and `followed.waitForURL(…)` were written
+    // here first and both timed out, and the one reading straight after the
+    // event got `""`. Where the tab would go is already pinned by the `href`,
+    // `target` and `rel` assertions at the top of this test, which are the
+    // attributes the browser acts on. Asserting a background tab's navigation
+    // would be a check about Chromium's scheduling, not about this code.
+    const opened = page.context().waitForEvent('page');
+    // `ControlOrMeta`, so this reads the same on the Mac it was written on and
+    // on CI's Linux.
+    await page.keyboard.down('ControlOrMeta');
+    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+    await page.keyboard.up('ControlOrMeta');
     const followed = await opened;
-    expect(followed.url(), 'the link opened somewhere other than its href').toBe(
-      'http://example.test/plan',
-    );
+    await expect(box, 'a modified click opened the editor as well').not.toBeFocused();
     await followed.close();
   });
 
