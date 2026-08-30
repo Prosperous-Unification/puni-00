@@ -36,8 +36,8 @@ import {
   type PersonView,
   type ServiceView,
   type TagView,
-  type WorkItemTypeView,
   type TeamView,
+  type WorkItemTypeView,
 } from '@/lib/wbs-api';
 
 export interface DirectoryPageProps {

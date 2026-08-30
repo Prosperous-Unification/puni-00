@@ -4,12 +4,12 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { workItemExternalRef } from './schema';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Project, Role, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import { workItemExternalRef } from './schema';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 

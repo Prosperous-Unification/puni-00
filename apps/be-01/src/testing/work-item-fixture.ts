@@ -1,8 +1,8 @@
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
 
 import type {
-  ExternalRef,
   DirectoryStore,
+  ExternalRef,
   FrozenNumber,
   Repositioned,
   WorkItem,

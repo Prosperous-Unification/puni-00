@@ -1,17 +1,17 @@
 import type {
   DirectoryStore,
+  ExternalSystem,
   Person,
   PersonKind,
   PersonPatch,
   PersonWithTeams,
   Service,
   ServiceTeam,
-  ExternalSystem,
   Tag,
-  WorkItemType,
   TeamPatch,
   TeamWithServices,
   TouchedProjects,
+  WorkItemType,
 } from '../repository';
 // The constant from `schema.ts`, not from `repository/index.ts`: that module is
 // type-only on purpose, and a value re-export there would pull drizzle into
@@ -24,8 +24,8 @@ import {
   directoryUsageOfPerson,
   directoryUsageOfService,
   directoryUsageOfTag,
-  directoryUsageOfWorkItemType,
   directoryUsageOfTeam,
+  directoryUsageOfWorkItemType,
 } from './directory-usage';
 
 export interface DirectoryServiceOptions {
