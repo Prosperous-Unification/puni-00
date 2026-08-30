@@ -54,14 +54,15 @@ other side.
 `main` merged forward, ask its owner to do it between runs, when nothing is
 measuring.
 
-### What is left
+### What is left (as of the last edit; `openspec/HANDOFF-2026-08-30.md` is live)
 
-1. `assumed-duration-schedules` — browser gate re-running clean; then merge.
-2. `project-config-modal` — eleven slices, unwritten. Blocked on
-   `steps-not-phases` only for naming: its section should be called `Steps`
-   once rather than renamed twice.
+1. `assumed-duration-schedules` — **merged to `main`**, ask 7.2 done.
+2. `project-config-modal` — **written, on `feat/project-config-modal`**, jsdom
+   suites green, eight negatives watched; waiting on the lock for fe-01's gate
+   and the whole browser gate, then merge. Built against `Phases` by agreement
+   with `steps-not-phases`' owner; that change's sweep renames the tab.
 3. `steps-not-phases` and `dep-reach-whole-item` — the other session's, both
-   needing only their gates.
+   merged forward onto `main` and gating.
 
 `steps-schema-rename` is the physical `role`→`step` table rename. It is the
 second half of ask 2 in the audit's framing, but **Dany's ask is user-visible
