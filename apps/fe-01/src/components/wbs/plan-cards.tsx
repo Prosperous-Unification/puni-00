@@ -21,7 +21,7 @@ import {
 } from './creatable-picker';
 import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
 import { type CellElement, cellKey } from './editable-grid';
-import { POINTS } from './estimate-draft';
+import { POINTS, showTrio } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import { renderName } from './inline-markdown';
 import { type CommitOutcome, flushCell } from './live-editing';
@@ -2058,6 +2058,15 @@ export function PlanCards({
               const listId = `card-mention-${row.id}-${role.id}`;
               const assignee = assigneeOn(row, role.id);
               const trio = cardTrioOf(row, role.id, showDay);
+              // The table's folded cell, on the face a phone reads: the box
+              // holds the trio shorthand and the figure the estimate method
+              // makes of it stands beside it, muted, where it says something
+              // the shorthand does not. Both read off the row rather than
+              // through `estimateValue`, which answers with a half-typed draft.
+              // The rule and its reasons are `wbs-table.tsx`'s folded cell;
+              // this is the same read of the same two fields, not a second
+              // opinion about them.
+              const finalSaysMore = trio.final !== showTrio(row.estimates[role.id]);
               return (
                 <Fragment key={role.id}>
                   <div
@@ -2143,6 +2152,14 @@ export function PlanCards({
                         value={estimateValue(row, role.id)}
                         commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
                       />
+                    )}
+                    {finalSaysMore && (
+                      <span
+                        data-card-final={role.id}
+                        className="text-muted-foreground shrink-0 text-sm"
+                      >
+                        · {trio.final}
+                      </span>
                     )}
                     {problem !== null && (
                       <span role="status" className="text-destructive text-sm">
