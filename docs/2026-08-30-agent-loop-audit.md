@@ -8,9 +8,9 @@ Two things are recorded here, and the second is the one worth keeping:
 
 1. **The plan** — what Dany asked for, what is actually on `main`, who owns
    which branch, and what is left.
-2. **What the loop got wrong** — nine measurements that were green, or red, for
+2. **What the loop got wrong** — eleven measurements that were green, or red, for
    reasons other than the ones claimed. Every one was found by checking rather
-   than by reasoning, and six of them were mine.
+   than by reasoning, and seven of them were mine.
 
 ---
 
@@ -71,7 +71,7 @@ deliberate deferral rather than an omission.
 
 ---
 
-## Part 2 — nine measurements that meant something else
+## Part 2 — eleven measurements that meant something else
 
 R5 says a check whose failure has never been observed is a claim, not a gate.
 The loop produced a matching family: **a result whose _cause_ has never been
@@ -192,6 +192,52 @@ does. Replaced by the fault that is real (the `ModalTrigger` swapped for a plain
 change were watched by subagents in detached worktrees before the comments were
 believed, which is the discipline this item argues for: **never write "watched"
 before the watching.**
+
+## 10. A check whose measured quantity cannot move under its own fault
+
+`project-config-modal`'s `tasks.md` asks that "the folded toolbar at 1280 is no
+wider than before, with the pre-change figure pinned as a number". Measured on
+`main` in Chromium, that reading **cannot fail**: the bar's content width at 1280
+is `1248px`, which is the bar's own width, because the eighteen controls already
+wrap to a second row. A full bar measures its own width whatever is on it — the
+check passes with three buttons added _and_ with ten removed.
+
+The other session named the family, and the name is better than the instance:
+**a check whose measured quantity is invariant under the fault it names.**
+`deps-cell`'s drain (item 4) is its sibling — the polled count could never reach
+the asserted value — and neither is visible by reading the assertion. They are
+visible only by asking _what the number is a measurement of_.
+
+The replacement pins what the bar has to **lay out** — every control's width plus
+the gaps, `1445.33px` over 18 controls at a 6px gap, across `2` rows — and
+asserts **≥16 controls present first**. That precondition is not decoration: it is
+what stops the new check acquiring the same property, since a bar that lost
+controls could otherwise satisfy the budget by shrinking.
+
+## 11. A merge diff attributes every line it carries, including the ones it imports
+
+Two sessions believed they had independently fixed the same stale docking test,
+and that whoever merged second faced a judgement call about which correction to
+keep. `git diff` showed 97 changed lines in `plan-surface.spec.ts` on the second
+branch, which was true and meant nothing:
+
+```
+$ git merge-base --is-ancestor 6fe8a26 58ded95   # already in its history
+$ diff <(git show 58ded95:…/plan-surface.spec.ts) <(git show main:…/plan-surface.spec.ts)
+421c421
+<     // An unfolded step is what makes the frame scroll sideways at all
+---
+>     // An unfolded role is what makes the frame scroll sideways at all
+```
+
+One line, a comment, and the word was that branch's own rename sweep. The 97
+lines were the _first_ session's correction arriving through a merge of
+`origin/main`. All four of that session's branches merge `main` with **zero**
+conflicts.
+
+Same shape as `eb8968d` (item 5's neighbour): a real number supporting a wrong
+story until somebody read the commit that produced it. **`git diff` answers "what
+changed here"; only `merge-base` answers "who wrote it".**
 
 ### Three artefacts that look like conclusions
 
