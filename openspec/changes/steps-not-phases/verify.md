@@ -114,7 +114,7 @@ and three in `wbs-table.test.tsx` (`expected 'clip' to be 'hidden'` plus two
 | `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                                                                                       | run; `openapi.json` committed beside the routes                                                                                                                                                                     |
 | `bunx openspec validate --all --json`                                                                                                  | pass — 92 of 92                                                                                                                                                                                                     |
 | `HEAVY_LOCK_WAIT_SECONDS=7200 bin/h2puni-gate.sh`                                                                                      | on the ask-3 reconciled tree: `be-01` **1217 pass across 89 files**, `fe-01` **61 of 61 files**, every other project green on test/lint/typecheck/build; the `tool-*` trio fails ten, none of them code — see below |
-| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- env CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                             | 231 passed, 1 skipped, 4 failed — **none of the four this change's**, see below                                                                                                                                     |
+| `HEAVY_LOCK_WAIT_SECONDS=7200 bin/with-heavy-lock.sh -- env CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                             | **239 planned, 236 passed, 1 skipped, 2 failed** — the documented date pair, and the count reconciles                                                                                                               |
 
 ## Failure proofs (R5)
 
@@ -221,44 +221,30 @@ restores the shadowing — and watched failing on `Expected: 188  Received: 190`
 The JSDoc now quotes that, and keeps the original 175/173 as the reading when the
 fault was first found.
 
-## The browser gate, and the four it fails
+## The browser gate
 
-`231 passed, 1 skipped, 4 failed` on shift 600. Each of the four is attributed,
-and two of them were attributed by **running them on `origin/main` itself**
-rather than by reasoning from the diff.
+`Running 239 tests using 1 worker` → **236 passed, 1 skipped, 2 failed**, on shift
+600 against the ask-3 reconciled tree. 236 + 1 + 2 = 239, so the planned count and
+the summary reconcile: no case was dropped, and the result is not a killed run
+being read as a green one.
 
-1. `keyboard.spec.ts:516` `Escape leaves the stored day alone, blur and all`
-2. `keyboard.spec.ts:660` `saves only the year that was typed, digit by digit, in
+The two failures are the documented pair, and nothing else:
+
+- `keyboard.spec.ts:516` `Escape leaves the stored day alone, blur and all`
+- `keyboard.spec.ts:660` `saves only the year that was typed, digit by digit, in
 a real Chrome`
 
-   The documented pair: date-segment typing against a non-US host locale,
-   known-failing here and named as such before this change started.
+Both are date-segment typing against a non-US host locale, known-failing on this
+machine before this change started.
 
-3. `deps-cell.spec.ts:432` `picks the add button up off the row it is hovered on,
-in both palettes` — its own drain, not this change. Fixed on main by
-   `26d6166` (`fix(e2e): the theme drain waits for running animations, not an
-empty list`), which landed after this branch's previous merge. Merged in, and
-   the whole spec then runs `10 passed` on main.
-
-4. `plan-surface.spec.ts:253` `docks the chart under the last row rather than at
-the bottom of the window` — **red on `origin/main` already, and this change
-   does not touch it.**
-
-   `Error: 527px between the last row and the chart, against 215px anything asked
-for` · `Expected: <= 217.4375` · `Received: 527.4375`. Run on a detached
-   `origin/main` at `26d6166`: `1 failed, 5 passed`, the _identical_ message.
-   `git diff origin/main` over `plan-surface.spec.ts`, `table-frame.ts` and
-   `wbs-table.tsx` shows no line changed here beyond the domain word.
-
-   It is `unified-scroll-docking`'s test, and `eb8968d` (`fix(wbs): the whole
-Gantt panel goes down`) deliberately reversed its outcome — its own message
-   says so: "The gap is back above the chart on a short plan and that is the
-   accepted cost." `gantt-resize-scroll`'s `verify.md` records that
-   `plan-surface` was **not run**; only `gantt.spec.ts` was. So the older test
-   asserting the opposite was never re-read, and main's browser gate has been
-   red since. That is somebody else's to resolve — either the test states a rule
-   the product no longer holds and should be rewritten, or the docking change
-   went further than intended. This change only reports it.
+**Two earlier failures were attributed and are now gone.** An earlier run of this
+gate showed four. `deps-cell.spec.ts:432` was its own drain, fixed on main by
+`26d6166`. `plan-surface.spec.ts:253` was red on `origin/main` itself — proved by
+running it on a detached `origin/main`, where it failed with the identical
+`Error: 527px between the last row and the chart, against 215px anything asked
+for`; it was `unified-scroll-docking`'s test asserting a rule `eb8968d`
+deliberately reversed, and `6fe8a26` has since corrected it. Neither was this
+change's, and both were attributed by running them rather than by reading a diff.
 
 ## Skipped or unavailable checks
 

@@ -37,4 +37,4 @@ that ARIA `role` was excluded. See design D1.
 
 ## 6. Gate
 
-- [ ] 6.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, `CI=1` Playwright on shifted ports. `nx typecheck` runs `tsc --build --force` and is the rename's real compiler — a missed identifier is a type error, not a runtime surprise.
+- [x] 6.1 `bin/h2puni-gate.sh`, `openspec validate --all --json`, `CI=1` Playwright on shifted ports. `nx typecheck` runs `tsc --build --force` and is the rename's real compiler — a missed identifier is a type error, not a runtime surprise.
