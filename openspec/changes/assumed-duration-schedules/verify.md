@@ -112,23 +112,36 @@ Every plan holding an unestimated slice. Fully-estimated plans do not move at
 all — that is the line between "the assumption reached the engine" and "the
 assumption leaked into estimated work", and it is asserted rather than argued.
 
-| Fixture                                                     | Holds an unestimated slice | Expected to move | What was done                                                                                                                                      |
-| ----------------------------------------------------------- | -------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schedule-identity.test.ts`, 1000 plans × 2 roles           | yes (one pair in four)     | **yes**          | The oracle is told the duration rule **once**, in `OracleDurations`; every field still `toBe`-exact against an independently written critical path |
-| `schedule-identity.test.ts`, 1000 plans × 3 roles           | yes                        | **yes**          | as above                                                                                                                                           |
-| `schedule-identity.test.ts`, 1000 plans × 1 role, edges     | yes                        | **yes**          | as above                                                                                                                                           |
-| `schedule-identity.test.ts`, **1000 fully estimated plans** | no                         | no               | **New.** The same generator with every pair estimated, so the `??` never fires and the oracle is the pre-change oracle character for character     |
-| `schedule-identity.test.ts`, sized-team corpus              | yes                        | no               | Compares this engine against itself, pooled versus not — untouched                                                                                 |
-| `live-plan-2026-08-09.json` (a real plan)                   | yes: `020`, `030.1.1`      | **yes**          | `duration` and `estimated` still asserted against the capture for every row; the placement re-derived row by row with the reason on each           |
-| the same capture, with a role nobody estimated added        | yes                        | **yes**          | Was "changes nothing"; is now "adds exactly one assumed duration to every leaf", asserted as the difference from the run without it                |
-| `capacity-oracle-2026-08-13.json`, 3 fully-estimated plans  | no                         | no               | Whole document, byte-identical, no exceptions                                                                                                      |
-| `capacity-oracle-2026-08-13.json`, 13 plans with a gap      | yes                        | **yes**          | Whole document with the placement set aside (`withoutPlacement`), plus `countMovedDates > 0` as the non-vacuity                                    |
-| `schedule-priority.test.ts`'s contention pin                | yes: `c-p1/role-qa`        | **yes**          | Re-derived field by field; only that slice and the floats measuring the new project finish moved, and `waitingForPerson` 2 → 3                     |
-| `schedule-benchmark.test.ts`'s 600-slice plan               | yes (one slice in seven)   | **yes**          | `waitingForPerson` 175 → 188                                                                                                                       |
-| `schedule.test.ts`, `schedule-shapes.test.ts`               | yes                        | **yes**          | Re-derived case by case, each with its reason beside it; the anchor rule's own claims unmoved                                                      |
+| Fixture                                                     | Holds an unestimated slice | Expected to move | What was done                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | -------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schedule-identity.test.ts`, 1000 plans × 2 roles           | yes (one pair in four)     | **yes**          | The oracle is told the duration rule **once**, in `OracleDurations`; every field still `toBe`-exact against an independently written critical path                                                                     |
+| `schedule-identity.test.ts`, 1000 plans × 3 roles           | yes                        | **yes**          | as above                                                                                                                                                                                                               |
+| `schedule-identity.test.ts`, 1000 plans × 1 role, edges     | yes                        | **yes**          | as above                                                                                                                                                                                                               |
+| `schedule-identity.test.ts`, **1000 fully estimated plans** | no                         | no               | **New.** The same generator with every pair estimated, so the `??` never fires and the oracle is the pre-change oracle character for character                                                                         |
+| `schedule-identity.test.ts`, sized-team corpus              | yes                        | no               | Compares this engine against itself, pooled versus not — untouched                                                                                                                                                     |
+| `live-plan-2026-08-09.json` (a real plan)                   | yes: `020`, `030.1.1`      | **yes**          | `duration` and `estimated` still asserted against the capture for every row; the placement re-derived row by row with the reason on each                                                                               |
+| the same capture, with a role nobody estimated added        | yes                        | **yes**          | Was "changes nothing"; is now "adds exactly one assumed duration to every leaf", asserted as the difference from the run without it **Holds only under the `anchor-slice` reach — see the correction below the table** |
+| `capacity-oracle-2026-08-13.json`, 3 fully-estimated plans  | no                         | no               | Whole document, byte-identical, no exceptions                                                                                                                                                                          |
+| `capacity-oracle-2026-08-13.json`, 13 plans with a gap      | yes                        | **yes**          | Whole document with the placement set aside (`withoutPlacement`), plus `countMovedDates > 0` as the non-vacuity                                                                                                        |
+| `schedule-priority.test.ts`'s contention pin                | yes: `c-p1/role-qa`        | **yes**          | Re-derived field by field; only that slice and the floats measuring the new project finish moved, and `waitingForPerson` 2 → 3                                                                                         |
+| `schedule-benchmark.test.ts`'s 600-slice plan               | yes (one slice in seven)   | **yes**          | `waitingForPerson` 175 → 188                                                                                                                                                                                           |
+| `schedule.test.ts`, `schedule-shapes.test.ts`               | yes                        | **yes**          | Re-derived case by case, each with its reason beside it; the anchor rule's own claims unmoved                                                                                                                          |
 
 A fully-estimated fixture that moved would be a bug in the duration lookup. None
 did.
+
+**Correction, 2026-08-30, from `dep-reach-whole-item`'s merge:** "adds exactly one
+assumed duration to every leaf" is a **per-plan** claim that holds only while a
+dependency waits on the predecessor's anchor slice. Under the `whole-item` reach
+that change makes the default, a new unsized step at the end of a predecessor is
+the slice its successors wait for, so the growth **compounds down a dependency
+chain** — measured on that capture: `010` +2, `020` +2, `030` **+4**, `030.1`
+**+4**. The two changes together mean an assumed duration accumulates along a
+chain, which is a different sentence from the one either makes alone; the test is
+rewritten there as a walk over `dependsOn`, inherited waits included. Nothing in
+this change's spec says "two days" as a flat per-plan promise — it says a slice
+nobody estimated takes two workdays, which is still exactly true — but this row
+did, and it is corrected here rather than left to be read as evidence.
 
 **Not monotone, and measured.** "An assumed duration can only push work later"
 is false and is not claimed: with the assumption on, `p14-g2-l1 role-0` starts on
