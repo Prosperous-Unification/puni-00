@@ -12,6 +12,11 @@ import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { inMemoryActuals } from '../testing/actual-fixture';
+import {
+  countMovedDates,
+  isFullyEstimated,
+  withoutPlacement,
+} from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
@@ -23,11 +28,6 @@ import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
-import {
-  countMovedDates,
-  isFullyEstimated,
-  withoutPlacement,
-} from '../testing/assumed-duration-oracle';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { WorkItemService } from './work-item.service';
@@ -189,7 +189,7 @@ describe('a priority ladder moves no date', () => {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
       const tree = await replay(plan, seeded);
-      moved += countMovedDates(answer, tree as unknown as Record<string, unknown>);
+      moved += countMovedDates(answer, tree);
       const narrow = narrowedFor(plan);
       expect(narrow({ project: plan.projectId, ...lifted(tree) })).toEqual(
         narrow(expected(plan, answer, seeded)),

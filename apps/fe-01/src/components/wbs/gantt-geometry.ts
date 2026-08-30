@@ -514,7 +514,6 @@ export interface GanttRowLabel {
   rowIndex: number;
 }
 
-
 /**
  * One slice drawn: where it starts and how wide it is on the workday axis,
  * which row it is on, and why it starts there.

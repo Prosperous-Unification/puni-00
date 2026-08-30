@@ -357,7 +357,9 @@ describe('a captured live plan, through the slice engine', () => {
         row.schedule.earliestFinish - bare.workItems[at].schedule.earliestFinish,
         row.number,
       ).toBeCloseTo(2, 12);
-      expect(row.schedule.earliestStart, row.number).toBe(bare.workItems[at].schedule.earliestStart);
+      expect(row.schedule.earliestStart, row.number).toBe(
+        bare.workItems[at].schedule.earliestStart,
+      );
     }
   });
 });

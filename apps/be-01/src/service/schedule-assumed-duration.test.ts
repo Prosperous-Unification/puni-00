@@ -82,7 +82,9 @@ function overlaps(found: Schedule): string[] {
       for (const right of own) {
         if (left === right) continue;
         if (left.earliestStart < right.earliestFinish && right.earliestStart < left.earliestFinish)
-          clashes.push(`${personId}: ${left.workItemId}/${left.roleId ?? ''} and ${right.workItemId}/${right.roleId ?? ''}`);
+          clashes.push(
+            `${personId}: ${left.workItemId}/${left.roleId ?? ''} and ${right.workItemId}/${right.roleId ?? ''}`,
+          );
       }
     }
   }
@@ -132,10 +134,11 @@ describe('an unestimated slice takes its assumed duration', () => {
     // — the truthiness test instead of the null test — and this failed on
     // `expected 0 to be 2` for `A`'s own finish, an estimate of zero days
     // silently overruled; watched 2026-08-29.
-    const found = schedule([item('A'), item('B')], [edge('A', 'B')], [
-      slice('A', DEV, 0),
-      slice('B', DEV, 1),
-    ]);
+    const found = schedule(
+      [item('A'), item('B')],
+      [edge('A', 'B')],
+      [slice('A', DEV, 0), slice('B', DEV, 1)],
+    );
 
     expect(planned(found, 'A', DEV)).toMatchObject({ earliestStart: 0, earliestFinish: 0 });
     expect(projectionOf(found, 'B').earliestStart).toBe(0);
@@ -146,23 +149,29 @@ describe('an unestimated slice takes its assumed duration', () => {
     // and the resource model does not would draw one person doing two things at
     // once on exactly the rows nobody has sized.
     //
-    // Proof: the assumed duration applied in `groupByWorkItem`'s offsets only
-    // and `duration > 0` on the person floor left reading the raw
-    // `slice.days ?? 0`, so an unestimated slice takes time but occupies
-    // nobody — this failed on `expected [ 'kat: b/role-dev and a/role-dev',
-    // 'kat: a/role-dev and b/role-dev' ] to equal []`; watched 2026-08-29.
+    // Proof: the person floor's gate changed from the node's own duration to
+    // `(node.slice.days ?? 0) > 0`, so the assumption reaches the dependency
+    // graph and not the leveller — an unestimated slice takes time and occupies
+    // nobody. This failed on `- [] / + [ "kat: a/role-dev and b/role-dev",
+    // "kat: b/role-dev and a/role-dev" ]`, with `b` back at 0→2 beside `a`;
+    // watched 2026-08-30.
     const rows = [item('a'), item('b')];
-    const slices = [slice('a', DEV, null, { personId: 'kat' }), slice('b', DEV, null, { personId: 'kat' })];
+    const slices = [
+      slice('a', DEV, null, { personId: 'kat' }),
+      slice('b', DEV, null, { personId: 'kat' }),
+    ];
 
     const found = schedule(rows, [], slices);
 
+    // The promise first, so a failure names the clash rather than a date beside
+    // it: `overlaps` is empty or it lists the pair sharing a day.
+    expect(overlaps(found)).toEqual([]);
     expect(planned(found, 'a', DEV)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
     expect(planned(found, 'b', DEV)).toMatchObject({
       earliestStart: 2,
       earliestFinish: 4,
       boundBy: 'person',
     });
-    expect(overlaps(found)).toEqual([]);
   });
 
   it('an unestimated slice spends its team’s pool', () => {
@@ -195,12 +204,7 @@ describe('an unestimated slice takes its assumed duration', () => {
     // The third constraint named in the spec. The assumption is a width, never
     // a pin: a slice told "not before day 5" starts on day 5 and runs two days
     // from there.
-    const found = schedule(
-      [item('a')],
-      [],
-      [slice('a', DEV, null)],
-      new Map([['a', 5]]),
-    );
+    const found = schedule([item('a')], [], [slice('a', DEV, null)], new Map([['a', 5]]));
 
     expect(planned(found, 'a', DEV)).toMatchObject({ earliestStart: 5, earliestFinish: 7 });
   });
@@ -219,11 +223,13 @@ describe('an assumed duration is not an estimate', () => {
     // Duration column of the markdown export reads `duration`, so a `2` here
     // would be an export claiming somebody estimated two days.
     //
-    // Proof: `estimated` written as `durationOf(slice) > 0` — the
-    // "has a duration" predicate D2 names — and this failed on
-    // `expected true to be false`, with the anchor test below and the
-    // end-column marker in `wbs-table.test.tsx` going red beside it; watched
-    // 2026-08-29.
+    // Proof: `estimated` written as `durationOf(slice) > 0` — the "has a
+    // duration" predicate D2 names — and this failed on `- "estimated": false /
+    // + "estimated": true`. **Sixteen** of be-01's tests went red on that one
+    // line, among them `reports an unestimated leaf as unestimated, not merely
+    // as zero`, `marks a parent unestimated when nothing beneath it is
+    // estimated`, the captured live plan, and all four identity corpora. The
+    // word is load-bearing in more places than this file; watched 2026-08-30.
     const found = schedule([item('a')], [], [slice('a', DEV, null)]);
 
     expect(planned(found, 'a', DEV)).toMatchObject({
@@ -242,10 +248,10 @@ describe('an assumed duration is not an estimate', () => {
     // second: `B` waits for `A`'s `Dev` at day 6, not for the assumed `Design`
     // finish at day 2.
     //
-    // Proof: the anchor's `slice.days !== null` replaced by
-    // `offsets[at + 1] - offsets[at] > 0` and this failed on
-    // `expected 2 to be 6` — every edge in a plan that lists a step nobody
-    // estimated anchoring on that step; watched 2026-08-29.
+    // Proof: the anchor's `slice.days !== null` replaced by `durationOf(slice)
+    // > 0` and this failed on `Expected: 6 / Received: 2` — `B` waiting for the
+    // assumed `Design` finish, which is every edge in every plan that lists a
+    // step nobody estimated; watched 2026-08-30.
     const rows = [item('A'), item('B')];
     const slices = [
       slice('A', DESIGN, null),

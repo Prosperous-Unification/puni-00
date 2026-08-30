@@ -516,8 +516,8 @@ describe('the slice engine against the one it replaced', () => {
     //
     // Proof: `durationOf` in `schedule.ts` changed to give **every** slice the
     // assumed duration rather than only the unestimated ones, and this failed
-    // at seed 1 on `r0.duration: 4.833333333333333 became 2` — an estimate
-    // overwritten by a guess; watched 2026-08-29.
+    // at `seed 1, r0c0g0.earliestFinish: 12.5 became 7` — an estimate
+    // overwritten by a guess; watched 2026-08-30.
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, RELEASED_ROLES, true);
       expect(plan.estimates.every((each) => each.days !== null)).toBe(true);

@@ -77,11 +77,10 @@ export function isFullyEstimated(plan: {
     .every((row) => plan.roleIds.every((roleId) => Object.hasOwn(row.estimates, roleId)));
 }
 
-const withoutMovedFields = (held: Record<string, unknown>): Record<string, unknown> => {
-  const kept: Record<string, unknown> = { ...held };
-  for (const field of MOVED_SCHEDULE_FIELDS) delete kept[field];
-  return kept;
-};
+const MOVED = new Set<string>(MOVED_SCHEDULE_FIELDS);
+
+const withoutMovedFields = (held: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(held).filter(([field]) => !MOVED.has(field)));
 
 /**
  * The same document with the placement taken out of it — the comparison used for
@@ -102,9 +101,9 @@ export function withoutPlacement(tree: Record<string, unknown>): Record<string, 
     // working.
     waitingForPerson: null,
     waitingForCapacity: null,
-    workItems: held.workItems.map(({ schedule, dates, ...row }) => ({
+    workItems: held.workItems.map((row) => ({
       ...row,
-      schedule: withoutMovedFields(schedule),
+      schedule: withoutMovedFields(row.schedule),
       // Set aside with the offsets it is computed from, never asserted as
       // equal: `datesOf` turns `earliestStart`/`earliestFinish` into a calendar
       // day and nothing else.
@@ -152,12 +151,16 @@ export function countMovedDates(
     }
   };
 
-  const wasSlices = new Map(was.slices.map((slice) => [String(slice.id), slice]));
+  // `slice['id']` and not `slice.id`: a slice here is the captured JSON's own
+  // `Record<string, unknown>`, so the key comes from an index signature and
+  // `strictTypeChecked` refuses the dotted read.
+  const idOf = (slice: Record<string, unknown>): string => String(slice['id']);
+  const wasSlices = new Map(was.slices.map((slice) => [idOf(slice), slice]));
   expect(now.slices).toHaveLength(was.slices.length);
   for (const slice of now.slices) {
-    const before = wasSlices.get(String(slice.id));
-    if (before === undefined) throw new Error(`slice ${String(slice.id)} is not in the capture`);
-    compare(String(slice.id), before, slice);
+    const before = wasSlices.get(idOf(slice));
+    if (before === undefined) throw new Error(`slice ${idOf(slice)} is not in the capture`);
+    compare(idOf(slice), before, slice);
   }
 
   const wasRows = new Map(was.workItems.map((row) => [row.id, row]));

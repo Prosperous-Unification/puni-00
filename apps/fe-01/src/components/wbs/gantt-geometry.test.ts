@@ -1657,10 +1657,11 @@ describe('the shapes a real schedule makes', () => {
     //
     // Proof: `ASSUMED_SLICE_WORKDAYS` changed to 3 in `libs/domain`, and this
     // failed on `expected 3 to be 2` — the drawn width moving while the
-    // fixture's placement, which is be-01's, did not. In the same run
-    // `schedule-assumed-duration.test.ts`'s `is two workdays wide, and says so
-    // in its own dates` failed on `expected 3 to be 2`, which is the scheduled
-    // date half. Watched 2026-08-29.
+    // fixture's placement, which is be-01's, did not. The scheduled-date half
+    // went red in the same edit: `schedule-assumed-duration.test.ts`'s `is two
+    // workdays wide, and says so in its own dates` failed on `- "earliestFinish":
+    // 2 / + "earliestFinish": 3`. One constant, both readers. Watched
+    // 2026-08-30.
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('sand', 3, 5)],

@@ -12,6 +12,11 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { inMemoryActuals } from '../testing/actual-fixture';
+import {
+  countMovedDates,
+  isFullyEstimated,
+  withoutPlacement,
+} from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
@@ -23,11 +28,6 @@ import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
-import {
-  countMovedDates,
-  isFullyEstimated,
-  withoutPlacement,
-} from '../testing/assumed-duration-oracle';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { WorkItemService } from './work-item.service';
@@ -365,28 +365,28 @@ describe('every plan schedules identically across the migration', () => {
       const narrow = isFullyEstimated(plan)
         ? (document: Record<string, unknown>) => document
         : withoutPlacement;
-      moved += countMovedDates(answer, tree as unknown as Record<string, unknown>);
+      moved += countMovedDates(answer, tree);
       if (isFullyEstimated(plan)) fullyEstimated += 1;
       expect(narrow({ project: plan.projectId, ...lifted })).toEqual(
         narrow({
-        project: plan.projectId,
-        ...answer,
-        // The one key the capture could not carry, because it did not exist:
-        // `teamCapacities` is this change's own addition to the payload. Its
-        // *values* are the seeded numbers, which is the thing under test, so it is
-        // asserted here rather than deleted from the comparison.
-        teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
-          .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
-          .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
-        // The second key the capture predates, added by `priority-bands`. Its
-        // presence here is the whole of that change's effect on this
-        // differential: the ladder is read into the payload and passed to
-        // nothing, so every date, every slice and every other field is
-        // byte-identical to the answer captured at `050fd45`. The claim in the
-        // other direction — that a project which has **re-cut** its ladder
-        // schedules identically too — is `priority-band-identity.test.ts`, and
-        // it is that change's to make rather than this file's.
-        priorityBands: DEFAULT_PRIORITY_BANDS,
+          project: plan.projectId,
+          ...answer,
+          // The one key the capture could not carry, because it did not exist:
+          // `teamCapacities` is this change's own addition to the payload. Its
+          // *values* are the seeded numbers, which is the thing under test, so it is
+          // asserted here rather than deleted from the comparison.
+          teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
+            .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+            .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+          // The second key the capture predates, added by `priority-bands`. Its
+          // presence here is the whole of that change's effect on this
+          // differential: the ladder is read into the payload and passed to
+          // nothing, so every date, every slice and every other field is
+          // byte-identical to the answer captured at `050fd45`. The claim in the
+          // other direction — that a project which has **re-cut** its ladder
+          // schedules identically too — is `priority-band-identity.test.ts`, and
+          // it is that change's to make rather than this file's.
+          priorityBands: DEFAULT_PRIORITY_BANDS,
         }),
       );
     }

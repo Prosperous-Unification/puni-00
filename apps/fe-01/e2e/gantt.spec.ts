@@ -238,14 +238,25 @@ const rowOf = (page: Page, number: string): Locator =>
  * the bottom of a tall chart — rather than only rows down there — asks for
  * this. Off by default: the tests that want height alone should not pay for
  * sixteen estimates they never read.
+ * @param fixture.zeroQa Whether each leaf's `QA` step is **stated** as `0/0/0`
+ * rather than left blank. Since `assumed-duration-schedules` a blank step takes
+ * two workdays, so a row's End is two workdays past its `Dev` bar's finish;
+ * only the fixtures whose subject is a bar standing for its own row ask for
+ * this, and they ask by stating the zero, because an absence and a zero are
+ * different answers.
  */
 async function seedPlan(
   page: Page,
   _account: string,
-  fixture: { estimate?: string; extraRows?: number; costedExtras?: boolean } = {},
+  fixture: {
+    estimate?: string;
+    extraRows?: number;
+    costedExtras?: boolean;
+    zeroQa?: boolean;
+  } = {},
 ): Promise<void> {
   void _account;
-  const { estimate = '2/4/6', extraRows = 0, costedExtras = false } = fixture;
+  const { estimate = '2/4/6', extraRows = 0, costedExtras = false, zeroQa = false } = fixture;
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
@@ -278,6 +289,18 @@ async function seedPlan(
     await box.fill(estimate);
     await box.blur();
     await expect(box).not.toHaveValue('');
+    // `zeroQa` makes a row's span its `Dev` slice's span, which is what it was
+    // before `assumed-duration-schedules` (2026-08-30): a `QA` nobody estimates
+    // now takes two workdays, so a row's End is two workdays past its `Dev`
+    // bar's finish. Only the fixtures whose subject is a bar standing for its
+    // own row ask for it, and they ask by **stating** the zero rather than by
+    // leaving the step blank — an absence and a zero are different answers, and
+    // this helper must not blur them.
+    if (!zeroQa) continue;
+    const qa = page.getByLabel(`QA estimate for ${number}`);
+    await qa.fill('0/0/0');
+    await qa.blur();
+    await expect(qa).not.toHaveValue('');
   }
 
   const depends = page.getByLabel('Add a dependency to 010.2');
@@ -367,13 +390,23 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
  * approach goes negative. `040` waits for the estimated `030`, so it starts
  * further along the schedule and its arrow's outward leg reaches past its bar.
  *
- * **`0/0/0` rather than blank, since `assumed-duration-schedules`**
- * (2026-08-29). `010` used to be left unestimated on the reasoning that it is
- * the state every row is in for its first few minutes — and an unestimated
- * predecessor now takes two workdays, which would move `020` off day zero and
- * take the left-edge arrow, and this test's whole subject, with it. A stated
- * zero is the case that survives: somebody has said this step costs nothing,
- * the anchor is that `Dev`, and it finishes where it starts.
+ * **Costed at `0/0/0` rather than left blank, since
+ * `assumed-duration-schedules`** (2026-08-30). Every row but `030` used to be
+ * left unestimated on the reasoning that it is the state every row is in for
+ * its first few minutes — and an unestimated step now takes two workdays, which
+ * would move `020` off day zero, push the horizon out past `040`, and take both
+ * of this test's arrows with it. A stated zero is the case that survives:
+ * somebody has said this step costs nothing, and it finishes where it starts.
+ * Every role of every row but `030`'s `Dev` therefore carries an explicit
+ * `0/0/0`, which reproduces the schedule this fixture has always had.
+ *
+ * The consequence for the helper's caller: every mark in this plan but `030`'s
+ * one bar has **no area** — a zero-day slice draws a `<rect width="0">` and a
+ * `<line x1=x2>`, both of which a browser reports as hidden — so the chart
+ * cannot be opened by waiting for a bar or a tick to be visible. It is opened
+ * on the row labels, which are HTML, and the caller then waits for the one bar
+ * that does have width. That second wait is this fixture's non-vacuity: it is
+ * what says the chart being measured is the one this helper seeded.
  */
 async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
   void _account;
@@ -396,12 +429,18 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
   await estimate.blur();
   await expect(estimate).not.toHaveValue('');
 
-  // And the stated zero on `010`, which is what holds `020` at workday 0 — see
-  // this helper's docstring.
-  const nothing = page.getByLabel('Dev estimate for 010');
-  await nothing.fill('0/0/0');
-  await nothing.blur();
-  await expect(nothing).not.toHaveValue('');
+  // And a stated zero everywhere else, which is what holds `020` at workday 0
+  // and the horizon at `030`'s own finish — see this helper's docstring. Both
+  // roles of every row, because a role left blank is two assumed workdays now.
+  for (const number of ['010', '020', '030', '040']) {
+    for (const role of ['Dev', 'QA']) {
+      if (number === '030' && role === 'Dev') continue;
+      const nothing = page.getByLabel(`${role} estimate for ${number}`);
+      await nothing.fill('0/0/0');
+      await nothing.blur();
+      await expect(nothing).not.toHaveValue('');
+    }
+  }
 
   for (const [waiting, on] of [
     ['020', '010'],
@@ -942,7 +981,9 @@ test.describe('the chart, after the browser has scaled it', () => {
     ).toHaveLength(2);
     expect(drawn.successor, 'the successor drew no costed bar of its own').toHaveLength(1);
     for (const bar of [...drawn.predecessor, ...drawn.successor]) {
-      expect(bar.width, 'a bar with no width cannot be to the right of anything').toBeGreaterThan(0);
+      expect(bar.width, 'a bar with no width cannot be to the right of anything').toBeGreaterThan(
+        0,
+      );
       expect(bar.height, 'a bar with no height cannot be to the right of anything').toBeGreaterThan(
         0,
       );
@@ -953,10 +994,13 @@ test.describe('the chart, after the browser has scaled it', () => {
     //
     // Proof: `durationOf`'s assumed arm removed in `apps/be-01/src/service/
     // schedule.ts`, so an unestimated slice is zero days again — this failed on
-    // `the unestimated predecessor drew no assumed bars to measure: expected [
-    // { left: 96, right: 96, width: 0, height: 0 }, … ] to have a length of 2`
-    // — the two assumed bars still drawn, at no width at all, standing on the
-    // same workday as the successor. Watched 2026-08-30.
+    // `the successor is drawn left of the work it waits for: Expected: > 259 /
+    // Received: 204`, the successor's bar back at the project's first workday
+    // beside the work it depends on. The predecessor's two bars keep their
+    // width through that fault, because the **drawing** has assumed two
+    // workdays since `gantt-view`; it is the successor's placement that this
+    // change moved, and it is the ordering rather than the widths that sees it.
+    // Watched 2026-08-30.
     const holdsUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
     expect(
       drawn.successor[0].left,
@@ -979,15 +1023,29 @@ test.describe('the chart, after the browser has scaled it', () => {
    */
   test('paints an arrow that routes off either end of the schedule', async ({ page }) => {
     await seedEdgeRoutes(page, nextAccount());
-    // The one estimated row draws the one bar at rest, and the detail is asked
-    // for after it: an arrow is drawn from the **rows'** own schedule, so the
-    // two uncosted rows have routes between them either way.
-    await openTheChart(page);
-    // Two arrows: `020` waits for `010`, whose `Dev` costs nothing, so the
-    // successor starts at workday 0 and the route reaches left of the
-    // schedule; `040` waits for the estimated `030`, so it starts further
-    // along it and the route reaches right of that bar. Asserted inside the
-    // helper, because one arrow would make half of this test vacuous.
+    // Opened on the row labels, which are HTML and have area, because every
+    // mark this fixture draws but one is zero-width — see `seedEdgeRoutes`.
+    await openTheChart(page, { drawn: '[data-gantt-label]' });
+    // And the one that is not: `030`'s costed bar. Polled rather than asserted
+    // once, because it is the wait a bar selector would have been; and asserted
+    // to be **exactly** one, because that is the schedule this test's arrows
+    // are about — a second bar with width would mean an estimate reached a row
+    // this fixture costed at nothing.
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          () =>
+            [...document.querySelectorAll('[data-gantt-bar]')].filter(
+              (bar) => bar.getBoundingClientRect().width > 0,
+            ).length,
+        ),
+      )
+      .toBe(1);
+    // Two arrows: `020` waits for `010`, which costs nothing, so the successor
+    // starts at workday 0 and the route reaches left of the schedule; `040`
+    // waits for the estimated `030` and starts at the schedule's own finish, so
+    // its route reaches right of it. Asserted inside the helper, because one
+    // arrow would make half of this test vacuous.
     await askForTheDetail(page, 2);
 
     // 1. Every mark's box is inside the canvas it is drawn on. This is the
@@ -1702,7 +1760,14 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     // Wide enough that the panel really scrolls: at `PAST_THE_WEEKEND` the
     // whole chart fits in 1400px, `scrollLeft` stays 0 whatever it is set to,
     // and this would be a claim about an unscrolled chart. Measured, 2026-08-09.
-    await seedPlan(page, nextAccount(), { estimate: '40/40/40' });
+    //
+    // `zeroQa`, so `010.2`'s span really is its `Dev` bar's span — see
+    // `seedPlan`. Without it, since `assumed-duration-schedules`, the row's End
+    // is two workdays past the bar being hovered and the assertion below
+    // compares a bar's dates against a row's: watched failing on `unexpected
+    // value "010.2 - (unnamed)Dev · UnassignedNo team5 Oct → 27 Nov · 40
+    // days…"` against a Start cell reading further out.
+    await seedPlan(page, nextAccount(), { estimate: '40/40/40', zeroQa: true });
     await openTheChart(page);
 
     // Partway, and not at either end: a surface that only ever agreed with an
