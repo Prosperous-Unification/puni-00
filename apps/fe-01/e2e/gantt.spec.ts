@@ -343,7 +343,7 @@ async function seedPlan(
 /**
  * A two-row chain whose predecessor nobody has estimated at all.
  *
- * `020` waits for `010`, `010` carries no estimate for either role, and `020`'s
+ * `020` waits for `010`, `010` carries no estimate for either step, and `020`'s
  * `Dev` is costed so it draws a bar with area to measure. Before
  * `assumed-duration-schedules` (2026-08-29) every row of this plan sat at
  * workday 0 and the chart drew the successor beside the work it depends on;
@@ -397,7 +397,7 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
  * would move `020` off day zero, push the horizon out past `040`, and take both
  * of this test's arrows with it. A stated zero is the case that survives:
  * somebody has said this step costs nothing, and it finishes where it starts.
- * Every role of every row but `030`'s `Dev` therefore carries an explicit
+ * Every step of every row but `030`'s `Dev` therefore carries an explicit
  * `0/0/0`, which reproduces the schedule this fixture has always had.
  *
  * The consequence for the helper's caller: every mark in this plan but `030`'s
@@ -431,11 +431,11 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
 
   // And a stated zero everywhere else, which is what holds `020` at workday 0
   // and the horizon at `030`'s own finish — see this helper's docstring. Both
-  // roles of every row, because a role left blank is two assumed workdays now.
+  // steps of every row, because a step left blank is two assumed workdays now.
   for (const number of ['010', '020', '030', '040']) {
-    for (const role of ['Dev', 'QA']) {
-      if (number === '030' && role === 'Dev') continue;
-      const nothing = page.getByLabel(`${role} estimate for ${number}`);
+    for (const step of ['Dev', 'QA']) {
+      if (number === '030' && step === 'Dev') continue;
+      const nothing = page.getByLabel(`${step} estimate for ${number}`);
       await nothing.fill('0/0/0');
       await nothing.blur();
       await expect(nothing).not.toHaveValue('');
@@ -955,7 +955,7 @@ test.describe('the chart, after the browser has scaled it', () => {
 
     // The predecessor's two assumed bars and the successor's costed one, each
     // found through the row it is on rather than by index — `bars.at(n)` is the
-    // shape R5 #16 was, and a project lists two roles so the indices are not
+    // shape R5 #16 was, and a project lists two steps so the indices are not
     // the rows.
     const drawn = await page.evaluate(() => {
       const boxOf = (mark: Element) => {

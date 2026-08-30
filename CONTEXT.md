@@ -271,9 +271,9 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in role order that somebody estimated — the one a dependency
-waits on. A role listed in front of it and left unestimated is stepped over, and having an
-assumed duration does not make it the anchor. Reordering a project's roles moves what every
+A work item's first slice in step order that somebody estimated — the one a dependency
+waits on. A step listed in front of it and left unestimated is stepped over, and having an
+assumed duration does not make it the anchor. Reordering a project's steps moves what every
 dependency waits for. Where nothing is estimated the anchor is the work item's finish,
 which is its steps' assumed durations end to end.
 _Avoid_: dev slice, first slice, handoff point

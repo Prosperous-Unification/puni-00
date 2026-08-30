@@ -456,7 +456,7 @@ describe('schedule — the projection back onto the work item', () => {
       [work('a', null, null), work('b', null, null)],
     );
 
-    // Re-derived (`assumed-duration-schedules`): a project with no roles gives
+    // Re-derived (`assumed-duration-schedules`): a project with no steps gives
     // each leaf one unestimated slice, which is now two workdays wide, so `a`
     // ends on day 2 and `b` — which waits on it — starts there instead of
     // beside it. Both are still `estimated: false`: a plan nobody has estimated

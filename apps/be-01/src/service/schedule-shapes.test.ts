@@ -332,7 +332,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     expect(projectionOf(found, 'c3')).toMatchObject({ earliestStart: 12, earliestFinish: 20 });
     // Both sides of the asymmetry in one row: the edge *arrives* at `c3`'s
     // `Design` — its first slice plain, unestimated and now two workdays wide —
-    // and its `Dev` follows in role order behind it, while the edge *left* `c2`
+    // and its `Dev` follows in step order behind it, while the edge *left* `c2`
     // from the `Dev` that was `c2`'s first estimate.
     expect(found.slices.get(sliceKey('c3', DESIGN))).toMatchObject({
       earliestStart: 12,
@@ -341,7 +341,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
     expect(found.slices.get(sliceKey('c3', DEV))).toMatchObject({
       earliestStart: 14,
-      boundBy: 'roleOrder',
+      boundBy: 'stepOrder',
     });
   });
 
@@ -356,7 +356,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // three unestimated steps are now two workdays each, so `A` runs 0→6 and
     // `B` waits for it — a plan nobody has estimated has a believable order
     // rather than every row on day zero.
-    const found = threeRolePlan([item('A'), item('B')], [edge('A', 'B')], {
+    const found = threeStepPlan([item('A'), item('B')], [edge('A', 'B')], {
       A: [null, null, null],
       B: [2, null, null],
     });
@@ -376,7 +376,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // and `B`'s three unestimated steps take it to day 11 instead of ending it
     // where it began. `C` now waits for six days of unsized work rather than
     // for none of it.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('A'), item('B'), item('C')],
       [edge('A', 'B'), edge('B', 'C')],
       { A: [null, 3, 9], B: [null, null, null], C: [1, null, null] },
@@ -387,15 +387,15 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   });
 
   it('a branch anchors each leaf on its own first estimate', () => {
-    // Two leaves under `P`, each with a different role estimated: `P1` only
+    // Two leaves under `P`, each with a different step estimated: `P1` only
     // its `Dev`, `P2` only its `QA`. Each leaf's anchor is its own first
     // estimated slice, and `Q` waits for the latest of them — not for `P1`'s
     // and not for day zero.
     //
-    // Re-derived by `assumed-duration-schedules` (2026-08-29): the roles each
+    // Re-derived by `assumed-duration-schedules` (2026-08-29): the steps each
     // leaf leaves blank are two workdays each, so `P1`'s `Dev` anchors at day
     // 4 and `P2`'s `QA` at day 9. `Q` waits for 9.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
       [edge('P', 'Q')],
       { P1: [null, 2, null], P2: [null, null, 5], Q: [1, null, null] },
@@ -431,7 +431,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // project finishes on day 15 and `A`'s QA has ten days of slack rather
     // than eight. `A`'s own numbers, which are what this test is about, are
     // unmoved.
-    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+    const found = stepdPlan([item('A'), item('B')], [edge('A', 'B')], {
       A: [3, 2],
       B: [10, null],
     });

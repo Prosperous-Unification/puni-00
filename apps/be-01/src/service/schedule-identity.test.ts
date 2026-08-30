@@ -166,7 +166,7 @@ interface OracleDurations {
   effort: ReadonlyMap<string, number>;
 }
 
-/** One work item's estimate for one role, before either engine has been given it. */
+/** One work item's estimate for one step, before either engine has been given it. */
 interface EstimateRow {
   workItemId: string;
   stepId: string;
@@ -198,9 +198,9 @@ interface GeneratedPlan {
  */
 function generatePlan(
   seed: number,
-  roleCount: number,
+  stepCount: number,
   /**
-   * Whether every work-item/role pair gets a figure.
+   * Whether every work-item/step pair gets a figure.
    *
    * False is the corpus as it has always been — a quarter of the pairs carry
    * `null`, which is what a half-estimated plan looks like. True is the corpus
@@ -268,7 +268,7 @@ function generatePlan(
   const estimates: EstimateRow[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
-    for (const roleId of roleIds) {
+    for (const stepId of stepIds) {
       const estimated = everyPairEstimated || random() > 0.25;
       const days = estimated
         ? PERT(pick([0, 1, 2, 3]), pick([1, 2, 3, 5, 8]), pick([2, 4, 7, 9, 13]))
@@ -326,7 +326,7 @@ const slicesFrom = (plan: GeneratedPlan): Slice[] =>
  * nothing. That is the one place this file was told what the change did, and it
  * is told once: the oracle above is still an independent critical path over the
  * same tree, the same edges and the same floors, and every field is still
- * compared `toBe`-exact. A leaf every role of which is unestimated used to be
+ * compared `toBe`-exact. A leaf every step of which is unestimated used to be
  * absent from this map entirely and read as zero days; it now carries its
  * steps' assumed days, which is what the engine places it across.
  */
@@ -511,15 +511,15 @@ describe('the slice engine against the one it replaced', () => {
     //
     // A failure in this test is the assumption having leaked into estimated
     // work, which is a different and much worse bug than a date moving. Edges
-    // are dropped for the reason the two- and three-role runs above drop them:
-    // the anchor rule moves multi-role dependencies on purpose.
+    // are dropped for the reason the two- and three-step runs above drop them:
+    // the anchor rule moves multi-step dependencies on purpose.
     //
     // Proof: `durationOf` in `schedule.ts` changed to give **every** slice the
     // assumed duration rather than only the unestimated ones, and this failed
     // at `seed 1, r0c0g0.earliestFinish: 12.5 became 7` — an estimate
     // overwritten by a guess; watched 2026-08-30.
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES, true);
+      const plan = generatePlan(seed, RELEASED_STEPS, true);
       expect(plan.estimates.every((each) => each.days !== null)).toBe(true);
       const durations = durationsFrom(plan, true, seed);
       const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);

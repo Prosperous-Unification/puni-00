@@ -281,7 +281,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * Priority is still what this pin is *for*; the plan still priorities nothing.
  *
  * **Re-derived again at `assumed-duration-schedules` (2026-08-29)**, and by one
- * slice: `c-p1/role-qa`, which nobody estimated and `sam` is on. It used to sit
+ * slice: `c-p1/step-qa`, which nobody estimated and `sam` is on. It used to sit
  * at 4→4 with six and a half days of slack, occupying nobody; it is now two
  * workdays wide, so it queues behind `sam`'s other work at 10.5→12.5, becomes
  * critical, and takes the project's finish from 10.5 to 12.5 — which gives
@@ -473,7 +473,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         critical: true,
         personId: 'sam',
         boundBy: 'person',
-        resourcePredecessorId: 'c-a/role-qa',
+        resourcePredecessorId: 'c-a/step-qa',
         capacityPredecessorIds: [],
       },
       'c-p2/step-dev': {

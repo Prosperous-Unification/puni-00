@@ -199,7 +199,7 @@ describe('a captured live plan, through the slice engine', () => {
   it('answers exactly what the live server answered wherever somebody estimated', async () => {
     // Re-run under the anchor rule (`dep-waits-on-first-role`, 2026-08-11):
     // nothing moved. The capture's one dependency — `030` waiting on `010` —
-    // has a predecessor holding a single role, so its first slice is its last
+    // has a predecessor holding a single step, so its first slice is its last
     // and the two rules are the same rule on this plan.
     //
     // **Re-derived at `assumed-duration-schedules` (2026-08-29)**, and this
@@ -325,25 +325,25 @@ describe('a captured live plan, through the slice engine', () => {
     });
   });
 
-  it('adds a step’s assumed duration when a role nobody has estimated is added', async () => {
+  it('adds a step’s assumed duration when a step nobody has estimated is added', async () => {
     // Until `assumed-duration-schedules` this test read `answers the same with
-    // a role nobody has estimated added to the project`, and it was true: a
-    // second role added a zero-length slice to every leaf and changed nothing.
+    // a step nobody has estimated added to the project`, and it was true: a
+    // second step added a zero-length slice to every leaf and changed nothing.
     //
-    // It is the opposite claim now, and deliberately so (design D3). A role the
+    // It is the opposite claim now, and deliberately so (design D3). A step the
     // project lists is a step of the work, and a step nobody has sized is work
     // of unknown length rather than no work: every leaf grows by one assumed
     // duration, so every finish moves out by exactly two workdays from the run
     // above and the project ends on 7.666… instead of 5.666…. Nothing anybody
     // estimated changed — `duration` and `estimated` are asserted against the
     // capture, unmoved, for every row.
-    const tree = await replay(['role-nobody-estimated']);
+    const tree = await replay(['step-nobody-estimated']);
 
     const bare = await replay([]);
     for (const [at, row] of tree.workItems.entries()) {
       expect(row.schedule.duration).toBe(capturedRows[at].schedule.duration);
       expect(row.schedule.estimated).toBe(capturedRows[at].schedule.estimated);
-      // Every finish two workdays later than without the extra role, which is
+      // Every finish two workdays later than without the extra step, which is
       // the assumed duration and nothing else. Written as the difference rather
       // than as six pinned numbers so the claim is the one being made: one more
       // unsized step, one more assumed duration.

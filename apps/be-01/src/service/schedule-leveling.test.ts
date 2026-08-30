@@ -186,7 +186,7 @@ describe('leveling — a person does one thing at a time', () => {
     // busy for zero days.
     //
     // Until `assumed-duration-schedules` (2026-08-29) this read `null` here and
-    // was about the role nobody had put a number against. That case moved and
+    // was about the step nobody had put a number against. That case moved and
     // is now the opposite claim — an unestimated slice is two workdays wide and
     // **does** occupy its assignee (`schedule-assumed-duration.test.ts`, `two
     // unestimated slices for one person do not overlap`). What survives is the

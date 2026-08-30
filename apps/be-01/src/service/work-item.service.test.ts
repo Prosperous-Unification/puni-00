@@ -711,7 +711,7 @@ describe('the plan waits for the people in it', () => {
     // `QA` is unestimated, so it takes two workdays behind its `Dev` and the
     // row ends on day 5 rather than day 3. `ada` is who it waits for, and only
     // because it is `ada`'s next piece of work — `grace` is unaffected.
-    const two = await twoRoleProject();
+    const two = await twoStepProject();
     const covered = (await service.create(two.projectId, OWNER, {
       parentId: null,
       afterId: null,
