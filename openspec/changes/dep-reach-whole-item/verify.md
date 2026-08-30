@@ -108,6 +108,46 @@ check names the same fault and the same words.
   claim that the reach cannot reach around the cycle check — a claim that would
   otherwise stop being true quietly.
 
+## Slice 5.1's browser negative, watched at last (2026-08-30)
+
+`tasks.md` 5.1 was ticked with its negative unwatched — the one thing standing
+between this change and `main` after the merge conflicts were resolved. Watched
+now, in Chromium, on the merged tree (`5aaacbe` = `origin/main` `ac8c882` +
+`5fa16ac`), serialised under the canonical lock on shift 1900:
+
+| Step           | Result                                                                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| green before   | `2 passed (38.4s)`, 2 planned / 2 ran                                                                                                                                                                   |
+| fault injected | `void attempt(() => setDepReach(reach))` → `void setDepReach(reach)` in `phases-panel.tsx:448`                                                                                                          |
+| **failed**     | `expect(locator).toHaveAttribute(expected) failed` — `Locator: locator('[data-gantt-bar][aria-label^="020 - "][aria-label*="Dev ·"]')`, `Expected: "2" / Received: "5"`. **Both** reach tests went red. |
+| restored       | `git checkout --`, tree byte-identical (`git status --porcelain` empty)                                                                                                                                 |
+| green after    | `2 passed (36.7s)`                                                                                                                                                                                      |
+
+**Why it had to be a browser.** The write still happens under the fault, so a
+jsdom test asserting that `setDepReach` was _called_ passes: the mock is
+satisfied and the chart is stale. What the fault removes is the **re-read** —
+`attempt` is what re-fetches the plan — so the only thing that can see it is a
+chart drawn from the plan, and `data-start` staying at the old reach's workday
+is that fact. `Expected: "2" / Received: "5"` is be-01 holding the new reach
+while the reader looks at the old one.
+
+That is `AGENTS.md` R5 #14/#15's family a fourth time: the oracle was jsdom and
+the fault was a browser's.
+
+## The stale opener the merge would have carried
+
+`chooseTheReach` opened `getByRole('button', { name: 'Phases', exact: true })`
+and awaited a dialog named `Phases`. `project-config-modal` deleted that button
+— it is one `Project settings` control and a `Phases` tab now — so **both**
+reach tests, including the one carrying 5.1 above, would have failed on the
+opener and told nobody anything about the wrapper. Re-pointed in `5aaacbe`,
+which also presses Escape until the surface is gone rather than once: the modal
+refuses a close while a section holds a write in flight, and the reach's re-read
+lands just after the PATCH the helper awaits.
+
+Third stale opener found by this route today, after `mobile.spec.ts` and
+`layout.spec.ts`. All three were invisible to jsdom and to any filtered run.
+
 ## Skipped or unavailable checks
 
 Recorded as this change ran; see the report for anything still open.

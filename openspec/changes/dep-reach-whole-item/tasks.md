@@ -32,7 +32,7 @@ Ordered TDD slices. Only `- [x]` checkboxes are tracked by the apply phase.
 
 ## 5. In a browser
 
-- [x] 5.1 A Chromium spec: a three-item chain with two steps, reach flipped, the successor bar measured moving — negative: the flip not re-fetching the plan, watched failing on a chart that did not move. Find the bar through its own row and assert non-zero width first (`AGENTS.md`, the gantt-calendar-axis vacuity).
+- [x] 5.1 A Chromium spec: a three-item chain with two steps, reach flipped, the successor bar measured moving — negative: the flip not re-fetching the plan, **watched 2026-08-30 on the merged tree**, failing on `Expected: "2" / Received: "5"` — the chart still drawn for the old reach while be-01 held the new one. Green before, byte-identical restore, green after; `verify.md` has the table. Find the bar through its own row and assert non-zero width first (`AGENTS.md`, the gantt-calendar-axis vacuity).
 
 ## 6. Gate
 
