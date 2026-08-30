@@ -9453,6 +9453,11 @@ describe('the widths the table is laid out by', () => {
       // The body cells holding a popover are exempt — the test below is where
       // that exception is pinned, and it is restated here so this loop cannot
       // be read as "every cell clips".
+      //
+      // `clip` and not `hidden` since `reference-cell-popover`: a hidden box is
+      // a scroll container and a clipped one is not, which is what stops a
+      // browser scrolling a cell to reveal a list that opened inside it. See
+      // {@link CELL}.
       const column = cell.dataset['column'] ?? '';
       const exempt =
         cell.tagName === 'TD' &&
