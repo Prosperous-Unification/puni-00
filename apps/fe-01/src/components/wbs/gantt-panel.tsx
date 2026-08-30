@@ -1,3 +1,4 @@
+import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import {
   addCalendarDays,
   addWorkdays,
@@ -15,7 +16,6 @@ import { cn } from '@/lib/utils';
 import type { PriorityBandView } from '@/lib/wbs-api';
 
 import {
-  ASSUMED_UNESTIMATED_WORKDAYS,
   CAPACITY_LINK_COLOR,
   droppedLinkWords,
   type EstimateTrio,
@@ -514,7 +514,7 @@ const HEAVIEST_STROKE_PX = 2;
  * viewBox says so: `-pad 0 (horizon + 2·pad) rowCount`. The coordinate contract
  * is untouched — a bar's `x` is still `earliestStart` and its `width` still its
  * drawn span, which for every estimated slice is `duration` verbatim (design
- * §1; the one exception is {@link ASSUMED_UNESTIMATED_WORKDAYS}, which the
+ * §1; the one exception is {@link ASSUMED_SLICE_WORKDAYS}, which the
  * horizon accounts for rather than this band). What moves is where the
  * **canvas** ends,
  * which the contract says nothing about, and the axis and the on-bar labels are
@@ -562,7 +562,7 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * assumed bars being *absent*. It is reachable now: a leaf whose slices in role
  * order are an unestimated one and then an estimated one of under two workdays
  * has `fromX = stopOf(fromStart, fromFinish)` landing inside the ghost's own
- * `[startOf(s), stopOf(s, s + ASSUMED_UNESTIMATED_WORKDAYS)]`, on the arrow's
+ * `[startOf(s), stopOf(s, s + ASSUMED_SLICE_WORKDAYS)]`, on the arrow's
  * own row. Every candidate route's first run then reads as crossing and
  * `routeArrow` falls through to its banded fallback, which returns a route
  * known to cross. It bites when the anchor's duration is under two workdays and
@@ -724,7 +724,7 @@ function claimedDetail(stored: string): unknown {
  * be seen through and an outline that is not solid.
  *
  * Both, and not either alone. The bar has a **width nobody gave it**
- * ({@link ASSUMED_UNESTIMATED_WORKDAYS}), so it has to be unmistakable at a
+ * ({@link ASSUMED_SLICE_WORKDAYS}), so it has to be unmistakable at a
  * glance against every estimated bar on the chart: translucent says the block is
  * not solid ground, and the dashes say the edges are not where anybody put them.
  * A solid bar at 35% could still read as a pale assignee colour; a dashed bar at
@@ -1017,7 +1017,7 @@ export function barText(
  * if there is room for them too.
  *
  * The `?` is the point and is never dropped for the name: this bar's width is
- * {@link ASSUMED_UNESTIMATED_WORKDAYS} and not an estimate, and a bar that says
+ * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
  * `Kat` and nothing else is a bar claiming two days of Kat's time. So the
  * candidates are tried longest-first and the bare `?` is the last of them —
  * which at two workdays always fits, and is what a bar drawn narrower than that
@@ -1420,7 +1420,7 @@ export function barFacts(
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it, and the sentence that says so has to be as
-    // findable as the dates above it. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+    // findable as the dates above it. See {@link ASSUMED_SLICE_WORKDAYS}.
     // Only ever reached with the detail switch on, which is the only state an
     // unestimated slice has a bar to say anything about itself in.
     //
@@ -1429,7 +1429,7 @@ export function barFacts(
     // is asked for` alone failed, `1 failed | 90 passed`, on the accessible name
     // no longer containing `Not estimated — drawn as 2 days`. Watched
     // 2026-08-12.
-    bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_UNESTIMATED_WORKDAYS)}`,
+    bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_SLICE_WORKDAYS)}`,
     trioWords(bar.trio),
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     // Only where somebody set one. Unranked is a state of its own, and a line
@@ -3551,7 +3551,7 @@ function GanttChart({
 
               `drawnSpan` and not `duration`, which is what keeps the tick the
               zero-day estimate's alone: an unestimated slice's drawn span is
-              {@link ASSUMED_UNESTIMATED_WORKDAYS}, so with the detail on it
+              {@link ASSUMED_SLICE_WORKDAYS}, so with the detail on it
               draws its own bar here and never a tick, and with the detail off it
               is not in {@link drawnBars} to draw either. Nobody estimating a
               slice is not the same answer as somebody estimating it at zero

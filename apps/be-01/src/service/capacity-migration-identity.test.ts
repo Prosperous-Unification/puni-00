@@ -12,6 +12,11 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { inMemoryActuals } from '../testing/actual-fixture';
+import {
+  countMovedDates,
+  isFullyEstimated,
+  withoutPlacement,
+} from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
@@ -182,6 +187,8 @@ describe('every plan schedules identically across the migration', () => {
   });
 
   it('answers exactly what be-01 answered, with the migration’s own seeded numbers', async () => {
+    let fullyEstimated = 0;
+    let moved = 0;
     // The claim, and the two halves of how it is set up are both load-bearing.
     //
     // The **numbers** come from the real migration: a temp database rolled back to
@@ -361,27 +368,45 @@ describe('every plan schedules identically across the migration', () => {
           },
         ),
       };
-      expect({ project: plan.projectId, ...lifted }).toEqual({
-        project: plan.projectId,
-        ...answer,
-        // The one key the capture could not carry, because it did not exist:
-        // `teamCapacities` is this change's own addition to the payload. Its
-        // *values* are the seeded numbers, which is the thing under test, so it is
-        // asserted here rather than deleted from the comparison.
-        teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
-          .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
-          .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
-        // The second key the capture predates, added by `priority-bands`. Its
-        // presence here is the whole of that change's effect on this
-        // differential: the ladder is read into the payload and passed to
-        // nothing, so every date, every slice and every other field is
-        // byte-identical to the answer captured at `050fd45`. The claim in the
-        // other direction — that a project which has **re-cut** its ladder
-        // schedules identically too — is `priority-band-identity.test.ts`, and
-        // it is that change's to make rather than this file's.
-        priorityBands: DEFAULT_PRIORITY_BANDS,
-      });
+      // `assumed-duration-schedules` (2026-08-29): thirteen of these sixteen
+      // plans leave a pair unestimated, and this change moves exactly those
+      // plans' placement on purpose. The document is compared whole where the
+      // two engines coincide and with the placement set aside where they do
+      // not — see {@link withoutPlacement}, which also says what is *not* set
+      // aside. `countMovedDates` below holds the part that is.
+      const narrow = isFullyEstimated(plan)
+        ? (document: Record<string, unknown>) => document
+        : withoutPlacement;
+      moved += countMovedDates(answer, tree);
+      if (isFullyEstimated(plan)) fullyEstimated += 1;
+      expect(narrow({ project: plan.projectId, ...lifted })).toEqual(
+        narrow({
+          project: plan.projectId,
+          ...answer,
+          // The one key the capture could not carry, because it did not exist:
+          // `teamCapacities` is this change's own addition to the payload. Its
+          // *values* are the seeded numbers, which is the thing under test, so it is
+          // asserted here rather than deleted from the comparison.
+          teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
+            .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+            .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+          // The second key the capture predates, added by `priority-bands`. Its
+          // presence here is the whole of that change's effect on this
+          // differential: the ladder is read into the payload and passed to
+          // nothing, so every date, every slice and every other field is
+          // byte-identical to the answer captured at `050fd45`. The claim in the
+          // other direction — that a project which has **re-cut** its ladder
+          // schedules identically too — is `priority-band-identity.test.ts`, and
+          // it is that change's to make rather than this file's.
+          priorityBands: DEFAULT_PRIORITY_BANDS,
+        }),
+      );
     }
+    // The corpus halves of the narrowing, both of which a silent regression
+    // would take with it: three plans compared whole, and a placement that
+    // really did move on the other thirteen.
+    expect(fullyEstimated).toBe(3);
+    expect(moved).toBeGreaterThan(0);
   });
 
   it('gives every project the same numbers, which is what makes the identity hold', async () => {

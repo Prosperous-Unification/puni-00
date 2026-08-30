@@ -196,34 +196,170 @@ describe('a captured live plan, through the slice engine', () => {
     expect(capturedRows.some((row) => !Number.isInteger(row.schedule.earliestFinish))).toBe(true);
   });
 
-  it('answers exactly what the live server answered', async () => {
+  it('answers exactly what the live server answered wherever somebody estimated', async () => {
     // Re-run under the anchor rule (`dep-waits-on-first-role`, 2026-08-11):
     // nothing moved. The capture's one dependency — `030` waiting on `010` —
     // has a predecessor holding a single role, so its first slice is its last
-    // and the two rules are the same rule on this plan. Every number below is
-    // still the live server's, unedited.
+    // and the two rules are the same rule on this plan.
+    //
+    // **Re-derived at `assumed-duration-schedules` (2026-08-29)**, and this
+    // capture is exactly the plan the change exists for: `020` and `030.1.1`
+    // are rows a real planner left unestimated, and the live server drew them
+    // as taking no time. They now take two workdays each, which moves the
+    // project's finish from 4.5 to 5.666… and every late time with it. The
+    // table below carries the new numbers and the reason for each.
+    //
+    // What the capture is still the oracle for is asserted first and
+    // separately: `duration` and `estimated`, per row, verbatim from the live
+    // server. Those are what the Days column, the roll-up and the export read,
+    // and this change may not move a single one of them. A green re-derived
+    // table beside a moved `estimated` would be the change having redefined the
+    // word (design D2).
     const tree = await replay([]);
 
     expect(tree.scheduleError).toBeNull();
     expect(tree.workItems.map((row) => row.number)).toEqual(capturedRows.map((row) => row.number));
     for (const [at, row] of tree.workItems.entries()) {
       const was = capturedRows[at];
-      expect({ number: row.number, schedule: row.schedule, dates: row.dates }).toEqual({
+      expect({
+        number: row.number,
+        duration: row.schedule.duration,
+        estimated: row.schedule.estimated,
+      }).toEqual({
         number: was.number,
-        schedule: was.schedule,
-        dates: was.dates,
+        duration: was.schedule.duration,
+        estimated: was.schedule.estimated,
       });
     }
+
+    // `010` and `040` are the two rows somebody estimated, and both keep the
+    // start and finish the live server printed. `010` turns red because the row
+    // it releases now has work in it, which is a slack reading and not a date.
+    const said = new Map(
+      tree.workItems.map((row) => [row.number, { schedule: row.schedule, dates: row.dates }]),
+    );
+    expect(said.get('010')).toEqual({
+      // Unmoved: 0 → 3.666…, the live server's own numbers.
+      schedule: {
+        duration: 3.6666666666666665,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 3.6666666666666665,
+        // Was 0.833… with 0.833… of slack. `010` releases `030`, which used to
+        // be a branch of no days and could therefore sit anywhere; it now holds
+        // two days of assumed work at the end of the plan, so `010` is on the
+        // critical path.
+        latestStart: -4.440892098500626e-16,
+        latestFinish: 3.666666666666666,
+        float: 0,
+        critical: true,
+      },
+      dates: { startsOn: '2026-08-10', endsOn: '2026-08-13' },
+    });
+    expect(said.get('020')).toEqual({
+      // The change, on the row it is about: an unestimated leaf that ran 0 → 0
+      // and now runs 0 → 2. `duration` and `estimated` are untouched above.
+      schedule: {
+        duration: 0,
+        estimated: false,
+        earliestStart: 0,
+        earliestFinish: 2,
+        latestStart: 3.666666666666666,
+        latestFinish: 5.666666666666666,
+        float: 3.666666666666666,
+        critical: false,
+      },
+      // Two workdays: Monday the 10th to Tuesday the 11th, where the capture
+      // began and ended it on the 10th.
+      dates: { startsOn: '2026-08-10', endsOn: '2026-08-11' },
+    });
+    expect(said.get('030.1.1')).toEqual({
+      // The other unestimated leaf, behind `010`'s dependency: 3.666… → 5.666…
+      // where the capture had it starting and finishing at 3.666…. It is the
+      // project's finish now, and critical.
+      schedule: {
+        duration: 0,
+        estimated: false,
+        earliestStart: 3.6666666666666665,
+        earliestFinish: 5.666666666666666,
+        latestStart: 3.666666666666666,
+        latestFinish: 5.666666666666666,
+        float: 0,
+        critical: true,
+      },
+      dates: { startsOn: '2026-08-13', endsOn: '2026-08-17' },
+    });
+    for (const number of ['030', '030.1']) {
+      // The two parents above it, which span what is beneath them and moved
+      // with it. A parent's own `duration` is 0 before and after.
+      expect(said.get(number), number).toEqual({
+        schedule: {
+          duration: 0,
+          estimated: false,
+          earliestStart: 3.6666666666666665,
+          earliestFinish: 5.666666666666666,
+          latestStart: 3.666666666666666,
+          latestFinish: 5.666666666666666,
+          float: 0,
+          critical: true,
+        },
+        dates: { startsOn: '2026-08-13', endsOn: '2026-08-17' },
+      });
+    }
+    expect(said.get('040')).toEqual({
+      // The second estimated row: 0 → 4.5, unmoved, exactly as captured. Only
+      // its slack changed, because the project it is measured against got
+      // longer — it was the finish at 4.5 and is now 1.166… days clear of one
+      // at 5.666….
+      schedule: {
+        duration: 4.5,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 4.5,
+        latestStart: 1.166666666666666,
+        latestFinish: 5.666666666666666,
+        float: 1.166666666666666,
+        critical: false,
+      },
+      dates: { startsOn: '2026-08-10', endsOn: '2026-08-14' },
+    });
   });
 
-  it('answers the same with a role nobody has estimated added to the project', async () => {
-    // The zero-length slice rule, against real numbers: a second role changes
-    // what the plan is computed in and must change nothing about the answer.
+  it('adds a step’s assumed duration when a role nobody has estimated is added', async () => {
+    // Until `assumed-duration-schedules` this test read `answers the same with
+    // a role nobody has estimated added to the project`, and it was true: a
+    // second role added a zero-length slice to every leaf and changed nothing.
+    //
+    // It is the opposite claim now, and deliberately so (design D3). A role the
+    // project lists is a step of the work, and a step nobody has sized is work
+    // of unknown length rather than no work: every leaf grows by one assumed
+    // duration, so every finish moves out by exactly two workdays from the run
+    // above and the project ends on 7.666… instead of 5.666…. Nothing anybody
+    // estimated changed — `duration` and `estimated` are asserted against the
+    // capture, unmoved, for every row.
     const tree = await replay(['role-nobody-estimated']);
 
+    const bare = await replay([]);
     for (const [at, row] of tree.workItems.entries()) {
-      expect(row.schedule).toEqual(capturedRows[at].schedule);
-      expect(row.dates).toEqual(capturedRows[at].dates);
+      expect(row.schedule.duration).toBe(capturedRows[at].schedule.duration);
+      expect(row.schedule.estimated).toBe(capturedRows[at].schedule.estimated);
+      // Every finish two workdays later than without the extra role, which is
+      // the assumed duration and nothing else. Written as the difference rather
+      // than as six pinned numbers so the claim is the one being made: one more
+      // unsized step, one more assumed duration.
+      //
+      // `toBeCloseTo` here and `toBe` everywhere else in this file: this is a
+      // subtraction across a PERT third, and `5.666666666666666 -
+      // 3.6666666666666665` is `1.9999999999999996`. The pinned numbers in the
+      // test above are still exact — it is the arithmetic done *here* that
+      // drifts, not the engine's answer.
+      expect(
+        row.schedule.earliestFinish - bare.workItems[at].schedule.earliestFinish,
+        row.number,
+      ).toBeCloseTo(2, 12);
+      expect(row.schedule.earliestStart, row.number).toBe(
+        bare.workItems[at].schedule.earliestStart,
+      );
     }
   });
 });

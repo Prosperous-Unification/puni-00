@@ -726,11 +726,14 @@ describe('the chart is drawn in calendar days', () => {
 
     askForTheDetail('[data-assumed]');
 
-    // Asked for: the assumed bar is back, whole. The engine's own numbers say
-    // this slice starts and finishes on workday 4 — a span of no days, which is
-    // no bar at all — while the mark is drawn across the two workdays nobody
-    // gave it, which off a Friday reaches over the weekend. That gap between
-    // the numbers and the width is exactly what the dashes and the `?` say.
+    // Asked for: the assumed bar is back, whole. The payload here is the one
+    // be-01 sent before `assumed-duration-schedules` — a slice that starts and
+    // finishes on workday 4, a span of no days — and the panel draws it across
+    // the two workdays nobody gave it either way, which off a Friday reaches
+    // over the weekend. Kept as the older shape on purpose: it is what a
+    // payload from a release before that change looks like, and the switch's
+    // behaviour must not depend on the two agreeing. The case where they do
+    // agree is `the bar still says it is a guess` below.
     const assumed = drawnBox('[data-gantt-bar="sand-dev"]');
     expect(assumed.width).toBe(4);
     expect(barFor('sand-dev')?.getAttribute('data-start')).toBe('4');
@@ -793,6 +796,62 @@ describe('the chart is drawn in calendar days', () => {
     expect(barFor('trim-dev')?.getAttribute('data-finish')).toBe('5');
     expect(barFor('trim-dev')?.getAttribute('x')).toBe('3');
     expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
+  });
+
+  itDom('the bar still says it is a guess', () => {
+    // `assumed-duration-schedules` (2026-08-30), slice 3.1. The payload is now
+    // what be-01 sends after that change: an unestimated slice placed 3 → 5,
+    // two workdays wide, with `duration: 0` beside it because nobody estimated
+    // it. The bar's width and the engine's span finally agree — and every mark
+    // that says the width is a **guess** has to survive that agreement, or the
+    // chart starts presenting an assumption as a measurement.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5, { estimated: false, duration: 0, effort: 0 }),
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    askForTheDetail('[data-assumed]');
+
+    const bar = barFor('sand-dev');
+    // The hook the browser gate finds an assumed bar by, and the two marks a
+    // reader sees: the translucent fill and the `?` beside the name.
+    //
+    // Proof: `{...(bar.estimated ? {} : { 'data-assumed': 'true' })}` in
+    // `gantt-panel.tsx` replaced by `{...{}}`, so nothing carries the hook, and
+    // this failed on `Error: the detail switch was pressed and nothing arrived
+    // at [data-assumed]` — the guard inside `askForTheDetail`, which is where
+    // the absence shows first. Ten of this file's cases went red on that one
+    // edit. Watched 2026-08-30.
+    expect(bar?.getAttribute('data-assumed')).toBe('true');
+    expect(bar?.getAttribute('class')).toContain('[fill-opacity:0.35]');
+    expect(bar?.getAttribute('class')).toContain('stroke-dasharray');
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toContain('?');
+    // In words as well as in paint, and the sentence still names the guess
+    // rather than a length.
+    expect(labelOf(markFor('sand-dev'))).toContain('Not estimated — drawn as 2 days');
+
+    // And the width is the span be-01 placed it across, which is the half this
+    // change added: `3 → 5` on the wire, two workdays drawn. Two calendar days
+    // as well, because workday 3 off a Monday start is the Thursday and the two
+    // do not reach the weekend — the drawn width is `stopOf(5) - startOf(3)`
+    // rather than the difference of the two workday numbers.
+    expect(bar?.getAttribute('data-start')).toBe('3');
+    expect(bar?.getAttribute('data-finish')).toBe('5');
+    expect(drawnBox('[data-gantt-bar="sand-dev"]').width).toBe(2);
   });
 
   /**

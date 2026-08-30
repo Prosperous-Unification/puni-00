@@ -1,7 +1,7 @@
+import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import { describe, expect, it } from 'vitest';
 
 import {
-  ASSUMED_UNESTIMATED_WORKDAYS,
   type BarColor,
   type BindingFloor,
   calendarScale,
@@ -1614,44 +1614,80 @@ describe('the shapes a real schedule makes', () => {
   });
 
   /**
-   * An unestimated slice: zero days on the engine, two workdays on the paper.
+   * An unestimated slice: no expected days, and a two-workday span.
    *
-   * The engine's numbers are untouched — `duration`, `start` and `finish` are
-   * what be-01 sent — and `drawnSpan` alone carries the assumption. See
-   * {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+   * Since `assumed-duration-schedules` (2026-08-29) the engine places it across
+   * those two workdays too, so this payload is the one be-01 now sends — `3 →
+   * 5` with `duration: 0` beside it, which is a slice with a span and no
+   * estimate. `drawnSpan` is the same two workdays, read out of
+   * {@link ASSUMED_SLICE_WORKDAYS}, and never out of `duration`.
    */
   it('draws an unestimated slice across the assumed span, from its engine start', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 3),
-          sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+          sliceAt('sand-dev', 'sand', 3, 5, { estimated: false, duration: 0, effort: 0 }),
         ],
       }),
     );
 
     // Proof: `drawnSpan: slice.estimated ? slice.duration :
-    // ASSUMED_UNESTIMATED_WORKDAYS` reverted to `drawnSpan: slice.duration` —
+    // ASSUMED_SLICE_WORKDAYS` reverted to `drawnSpan: slice.duration` —
     // the zero-width tick this change exists to replace. **Both** tests here
     // failed: this one on `expected [ …, [ 'sand-dev', 3, 3, 0 ] ] to deeply
     // equal [ …, [ 'sand-dev', 3, 3, 2 ] ]`, and `stretches the horizon to hold
     // the assumed span` on `expected 3 to be 5`. Watched, 2026-08-09.
+    //
+    // The `2` below is a literal and not the constant: an expectation computed
+    // from the thing under test moves with it, and this is one of the two
+    // assertions that has to see the constant change (`assumed-duration-
+    // schedules`, task 1.1).
     expect(
       chart.bars.map((bar) => [bar.sliceId, bar.start, bar.duration, bar.drawnSpan, bar.estimated]),
     ).toEqual([
       ['strip-dev', 0, 3, 3, true],
-      ['sand-dev', 3, 0, ASSUMED_UNESTIMATED_WORKDAYS, false],
+      ['sand-dev', 3, 0, 2, false],
     ]);
+  });
+
+  it('the drawing and the dates agree', () => {
+    // `assumed-duration-schedules`, and the whole reason the number lives in
+    // `@wbs/domain` rather than here. The bar's span is the span be-01 placed
+    // the slice across: `finish - start` off the engine's own two numbers, and
+    // `drawnSpan` off the shared constant, computed apart and asserted equal.
+    //
+    // A copy of the figure left behind in this file would move one of them and
+    // not the other, which is exactly what this sees.
+    //
+    // Proof: `ASSUMED_SLICE_WORKDAYS` changed to 3 in `libs/domain`, and this
+    // failed on `expected 3 to be 2` — the drawn width moving while the
+    // fixture's placement, which is be-01's, did not. The scheduled-date half
+    // went red in the same edit: `schedule-assumed-duration.test.ts`'s `is two
+    // workdays wide, and says so in its own dates` failed on `- "earliestFinish":
+    // 2 / + "earliestFinish": 3`. One constant, both readers. Watched
+    // 2026-08-30.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 3, 5, { estimated: false, duration: 0, effort: 0 })],
+      }),
+    );
+
+    const bar = chart.bars[0];
+    expect(bar.finish - bar.start).toBe(2);
+    expect(bar.drawnSpan).toBe(bar.finish - bar.start);
+    expect(ASSUMED_SLICE_WORKDAYS).toBe(2);
   });
 
   it('stretches the horizon to hold the assumed span, so the ghost bar has canvas', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 3),
-          sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+          sliceAt('sand-dev', 'sand', 3, 5, { estimated: false, duration: 0, effort: 0 }),
         ],
       }),
     );
@@ -1660,8 +1696,11 @@ describe('the shapes a real schedule makes', () => {
     // bar.start + bar.drawnSpan)` cut back to `Math.max(horizon, bar.finish)`,
     // with the drawn span left in place — this test alone failed, on `expected
     // 3 to be 5`, and the two-day bar hung two workdays off the end of a canvas
-    // that stopped at 3. Watched, 2026-08-09.
-    expect(chart.horizon).toBe(3 + ASSUMED_UNESTIMATED_WORKDAYS);
+    // that stopped at 3. Watched, 2026-08-09; that fault is now invisible here,
+    // because the engine's own finish reaches 5 as well — which is the point of
+    // the change and is why `the drawing and the dates agree` above is the test
+    // that holds the two together.
+    expect(chart.horizon).toBe(5);
   });
 
   it('draws nothing, and throws nothing, for a plan with no rows at all', () => {
@@ -1884,16 +1923,16 @@ describe('placing the chart on a calendar', () => {
   it('reaches a horizon that holds an assumed span in calendar days', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('sand', 3, 3)],
-        slices: [sliceAt('sand-dev', 'sand', 3, 3, { duration: 0, estimated: false })],
+        rows: [rowAt('sand', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 3, 5, { duration: 0, estimated: false, effort: 0 })],
       }),
     );
 
     const placed = placeOnCalendar(chart, MONDAY);
 
     // Two workdays drawn from the Thursday is the Friday, and the horizon
-    // stops there rather than at the workday number 3 the engine gave.
-    expect(chart.horizon).toBe(3 + ASSUMED_UNESTIMATED_WORKDAYS);
+    // stops there.
+    expect(chart.horizon).toBe(5);
     expect(placed.horizon).toBe(5);
     expect(placed.bars[0].width).toBe(2);
   });
