@@ -8,10 +8,11 @@ Two things are recorded here, and the second is the one worth keeping:
 
 1. **The plan** — what Dany asked for, what is actually on `main`, who owns
    which branch, and what is left.
-2. **What the loop got wrong** — twelve findings: measurements that were green,
-   or red, for reasons other than the ones claimed, and one piece of shared
-   machinery that does not do what its name says. Every one was found by
-   checking rather than by reasoning, and seven of them were mine.
+2. **What the loop got wrong** — thirteen findings: measurements that were
+   green, or red, for reasons other than the ones claimed; one piece of shared
+   machinery that does not do what its name says; and one gap that belongs to
+   nobody, which is the last and the most general. Every one was found by
+   checking rather than by reasoning.
 
 ---
 
@@ -72,7 +73,7 @@ deliberate deferral rather than an omission.
 
 ---
 
-## Part 2 — twelve things that meant something else
+## Part 2 — thirteen things that meant something else
 
 R5 says a check whose failure has never been observed is a claim, not a gate.
 The loop produced a matching family: **a result whose _cause_ has never been
@@ -282,6 +283,35 @@ The operational consequence, for anyone reading this while three sessions are
 live: **budget wall-clock by the number of competing sessions, not by your job's
 own length**, and set `HEAVY_LOCK_WAIT_SECONDS` generously — a 20-second
 measurement legitimately needs a two-hour budget on a contended host.
+
+## 13. A check can be right in isolation and wrong about a composition
+
+Three times on 2026-08-30 a check was correct about its own change and false
+about that change met with another. None was an attention failure and none could
+have been caught earlier by anyone being more careful.
+
+| Check                                                                            | Right about                  | Wrong about                                                                                                                                     |
+| -------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a predecessor nobody estimated is reached at its own finish under either reach` | both reaches, on its fixture | the fixture made the two arms **coincide**; with assumed durations they are day 5 and day 7                                                     |
+| `assumed-duration-schedules`' "adds exactly one assumed duration to every leaf"  | the anchor rule              | under `whole-item` the assumption **compounds down a chain**: `010` +2, `020` +2, `030` +4                                                      |
+| `gantt.spec.ts`'s `redraws the open chart as each schedule input changes`        | either change alone          | under both, the dependent starts day **12**, not 10 — it waits for a predecessor whose last slice is an unestimated `QA` now worth two workdays |
+
+**The cause is structural, not human.** Each was written by someone who had the
+whole of their own change in view and none of the other's. Every change here has
+an owner and every branch has a gate — **the pair of changes has neither**, until
+the moment they meet.
+
+The consequence is the rule worth keeping:
+
+> **The first full gate on a merged tree is not a formality. It is the only test
+> that has ever seen the composition.**
+
+All three were found exactly there, and could not have been found anywhere else:
+not on either branch, not by 1939 jsdom tests, and not by any suite that runs
+before the merge exists. It is also why a gate that ran on a pre-merge tree —
+however green, however recent — is not evidence about what will land. That is
+this document's other recurring fault (items 3 and 11) arriving from a third
+direction: **a measurement of a tree that is not the tree.**
 
 ### Three artefacts that look like conclusions
 
