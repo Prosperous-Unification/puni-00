@@ -307,6 +307,20 @@ is the shipped bar's own budget instead (1552.734375 measured, 1600 pinned), and
 then watched failing on `Expected: <= 1600 · Received: 1658.828125`, 106px above it. **A
 before-and-after pin is only a check when the fault rebuilds the whole "before".**
 
+Two more on 2026-08-30 in `name-links-and-height`, and **neither shipped** — but they are
+the rule's own failure mode rather than a check's, which is why they are worth the paragraph.
+Both were `Proof:` comments **written before the failure was observed**: the
+`[data-cell-rendered] a` rule's, which guessed "the click opened the editor instead of the
+tab — expected 0 popups", and the notes' `a: LinkFollowable` mapping's, which guessed
+`expected … attribute "target" … received <null>`. Injected, the first failed on
+`page.waitForEvent: Test timeout of 60000ms exceeded` — no popup at all — and the second
+failed **earlier than the line it named**, on `expect(locator).toHaveText … element(s) not
+found`, because react-markdown's own `a` carries no `data-name-link` for the locator to find.
+Both comments were corrected to what was observed. A guessed `Proof:` is indistinguishable
+from an observed one to every future reader, and one of these two named an assertion the
+fault never reaches — which is exactly how a check that cannot fail acquires a comment saying
+it can. **Write the comment from the failure output, never from the expectation.**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 
