@@ -22,6 +22,7 @@ import {
   type GanttBar,
   type GanttPlan,
   type GanttRowLabel,
+  hasTags,
   inkOn,
   layOutGantt,
   type PlacedArrow,
@@ -1252,14 +1253,16 @@ function teamWords(team: ServiceTeamLabel): string {
  * nowhere else to learn where the words came from.
  */
 function tagWords(tags: TagLabel): string | null {
-  switch (tags.state) {
-    case 'named':
-      return `Tags ${tags.names.join(', ')}`;
-    case 'inherited':
-      return `Tags ${tags.names.join(', ')} — inherited from ${tags.fromRow}`;
-    case 'none':
-      return null;
-  }
+  if (!hasTags(tags)) return null;
+  // Per name rather than per set, which is what ADR 0008 cost this sentence: a
+  // row states `Ready` and carries `Risk` from `010` at once, so there is no
+  // single source to put after a single `—`. Naming each inherited one where it
+  // stands is longer and is the only version that is true.
+  const said = [
+    ...tags.own,
+    ...tags.inherited.map((each) => `${each.name} (inherited from ${each.fromRow})`),
+  ];
+  return `Tags ${said.join(', ')}`;
 }
 
 /**

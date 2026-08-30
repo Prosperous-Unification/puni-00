@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { StepUsage, StepView } from '@/lib/wbs-api';
 
-import { flipSentence, StepsDialog, usageSentence } from './steps-dialog';
+import { flipSentence, StepsPanel, usageSentence } from './steps-panel';
 import type * as TableFrame from './table-frame';
 import { DEFAULT_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } from './table-frame';
 
@@ -12,7 +12,7 @@ import { DEFAULT_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } fr
  *
  * Spied rather than replaced — the real arithmetic still runs, and every other
  * assertion here still reads the real number. The one thing a spy adds is the
- * only thing nothing else can see: **which ids** the dialog resolved against.
+ * only thing nothing else can see: **which ids** the panel resolved against.
  * `<stepId>-final` is 96px whatever the step is called, so a stand-in id and a
  * real one produce the same figure and no rendered output can tell them apart.
  */
@@ -38,12 +38,22 @@ const DATED: FrameLayoutState = { hasAnyNotBefore: true };
 const NUMBERS: Record<string, string> = { w1: '010', w2: '020' };
 const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
 
-/** Everything the dialog is given, with each call recorded. */
-function stubbed(overrides: Partial<Parameters<typeof StepsDialog>[0]> = {}) {
+/**
+ * Everything the panel is given, with each call recorded.
+ *
+ * Rendered bare, without the modal around it: this suite is about what the
+ * section sends and says, and `project-settings-modal.test.tsx` is about the
+ * shell — who opens it, who closes it, what it refuses to close over and where
+ * the focus goes afterwards. Two cases that used to live here, `gives the focus
+ * back to the button that opened it` and `leaves no half-answered confirmation
+ * behind`, were about the shell and moved there with it.
+ */
+function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
   const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
   const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
+  const onDirtyChange = vi.fn();
   const props = {
     steps: [DEV, QA],
     frameState: UNDATED,
@@ -55,13 +65,11 @@ function stubbed(overrides: Partial<Parameters<typeof StepsDialog>[0]> = {}) {
     renameStep,
     removeStep,
     onChanged,
+    onDirtyChange,
     ...overrides,
   };
-  render(<StepsDialog {...props} />);
-  // Opened through its own trigger, because the trigger is the component's now:
-  // Radix restores the focus to it on close and to nothing without one.
-  fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
-  return { addStep, renameStep, removeStep, onChanged, props };
+  render(<StepsPanel {...props} />);
+  return { addStep, renameStep, removeStep, onChanged, onDirtyChange, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -121,7 +129,7 @@ describe('the steps a project holds', () => {
     await settle();
 
     expect(stub.addStep).toHaveBeenCalledWith('Design');
-    // The reread is what puts the column on the table. Without it the dialog
+    // The reread is what puts the column on the table. Without it the panel
     // would be the only thing on the page that knew about the new step.
     expect(stub.onChanged).toHaveBeenCalled();
   });
@@ -156,21 +164,24 @@ describe('the steps a project holds', () => {
     expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
   });
 
-  itDom('keeps a rename that was typed and then the dialog closed on it', async () => {
-    // The gesture the finding was filed for: type over the name, then close the
-    // dialog by its own ✕. A browser blurs the field before the click lands —
-    // jsdom performs no focus change of its own, so the blur is delivered here
-    // in the order a browser delivers it.
+  itDom('keeps a rename that was typed and then left for the modal’s ✕', async () => {
+    // The gesture the finding was filed for: type over the name, then reach for
+    // the ✕. A browser blurs the field before the click lands — jsdom performs
+    // no focus change of its own, so the blur is delivered here in the order a
+    // browser delivers it. The ✕ itself is the modal's now and is not on this
+    // panel; what this panel owes is that the blur alone carries the rename,
+    // and that the modal is told it is in flight so the ✕ cannot close over it.
     const stub = stubbed();
 
     const box = screen.getByLabelText('QA');
     box.focus();
     type('QA', 'Review');
     fireEvent.blur(box);
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
     await settle();
 
     expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 
   itDom('sends nothing on the way out of a box nobody typed in', async () => {
@@ -218,48 +229,6 @@ describe('the steps a project holds', () => {
     expect(screen.getByRole('alert').textContent).toBe('That name is already a step on this plan.');
     expect(document.body.textContent).not.toContain('taken');
     expect(stub.onChanged).not.toHaveBeenCalled();
-  });
-});
-
-describe('leaving the surface', () => {
-  itDom('gives the focus back to the button that opened it', async () => {
-    stubbed();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    await settle();
-
-    // Radix's `onCloseAutoFocus` calls `preventDefault()` and then focuses its
-    // **trigger** — so a dialog opened without a `ModalTrigger` cancels the
-    // default restore and puts the focus nowhere. Found in a browser, where
-    // `Escape closes it and gives the focus back to the button that opened it`
-    // failed on `expect(locator).toBeFocused()` with `<body>` holding it.
-    // Proof: `ModalTrigger` swapped for a plain `Button` with an `onClick`,
-    // this failed on `expected <body style><div>…(1)</div></body> to be
-    // <button …(3)></button>`. Watched, 2026-08-09.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Steps' }));
-  });
-
-  itDom('leaves no half-answered confirmation behind', async () => {
-    // A confirmation somebody walked away from is not one they agreed to.
-    const removeStep = vi.fn((_stepId: string, cascade: boolean) =>
-      cascade
-        ? Promise.resolve({ ok: true })
-        : Promise.resolve({
-            ok: false,
-            reason: 'in_use' as const,
-            inUse: { estimates: 1, assignments: 0, assumedAssignees: [] },
-          }),
-    );
-    stubbed({ removeStep });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-    expect(screen.getByLabelText('Delete them along with the step')).toBeDefined();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
-
-    expect(screen.queryByLabelText('Delete them along with the step')).toBeNull();
   });
 });
 
@@ -434,7 +403,7 @@ describe('how wide the steps make the table', () => {
     // that depend on the plan: the same two steps are 28px wider once
     // somebody sets an earliest start anywhere in the project.
     //
-    // Proof: `minWidth` in `steps-dialog.tsx` replaced by the hand-written
+    // Proof: `minWidth` in `steps-panel.tsx` replaced by the hand-written
     // `952 + steps.length * 96` this sentence used to quote, this failed on
     // `expected '…≥1144px…' to contain '≥1123px'` for the undated plan and on
     // `≥1151px` for the dated one — one number where the table lays out two.
@@ -482,12 +451,12 @@ describe('how wide the steps make the table', () => {
     // the figure that says how much width the steps need has to be that
     // table's. It can only be, because the override is stored under
     // `step-dev-final` — the id the table renders that column by — and this
-    // dialog resolves the project's own step ids.
+    // panel resolves the project's own step ids.
     //
     // Proof: `steps.map((step) => step.id)` replaced by the stand-in
     // `Array.from({ length: steps.length }, (_, at) => \`step${at}\`)`, this
     // failed on `expected 'StepsStepsThe steps every work ite…' to contain
-    // '≥1167px'` — the dialog
+    // '≥1167px'` — the dialog, as it then was,
     // quoting the default 96px column while the table lays out the dragged
     // 140px one. Watched, 2026-08-09.
     const dragged: FrameLayoutState = {
@@ -534,6 +503,59 @@ describe('how wide the steps make the table', () => {
     // 1219 → 1231 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
     expect(document.body.textContent).toContain('2 steps need ≥1231px of width to sit side by');
     expect(document.body.textContent).not.toContain('2 steps needs');
+  });
+});
+
+describe('what the section tells the modal it is holding', () => {
+  itDom('is clean on mount and dirty from a name typed into the new box', () => {
+    // `project-config-modal` D3: a name typed and not added is an edit a close
+    // would lose, so the modal is told.
+    const stub = stubbed();
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    type('New step', 'Design');
+
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  itDom('is dirty while a confirmation is open and clean once it is answered', async () => {
+    // A confirmation nobody has answered is exactly the thing the modal must
+    // not close over: the ✕ used to clear it silently.
+    const removeStep = vi.fn((_stepId: string, cascade: boolean) =>
+      cascade
+        ? Promise.resolve({ ok: true })
+        : Promise.resolve({
+            ok: false,
+            reason: 'in_use' as const,
+            inUse: { estimates: 1, assignments: 0, assumedAssignees: [] },
+          }),
+    );
+    const stub = stubbed({ removeStep });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
+    await settle();
+    expect(screen.getByLabelText('Delete them along with the step')).toBeDefined();
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep QA' }));
+    await settle();
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  itDom('reads a name typed back to what it was as clean', () => {
+    // The rename box is a draft only while it says something the step does
+    // not. Typed to `Review` and back to `QA`, it holds nothing — and a modal
+    // that refused to close over it would be refusing over a box that says
+    // exactly what be-01 says.
+    const stub = stubbed();
+
+    type('QA', 'Review');
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
+    type('QA', 'QA');
+    fireEvent.blur(screen.getByLabelText('QA'));
+
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(stub.renameStep).not.toHaveBeenCalled();
   });
 });
 

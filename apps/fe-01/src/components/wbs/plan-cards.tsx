@@ -295,8 +295,8 @@ export interface PlanCardsProps {
    */
   setPriority: (row: TreeRow, typed: string) => Promise<CommitOutcome>;
   /**
-   * What kind of thing this row is: its own tags, the ones it inherits, or
-   * neither.
+   * What kind of thing this row is: its own tags **and** the ones it inherits,
+   * which since ADR 0008 are two lists rather than three exclusive states.
    *
    * Its own prop beside {@link teamLabel} rather than folded into it, because
    * the two dimensions are independent — a row states either, both or neither —
@@ -307,6 +307,10 @@ export interface PlanCardsProps {
    * A **set**, unlike the team's, and that is not a temporary difference: a
    * work item carries as many tags as somebody put on it, and there is no
    * `at(0)` anywhere in this dimension to grow out of later.
+   *
+   * It is also the one dimension a row answers twice over: `Ready` written here
+   * and `Risk` still in force from `010` are both true at once, which is why
+   * this is the only label prop whose type is not a discriminated union.
    */
   tagLabel: (row: TreeRow) => TagLabel;
   /** Every tag on offer, plus the table cell's two writers for this row's set. */
@@ -705,10 +709,19 @@ function CardTeamField({
   );
 }
 
-/** A card's set-valued label, edited through the table cell's own writers. */
-function CardSetField({
+/**
+ * A card's Services chip and sheet, edited through the table cell's own writers.
+ *
+ * **Services only**, since `tags-accumulate`. This drew both set-valued
+ * dimensions while both overrode: one `kind` decided three strings, and a
+ * {@link ServiceLabel} and a `TagLabel` were the same three arms. ADR 0008 made
+ * the tag dimension accumulate, so a tagged row now answers `named` **and**
+ * `inherited` at once and there is no discriminant left to share.
+ * {@link CardTagsField} is that dimension's own; the two are apart rather than
+ * one component with a flag deciding which model it is drawing.
+ */
+function CardServiceField({
   row,
-  kind,
   label,
   entries,
   ownIds,
@@ -716,8 +729,7 @@ function CardSetField({
   createValue,
 }: {
   row: TreeRow;
-  kind: 'tag' | 'service';
-  label: TagLabel | ServiceLabel;
+  label: ServiceLabel;
   entries: readonly PickableEntry[];
   ownIds: readonly string[];
   setValues: (row: TreeRow, ids: readonly string[]) => Promise<CommitOutcome>;
@@ -725,31 +737,29 @@ function CardSetField({
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useTriggerAboveSheet(open);
-  const plural = kind === 'tag' ? 'Tags' : 'Services';
   const names = label.state === 'none' ? [] : label.names;
   const inherited = label.state === 'inherited';
   const title = inherited
-    ? `${names.join(', ')} — inherited from ${label.fromRow}. This row carries no ${kind} of its own.`
+    ? `${names.join(', ')} — inherited from ${label.fromRow}. This row carries no service of its own.`
     : undefined;
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        data-card-tags-field={kind === 'tag' ? '' : undefined}
-        data-card-service-field={kind === 'service' ? '' : undefined}
+        data-card-service-field=""
         onClick={() => {
           setOpen(true);
         }}
-        aria-label={`${plural} for ${row.number}${names.length > 0 ? `: ${names.join(', ')}` : ''}`}
+        aria-label={`Services for ${row.number}${names.length > 0 ? `: ${names.join(', ')}` : ''}`}
         title={title}
         className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
       >
         {names.length === 0 ? (
-          <span className="opacity-70">{kind}…</span>
+          <span className="opacity-70">service…</span>
         ) : (
           <span
-            {...(kind === 'tag' ? { 'data-card-tags': '' } : { 'data-card-service': '' })}
+            data-card-service=""
             {...(inherited ? { 'data-inherited': 'true' } : {})}
             title={title}
           >
@@ -762,20 +772,109 @@ function CardSetField({
         onClose={() => {
           setOpen(false);
         }}
-        label={`${plural} for ${row.number}`}
+        label={`Services for ${row.number}`}
         adapter={{
-          kind,
+          kind: 'service',
           entries,
           ownIds,
           inheritedLabel: inherited ? `${names.join(', ')} from ${label.fromRow}` : undefined,
           replace: (ids) => setValues(row, ids),
           create: (name, current) => createValue(row, name, current),
         }}
-        dataCell={cellKey(row.id, kind)}
-        addLabel={`Add a ${kind} to ${row.number}`}
+        dataCell={cellKey(row.id, 'service')}
+        addLabel={`Add a service to ${row.number}`}
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
         // The team sheet's reason, one dimension over: the `Inherited:` line
         // above the strip is this surface's single reading of inheritance.
+        placeholder="search or add"
+        title={title}
+      />
+    </>
+  );
+}
+
+/**
+ * A card's Tags chip and sheet — what this row states, then what it carries.
+ *
+ * The phone's half of the 2026-08-29 report. Every tag in force is on the chip,
+ * the row's own first and the inherited ones after them behind a `↳`, because a
+ * tag says what kind of thing the work is and a child of a `Risk` parent is
+ * still risky whatever it has been tagged since (ADR 0008).
+ *
+ * **Two spans and not one.** `data-card-tags` stays what it has always meant —
+ * the names this row states — and the inherited ones get their own attribute
+ * beside it, so a reader of either the screen or a test can tell the two apart.
+ * One span carrying both, distinguished by nothing, would be the accumulation
+ * drawn as though the row had written all of it.
+ *
+ * The sheet is handed `inheritedEntries` rather than an `Inherited:` line, for
+ * the reason `ReferenceSetAdapter.inheritedLabel` gives: a line that begins
+ * "while its own is empty" cannot describe a row that states one tag and carries
+ * two.
+ */
+function CardTagsField({
+  row,
+  label,
+  entries,
+  setTags,
+  createTag,
+}: {
+  row: TreeRow;
+  label: TagLabel;
+  entries: readonly PickableEntry[];
+  setTags: (row: TreeRow, tagIds: readonly string[]) => Promise<CommitOutcome>;
+  createTag: (row: TreeRow, name: string, current: readonly string[]) => Promise<CommitOutcome>;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useTriggerAboveSheet(open);
+  const inForce = [...label.own, ...label.inherited.map((each) => each.name)];
+  // One sentence per inherited tag, because each may have been written on a
+  // different row. A card has no ✕ of its own, so this is the only place the
+  // phone can say where a word it is showing came from.
+  const title =
+    label.inherited.length === 0
+      ? undefined
+      : label.inherited
+          .map((each) => `${each.name} — inherited from ${each.fromRow}. Remove it there.`)
+          .join('\n');
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        data-card-tags-field=""
+        onClick={() => {
+          setOpen(true);
+        }}
+        aria-label={`Tags for ${row.number}${inForce.length > 0 ? `: ${inForce.join(', ')}` : ''}`}
+        title={title}
+        className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-left underline decoration-dotted underline-offset-2`}
+      >
+        {inForce.length === 0 && <span className="opacity-70">tag…</span>}
+        {label.own.length > 0 && <span data-card-tags="">{label.own.join(', ')}</span>}
+        {label.inherited.length > 0 && (
+          <span data-card-tags-inherited="" data-inherited="true" title={title}>
+            ↳ {label.inherited.map((each) => each.name).join(', ')}
+          </span>
+        )}
+      </button>
+      <ReferenceSetSheet
+        open={open}
+        onClose={() => {
+          setOpen(false);
+        }}
+        label={`Tags for ${row.number}`}
+        adapter={{
+          kind: 'tag',
+          entries,
+          ownIds: row.tagIds,
+          inheritedEntries: label.inherited,
+          replace: (ids) => setTags(row, ids),
+          create: (name, current) => createTag(row, name, current),
+        }}
+        dataCell={cellKey(row.id, 'tag')}
+        addLabel={`Add a tag to ${row.number}`}
+        removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
         placeholder="search or add"
         title={title}
       />
@@ -2309,14 +2408,12 @@ export function PlanCards({
                 name to find out.
               */}
               {tags.length > 0 && (
-                <CardSetField
+                <CardTagsField
                   row={row}
-                  kind="tag"
                   label={tagging}
                   entries={tags}
-                  ownIds={row.tagIds}
-                  setValues={setTags}
-                  createValue={createTag}
+                  setTags={setTags}
+                  createTag={createTag}
                 />
               )}
               {/*
@@ -2341,9 +2438,8 @@ export function PlanCards({
                 widened.
               */}
               {services.length > 0 && (
-                <CardSetField
+                <CardServiceField
                   row={row}
-                  kind="service"
                   label={delivers}
                   entries={services}
                   ownIds={row.serviceIds}

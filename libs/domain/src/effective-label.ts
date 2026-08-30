@@ -1,19 +1,29 @@
 /**
- * The inheritance walk both label dimensions read, written once.
+ * The **overriding** inheritance walk, written once for the two dimensions that
+ * take it.
  *
- * A plan has three label dimensions now — teams, since `team-sets`, tags, since
- * R10-B, and services, since `service-split` — and they inherit by **exactly**
- * the same rule: most-specific wins, override rather than union, the whole set
- * rather than a member of it, and "unstated" spelled only as absence. Three
- * copies of that walk would be three places for the rule to drift, and this repo
- * has already shipped the stored-versus-effective version of that bug twice. So
- * the walk lives here and {@link effectiveTeamsOf}, {@link effectiveTagsOf} and
- * {@link effectiveServicesOf} are each one line over it.
+ * A plan has three label dimensions — teams, since `team-sets`, tags, since
+ * R10-B, and services, since `service-split`. Two of them inherit by the rule
+ * here: most-specific wins, override rather than union, the whole set rather
+ * than a member of it, and "unstated" spelled only as absence. {@link
+ * effectiveTeamsOf} and {@link effectiveServicesOf} are each one line over it.
+ * Two copies of that walk would be two places for the rule to drift, and this
+ * repo has already shipped the stored-versus-effective version of that bug
+ * twice.
  *
- * The third dimension stores a **column** rather than a join table and is still
- * one line over this walk: `effectiveServicesOf` puts a singleton set in and
- * takes a single id out, so nothing here knows which dimensions are set-shaped
- * in the store.
+ * **`effectiveTagsOf` is no longer one of them**, since `tags-accumulate`
+ * (2026-08-29) and `docs/adr/0008-tags-accumulate-down-the-tree.md`: a tag says
+ * what kind of thing the work is, and a child of a `Risk` parent is still risky,
+ * so tags union down the tree instead of replacing. That walk lives in
+ * `effective-tag.ts` and carries provenance **per tag**, which is a shape this
+ * one cannot express — an overriding answer has exactly one stating row and an
+ * accumulating one has as many as it has members. The two are deliberately
+ * apart: a hand aimed at the tag rule must not be able to move a team's, because
+ * a team decides which pool the scheduler spends and a tag decides nothing.
+ *
+ * The service dimension stores a **join table** as the tag one does and is
+ * still one line over this walk, so nothing here knows which dimensions are
+ * set-shaped in the store.
  *
  * What stays per-dimension is only the vocabulary: each keeps its own row shape,
  * its own result type and its own cycle error, because the sentence a consumer
@@ -22,9 +32,8 @@
  * neither.
  *
  * This module is deliberately not exported from the package index: it is the
- * shared mechanism, not a fourth thing to read a plan with. A consumer asking
- * about labels is asking about teams, about tags or about services, never about
- * "labels".
+ * shared mechanism, not a third thing to read a plan with. A consumer asking
+ * about labels is asking about teams or about services, never about "labels".
  */
 
 /** A row of a plan as far as any label dimension is concerned. */
@@ -62,15 +71,18 @@ export interface EffectiveLabels {
  * constraint and the strictest of them must hold, while a label is a statement
  * about the work, and the one written closest to the work meant that work.
  *
- * **Override, not union** (Dany, 2026-08-13, on teams; unchanged for tags):
- * an ancestor stating `{A}` and a row stating `{B}` leaves the row on `{B}`
- * alone. The row's own set replaces the inherited one whole; it does not
- * accumulate. And what is inherited is the ancestor's **whole** set — a reader
- * handed one member of two would report a set the plan never narrowed to.
+ * **Override, not union** (Dany, 2026-08-13, on teams; still the rule for teams
+ * and for services): an ancestor stating `{A}` and a row stating `{B}` leaves
+ * the row on `{B}` alone. The row's own set replaces the inherited one whole; it
+ * does not accumulate. And what is inherited is the ancestor's **whole** set — a
+ * reader handed one member of two would report a set the plan never narrowed to.
+ * ADR 0008 took the tag dimension out from under this paragraph and nothing
+ * else; if a third dimension ever wants a union it gets `effective-tag.ts`'s
+ * walk, not a flag on this one.
  *
  * **Per dimension, independently.** Nothing here reads a second dimension, which
  * is what makes "a row with tags and no teams inherits its ancestor's teams and
- * overrides its ancestor's tags" fall out rather than need stating: two calls,
+ * accumulates its ancestor's tags" fall out rather than need stating: two calls,
  * two maps, no shared state.
  *
  * Rows with no non-empty set anywhere above them are simply absent from the map.

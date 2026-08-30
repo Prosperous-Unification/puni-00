@@ -251,9 +251,10 @@ export interface WorkItemView {
    * `tech-debt`, `q3-must-have`.
    *
    * In be-01's order (by tag id), so two reads of an unchanged plan give the
-   * same array. Empty means this row states nothing and takes its ancestor's
-   * set; `effectiveTagsOf` in `libs/domain` is the reading, and it is literally
-   * the same walk `teamIds` above uses.
+   * same array. **What this row states, and only that** — since ADR 0008 the
+   * tags in force on it are these *plus* every ancestor's, and `effectiveTagsOf`
+   * in `libs/domain` is that reading. It is no longer the walk `teamIds` above
+   * uses: a team is overridden by a nearer statement, a tag is added to.
    *
    * **Independent of `teamIds` in every respect.** A row states either, both or
    * neither, and inheriting one says nothing about the other. There is no
@@ -1018,7 +1019,7 @@ export interface ProjectApi {
    * rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all sent
    * and answered on. The two things the caller decides, because be-01 cannot see
    * them, are what an *empty box* means and that a non-finite draft is not sent;
-   * both are argued in `teams-dialog.tsx` and were C3's D6 before that.
+   * both are argued in `teams-panel.tsx` and were C3's D6 before that.
    */
   setTeamCapacity(projectId: string, teamId: string, size: number | null): Promise<void>;
   /**

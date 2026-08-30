@@ -1066,8 +1066,9 @@ describe('the toolbar sheet', () => {
    * menu reaches the phone by construction — what this asserts is that it
    * arrives as **one** entry and that it opens where a phone can read it.
    *
-   * The trigger is exempt from the sheet's own close for `StepsDialog`'s
-   * reason and by `StepsDialog`'s mechanism: `closingControlIn` leaves a
+   * The trigger is exempt from the sheet's own close for the reason and by the
+   * mechanism `StepsDialog` established — that surface is
+   * `ProjectSettingsModal` now: `closingControlIn` leaves a
    * control carrying `aria-haspopup` alone, and closing the sheet on the click
    * that opened the menu would unmount the menu with it.
    *
@@ -1133,12 +1134,15 @@ describe('the toolbar sheet', () => {
    *
    * Proof, two faults, both watched 2026-08-09. The `aria-haspopup` exemption
    * removed: failed on `Unable to find an accessible element with the role
-   * "dialog" and name "Steps"` — the sheet closed on the trigger's own click
+   * "dialog" and name "Steps"` (the dialog's name at the time) — the sheet closed on the trigger's own click
    * and took the dialog with it. The surface check removed so a click anywhere
    * closes the sheet: `adds a step from inside the sheet` failed the same way
    * one click later, on the dialog's own Add.
    */
-  itDom('lets the steps dialog open from inside it', async () => {
+  itDom('lets the project settings open from inside it', async () => {
+    // `Project settings` since `project-config-modal`: the steps dialog this
+    // case was written for is one section of that modal now, and the sheet
+    // lists the control by its name rather than by a gear.
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1147,9 +1151,55 @@ describe('the toolbar sheet', () => {
     });
     openTheSheet();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Steps', exact: true }));
+    const control = await screen.findByRole('button', { name: 'Project settings' });
+    expect(control.textContent).toContain('Project settings');
+    fireEvent.click(control);
 
-    expect(await screen.findByRole('dialog', { name: 'Steps' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+  });
+
+  /**
+   * `project-config-modal` slice 3.2: closing the modal hands the focus back to
+   * the control that opened it, from inside the sheet — Radix's own restore to
+   * its **trigger**.
+   *
+   * **What does not guard this, and was claimed to.** The slice is written as
+   * "the control carries no `data-takes-the-focus`", and the first cut of this
+   * comment said that attribute had been injected and watched failing. It was
+   * watched **passing**: {@link closingControlIn} never returns a control that
+   * opens a surface of its own (`aria-haspopup`), so nothing ever reads the
+   * attribute off this trigger and its presence changes nothing. `AGENTS.md`'s
+   * "delete the guard whose removal you cannot see" — here there was nothing to
+   * delete, only a claim to withdraw. Found by an isolated re-run of the
+   * negative, 2026-08-30.
+   *
+   * Proof, the fault that is real: the `ModalTrigger` swapped for a plain
+   * `Button` with an `onClick`, so Radix's `onCloseAutoFocus` cancels the default
+   * restore and has no trigger to put the focus on. This failed on
+   * `expected <body …> to be <button …>` — the focus left on `<body>` — and so
+   * did `project-settings-modal.test.tsx`'s `a clean modal closes from any
+   * section, and gives the focus back to its control`. Watched 2026-08-30.
+   */
+  itDom('closing project settings puts the focus back on its trigger', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+    const control = await screen.findByRole('button', { name: 'Project settings' });
+    fireEvent.click(control);
+    await screen.findByRole('dialog', { name: 'Project settings' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(control);
+    });
   });
 
   /**
@@ -1174,19 +1224,20 @@ describe('the toolbar sheet', () => {
     render(<WbsTable projectId="p1" api={api} />);
     await addAWorkItem();
     openTheSheet();
-    fireEvent.click(await screen.findByRole('button', { name: 'Steps', exact: true }));
-    await screen.findByRole('dialog', { name: 'Steps' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+    await screen.findByRole('dialog', { name: 'Project settings' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Steps' }));
 
     fireEvent.change(screen.getByLabelText('New step'), { target: { value: 'Review' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
 
     // The new step reaches the cards behind both surfaces, which is what says
-    // the refetch the dialog asked for was not thrown away with them.
+    // the refetch the modal asked for was not thrown away with them.
     expect(await screen.findByLabelText('Review estimate for 010')).toBeInTheDocument();
-    // And the dialog is still there to add a second one. This is the half the
-    // line above cannot see: a sheet that closed under it would take the dialog
+    // And the modal is still there to add a second one. This is the half the
+    // line above cannot see: a sheet that closed under it would take the modal
     // with it *after* the step had already been sent.
-    expect(screen.getByRole('dialog', { name: 'Steps' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
   });
 
   /**
@@ -1463,6 +1514,47 @@ describe('what a card says about capacity', () => {
     });
 
     expect(serviceOnCard()).toBeNull();
+  });
+
+  itDom('keeps a parent’s tags on a card whose row states one of its own', async () => {
+    // The phone's half of the 2026-08-29 report. `010` is `Risk`, `010.1` states
+    // `Ready`, and both are on the child's card — the stated one plain, the
+    // carried one behind `↳` and under its own attribute, because a reader with
+    // no table to check against has to be able to tell which word this row
+    // wrote.
+    //
+    // Proof: `CardTagsField`'s inherited span deleted and this failed on
+    // `expected null to be '↳ Risk'`; the two spans merged into one
+    // `data-card-tags` and it failed on `expected 'Ready ↳ Risk' to be 'Ready'`
+    // — the accumulation drawn as though the row had written all of it. Both
+    // watched 2026-08-30.
+    await aPlan((rows, _teams, api) => {
+      api.tags.push({ id: 'g-risk', name: 'Risk' });
+      api.tags.push({ id: 'g-ready', name: 'Ready' });
+      rows[0].tagIds = ['g-risk'];
+      rows[1].parentId = rows[0].id;
+      rows[1].tagIds = ['g-ready'];
+    }, 2);
+
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-card-tags-field]')];
+    const child = cards[1];
+    expect(child.querySelector('[data-card-tags]')?.textContent).toBe('Ready');
+    expect(child.querySelector('[data-card-tags-inherited]')?.textContent).toBe('↳ Risk');
+    expect(child.getAttribute('title')).toBe(
+      // `(unnamed)` because the fixture creates rows with no name at all —
+      // the tree's own words for a row nobody has titled, which is what the
+      // card would show a reader too.
+      'Risk — inherited from 010 (unnamed). Remove it there.',
+    );
+    // Every word in force is in the name the control answers to, because a
+    // reader navigating by voice or by label gets no chips at all. The number
+    // is `020` and not `010.1`: this fixture nests by writing `parentId`
+    // straight onto the fake's rows, which does not renumber. The nesting is
+    // what the walk reads, and the number is what the card prints.
+    expect(child.getAttribute('aria-label')).toBe('Tags for 020: Ready, Risk');
+    // The stating row carries nothing and says so by drawing no second span.
+    expect(cards[0].querySelector('[data-card-tags]')?.textContent).toBe('Risk');
+    expect(cards[0].querySelector('[data-card-tags-inherited]')).toBeNull();
   });
 
   itDom('prints the three labels in the order the table puts its columns in', async () => {
@@ -2220,7 +2312,7 @@ function renderCards(
       hasCalendar={false}
       setNotBefore={() => undefined}
       setPriority={() => Promise.resolve('landed')}
-      tagLabel={() => ({ state: 'none' })}
+      tagLabel={() => ({ own: [], inherited: [] })}
       tags={[]}
       setTags={() => undefined}
       createTag={() => undefined}

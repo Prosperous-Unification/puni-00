@@ -362,6 +362,44 @@ describe('the columns', () => {
     expect(csvColumns(text).length).toBe(csvDataRow(text).length);
   });
 
+  it('names the source of each tag a row carries, beside the ones it states', () => {
+    // ADR 0008 in the document. `010.1` states `platform` and is still
+    // `regulatory` because `010` says so, and the parenthesis is **per name**:
+    // a single `(inherited from …)` after the whole cell would put `010`'s
+    // authorship on a word `010.1` typed itself.
+    //
+    // Proof: `tagCell` routed back through `labelCell` — the shared rendering
+    // the two overriding dimensions still use, handed this row's whole union
+    // and the first entry's `fromId` — and this failed on
+    // `expected 'platform; regulatory' to be 'platform; regulatory (inherited
+    // from …'`: the parenthesis gone, because the cell's one stating row is now
+    // the reading row itself. Watched 2026-08-30.
+    const text = planToCsv(
+      plan({
+        rows: [
+          row({
+            id: 'a',
+            number: '010',
+            name: 'Strip the walls',
+            tagIds: ['tag-regulatory'],
+          }),
+          row({
+            id: 'a1',
+            number: '010.1',
+            name: 'Sockets',
+            parentId: 'a',
+            tagIds: ['tag-platform'],
+          }),
+        ],
+      }),
+    );
+    expect(csvDataRow(text, 1)[columnAt(text, 'Tags')]).toBe(
+      'platform; regulatory (inherited from 010 Strip the walls)',
+    );
+    // And the stating row says its own name with no parenthesis at all.
+    expect(csvDataRow(text)[columnAt(text, 'Tags')]).toBe('regulatory');
+  });
+
   it('says which row a service was inherited from', () => {
     const text = planToCsv(
       plan({

@@ -8,9 +8,10 @@ Two things are recorded here, and the second is the one worth keeping:
 
 1. **The plan** — what Dany asked for, what is actually on `main`, who owns
    which branch, and what is left.
-2. **What the loop got wrong** — nine measurements that were green, or red, for
-   reasons other than the ones claimed. Every one was found by checking rather
-   than by reasoning, and six of them were mine.
+2. **What the loop got wrong** — twelve findings: measurements that were green,
+   or red, for reasons other than the ones claimed, and one piece of shared
+   machinery that does not do what its name says. Every one was found by
+   checking rather than by reasoning, and seven of them were mine.
 
 ---
 
@@ -71,7 +72,7 @@ deliberate deferral rather than an omission.
 
 ---
 
-## Part 2 — nine measurements that meant something else
+## Part 2 — twelve things that meant something else
 
 R5 says a check whose failure has never been observed is a claim, not a gate.
 The loop produced a matching family: **a result whose _cause_ has never been
@@ -192,6 +193,95 @@ does. Replaced by the fault that is real (the `ModalTrigger` swapped for a plain
 change were watched by subagents in detached worktrees before the comments were
 believed, which is the discipline this item argues for: **never write "watched"
 before the watching.**
+
+## 10. A check whose measured quantity cannot move under its own fault
+
+`project-config-modal`'s `tasks.md` asks that "the folded toolbar at 1280 is no
+wider than before, with the pre-change figure pinned as a number". Measured on
+`main` in Chromium, that reading **cannot fail**: the bar's content width at 1280
+is `1248px`, which is the bar's own width, because the eighteen controls already
+wrap to a second row. A full bar measures its own width whatever is on it — the
+check passes with three buttons added _and_ with ten removed.
+
+The other session named the family, and the name is better than the instance:
+**a check whose measured quantity is invariant under the fault it names.**
+`deps-cell`'s drain (item 4) is its sibling — the polled count could never reach
+the asserted value — and neither is visible by reading the assertion. They are
+visible only by asking _what the number is a measurement of_.
+
+The replacement pins what the bar has to **lay out** — every control's width plus
+the gaps, `1445.33px` over 18 controls at a 6px gap, across `2` rows — and
+asserts **≥16 controls present first**. That precondition is not decoration: it is
+what stops the new check acquiring the same property, since a bar that lost
+controls could otherwise satisfy the budget by shrinking.
+
+## 11. A merge diff attributes every line it carries, including the ones it imports
+
+Two sessions believed they had independently fixed the same stale docking test,
+and that whoever merged second faced a judgement call about which correction to
+keep. `git diff` showed 97 changed lines in `plan-surface.spec.ts` on the second
+branch, which was true and meant nothing:
+
+```
+$ git merge-base --is-ancestor 6fe8a26 58ded95   # already in its history
+$ diff <(git show 58ded95:…/plan-surface.spec.ts) <(git show main:…/plan-surface.spec.ts)
+421c421
+<     // An unfolded step is what makes the frame scroll sideways at all
+---
+>     // An unfolded role is what makes the frame scroll sideways at all
+```
+
+One line, a comment, and the word was that branch's own rename sweep. The 97
+lines were the _first_ session's correction arriving through a merge of
+`origin/main`. All four of that session's branches merge `main` with **zero**
+conflicts.
+
+Same shape as `eb8968d` (item 5's neighbour): a real number supporting a wrong
+story until somebody read the commit that produced it. The session that made
+both calls named what they share, and together they are a rule rather than two
+anecdotes: **both times a number was taken off a summary view and authorship or
+intent inferred from it.** `git show --stat` on a _merge_ commit attributes every
+line the merge carries, including the ones it imports; a measured pixel figure
+says nothing about why the pixels moved.
+
+**The summary tells you what changed; only the history tells you who changed it
+and why.** `git merge-base --is-ancestor` and `git merge-tree` are the cheap
+answers, and both run in under a second.
+
+## 12. The "queue" is a lottery, and a long job can starve behind short ones
+
+`HEAVY_LOCK_WAIT_SECONDS` reads as queueing, and `bin/with-heavy-lock.sh`'s own
+docstring calls it "queue instead of refusing — that is what several agents
+sharing one Mac want". It is not a queue. The loop is:
+
+```sh
+while true; do
+  claim_heavy_lock "$lock_dir" && break     # bare mkdir
+  ((SECONDS >= deadline)) && return 75
+  sleep 5
+done
+```
+
+Every waiter polls `mkdir` on the same 5-second cadence and **the winner is
+whoever calls it first after a release**. There is no ticket, no arrival order,
+no ageing. With three sessions and jobs ranging from 20 seconds to 40 minutes,
+a waiter's odds do not improve with time spent waiting.
+
+Measured on 2026-08-30: one browser run waited **50 minutes** while four other
+jobs — several of them minutes old — took the lock and finished. It was first by
+arrival in every one of those rounds and won none of them.
+
+This is not a bug in the lock's _correctness_: it never lets two heavy runs
+overlap, which is what it exists for, and the eighteen R5 entries it guards are
+all about that. It is a gap between what the name promises and what the
+mechanism provides. **"Queue" in the docstring should read "retry", or the loop
+should take a ticket** — and until one of those, a session planning around
+"my gate is next" is planning around something the code does not offer.
+
+The operational consequence, for anyone reading this while three sessions are
+live: **budget wall-clock by the number of competing sessions, not by your job's
+own length**, and set `HEAVY_LOCK_WAIT_SECONDS` generously — a 20-second
+measurement legitimately needs a two-hour budget on a contended host.
 
 ### Three artefacts that look like conclusions
 

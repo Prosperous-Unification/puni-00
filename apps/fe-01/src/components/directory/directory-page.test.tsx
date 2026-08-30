@@ -884,7 +884,7 @@ describe('removing from the directory', () => {
    * Proof: `askToRemove`'s two `false`s pinned to `true`, this failed on
    * `Unable to find role="dialog"` — the removal taken on the first request
    * and nobody shown what it took — along with five of its siblings. The fault
-   * `steps-dialog` already knows. Watched 2026-08-09.
+   * `steps-panel` already knows. Watched 2026-08-09.
    */
   itDom('asks without a cascade first, and names the work on the refusal', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);
@@ -1022,10 +1022,11 @@ describe('how many of a team are at work at once', () => {
     // plan. So the box is gone rather than disabled or left showing a number from
     // somewhere: a control that writes a value no schedule reads is worse than no
     // control at all. `capacity-per-project`'s design.md D4 and D5, and the box
-    // itself is `components/wbs/teams-dialog.tsx`.
+    // itself is `components/wbs/teams-panel.tsx`, a section of the project
+    // settings modal since `project-config-modal`.
     //
     // The whole of C3's block about the box moved with it — 160 lines, including
-    // both of its watched negatives — and is in `teams-dialog.test.tsx`.
+    // both of its watched negatives — and is in `teams-panel.test.tsx`.
     //
     // Proof: the `<Input>` put back on the team row (`aria-label={`How many of
     // ${team.name} at once`}`, wired to a local draft), and this failed on

@@ -860,7 +860,7 @@ export function pinnedGeometryFor(
  * Derived through {@link frameLayout} rather than as arithmetic of its own,
  * and that is the whole point of it living here rather than as a sentence in
  * the dialog: a column that changes width changes this number in the same
- * commit. `steps-dialog.test.tsx` pins the quoted figure against what a real
+ * commit. `steps-panel.test.tsx` pins the quoted figure against what a real
  * `WbsTable` render of the same steps declares as its `min-width`.
  *
  * @throws {UnknownColumnError} for a hidden id that is neither a declared

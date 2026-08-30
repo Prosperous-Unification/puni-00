@@ -36,9 +36,14 @@ export interface RowFacets {
    *
    * The same rule as `teamIds` above and for the same reason, which is the one
    * this repo has shipped wrong twice: a leaf under a `regulatory` parent *is*
-   * regulatory, and a filter reading stored labels would not find it. That the
-   * two dimensions take the identical reading is not a coincidence — they are
-   * one walk, in `libs/domain/src/effective-label.ts`.
+   * regulatory, and a filter reading stored labels would not find it.
+   *
+   * **The two dimensions no longer take the identical reading**, since ADR 0008:
+   * this one is the **union** of the row's own tags and every ancestor's, so a
+   * leaf that states `Ready` under a `regulatory` parent answers a filter for
+   * either word. The team facet is still the nearest statement alone, and the
+   * two walks are two files — `effective-tag.ts` here, `effective-label.ts`
+   * there.
    */
   tagIds: readonly string[];
   /**

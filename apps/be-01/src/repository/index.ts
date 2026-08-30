@@ -346,8 +346,10 @@ export interface LabelledWorkItem extends WorkItem {
    * respect** — a row states either, both or neither, and inheriting one says
    * nothing about the other.
    *
-   * Ordered by tag id, for `teamIds`' reason. Empty means the row states nothing
-   * and inherits; see `effectiveTagsOf` in `libs/domain`.
+   * Ordered by tag id, for `teamIds`' reason. **What the row states, and only
+   * that**: the tags in force on it are these plus every ancestor's, unioned by
+   * `effectiveTagsOf` in `libs/domain` (ADR 0008). A row that states none is not
+   * a special case there — it simply adds nothing to what it was carrying.
    *
    * Unlike `teamIds` this has no column behind it and never had one: there is no
    * `work_item.tagId` to be the outgoing release's copy, because the dimension

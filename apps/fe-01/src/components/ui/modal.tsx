@@ -86,7 +86,8 @@ export interface ModalContentProps extends ComponentPropsWithoutRef<
  *
  * Proof: found by the first production caller rather than by reasoning. With
  * `usePageShortcutsSuspended(true)` in `ModalContent`'s body and a closed
- * `StepsDialog` mounted in `WbsTable`, **49 tests** in `wbs-table.test.tsx`
+ * `StepsDialog` mounted in `WbsTable` — that surface is `ProjectSettingsModal`'s
+ * steps section since `project-config-modal` — **49 tests** in `wbs-table.test.tsx`
  * failed — `outdents with shift-tab` on `expected [ '010' ] to deeply equal
  * [ '010', '020' ]`, because Ctrl+N was being swallowed by a dialog nobody had
  * opened. Watched 2026-08-09, and pinned since by `holds nothing back while the

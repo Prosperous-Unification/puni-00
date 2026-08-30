@@ -5,7 +5,7 @@ import { createProject } from './create-project';
 /**
  * The Steps surface, in a browser.
  *
- * `steps-dialog.test.tsx` proves what the dialog sends and what it says; this
+ * `steps-panel.test.tsx` proves what the section sends and what it says; this
  * file exists for the things jsdom cannot answer, and every one of them is
  * about the modal itself. `F shadcn-foundation` vendored `Modal` on Radix and
  * shipped it with **no production caller at all** — its focus trap, its Escape,
@@ -55,6 +55,22 @@ function focusIsOnTheSurface(page: Page): Promise<boolean> {
   return page.evaluate(() => document.activeElement?.closest('[data-modal-surface]') !== null);
 }
 
+/**
+ * Opens the Steps section: the `Project settings` control, then its tab.
+ *
+ * Two gestures since `project-config-modal` (2026-08-30), where this was one
+ * button on the bar. The dialog it opens is the project's whole settings
+ * surface, and every assertion below about the modal — the trap, Escape, the
+ * click away, the focus restore — is now an assertion about that one modal
+ * rather than about a steps dialog of its own.
+ */
+async function openSteps(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Project settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Steps' }).click();
+  await expect(page.getByLabel('New step')).toBeVisible();
+}
+
 let account = 0;
 
 test.beforeEach(() => {
@@ -63,9 +79,10 @@ test.beforeEach(() => {
 
 /*
  * Not `e2e-steps-…`: the account menu's button is named after the account, and
- * `getByRole('button', { name: 'Steps' })` matches an accessible name by
+ * `getByRole('button', { name: 'Steps' })` matched an accessible name by
  * substring — so a username with "steps" in it resolved that locator to two
- * elements. `exact: true` is the fix; this is the belt beside it.
+ * elements. The button is `Project settings` now and the tab is what carries
+ * `Steps`; this stays as the belt beside that.
  */
 const throwaway = (): string => `e2e-ph-${String(Date.now())}-${String(account)}`;
 
@@ -73,8 +90,7 @@ test.describe('the steps surface, in a browser', () => {
   test('opens from the toolbar and holds the focus inside itself', async ({ page }) => {
     await signInWithAProject(page, throwaway());
 
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await openSteps(page);
 
     // More Tabs than there are controls on the surface, so the trap is asked
     // the only question worth asking: what happens past the last one. Radix
@@ -92,9 +108,8 @@ test.describe('the steps surface, in a browser', () => {
     page,
   }) => {
     await signInWithAProject(page, throwaway());
-    const opener = page.getByRole('button', { name: 'Steps', exact: true });
-    await opener.click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    const opener = page.getByRole('button', { name: 'Project settings' });
+    await openSteps(page);
 
     await page.keyboard.press('Escape');
 
@@ -104,11 +119,10 @@ test.describe('the steps surface, in a browser', () => {
 
   test('a click away closes it', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await openSteps(page);
 
     // The overlay, at a corner the surface cannot reach: a centred dialog is
-    // 512px wide in the middle of the window, so 5,5 is the page behind it.
+    // at most 672px wide in the middle of the window, so 5,5 is the page behind it.
     await page.mouse.click(5, 5);
 
     await expect(page.getByRole('dialog')).toBeHidden();
@@ -116,7 +130,7 @@ test.describe('the steps surface, in a browser', () => {
 
   test('Ctrl+Enter in the new-step box adds the step', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
+    await openSteps(page);
 
     await page.getByLabel('New step').fill('Design');
     // The whole point of the split `F` shipped on review: the capture listener
@@ -133,7 +147,7 @@ test.describe('the steps surface, in a browser', () => {
    * A bare Enter in the new-step box adds the step, through the browser's own
    * implicit form submission and nothing this repository wrote.
    *
-   * `steps-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` is the
+   * `steps-panel.test.tsx`'s `leaves a bare Enter to the form it is in` is the
    * jsdom half, and on its own it is satisfied by the environment rather than by
    * the code: jsdom performs **no** implicit submission at all, so a keydown it
    * dispatches never reaches a `submit` handler whatever `onChord` does with it.
@@ -141,15 +155,14 @@ test.describe('the steps surface, in a browser', () => {
    * "nothing here submits on Enter ever". Only a browser can.
    *
    * Proof: an unconditional `event.preventDefault()` at the top of `onChord` in
-   * `steps-dialog.tsx` — the fault the jsdom test is blind to — this failed on
+   * `steps-panel.tsx` — the fault the jsdom test is blind to — this failed on
    * `expect(locator).toBeVisible() … waiting for getByRole('button', { name:
    * 'Remove Design' })`, the step never added, while `leaves a bare Enter to
    * the form it is in` went on passing. Watched in Chromium, 2026-08-09.
    */
   test('a bare Enter in the new-step box adds the step', async ({ page }) => {
     await signInWithAProject(page, throwaway());
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await openSteps(page);
 
     await page.getByLabel('New step').fill('Design');
     await page.keyboard.press('Enter');
@@ -178,7 +191,7 @@ test.describe('the steps surface, in a browser', () => {
     );
     expect(minWidthBefore).toBeGreaterThan(0);
 
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
+    await openSteps(page);
     await page.getByLabel('New step').fill('Design');
     await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
@@ -224,7 +237,7 @@ test.describe('the steps surface, in a browser', () => {
     // subject.
     await expect(qa).toHaveValue('2/3/8');
 
-    await page.getByRole('button', { name: 'Steps', exact: true }).click();
+    await openSteps(page);
     await page.getByRole('button', { name: 'Remove QA' }).click();
 
     await expect(

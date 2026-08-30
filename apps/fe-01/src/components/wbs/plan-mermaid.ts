@@ -72,7 +72,7 @@ const UNKNOWN_NAME = '(unknown)';
  *   row's outermost ancestor. Needs no new concept and matches the order the
  *   plan is already read in.
  * - `step` — the step a bar is estimated under (`Dev`, `QA`, …), this
- *   codebase's own word for it (`steps-dialog.tsx`).
+ *   codebase's own word for it (`steps-panel.tsx`).
  * - `assignee` — who is on the bar. The brief's argument for this one: our
  *   chart spends its colour channel on people (`PERSON_BAR_COLORS`) and
  *   Mermaid has no per-task colour at all, only a `section0..3` class cycling

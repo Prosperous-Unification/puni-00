@@ -8,10 +8,43 @@ rather than against a `tasks.md` tick.**
 The original request is reproduced verbatim at the bottom so a later reader does
 not have to trust this summary's paraphrase.
 
-## The table
+> **Superseded in part, and by its own method.** The table below was taken by
+> grepping `main` for a shipped symbol, which under-reports: it called ask 1.1
+> missing when the hover card was on `main`, and `steps-not-phases` unstarted
+> when all fifteen of its slices were done. **The live status is
+> `openspec/HANDOFF-2026-08-30.md`**; what happened to the loop that produced
+> these changes is `docs/2026-08-30-agent-loop-audit.md`. The state as of
+> 2026-08-30 18:00 is in "Where this actually stands" below; everything under it
+> is kept as written, because a corrected record is worth more than a tidy one.
+
+## Where this actually stands (2026-08-30 18:00)
+
+| #    | Ask                                         | State                                                                                   |
+| ---- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1.1  | Hover tooltip right of the project dropdown | **on `main`** — the table below is wrong; `ProjectOptionCard` ships it                  |
+| 7.2  | Unestimated steps assume 2 days             | **merged to `main`**                                                                    |
+| 3    | One project-config modal                    | **gated green, merging** — `feat/project-config-modal`, 0 conflicts                     |
+| 2    | Rename Phases → Steps                       | **blocked on account capacity until 21:30 Europe/Kiev**, another session's; 0 conflicts |
+| 7.1  | Gantt deps from **all** steps               | **blocked on account capacity until 21:30 Europe/Kiev**, another session's; 0 conflicts |
+| rest | 1.2, 1.3, 4.1–4.3, 5, 6                     | on `main`, as the table below says                                                      |
+
+**Ten of twelve are on `main` or one merge away. The two that are not are
+blocked on capacity, not on work: both branches are complete, clean, and merge
+`main` without conflict.**
+
+One correction that outlived its change, recorded here because this document is
+where somebody will look for it: the claim that adding one unsized step moves
+every finish by **exactly** two workdays is a per-plan claim, and it is true only
+under the `anchor-slice` reach. Under `dep-reach-whole-item`'s `whole-item`
+default an unsized trailing step is what successors wait for, so the assumption
+**compounds down a dependency chain**. `assumed-duration-schedules`' `verify.md`
+carries the measured figures.
+
+## The table, as first written — and wrong in both directions
 
 Checked by grepping `main` for the shipped symbol, not by reading a change's
-tasks. "Change" names the OpenSpec change that owns it.
+tasks. "Change" names the OpenSpec change that owns it. **Kept unedited**; the
+corrected reading is above.
 
 | #   | Ask                                                  | On `main`? | Change                                          |
 | --- | ---------------------------------------------------- | ---------- | ----------------------------------------------- |

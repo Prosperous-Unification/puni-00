@@ -75,3 +75,22 @@ export function CollapseIcon(): React.JSX.Element {
     </svg>
   );
 }
+
+/**
+ * `Project settings`' icon: a gear.
+ *
+ * The one control on the bar that stands for three (`project-config-modal`, D5):
+ * `Teams`, `Priorities` and `Steps` were three labelled buttons somebody uses
+ * once and then not for weeks, permanently beside `Add work item` and `Undo` on a
+ * bar whose width is the scarce resource. The word moved into the button's
+ * `aria-label`, exactly as `Expand all`'s did; the phone's sheet, which has the
+ * room, shows the label beside this.
+ */
+export function SettingsIcon(): React.JSX.Element {
+  return (
+    <svg {...ICON}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2" />
+    </svg>
+  );
+}

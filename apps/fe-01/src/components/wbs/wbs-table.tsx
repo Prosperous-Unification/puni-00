@@ -89,6 +89,7 @@ import { FoldedStepCard } from './folded-step-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import {
   type GanttPlan,
+  type InheritedTagLabel,
   type ServiceLabel,
   type ServiceTeamLabel,
   startFloorByRow,
@@ -131,8 +132,8 @@ import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan
 import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
-import { PrioritiesDialog } from './priorities-dialog';
 import { PriorityCell, priorityTyped } from './priority-cell';
+import { ProjectSettingsModal } from './project-settings-modal';
 import {
   REFERENCE_SET_ADD_CLASS,
   REFERENCE_SET_CHIP_CLASS,
@@ -141,7 +142,6 @@ import {
   ReferenceSetStrip,
 } from './reference-set-field';
 import { printedDay, shortIsoDate } from './short-date';
-import { StepsDialog } from './steps-dialog';
 import {
   CARET_GUTTER_PX,
   CELL,
@@ -165,7 +165,7 @@ import {
   tableWidthStyle,
   WIDEST_COLUMN,
 } from './table-frame';
-import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
+import { teamsOnThePlan } from './teams-panel';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { CollapseIcon, ExpandIcon, KeyboardIcon } from './toolbar-icons';
 import {
@@ -1777,13 +1777,13 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
- * - **A control that opens a surface of its own.** `StepsDialog` is on this
- *   sheet, and closing the sheet unmounts the dialog its trigger was about to
- *   open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
+ * - **A control that opens a surface of its own.** `ProjectSettingsModal`'s
+ *   trigger is on this sheet, and closing the sheet unmounts the modal it was
+ *   about to open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
  *   question asked here.
  * - **A click on another surface entirely.** React sends a portal's events up
  *   the **React** tree, so every click inside that steps dialog arrives here
- *   even though the dialog is nowhere near this element in the DOM — and would
+ *   even though the modal is nowhere near this element in the DOM — and would
  *   close the sheet under it, mid-click, on the way to adding a step.
  *
  * @param target What was clicked — `event.target`, not the handler's element.
@@ -3987,33 +3987,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   };
 
   /**
-   * A row's tags as a cell or a card can state them: its own set, or the one it
-   * inherits and the row that carries it.
+   * A row's tags as a cell or a card can state them: what it says itself, and
+   * what it carries from above with the row that said each one.
    *
-   * {@link effectiveTeamLabelOf}'s shape, one dimension over, and the whole set
-   * rather than `at(0)`: there is no single-member stage in this dimension to
-   * grow out of. A name the directory read has not caught up with is simply
-   * left out — see {@link TagLabel} for why there is no `unresolved` arm.
+   * **Two lists rather than {@link effectiveTeamLabelOf}'s three states**, since
+   * ADR 0008: tags accumulate, so `named` and `inherited` stopped being
+   * exclusive and a row answers both at once. The split is decided on
+   * `fromId === row.id` and nowhere else — the domain walk already settled which
+   * row states each tag, and a second reading of `row.tagIds` here would be a
+   * second answer to a question that has one.
+   *
+   * A name the directory read has not caught up with is simply left out — see
+   * {@link TagLabel} for why there is no `unresolved` arm.
    */
   const effectiveTagLabelOf = (row: TreeRow): TagLabel => {
-    const namesFor = (ids: readonly string[]): string[] =>
-      ids.flatMap((id) => {
-        const found = tags.find((each) => each.id === id);
-        return found === undefined ? [] : [found.name];
-      });
-    if (row.tagIds.length > 0) {
-      const names = namesFor(row.tagIds);
-      return names.length === 0 ? { state: 'none' } : { state: 'named', names };
+    const own: string[] = [];
+    const inherited: InheritedTagLabel[] = [];
+    for (const each of effectiveTags.get(row.id) ?? []) {
+      const found = tags.find((entry) => entry.id === each.tagId);
+      if (found === undefined) continue;
+      if (each.fromId === row.id) own.push(found.name);
+      else
+        inherited.push({
+          id: found.id,
+          name: found.name,
+          fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
+        });
     }
-    const inherited = effectiveTags.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const names = namesFor(inherited.tagIds);
-    if (names.length === 0) return { state: 'none' };
-    return {
-      state: 'inherited',
-      names,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
+    return { own, inherited };
   };
 
   /**
@@ -4135,12 +4136,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             teamIds,
             // The **effective** tags, for the effective team's reason one line
             // up: a leaf under a `regulatory` parent is regulatory, and a filter
-            // reading stored labels would not find it.
-            tagIds: effectiveTags.get(row.id)?.tagIds ?? [],
+            // reading stored labels would not find it. Since ADR 0008 that holds
+            // even where the leaf states tags of its own — the union, not the
+            // nearer statement, which is exactly the case the override rule used
+            // to lose.
+            tagIds: (effectiveTags.get(row.id) ?? []).map((each) => each.tagId),
             // The row's **own** set, and no `effectiveTypes` map beside the two
             // above because there is no such walk: a type does not inherit
             // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so
             // the stored set is already the effective reading.
+            //
+            // Three facets, three inheritance rules, on purpose: the team is the
+            // nearest statement, the tag is every statement above it, and the
+            // type is this row's alone. Each is the rule its own question takes.
             typeIds: row.typeIds,
             // The **effective** service, for the same reason a third time, and
             // `?? null` because absence from the map is how this walk spells
@@ -7904,35 +7912,43 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           id: 'tag',
           header: 'Tags',
           cell: ({ row }) => {
-            // The same reading the Team cell makes, one dimension over: a row
-            // with no tags of its own still *is* whatever an ancestor said it
-            // was, and the placeholder says so in the box's own muted ink with
-            // `↳` for the inheritance.
-            const inherited = live.current.effectiveTagLabelOf(row.original);
+            // **Not** the reading the Team cell makes. A row with no tags of its
+            // own still *is* whatever an ancestor said it was — and since ADR
+            // 0008 so is a row that has tags of its own, because a tag says what
+            // kind of thing the work is and adding one adds a word rather than
+            // replacing the sentence. Adding `Ready` to 010.1 and watching
+            // `Risk` and `Review` disappear from the cell was the 2026-08-29
+            // report.
+            //
+            // So the inheritance is drawn as **chips** here, where the team's is
+            // a placeholder: a placeholder is only visible on an empty box, and
+            // this cell is not empty in the case the report is about. The chips
+            // wear `↳` and no ✕ — see `REFERENCE_SET_INHERITED_CHIP_CLASS` — and
+            // `inheritedLabel` is deliberately not passed beside them, or the
+            // same claim would be on screen twice.
+            const tagging = live.current.effectiveTagLabelOf(row.original);
             const own = row.original.tagIds;
             return (
               <ReferenceSetStrip
                 label={`Tags for ${row.original.number}`}
                 addLabel={`Add a tag to ${row.original.number}`}
                 removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
-                placeholder={
-                  own.length > 0
-                    ? 'add'
-                    : inherited.state === 'inherited'
-                      ? `↳ ${inherited.names.join(', ')}`
-                      : 'search'
-                }
+                placeholder={own.length > 0 || tagging.inherited.length > 0 ? 'add' : 'search'}
                 title={
-                  own.length === 0 && inherited.state === 'inherited'
-                    ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
-                    : undefined
+                  tagging.inherited.length === 0
+                    ? undefined
+                    : tagging.inherited
+                        .map(
+                          (each) =>
+                            `${each.name} — inherited from ${each.fromRow}. Remove it there.`,
+                        )
+                        .join('\n')
                 }
                 adapter={{
                   kind: 'tag',
                   entries: live.current.tags,
                   ownIds: own,
-                  inheritedLabel:
-                    inherited.state === 'inherited' ? inherited.names.join(', ') : undefined,
+                  inheritedEntries: tagging.inherited,
                   replace: (tagIds) => live.current.setTagsOf(row.original.id, tagIds),
                   create: (name, current) =>
                     live.current.createTagFor(row.original.id, name, current),
@@ -10053,69 +10069,67 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         Gantt
       </Button>
       {/*
-        The steps, which are the project's to choose since `R1 role-crud`.
-        The button belongs to the dialog rather than sitting beside it: Radix
+        Everything the **project** configures about itself — its teams' capacity,
+        its priority ladder, and its steps — behind one control, since
+        `project-config-modal` (2026-08-30). These were three labelled buttons
+        here, each a thing somebody sets once and then leaves for weeks, sitting
+        permanently beside `Add work item` and `Undo` on a bar whose width is the
+        scarce resource. The three surfaces are three sections of one modal now.
+
+        The button belongs to the modal rather than sitting beside it: Radix
         restores the focus to its **trigger** on close and to nothing at all
         without one, so the two are one component. The surface itself lands in
-        a portal, not here.
+        a portal, not here. A gear on this bar and its name on the phone's
+        sheet, which lists its controls by word and has the room.
 
-        Not disabled by `busy`: it has its own in-flight state, and a button
-        that went dead while somebody else's edit was refetching would be
-        unopenable on a plan two people are working on.
-      */}
-      {/*
-        How many of each team on this plan are at work at once. Beside the steps
-        for the reason it is beside them: both are the **project's** own lists,
-        both move what the table draws, and the button belongs to the dialog rather
-        than sitting next to it because Radix restores focus to its trigger.
+        Not disabled by `busy`: each section has its own in-flight state, and a
+        button that went dead while somebody else's edit was refetching would
+        be unopenable on a plan two people are working on.
 
-        C3 put this box in the directory, where a global size belonged. The number
-        is one plan's now — `capacity-per-project`, Dany 2026-08-13 — and the
-        directory page has no plan; design.md D5 has the argument.
+        The teams section reads every row's **effective** teams, so a team only
+        an ancestor carries is offered a box: its pool is what the leaves below
+        it spend. The same reading the cell, the cards, the export and the bars
+        use — one `effectiveTeamsOf` per render and never a second copy.
+        Flattened, because a row on two teams puts a box beside each of them.
+        C3 put that box in the directory, where a global size belonged; the
+        number is one plan's now (`capacity-per-project`, Dany 2026-08-13), and
+        the directory page has no plan.
 
-        Not disabled by `busy`: it has its own in-flight state, and a button that
-        went dead while somebody else's edit was refetching would be unopenable on
-        a plan two people are working on.
+        The steps section is handed the same `frameState` the `<colgroup>`
+        above is resolved from, so the figure it quotes and the width the table
+        lays out cannot be answers to two different questions.
       */}
-      <TeamsDialog
-        teams={teamsOnThePlan(
-          teams,
-          teamCapacities,
-          // Every row's **effective** teams, so a team only an ancestor carries
-          // is offered a box: its pool is what the leaves below it spend. The
-          // same reading the cell, the cards, the export and the bars use — one
-          // `effectiveTeamsOf` per render and never a second copy. Flattened,
-          // because a row on two teams puts a box beside each of them.
-          flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
-        )}
-        setCapacity={(teamId, size) => api.setTeamCapacity(projectId, teamId, size)}
-        onChanged={refreshOrMarkStale}
-      />
-      {/*
-        What this plan calls its priority numbers, beside the Teams box because it
-        is the same class of fact: a project's own configuration, read by every
-        face, edited from the plan's own toolbar. `priority-bands`' design.md D5.
-      */}
-      <PrioritiesDialog
-        bands={priorityBands}
-        setBands={(bands) => api.setPriorityBands(projectId, bands)}
-        onChanged={refreshOrMarkStale}
-      />
-      <StepsDialog
-        steps={steps}
-        hiddenColumnIds={hiddenColumnIds}
-        // The same object the `<colgroup>` above is resolved from, so the
-        // figure this dialog quotes and the width the table lays out cannot
-        // be answers to two different questions.
-        frameState={frameState}
-        numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
-        nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
-        addStep={(name) => api.addStep(projectId, name)}
-        renameStep={(stepId, name) => api.renameStep(projectId, stepId, name)}
-        removeStep={(stepId, cascade) => api.removeStep(projectId, stepId, cascade)}
-        // The same reread every other change on this page makes, which is what
-        // puts the new columns on the table and the new list in the dialog.
-        onChanged={refreshOrMarkStale}
+      <ProjectSettingsModal
+        projectId={projectId}
+        trigger={renderer === 'cards' ? 'labelled' : 'glyph'}
+        teams={{
+          teams: teamsOnThePlan(
+            teams,
+            teamCapacities,
+            flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
+          ),
+          setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
+          onChanged: refreshOrMarkStale,
+        }}
+        priorities={{
+          bands: priorityBands,
+          setBands: (bands) => api.setPriorityBands(projectId, bands),
+          onChanged: refreshOrMarkStale,
+        }}
+        steps={{
+          steps,
+          hiddenColumnIds,
+          frameState,
+          numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
+          nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
+          addStep: (name) => api.addStep(projectId, name),
+          renameStep: (stepId, name) => api.renameStep(projectId, stepId, name),
+          removeStep: (stepId, cascade) => api.removeStep(projectId, stepId, cascade),
+          // The same reread every other change on this page makes, which is
+          // what puts the new columns on the table and the new list in the
+          // section.
+          onChanged: refreshOrMarkStale,
+        }}
       />
       {/*
         Find. Deliberately without `data-cell`: this is not a cell of the
@@ -10487,7 +10501,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           <Modal open={toolbarSheetOpen} onOpenChange={setToolbarSheetOpen}>
             {/*
               The trigger belongs to the modal rather than sitting beside it,
-              for `StepsDialog`'s reason: Radix restores the focus to its
+              for `ProjectSettingsModal`'s reason: Radix restores the focus to its
               trigger on close, and to nothing at all without one.
             */}
             <ModalTrigger asChild>

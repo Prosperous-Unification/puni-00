@@ -1,17 +1,8 @@
-import { type FormEvent, type KeyboardEvent, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-  ModalTrigger,
-} from '@/components/ui/modal';
 import {
   type AssumedAssigneeFlipView,
   stepRefusalSentence,
@@ -22,6 +13,7 @@ import {
 import { commandChordIn } from './keyboard-bindings';
 import { CARDS_BELOW, TABLE_NEEDS_HEIGHT } from './plan-renderer';
 import { foldedTableMinWidth, type FrameLayoutState } from './table-frame';
+import type { SettingsSectionReport } from './teams-panel';
 
 /** What a work item's number is, or null once it is no longer in the tree on screen. */
 export type NumberOf = (workItemId: string) => string | null;
@@ -84,7 +76,7 @@ export function flipSentence(
   )} would be afterwards.`;
 }
 
-export interface StepsDialogProps {
+export interface StepsPanelProps extends SettingsSectionReport {
   /** The steps the table is currently drawing columns for. */
   steps: readonly StepView[];
   /**
@@ -121,13 +113,18 @@ interface Confirming {
 /**
  * The project's steps, and everything that can be done to them.
  *
- * The first production caller of {@link ModalContent}, which brings two rules
- * with it: the page's own keyboard is held back while this is open, and a
- * command chord aimed at a field **on** this surface is deliberately let
- * through — which is what makes Cmd/Ctrl+Enter available to submit with here.
+ * **A panel and not a dialog since `project-config-modal`** (2026-08-30). This
+ * was `StepsDialog`, `ModalContent`'s first production caller and the surface
+ * that found two of its rules; it is one of three sections of
+ * `ProjectSettingsModal` now, which owns the shell, the trigger, the title and
+ * the close. Both rules still hold and are the modal's to hold: the page's own
+ * keyboard is held back while it is open, and a command chord aimed at a field
+ * **on** the surface is let through — which is what makes Cmd/Ctrl+Enter
+ * available to submit with here, and why {@link onChord} is on this panel's own
+ * root rather than on a `ModalContent` it no longer renders.
  *
  * **Refusals are shown on the surface rather than raised as toasts.** A toast
- * appears in the corner of a page this dialog is covering, and every one of
+ * appears in the corner of a page this modal is covering, and every one of
  * these refusals is about the box somebody is typing in. They are also
  * sentences rather than be-01's codes; {@link stepRefusalSentence} is the one
  * place that translation happens.
@@ -136,8 +133,13 @@ interface Confirming {
  * `onChanged` and the list redraws from what came back — the same rule the table
  * behind it keeps, and for the same reason: a step list kept locally would be a
  * second answer to a question be-01 owns.
+ *
+ * What used to be cleared on the dialog's close — a confirmation walked away
+ * from, a refusal about a box no longer on screen, the names typed over — is
+ * cleared by the unmount now: the modal mounts this when it opens and unmounts
+ * it when it closes, so there is nothing for an `onOpenChange` to reset.
  */
-export function StepsDialog({
+export function StepsPanel({
   steps,
   frameState,
   hiddenColumnIds,
@@ -147,21 +149,8 @@ export function StepsDialog({
   renameStep,
   removeStep,
   onChanged,
-}: StepsDialogProps) {
-  /**
-   * Whether the surface is up.
-   *
-   * Held here rather than by the caller, because the **trigger** is held here
-   * too and the two belong together. Radix's `onCloseAutoFocus` calls
-   * `preventDefault()` and then focuses `triggerRef` — so a dialog opened
-   * without a {@link ModalTrigger} restores the focus to nothing at all: the
-   * default restore has been cancelled and there is no trigger to put it back
-   * on. The browser found it (`Escape closes it and gives the focus back to the
-   * button that opened it`, `expect(locator).toBeFocused() failed`, activeElement
-   * `<body>`), and the fix is to give Radix the button rather than to hand it a
-   * ref of our own.
-   */
-  const [open, setOpen] = useState(false);
+  onDirtyChange,
+}: StepsPanelProps) {
   const [newName, setNewName] = useState('');
   /**
    * The names being typed over the steps' own, by step id.
@@ -175,7 +164,35 @@ export function StepsDialog({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /**
+   * What the modal must not close over: a name typed and not added, a rename
+   * typed and not committed, a confirmation not yet answered, or a change on
+   * its way to be-01. Reported on every change and withdrawn on unmount.
+   *
+   * Proof: reported `false` unconditionally, and `project-settings-modal.test.tsx`'s
+   * `a clean modal closes from any section` still passed — it is about the clean
+   * case — while `refuses to close over a confirmation nobody has answered` let
+   * Escape close over an open removal; watched 2026-08-30.
+   */
+  const dirty =
+    busy || newName.trim() !== '' || Object.keys(renamed).length > 0 || confirming !== null;
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(
+    () => () => {
+      onDirtyChange(false);
+    },
+    [onDirtyChange],
+  );
+
   const nameShown = (step: StepView): string => renamed[step.id] ?? step.name;
+
+  const forgetRename = (stepId: string): void => {
+    setRenamed((current) =>
+      Object.fromEntries(Object.entries(current).filter(([id]) => id !== stepId)),
+    );
+  };
 
   /**
    * Runs one step change, reports what refused it, and re-reads on success.
@@ -225,6 +242,10 @@ export function StepsDialog({
    * An empty name is a refusal rather than a no-op, on both paths: somebody who
    * cleared the box meant something by it, and a step with no name is what
    * `name_required` is about.
+   *
+   * A name typed back to what it was is **forgotten** rather than left as a
+   * draft that happens to match: the modal reads a draft as an edit it must not
+   * close over, and a box that says exactly what be-01 says is holding nothing.
    */
   function commitRename(step: StepView): void {
     const clean = nameShown(step).trim();
@@ -232,12 +253,13 @@ export function StepsDialog({
       setProblem(stepRefusalSentence('name_required'));
       return;
     }
-    if (clean === step.name) return;
+    if (clean === step.name) {
+      forgetRename(step.id);
+      return;
+    }
     void attempt(async () => {
       await renameStep(step.id, clean);
-      setRenamed((current) =>
-        Object.fromEntries(Object.entries(current).filter(([id]) => id !== step.id)),
-      );
+      forgetRename(step.id);
     });
   }
 
@@ -265,7 +287,7 @@ export function StepsDialog({
   function confirmRemoval(): void {
     if (confirming === null) return;
     // The whole of what the checkbox is for. Nothing is sent until it is
-    // ticked, and it starts off — see the assertion in `steps-dialog.test.tsx`.
+    // ticked, and it starts off — see the assertion in `steps-panel.test.tsx`.
     if (!confirming.cascade) return;
     const step = confirming.step;
     void attempt(async () => {
@@ -286,8 +308,13 @@ export function StepsDialog({
    * `requestSubmit` rather than calling the handler directly, so the chord goes
    * through exactly the path Enter does — validation, the `submit` event, and
    * the one place each form's rules are written.
+   *
+   * On each box rather than on a wrapper: the dialog this panel was put it on
+   * `ModalContent`, which is Radix's `role="dialog"` element and may listen; a
+   * plain `<div>` may not (`jsx-a11y/no-static-element-interactions`), and the
+   * boxes are where the keystroke lands anyway.
    */
-  function onChord(event: KeyboardEvent<HTMLDivElement>): void {
+  function onChord(event: KeyboardEvent<HTMLInputElement>): void {
     if (commandChordIn(event) !== 'next-or-create') return;
     const aimedAt = event.target;
     if (!(aimedAt instanceof HTMLElement)) return;
@@ -310,191 +337,165 @@ export function StepsDialog({
     hiddenColumnIds,
   );
 
-  /** Opens and closes, and leaves nothing half-answered behind on the way out. */
-  function onOpenChange(next: boolean): void {
-    setOpen(next);
-    // A confirmation the reader walked away from is not one they agreed to, and
-    // a refusal about a box that is no longer on screen is a sentence about
-    // nothing. Both go when the surface does.
-    if (next) return;
-    setConfirming(null);
-    setProblem(null);
-    setRenamed({});
-  }
-
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          title="Add, rename and remove the steps every work item is estimated by"
-        >
-          Steps
-        </Button>
-      </ModalTrigger>
-      <ModalContent onKeyDown={onChord}>
-        <ModalHeader>
-          <ModalTitle>Steps</ModalTitle>
-          <ModalDescription>
-            The steps every work item on this plan is estimated by. Estimates and assignees follow
-            them.
-          </ModalDescription>
-        </ModalHeader>
+    <div className="flex flex-col gap-4">
+      <p className="text-muted-foreground text-sm">
+        The steps every work item on this plan is estimated by. Estimates and assignees follow them.
+      </p>
 
-        {problem !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {problem}
-          </p>
-        )}
+      {problem !== null && (
+        <p role="alert" className="text-destructive text-sm">
+          {problem}
+        </p>
+      )}
 
-        {confirming === null ? (
-          <>
-            <ul className="flex flex-col gap-2">
-              {steps.map((step) => (
-                <li key={step.id} className="flex items-end gap-2">
-                  <form
-                    className="flex flex-1 flex-col gap-1"
-                    onSubmit={(event) => {
-                      submitRename(event, step);
-                    }}
-                  >
-                    <Label htmlFor={`step-${step.id}`}>{step.name}</Label>
-                    <Input
-                      id={`step-${step.id}`}
-                      value={nameShown(step)}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const typed = event.currentTarget.value;
-                        setRenamed((current) => ({ ...current, [step.id]: typed }));
-                      }}
-                      onBlur={() => {
-                        commitRename(step);
-                      }}
-                    />
-                    <button type="submit" className="sr-only">
-                      Rename {step.name}
-                    </button>
-                  </form>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      askToRemove(step);
-                    }}
-                  >
-                    Remove {step.name}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-
-            <form className="flex items-end gap-2" onSubmit={submitNew}>
-              <div className="flex flex-1 flex-col gap-1">
-                <Label htmlFor="step-new">New step</Label>
-                <Input
-                  id="step-new"
-                  value={newName}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setNewName(event.currentTarget.value);
+      {confirming === null ? (
+        <>
+          <ul className="flex flex-col gap-2">
+            {steps.map((step) => (
+              <li key={step.id} className="flex items-end gap-2">
+                <form
+                  className="flex flex-1 flex-col gap-1"
+                  onSubmit={(event) => {
+                    submitRename(event, step);
                   }}
-                />
-              </div>
-              <Button type="submit" size="sm" disabled={busy}>
-                Add step
-              </Button>
-            </form>
+                >
+                  <Label htmlFor={`step-${step.id}`}>{step.name}</Label>
+                  <Input
+                    id={`step-${step.id}`}
+                    value={nameShown(step)}
+                    disabled={busy}
+                    onChange={(event) => {
+                      const typed = event.currentTarget.value;
+                      setRenamed((current) => ({ ...current, [step.id]: typed }));
+                    }}
+                    onBlur={() => {
+                      commitRename(step);
+                    }}
+                    onKeyDown={onChord}
+                  />
+                  <button type="submit" className="sr-only">
+                    Rename {step.name}
+                  </button>
+                </form>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    askToRemove(step);
+                  }}
+                >
+                  Remove {step.name}
+                </Button>
+              </li>
+            ))}
+          </ul>
 
-            {/*
-              The arithmetic, said out loud where the decision is made. Somebody
-              adding a sixth step is entitled to know what it costs before the
-              table starts scrolling sideways under them, and the number is
-              `table-frame.ts`'s own rather than a figure typed in here.
-            */}
-            {/*
-              Renderer-neutral, and it has to be: this dialog opens from the
-              phone's toolbar sheet too, where there is no table on screen to
-              scroll and a sentence about one describes something the reader
-              will never see. Both numbers are read from the modules that own
-              them rather than typed in here.
-            */}
-            <p className="text-muted-foreground text-sm">
-              {/*
-                `needs` for one step and `need` for several. {@link count}
-                gets the noun right and the verb was written once, plurally,
-                and never made to follow it — so a single-step plan read
-                `1 step need ≥1123px`. Found on 2026-08-14 while measuring
-                this very figure at 1280; it is the `and 1 others` defect #59
-                corrected in the chart's blocking-set sentence, in the sentence
-                next door. `steps-dialog.test.tsx` asserts the whole sentence
-                now rather than a prefix that swept the verb up with the noun.
-              */}
-              {count(steps.length, 'step')} {steps.length === 1 ? 'needs' : 'need'} ≥
-              {String(minWidth)}px of width to sit side by side; a narrower window scrolls sideways,
-              and under {String(CARDS_BELOW)}px wide or {String(TABLE_NEEDS_HEIGHT)}px tall the plan
-              is drawn as cards instead.
-            </p>
-          </>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p>{usageSentence(confirming.step.name, confirming.inUse)}</p>
-            {confirming.inUse.assumedAssignees.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <p className="text-sm">
-                  It would also change who is assumed to be doing every step of these:
-                </p>
-                <ul className="text-sm">
-                  {confirming.inUse.assumedAssignees.map((flip) => (
-                    <li key={flip.workItemId}>{flipSentence(flip, numberOf, nameOf)}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <Label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={confirming.cascade}
+          <form className="flex items-end gap-2" onSubmit={submitNew}>
+            <div className="flex flex-1 flex-col gap-1">
+              <Label htmlFor="step-new">New step</Label>
+              <Input
+                id="step-new"
+                value={newName}
                 disabled={busy}
                 onChange={(event) => {
-                  const ticked = event.currentTarget.checked;
-                  setConfirming((current) =>
-                    current === null ? null : { ...current, cascade: ticked },
-                  );
+                  setNewName(event.currentTarget.value);
                 }}
+                onKeyDown={onChord}
               />
-              Delete them along with the step
-            </Label>
-            <ModalFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => {
-                  setConfirming(null);
-                }}
-              >
-                Keep {confirming.step.name}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                // Off until the box is ticked, and the button says so rather
-                // than the click quietly doing nothing.
-                disabled={busy || !confirming.cascade}
-                onClick={confirmRemoval}
-              >
-                Remove {confirming.step.name}
-              </Button>
-            </ModalFooter>
+            </div>
+            <Button type="submit" size="sm" disabled={busy}>
+              Add step
+            </Button>
+          </form>
+
+          {/*
+            The arithmetic, said out loud where the decision is made. Somebody
+            adding a sixth step is entitled to know what it costs before the
+            table starts scrolling sideways under them, and the number is
+            `table-frame.ts`'s own rather than a figure typed in here.
+          */}
+          {/*
+            Renderer-neutral, and it has to be: this modal opens from the
+            phone's toolbar sheet too, where there is no table on screen to
+            scroll and a sentence about one describes something the reader
+            will never see. Both numbers are read from the modules that own
+            them rather than typed in here.
+          */}
+          <p className="text-muted-foreground text-sm">
+            {/*
+              `needs` for one step and `need` for several. {@link count}
+              gets the noun right and the verb was written once, plurally,
+              and never made to follow it — so a single-step plan read
+              `1 step need ≥1123px`. Found on 2026-08-14 while measuring
+              this very figure at 1280; it is the `and 1 others` defect #59
+              corrected in the chart's blocking-set sentence, in the sentence
+              next door. `steps-panel.test.tsx` asserts the whole sentence
+              now rather than a prefix that swept the verb up with the noun.
+            */}
+            {count(steps.length, 'step')} {steps.length === 1 ? 'needs' : 'need'} ≥
+            {String(minWidth)}px of width to sit side by side; a narrower window scrolls sideways,
+            and under {String(CARDS_BELOW)}px wide or {String(TABLE_NEEDS_HEIGHT)}px tall the plan
+            is drawn as cards instead.
+          </p>
+        </>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p>{usageSentence(confirming.step.name, confirming.inUse)}</p>
+          {confirming.inUse.assumedAssignees.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-sm">
+                It would also change who is assumed to be doing every step of these:
+              </p>
+              <ul className="text-sm">
+                {confirming.inUse.assumedAssignees.map((flip) => (
+                  <li key={flip.workItemId}>{flipSentence(flip, numberOf, nameOf)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={confirming.cascade}
+              disabled={busy}
+              onChange={(event) => {
+                const ticked = event.currentTarget.checked;
+                setConfirming((current) =>
+                  current === null ? null : { ...current, cascade: ticked },
+                );
+              }}
+            />
+            Delete them along with the step
+          </Label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setConfirming(null);
+              }}
+            >
+              Keep {confirming.step.name}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              // Off until the box is ticked, and the button says so rather
+              // than the click quietly doing nothing.
+              disabled={busy || !confirming.cascade}
+              onClick={confirmRemoval}
+            >
+              Remove {confirming.step.name}
+            </Button>
           </div>
-        )}
-      </ModalContent>
-    </Modal>
+        </div>
+      )}
+    </div>
   );
 }

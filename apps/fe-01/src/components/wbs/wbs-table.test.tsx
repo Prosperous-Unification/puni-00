@@ -79,6 +79,12 @@ function fakeApi(): ProjectApi & {
    * joined `ProjectApi` on 2026-08-23, so it is no longer listed here.
    */
   labelWithService: (workItemId: string, serviceIds: readonly string[]) => void;
+  /**
+   * The tag half of the same thing, added by `tags-accumulate` because that
+   * change is the first to need a **tagged ancestor** in this file: until then
+   * the tag directory was empty here and the Tags cell had nothing to inherit.
+   */
+  labelWithTag: (workItemId: string, tagIds: readonly string[]) => void;
   ownService: (teamId: string, serviceId: string) => void;
   /** The same write undone, for the map emptying under a ticked signal. */
   disownService: (teamId: string, serviceId: string) => void;
@@ -99,6 +105,8 @@ function fakeApi(): ProjectApi & {
   const teams: { id: string; name: string; serviceIds: string[] }[] = [];
   /** The global service directory, in the order it was added. */
   const services: { id: string; name: string }[] = [];
+  /** The global tag directory, `services`' shape — a tag is a name and nothing else. */
+  const tags: { id: string; name: string }[] = [];
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
   /**
@@ -262,6 +270,13 @@ function fakeApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
+    labelWithTag(workItemId: string, tagIds: readonly string[]) {
+      const row = rows.find((r) => r.id === workItemId);
+      // The row's **own** set, which is all be-01 ever sends: what the row
+      // carries from above is `effectiveTagsOf`'s answer and is never stored.
+      if (row !== undefined) row.tagIds = [...tagIds];
+      renumber();
+    },
     disownService(teamId: string, serviceId: string) {
       const team = teams.find((t) => t.id === teamId);
       if (team === undefined) return;
@@ -381,8 +396,16 @@ function fakeApi(): ProjectApi & {
       return Promise.resolve();
     },
     listTeams: () => Promise.resolve(teams.map((t) => ({ ...t, serviceIds: [...t.serviceIds] }))),
-    listTags: () => Promise.resolve([]),
+    listTags: () => Promise.resolve([...tags]),
     listWorkItemTypes: () => Promise.resolve([]),
+    addTag(name: string) {
+      // Idempotent by name, `addTeam`'s and `addService`'s rule and be-01's.
+      const already = tags.find((each) => each.name === name);
+      if (already !== undefined) return Promise.resolve(already);
+      const tag = { id: `tag${String(tags.length + 1)}`, name };
+      tags.push(tag);
+      return Promise.resolve(tag);
+    },
     listServices: () => Promise.resolve([...services]),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
@@ -13745,14 +13768,64 @@ describe('the chords reach the picker cells and the date cell', () => {
   });
 });
 
+describe('the project’s settings behind one control', () => {
+  /**
+   * `project-config-modal` slice 3.1: the three project-level dialogs — teams,
+   * priorities, steps — are one modal behind one toolbar control, and the
+   * three separate triggers are gone.
+   *
+   * Proof: a `<Button>Teams</Button>` left mounted in `toolbarControls` beside
+   * the new control, and this failed on `expected null not to be … <button>`
+   * — the "no separate control" half; watched 2026-08-30.
+   */
+  itDom('one control opens every project setting, and no separate control remains', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    const toolbar = document.querySelector('[data-toolbar]');
+    if (toolbar === null) throw new Error('the plan has no toolbar');
+    const named = (name: string): HTMLElement[] =>
+      [...toolbar.querySelectorAll('button')].filter(
+        (button) => (button.getAttribute('aria-label') ?? button.textContent.trim()) === name,
+      );
+    expect(named('Project settings')).toHaveLength(1);
+    expect(named('Teams')).toHaveLength(0);
+    expect(named('Priorities')).toHaveLength(0);
+    expect(named('Steps')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Project settings' });
+    expect(
+      [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
+    ).toEqual(['Teams', 'Priorities', 'Steps']);
+  });
+});
+
 describe('a step changing, and what the table does about it', () => {
-  /** The Steps surface, from the toolbar button somebody really clicks. */
+  /**
+   * The Steps section, from the toolbar control somebody really clicks and
+   * then the tab inside it — the two gestures `project-config-modal` made of
+   * the one button this used to be.
+   */
   const openSteps = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: 'Steps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Steps' }));
   };
 
-  const closeSteps = (): void => {
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  /**
+   * Closes the modal, retrying while a write is still landing: the modal
+   * refuses its ✕ while any section reports a change in flight, and the
+   * section's `busy` clears a microtask after the reread that put the new
+   * column on the table — so the first click after `Remove Design` appears
+   * can be one the modal is entitled to refuse.
+   */
+  const closeSteps = async (): Promise<void> => {
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   };
 
   /*
@@ -13769,7 +13842,7 @@ describe('a step changing, and what the table does about it', () => {
     fireEvent.change(screen.getByLabelText('New step'), { target: { value: name } });
     fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await screen.findByRole('button', { name: `Remove ${name}` });
-    closeSteps();
+    await closeSteps();
     await screen.findByRole('button', { name: `Unfold ${name} estimates` });
   }
 
@@ -13780,7 +13853,7 @@ describe('a step changing, and what the table does about it', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Remove ${name}` })).toBeNull();
     });
-    closeSteps();
+    await closeSteps();
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: `Unfold ${name} estimates` })).toBeNull();
     });
@@ -13961,7 +14034,10 @@ describe('narrowing the plan by facet', () => {
    * question a facet control gets wrong is which of them it offers: the
    * directory holds every team in the deployment and this is one plan.
    */
-  async function aFacetedPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+  // The fake's own type rather than `ProjectApi & { rows }`: `labelWithTag` is
+  // one of the writes this fixture models directly, and a narrowed return type
+  // would hide it from the tag facet's case.
+  async function aFacetedPlan(): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
     const strip = await api.create('p1', {
       parentId: null,
@@ -14057,6 +14133,49 @@ describe('narrowing the plan by facet', () => {
     tick('Team Billing');
 
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+  });
+
+  itDom('keeps a row that inherits a ticked tag while stating tags of its own', async () => {
+    // The team case above with the rule ADR 0008 reversed. `010.1.1` carries a
+    // team of its own and is therefore **out** of `Team Billing`; the same row
+    // tagged `Ready` is still `Risk`, because a tag says what kind of thing the
+    // work is and a child of a risky parent is risky. The two facets sitting
+    // next to each other in one panel and answering by two rules is the whole
+    // of what this change did, and this is where a reader can see it.
+    //
+    // Proof: `accumulate` in `effective-tag.ts` reduced to its stated half —
+    // the override this change replaces — and this failed on
+    // `expected [ '010' ] to deeply equal [ '010', '010.1' ]`. Watched
+    // 2026-08-30.
+    //
+    // Its own fixture rather than `aFacetedPlan`, which carries no tags: a Tag
+    // group appearing in the panel would change what every other case in this
+    // describe is counting.
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const risk = await api.addTag('Risk');
+    const ready = await api.addTag('Ready');
+    api.labelWithTag(strip.id, [risk.id]);
+    api.labelWithTag(sockets.id, [ready.id]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    openFilters();
+
+    tick('Tag Risk');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1']);
   });
 
   itDom('drops the subtree the moment a facet joins a name that was bringing one', async () => {
@@ -15215,6 +15334,93 @@ describe('what the filter says it dropped, and what it exports', () => {
   });
 });
 
+describe('the tag cell', () => {
+  beforeEach(showEveryColumn);
+
+  /**
+   * The Tags cell's own strip, which is what carries both kinds of chip.
+   *
+   * `closest` rather than a query from the row, because the box is the only
+   * thing in the cell with an accessible name and the chips hang beside it.
+   */
+  const TAG_CELL = '[data-reference-set="tag"]';
+
+  /**
+   * `010` tagged `Risk` and `Review`, and `010.1` under it stating `Ready`.
+   *
+   * That is the 2026-08-29 report exactly: before ADR 0008 the child's cell
+   * drew `Ready` and nothing else, and the two words its parent put on the work
+   * were simply gone from every face.
+   */
+  async function aTaggedPlan(): Promise<ReturnType<typeof fakeApi>> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    const risk = await api.addTag('Risk');
+    const review = await api.addTag('Review');
+    const ready = await api.addTag('Ready');
+    api.labelWithTag(strip.id, [risk.id, review.id]);
+    api.labelWithTag(sockets.id, [ready.id]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    return api;
+  }
+
+  itDom('keeps an ancestor’s tags on a row that has tags of its own', async () => {
+    await aTaggedPlan();
+
+    const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
+    // Its own, removable where it was written.
+    expect(within(cell).getByText('Ready')).toBeTruthy();
+    expect(screen.getByLabelText('Remove Ready from 010.1')).toBeTruthy();
+    // What it carries, drawn beside them and told apart by the `↳` and by the
+    // attribute — this is the assertion the report is about.
+    //
+    // Proof: the Tags cell's `inheritedEntries: tagging.inherited` deleted, so
+    // the strip is handed nothing to draw, and this failed on `expected [] to
+    // deeply equal [ '↳ Risk', '↳ Review' ]`. Watched 2026-08-30.
+    expect(
+      [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) => chip.textContent),
+    ).toEqual(['↳ Risk', '↳ Review']);
+    // And **not** removable here. A tag comes off the row that states it.
+    expect(screen.queryByLabelText('Remove Risk from 010.1')).toBeNull();
+    expect(screen.queryByLabelText('Remove Review from 010.1')).toBeNull();
+    // Said once per surface: the box no longer repeats the inherited names in
+    // its placeholder ink, because the chips beside it are now saying them.
+    expect(screen.getByLabelText('Tags for 010.1')).toHaveAttribute('placeholder', 'add');
+    // The parent states both of its own, so it carries nothing.
+    const parent = screen.getByLabelText('Tags for 010').closest<HTMLElement>(TAG_CELL)!;
+    expect(parent.querySelectorAll('[data-reference-inherited-chip]')).toHaveLength(0);
+    expect(screen.getByLabelText('Remove Risk from 010')).toBeTruthy();
+  });
+
+  itDom('names the row an inherited tag was written on', async () => {
+    // The sentence a reader is owed for a word they cannot take off here. Per
+    // chip, because two inherited tags may have been written on two rows.
+    await aTaggedPlan();
+
+    const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
+    expect(
+      [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) =>
+        chip.getAttribute('title'),
+      ),
+    ).toEqual([
+      'Risk — inherited from 010 Strip the walls. Remove it there.',
+      'Review — inherited from 010 Strip the walls. Remove it there.',
+    ]);
+  });
+});
+
 describe('the service cell', () => {
   beforeEach(showEveryColumn);
 
@@ -15486,14 +15692,18 @@ describe('the columns a reader has hidden', () => {
     // Not written back on read: opening a project must not change what is
     // remembered about it.
     expect(stored()).toBe(claimed);
-    // And the Steps dialog, which quotes the folded width of the columns on
+    // And the Steps section, which quotes the folded width of the columns on
     // screen, opens: `foldedTableMinWidth` throws on an id it does not know,
-    // so the sanitised list — not the stored one — is what reaches it.
+    // so the sanitised list — not the stored one — is what reaches it. The
+    // panel is mounted the moment the settings modal opens, whichever tab is
+    // in front, so the throw would happen on the first click.
     // Proof: `hiddenColumnIds` handed `storedHiddenColumns` unfiltered, this
     // failed with `UnknownColumnError: No declared width for column "step-
     // nope"` on the click below. Watched, 2026-08-28.
-    click('Steps');
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    click('Project settings');
+    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Steps' }));
+    expect(screen.getByLabelText('New step')).toBeVisible();
   });
 
   itDom('hides a step whole and leaves Days and the dates alone', async () => {
