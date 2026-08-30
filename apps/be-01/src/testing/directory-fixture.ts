@@ -141,7 +141,7 @@ export function inMemoryDirectory(): DirectoryStore {
         workItems: [],
         projects: [],
         assignments: [],
-        roles: [],
+        steps: [],
         people: [],
         members: [],
         capacityOf: new Map<string, number>(),

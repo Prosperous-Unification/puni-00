@@ -2283,12 +2283,12 @@ function GanttChart({
     // The hover card and any dialog/toast are portalled above this layer
     // (`z-20` card, `z-50` modals and toasts), so they are real surfaces the
     // reader may be inside — focus that enters one must not be yanked back.
-    const overlayRoles = new Set(['tooltip', 'dialog', 'alertdialog', 'alert', 'status']);
+    const overlaySteps = new Set(['tooltip', 'dialog', 'alertdialog', 'alert', 'status']);
     const insideOverlay = (target: EventTarget | null): boolean => {
       if (!(target instanceof Element)) return false;
       for (let el: Element | null = target; el; el = el.parentElement) {
-        const role = el.getAttribute('role');
-        if (role !== null && overlayRoles.has(role)) return true;
+        const step = el.getAttribute('role');
+        if (step !== null && overlaySteps.has(step)) return true;
       }
       return false;
     };

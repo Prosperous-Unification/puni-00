@@ -302,8 +302,13 @@ function slicesOf(
  * that has to say whose answer it would change. Written out twice, the two
  * would drift, and the drift would show up as a confirmation naming the wrong
  * people.
+ *
+ * Named for what it returns rather than for the word `step`: it was `phasesOf`
+ * until `steps-not-phases`, and `stepsOf` would have collided with
+ * `ProjectRepository.stepsOf` in this same file, which answers something else
+ * entirely — a project's steps, not one row's assignment fields.
  */
-function stepsOf(assignees: Record<string, string>): {
+function assignmentFieldsOf(assignees: Record<string, string>): {
   assignees: Record<string, string>;
   doesEveryStep: string | null;
 } {
@@ -1448,7 +1453,7 @@ export class WorkItemService {
         // work item from elsewhere — which the schema does not prevent — would
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
-        ...stepsOf(assigneesOf.get(row.id) ?? {}),
+        ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
         dates: datesOf(
           project.startDate,

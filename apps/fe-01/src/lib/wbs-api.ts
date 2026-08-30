@@ -322,7 +322,7 @@ export interface WorkItemView {
    */
   typeIds?: string[];
   /**
-   * Who does this work, by role id.
+   * Who does this work, by step id.
    *
    * `string | undefined` rather than `string`: a step nobody is assigned to is
    * **absent** from this object, and a type saying otherwise would have every

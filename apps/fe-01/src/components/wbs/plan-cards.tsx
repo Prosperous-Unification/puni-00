@@ -2052,12 +2052,12 @@ export function PlanCards({
               commit={(typed, baseline) => commitName(row.id, typed, baseline)}
             />
 
-            {roles.map((role) => {
-              const problem = estimateProblem(row, role.id);
-              const options = mentionOptions(row, role.id);
-              const listId = `card-mention-${row.id}-${role.id}`;
-              const assignee = assigneeOn(row, role.id);
-              const trio = cardTrioOf(row, role.id, showDay);
+            {steps.map((step) => {
+              const problem = estimateProblem(row, step.id);
+              const options = mentionOptions(row, step.id);
+              const listId = `card-mention-${row.id}-${step.id}`;
+              const assignee = assigneeOn(row, step.id);
+              const trio = cardTrioOf(row, step.id, showDay);
               // The table's folded cell, on the face a phone reads: the box
               // holds the trio shorthand and the figure the estimate method
               // makes of it stands beside it, muted, where it says something
@@ -2066,7 +2066,7 @@ export function PlanCards({
               // The rule and its reasons are `wbs-table.tsx`'s folded cell;
               // this is the same read of the same two fields, not a second
               // opinion about them.
-              const finalSaysMore = trio.final !== showTrio(row.estimates[role.id]);
+              const finalSaysMore = trio.final !== showTrio(row.estimates[step.id]);
               return (
                 <Fragment key={step.id}>
                   <div
@@ -2155,7 +2155,7 @@ export function PlanCards({
                     )}
                     {finalSaysMore && (
                       <span
-                        data-card-final={role.id}
+                        data-card-final={step.id}
                         className="text-muted-foreground shrink-0 text-sm"
                       >
                         · {trio.final}

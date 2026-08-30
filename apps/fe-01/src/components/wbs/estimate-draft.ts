@@ -157,7 +157,7 @@ export function parseTrioShorthand(typed: string): TrioShorthand {
  * to disagree about which strings are one estimate. `estimate-draft.test.ts`
  * asserts the round trip rather than the spelling alone.
  *
- * **This is what a folded role's cell holds at rest**, since
+ * **This is what a folded step's cell holds at rest**, since
  * `estimate-triple-visible`. Until then the cell showed be-01's computed final
  * figure, which cost two things: the three numbers somebody chose left the
  * screen the moment they landed (Dany, 2026-08-29 — *"i want to keep seeing

@@ -2311,7 +2311,7 @@ describe('the not-before reason migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([
+      expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -3537,7 +3537,7 @@ describe('the person kind migration', () => {
    */
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
-    expect(rollbackTo(dbPath, FOLDER, ROLE_MEASURE)).toEqual([
+    expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       EXTERNAL_REF,
       WORK_ITEM_TYPE,
       SOLUTION_REF,
@@ -3755,7 +3755,7 @@ describe('the person kind migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_MEASURE)).toEqual([
+      expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,

@@ -282,9 +282,9 @@ describe('work item routes', () => {
 
     /*
       Every key at every depth, because the wire is the contract and a single
-      surviving `roleId` on one nested shape is the whole of what `D3` refused
-      to ship a compatibility layer for. The **values** are ids the project
-      generated, so only the names are read.
+      surviving `roleId` on one nested shape is the whole of what design D3
+      refused to ship a compatibility layer for. The **values** are ids the
+      project generated, so only the names are read.
 
       Proof: `scheduledSlices` in `work-item.service.ts` given the old spelling
       back — `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))`.

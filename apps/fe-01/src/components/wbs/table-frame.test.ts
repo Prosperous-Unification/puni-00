@@ -641,7 +641,7 @@ describe('how wide the steps make the table', () => {
     // The floor first, deliberately: it is the fact, and the membership
     // assertions under it are only why it is true.
     expect(foldedTableMinWidth([], DATED)).toBe(1067);
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1259);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1259);
     expect(DEFAULT_HIDDEN_COLUMNS).toEqual(['team', 'service', 'type']);
     expect(DEFAULT_COLUMN_SET).toContain('tag');
     expect(DEFAULT_COLUMN_SET).not.toContain('team');
@@ -680,7 +680,7 @@ describe('how wide the steps make the table', () => {
     expect(foldedTableMinWidth([], DATED, ['service', 'type'])).toBe(
       1067 + widthFor('team', DATED),
     );
-    // A hidden role takes its folded column with it, and nothing else.
+    // A hidden step takes its folded column with it, and nothing else.
     expect(
       foldedTableMinWidth(['step-dev', 'step-qa'], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'step-qa']),
     ).toBe(foldedTableMinWidth(['step-dev'], DATED));

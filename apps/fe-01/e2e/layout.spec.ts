@@ -1035,7 +1035,7 @@ test.describe('the table, measured by a browser', () => {
     ).toEqual([]);
   });
 
-  test('holds a trio and its figure on one line of a folded role cell', async ({ page }) => {
+  test('holds a trio and its figure on one line of a folded step cell', async ({ page }) => {
     // `estimate-triple-visible`. The seeded plan estimates 010 `2/3/8` and
     // leaves 020 unestimated, so the two rows are the same row with and
     // without this change's content in it.
@@ -1079,14 +1079,14 @@ test.describe('the table, measured by a browser', () => {
           !(box instanceof HTMLInputElement) ||
           !(figure instanceof HTMLElement)
         ) {
-          throw new Error('the first row has no folded role cell with a box and a figure in it');
+          throw new Error('the first row has no folded step cell with a box and a figure in it');
         }
         const cellBox = cell.getBoundingClientRect();
         const boxBox = box.getBoundingClientRect();
         const figureBox = figure.getBoundingClientRect();
         return {
           said: figure.textContent,
-          cell: { id: 'the role column', x: cellBox.x, width: cellBox.width },
+          cell: { id: 'the step column', x: cellBox.x, width: cellBox.width },
           box: { id: 'the trio box', x: boxBox.x, width: boxBox.width },
           figure: { id: 'the derived figure', x: figureBox.x, width: figureBox.width },
           // Whether the box is showing its whole value or scrolling it. This

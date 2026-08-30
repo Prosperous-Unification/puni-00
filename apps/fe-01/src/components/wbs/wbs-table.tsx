@@ -45,8 +45,8 @@ import {
   type EstimateMethod,
   isEstimateMethod,
   type ProjectApi,
-  type StepView,
   type SliceView,
+  type StepView,
 } from '@/lib/wbs-api';
 
 import { ActionsMenu, MenuControl } from './actions-menu';
@@ -125,7 +125,6 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
-import { StepsDialog } from './steps-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -142,6 +141,7 @@ import {
   ReferenceSetStrip,
 } from './reference-set-field';
 import { printedDay, shortIsoDate } from './short-date';
+import { StepsDialog } from './steps-dialog';
 import {
   CARET_GUTTER_PX,
   CELL,
@@ -3320,7 +3320,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     latestRefresh.current = generation;
     const [
       tree,
-      loadedRoles,
+      loadedSteps,
       loadedTeams,
       loadedTags,
       loadedServices,
@@ -3328,7 +3328,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       loadedPeople,
     ] = await Promise.all([
       api.tree(projectId),
-      api.roles(projectId),
+      api.steps(projectId),
       api.listTeams(),
       // Beside the teams rather than behind them: both are global lists the
       // pickers need before a reader can tick anything, and a second round trip
@@ -5771,7 +5771,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
-   * What the folded role column's cell reads: the pending shorthand if there
+   * What the folded step column's cell reads: the pending shorthand if there
    * is one, and otherwise the stored estimate as {@link showTrio} prints it.
    *
    * **The stored trio, not be-01's computed final figure**, since
@@ -5781,7 +5781,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * types. Two things were wrong with it. The three numbers somebody chose
    * left the screen the moment they landed — Dany, 2026-08-29: *"i want to
    * keep seeing the values i've put in"* — with a hover card or an unfold as
-   * the only ways back, and unfolding one role folds another. And it made this
+   * the only ways back, and unfolding one step folds another. And it made this
    * the one box in the grid whose value at rest was not a legal way to have
    * typed what it stood for: `2.2` over a stored `2/2/3` stores
    * `2.2/2.2/2.2` when it is typed back.
@@ -5794,8 +5794,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * what the person typed and has not been told off about yet.
    */
   const combinedValue = useCallback(
-    (row: TreeRow, roleId: string): string =>
-      drafts[combinedDraftKey(row.id, roleId)] ?? showTrio(row.estimates[roleId]),
+    (row: TreeRow, stepId: string): string =>
+      drafts[combinedDraftKey(row.id, stepId)] ?? showTrio(row.estimates[stepId]),
     [drafts],
   );
 
@@ -8303,16 +8303,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // `combinedValue` beside them, which answers with the draft
                 // where there is one. That is right for the box somebody is
                 // typing in and wrong for the pair below, for the reason
-                // {@link FoldedRoleCard}'s points give at length: a figure is
+                // {@link FoldedStepCard}'s points give at length: a figure is
                 // what be-01 holds, and one recomputed per keystroke would
                 // stand `2.2` beside `9/9/` claiming to be its answer.
-                const stored = showTrio(row.original.estimates[role.id]);
-                const final = showFinal(row.original.finalDays[role.id]);
+                const stored = showTrio(row.original.estimates[step.id]);
+                const final = showFinal(row.original.finalDays[step.id]);
                 // What this cell says without a box in it — a parent's roll-up
-                // while the role is folded, and every row's while it is
+                // while the step is folded, and every row's while it is
                 // unfolded. The trio when it is the only place the trio is, and
                 // the figure once the three boxes are on screen beside it: an
-                // unfolded role already prints `2 | 2 | 3`, and a fourth column
+                // unfolded step already prints `2 | 2 | 3`, and a fourth column
                 // repeating it would be the fold's own reading with nothing
                 // folded.
                 const atRest = unfolded ? final : stored;
@@ -8330,8 +8330,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // `estimates` in the same call — see `WorkItemRow.finalDays` —
                 // so the two are absent together.
                 const finalSaysMore = final !== atRest;
-                // Nobody on this role and exactly one person on another: they are
-                // assumed to be doing this phase too. The same rule the unfolded
+                // Nobody on this step and exactly one person on another: they are
+                // assumed to be doing this step too. The same rule the unfolded
                 // column has, in the cell that is always on screen — which is the
                 // whole reason the assignee stopped folding away. Read through
                 // {@link assigneeOn}, which is where a card reads it too.
@@ -8623,12 +8623,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // reading as the annotation it is rather than as a
                       // second figure competing with the trio.
                       // Proof: written at the row's own type instead, `holds a
-                      // trio and its figure on one line of a folded role cell`
+                      // trio and its figure on one line of a folded step cell`
                       // failed on `the trio does not fit the box beside its
                       // figure — Expected: <= 0, Received: 8`. Watched in
                       // Chromium, 2026-08-30.
                       <span
-                        data-folded-final={role.id}
+                        data-folded-final={step.id}
                         style={{
                           marginLeft: 3,
                           flex: 'none',

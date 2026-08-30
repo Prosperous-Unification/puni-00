@@ -142,16 +142,17 @@ describe('the boundary the schema names', () => {
     {@link step} and this test both stop being true, and both should be deleted
     together.
   */
-  it('the step table’s physical name is still role', async () => {
+  it('the step table’s physical name is still role', () => {
     // Through `openDatabase`, never `new Database`: the pragmas are
     // per-connection and the ESLint rule that keeps them so is the point.
     const sqlite = openDatabase(join(dir, 'test.db'));
     try {
       const named = (table: string): number =>
         sqlite
-          .query<{ n: number }, [string]>(
-            "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?",
-          )
+          .query<
+            { n: number },
+            [string]
+          >("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
           .get(table)?.n ?? 0;
 
       expect(named('role')).toBe(1);
@@ -160,7 +161,7 @@ describe('the boundary the schema names', () => {
       // And the column, which is what every join in this repository is written
       // against.
       const columns = sqlite
-        .query<{ name: string }, []>('SELECT name FROM pragma_table_info(\'estimate\')')
+        .query<{ name: string }, []>("SELECT name FROM pragma_table_info('estimate')")
         .all()
         .map((column) => column.name);
       expect(columns).toContain('role_id');

@@ -7,8 +7,8 @@ import type {
   Days,
   PersonView,
   ProjectApi,
-  StepView,
   SliceView,
+  StepView,
   TeamView,
   WorkItemView,
 } from '@/lib/wbs-api';

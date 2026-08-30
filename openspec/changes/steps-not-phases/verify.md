@@ -1,59 +1,149 @@
 # verify — `steps-not-phases`
 
-Branched from `fix/reference-cell-popover` (`7ac1285`), which carries
-`E2E_PORT_SHIFT` — without it the browser gate silently measures whatever holds
-3100/3200/4200 (`LLM_README.md`'s landmine).
+Branched from `fix/reference-cell-popover` (`7ac1285`) and then merged with
+`origin/main` at `b8259d9`, which had moved 28 commits under it — `work-item-types`
+through the UI, `external-refs`, the Gantt fold cue, the host-wide heavy lock.
+The merge took `-X theirs` on every conflicting hunk and the mechanical rename
+was re-run over the result, so main's code is main's and the rename is applied
+to it rather than merged against it.
 
-## Pre-rename test-case counts (slice 1.2)
+## Test-case counts (slices 1.2 and 5.1)
 
-Measured on `7ac1285`, before a single identifier moved,
-`bunx nx run-many -t test --projects=domain,be-01,fe-01,mcp-01 --skip-nx-cache`.
+Two readings, because the base moved mid-change.
 
-| Project       | Cases before    | Cases after |
-| ------------- | --------------- | ----------- |
-| `libs/domain` | 118 (0 failed)  | pending     |
-| `be-01`       | 1172 (2 failed) | pending     |
-| `fe-01`       | 1872 (3 failed) | pending     |
-| `mcp-01`      | 103 (0 failed)  | pending     |
+**The count that answers 5.1** is against the base this branch actually sits on,
+`origin/main` at `b8259d9`, statically: every `it(` / `itDom(` / `test(`
+declaration in each project, on both refs.
 
-The five failures are **pre-rename** and are this checkout's baseline, not this
-change's:
+| Project       | Cases on `origin/main` | Cases here | Delta                 |
+| ------------- | ---------------------- | ---------- | --------------------- |
+| `libs/domain` | 128                    | 128        | 0                     |
+| `be-01`       | 1201                   | 1205       | +4, all new and named |
+| `fe-01`       | 1834                   | 1837       | +3, all new and named |
+| `mcp-01`      | 103                    | 105        | +2, all new and named |
 
-- `be-01` `login-throttle.test.ts` `never evicts a live lock when the bounded
-map fills with attacker keys` — `this test timed out after 5000ms`, having
-  taken 7187ms on a loaded laptop.
-- `be-01` `priority-band.controller.test.ts` — `SyntaxError: Failed to parse
-JSON` in its `registered` helper, downstream of the throttle above.
-- `fe-01` `wbs-table.test.tsx` `gives every cell the chrome its declared width
-is measured with` — `expected 'clip' to be 'hidden'`.
-- `fe-01` `wbs-table.test.tsx` `anything the item holds vetoes the backspace
-removal` and `names every dependency the server refused, and keeps the rest` —
-  both `Test timed out in 5000ms` in a 458-second run.
+The nine are the nine this change's `tasks.md` asks for and nothing else:
 
-Any case whose body changed beyond identifier substitution is listed here with
-the reason. An empty list is the claim "no behaviour changed"; a non-empty one
-is where that claim is weakest.
+- be-01 `serves a project's steps`, `refuses the old roles route as unknown`
+  (3.2), `has no payload field named roleId` (3.3), `the step table's physical
+name is still role` (3.1).
+- fe-01 `no rendered string says Phase or Role` (4.3), `the dialog is called
+Steps`, `the removal sentence says step` (4.2).
+- mcp-01 `names no tool the document does not derive`, `spells the example batch
+in the fields the commands tool declares` (4.1).
+
+**Cases whose body changed beyond identifier substitution.** Four, and each is
+here because leaving it alone would have been the lie:
+
+1. `be-01` `adds slices and moves nothing else in the payload` — the expected
+   array is `Object.keys(tree).sort()`, and `roles` → `steps` moves in the sort
+   order. The literal was re-sorted; no key was added or dropped. Found by the
+   test, which failed on `- "steps"` in the wrong place.
+2. `be-01` `schedule-benchmark.test.ts`'s `buildPlan` — its outer loop was
+   called `phase` and meant a top-level work item, while its inner loop was
+   `role` and meant a step. Renaming both collapsed them into one name, the
+   inner shadowed the outer, and the fixture's own arithmetic changed:
+   `is the plan it claims to be` failed on `expected 175 to be 173`. The outer
+   is `parent` now, which is what it always was, and the figure is 175 again.
+   **This is the one place the rename would have changed behaviour**, and the
+   suite caught it.
+3. `fe-01` `usageSentence` and its three callers' expected strings — the removal
+   confirmation now reads `Removing the step QA would delete …`. The delta spec
+   requires the sentence to use the word `step`, and a project may well name a
+   step after a person, so the sentence names the kind as well as the name.
+4. `apps/be-01/src/service/fixtures/capacity-oracle-2026-08-13.json` — the
+   captured oracle's **keys** were renamed with the code that reads them. No
+   date, day or id in it moved; the identity tests below are what say so.
+
+The counts the runners themselves report (which include cases generated inside
+loops, so they are higher than the static count) are in **Commands** below.
+
+The pre-merge baseline, for the record: measured on `7ac1285` before a single
+identifier moved — `domain` 118/0 failed, `be-01` 1172/2 failed, `fe-01`
+1872/3 failed, `mcp-01` 103/0 failed. Those five failures were that checkout's,
+not this change's: `login-throttle.test.ts` timing out at 7187ms against a 5000ms
+limit, `priority-band.controller.test.ts` failing to parse JSON downstream of it,
+and three in `wbs-table.test.tsx` (`expected 'clip' to be 'hidden'` plus two
+5000ms timeouts in a 458-second run).
 
 ## Commands
 
-| Command                                          | Result  |
-| ------------------------------------------------ | ------- |
-| `bin/h2puni-gate.sh`                             | not run |
-| `openspec validate --all --json`                 | not run |
-| `bun apps/be-01/src/openapi/emit-openapi-cli.ts` | not run |
-| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`  | not run |
+| Command                                                              | Result                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------- |
+| `bunx nx run-many -t typecheck --projects=domain,be-01,fe-01,mcp-01` | pass                                            |
+| `bunx nx run-many -t test --projects=domain,mcp-01`                  | pass — 128 and 105                              |
+| `bunx nx run be-01:test`                                             | pending                                         |
+| `bunx nx run fe-01:test`                                             | pending                                         |
+| `bunx nx run-many -t lint`                                           | pending                                         |
+| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                     | run; `openapi.json` committed beside the routes |
+| `bunx openspec validate --all --json`                                | pending                                         |
+| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                      | pending                                         |
 
 ## Failure proofs (R5)
 
-| Check                        | Fault injected                                 | Test that saw it fail                                 | Watched |
-| ---------------------------- | ---------------------------------------------- | ----------------------------------------------------- | ------- |
-| the old routes are gone      | old `/roles` route left mounted                | `refuses the old roles route as unknown`              | pending |
-| no `roleId` on the wire      | one `roleId` left in the estimate shape        | `no payload field is named roleId`                    | pending |
-| the README matches the tools | README left at the old tool list               | mcp-01 tool-name comparison                           | pending |
-| no `Phase`/`Role` on screen  | one label left as `Phases`                     | `no rendered string says Phase or Role`               | pending |
-| **ARIA `role` was excluded** | `role="combobox"` renamed to `step="combobox"` | `project-page.test.tsx` `getByRole('combobox')` cases | pending |
+Every one watched by hand: the fault written in, the named test run, the exact
+message read, the fault taken back out, the test run again green. None of these
+was injected with `git checkout` — the tree carried uncommitted work throughout.
+
+| Check                                 | Fault injected                                                                                                      | Test that saw it fail                                               | Exact failure                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| the old routes are gone               | `.post('/:id/roles', …)` left mounted beside `/:id/steps` in `step.controller.ts`, forwarding to the same handler   | `refuses the old roles route as unknown`                            | `expect(received).toBe(expected)` — `Expected: 404  Received: 200`                                             |
+| no `roleId` on the wire               | `scheduledSlices` given the old spelling back: `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))` | `has no payload field named roleId`                                 | `expect(received).toEqual(expected)` — `+ [ "slices[0].roleId", "slices[1].roleId" ]`                          |
+| the README names tools that exist     | the README's prose spelled back to `the project and role routes`                                                    | `names no tool the document does not derive`                        | `expect(received).not.toMatch(expected)` — `Received: "…undo, redo, the project and role routes, the export…"` |
+| the README's example matches the tool | `"stepId"` in the README's `setEstimate` example spelled back to `"roleId"`                                         | `spells the example batch in the fields the commands tool declares` | `expect(received).toEqual(expected)` — `+ [ "setEstimate.roleId" ]`                                            |
+| no `Phase`/`Role` on screen           | the trigger's label and `<ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                               | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                               |
+| **ARIA `role` was excluded**          | `role="combobox"` on the project picker (`project-page.tsx`) renamed to `step="combobox"`                           | `app-router.test.tsx`, three cases through `projectShowing()`       | `expect(projectShowing()).toBe(true)` — `- true  + false`, 3 failed / 2 passed                                 |
+
+Two of those negatives were **rewritten after they passed with the fault in**,
+which is the part worth keeping:
+
+- The wire sweep was first injected at `slicesOf`'s own `slices.push`, and
+  passed: the payload's slices are rebuilt from the scheduler's placement, so a
+  field added before the schedule never reaches the wire. The injection moved to
+  where the fault would live.
+- The screen sweep first read `document.body.textContent`, which concatenates
+  adjacent elements with no separator — the toolbar reads
+  `PrioritiesPhasesFilters`, and `\bPhases\b` matches nothing at all. It walks
+  text nodes now, and only then could it see the label.
+
+The ARIA exclusion's negative is the one design D1 asks for. It was aimed at
+`project-page.test.tsx` in `tasks.md`; that file holds no `getByRole('combobox')`
+case, and the project picker's combobox is asserted in `app-router.test.tsx`
+instead, which is where it was watched.
+
+## What the rename does change, and why it is allowed
+
+**One saved view loses one facet, per browser.** A saved view is stored in the
+reader's own `localStorage` under `wbs.views.<projectId>` and its criteria object
+carried `estimatedRoleIds`. That field is `estimatedStepIds` now, so a view
+written before this change loads (the shape check tolerates an absent facet, by
+design — "a view from before that facet existed") with its **Estimated for**
+selection empty. Nothing crashes, nothing else in the view moves, and the reader
+can re-pick.
+
+This is the same decision design D3 made for the wire, applied to the one place
+state outlives a deploy: a compatibility read for `estimatedRoleIds` would be a
+second parse path for a key no writer will ever produce again. It is recorded
+here rather than left for somebody to find. No other stored key carries the word
+— the full set is `wbs.project`, `wbs.theme`, `wbs.ganttArrows`,
+`wbs.ganttDetail`, and the five per-project keys, none of which name a step.
+
+**One name outside the enumerated list moved.** `work-item.service.ts`'s
+`phasesOf(assignees)` does not return steps — it returns a row's `assignees` and
+`doesEveryStep`. Renaming it `stepsOf` would have put two unrelated things under
+one name in one file, beside `ProjectRepository.stepsOf`. It is
+`assignmentFieldsOf` now, with the reason on the symbol.
 
 ## Skipped or unavailable checks
 
-The physical table and column rename is **not** in this change and is not
-verified here. See `steps-schema-rename`.
+- The physical table and column rename is **not** in this change and is not
+  verified here. See `steps-schema-rename`.
+- No GET route for a project's steps was added. The delta spec's first API
+  scenario is worded as a read at `/api/projects/:id/steps`; `stepController`
+  deliberately mounts no list route (a second read of one fact), and adding one
+  would be the behaviour change this change's own non-goals forbid. The scenario
+  now says what the routes do — the write routes serve, the project read lists
+  them under `steps`, and every verb at `/roles` is a 404 — and the test asserts
+  exactly that.
+- `bin/h2puni-gate.sh` is h2puni's; this ran on the Mac, where whole-suite runs
+  took `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh`.

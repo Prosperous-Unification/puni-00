@@ -99,7 +99,7 @@ describe('the steps a project holds', () => {
     // `steps-not-phases`, and `Role` was the same thing everywhere below.
     expect(screen.getByRole('button', { name: 'Steps' })).toBeDefined();
     expect(screen.getByRole('dialog', { name: 'Steps' })).toBeDefined();
-    expect(screen.getByRole('dialog').textContent ?? '').not.toMatch(/phase|role/i);
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/phase|role/i);
   });
 
   itDom('lists every step, each with a way to rename it and remove it', () => {

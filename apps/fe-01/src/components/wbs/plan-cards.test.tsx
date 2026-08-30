@@ -6,9 +6,9 @@ import type {
   Days,
   PersonView,
   ProjectApi,
-  StepView,
   ScheduleView,
   ServiceView,
+  StepView,
   TagView,
   TeamView,
   WorkItemView,
@@ -1819,16 +1819,16 @@ describe('what a card says about the schedule', () => {
   });
 });
 
-describe('the trio behind a phase’s figure, on a card', () => {
-  const trioOnCard = (roleId: string): HTMLElement | null =>
-    document.querySelector(`[data-phase-trio="${roleId}"]`);
-  const finalOnCard = (roleId: string): HTMLElement | null =>
-    document.querySelector(`[data-phase-final="${roleId}"]`);
-  const detailOnCard = (roleId: string): HTMLDetailsElement | null =>
-    document.querySelector(`details[data-phase-detail="${roleId}"]`);
-  /** The muted figure beside the phase's box, or null where the box says it already. */
-  const finalBesideBox = (roleId: string): HTMLElement | null =>
-    document.querySelector(`[data-card-final="${roleId}"]`);
+describe('the trio behind a step’s figure, on a card', () => {
+  const trioOnCard = (stepId: string): HTMLElement | null =>
+    document.querySelector(`[data-step-trio="${stepId}"]`);
+  const finalOnCard = (stepId: string): HTMLElement | null =>
+    document.querySelector(`[data-step-final="${stepId}"]`);
+  const detailOnCard = (stepId: string): HTMLDetailsElement | null =>
+    document.querySelector(`details[data-step-detail="${stepId}"]`);
+  /** The muted figure beside the step's box, or null where the box says it already. */
+  const finalBesideBox = (stepId: string): HTMLElement | null =>
+    document.querySelector(`[data-card-final="${stepId}"]`);
 
   itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
     const api = fakeApi();
@@ -1859,7 +1859,7 @@ describe('the trio behind a phase’s figure, on a card', () => {
     },
   );
 
-  itDom('keeps the trio in the phase box, with the figure beside it', async () => {
+  itDom('keeps the trio in the step box, with the figure beside it', async () => {
     // The table's folded cell on the face a phone reads — one rule, two faces.
     // Until `estimate-triple-visible` this box read `3.7` and the trio was
     // behind the `o·r·p` tap below it, so the numbers somebody typed were off
@@ -1882,7 +1882,7 @@ describe('the trio behind a phase’s figure, on a card', () => {
 
   itDom('says a flat trio once on a card too', async () => {
     // `5` stores `5/5/5` and every estimate method answers `5`; a card that
-    // printed both would read `5 · 5` beside a phase name.
+    // printed both would read `5 · 5` beside a step name.
     const api = fakeApi();
     const created = await api.create('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });

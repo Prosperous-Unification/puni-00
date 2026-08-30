@@ -194,7 +194,7 @@ function fakeApi(): ProjectApi & {
 
   /**
    * One row's estimates as be-01 sends them: its own where it is a leaf, and
-   * the sum of every descendant's per role and per point where it is not.
+   * the sum of every descendant's per step and per point where it is not.
    *
    * A work item with children has no estimate of its own (`CONTEXT.md`), so
    * summing the whole subtree and summing the leaves in it are the same walk.
@@ -204,9 +204,9 @@ function fakeApi(): ProjectApi & {
     const walk = (rowId: string): void => {
       const row = rows.find((r) => r.id === rowId);
       if (row === undefined) return;
-      for (const [roleId, days] of Object.entries(row.estimates)) {
-        const already = summed[roleId] ?? { optimistic: 0, realistic: 0, pessimistic: 0 };
-        summed[roleId] = {
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        const already = summed[stepId] ?? { optimistic: 0, realistic: 0, pessimistic: 0 };
+        summed[stepId] = {
           optimistic: already.optimistic + days.optimistic,
           realistic: already.realistic + days.realistic,
           pessimistic: already.pessimistic + days.pessimistic,
@@ -300,7 +300,7 @@ function fakeApi(): ProjectApi & {
           ...r,
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
-          // A parent carries the sum of its descendants' trios, per role and
+          // A parent carries the sum of its descendants' trios, per step and
           // per point — `work-item.service.ts`'s `totals`, which is what
           // `WorkItemRow.estimates` means on the wire for a row with children.
           // Until 2026-08-29 this fake handed a parent `{}` and its own
@@ -308,7 +308,7 @@ function fakeApi(): ProjectApi & {
           // empty in jsdom and every claim about it was made against nothing.
           estimates: rolledUpEstimates(r),
           finalDays: Object.fromEntries(
-            Object.entries(rolledUpEstimates(r)).map(([roleId, days]) => [roleId, finalOf(days)]),
+            Object.entries(rolledUpEstimates(r)).map(([stepId, days]) => [stepId, finalOf(days)]),
           ),
           finalTotal: Object.values(rolledUpEstimates(r)).reduce(
             (total, days) => total + finalOf(days),
@@ -4713,9 +4713,9 @@ describe('assigning from a folded step’s cell with @', () => {
 });
 
 describe('one cell for the whole trio', () => {
-  /** The folded role's cell: holds the trio shorthand, takes `o/r/p`. */
-  const combinedCell = (number: string, role = 'Dev') =>
-    screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+  /** The folded step's cell: holds the trio shorthand, takes `o/r/p`. */
+  const combinedCell = (number: string, step = 'Dev') =>
+    screen.getByLabelText<HTMLInputElement>(`${step} estimate for ${number}`);
 
   /**
    * The muted figure beside that cell, or null where the cell says it already.
@@ -4724,8 +4724,8 @@ describe('one cell for the whole trio', () => {
    * initials sit in the same box, and a text assertion over both would pass on
    * a figure that had moved into the wrong span.
    */
-  const foldedFinal = (number: string, roleId = 'role-dev') =>
-    rowFor(number).querySelector(`[data-folded-final="${roleId}"]`);
+  const foldedFinal = (number: string, stepId = 'step-dev') =>
+    rowFor(number).querySelector(`[data-folded-final="${stepId}"]`);
 
   /** Types shorthand into the folded cell and leaves it, the way a person does. */
   const typeCombined = (number: string, value: string) => {
@@ -4790,7 +4790,7 @@ describe('one cell for the whole trio', () => {
     // waiting for that puts the assertion in the window the fault lives in
     // (`AGENTS.md`, R5, `D directory-page`).
     //
-    // Proof: `combinedValue` put back to `showFinal(row.finalDays[roleId])`,
+    // Proof: `combinedValue` put back to `showFinal(row.finalDays[stepId])`,
     // this failed on `expected '4' to be '2/3/10'`. Watched 2026-08-29.
     await oneRow();
 
@@ -4813,7 +4813,7 @@ describe('one cell for the whole trio', () => {
     await waitFor(() => {
       expect(foldedFinal('010')?.textContent).toBe('· 4');
     });
-    // The plan's own total, unchanged by any of this: one role, one leaf.
+    // The plan's own total, unchanged by any of this: one step, one leaf.
     expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('4');
   });
 
@@ -4843,7 +4843,7 @@ describe('one cell for the whole trio', () => {
 
   itDom('keeps the stored figure beside a cell holding a refused entry', async () => {
     // The figure is what be-01 holds, not what the box beside it is holding —
-    // {@link FoldedRoleCard}'s rule for the same two fields. A figure derived
+    // {@link FoldedStepCard}'s rule for the same two fields. A figure derived
     // from the draft would stand a number beside `9/9/` claiming to be its
     // answer, and there is no answer: `9/9/` is not an estimate.
     //
@@ -4878,7 +4878,7 @@ describe('one cell for the whole trio', () => {
     // was showing. `estimate-draft.test.ts` holds the round trip as a
     // property; this holds it where a person does it.
     //
-    // Proof: `combinedValue` put back to `showFinal(row.finalDays[roleId])`,
+    // Proof: `combinedValue` put back to `showFinal(row.finalDays[stepId])`,
     // this failed on `expected { optimistic: 4, realistic: 4, pessimistic: 4 }
     // to deeply equal { optimistic: 2, realistic: 3, pessimistic: 10 }`.
     // Watched 2026-08-29.
@@ -4893,7 +4893,7 @@ describe('one cell for the whole trio', () => {
     typeCombined('020', combinedCell('010').value);
 
     await waitFor(() => {
-      expect(api.rows[1]?.estimates['role-dev']).toEqual({
+      expect(api.rows[1]?.estimates['step-dev']).toEqual({
         optimistic: 2,
         realistic: 3,
         pessimistic: 10,
@@ -5163,11 +5163,11 @@ describe('one cell for the whole trio', () => {
 
     typeCombined('010.1', '2/3/10');
     await waitFor(() => {
-      expect(api.rows.find((row) => row.id === 'w2')?.estimates['role-dev']).toBeDefined();
+      expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
     });
 
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toContain(
+      expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toContain(
         '2/3/10',
       );
     });
@@ -15585,8 +15585,8 @@ describe('the columns a reader has hidden', () => {
     expect(headerIds()).toContain('team');
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
-    expect(headerIds().filter((id) => id.startsWith('role-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['service', 'type', 'role-qa']));
+    expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
+    expect(stored()).toBe(JSON.stringify(['service', 'type', 'step-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {

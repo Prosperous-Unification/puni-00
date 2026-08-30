@@ -2621,7 +2621,7 @@ test.describe('the bottom edge of a chart dragged short', () => {
       for (const bar of panel.querySelectorAll('[data-gantt-bar]')) {
         const box = bar.getBoundingClientRect();
         if (box.top < band.top || box.bottom > band.bottom) continue;
-        // A slice id is `${workItemId} ${roleId}`, and the label is the
+        // A slice id is `${workItemId} ${stepId}`, and the label is the
         // work item's.
         const sliceId = bar.getAttribute('data-gantt-bar') ?? '';
         const rowId = sliceId.split(' ')[0] ?? '';

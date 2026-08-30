@@ -559,7 +559,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
 
   /**
    * The team picker's option rows, measured the way
-   * `wbs-team-picker-option-rows-20px` measured them on dev: an `li[role=option]`
+   * `wbs-team-picker-option-rows-20px` measured them on dev: an `li[step=option]`
    * is 44px or it is a 20px stripe a finger cannot aim at, with no gap to the
    * next row — so a miss lands on the neighbouring team, a silent wrong write.
    *

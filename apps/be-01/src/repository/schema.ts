@@ -432,7 +432,7 @@ export const step = sqliteTable(
      * Proof: with `DEFAULT 0` removed from the migration, `lets the outgoing
      * release keep inserting steps against the migrated schema` fails on the
      * old release's three-column `INSERT` with `NOT NULL constraint failed:
-     * role.position`; watched 2026-08-09.
+     * step.position`; watched 2026-08-09.
      */
     position: integer('position').notNull().default(0),
   },
