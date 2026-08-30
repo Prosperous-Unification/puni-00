@@ -1,7 +1,9 @@
 # verify — `markdown-work-item-names`
 
-Slices 1–3 implemented and gated. Slice 4 is **written and not run**; slice 5 is
-partly run. Everything below that was not executed says so.
+Slices 1–4 implemented and gated. Slice 4 was **written and not run** until
+2026-08-30, when it was run on `E2E_PORT_SHIFT=600` — never against the dev
+server holding 3100/3200/4200 — and its named negative was watched. Slice 5 is
+partly run. Everything below that was not executed still says so.
 
 ## The decision this reverses
 
@@ -201,3 +203,19 @@ sits` in the unrun spec is the check for it.
 7. **No `plan-cards`/`gantt-panel` browser measurement.** Slice 4.1 asks for the
    card and the chart label to be measured too. `e2e/name-markdown.spec.ts`
    covers only the table.
+
+## Slice 4, run at last (2026-08-30)
+
+`CI=1 E2E_PORT_SHIFT=600 bunx playwright test --config
+apps/fe-01/playwright.config.ts name-markdown`: **7 passed**. Four of those
+seven are `name-links-and-height`'s, added the same day; the three this change
+wrote are the two palette cases and the two-box swap.
+
+| Check                                      | Fault injected                                           | Observed failure                                                | Watched              |
+| ------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------- | -------------------- |
+| the block allowlist keeps a marker as text | the `RENDERED_AS_SOURCE` loop deleted so children render | `four rows, four names, one height` failed in **both** palettes | Chromium, 2026-08-30 |
+
+The card and chart-label faces named in 4.1 are still **not** measured in a
+browser. The row and the cell are; the other two are asserted only in jsdom,
+which computes no layout. That gap is this change's, not the later one's, and it
+is left standing rather than quietly dropped.

@@ -19,8 +19,9 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Row height, in a browser
 
-- [ ] 4.1 Chromium: three rows — plain, inline-emphasis, and `# heading` plus a list marker — measured to the same `getBoundingClientRect().height`, in both palettes; the same for a plan card and a chart row label — negative: the block allowlist removed, watched failing on the third row. **jsdom computes no layout and cannot be this test's oracle** (`AGENTS.md`, R5 #14/#15, `M mobile-cards`).
-  - **Written, not run.** `e2e/name-markdown.spec.ts` holds it — four rows rather than three (plain, inline, `# heading`, `- list`, all single-line, because a name is the first line of the Name cell and cannot hold a newline), in both palettes, plus the two-box swap and the link. Nothing in it has been executed: ports 3100/3200/4200 are held by a dev server and `reuseExistingServer` would measure another checkout (`LLM_README.md`'s landmine). Neither the assertions nor their negative is watched. See `verify.md`.
+- [x] 4.1 Chromium: three rows — plain, inline-emphasis, and `# heading` plus a list marker — measured to the same `getBoundingClientRect().height`, in both palettes; the same for a plan card and a chart row label — negative: the block allowlist removed, watched failing on the third row. **jsdom computes no layout and cannot be this test's oracle** (`AGENTS.md`, R5 #14/#15, `M mobile-cards`).
+  - **Run 2026-08-30, and the negative watched.** `e2e/name-markdown.spec.ts`
+    holds it — four rows rather than three (plain, inline, `# heading`, `- list`, all single-line, because a name is the first line of the Name cell and cannot hold a newline), in both palettes, plus the two-box swap and the link. It was run on `E2E_PORT_SHIFT=600`, never against the dev server holding 3100/3200/4200 (`LLM_README.md`'s landmine): **7 passed**. The named negative — the block allowlist removed so children render — was watched failing in **both** palettes. See `verify.md`.
   - The card and label faces are not measured in a browser either, for the same reason.
 
 ## 5. Gate
