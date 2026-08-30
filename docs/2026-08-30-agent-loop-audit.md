@@ -8,9 +8,10 @@ Two things are recorded here, and the second is the one worth keeping:
 
 1. **The plan** — what Dany asked for, what is actually on `main`, who owns
    which branch, and what is left.
-2. **What the loop got wrong** — eleven measurements that were green, or red, for
-   reasons other than the ones claimed. Every one was found by checking rather
-   than by reasoning, and seven of them were mine.
+2. **What the loop got wrong** — twelve findings: measurements that were green,
+   or red, for reasons other than the ones claimed, and one piece of shared
+   machinery that does not do what its name says. Every one was found by
+   checking rather than by reasoning, and seven of them were mine.
 
 ---
 
@@ -71,7 +72,7 @@ deliberate deferral rather than an omission.
 
 ---
 
-## Part 2 — eleven measurements that meant something else
+## Part 2 — twelve things that meant something else
 
 R5 says a check whose failure has never been observed is a claim, not a gate.
 The loop produced a matching family: **a result whose _cause_ has never been
@@ -246,6 +247,41 @@ says nothing about why the pixels moved.
 **The summary tells you what changed; only the history tells you who changed it
 and why.** `git merge-base --is-ancestor` and `git merge-tree` are the cheap
 answers, and both run in under a second.
+
+## 12. The "queue" is a lottery, and a long job can starve behind short ones
+
+`HEAVY_LOCK_WAIT_SECONDS` reads as queueing, and `bin/with-heavy-lock.sh`'s own
+docstring calls it "queue instead of refusing — that is what several agents
+sharing one Mac want". It is not a queue. The loop is:
+
+```sh
+while true; do
+  claim_heavy_lock "$lock_dir" && break     # bare mkdir
+  ((SECONDS >= deadline)) && return 75
+  sleep 5
+done
+```
+
+Every waiter polls `mkdir` on the same 5-second cadence and **the winner is
+whoever calls it first after a release**. There is no ticket, no arrival order,
+no ageing. With three sessions and jobs ranging from 20 seconds to 40 minutes,
+a waiter's odds do not improve with time spent waiting.
+
+Measured on 2026-08-30: one browser run waited **50 minutes** while four other
+jobs — several of them minutes old — took the lock and finished. It was first by
+arrival in every one of those rounds and won none of them.
+
+This is not a bug in the lock's _correctness_: it never lets two heavy runs
+overlap, which is what it exists for, and the eighteen R5 entries it guards are
+all about that. It is a gap between what the name promises and what the
+mechanism provides. **"Queue" in the docstring should read "retry", or the loop
+should take a ticket** — and until one of those, a session planning around
+"my gate is next" is planning around something the code does not offer.
+
+The operational consequence, for anyone reading this while three sessions are
+live: **budget wall-clock by the number of competing sessions, not by your job's
+own length**, and set `HEAVY_LOCK_WAIT_SECONDS` generously — a 20-second
+measurement legitimately needs a two-hour budget on a contended host.
 
 ### Three artefacts that look like conclusions
 
