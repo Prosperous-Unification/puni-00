@@ -4,14 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { DirectoryStore, Person, Role, WorkItem } from '../repository';
+import type { DirectoryStore, Person, Step, WorkItem } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleRepository } from '../repository/role';
 import { teamService } from '../repository/schema';
+import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -21,7 +21,7 @@ import { ProjectService } from './project.service';
 /**
  * The directory service, against real SQLite.
  *
- * Real stores for the same reason `role.service.test.ts` uses them: every
+ * Real stores for the same reason `step.service.test.ts` uses them: every
  * refusal here is decided by rows — the unique index behind a `taken`, the
  * assignments behind an `in_use`, the missing team row behind an
  * `unknown_team` — and an in-memory store answering them would be a second
@@ -37,7 +37,7 @@ let store: DirectoryRepository;
 let capacity: CapacityRepository;
 let projects: ProjectRepository;
 let workItems: WorkItemRepository;
-let roleStore: RoleRepository;
+let stepStore: StepRepository;
 let broadcast: RecordingBroadcaster;
 let projectId: string;
 let ownerId: string;
@@ -60,9 +60,9 @@ const newItem = (id: string, position: number, name: string, inProject = project
   revision: 0,
 });
 
-const roleNamed = async (name: string, inProject = projectId): Promise<Role> => {
-  const found = (await roleStore.listByProject(inProject)).find((each) => each.name === name);
-  if (found === undefined) throw new Error(`no role called ${name}`);
+const stepNamed = async (name: string, inProject = projectId): Promise<Step> => {
+  const found = (await stepStore.listByProject(inProject)).find((each) => each.name === name);
+  if (found === undefined) throw new Error(`no step called ${name}`);
   return found;
 };
 
@@ -98,7 +98,7 @@ beforeEach(async () => {
   store = new DirectoryRepository(db);
   capacity = new CapacityRepository(db);
   workItems = new WorkItemRepository(db);
-  roleStore = new RoleRepository(db);
+  stepStore = new StepRepository(db);
   broadcast = recordingBroadcaster();
   directory = new DirectoryService({ directory: store, broadcast });
 
@@ -112,8 +112,8 @@ beforeEach(async () => {
 
   const created = await new ProjectService({ projects }).create('Rollout', ownerId);
   projectId = created.project.id;
-  devId = (await roleNamed('Dev')).id;
-  qaId = (await roleNamed('QA')).id;
+  devId = (await stepNamed('Dev')).id;
+  qaId = (await stepNamed('QA')).id;
 
   await workItems.insert(newItem('design', 10, 'Design'), []);
   await workItems.insert(newItem('build', 20, 'Build'), []);
@@ -293,7 +293,7 @@ describe('DirectoryService.patchPerson', () => {
       result: { id: katId, name: 'Katrin', kind: 'person', teamIds: [platformId] },
     });
     expect(await store.assignmentsOf(['design'])).toEqual([
-      { workItemId: 'design', roleId: devId, personId: katId },
+      { workItemId: 'design', stepId: devId, personId: katId },
     ]);
   });
 
@@ -430,7 +430,7 @@ describe('directory events', () => {
     const kat = await added('Kat', []);
     const unreferenced = await added('Nobody', []);
     await store.assign('design', devId, kat.id);
-    await store.assign(roof.workItemOf, (await roleNamed('Dev', roof.projectOf)).id, kat.id);
+    await store.assign(roof.workItemOf, (await stepNamed('Dev', roof.projectOf)).id, kat.id);
     broadcast.published.length = 0;
 
     await directory.patchPerson(kat.id, { name: 'Katrin' });
@@ -458,7 +458,7 @@ describe('directory events', () => {
     const roof = await roofProject();
     const kat = await added('Kat', []);
     await store.assign('design', devId, kat.id);
-    await store.assign(roof.workItemOf, (await roleNamed('Dev', roof.projectOf)).id, kat.id);
+    await store.assign(roof.workItemOf, (await stepNamed('Dev', roof.projectOf)).id, kat.id);
     broadcast.published.length = 0;
 
     await directory.patchPerson(kat.id, { kind: 'agent' });
@@ -548,7 +548,7 @@ function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
     removePerson: (personId, cascade) => store.removePerson(personId, cascade),
     removeTeam: (teamId, cascade) => store.removeTeam(teamId, cascade),
     assignmentsOf: (ids) => store.assignmentsOf(ids),
-    assign: (workItemId, roleId, personId) => store.assign(workItemId, roleId, personId),
+    assign: (workItemId, stepId, personId) => store.assign(workItemId, stepId, personId),
     ...overrides,
   };
 }
@@ -574,7 +574,7 @@ describe('the directory usage a removal is refused with', () => {
                 number: '010',
                 name: 'Design',
                 effects: [
-                  { kind: 'assignment_dropped', role: { id: devId, name: 'Dev' } },
+                  { kind: 'assignment_dropped', step: { id: devId, name: 'Dev' } },
                   // The sole assignment going takes the assumption with it, and
                   // `null` is `unassigned` said in the payload rather than left
                   // to be inferred from an absence.
@@ -593,7 +593,7 @@ describe('the directory usage a removal is refused with', () => {
   it('names the person who becomes assumed when one of two assignments goes', async () => {
     const kat = await added('Kat', []);
     const ada = await added('Ada', []);
-    // Two assignments, so nobody is assumed to be doing every phase now; one
+    // Two assignments, so nobody is assumed to be doing every step now; one
     // left, so `Ada` becomes assumed. That is a move, and it is named.
     await store.assign('design', devId, kat.id);
     await store.assign('design', qaId, ada.id);
@@ -602,7 +602,7 @@ describe('the directory usage a removal is refused with', () => {
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([
-      { kind: 'assignment_dropped', role: { id: devId, name: 'Dev' } },
+      { kind: 'assignment_dropped', step: { id: devId, name: 'Dev' } },
       { kind: 'assumed_assignee_changed', assumedNow: null, assumedAfter: 'Ada' },
     ]);
   });
@@ -878,7 +878,7 @@ describe('the directory usage a removal is refused with', () => {
     // person confirming has seen what it takes.
     expect(outcome.usage.projects[0]?.workItems[0]?.effects).toContainEqual({
       kind: 'assignment_dropped',
-      role: { id: devId, name: 'Dev' },
+      step: { id: devId, name: 'Dev' },
     });
     expect(await personNamed('Kat')).toBe(kat.id);
     expect(await store.assignmentsOf(['design'])).toHaveLength(1);

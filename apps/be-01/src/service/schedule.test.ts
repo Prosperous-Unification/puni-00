@@ -4,8 +4,8 @@ import type { WorkItem } from '../repository';
 import type { DependencyEdge, Scheduled, ScheduledSlice, Slice } from './schedule';
 import { schedule as planSlices, sliceKey } from './schedule';
 
-/** The one role this file's fixtures plan in. Their subject is the graph, not the roles. */
-const ONLY_ROLE = 'role-dev';
+/** The one step this file's fixtures plan in. Their subject is the graph, not the steps. */
+const ONLY_STEP = 'step-dev';
 
 /**
  * Every assertion below this line predates slices and is unchanged, because
@@ -28,7 +28,7 @@ const schedule = (
     .filter((row) => !childless.has(row.id))
     .map((row) => ({
       workItemId: row.id,
-      roleId: ONLY_ROLE,
+      stepId: ONLY_STEP,
       days: durations.get(row.id) ?? null,
       personId: null,
       width: 1,
@@ -175,11 +175,11 @@ describe('schedule — parents', () => {
 
 describe('schedule — a dependency declared on a parent', () => {
   it('waits for every leaf beneath the predecessor', () => {
-    const rows = [item('phase'), item('p-fast', 'phase'), item('p-slow', 'phase'), item('after')];
+    const rows = [item('step'), item('p-fast', 'step'), item('p-slow', 'step'), item('after')];
 
     const found = schedule(
       rows,
-      [edge('phase', 'after')],
+      [edge('step', 'after')],
       days({ 'p-fast': 1, 'p-slow': 6, after: 2 }),
     );
 
@@ -187,9 +187,9 @@ describe('schedule — a dependency declared on a parent', () => {
   });
 
   it('constrains every leaf beneath the successor', () => {
-    const rows = [item('first'), item('phase'), item('p-a', 'phase'), item('p-b', 'phase')];
+    const rows = [item('first'), item('step'), item('p-a', 'step'), item('p-b', 'step')];
 
-    const found = schedule(rows, [edge('first', 'phase')], days({ first: 4, 'p-a': 1, 'p-b': 2 }));
+    const found = schedule(rows, [edge('first', 'step')], days({ first: 4, 'p-a': 1, 'p-b': 2 }));
 
     expect(found.get('p-a')?.earliestStart).toBe(4);
     expect(found.get('p-b')?.earliestStart).toBe(4);
@@ -279,13 +279,13 @@ describe('schedule — on a graph the size of a real plan', () => {
   });
 });
 
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 /** A slice of work with nobody on it — this file's subject is the graph, not the queue. */
-const work = (workItemId: string, roleId: string | null, days: number | null): Slice => ({
+const work = (workItemId: string, stepId: string | null, days: number | null): Slice => ({
   workItemId,
-  roleId,
+  stepId,
   days,
   personId: null,
   // One at a time, on no pool: the state every plan is in until somebody
@@ -298,15 +298,15 @@ const work = (workItemId: string, roleId: string | null, days: number | null): S
 const sliceOf = (
   found: ReturnType<typeof planSlices>,
   workItemId: string,
-  roleId: string | null,
+  stepId: string | null,
 ): ScheduledSlice => {
-  const each = found.slices.get(sliceKey(workItemId, roleId));
-  if (each === undefined) throw new Error(`no slice ${workItemId}/${String(roleId)}`);
+  const each = found.slices.get(sliceKey(workItemId, stepId));
+  if (each === undefined) throw new Error(`no slice ${workItemId}/${String(stepId)}`);
   return each;
 };
 
-describe('schedule — a work item’s roles run one after another', () => {
-  it('starts the second role when the first finishes', () => {
+describe('schedule — a work item’s steps run one after another', () => {
+  it('starts the second step when the first finishes', () => {
     const rows = [item('a')];
 
     const found = planSlices(rows, [], [work('a', DEV, 3), work('a', QA, 2)]);
@@ -315,7 +315,7 @@ describe('schedule — a work item’s roles run one after another', () => {
     expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
-  it('runs them in the order they are given, which is the project’s role order', () => {
+  it('runs them in the order they are given, which is the project’s step order', () => {
     const rows = [item('a')];
 
     const found = planSlices(rows, [], [work('a', QA, 2), work('a', DEV, 3)]);
@@ -395,7 +395,7 @@ describe('schedule — where a dependency lands on the slices', () => {
     expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
-  it('does not let an unestimated first role escape the wait', () => {
+  it('does not let an unestimated first step escape the wait', () => {
     // The edge lands on `b`'s first slice, not its first *estimated* one. Landing
     // it on `QA` would leave `Dev` with no predecessor at all: it would sit at
     // day zero, and the row — which starts when its earliest slice does — would
@@ -470,8 +470,8 @@ describe('schedule — the projection back onto the work item', () => {
     expect(found.workItems.get('short')).toMatchObject({ float: 3, critical: false });
   });
 
-  it('schedules a leaf in a project that holds no roles at all', () => {
-    // Reachable: a project's last role can be removed. The rows must still be in
+  it('schedules a leaf in a project that holds no steps at all', () => {
+    // Reachable: a project's last step can be removed. The rows must still be in
     // the graph — a neighbour depends on one of them.
     const rows = [item('a'), item('b')];
 
@@ -481,7 +481,7 @@ describe('schedule — the projection back onto the work item', () => {
       [work('a', null, null), work('b', null, null)],
     );
 
-    // Re-derived (`assumed-duration-schedules`): a project with no roles gives
+    // Re-derived (`assumed-duration-schedules`): a project with no steps gives
     // each leaf one unestimated slice, which is now two workdays wide, so `a`
     // ends on day 2 and `b` — which waits on it — starts there instead of
     // beside it. Both are still `estimated: false`: a plan nobody has estimated

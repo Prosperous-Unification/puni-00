@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Role, WorkItem } from './index';
+import type { Project, Step, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
-import { RoleMeasureRepository } from './role-measure';
+import { StepMeasureRepository } from './step-measure';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -16,7 +16,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
-let repo: RoleMeasureRepository;
+let repo: StepMeasureRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
 let devId: string;
@@ -55,7 +55,7 @@ beforeEach(async () => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  repo = new RoleMeasureRepository(db);
+  repo = new StepMeasureRepository(db);
   workItems = new WorkItemRepository(db);
 
   const ownerId = crypto.randomUUID();
@@ -66,7 +66,7 @@ beforeEach(async () => {
     createdAt: 1,
   });
   projectId = crypto.randomUUID();
-  // Ids chosen so that sorting them disagrees with role order, exactly as
+  // Ids chosen so that sorting them disagrees with step order, exactly as
   // `actual.test.ts` does: `Dev` runs first and sorts last, so a read that fell
   // back to the primary key's own order hands back `QA` first.
   devId = `z-dev-${crypto.randomUUID()}`;
@@ -81,11 +81,11 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  const roles: Role[] = [
+  const steps: Step[] = [
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, roles);
+  await new ProjectRepository(db).create(project, steps);
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -97,16 +97,16 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('RoleMeasureRepository', () => {
+describe('StepMeasureRepository', () => {
   it('replaces one pair’s figure in one metric and restamps it, rather than keeping two rows', async () => {
     // The composite primary key is the point: a second token count for the same
-    // (work item, role, metric) is a correction, not a second fact. And the
+    // (work item, step, metric) is a correction, not a second fact. And the
     // stamp moves with it — the column says when *this* number was typed, so a
     // figure corrected today reading as recorded last week is the one thing it
     // must not do.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 12_000,
       recordedAt: 1_000,
@@ -114,7 +114,7 @@ describe('RoleMeasureRepository', () => {
 
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 48_500,
       recordedAt: 2_000,
@@ -123,7 +123,7 @@ describe('RoleMeasureRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([
       {
         workItemId: stripId,
-        roleId: devId,
+        stepId: devId,
         metric: 'token_actual',
         value: 48_500,
         recordedAt: 2_000,
@@ -138,14 +138,14 @@ describe('RoleMeasureRepository', () => {
     // by a token correction on the same pair.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_estimate',
       value: 40_000,
       recordedAt: 1,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 2.5,
       recordedAt: 2,
@@ -153,7 +153,7 @@ describe('RoleMeasureRepository', () => {
 
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_estimate',
       value: 90_000,
       recordedAt: 3,
@@ -163,49 +163,49 @@ describe('RoleMeasureRepository', () => {
     expect(held).toHaveLength(2);
     expect(held).toContainEqual({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 2.5,
       recordedAt: 2,
     });
     expect(held).toContainEqual({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_estimate',
       value: 90_000,
       recordedAt: 3,
     });
   });
 
-  it('removes one work item’s role in one metric, touching neither the other metric, the other role, nor the same pair elsewhere', async () => {
+  it('removes one work item’s step in one metric, touching neither the other metric, the other step, nor the same pair elsewhere', async () => {
     // All three parts of the condition are load-bearing and each needs its own
-    // survivor. With one work item a delete narrowed to the role alone passes;
+    // survivor. With one work item a delete narrowed to the step alone passes;
     // with one metric a delete narrowed to the pair passes. The two-survivor
     // trap `actual.test.ts` records, plus the third the discriminator adds.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 1,
       recordedAt: 1,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 2,
       recordedAt: 2,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: qaId,
+      stepId: qaId,
       metric: 'token_actual',
       value: 3,
       recordedAt: 3,
     });
     await repo.set({
       workItemId: sandId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 4,
       recordedAt: 4,
@@ -218,23 +218,23 @@ describe('RoleMeasureRepository', () => {
     // The same pair in another metric survives — the metric half.
     expect(left).toContainEqual({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 2,
       recordedAt: 2,
     });
-    // The other role on this work item — the role half.
+    // The other step on this work item — the step half.
     expect(left).toContainEqual({
       workItemId: stripId,
-      roleId: qaId,
+      stepId: qaId,
       metric: 'token_actual',
       value: 3,
       recordedAt: 3,
     });
-    // The same role and metric on another work item — the work-item half.
+    // The same step and metric on another work item — the work-item half.
     expect(left).toContainEqual({
       workItemId: sandId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 4,
       recordedAt: 4,
@@ -244,7 +244,7 @@ describe('RoleMeasureRepository', () => {
   it('removing a figure nobody recorded takes nothing away and does not throw', async () => {
     await repo.set({
       workItemId: stripId,
-      roleId: qaId,
+      stepId: qaId,
       metric: 'hours_actual',
       value: 2,
       recordedAt: 2,
@@ -256,7 +256,7 @@ describe('RoleMeasureRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([
       {
         workItemId: stripId,
-        roleId: qaId,
+        stepId: qaId,
         metric: 'hours_actual',
         value: 2,
         recordedAt: 2,
@@ -271,7 +271,7 @@ describe('RoleMeasureRepository', () => {
     // treated 0 as nothing to write would make the two the same sentence.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 0,
       recordedAt: 5,
@@ -280,7 +280,7 @@ describe('RoleMeasureRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([
       {
         workItemId: stripId,
-        roleId: devId,
+        stepId: devId,
         metric: 'hours_actual',
         value: 0,
         recordedAt: 5,
@@ -288,28 +288,28 @@ describe('RoleMeasureRepository', () => {
     ]);
   });
 
-  it('reads in role order and then metric order, not in the order the row ids happen to sort', async () => {
-    // Two claims, because this table is the first where roles alone are not a
-    // total order. The role half is the roll-up's — floating-point addition is
+  it('reads in step order and then metric order, not in the order the row ids happen to sort', async () => {
+    // Two claims, because this table is the first where steps alone are not a
+    // total order. The step half is the roll-up's — floating-point addition is
     // not associative, so the order decides a parent's last bit — and the metric
     // half is what keeps two reads of an unchanged pair from disagreeing.
     await repo.set({
       workItemId: stripId,
-      roleId: qaId,
+      stepId: qaId,
       metric: 'token_actual',
       value: 4,
       recordedAt: 1,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_estimate',
       value: 1,
       recordedAt: 2,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 3,
       recordedAt: 3,
@@ -317,7 +317,7 @@ describe('RoleMeasureRepository', () => {
 
     const held = await repo.listByProject(projectId);
 
-    expect(held.map((each) => [each.roleId, each.metric])).toEqual([
+    expect(held.map((each) => [each.stepId, each.metric])).toEqual([
       [devId, 'hours_actual'],
       [devId, 'token_estimate'],
       [qaId, 'token_actual'],
@@ -326,7 +326,7 @@ describe('RoleMeasureRepository', () => {
 
   it('answers one project only, so another plan’s figures are never in the list', async () => {
     const otherProject = crypto.randomUUID();
-    const otherRole = crypto.randomUUID();
+    const otherStep = crypto.randomUUID();
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
@@ -347,7 +347,7 @@ describe('RoleMeasureRepository', () => {
         revision: 0,
         createdAt: 1,
       },
-      [{ id: otherRole, projectId: otherProject, name: 'Dev', position: 10 }],
+      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
     );
     await new WorkItemRepository(db).insert(
       {
@@ -369,14 +369,14 @@ describe('RoleMeasureRepository', () => {
     );
     await repo.set({
       workItemId: otherItem,
-      roleId: otherRole,
+      stepId: otherStep,
       metric: 'token_actual',
       value: 9,
       recordedAt: 1,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 1,
       recordedAt: 1,
@@ -385,7 +385,7 @@ describe('RoleMeasureRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([
       {
         workItemId: stripId,
-        roleId: devId,
+        stepId: devId,
         metric: 'token_actual',
         value: 1,
         recordedAt: 1,
@@ -402,7 +402,7 @@ describe('RoleMeasureRepository', () => {
 
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_estimate',
       value: 3,
       recordedAt: 1,
@@ -423,14 +423,14 @@ describe('RoleMeasureRepository', () => {
     // measures at all.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 2,
       recordedAt: 7,
     });
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'hours_actual',
       value: 8,
       recordedAt: 9,
@@ -456,7 +456,7 @@ describe('RoleMeasureRepository', () => {
     // `DELETE FROM work_item` must not hit a constraint it cannot see.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 4,
       recordedAt: 1,
@@ -473,15 +473,15 @@ describe('RoleMeasureRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([]);
   });
 
-  it('refuses to leave a role that still holds a figure, rather than emptying it quietly', async () => {
+  it('refuses to leave a step that still holds a figure, rather than emptying it quietly', async () => {
     // `role_measure.role_id` deliberately carries **no** cascade, which is what
-    // makes a role delete that forgot the measures fail loudly.
-    // `RoleRepository.remove` is the caller that will say so explicitly (task
+    // makes a step delete that forgot the measures fail loudly.
+    // `StepRepository.remove` is the caller that will say so explicitly (task
     // 6.3); this is the constraint underneath it, asserted so that a later
     // migration cannot add a cascade without a red test.
     await repo.set({
       workItemId: stripId,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 4,
       recordedAt: 1,

@@ -171,7 +171,7 @@ async function aPeerRenames(page: Page, workItemId: string, name: string): Promi
 /**
  * Everything a finger is ever aimed at, as one selector.
  *
- * Roles as well as tags, because two of the three surfaces measured here answer
+ * Steps as well as tags, because two of the three surfaces measured here answer
  * a tap through a bare `<button>` carrying `role="menuitem"` rather than through
  * anything the tag list would find on its own merits.
  */
@@ -568,7 +568,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
 
   /**
    * The team picker's option rows, measured the way
-   * `wbs-team-picker-option-rows-20px` measured them on dev: an `li[role=option]`
+   * `wbs-team-picker-option-rows-20px` measured them on dev: an `li[step=option]`
    * is 44px or it is a 20px stripe a finger cannot aim at, with no gap to the
    * next row — so a miss lands on the neighbouring team, a silent wrong write.
    *
@@ -779,7 +779,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
    * Parameterised over the five card sheets, which is `wbs-card-sheets-cover-row`:
    * priority had the guard from `wbs-card-priority-sheet-covers-row` and the
    * other four shared its geometry without it. The trio sheet opens from
-   * inside each phase's `<details>` disclosure, so that case opens one before
+   * inside each step's `<details>` disclosure, so that case opens one before
    * tapping; the earliest-start sheet needs a day zero, set once up front.
    *
    * The rows are made through be-01 rather than through the sheet: 28 rows,
@@ -890,7 +890,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
       if (spec.openDisclosureFirst) {
         // The trio trigger lives inside a `<details>`; a shut one hides its
         // own contents from a click, so it opens first unless it already is.
-        const summary = card.locator('details[data-phase-detail] summary').first();
+        const summary = card.locator('details[data-step-detail] summary').first();
         const closed = await summary.evaluate(
           (el) => !(el.parentElement as HTMLDetailsElement).open,
         );
@@ -1192,21 +1192,21 @@ test.describe('the plan on a phone, measured by a browser', () => {
     page,
   }) => {
     // **The ids are read off the page, not written into this file.** Two drafts
-    // died here first: `data-phase-detail="role-dev"` is `plan-cards.test.tsx`'s
-    // fixture id and a real deployment's roles are rows in be-01 with generated
+    // died here first: `data-step-detail="step-dev"` is `plan-cards.test.tsx`'s
+    // fixture id and a real deployment's steps are rows in be-01 with generated
     // ones; and filtering the `<details>` by `has:` a `getByRole` inside it
     // cannot work either, because a shut `<details>` hides its contents from the
     // accessibility tree and a role query looks nowhere else. `data-cell` is the
-    // one string that carries both ids — `rowId::roleId-final`, the same cell
+    // one string that carries both ids — `rowId::stepId-final`, the same cell
     // the table's own box for this estimate carries.
     const cell = await page.getByLabel('Dev estimate for 010').getAttribute('data-cell');
     expect(cell, 'no cell id on the estimate box').toMatch(/^.+::.+-final$/);
-    const [rowId, roleFinal] = (cell ?? '').split('::');
-    const roleId = roleFinal.replace(/-final$/, '');
+    const [rowId, stepFinal] = (cell ?? '').split('::');
+    const stepId = stepFinal.replace(/-final$/, '');
 
     // Scoped to 010's card, because the plan has two of them and both carry a
-    // Dev phase.
-    const detail = page.locator(`[data-card="${rowId}"] details[data-phase-detail="${roleId}"]`);
+    // Dev step.
+    const detail = page.locator(`[data-card="${rowId}"] details[data-step-detail="${stepId}"]`);
     const field = page.getByRole('button', { name: 'Dev o, r and p for 010' });
 
     // The trio lives behind the `o·r·p` disclosure the card already had — the
@@ -1217,7 +1217,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // Non-vacuous: nothing is estimated yet, and the words say so. A selector
     // typo or a card that never drew the trigger fails here rather than at the
     // end.
-    await expect(field.locator('[data-phase-trio]')).toHaveText('No estimate yet');
+    await expect(field.locator('[data-step-trio]')).toHaveText('No estimate yet');
     // Chunk 3's 21px lesson, applied rather than re-learned: the 44px floor in
     // `styles.css` is scoped to `[data-modal-surface]` and `[data-account-menu]`,
     // and a card is neither — so a trigger a card grows has to carry its own
@@ -1240,10 +1240,10 @@ test.describe('the plan on a phone, measured by a browser', () => {
 
     await page.reload();
     await detail.locator('summary').click();
-    await expect(detail.locator('[data-phase-trio]')).toHaveText(
+    await expect(detail.locator('[data-step-trio]')).toHaveText(
       'optimistic 2 · realistic 3 · pessimistic 8',
     );
-    await expect(detail.locator('[data-phase-final]')).toHaveText('Final 3.7 days');
+    await expect(detail.locator('[data-step-final]')).toHaveText('Final 3.7 days');
   });
 
   /**

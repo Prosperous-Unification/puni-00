@@ -22,7 +22,7 @@ const NEARLY = 2;
  * What the plan toolbar has to lay out at 1280 on a fresh project — every
  * control's width plus the gaps between them — **before** this change and
  * **after** it. Both measured in this file's own Chromium, on a project with no
- * rows: `before` on `main` at `1ac9344` with `Teams`, `Priorities` and `Phases`
+ * rows: `before` on `main` at `1ac9344` with `Teams`, `Priorities` and `Steps`
  * as three labelled buttons; `now` on this change.
  *
  * Two pins, and the second is the one that guards anything. D5 asks that the
@@ -81,7 +81,7 @@ test.describe('the project settings control, in a browser', () => {
     // Precondition first, so the budget below cannot be met by a bar that
     // simply lost its controls: the one control is there and the three are not.
     await expect(page.getByRole('button', { name: 'Project settings' })).toBeVisible();
-    for (const gone of ['Teams', 'Priorities', 'Phases']) {
+    for (const gone of ['Teams', 'Priorities', 'Steps']) {
       await expect(
         page.locator('[data-toolbar]').getByRole('button', { name: gone, exact: true }),
       ).toHaveCount(0);
@@ -130,7 +130,7 @@ test.describe('the project settings control, in a browser', () => {
     await control.click();
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('tab')).toHaveText(['Teams', 'Priorities', 'Phases']);
+    await expect(dialog.getByRole('tab')).toHaveText(['Teams', 'Priorities', 'Steps']);
 
     // The arrow keys walk the list and select as they go — a real keydown on a
     // real focused tab, which is the half jsdom's synthetic dispatch cannot see.

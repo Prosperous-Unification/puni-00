@@ -1,4 +1,4 @@
-import type { RoleState } from '@wbs/domain';
+import type { StepState } from '@wbs/domain';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 
 import type { PersonPatch, TeamPatch, WorkItemPatch } from '../repository';
@@ -49,15 +49,15 @@ export type PlanCommand =
     } & Target)
   | ({ kind: 'duplicateWorkItem'; ref?: string } & Target)
   | ({ kind: 'deleteWorkItem'; strategy?: DeleteStrategy } & Target)
-  | ({ kind: 'setEstimate'; roleId: string; days: Days } & Target)
-  | ({ kind: 'clearEstimate'; roleId: string } & Target)
-  | ({ kind: 'setActual'; roleId: string; days: number } & Target)
-  | ({ kind: 'clearActual'; roleId: string } & Target)
-  | ({ kind: 'setProgress'; roleId: string; state: RoleState } & Target)
-  | ({ kind: 'clearProgress'; roleId: string } & Target)
-  | ({ kind: 'setMeasure'; roleId: string; metric: string; value: number } & Target)
-  | ({ kind: 'clearMeasure'; roleId: string; metric: string } & Target)
-  | ({ kind: 'setAssignee'; roleId: string; personId: string | null; personRef?: string } & Target)
+  | ({ kind: 'setEstimate'; stepId: string; days: Days } & Target)
+  | ({ kind: 'clearEstimate'; stepId: string } & Target)
+  | ({ kind: 'setActual'; stepId: string; days: number } & Target)
+  | ({ kind: 'clearActual'; stepId: string } & Target)
+  | ({ kind: 'setProgress'; stepId: string; state: StepState } & Target)
+  | ({ kind: 'clearProgress'; stepId: string } & Target)
+  | ({ kind: 'setMeasure'; stepId: string; metric: string; value: number } & Target)
+  | ({ kind: 'clearMeasure'; stepId: string; metric: string } & Target)
+  | ({ kind: 'setAssignee'; stepId: string; personId: string | null; personRef?: string } & Target)
   | ({ kind: 'addDependency'; predecessorId?: string; predecessorRef?: string } & Target)
   | ({ kind: 'removeDependency'; predecessorId?: string; predecessorRef?: string } & Target)
   | { kind: 'freezeProject' }

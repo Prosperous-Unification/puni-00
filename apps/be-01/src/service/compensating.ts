@@ -1,4 +1,4 @@
-import type { RoleState } from '@wbs/domain';
+import type { StepState } from '@wbs/domain';
 
 import type {
   ActualKey,
@@ -37,8 +37,8 @@ import type { Days } from './roll-up';
  */
 export type CompensatingCommand =
   | { do: 'patch'; workItemId: string; patch: WorkItemPatch }
-  | { do: 'set_estimate'; workItemId: string; roleId: string; days: Days }
-  | { do: 'clear_estimate'; workItemId: string; roleId: string }
+  | { do: 'set_estimate'; workItemId: string; stepId: string; days: Days }
+  | { do: 'clear_estimate'; workItemId: string; stepId: string }
   /**
    * The days actually spent, as a plain number rather than a trio: an estimate
    * is a guess about a range and an actual is a fact about what happened.
@@ -49,8 +49,8 @@ export type CompensatingCommand =
    * stamp would let a redo write a row that claims to predate the command that
    * wrote it.
    */
-  | { do: 'set_actual'; workItemId: string; roleId: string; days: number }
-  | { do: 'clear_actual'; workItemId: string; roleId: string }
+  | { do: 'set_actual'; workItemId: string; stepId: string; days: number }
+  | { do: 'clear_actual'; workItemId: string; stepId: string }
   /**
    * A figure in a unit that is not days — tokens estimated, tokens spent, hours
    * spent — carrying the `metric` because that is part of the row's identity
@@ -60,10 +60,10 @@ export type CompensatingCommand =
    * `recordedAt` is **not** carried, for `set_actual`'s reason exactly: an undo
    * is somebody recording the figure again, now.
    */
-  | { do: 'set_measure'; workItemId: string; roleId: string; metric: MeasureMetric; value: number }
-  | { do: 'clear_measure'; workItemId: string; roleId: string; metric: MeasureMetric }
+  | { do: 'set_measure'; workItemId: string; stepId: string; metric: MeasureMetric; value: number }
+  | { do: 'clear_measure'; workItemId: string; stepId: string; metric: MeasureMetric }
   /**
-   * Where the work has got to, as one of the two states a role may be **stored**
+   * Where the work has got to, as one of the two states a step may be **stored**
    * in. There is no `set_progress` carrying `not_started`: the way to say that
    * is `clear_progress`, because the absence of a row is how it is spelled in
    * the table and a command that could write it would be a second spelling.
@@ -71,9 +71,9 @@ export type CompensatingCommand =
    * `statedAt` is **not** carried, for the reason `set_actual` does not carry
    * `recordedAt`: re-applying this is somebody saying it again, now.
    */
-  | { do: 'set_progress'; workItemId: string; roleId: string; state: RoleState }
-  | { do: 'clear_progress'; workItemId: string; roleId: string }
-  | { do: 'assign'; workItemId: string; roleId: string; personId: string | null }
+  | { do: 'set_progress'; workItemId: string; stepId: string; state: StepState }
+  | { do: 'clear_progress'; workItemId: string; stepId: string }
+  | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
   | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
@@ -145,7 +145,7 @@ export interface DeleteSubtree {
    * {@link DeleteSubtree.setActuals}.
    *
    * The branch's folded totals rather than its rows, per metric, each carrying
-   * the newest `recordedAt` in the branch for that metric and role — the
+   * the newest `recordedAt` in the branch for that metric and step — the
    * parent's figure is now the whole branch's. A metric nobody recorded
    * anywhere in the branch contributes nothing here, because the absence of a
    * row is how "nobody has said" is spelled in every unit.
@@ -415,10 +415,10 @@ export function touchedBy(command: CompensatingCommand): string[] {
   }
 }
 
-/** The one work item and role a command was aimed at, either of them absent. */
+/** The one work item and step a command was aimed at, either of them absent. */
 export interface CommandSubject {
   workItemId: string | null;
-  roleId: string | null;
+  stepId: string | null;
 }
 
 /**
@@ -447,32 +447,32 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
-      return { workItemId: command.workItemId, roleId: command.roleId };
+      return { workItemId: command.workItemId, stepId: command.stepId };
     case 'patch':
     case 'move':
-      return { workItemId: command.workItemId, roleId: null };
+      return { workItemId: command.workItemId, stepId: null };
     case 'add_dependency':
     case 'remove_dependency':
-      return { workItemId: command.successorId, roleId: null };
+      return { workItemId: command.successorId, stepId: null };
     case 'delete_subtree':
-      return { workItemId: command.rootId, roleId: null };
+      return { workItemId: command.rootId, stepId: null };
     case 'restore_subtree':
       // Ancestors first, so the first row is the branch's root. An empty `rows`
       // is refused by `applyRestore` before it can be journalled, and would be a
       // restore of nothing.
-      return { workItemId: command.rows.at(0)?.id ?? null, roleId: null };
+      return { workItemId: command.rows.at(0)?.id ?? null, stepId: null };
     case 'set_frozen':
       // The whole plan, even when one row's number moved: freezing is a project
       // act and the label says so. Naming `updates[0]` would make a plan-wide
       // event read as one item's.
-      return { workItemId: null, roleId: null };
+      return { workItemId: null, stepId: null };
     case 'batch': {
       // The row the first step was aimed at, as `restore_subtree` names its
       // root: a batch is journalled only with two or more steps, so an empty
       // one is a shape nothing writes, answered rather than thrown for the
       // history reader's sake.
       const first = command.steps.at(0);
-      return first === undefined ? { workItemId: null, roleId: null } : subjectOf(first);
+      return first === undefined ? { workItemId: null, stepId: null } : subjectOf(first);
     }
   }
 }

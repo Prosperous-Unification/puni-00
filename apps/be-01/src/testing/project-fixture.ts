@@ -1,4 +1,4 @@
-import type { Project, ProjectStore, ProjectWithAccess, Role, UserStore } from '../repository';
+import type { Project, ProjectStore, ProjectWithAccess, Step, UserStore } from '../repository';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
 
@@ -8,7 +8,7 @@ import { inMemoryUsers } from './auth-fixture';
  *
  * It keeps the guarantees the real schema enforces, because a fixture that is
  * laxer than production lets a test pass against behaviour that does not exist:
- * role names are unique within a project, `list` returns newest first, and
+ * step names are unique within a project, `list` returns newest first, and
  * `update` refuses an id it does not hold rather than inventing a row.
  *
  * `owners` is the store the listing resolves each project's owner name through,
@@ -20,7 +20,7 @@ import { inMemoryUsers } from './auth-fixture';
  */
 export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectStore {
   const projects = new Map<string, Project>();
-  const roles = new Map<string, Role[]>();
+  const steps = new Map<string, Step[]>();
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   const opened = new Map<string, number>();
 
@@ -28,10 +28,10 @@ export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectSt
     create(project, starting) {
       const names = new Set(starting.map((r) => r.name));
       if (names.size !== starting.length) {
-        return Promise.reject(new Error(`duplicate role name in ${project.id}`));
+        return Promise.reject(new Error(`duplicate step name in ${project.id}`));
       }
       projects.set(project.id, project);
-      roles.set(project.id, [...starting]);
+      steps.set(project.id, [...starting]);
       return Promise.resolve(project);
     },
     findById(id) {
@@ -93,11 +93,11 @@ export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectSt
       projects.set(id, updated);
       return Promise.resolve(updated);
     },
-    rolesOf(projectId) {
-      // In role order, as production reads them — see `inMemoryRoles` for what
+    stepsOf(projectId) {
+      // In step order, as production reads them — see `inMemorySteps` for what
       // an unordered read would let a test believe.
       return Promise.resolve(
-        [...(roles.get(projectId) ?? [])].sort(
+        [...(steps.get(projectId) ?? [])].sort(
           (a, b) => a.position - b.position || (a.id < b.id ? -1 : 1),
         ),
       );

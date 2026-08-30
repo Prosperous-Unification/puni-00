@@ -148,14 +148,14 @@ describe('the round trip over MCP', () => {
     const seen: Seen[] = [];
     const { client } = await connected(
       [COMMANDS],
-      stub(seen, '{"error":"unknown_role","at":1,"kind":"setEstimate"}', 404),
+      stub(seen, '{"error":"unknown_step","at":1,"kind":"setEstimate"}', 404),
     );
     const batch = [
       { kind: 'createWorkItem', ref: 'a', name: 'A' },
       {
         kind: 'setEstimate',
         workItemRef: 'a',
-        roleId: 'nope',
+        stepId: 'nope',
         days: { optimistic: 1, realistic: 2, pessimistic: 3 },
       },
     ];
@@ -170,7 +170,7 @@ describe('the round trip over MCP', () => {
     expect(JSON.parse(seen[0]?.body ?? 'null')).toEqual({ commands: batch });
     expect(result.isError).toBe(true);
     const [content] = result.content as [{ type: string; text: string }];
-    expect(content.text).toContain('HTTP 404 unknown_role from POST /api/projects/{id}/commands');
+    expect(content.text).toContain('HTTP 404 unknown_step from POST /api/projects/{id}/commands');
     expect(content.text).toContain('"at":1');
     expect(content.text).toContain('"kind":"setEstimate"');
   });

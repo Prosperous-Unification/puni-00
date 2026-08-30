@@ -279,7 +279,7 @@ test.describe('the command chords, in a browser', () => {
       await route.continue();
     });
 
-    // By role, not by label: the list this box opens carries the same
+    // By step, not by label: the list this box opens carries the same
     // `aria-label` — it is the accessible name of the pair — so `getByLabel`
     // matches both and Playwright refuses in strict mode. Observed on h2puni,
     // 2026-08-08.

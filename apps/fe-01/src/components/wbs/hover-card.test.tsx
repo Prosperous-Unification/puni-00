@@ -60,7 +60,7 @@ describe('a hover card hangs over the rows below without touching them', () => {
   });
 
   itDom('leaves every other card its own width', () => {
-    // The widening is the scrolling card's alone: a folded role's figure is
+    // The widening is the scrolling card's alone: a folded step's figure is
     // four words and a 640px box around them is a card that covers three rows
     // to say "4.8 days".
     //

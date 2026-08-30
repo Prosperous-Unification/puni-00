@@ -12,10 +12,10 @@ import { schedule, sliceKey } from './schedule';
  * this file is the shapes that file does not draw.
  */
 
-const DEV = 'role-dev';
-const QA = 'role-qa';
-/** A role in front of `DEV`, for the plans whose point is what sits before it. */
-const DESIGN = 'role-design';
+const DEV = 'step-dev';
+const QA = 'step-qa';
+/** A step in front of `DEV`, for the plans whose point is what sits before it. */
+const DESIGN = 'step-design';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -51,7 +51,7 @@ const plan = (
     .filter((row) => !childless.has(row.id))
     .map((row) => ({
       workItemId: row.id,
-      roleId: DEV,
+      stepId: DEV,
       days: row.id in days ? days[row.id] : null,
       personId: null,
       width: 1,
@@ -120,8 +120,8 @@ describe('shapes — a dependency between two nested branches', () => {
    * ```
    * `P → Q`, declared at the top: every leaf's anchor under one branch before
    * any leaf under the other, through a parent on **both** sides and a second
-   * level of nesting under each. Single-role leaves, so each anchor is the
-   * leaf entire — the multi-role reading has its own describe below.
+   * level of nesting under each. Single-step leaves, so each anchor is the
+   * leaf entire — the multi-step reading has its own describe below.
    */
   const branches = () =>
     plan(
@@ -144,7 +144,7 @@ describe('shapes — a dependency between two nested branches', () => {
     const found = branches();
 
     // `L2`'s anchor is the last of `P`'s to finish, two levels down — its one
-    // slice, these leaves being single-role.
+    // slice, these leaves being single-step.
     expect(found.get('M1')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
     expect(found.get('M2')).toMatchObject({ earliestStart: 4, earliestFinish: 5 });
   });
@@ -179,7 +179,7 @@ const roledPlan = (
     .flatMap((row) => [
       {
         workItemId: row.id,
-        roleId: DEV,
+        stepId: DEV,
         days: days[row.id][0],
         personId: null,
         width: 1,
@@ -187,7 +187,7 @@ const roledPlan = (
       },
       {
         workItemId: row.id,
-        roleId: QA,
+        stepId: QA,
         days: days[row.id][1],
         personId: null,
         width: 1,
@@ -198,11 +198,11 @@ const roledPlan = (
 };
 
 /**
- * The same, for a **three**-role project listing `Design, Dev, QA` in that
- * order — the shape the anchor rule is about, because it has a role in front
+ * The same, for a **three**-step project listing `Design, Dev, QA` in that
+ * order — the shape the anchor rule is about, because it has a step in front
  * of `Dev` that a plan may well leave unestimated.
  */
-const threeRolePlan = (
+const threeStepPlan = (
   rows: readonly WorkItem[],
   edges: readonly DependencyEdge[],
   days: Record<string, [number | null, number | null, number | null]>,
@@ -215,7 +215,7 @@ const threeRolePlan = (
     .flatMap((row) => [
       {
         workItemId: row.id,
-        roleId: DESIGN,
+        stepId: DESIGN,
         days: days[row.id][0],
         personId: null,
         width: 1,
@@ -223,7 +223,7 @@ const threeRolePlan = (
       },
       {
         workItemId: row.id,
-        roleId: DEV,
+        stepId: DEV,
         days: days[row.id][1],
         personId: null,
         width: 1,
@@ -231,7 +231,7 @@ const threeRolePlan = (
       },
       {
         workItemId: row.id,
-        roleId: QA,
+        stepId: QA,
         days: days[row.id][2],
         personId: null,
         width: 1,
@@ -249,7 +249,7 @@ const projectionOf = (found: ReturnType<typeof schedule>, id: string) => {
 };
 
 describe('shapes — a dependency waits on the anchor slice', () => {
-  it('waits for the first role, not the last', () => {
+  it('waits for the first step, not the last', () => {
     // `B` needs `A`'s Dev, never its QA: the anchor — `A`'s first slice in
     // role order — finishes on day 3, and `A`'s QA runs 3→5 alongside `B`.
     const found = roledPlan(
@@ -269,7 +269,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
   });
 
-  it('an unestimated first role does not escape the wait', () => {
+  it('an unestimated first step does not escape the wait', () => {
     // Green under the last-slice rule too — kept as the guard that the
     // successor side did not move (design.md D2): the edge lands on `B`'s
     // first slice plain, never its first *estimated* one, so the row waits
@@ -299,9 +299,9 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     expect(projectionOf(found, 'B').earliestStart).toBe(3);
   });
 
-  it('walks past an unestimated role to the first one somebody estimated', () => {
+  it('walks past an unestimated step to the first one somebody estimated', () => {
     // `A`'s Dev carries no estimate, so the anchor is not it: the walk goes on
-    // down the role order and stops at `A`'s QA, the first slice of `A`
+    // down the step order and stops at `A`'s QA, the first slice of `A`
     // anybody put a number on (design.md D1). `B` waits until day 4.
     //
     // Until 2026-08-11 this read the other way — the anchor was the first
@@ -331,8 +331,8 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
   });
 
-  it('a chain does not collapse because a project lists a role nobody estimated', () => {
-    // The probe that settled the rule (2026-08-11). Three roles — `Design`,
+  it('a chain does not collapse because a project lists a step nobody estimated', () => {
+    // The probe that settled the rule (2026-08-11). Three steps — `Design`,
     // `Dev`, `QA` — and a plan that estimates only `Dev`, which is every plan
     // in `refs/gantt/`. `c1 → c2 → c3`, four days of Dev each.
     //
@@ -341,7 +341,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // inert and all three rows started on day 0 — twelve days of work drawn
     // as four. The estimated-anchor rule is what stops that: the chain runs
     // 0→4, 4→8, 8→12, and only `Design` and `QA` are free to sit anywhere.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('c1'), item('c2'), item('c3')],
       [edge('c1', 'c2'), edge('c2', 'c3')],
       { c1: [null, 4, null], c2: [null, 4, null], c3: [null, 4, null] },
@@ -358,7 +358,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     expect(projectionOf(found, 'c3')).toMatchObject({ earliestStart: 12, earliestFinish: 20 });
     // Both sides of the asymmetry in one row: the edge *arrives* at `c3`'s
     // `Design` — its first slice plain, unestimated and now two workdays wide —
-    // and its `Dev` follows in role order behind it, while the edge *left* `c2`
+    // and its `Dev` follows in step order behind it, while the edge *left* `c2`
     // from the `Dev` that was `c2`'s first estimate.
     expect(found.slices.get(sliceKey('c3', DESIGN))).toMatchObject({
       earliestStart: 12,
@@ -367,7 +367,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
     expect(found.slices.get(sliceKey('c3', DEV))).toMatchObject({
       earliestStart: 14,
-      boundBy: 'roleOrder',
+      boundBy: 'stepOrder',
     });
   });
 
@@ -412,7 +412,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // and `B`'s three unestimated steps take it to day 11 instead of ending it
     // where it began. `C` now waits for six days of unsized work rather than
     // for none of it.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('A'), item('B'), item('C')],
       [edge('A', 'B'), edge('B', 'C')],
       { A: [null, 3, 9], B: [null, null, null], C: [1, null, null] },
@@ -424,15 +424,15 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   });
 
   it('a branch anchors each leaf on its own first estimate', () => {
-    // Two leaves under `P`, each with a different role estimated: `P1` only
+    // Two leaves under `P`, each with a different step estimated: `P1` only
     // its `Dev`, `P2` only its `QA`. Each leaf's anchor is its own first
     // estimated slice, and `Q` waits for the latest of them — not for `P1`'s
     // and not for day zero.
     //
-    // Re-derived by `assumed-duration-schedules` (2026-08-29): the roles each
+    // Re-derived by `assumed-duration-schedules` (2026-08-29): the steps each
     // leaf leaves blank are two workdays each, so `P1`'s `Dev` anchors at day
     // 4 and `P2`'s `QA` at day 9. `Q` waits for 9.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
       [edge('P', 'Q')],
       { P1: [null, 2, null], P2: [null, null, 5], Q: [1, null, null] },
@@ -443,10 +443,10 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   });
 
   it('a branch releases at its anchors', () => {
-    // `Q` waits for all of `P`'s first-role work: `P1`'s anchor ends day 2,
+    // `Q` waits for all of `P`'s first-step work: `P1`'s anchor ends day 2,
     // `P2`'s day 4, and the latest of them releases `Q` on day 4 while `P`'s
     // own projection runs to day 5 (design.md D3).
-    const found = roledPlan(
+    const found = stepdPlan(
       [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
       [edge('P', 'Q')],
       { P1: [2, 3], P2: [4, 1], Q: [1, null] },
@@ -507,7 +507,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   });
 
   it('a chain of anchors: each successor starts at its predecessor’s Dev finish', () => {
-    // Three two-role items in a line. `A`'s Dev 0→2 releases `B` on day 2
+    // Three two-step items in a line. `A`'s Dev 0→2 releases `B` on day 2
     // while `A`'s QA runs 2→5 beside it; `B`'s Dev 2→6 releases `C` on day 6
     // while `B`'s QA runs 6→8 beside it. The rows: `A` 0→5, `B` 2→8, `C`
     // 6→12 — each QA tail overlapping the successor it no longer holds.
@@ -532,14 +532,14 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     });
   });
 
-  it('a multi-role diamond joins at the latest anchor, not the latest projection', () => {
+  it('a multi-step diamond joins at the latest anchor, not the latest projection', () => {
     // `A` [1, 1] fans out to `B` [3, 4] and `C` [6, 1]; `D` [2, 2] joins the
     // fan back in. Both branches start at `A`'s Dev finish, day 1: `B`'s Dev
     // 1→4, QA 4→8; `C`'s Dev 1→7, QA 7→8. Both projections end on day 8 — so
     // a join at the projections would put `D` at 8 either way. The anchors
     // differ: `B`'s Dev ends day 4, `C`'s day 7, and `D` starts at 7 — `C`'s
     // longer Dev is the binding predecessor.
-    const found = roledPlan(
+    const found = stepdPlan(
       [item('A'), item('B'), item('C'), item('D')],
       [edge('A', 'B'), edge('A', 'C'), edge('B', 'D'), edge('C', 'D')],
       { A: [1, 1], B: [3, 4], C: [6, 1], D: [2, 2] },
@@ -813,7 +813,7 @@ describe('shapes — a multi-role dependency beside a manual floor', () => {
     // `A`'s anchor lets go on day 2 (Dev 0→2, QA 2→4 beside everything), and
     // `B`'s own floor says day 5: the floor is later, `B`'s Dev runs 5→8, its
     // QA 8→9, and the floor is named.
-    const found = roledPlan(
+    const found = stepdPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [2, 2], B: [3, 1] },
@@ -832,7 +832,7 @@ describe('shapes — a multi-role dependency beside a manual floor', () => {
     // The same shape with `A`'s Dev at four days: day 2 is already gone when
     // the anchor lets go on day 4, so the floor decided nothing and the
     // dependency is named. `B`'s Dev 4→7, QA 7→8.
-    const found = roledPlan(
+    const found = stepdPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [4, 2], B: [3, 1] },

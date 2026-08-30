@@ -12,7 +12,7 @@ Three facts explain most decisions:
   over-engineered; considered and rejected. Don't re-argue it.
 - **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
   presence, projects, a nested table you type into and drag rows around, arrow keys between
-  cells, derived numbers with a freeze, three-point estimates by role that roll up, a branch you
+  cells, derived numbers with a freeze, three-point estimates by step that roll up, a branch you
   duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
   socket that reconnects and replays. Tables: `user`, `project`, `role`, `work_item`,
   `estimate`, `command_journal`, `event_log`, `event_sequencer`.
@@ -88,7 +88,7 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Landmines
 
-- **`columns` in `wbs-table.tsx` depends on `roles`, `unfoldedRoles`, `hiddenColumnIds` only**, each
+- **`columns` in `wbs-table.tsx` depends on `steps`, `unfoldedSteps`, `hiddenColumnIds` only**, each
   replaced only on the click that asked; anything else remounts every cell and eats the focus (`live` ref).
 - **Row tints in `styles.css` go by predicate, not source order.** A new `data-*-lit` must join the
   banded-hover rule's `:not()` chain and never land on a row the pointer already hovers, or the rule

@@ -10,10 +10,10 @@ export interface DependencyEdge {
 }
 
 /**
- * One work item's work for one role — the unit a schedule is computed in.
+ * One work item's work for one step — the unit a schedule is computed in.
  *
- * `roleId` is null only in a project that holds no roles at all, which is
- * reachable: a project's last role can be removed. The work item still has to
+ * `stepId` is null only in a project that holds no steps at all, which is
+ * reachable: a project's last step can be removed. The work item still has to
  * be somewhere in the plan, so it gets one slice belonging to nobody rather
  * than falling out of the graph its neighbours' dependencies run through.
  *
@@ -27,14 +27,14 @@ export interface DependencyEdge {
  */
 export interface Slice {
   workItemId: string;
-  roleId: string | null;
+  stepId: string | null;
   days: number | null;
   /**
    * Who is doing this work, or nobody — **resolved by the caller**.
    *
    * A work item with exactly one assignment is taken to be that person's
    * whole — the assumed assignee — so every slice of it carries them, and a
-   * work item with two carries each role's own. The reading is
+   * work item with two carries each step's own. The reading is
    * `assumedAssignee`, and it is made here rather than in the pass because a
    * second implementation of it would put people in queues nobody assigned
    * them to. The pass only ever asks "the same person as that slice?".
@@ -96,14 +96,14 @@ export type PoolSizes = ReadonlyMap<string, number>;
 
 /**
  * The key one slice is held under. Opaque: read {@link ScheduledSlice}'s own
- * `workItemId` and `roleId` rather than taking this apart.
+ * `workItemId` and `stepId` rather than taking this apart.
  *
  * Separated by a NUL, which no id can contain, so no two pairs can collide by
  * running into each other. Written as an escape rather than typed: a literal
  * NUL in a source file makes git call the file binary.
  */
-export function sliceKey(workItemId: string, roleId: string | null): string {
-  return `${workItemId}\u0000${roleId ?? ''}`;
+export function sliceKey(workItemId: string, stepId: string | null): string {
+  return `${workItemId}\u0000${stepId ?? ''}`;
 }
 
 /**
@@ -128,8 +128,8 @@ export interface Scheduled {
  * What decided a slice's start: the latest of its floors, named.
  *
  * `projectStart` means nothing did — it starts on day zero. `predecessor` is a
- * dependency onto another work item, `roleOrder` the work item's own earlier
- * role, `notBefore` a manual date, `person` the assignee finishing something
+ * dependency onto another work item, `stepOrder` the work item's own earlier
+ * step, `notBefore` a manual date, `person` the assignee finishing something
  * else, and `capacity` the team having no free slot wide enough for the whole
  * of this block.
  *
@@ -147,7 +147,7 @@ export interface Scheduled {
 export type ScheduleFloor =
   | 'projectStart'
   | 'predecessor'
-  | 'roleOrder'
+  | 'stepOrder'
   | 'notBefore'
   | 'person'
   | 'capacity';
@@ -155,7 +155,7 @@ export type ScheduleFloor =
 /** One slice's schedule, carrying what it is the schedule of and what held it there. */
 export interface ScheduledSlice extends Scheduled {
   workItemId: string;
-  roleId: string | null;
+  stepId: string | null;
   /** The person this work is queued behind, as the caller resolved it. */
   personId: string | null;
   boundBy: ScheduleFloor;
@@ -409,7 +409,7 @@ function topological(
 }
 
 /**
- * One leaf's slices in role order, and the running offsets that place them
+ * One leaf's slices in step order, and the running offsets that place them
  * inside its span.
  *
  * `offsets[i]` is how far slice `i` starts after the work item itself does, and
@@ -424,7 +424,7 @@ interface WorkItemSlices {
 
 /**
  * The slices grouped by the leaf they belong to, in the order they were handed
- * over — which is the project's role order, and therefore the order they run in.
+ * over — which is the project's step order, and therefore the order they run in.
  *
  * Throws on a slice for something that is not a leaf of `rows`. A parent has no
  * work of its own and a work item from another project has no place in this
@@ -552,7 +552,7 @@ interface SliceNode {
   slice: Slice;
   /** Which work item's span it belongs to, as an index into the pass's own arrays. */
   item: number;
-  /** How many roles into that work item it is. */
+  /** How many steps into that work item it is. */
   at: number;
   /** Its work item's running offsets — one shared array per work item. */
   offsets: readonly number[];
@@ -1036,7 +1036,7 @@ interface SlicePriority {
   float: number;
   /** Its work item's number — the tie goes to the row that reads first. */
   number: string;
-  /** Its place in the role order, which is the last thing two slices can differ by. */
+  /** Its place in the step order, which is the last thing two slices can differ by. */
   at: number;
 }
 
@@ -1155,10 +1155,10 @@ function placeSlices(
     const { offsets, at } = node;
 
     let fromPredecessor = 0;
-    let fromRoleOrder = 0;
+    let fromStepOrder = 0;
     for (const earlier of node.predecessors) {
       const { finish } = placed[earlier];
-      if (nodes[earlier].item === node.item) fromRoleOrder = Math.max(fromRoleOrder, finish);
+      if (nodes[earlier].item === node.item) fromStepOrder = Math.max(fromStepOrder, finish);
       else fromPredecessor = Math.max(fromPredecessor, finish);
     }
     // A slice of no length is not work, so it neither waits for its assignee
@@ -1193,7 +1193,7 @@ function placeSlices(
     // is what "at or after the floor" means.
     const planFloor = Math.max(
       fromPredecessor,
-      fromRoleOrder,
+      fromStepOrder,
       node.notBefore,
       busy === undefined ? 0 : busy.finish,
     );
@@ -1220,12 +1220,12 @@ function placeSlices(
     // floors are day 3, so the window search starts at its answer and steps
     // over nothing: `capacity` takes the tie with an **empty** blocking set,
     // the referent below stays `NOBODY`, and the invariant at the end of this
-    // block throws `b role-dev waited for capacity with nothing holding the
+    // block throws `b step-dev waited for capacity with nothing holding the
     // pool`. Recorded as observed, which is also what `verify.md`'s F8 row
     // says; watched 2026-08-12.
     const floors: { at: number; kind: ScheduleFloor }[] = [
       { at: fromPredecessor, kind: 'predecessor' },
-      { at: fromRoleOrder, kind: 'roleOrder' },
+      { at: fromStepOrder, kind: 'stepOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
       { at: window.start, kind: 'capacity' as const },
@@ -1348,7 +1348,7 @@ function placeSlices(
     //
     // Proof: `binding` handed back without its `start > floor` condition — the
     // shape of a pool that had room being called the reason — and `names no
-    // team on a slice no pool held up` failed here on `first role-dev names
+    // team on a slice no pool held up` failed here on `first step-dev names
     // team-alpha with no pool binding it`; watched 2026-08-14.
     if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
       throw new Error(
@@ -1690,9 +1690,9 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[])
  * plans and one captured live plan go through this engine and the one it
  * replaced, and every field is compared with `toBe`.
  *
- * `slices` holds one entry per leaf and role, in **role order** — the order the
+ * `slices` holds one entry per leaf and step, in **step order** — the order the
  * work runs in, so a leaf's `Dev` finishes before its `QA` starts. Every leaf
- * needs at least one, which is the adapter's job: a project holding no roles
+ * needs at least one, which is the adapter's job: a project holding no steps
  * gives each leaf one slice belonging to nobody, so the plan still schedules.
  * A slice nobody has estimated is zero days long and imposes no wait, but it is
  * still a node, which is how an unestimated `Dev` in front of an estimated `QA`
@@ -1754,7 +1754,7 @@ export function schedule(
    * work item's **first** slice, and thereby to all of them.
    *
    * A floor keyed by a **parent** reaches every leaf beneath it, exactly as a
-   * dependency declared on a parent does: "this phase starts no earlier than
+   * dependency declared on a parent does: "this step starts no earlier than
    * the 12th" means none of its work does. Each leaf takes the latest of its
    * own floor and every ancestor's — see the expansion below.
    */
@@ -1829,7 +1829,7 @@ export function schedule(
   }
 
   /**
-   * The nodes, in the order they run: every leaf's slices in role order, and
+   * The nodes, in the order they run: every leaf's slices in step order, and
    * the intra-item chain between them.
    *
    * A group is never empty — {@link groupByWorkItem} only creates one because a
@@ -1848,7 +1848,7 @@ export function schedule(
     const first = nodes.length;
     own.forEach((slice, at) => {
       nodes.push({
-        key: sliceKey(slice.workItemId, slice.roleId),
+        key: sliceKey(slice.workItemId, slice.stepId),
         slice,
         item,
         at,
@@ -1968,7 +1968,7 @@ export function schedule(
   const leafPriorities = priorityByLeaf(rows, index);
   const priorityOf: SlicePriority[] = nodes.map((node, at) => ({
     // Both slices of one work item carry its priority, which is what keeps a priority a
-    // fact about the work rather than about one of its phases.
+    // fact about the work rather than about one of its steps.
     priority: leafPriorities.get(node.slice.workItemId) ?? Infinity,
     start: unleveled.placed[at].start,
     float: criticalPath[at].latestStart - unleveled.placed[at].start,
@@ -1986,14 +1986,14 @@ export function schedule(
    *
    * The last two are what make it deterministic rather than merely correct.
    * Two slices that tie on time are separated by their work item's number and
-   * then by their place in the role order, so the same plan cannot schedule two
+   * then by their place in the step order, so the same plan cannot schedule two
    * ways — and no pair can tie on all five, since two slices of one work item
    * differ in the last.
    *
    * **This rule decides an order, never a date.** Whichever slice is taken
    * first is still placed at the latest of its own floors, so a priority cannot
    * put a work item in front of its dependencies, its floor or its earlier
-   * roles — it decides who goes first where the schedule has a choice, which is
+   * steps — it decides who goes first where the schedule has a choice, which is
    * exactly the case where two slices are both eligible and want one person.
    *
    * Proof: the first two comparisons deleted, so that the plan's own order
@@ -2057,7 +2057,7 @@ export function schedule(
     if (placed.boundBy === 'capacity') waitingOnSlots.add(slice.workItemId);
     scheduledSlices.set(node.key, {
       workItemId: slice.workItemId,
-      roleId: slice.roleId,
+      stepId: slice.stepId,
       // What the block occupied, which is its effort divided among the people
       // on it. The same number as the effort at width 1, which is every slice
       // of every plan that sets no capacity field.
@@ -2137,7 +2137,7 @@ function projectOntoWorkItems(
   const projected = new Map<string, Scheduled>();
   for (const leafId of index.leafIds) {
     const own = slicesOf(leafId).slices.map((slice) =>
-      scheduleOf(sliceKey(slice.workItemId, slice.roleId)),
+      scheduleOf(sliceKey(slice.workItemId, slice.stepId)),
     );
     const start = Math.min(...own.map((s) => s.earliestStart));
     const late = Math.min(...own.map((s) => s.latestStart));

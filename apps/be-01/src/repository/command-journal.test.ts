@@ -59,9 +59,9 @@ describe('appending a command', () => {
     kind: 'estimate',
     label: `estimate ${id}`,
     workItemId: 'w1',
-    roleId: 'r1',
-    before: { do: 'clear_estimate', workItemId: 'w1', roleId: 'r1' },
-    after: { do: 'set_estimate', workItemId: 'w1', roleId: 'r1', days: { o: 1, r: 2, p: 3 } },
+    stepId: 'r1',
+    before: { do: 'clear_estimate', workItemId: 'w1', stepId: 'r1' },
+    after: { do: 'set_estimate', workItemId: 'w1', stepId: 'r1', days: { o: 1, r: 2, p: 3 } },
     createdAt: at,
     ...over,
   });

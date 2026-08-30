@@ -530,7 +530,7 @@ export function CreatablePicker({
             // Proof: this guard removed, `Cmd+Enter in an open team picker
             // takes no entry and creates none` failed on `expected 'team1' to
             // be null` and `Cmd+Enter in an open assignee picker assigns
-            // nobody and adds nobody` on `expected [ 'assign w2 role-dev
+            // nobody and adds nobody` on `expected [ 'assign w2 step-dev
             // person1' ] to deeply equal []`. Watched, 2026-08-08.
             if (gridCell !== undefined && commandChordIn(e) !== null) {
               e.preventDefault();

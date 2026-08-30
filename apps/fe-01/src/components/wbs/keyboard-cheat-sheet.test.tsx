@@ -217,7 +217,7 @@ describe('the key binding registry', () => {
     // `PlanCards` wires none of `onTabKey`, `onArrowKey`, `onCommandKey` or
     // `onAltMove`, so every chord and every grid motion is the table's. What a
     // card does answer is the estimate shorthand and the `@` list inside a
-    // phase's box, and the window shortcuts — `?` and undo — which are on the
+    // step's box, and the window shortcuts — `?` and undo — which are on the
     // window and know nothing about a renderer.
     const cards = bindingsFor('cards').map((binding) => `${binding.where}: ${binding.keys}`);
 

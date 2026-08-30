@@ -19,7 +19,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
   projects: [],
   assignments: [],
-  roles: [],
+  steps: [],
   people: [],
   members: [],
   capacityOf: new Map(),
@@ -31,7 +31,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
  * It keeps the guarantees the real schema enforces, because a fixture laxer
  * than production lets a test pass against behaviour that does not exist:
  * names are unique, adding an existing name returns the existing row, and one
- * work item holds at most one assignee per role.
+ * work item holds at most one assignee per step.
  */
 export function inMemoryDirectory(): DirectoryStore {
   const teams = new Map<string, ServiceTeam>();
@@ -43,7 +43,7 @@ export function inMemoryDirectory(): DirectoryStore {
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const owned = new Map<string, Set<string>>();
   const assignments = new Map<string, Assignment>();
-  const key = (workItemId: string, roleId: string) => `${workItemId}::${roleId}`;
+  const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
 
   return {
     listTeams: () =>
@@ -87,7 +87,7 @@ export function inMemoryDirectory(): DirectoryStore {
         workItems: [],
         projects: [],
         assignments: [],
-        roles: [],
+        steps: [],
         people: [],
         members: [],
         capacityOf: new Map<string, number>(),
@@ -141,7 +141,7 @@ export function inMemoryDirectory(): DirectoryStore {
         workItems: [],
         projects: [],
         assignments: [],
-        roles: [],
+        steps: [],
         people: [],
         members: [],
         capacityOf: new Map<string, number>(),
@@ -290,7 +290,7 @@ export function inMemoryDirectory(): DirectoryStore {
     // answering them would be a second implementation of the rule under test,
     // so every behavioural claim about a removal is asserted against real
     // SQLite in `service/directory.service.test.ts`, the same call
-    // `role-fixture.ts` makes for the same reason.
+    // `step-fixture.ts` makes for the same reason.
     usageOfPerson: () => Promise.resolve(NOTHING_POINTS_AT_IT),
     usageOfTeam: (teamId) =>
       Promise.resolve({
@@ -300,7 +300,7 @@ export function inMemoryDirectory(): DirectoryStore {
     removePerson(personId) {
       if (!people.has(personId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       const held = [...assignments.values()].filter((each) => each.personId === personId);
-      for (const each of held) assignments.delete(key(each.workItemId, each.roleId));
+      for (const each of held) assignments.delete(key(each.workItemId, each.stepId));
       memberships.delete(personId);
       people.delete(personId);
       return Promise.resolve({
@@ -318,15 +318,15 @@ export function inMemoryDirectory(): DirectoryStore {
       const wanted = new Set(workItemIds);
       return Promise.resolve([...assignments.values()].filter((a) => wanted.has(a.workItemId)));
     },
-    assign(workItemId, roleId, personId) {
+    assign(workItemId, stepId, personId) {
       // The person is checked here because production checks it inside the
       // write's own transaction: a fixture that wrote an assignment naming
       // nobody would let a caller's `unknown_person` branch pass untested.
       if (personId !== null && !people.has(personId)) {
         return Promise.resolve({ ok: false, reason: 'unknown_person' });
       }
-      if (personId === null) assignments.delete(key(workItemId, roleId));
-      else assignments.set(key(workItemId, roleId), { workItemId, roleId, personId });
+      if (personId === null) assignments.delete(key(workItemId, stepId));
+      else assignments.set(key(workItemId, stepId), { workItemId, stepId, personId });
       return Promise.resolve({ ok: true });
     },
   };

@@ -559,7 +559,7 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * every unestimated bar is drawn, so every one of them is also an obstacle.
  * `arrow-dodge` was cleared partly on the argument that `arrow.fromX` is never
  * strictly inside a drawn bar — and that argument was load-bearing on the
- * assumed bars being *absent*. It is reachable now: a leaf whose slices in role
+ * assumed bars being *absent*. It is reachable now: a leaf whose slices in step
  * order are an unestimated one and then an estimated one of under two workdays
  * has `fromX = stopOf(fromStart, fromFinish)` landing inside the ghost's own
  * `[startOf(s), stopOf(s, s + ASSUMED_SLICE_WORKDAYS)]`, on the arrow's
@@ -1346,9 +1346,9 @@ function clampWords(bar: GanttBar): string | null {
   )} in parallel not applied`;
 }
 
-/** A bar's own role's three points, or the absence of them, in words. */
+/** A bar's own step's three points, or the absence of them, in words. */
 function trioWords(trio: EstimateTrio | null): string {
-  if (trio === null) return 'No estimate for this role';
+  if (trio === null) return 'No estimate for this step';
   return [trio.optimistic, trio.realistic, trio.pessimistic].map(daysNumber).join('/');
 }
 
@@ -1362,8 +1362,8 @@ function trioWords(trio: EstimateTrio | null): string {
  * is what carries them once the native `<title>` is off the bars. One
  * derivation, so the two cannot drift.
  *
- * Every absence is a named state: no role, nobody assigned, no team, a team the
- * directory read does not hold, no estimate for this role — each says so in
+ * Every absence is a named state: no step, nobody assigned, no team, a team the
+ * directory read does not hold, no estimate for this step — each says so in
  * words rather than leaving a blank or dropping its line, because a reader
  * cannot tell a missing fact from a fact nobody wrote down. The one line that
  * _is_ dropped is what the row waits for, and only when it waits for nothing:
@@ -1394,7 +1394,7 @@ export function barFacts(
     // spelling of it, so the surface opens on the same line the chart's label
     // column and the plan's Number column read.
     rowWords(bar.workItemNumber, bar.workItemName),
-    `${bar.roleName ?? 'No role'} · ${bar.personName ?? 'Unassigned'}`,
+    `${bar.stepName ?? 'No step'} · ${bar.personName ?? 'Unassigned'}`,
     teamWords(bar.team),
     // Straight after the team, because it is a fact about that team's people:
     // the compressed line explains a bar shorter than its own estimate, and the
@@ -1578,7 +1578,7 @@ const INLINE_STYLE_PROPS = [
 /**
  * The C0 control range XML 1.0 refuses outright (tab/LF/CR excepted).
  *
- * `schedule.ts` builds a slice id as `${workItemId}\u0000${roleId}` -- a
+ * `schedule.ts` builds a slice id as `${workItemId}\u0000${stepId}` -- a
  * separator nobody can type, deliberately -- and that id reaches
  * `data-gantt-bar` verbatim. A browser paints a NUL in an HTML/SVG attribute
  * without complaint, which is exactly why this went unnoticed until the file
@@ -2439,7 +2439,7 @@ function GanttChart({
    *
    * A slice nobody has estimated is drawn across an assumed span of two
    * workdays, translucent and dashed and carrying a `?`. On a fresh plan that is
-   * most of the chart — two roles a leaf, one of them nearly always uncosted, so
+   * most of the chart — two steps a leaf, one of them nearly always uncosted, so
    * ten rows draw twenty bars and half of them are a width nobody gave (Dany,
    * 2026-08-11: "remove … unestimated QA bars"). At rest they are not drawn, and
    * where unestimated work is found is the plan's own `?` cells, which is a
@@ -2548,7 +2548,7 @@ function GanttChart({
    * it stood before `gantt-declutter`.
    *
    * By **row** and not by slice: a not-before holds the work item, not one of
-   * its roles, so any drawn bar on the row is a bar for the caret to sit over.
+   * its steps, so any drawn bar on the row is a bar for the caret to sit over.
    *
    * Proof, both directions, `2 failed | 89 passed` each way and watched
    * 2026-08-12. Pinned to `placed.notBeforeFlags` — the caret back over the
@@ -2828,7 +2828,7 @@ function GanttChart({
                   // '(unnamed)' : label.name` — the chart labelled by name alone.
                   // **Four** tests failed, `4 failed | 39 passed`: `leaves a
                   // collapsed branch's children off the chart`, `draws exactly the
-                  // rows a search narrowed the plan to` and `draws under the roles
+                  // rows a search narrowed the plan to` and `draws under the steps
                   // the payload carried…` on `expected [ 'Hull', 'Sanding',
                   // 'Sealing', …(1) ] to deeply equal [ '010 - Hull', '011 -
                   // Sanding', …(2) ]`, and `takes the plan to a row when its label
@@ -3405,7 +3405,7 @@ function GanttChart({
                     className={barClasses(bar.critical, bar.estimated)}
                     vectorEffect="non-scaling-stroke"
                     // A control, because it is one: it takes the keyboard, it has
-                    // a name, and Enter and Space act on it. The role is what
+                    // a name, and Enter and Space act on it. The step is what
                     // makes the `aria-label` below a name a screen reader reads —
                     // a bare `<rect>` is presentational whatever it is labelled.
                     role="button"

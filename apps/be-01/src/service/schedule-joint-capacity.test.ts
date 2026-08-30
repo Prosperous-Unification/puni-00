@@ -23,7 +23,7 @@ import { schedule, sliceKey } from './schedule';
  * not choose.
  */
 
-const DEV = 'role-dev';
+const DEV = 'step-dev';
 const ALPHA = 'team-alpha';
 const BETA = 'team-beta';
 
@@ -57,7 +57,7 @@ const slice = (
   extra: Partial<Pick<Slice, 'personId' | 'width' | 'poolIds'>> = {},
 ): Slice => ({
   workItemId,
-  roleId: DEV,
+  stepId: DEV,
   days,
   personId: null,
   width: 1,
@@ -272,7 +272,7 @@ describe('a block labelled with two teams waits for both of them', () => {
     //
     // Proof: `binding` handed back from `jointWindowFor` without its `start >
     // floor` condition — a pool that had room called the reason anyway — and
-    // this failed inside the placement on `first role-dev names team-alpha
+    // this failed inside the placement on `first step-dev names team-alpha
     // with no pool binding it`, which is the invariant that replaced the gate;
     // watched 2026-08-14.
     const rows = [item('first', { priority: 1 }), item('second', { priority: 2 })];

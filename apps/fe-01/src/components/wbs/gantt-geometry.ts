@@ -18,7 +18,7 @@ import { shortIsoDate } from './short-date';
  *
  * Malformed trusted data, which is an invariant failure and not a state to
  * render: a `resourcePredecessorId` naming no slice in the same payload, a
- * person floor with nobody to name, a slice under a role the plan does not
+ * person floor with nobody to name, a slice under a step the plan does not
  * list. be-01 computes all four facts in one pass from one graph, so a
  * mismatch means the wire lost something between them — drawing a chart with
  * a silently missing link would hide exactly the fact the panel exists to
@@ -52,7 +52,7 @@ export class GanttDataError extends Error {
 export type BindingFloor =
   | 'projectStart'
   | 'predecessor'
-  | 'roleOrder'
+  | 'stepOrder'
   | 'notBefore'
   | 'person'
   | 'capacity';
@@ -279,7 +279,7 @@ export type ServiceLabel =
   | { state: 'named'; names: readonly string[] }
   | { state: 'inherited'; names: readonly string[]; fromRow: string };
 
-/** The three points a role was estimated with, as the plan holds them. */
+/** The three points a step was estimated with, as the plan holds them. */
 export interface EstimateTrio {
   optimistic: number;
   realistic: number;
@@ -375,14 +375,14 @@ export interface GanttRow {
    */
   tags: TagLabel;
   /**
-   * The three points each role was estimated with on this work item, by role id.
+   * The three points each step was estimated with on this work item, by step id.
    *
-   * A role absent from this map is a role nobody has estimated here, which is
-   * the fact the bar states in words. Per row and per role rather than per
-   * slice, because that is the shape be-01 sends it in and a bar's role is what
+   * A step absent from this map is a step nobody has estimated here, which is
+   * the fact the bar states in words. Per row and per step rather than per
+   * slice, because that is the shape be-01 sends it in and a bar's step is what
    * picks one out.
    */
-  trioByRole: ReadonlyMap<string, EstimateTrio>;
+  trioByStep: ReadonlyMap<string, EstimateTrio>;
   /**
    * What this row waits for, each already named `<number> <name>`.
    *
@@ -407,7 +407,7 @@ export interface GanttRow {
 export interface GanttSlice {
   id: string;
   workItemId: string;
-  roleId: string | null;
+  stepId: string | null;
   personId: string | null;
   duration: number;
   estimated: boolean;
@@ -474,8 +474,8 @@ export interface GanttTreeRow {
   parentId: string | null;
 }
 
-/** A role of the plan: its id, its name for the words on a bar, and its place in the list. */
-export interface GanttRole {
+/** A step of the plan: its id, its name for the words on a bar, and its place in the list. */
+export interface GanttStep {
   id: string;
   name: string;
 }
@@ -483,9 +483,9 @@ export interface GanttRole {
 /**
  * Everything the panel knows, in the units the engine computed it in.
  *
- * `roles` is a list rather than a lookup because its **order** is load-bearing
- * — a leaf's bars sit in role order, which is the order the plan lists its
- * roles in. `personNames` is a lookup because nothing about the drawing
+ * `steps` is a list rather than a lookup because its **order** is load-bearing
+ * — a leaf's bars sit in step order, which is the order the plan lists its
+ * steps in. `personNames` is a lookup because nothing about the drawing
  * depends on the order people are in.
  */
 export interface GanttPlan {
@@ -533,14 +533,14 @@ export interface GanttPlan {
    * the bands, `layOutGantt` does not read it — no geometry depends on it.
    */
   narrowedByFilter: boolean;
-  roles: readonly GanttRole[];
+  steps: readonly GanttStep[];
   personNames: ReadonlyMap<string, string>;
   /** Team names by id, used to name the pool that actually bound a slice. */
   teamNames: ReadonlyMap<string, string>;
   /**
    * What this plan calls its priority numbers — five rungs, most important first.
    *
-   * On the chart read rather than on the panel's props for the reason `roles` and
+   * On the chart read rather than on the panel's props for the reason `steps` and
    * `personNames` are: it arrives in the same payload as the slices, so the label
    * a bar is drawn with and the number it was drawn from cannot be answers to two
    * different moments.
@@ -613,8 +613,8 @@ export interface GanttBar {
   workItemNumber: string;
   /** The work item this slice is work for — the name on the row the bar sits on. */
   workItemName: string;
-  /** The role this slice is work for, or null when it belongs to no role. */
-  roleName: string | null;
+  /** The step this slice is work for, or null when it belongs to no step. */
+  stepName: string | null;
   /** Whose slice this is, or null when nobody is on it. */
   personName: string | null;
   /**
@@ -646,10 +646,10 @@ export interface GanttBar {
   /** The days of work this bar's `duration` is `effort / width` of — see {@link GanttSlice.effort}. */
   effort: number;
   /**
-   * The three points **this bar's own role** was estimated with, or null when
-   * that role has no estimate on this work item.
+   * The three points **this bar's own step** was estimated with, or null when
+   * that step has no estimate on this work item.
    *
-   * The bar's role and not the row's: a leaf estimated Dev `2/3/8` and QA
+   * The bar's step and not the row's: a leaf estimated Dev `2/3/8` and QA
    * `1/1/1` draws two bars, and a trio taken from the row would put the same
    * three numbers on both.
    */
@@ -1429,7 +1429,7 @@ export function routeArrow(
  *
  * `predecessor` used to read "Waits for a dependency to finish", which stopped
  * being true at `dep-waits-on-first-role` (2026-08-11): the wait is on the
- * predecessor's **anchor** — its first estimated role — and the roles behind
+ * predecessor's **anchor** — its first estimated step — and the steps behind
  * that anchor run alongside this bar. A card saying "to finish" beside an
  * arrow leaving the middle of the predecessor is the chart contradicting
  * itself, so it names the anchor instead, in the same shape as the sibling
@@ -1437,8 +1437,8 @@ export function routeArrow(
  */
 const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, string> = {
   projectStart: 'Starts with the project',
-  predecessor: 'Waits for a dependency’s first estimated role',
-  roleOrder: 'Waits for an earlier role on this item',
+  predecessor: 'Waits for a dependency’s first estimated step',
+  stepOrder: 'Waits for an earlier step on this item',
   notBefore: 'Held by its start-no-earlier-than date',
 };
 
@@ -1452,7 +1452,7 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, strin
  * sentences that point at a neighbour would print `Waits for  (Dev)`: a hole
  * where the referent goes, in the one place a reader will read it as the tool
  * being broken. That is the fault {@link predecessorFloorWords}' `(null)` arm
- * already refuses for the *role*, arriving through the other half of the name.
+ * already refuses for the *step*, arriving through the other half of the name.
  *
  * **The number and not `(unnamed)`**, which is the one judgement here.
  * `wbs-table.tsx`'s `namedInTheTree` says `<number> (unnamed)` and is right for
@@ -1506,7 +1506,7 @@ function spokenNameOf(row: GanttRow): string {
  * themselves should explain themselves in one voice.
  *
  * **The generic sentence is the floor of this one, not a fallback beside it.**
- * `Waits for a dependency’s first estimated role` is what every predecessor-
+ * `Waits for a dependency’s first estimated step` is what every predecessor-
  * floored surface said before this existed, and it is still what a caller that
  * cannot resolve the anchor gets — the chart, which does not yet ask, and any
  * row whose predecessor left the payload with its rows. So a surface never
@@ -1534,15 +1534,15 @@ function predecessorFloorWords(
   if (anchor === undefined) return FLOOR_SENTENCE.predecessor;
   const workItemName = rowNames.get(anchor.slice.workItemId);
   if (workItemName === undefined) return FLOOR_SENTENCE.predecessor;
-  // The role in brackets where the anchor has one, and the work item alone
+  // The step in brackets where the anchor has one, and the work item alone
   // where it does not — {@link personFloorWords}' own two arms, for its reason:
-  // a slice belonging to no role is a real state on this wire, and `(null)`
+  // a slice belonging to no step is a real state on this wire, and `(null)`
   // beside a name is the sentence saying so in the one place a reader will read
   // as a fault in the tool.
   const named =
-    anchor.roleName === null
+    anchor.stepName === null
       ? `Waits for ${workItemName}`
-      : `Waits for ${workItemName} (${anchor.roleName})`;
+      : `Waits for ${workItemName} (${anchor.stepName})`;
   if (clearsOn === null) return named;
   // A whole-day anchor stops the workday before the successor starts, so the
   // date is new information. A fractional one stops on the successor's own
@@ -1587,15 +1587,15 @@ function personFloorWords(
   person: string,
   predecessor: GanttSlice,
   rowNames: ReadonlyMap<string, string>,
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
 ): string {
   const workItemName = rowNames.get(predecessor.workItemId);
   if (workItemName === undefined) return `${person} — after work that is not shown`;
-  const roleName =
-    predecessor.roleId === null ? undefined : rolesById.get(predecessor.roleId)?.name;
-  return roleName === undefined
+  const stepName =
+    predecessor.stepId === null ? undefined : stepsById.get(predecessor.stepId)?.name;
+  return stepName === undefined
     ? `${person} — after ${workItemName}`
-    : `${person} — after ${workItemName} (${roleName})`;
+    : `${person} — after ${workItemName} (${stepName})`;
 }
 
 /**
@@ -1628,7 +1628,7 @@ const STALE_TEAM_WORDS = 'a team this plan has not loaded';
  * not caught up with` and the panel's `still draws when the directory read has
  * not caught up with the pool` failed, the second on `expected 'The chart
  * cannot be drawn: slice seal…' to be null` against `GanttDataError: slice
- * sealing::role-dev is floored by a team's capacity but its row names no team`.
+ * sealing::step-dev is floored by a team's capacity but its row names no team`.
  * Watched 2026-08-13.
  */
 function poolNameOf(team: ServiceTeamLabel): string | null {
@@ -1674,17 +1674,17 @@ function capacityFloorWords(
   referent: GanttSlice,
   otherBlockers: number,
   rowNames: ReadonlyMap<string, string>,
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
 ): string {
   const people = width === 1 ? 'a person' : `${String(width)} people`;
   const workItemName = rowNames.get(referent.workItemId);
-  const roleName = referent.roleId === null ? undefined : rolesById.get(referent.roleId)?.name;
+  const stepName = referent.stepId === null ? undefined : stepsById.get(referent.stepId)?.name;
   const after =
     workItemName === undefined
       ? 'work that is not shown'
-      : roleName === undefined
+      : stepName === undefined
         ? workItemName
-        : `${workItemName} (${roleName})`;
+        : `${workItemName} (${stepName})`;
   // "and 2 others" and not "and 2 more blockers": the reader is being told how
   // many other bars were holding the pool, and the count is of the set minus
   // the one just named.
@@ -1749,15 +1749,15 @@ function personNameOf(slice: GanttSlice, personNames: ReadonlyMap<string, string
  *
  * @throws GanttDataError on a dangling `resourcePredecessorId`, a
  * person-floored slice with no resource predecessor or an unnamed person, a
- * slice under a role the plan does not list, and a dependency between shown
+ * slice under a step the plan does not list, and a dependency between shown
  * rows whose predecessor has no slice in the payload to anchor its arrow.
  */
 export function layOutGantt(plan: GanttPlan): GanttGeometry {
   const rowNames = new Map(plan.rows.map((row) => [row.id, spokenNameOf(row)]));
   const placedRows = new Map(plan.rows.map((row, rowIndex) => [row.id, { row, rowIndex }]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
-  const rolesById: ReadonlyMap<string, GanttRolePlace> = new Map(
-    plan.roles.map((role, place) => [role.id, { place, name: role.name }]),
+  const stepsById: ReadonlyMap<string, GanttStepPlace> = new Map(
+    plan.steps.map((step, place) => [step.id, { place, name: step.name }]),
   );
 
   const predecessorOf = new Map<string, GanttSlice>();
@@ -1863,7 +1863,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       return;
     }
     const own = slicesByWorkItem.get(row.id) ?? [];
-    for (const { slice, roleName } of inRoleOrder(own, rolesById)) {
+    for (const { slice, stepName } of inStepOrder(own, stepsById)) {
       const predecessor = predecessorOf.get(slice.id);
       const personName = personNameOf(slice, plan.personNames);
       const bar: GanttBar = {
@@ -1881,7 +1881,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         estimated: slice.estimated,
         workItemNumber: row.number,
         workItemName: row.name,
-        roleName,
+        stepName,
         personName,
         personColor: colorFor(slice.personId),
         floorWords: floorWordsOf(
@@ -1894,7 +1894,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
           // see {@link GanttRow.notBeforeReason}.
           row.notBeforeReason ?? null,
           rowNames,
-          rolesById,
+          stepsById,
           // The chart does not yet ask which dependency holds this bar, and
           // asking costs it a per-bar walk of every stored edge; its arrow
           // already draws the answer from the anchor this would name. So the
@@ -1925,10 +1925,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         width: slice.width,
         maxParallel: row.maxParallel,
         effort: slice.effort,
-        // The bar's own role's trio. A slice under no role has no estimate to
+        // The bar's own step's trio. A slice under no step has no estimate to
         // look up rather than an empty one, which is the same absence said
         // once.
-        trio: (slice.roleId === null ? undefined : row.trioByRole.get(slice.roleId)) ?? null,
+        trio: (slice.stepId === null ? undefined : row.trioByStep.get(slice.stepId)) ?? null,
         waitsFor: row.waitsFor,
         priority: row.priority,
       };
@@ -2018,7 +2018,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   /**
    * The predecessor's anchor span, **selected** from the payload's slices and
    * never recomputed from estimates (design.md D6): a leaf's first slice in
-   * role order **that somebody estimated**, its last slice when nobody
+   * step order **that somebody estimated**, its last slice when nobody
    * estimated any of them, and for a parent the latest-finishing anchor among
    * its leaves. An id the tree does not hold reads as a leaf — its own
    * slices — which for a parent finds none and lands on the throw below.
@@ -2027,7 +2027,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
    * carries rather than off any number this file works out for itself, so the
    * arrow leaves the slice the engine actually joined the edge to. The two
    * agreeing is not left to inspection: `an arrow leaves the first estimated
-   * role, not the unestimated one in front of it` pins it against a payload
+   * step, not the unestimated one in front of it` pins it against a payload
    * shaped like the engine's own probe.
    *
    * @throws GanttDataError when a leaf under the predecessor has no slice in
@@ -2052,7 +2052,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       predecessorId,
       leavesUnder,
       slicesByWorkItem,
-      rolesById,
+      stepsById,
       (leafId) =>
         `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
         `payload, so the arrow has no slice to leave from`,
@@ -2111,67 +2111,67 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   };
 }
 
-/** One role as the drawing reads it: where it comes in the plan's order, and what it is called. */
-interface GanttRolePlace {
+/** One step as the drawing reads it: where it comes in the plan's order, and what it is called. */
+interface GanttStepPlace {
   place: number;
   name: string;
 }
 
-/** One of a leaf's slices with its role resolved: the bar's place in the row, and the role's name. */
+/** One of a leaf's slices with its step resolved: the bar's place in the row, and the step's name. */
 interface PlacedSlice {
   slice: GanttSlice;
   place: number;
-  roleName: string | null;
+  stepName: string | null;
 }
 
 /**
  * One leaf's slices in the order its bars sit in: the order the plan lists
- * the roles in, with a slice belonging to no role last.
+ * the steps in, with a slice belonging to no step last.
  *
- * A work item with no roles still gets a slice — it has to be somewhere in the
- * plan — and it has no place among the roles, so it takes the end.
+ * A work item with no steps still gets a slice — it has to be somewhere in the
+ * plan — and it has no place among the steps, so it takes the end.
  *
- * @throws GanttDataError when a slice names a role the plan does not list.
+ * @throws GanttDataError when a slice names a step the plan does not list.
  */
-function inRoleOrder(
+function inStepOrder(
   slices: readonly GanttSlice[],
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
 ): PlacedSlice[] {
   // Every place is looked up before the sort rather than inside its comparator:
   // `sort` does not call a comparator for a list of one, so a leaf with a single
-  // slice would never have its role resolved and the throw below could not fire
+  // slice would never have its step resolved and the throw below could not fire
   // on the commonest row in any plan. Watched: with the lookup in the
-  // comparator, `throws when a slice is under a role the plan does not list`
-  // passed against a slice under role `ops` on a plan that lists Dev and QA.
-  const placed = slices.map((slice) => placeOf(slice, rolesById));
-  // `sort` is stable, so slices sharing a place — the ones belonging to no role
+  // comparator, `throws when a slice is under a step the plan does not list`
+  // passed against a slice under step `ops` on a plan that lists Dev and QA.
+  const placed = slices.map((slice) => placeOf(slice, stepsById));
+  // `sort` is stable, so slices sharing a place — the ones belonging to no step
   // — keep the order the payload had them in.
   return placed.sort((one, other) => one.place - other.place);
 }
 
 /**
- * Where a slice's bar sits among its row's bars, and what its role is called:
- * its role's place in the plan's list, and last and nameless when it belongs to
- * no role.
+ * Where a slice's bar sits among its row's bars, and what its step is called:
+ * its step's place in the plan's list, and last and nameless when it belongs to
+ * no step.
  *
- * @throws GanttDataError when the slice names a role the plan does not list.
+ * @throws GanttDataError when the slice names a step the plan does not list.
  */
-function placeOf(slice: GanttSlice, rolesById: ReadonlyMap<string, GanttRolePlace>): PlacedSlice {
-  if (slice.roleId === null) {
-    return { slice, place: Number.MAX_SAFE_INTEGER, roleName: null };
+function placeOf(slice: GanttSlice, stepsById: ReadonlyMap<string, GanttStepPlace>): PlacedSlice {
+  if (slice.stepId === null) {
+    return { slice, place: Number.MAX_SAFE_INTEGER, stepName: null };
   }
-  const role = rolesById.get(slice.roleId);
+  const step = stepsById.get(slice.stepId);
   // Proof: this throw replaced by
-  // `return { slice, place: Number.MAX_SAFE_INTEGER, roleName: null }` — the
-  // unlisted role treated as no role at all. `throws when a slice is under a
-  // role the plan does not list` alone failed, on `expected function to throw
+  // `return { slice, place: Number.MAX_SAFE_INTEGER, stepName: null }` — the
+  // unlisted step treated as no step at all. `throws when a slice is under a
+  // step the plan does not list` alone failed, on `expected function to throw
   // an error, but it didn't`; re-watched 2026-08-09 in this shape.
-  if (role === undefined) {
+  if (step === undefined) {
     throw new GanttDataError(
-      `slice ${slice.id} is under role ${slice.roleId}, which this plan does not list`,
+      `slice ${slice.id} is under step ${slice.stepId}, which this plan does not list`,
     );
   }
-  return { slice, place: role.place, roleName: role.name };
+  return { slice, place: step.place, stepName: step.name };
 }
 
 /**
@@ -2211,14 +2211,14 @@ function floorWordsOf(
   team: ServiceTeamLabel,
   notBeforeReason: string | null,
   rowNames: ReadonlyMap<string, string>,
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
   dependencyAnchor: PlacedSlice | undefined,
   clearsOn: string | null,
   startsOn: string | null,
 ): string {
   switch (slice.boundBy) {
     case 'projectStart':
-    case 'roleOrder':
+    case 'stepOrder':
       return FLOOR_SENTENCE[slice.boundBy];
     // The one arm whose words depend on facts this function is not handed by
     // every caller. `dependencyAnchor` is the binding edge's anchor where the
@@ -2228,7 +2228,7 @@ function floorWordsOf(
       return predecessorFloorWords(dependencyAnchor, clearsOn, startsOn, rowNames);
     // The one floor of the four that has words of its own. It is here and not
     // beside the other three because the reason belongs to the **row** rather
-    // than to the slice: a work item's not-before holds every one of its roles,
+    // than to the slice: a work item's not-before holds every one of its steps,
     // so each bar of that row that is floored by it says the same sentence.
     case 'notBefore':
       return notBeforeFloorWords(notBeforeReason);
@@ -2284,7 +2284,7 @@ function floorWordsOf(
         predecessor,
         slice.capacityPredecessorIds.length - 1,
         rowNames,
-        rolesById,
+        stepsById,
       );
     }
     case 'person': {
@@ -2304,7 +2304,7 @@ function floorWordsOf(
           `slice ${slice.id} is floored by a person but names no person at all`,
         );
       }
-      return personFloorWords(personName, predecessor, rowNames, rolesById);
+      return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
     default: {
       // `never` here is the type saying the six above are all of them; the
@@ -2344,8 +2344,8 @@ function floorWordsOf(
  * **The row's floor is its earliest slice's**, and that is the only judgement
  * here. A row's `earliestStart` is the least of its slices' — be-01 computes it
  * that way — so the slice that starts when the row does is the one whose floor
- * is the row's, and a tie goes to role order because that is the order the row
- * is read in. A row's *later* roles are held by `roleOrder`, which is the row
+ * is the row's, and a tie goes to step order because that is the order the row
+ * is read in. A row's *later* steps are held by `stepOrder`, which is the row
  * waiting on itself and answers nothing.
  *
  * **Total, and that is the difference from {@link layOutGantt}.** The chart
@@ -2364,8 +2364,8 @@ export function startFloorByRow(
 ): ReadonlyMap<string, string> {
   const rowNames = new Map(plan.rows.map((row) => [row.id, spokenNameOf(row)]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
-  const rolesById: ReadonlyMap<string, GanttRolePlace> = new Map(
-    plan.roles.map((role, place) => [role.id, { place, name: role.name }]),
+  const stepsById: ReadonlyMap<string, GanttStepPlace> = new Map(
+    plan.steps.map((step, place) => [step.id, { place, name: step.name }]),
   );
   const slicesByWorkItem = new Map<string, GanttSlice[]>();
   for (const slice of plan.slices) {
@@ -2415,9 +2415,9 @@ export function startFloorByRow(
   const words = new Map<string, string>();
   for (const row of plan.rows) {
     if (!row.leaf) continue;
-    const own = inRoleOrderSafely(slicesByWorkItem.get(row.id) ?? [], rolesById);
+    const own = inStepOrderSafely(slicesByWorkItem.get(row.id) ?? [], stepsById);
     if (own === null || own.length === 0) continue;
-    // `<` and not `<=`, so a tie keeps the first in role order rather than the
+    // `<` and not `<=`, so a tie keeps the first in step order rather than the
     // last: two slices starting together are Dev and QA both standing on the
     // project's first day, and the row is read Dev-first.
     let anchor = own[0];
@@ -2441,7 +2441,7 @@ export function startFloorByRow(
               predecessorsOf.get(row.id) ?? [],
               leavesUnder,
               slicesByWorkItem,
-              rolesById,
+              stepsById,
               row.id,
             );
       words.set(
@@ -2455,7 +2455,7 @@ export function startFloorByRow(
           capacityTeamLabelOf(anchor.slice, plan.teamNames),
           row.notBeforeReason ?? null,
           rowNames,
-          rolesById,
+          stepsById,
           dependencyAnchor,
           dependencyAnchor === undefined ? null : clearsOnOf(dependencyAnchor.slice),
           startsOnOf(anchor.slice),
@@ -2474,12 +2474,12 @@ export function startFloorByRow(
 }
 
 /**
- * {@link inRoleOrder}, or null where the payload puts a slice under a role the
+ * {@link inStepOrder}, or null where the payload puts a slice under a step the
  * plan does not list.
  *
  * The throw is right for the chart and wrong here for {@link startFloorByRow}'s
  * reason, and it is caught around the sort rather than around the whole row
- * because the sort is not inside the `try` below it: `inRoleOrder` resolves
+ * because the sort is not inside the `try` below it: `inStepOrder` resolves
  * every place *before* comparing, so the throw fires while the list is being
  * built and not while the sentence is being written.
  */
@@ -2520,7 +2520,7 @@ function latestReachedAmong(
   predecessorIds: readonly string[],
   leavesUnder: ReadonlyMap<string, string[]>,
   slicesByWorkItem: ReadonlyMap<string, GanttSlice[]>,
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
   successorId: string,
 ): PlacedSlice | undefined {
   let latest: PlacedSlice | undefined;
@@ -2532,7 +2532,7 @@ function latestReachedAmong(
         predecessorId,
         leavesUnder,
         slicesByWorkItem,
-        rolesById,
+        stepsById,
         (leafId) =>
           `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
           `payload, so the wait has no slice to name`,
@@ -2600,7 +2600,7 @@ function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, strin
  *
  * The whole {@link PlacedSlice} rather than its span, which is the difference
  * from what {@link layOutGantt} used to keep privately: an arrow needs two
- * numbers, and a sentence naming the wait needs the work item and the role.
+ * numbers, and a sentence naming the wait needs the work item and the step.
  *
  * `saying` is the caller's own wording for the failure, since the same walk
  * serves an arrow with no slice to leave from and a row with no wait to name.
@@ -2615,7 +2615,7 @@ function reachedSliceOf(
   predecessorId: string,
   leavesUnder: ReadonlyMap<string, string[]>,
   slicesByWorkItem: ReadonlyMap<string, GanttSlice[]>,
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
   saying: (leafId: string) => string,
 ): PlacedSlice {
   const leafIds = leavesUnder.get(predecessorId) ?? [predecessorId];
@@ -2637,12 +2637,12 @@ function reachedSliceOf(
   return latest;
 }
 
-function inRoleOrderSafely(
+function inStepOrderSafely(
   slices: readonly GanttSlice[],
-  rolesById: ReadonlyMap<string, GanttRolePlace>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
 ): PlacedSlice[] | null {
   try {
-    return inRoleOrder(slices, rolesById);
+    return inStepOrder(slices, stepsById);
   } catch (error) {
     if (!(error instanceof GanttDataError)) throw error;
     return null;

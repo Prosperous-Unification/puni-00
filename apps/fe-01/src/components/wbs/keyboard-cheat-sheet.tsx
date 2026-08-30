@@ -84,7 +84,7 @@ const focusStopsIn = (panel: HTMLElement): HTMLElement[] => [
  * Escape stopped closing it. A dialog with `aria-modal="true"` that the
  * keyboard can walk out of and then cannot dismiss is not a gap in a
  * convenience, it is a reader stuck on a page they cannot get back to. The
- * listener is on `document`, in the capture phase, so it answers wherever the
+ * listener is on `document`, in the capture step, so it answers wherever the
  * focus has got to; Tab is answered in the same place, which is what keeps the
  * focus from getting there in the first place.
  *

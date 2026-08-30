@@ -1,12 +1,12 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { RoleProgressStore, StoredProgress } from './index';
+import type { StepProgressStore, StoredProgress } from './index';
 import { bumpWorkItems } from './revision';
-import { role, roleProgress, workItem } from './schema';
+import { step, stepProgress, workItem } from './schema';
 
 /**
- * A stated role is a **satellite** of the work item it is on, exactly as an
+ * A stated step is a **satellite** of the work item it is on, exactly as an
  * estimate and an actual are: it has no identity anyone holds and is only ever
  * read through that work item. So every write here moves that work item's
  * revision, inside the same transaction as the write — see `work_item.revision`
@@ -18,19 +18,19 @@ import { role, roleProgress, workItem } from './schema';
  * may live, and the failure this prevents is the one where estimates and actuals
  * follow a subtree and the statement about them quietly does not.
  */
-export class RoleProgressRepository implements RoleProgressStore {
+export class StepProgressRepository implements StepProgressStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Every stated role in the project, **in role order** within each work item.
+   * Every stated step in the project, **in step order** within each work item.
    *
    * Ordered for `ActualRepository.listByProject`'s weaker reason and not its
    * stronger one: folding states is `agree`, which is commutative and
    * idempotent, so unlike a sum of reals the order cannot change the answer.
-   * What it does change is the order the roles appear in on screen, and two
+   * What it does change is the order the steps appear in on screen, and two
    * reads of an unchanged plan must not disagree about that.
    *
-   * Ordered by the role's **position**, so this hands back the order the work
+   * Ordered by the step's **position**, so this hands back the order the work
    * runs in — the same order the estimates and the actuals come back in, which
    * is what lets a reader put the three lists side by side.
    */
@@ -43,41 +43,41 @@ export class RoleProgressRepository implements RoleProgressStore {
     return (
       this.db
         .select({
-          workItemId: roleProgress.workItemId,
-          roleId: roleProgress.roleId,
-          state: roleProgress.state,
-          statedAt: roleProgress.statedAt,
+          workItemId: stepProgress.workItemId,
+          stepId: stepProgress.stepId,
+          state: stepProgress.state,
+          statedAt: stepProgress.statedAt,
         })
-        .from(roleProgress)
+        .from(stepProgress)
         // Inner rather than left: `role_progress.role_id` is a foreign key, so a
-        // statement whose role is gone cannot exist — `RoleRepository.remove`
-        // deletes them in the same transaction as the role.
-        .innerJoin(role, eq(roleProgress.roleId, role.id))
+        // statement whose step is gone cannot exist — `StepRepository.remove`
+        // deletes them in the same transaction as the step.
+        .innerJoin(step, eq(stepProgress.stepId, step.id))
         .where(
           inArray(
-            roleProgress.workItemId,
+            stepProgress.workItemId,
             ids.map((row) => row.id),
           ),
         )
-        .orderBy(roleProgress.workItemId, role.position, roleProgress.roleId)
+        .orderBy(stepProgress.workItemId, step.position, stepProgress.stepId)
     );
   }
 
   /**
-   * States one work item's role, replacing whatever it said before.
+   * States one work item's step, replacing whatever it said before.
    *
    * `statedAt` is replaced with the new write's own stamp rather than kept from
    * the row being overwritten: the column says when this statement was made, and
-   * a role that has just gone from in progress to done was said to be done
+   * a step that has just gone from in progress to done was said to be done
    * today.
    */
   async set(toSet: StoredProgress): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.insert(roleProgress)
+      tx.insert(stepProgress)
         .values(toSet)
         .onConflictDoUpdate({
-          target: [roleProgress.workItemId, roleProgress.roleId],
+          target: [stepProgress.workItemId, stepProgress.stepId],
           set: { state: toSet.state, statedAt: toSet.statedAt },
         })
         .run();
@@ -85,16 +85,16 @@ export class RoleProgressRepository implements RoleProgressStore {
     });
   }
 
-  async remove(workItemId: string, roleId: string): Promise<void> {
-    // Both halves of the key, not the role alone: the composite primary key is
-    // (work item, role), and narrowing to one of them would take that role's
-    // state off every row in the database. `role-progress.test.ts` keeps a
+  async remove(workItemId: string, stepId: string): Promise<void> {
+    // Both halves of the key, not the step alone: the composite primary key is
+    // (work item, step), and narrowing to one of them would take that step's
+    // state off every row in the database. `step-progress.test.ts` keeps a
     // survivor for each half so that mistake cannot pass — the same guard
     // `estimate.test.ts` and `actual.test.ts` keep.
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.delete(roleProgress)
-        .where(and(eq(roleProgress.workItemId, workItemId), eq(roleProgress.roleId, roleId)))
+      tx.delete(stepProgress)
+        .where(and(eq(stepProgress.workItemId, workItemId), eq(stepProgress.stepId, stepId)))
         .run();
       bumpWorkItems(tx, [workItemId]);
     });
@@ -123,9 +123,9 @@ export class RoleProgressRepository implements RoleProgressStore {
   async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.update(roleProgress)
+      tx.update(stepProgress)
         .set({ workItemId: toWorkItemId })
-        .where(eq(roleProgress.workItemId, fromWorkItemId))
+        .where(eq(stepProgress.workItemId, fromWorkItemId))
         .run();
       const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
       if (changed === undefined) {

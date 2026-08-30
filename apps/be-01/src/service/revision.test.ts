@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role, WorkItem } from '../repository';
+import type { Step, WorkItem } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -12,9 +12,9 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleRepository } from '../repository/role';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepRepository } from '../repository/step';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -23,7 +23,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { ProjectService } from './project.service';
-import { RoleService } from './role.service';
+import { StepService } from './step.service';
 import { WorkItemService } from './work-item.service';
 
 /**
@@ -47,21 +47,21 @@ let dir: string;
 let path: string;
 let workItems: WorkItemService;
 let projects: ProjectService;
-let roleService: RoleService;
+let stepService: StepService;
 let projectStore: ProjectRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
-let measureStore: RoleMeasureRepository;
-let progressStore: RoleProgressRepository;
+let measureStore: StepMeasureRepository;
+let progressStore: StepProgressRepository;
 let projectId: string;
 let ownerId: string;
-let roles: Role[];
+let steps: Step[];
 
-/** The first role every project starts with, which the estimate cases write to. */
+/** The first step every project starts with, which the estimate cases write to. */
 const dev = (): string => {
-  const found = roles.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting roles');
+  const found = steps.at(0);
+  if (found === undefined) throw new Error('the project was created without its starting steps');
   return found.id;
 };
 
@@ -77,8 +77,8 @@ beforeEach(async () => {
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   actualStore = new ActualRepository(db);
-  measureStore = new RoleMeasureRepository(db);
-  progressStore = new RoleProgressRepository(db);
+  measureStore = new StepMeasureRepository(db);
+  progressStore = new StepProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -91,9 +91,9 @@ beforeEach(async () => {
   });
 
   projects = new ProjectService({ projects: projectStore });
-  roleService = new RoleService({
+  stepService = new StepService({
     projects: projectStore,
-    roles: new RoleRepository(db),
+    steps: new StepRepository(db),
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
@@ -114,7 +114,7 @@ beforeEach(async () => {
 
   const created = await projects.create('Rewire the shed', ownerId);
   projectId = created.project.id;
-  roles = created.roles;
+  steps = created.steps;
 });
 
 afterEach(() => {
@@ -354,10 +354,10 @@ describe('what an estimate moves', () => {
     const first = new EstimateRepository(openDrizzle(path));
     const second = new EstimateRepository(openDrizzle(path));
 
-    await first.set({ workItemId: strip, roleId: dev(), ...DAYS });
+    await first.set({ workItemId: strip, stepId: dev(), ...DAYS });
     await second.set({
       workItemId: strip,
-      roleId: dev(),
+      stepId: dev(),
       optimistic: 2,
       realistic: 4,
       pessimistic: 6,
@@ -509,21 +509,21 @@ describe('what a project write moves', () => {
   });
 });
 
-describe('what a role write moves', () => {
-  it('moves the project on each role write, and no work item on an add or a rename', async () => {
+describe('what a step write moves', () => {
+  it('moves the project on each step write, and no work item on an add or a rename', async () => {
     const strip = await root('Strip');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const estimated = await revisionOf(strip);
 
-    const added = await roleService.add(projectId, ownerId, 'Design');
+    const added = await stepService.add(projectId, ownerId, 'Design');
     if (!added.ok) throw new Error(`add refused: ${added.reason}`);
     expect(await projectRevision()).toBe(1);
 
-    const renamed = await roleService.rename(projectId, added.result.id, ownerId, 'Drawing');
+    const renamed = await stepService.rename(projectId, added.result.id, ownerId, 'Drawing');
     if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
     expect(await projectRevision()).toBe(2);
 
-    // A role arriving or being renamed writes nothing of any work item's: no
+    // A step arriving or being renamed writes nothing of any work item's: no
     // stored field of theirs moved and no satellite of theirs was written, so a
     // precondition on a row somebody is editing must survive it.
     expect(await revisionOf(strip)).toBe(estimated);
@@ -537,12 +537,12 @@ describe('what a role write moves', () => {
     const sandBefore = await revisionOf(sand);
     const projectBefore = await projectRevision();
 
-    const removed = await roleService.remove(projectId, dev(), ownerId, true);
+    const removed = await stepService.remove(projectId, dev(), ownerId, true);
     expect(removed).toEqual({ ok: true });
 
     expect(await projectRevision()).toBe(projectBefore + 1);
     expect(await revisionOf(strip)).toBe(stripBefore + 1);
-    // Held nothing of that role's, so nobody's reading of it changed.
+    // Held nothing of that step's, so nobody's reading of it changed.
     expect(await revisionOf(sand)).toBe(sandBefore);
   });
 });

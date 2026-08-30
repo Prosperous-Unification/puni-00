@@ -6,7 +6,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -31,7 +31,7 @@ let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
+let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
@@ -68,10 +68,10 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  // Seeded with the role the estimates below name — the service refuses one
+  // Seeded with the step the estimates below name — the service refuses one
   // the project does not hold.
   await projects.create(project, [
-    { id: 'role-dev', projectId: project.id, name: 'Dev', position: 10 },
+    { id: 'step-dev', projectId: project.id, name: 'Dev', position: 10 },
   ]);
   projectId = project.id;
 });
@@ -89,7 +89,7 @@ const latest = () => broadcast.published.at(-1);
 /**
  * The names an event carries, or a loud failure when it carries none.
  *
- * `ProjectEvent` also covers the role events, which carry a role rather than
+ * `ProjectEvent` also covers the step events, which carry a step rather than
  * work items, so reading `workItems` off the union needs a narrowing — and a
  * test that quietly read nothing would assert against an empty list.
  */
@@ -125,7 +125,7 @@ describe('what a project subscriber receives', () => {
     const boxes = await add('Back boxes', sockets);
     broadcast.published.length = 0;
 
-    await service.setEstimate(boxes, OWNER, 'role-dev', {
+    await service.setEstimate(boxes, OWNER, 'step-dev', {
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,

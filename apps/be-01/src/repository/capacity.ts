@@ -91,7 +91,7 @@ export class CapacityRepository implements CapacityStore {
    * a box that was already empty has not made a mistake.
    *
    * Both ids are read **inside the write's own transaction**, which is the
-   * `RoleRepository.remove` rule — the read is the decision, not a report about
+   * `StepRepository.remove` rule — the read is the decision, not a report about
    * it. The foreign keys would refuse an absent id anyway, and they would do it
    * by throwing a `SQLiteError` out of a `run`: an unknown at the service
    * boundary rather than the modeled 404 a caller can be answered with.

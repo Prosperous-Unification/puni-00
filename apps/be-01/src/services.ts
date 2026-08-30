@@ -12,9 +12,9 @@ import { DrizzleEventLogRepo } from './repository/event-log';
 import { PlanEventRepository } from './repository/plan-event';
 import { PriorityBandRepository } from './repository/priority-band';
 import { ProjectRepository } from './repository/project';
-import { RoleRepository } from './repository/role';
-import { RoleMeasureRepository } from './repository/role-measure';
-import { RoleProgressRepository } from './repository/role-progress';
+import { StepRepository } from './repository/step';
+import { StepMeasureRepository } from './repository/step-measure';
+import { StepProgressRepository } from './repository/step-progress';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService, type AuthServiceOptions } from './service/auth.service';
@@ -29,7 +29,7 @@ import { PushClient } from './service/push-client';
 import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { RetentionTimer } from './service/retention-timer';
-import { RoleService } from './service/role.service';
+import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
 
 /**
@@ -62,7 +62,7 @@ export interface BeServices {
   projects: ProjectService;
   capacity: CapacityService;
   priorityBands: PriorityBandService;
-  roles: RoleService;
+  steps: StepService;
   directory: DirectoryService;
   workItems: WorkItemService;
   history: HistoryService;
@@ -99,10 +99,10 @@ export function buildServices(opts: ServicesOptions): BeServices {
     maxAgeMs: REPLAY_BUFFER_MAX_AGE_MS,
   });
 
-  // One broadcaster for every service that changes a project, so a role event
+  // One broadcaster for every service that changes a project, so a step event
   // and a work item event share the project's sequence. Two would each count
   // from their own zero, and a client resuming from a work item's sequence
-  // would be replayed role events it had already seen — or none at all.
+  // would be replayed step events it had already seen — or none at all.
   const broadcast = new GatewayBroadcaster({
     sequencer: new EventSequencer(eventLog),
     buffer: replayBuffer,
@@ -142,12 +142,12 @@ export function buildServices(opts: ServicesOptions): BeServices {
       bands: priorityBandStore,
       broadcast,
     }),
-    roles: new RoleService({
+    steps: new StepService({
       projects: projectStore,
-      roles: new RoleRepository(opts.db),
+      steps: new StepRepository(opts.db),
       broadcast,
     }),
-    // The same broadcaster the roles and the work items use, so a directory
+    // The same broadcaster the steps and the work items use, so a directory
     // event takes its place in the project's one sequence — a client resuming
     // from a work item's sequence must not be replayed a rename it has seen,
     // or miss one it has not.
@@ -161,12 +161,12 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // a rule the other must not have is the day a shared class becomes a
       // conditional. See `actual` in `schema.ts`.
       actuals: new ActualRepository(opts.db),
-      measures: new RoleMeasureRepository(opts.db),
+      measures: new StepMeasureRepository(opts.db),
       // And its own store again, for the same reason once more: a state is a
       // sentence about work and an actual is a number about it, and the table
       // that holds one must not grow a rule the other has to carry. See
       // `role_progress` in `schema.ts`.
-      progress: new RoleProgressRepository(opts.db),
+      progress: new StepProgressRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
       capacity: capacityStore,

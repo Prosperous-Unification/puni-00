@@ -12,7 +12,7 @@ import { EstimateRepository } from './estimate';
 import type { SubtreeCopy, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
-import { RoleMeasureRepository } from './role-measure';
+import { StepMeasureRepository } from './step-measure';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 
@@ -23,11 +23,11 @@ let dbPath: string;
 let repo: WorkItemRepository;
 let subtrees: SubtreeRepository;
 let estimates: EstimateRepository;
-let measures: RoleMeasureRepository;
+let measures: StepMeasureRepository;
 let dependencies: DependencyRepository;
 let directory: DirectoryRepository;
 let projectId: string;
-let roleId: string;
+let stepId: string;
 let personId: string;
 
 beforeEach(async () => {
@@ -38,7 +38,7 @@ beforeEach(async () => {
   repo = new WorkItemRepository(db);
   subtrees = new SubtreeRepository(db);
   estimates = new EstimateRepository(db);
-  measures = new RoleMeasureRepository(db);
+  measures = new StepMeasureRepository(db);
   dependencies = new DependencyRepository(db);
   directory = new DirectoryRepository(db);
 
@@ -50,7 +50,7 @@ beforeEach(async () => {
     createdAt: 1,
   });
   projectId = crypto.randomUUID();
-  roleId = crypto.randomUUID();
+  stepId = crypto.randomUUID();
   await new ProjectRepository(db).create(
     {
       id: projectId,
@@ -62,7 +62,7 @@ beforeEach(async () => {
       revision: 0,
       createdAt: 1,
     },
-    [{ id: roleId, projectId, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId, name: 'Dev', position: 10 }],
   );
   personId = (await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [])))
     .id;
@@ -640,12 +640,12 @@ describe('WorkItemRepository', () => {
       respaced: [],
       reparented: [],
       estimates: [
-        { workItemId: copiedFirst.id, roleId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        { workItemId: copiedFirst.id, stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
       ],
       actuals: [],
       progress: [],
       measures: [],
-      assignments: [{ workItemId: copiedSecond.id, roleId, personId }],
+      assignments: [{ workItemId: copiedSecond.id, stepId, personId }],
       dependencies: [
         {
           id: crypto.randomUUID(),
@@ -663,13 +663,13 @@ describe('WorkItemRepository', () => {
     expect(byPosition(await repo.listByProject(projectId))).toHaveLength(6);
     expect(await estimates.listByProject(projectId)).toContainEqual({
       workItemId: copiedFirst.id,
-      roleId,
+      stepId,
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,
     });
     expect(await directory.assignmentsOf([copiedSecond.id])).toEqual([
-      { workItemId: copiedSecond.id, roleId, personId },
+      { workItemId: copiedSecond.id, stepId, personId },
     ]);
     expect(
       (await dependencies.listByProject(projectId)).map((edge) => [
@@ -705,14 +705,14 @@ describe('WorkItemRepository', () => {
     await repo.insert(strip, []);
     await measures.set({
       workItemId: strip.id,
-      roleId,
+      stepId,
       metric: 'token_estimate',
       value: 1000,
       recordedAt: 111,
     });
     await measures.set({
       workItemId: strip.id,
-      roleId,
+      stepId,
       metric: 'hours_actual',
       value: 3,
       recordedAt: 222,
@@ -731,14 +731,14 @@ describe('WorkItemRepository', () => {
       removedEstimates: [],
       removedActuals: [],
       removedProgress: [],
-      removedMeasures: [{ workItemId: strip.id, roleId, metric: 'token_estimate' }],
+      removedMeasures: [{ workItemId: strip.id, stepId, metric: 'token_estimate' }],
     });
 
     // The hours survive with the stamp they were written under: a delete by the
     // pair leaves this list empty, and one that rewrote the survivor would be a
     // different fault wearing the same green.
     expect(await measures.listByProject(projectId)).toEqual([
-      { workItemId: strip.id, roleId, metric: 'hours_actual', value: 3, recordedAt: 222 },
+      { workItemId: strip.id, stepId, metric: 'hours_actual', value: 3, recordedAt: 222 },
     ]);
   });
 
@@ -764,12 +764,12 @@ describe('WorkItemRepository', () => {
       respaced: [],
       reparented: [],
       estimates: [
-        { workItemId: copiedChild.id, roleId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        { workItemId: copiedChild.id, stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
       ],
       actuals: [],
       progress: [],
       measures: [],
-      assignments: [{ workItemId: copiedChild.id, roleId, personId }],
+      assignments: [{ workItemId: copiedChild.id, stepId, personId }],
       dependencies: [
         {
           id: crypto.randomUUID(),

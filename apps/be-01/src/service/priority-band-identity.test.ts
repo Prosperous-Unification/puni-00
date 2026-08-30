@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Role, StoredDependency, WorkItem } from '../repository';
-import { ROLE_POSITION_STEP } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import { STEP_POSITION_STEP } from '../repository';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
@@ -52,7 +52,7 @@ interface CapturedRow {
 
 interface CapturedPlan {
   projectId: string;
-  roleIds: string[];
+  stepIds: string[];
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
   rows: CapturedRow[];
@@ -77,7 +77,7 @@ const oracle = captured as unknown as Oracle;
  * migration seeded exactly that, one row per (project, sized team). Replaying
  * with no capacities at all would therefore not be replaying the captured plans:
  * every capacity floor would be gone, and the first prioritised plan's
- * `earliestStart` moves 7.5 → 3 with `boundBy` falling back to `'roleOrder'`.
+ * `earliestStart` moves 7.5 → 3 with `boundBy` falling back to `'stepOrder'`.
  * Observed, 2026-08-14, which is why this constant exists rather than an empty
  * map.
  *
@@ -328,7 +328,7 @@ describe('a priority ladder moves no date', () => {
         revision: 0,
         createdAt: 1,
       },
-      [{ id: 'dev', projectId: 'contended', name: 'Dev', position: ROLE_POSITION_STEP }],
+      [{ id: 'dev', projectId: 'contended', name: 'Dev', position: STEP_POSITION_STEP }],
     );
     for (const [id, position, priority] of [
       ['a', 10, first],
@@ -354,7 +354,7 @@ describe('a priority ladder moves no date', () => {
       );
       await estimates.set({
         workItemId: id,
-        roleId: 'dev',
+        stepId: 'dev',
         optimistic: 3,
         realistic: 3,
         pessimistic: 3,
@@ -677,13 +677,13 @@ describe('a priority ladder moves no date', () => {
       revision: 0,
       createdAt: 1,
     };
-    const roles: Role[] = plan.roleIds.map((id, place) => ({
+    const steps: Step[] = plan.stepIds.map((id, place) => ({
       id,
       projectId: plan.projectId,
-      name: `Role ${String(place)}`,
-      position: (place + 1) * ROLE_POSITION_STEP,
+      name: `Step ${String(place)}`,
+      position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await projects.create(project, roles);
+    await projects.create(project, steps);
     for (const row of plan.rows) {
       const stored: WorkItem = {
         id: row.id,
@@ -704,11 +704,11 @@ describe('a priority ladder moves no date', () => {
     // After the rows, so an estimate is never written against a work item that is
     // not there yet — the fixture mirrors the foreign key.
     for (const row of plan.rows) {
-      for (const [roleId, days] of Object.entries(row.estimates)) {
-        await estimates.set({ workItemId: row.id, roleId, ...days });
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        await estimates.set({ workItemId: row.id, stepId, ...days });
       }
-      for (const [roleId, personId] of Object.entries(row.assignees)) {
-        await directory.assign(row.id, roleId, personId);
+      for (const [stepId, personId] of Object.entries(row.assignees)) {
+        await directory.assign(row.id, stepId, personId);
       }
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {

@@ -315,7 +315,7 @@ async function seedPlan(
   // compact-columns` and carry the whole `YYYY-MM-DD` in the attribute.
   //
   // **The first of two facts**, since `row-start-floor`: the `title` reads
-  // `2026-08-14 — Waits for a dependency’s first estimated role`, the `End`
+  // `2026-08-14 — Waits for a dependency’s first estimated step`, the `End`
   // cell's own shape. This helper wants the day alone, and the guard below is
   // kept rather than loosened to a prefix match — it is what turned that change
   // into 26 named failures instead of a fixture quietly holding the wrong row
@@ -343,7 +343,7 @@ async function seedPlan(
 /**
  * A two-row chain whose predecessor nobody has estimated at all.
  *
- * `020` waits for `010`, `010` carries no estimate for either role, and `020`'s
+ * `020` waits for `010`, `010` carries no estimate for either step, and `020`'s
  * `Dev` is costed so it draws a bar with area to measure. Before
  * `assumed-duration-schedules` (2026-08-29) every row of this plan sat at
  * workday 0 and the chart drew the successor beside the work it depends on;
@@ -397,7 +397,7 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
  * would move `020` off day zero, push the horizon out past `040`, and take both
  * of this test's arrows with it. A stated zero is the case that survives:
  * somebody has said this step costs nothing, and it finishes where it starts.
- * Every role of every row but `030`'s `Dev` therefore carries an explicit
+ * Every step of every row but `030`'s `Dev` therefore carries an explicit
  * `0/0/0`, which reproduces the schedule this fixture has always had.
  *
  * The consequence for the helper's caller: every mark in this plan but `030`'s
@@ -431,11 +431,11 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
 
   // And a stated zero everywhere else, which is what holds `020` at workday 0
   // and the horizon at `030`'s own finish — see this helper's docstring. Both
-  // roles of every row, because a role left blank is two assumed workdays now.
+  // steps of every row, because a step left blank is two assumed workdays now.
   for (const number of ['010', '020', '030', '040']) {
-    for (const role of ['Dev', 'QA']) {
-      if (number === '030' && role === 'Dev') continue;
-      const nothing = page.getByLabel(`${role} estimate for ${number}`);
+    for (const step of ['Dev', 'QA']) {
+      if (number === '030' && step === 'Dev') continue;
+      const nothing = page.getByLabel(`${step} estimate for ${number}`);
       await nothing.fill('0/0/0');
       await nothing.blur();
       await expect(nothing).not.toHaveValue('');
@@ -801,7 +801,7 @@ test.describe('the chart, after the browser has scaled it', () => {
     // The bar the caret belongs to, found through the caret's own row and not
     // by counting: the first attempt at this took `bars.at(1)` on the reasoning
     // that `010` is a parent and draws no bar, and a new project lists **two**
-    // roles — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
+    // steps — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
     // workday as the bar that was wanted. Every assertion below passed against
     // it, including with the caret put back on top of the real bar: a
     // zero-height box cannot be overlapped. Watched, which is why the width is
@@ -955,7 +955,7 @@ test.describe('the chart, after the browser has scaled it', () => {
 
     // The predecessor's two assumed bars and the successor's costed one, each
     // found through the row it is on rather than by index — `bars.at(n)` is the
-    // shape R5 #16 was, and a project lists two roles so the indices are not
+    // shape R5 #16 was, and a project lists two steps so the indices are not
     // the rows.
     const drawn = await page.evaluate(() => {
       const boxOf = (mark: Element) => {
@@ -1148,7 +1148,7 @@ test.describe('the chart, after the browser has scaled it', () => {
   /**
    * The bars a fresh plan draws at rest, and the ones one press brings back.
    *
-   * A new project lists two roles, and a leaf estimated for one of them draws a
+   * A new project lists two steps, and a leaf estimated for one of them draws a
    * dashed bar for the other — two bars a row, half of them widths nobody gave,
    * beside the parent's own ghost. At rest that is five marks on a three-row
    * chart and the reader sees two; the detail switch is the one control that
@@ -1707,28 +1707,28 @@ test.describe('the chart on a phone', () => {
  * neither a mark nor a label.
  *
  * `role="tooltip"` and not a `data-` hook: it is the same the `HoverCard` the
- * Name cell opens, and naming it by its role is what says the two are one
+ * Name cell opens, and naming it by its step is what says the two are one
  * surface rather than two that happen to look alike.
  */
 const surface = (page: Page): Locator => page.getByRole('tooltip');
 
 /**
- * The bar for one row **and one role**, found by the accessible name it carries.
+ * The bar for one row **and one step**, found by the accessible name it carries.
  *
- * Never by its place in the list. A project is seeded with two phases, so every
+ * Never by its place in the list. A project is seeded with two steps, so every
  * leaf draws two bars and `[data-gantt-bar].nth(1)` is the *first* row's QA
  * slice rather than the second row's Dev one — the sixteenth check's own fault,
  * met again while writing this file and caught only because the dates on the
  * surface were a different row's. The label names both, which is what makes it
  * the handle: a bar found this way cannot be a bar about something else.
  */
-const barOf = (page: Page, number: string, role: string): Locator =>
-  page.locator(`[data-gantt-bar][aria-label^="${number} - "][aria-label*="${role} ·"]`);
+const barOf = (page: Page, number: string, step: string): Locator =>
+  page.locator(`[data-gantt-bar][aria-label^="${number} - "][aria-label*="${step} ·"]`);
 
 /**
  * The rectangle of an element a locator names, or a throw.
  *
- * {@link rectOf} takes a selector and the surface is found by role, so this is
+ * {@link rectOf} takes a selector and the surface is found by step, so this is
  * the same refusal on the other kind of handle: a box with no area compares
  * equal to every other box with no area, and two things that are both not
  * drawn would agree about everything.
@@ -2821,7 +2821,7 @@ test.describe('the bottom edge of a chart dragged short', () => {
       for (const bar of panel.querySelectorAll('[data-gantt-bar]')) {
         const box = bar.getBoundingClientRect();
         if (box.top < band.top || box.bottom > band.bottom) continue;
-        // A slice id is `${workItemId} ${roleId}`, and the label is the
+        // A slice id is `${workItemId} ${stepId}`, and the label is the
         // work item's.
         const sliceId = bar.getAttribute('data-gantt-bar') ?? '';
         const rowId = sliceId.split(' ')[0] ?? '';
@@ -2951,7 +2951,7 @@ test.describe('the pointed row, across both faces', () => {
 
     // `010` is the parent and draws no bar, so the pair is `010.1` and `010.2` —
     // and their stripes are read from the DOM rather than assumed, because a
-    // fixture that renumbered would otherwise quietly test one phase twice.
+    // fixture that renumbered would otherwise quietly test one step twice.
     const stripes = await page.evaluate(() =>
       [...document.querySelectorAll('[data-grid] tbody tr')].map((tr, index) => ({
         number: tr.querySelector('[data-number]')?.textContent ?? '(none)',

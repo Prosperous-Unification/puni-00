@@ -118,10 +118,10 @@ export const project = sqliteTable(
      * `revision` for what a revision is and the rule that decides when one moves.
      *
      * The project's own stored fields (name, restriction, estimate method, start
-     * date) and its **satellites** move it. Its roles are a satellite: adding,
+     * date) and its **satellites** move it. Its steps are a satellite: adding,
      * renaming or removing one changes what every estimate in the project means,
      * and each of the three moves this column inside the transaction that makes
-     * the change — see `RoleRepository`, asserted in `repository/role.test.ts`.
+     * the change — see `StepRepository`, asserted in `repository/step.test.ts`.
      *
      * A project's work items are **not** satellites of it. They are entities with
      * revisions of their own, and folding them in here would make this counter
@@ -230,7 +230,7 @@ export const workItem = sqliteTable(
      * Nullable with no default, because null is a real state and not a missing
      * empty string: the absence of a reason is how "nobody has said" is spelled
      * here, exactly as the absence of a row is in {@link actual} and
-     * {@link roleProgress}. A blank typed into the field is normalised to null
+     * {@link stepProgress}. A blank typed into the field is normalised to null
      * at the controller rather than stored, so there is one spelling.
      *
      * At most `LONGEST_NOT_BEFORE_REASON` (200) characters, checked at the
@@ -248,7 +248,7 @@ export const workItem = sqliteTable(
      * An **ordering**, never a constraint. It decides which of two work items
      * competing for the same person is placed first, and it decides nothing at
      * all in a plan where nothing competes: it cannot move a work item in front
-     * of its own dependencies, its floor or its earlier roles. See `goesFirst`
+     * of its own dependencies, its floor or its earlier steps. See `goesFirst`
      * in `service/schedule.ts` for where it is asked.
      *
      * Nullable with no default, because null is a real state here and not a
@@ -396,16 +396,29 @@ export type WorkItemRow = typeof workItem.$inferSelect;
 /**
  * A kind of work a project estimates separately. Every project starts with `Dev`
  * and `QA`, which is a seed rather than the set it may hold: they can be
- * renamed, removed, and joined by others through `RoleRepository`.
+ * renamed, removed, and joined by others through `StepRepository`.
+ *
+ * **The physical name is `role`, and the domain name is `step`.** Every
+ * identifier above this line says `step` since `steps-not-phases`; the table,
+ * its `role_id` columns, its `role_project_name` index and `role_progress` /
+ * `role_measure` beside it kept the spelling they were created with. That is
+ * not an oversight, it is the boundary: blue and green share one SQLite file
+ * during a swap and a forward migration must be additive (`AGENTS.md`,
+ * Migrations), so `ALTER TABLE role RENAME TO step` cannot be one migration —
+ * the outgoing release is still reading `role` while green migrates. The
+ * physical rename is an expand/contract across two releases and is its own
+ * change, `steps-schema-rename`. Until it lands the two spellings name one
+ * thing, and SQLite's own error strings — `UNIQUE constraint failed:
+ * role.project_id, role.name` in `step.ts` — say `role`.
  *
  * `estimate.role_id` deliberately has **no** `onDelete` cascade while
  * `assignment.role_id` does, and the difference is not an oversight. An
  * estimate is somebody's typing and a removal must count it before taking it;
- * the missing cascade is what makes a role delete that forgot to say so fail
- * loudly instead of quietly emptying the plan. `RoleRepository.remove` deletes
- * them explicitly, inside the transaction that removes the role.
+ * the missing cascade is what makes a step delete that forgot to say so fail
+ * loudly instead of quietly emptying the plan. `StepRepository.remove` deletes
+ * them explicitly, inside the transaction that removes the step.
  */
-export const role = sqliteTable(
+export const step = sqliteTable(
   'role',
   {
     id: text('id').primaryKey(),
@@ -414,37 +427,37 @@ export const role = sqliteTable(
       .references(() => project.id),
     name: text('name').notNull(),
     /**
-     * Where this role sits in the project's role order, spaced in tens like
+     * Where this step sits in the project's step order, spaced in tens like
      * {@link workItem}'s.
      *
      * The order is a contract now that the schedule runs a work item's slices
      * in it, and it cannot be inferred: `WHERE project_id = ?` is answered from
-     * `role_project_name`, so a project's roles come back in **name** order
+     * `role_project_name`, so a project's steps come back in **name** order
      * unless a query says otherwise. `Dev, QA` only looks like the order they
      * were seeded in.
      *
-     * The default is what lets an outgoing release insert a role during a swap:
+     * The default is what lets an outgoing release insert a step during a swap:
      * its `INSERT` does not name this column, and blue and green share one
-     * file. Such a role lands first rather than last, which is a colour-swap
+     * file. Such a step lands first rather than last, which is a colour-swap
      * window's worth of wrong order and not a lost row.
      *
      * Proof: with `DEFAULT 0` removed from the migration, `lets the outgoing
-     * release keep inserting roles against the migrated schema` fails on the
+     * release keep inserting steps against the migrated schema` fails on the
      * old release's three-column `INSERT` with `NOT NULL constraint failed:
-     * role.position`; watched 2026-08-09.
+     * step.position`; watched 2026-08-09.
      */
     position: integer('position').notNull().default(0),
   },
   (t) => [uniqueIndex('role_project_name').on(t.projectId, t.name)],
 );
 
-export type RoleRow = typeof role.$inferSelect;
+export type StepRow = typeof step.$inferSelect;
 
 /**
- * Three durations in days for one work item and one role.
+ * Three durations in days for one work item and one step.
  *
  * Its own table rather than columns on `work_item` because a project chooses
- * how many roles it estimates: columns would cap that number and make adding
+ * how many steps it estimates: columns would cap that number and make adding
  * `Design` a migration.
  *
  * Rows exist only for leaves. A work item with children reports the sums of its
@@ -457,20 +470,20 @@ export const estimate = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id),
-    roleId: text('role_id')
+    stepId: text('role_id')
       .notNull()
-      .references(() => role.id),
+      .references(() => step.id),
     optimistic: real('optimistic').notNull(),
     realistic: real('realistic').notNull(),
     pessimistic: real('pessimistic').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
 
 export type EstimateRow = typeof estimate.$inferSelect;
 
 /**
- * The days one role actually spent on one work item.
+ * The days one step actually spent on one work item.
  *
  * Dany, 2026-08-13: _"I want to be able to track fact days near the estimate of
  * completion"_. `notes/wbs-brief-2026-08-14-r5-r6-history.md` §3.2.
@@ -488,11 +501,11 @@ export type EstimateRow = typeof estimate.$inferSelect;
  * here is a person saying the work took no days, which is a different sentence
  * and a rarer one. Clearing an actual deletes the row rather than writing 0.
  *
- * **Per (work item, role), matching the estimate's grain exactly.** Every read
+ * **Per (work item, step), matching the estimate's grain exactly.** Every read
  * path in the tool already groups by that pair — the estimate's own key, the
- * schedule's slice key, the export's per-role column group, the roll-up — and a
+ * schedule's slice key, the export's per-step column group, the roll-up — and a
  * per-item actual would be a second spelling of a total that then has to agree
- * with per-role estimates and would not. "Who overran, Dev or QA?" is the
+ * with per-step estimates and would not. "Who overran, Dev or QA?" is the
  * question actuals exist to answer.
  *
  * **Rows exist only for leaves**, exactly as estimates do: a parent's actual is
@@ -506,11 +519,11 @@ export type EstimateRow = typeof estimate.$inferSelect;
  * successor's dates on a claim nobody made. See
  * `openspec/changes/actual-days/design.md` D3.
  *
- * `role_id` gets **no** `onDelete` cascade, matching {@link estimate.roleId} and
- * for the identical reason spelled out on {@link role}: an actual is somebody's
- * typing and a role removal must count it before taking it.
- * `RoleRepository.remove` deletes them explicitly, inside the transaction that
- * removes the role.
+ * `role_id` gets **no** `onDelete` cascade, matching {@link estimate.stepId} and
+ * for the identical reason spelled out on {@link step}: an actual is somebody's
+ * typing and a step removal must count it before taking it.
+ * `StepRepository.remove` deletes them explicitly, inside the transaction that
+ * removes the step.
  *
  * `work_item_id` **does** cascade, and that is about the blue/green swap window
  * rather than tidiness: two be-01 processes share one SQLite file while green
@@ -526,19 +539,19 @@ export const actual = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    roleId: text('role_id')
+    stepId: text('role_id')
       .notNull()
-      .references(() => role.id),
+      .references(() => step.id),
     days: real('days').notNull(),
     recordedAt: integer('recorded_at').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
 
 export type ActualRow = typeof actual.$inferSelect;
 
 /**
- * Where one role's work on one work item has got to.
+ * Where one step's work on one work item has got to.
  *
  * Dany, 2026-08-18: _"maybe we should augment actual days by completion
  * status?"_ — and the reason he is right is written in {@link actual} and in
@@ -555,22 +568,22 @@ export type ActualRow = typeof actual.$inferSelect;
  * each is a question the engine must answer the day it reads this, and it does
  * not read this yet.
  *
- * **Per (work item, role), the same grain as {@link estimate} and
- * {@link actual}.** Actuals are per role, so a per-item state would be a second
+ * **Per (work item, step), the same grain as {@link estimate} and
+ * {@link actual}.** Actuals are per step, so a per-item state would be a second
  * source of truth about the same subject and the disagreement it produces is
- * exactly "the item says done and a role has no actual". **A work item's own
- * state is derived from its roles on every read and never stored** — `agree` and
- * `stateOf` in `@wbs/domain`, where `done` is unanimous across the roles that
+ * exactly "the item says done and a step has no actual". **A work item's own
+ * state is derived from its steps on every read and never stored** — `agree` and
+ * `stateOf` in `@wbs/domain`, where `done` is unanimous across the steps that
  * have work on the row, and any disagreement reads as `in_progress`.
  *
  * **Rows exist only for leaves**, exactly as estimates and actuals do: a
  * parent's state is folded from its descendants', computed on read.
  *
  * **What `done` makes true**, stated here because the change that consumes it
- * must not have to re-litigate it: an actual on a role marked `done` is
- * **final** — the whole of what that role spent, not a running count. The next
- * change is the one where the engine reads this (finished roles freeze,
- * in-progress roles get `remaining = max(0, estimate − actual)`), and that
+ * must not have to re-litigate it: an actual on a step marked `done` is
+ * **final** — the whole of what that step spent, not a running count. The next
+ * change is the one where the engine reads this (finished steps freeze,
+ * in-progress steps get `remaining = max(0, estimate − actual)`), and that
  * reading is only available because this rule was fixed before any row was
  * written under it.
  *
@@ -578,8 +591,8 @@ export type ActualRow = typeof actual.$inferSelect;
  * estimates in `slicesOf` and this table is read nowhere below it — R6 is still
  * reporting only, and this change moves no date in either direction.
  *
- * `role_id` gets **no** `onDelete` cascade, matching {@link actual.roleId} and
- * {@link estimate.roleId}: a state is somebody's statement and a role removal
+ * `role_id` gets **no** `onDelete` cascade, matching {@link actual.stepId} and
+ * {@link estimate.stepId}: a state is somebody's statement and a step removal
  * must count it before taking it. `work_item_id` **does** cascade, for the
  * blue/green swap window {@link actual.workItemId} explains.
  *
@@ -593,26 +606,26 @@ export type ActualRow = typeof actual.$inferSelect;
  * hand-edit or a future mistake would be dispatched on by every reader and
  * folded by none of them.
  */
-export const roleProgress = sqliteTable(
+export const stepProgress = sqliteTable(
   'role_progress',
   {
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    roleId: text('role_id')
+    stepId: text('role_id')
       .notNull()
-      .references(() => role.id),
+      .references(() => step.id),
     state: text('state', { enum: ['in_progress', 'done'] }).notNull(),
     statedAt: integer('stated_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.workItemId, t.roleId] }),
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
     check('role_progress_state', sql`${t.state} IN ('in_progress', 'done')`),
   ],
 );
 
 /**
- * The closed set of units a {@link roleMeasure} can be in.
+ * The closed set of units a {@link stepMeasure} can be in.
  *
  * Exported because every read and write path takes one of these as a parameter
  * rather than defaulting it — the cost of a discriminated table, paid on
@@ -623,11 +636,11 @@ export const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'
 export type MeasureMetric = (typeof MEASURE_METRICS)[number];
 
 /**
- * What one role's work on one work item cost, in a unit that is not days.
+ * What one step's work on one work item cost, in a unit that is not days.
  *
  * Dany, 2026-08-20: _"estimate token use and then record fact token use for each
- * task (even each phase/role) … then how many hours was spent on a task"_. Three
- * figures — the tokens a role's work is expected to take, the tokens it took,
+ * task (even each step/step) … then how many hours was spent on a task"_. Three
+ * figures — the tokens a step's work is expected to take, the tokens it took,
  * and the hours it took — at the grain {@link estimate} and {@link actual}
  * already use.
  *
@@ -635,8 +648,8 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * decision in the change worth arguing rather than assuming:
  * `openspec/changes/token-tracking/design.md` D1. Three tables would each need
  * the five-method repository, the `PUT`/`DELETE` pair, the `rolled_up` and
- * `unknown_role` refusals, two journalled commands, the roll-up fold, the
- * hand-down/hand-up/restore/no-copy structure rules and the role-removal count —
+ * `unknown_step` refusals, two journalled commands, the roll-up fold, the
+ * hand-down/hand-up/restore/no-copy structure rules and the step-removal count —
  * seven mechanisms times three, every copy able to drift from its siblings in
  * silence.
  *
@@ -673,17 +686,17 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * estimates in `slicesOf` and no read path below it touches this table. A token
  * fact is not evidence about a date — a row that burned four million tokens may
  * be finished or may still be running, and the model's only completion state
- * ({@link roleProgress}) is silent about tokens. Design D3, and the change that
+ * ({@link stepProgress}) is silent about tokens. Design D3, and the change that
  * adds this table has an empty diff on `service/schedule.ts` and `libs/domain`.
  *
- * `metric` is a Drizzle enum **and** a `CHECK`, the pair {@link roleProgress}
+ * `metric` is a Drizzle enum **and** a `CHECK`, the pair {@link stepProgress}
  * uses and for the identical reason: the enum is erased at runtime, and a fourth
  * value written by a hand-edit or a stale release would be dispatched on by
  * every reader and folded by none of them.
  *
  * `role_id` gets **no** `onDelete` cascade and `work_item_id` does, matching
- * {@link actual} exactly: a measure is somebody's typing, so a role removal must
- * count it before taking it, and `RoleRepository.remove` deletes these rows
+ * {@link actual} exactly: a measure is somebody's typing, so a step removal must
+ * count it before taking it, and `StepRepository.remove` deletes these rows
  * explicitly inside its transaction. The cascade on `work_item_id` is the
  * blue/green swap window — two be-01 processes share one SQLite file while green
  * migrates, and the outgoing release's plain `DELETE FROM work_item` would hit a
@@ -693,21 +706,21 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * moment the correction was typed rather than the moment the figure it replaced
  * was.
  */
-export const roleMeasure = sqliteTable(
+export const stepMeasure = sqliteTable(
   'role_measure',
   {
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    roleId: text('role_id')
+    stepId: text('role_id')
       .notNull()
-      .references(() => role.id),
+      .references(() => step.id),
     metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.workItemId, t.roleId, t.metric] }),
+    primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
     check(
       'role_measure_metric',
       sql`${t.metric} IN ('token_estimate', 'token_actual', 'hours_actual')`,
@@ -715,9 +728,9 @@ export const roleMeasure = sqliteTable(
   ],
 );
 
-export type RoleMeasureRow = typeof roleMeasure.$inferSelect;
+export type StepMeasureRow = typeof stepMeasure.$inferSelect;
 
-export type RoleProgressRow = typeof roleProgress.$inferSelect;
+export type StepProgressRow = typeof stepProgress.$inferSelect;
 
 /**
  * A service or team that work can be labelled with — global, not per project.
@@ -860,8 +873,8 @@ export type TagRow = typeof tag.$inferSelect;
  * each other.
  *
  * **Both sides cascade, and this is where the tag differs from
- * {@link roleProgress}.** There, `role_id` deliberately does not cascade, because
- * a state is somebody's statement about their own work and a role removal must
+ * {@link stepProgress}.** There, `role_id` deliberately does not cascade, because
+ * a state is somebody's statement about their own work and a step removal must
  * count it before taking it. A tag is a label: deleting the label should take the
  * labelling with it, and there is nothing to count that the label itself was not.
  * The cascade on `work_item_id` carries {@link workItemTeam}'s argument
@@ -1369,8 +1382,8 @@ export type PersonKind = (typeof PERSON_KINDS)[number];
  * `INSERT INTO person (id, name)` knows nothing of this column and must keep
  * working while green migrates.
  *
- * `kind` is a Drizzle enum **and** a `CHECK`, the pair {@link roleMeasure} and
- * {@link roleProgress} use, for the identical reason: the enum is erased at
+ * `kind` is a Drizzle enum **and** a `CHECK`, the pair {@link stepMeasure} and
+ * {@link stepProgress} use, for the identical reason: the enum is erased at
  * runtime and a third value written by a hand-edit or a stale release would be
  * dispatched on by every reader and folded by none of them.
  *
@@ -1419,7 +1432,7 @@ export const personTeam = sqliteTable(
 export type PersonTeamRow = typeof personTeam.$inferSelect;
 
 /**
- * Who does one work item's work for one role — one person per phase.
+ * Who does one work item's work for one step — one person per step.
  *
  * The primary key is the pair, so a work item has at most one Dev and at most
  * one QA. Dany, 2026-08-06: "one per dev, one per QA", and "when just one is
@@ -1437,14 +1450,14 @@ export const assignment = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
-    roleId: text('role_id')
+    stepId: text('role_id')
       .notNull()
-      .references(() => role.id, { onDelete: 'cascade' }),
+      .references(() => step.id, { onDelete: 'cascade' }),
     personId: text('person_id')
       .notNull()
       .references(() => person.id, { onDelete: 'cascade' }),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
 
 export type AssignmentRow = typeof assignment.$inferSelect;
@@ -1459,7 +1472,7 @@ export type AssignmentRow = typeof assignment.$inferSelect;
  * either way, and which slice it leaves is decided when the schedule is
  * computed.
  *
- * Either end may be a parent, and that is the point — "all of 010's first-role
+ * Either end may be a parent, and that is the point — "all of 010's first-step
  * work before any of 020" is what a planner writes, and drawing an edge from
  * every leaf under 010 would be tedious and wrong the moment a leaf is added.
  * The expansion to leaves happens when the schedule is computed, not here;
@@ -1625,8 +1638,8 @@ export const planEvent = sqliteTable(
     label: text('label').notNull(),
     /** The one work item the command was aimed at, or null when it named many. */
     workItemId: text('work_item_id'),
-    /** The role, for the kinds that carry one: the estimate kinds and `assign`. */
-    roleId: text('role_id'),
+    /** The step, for the kinds that carry one: the estimate kinds and `assign`. */
+    stepId: text('role_id'),
     before: text('before').notNull(),
     after: text('after').notNull(),
     createdAt: integer('created_at').notNull(),

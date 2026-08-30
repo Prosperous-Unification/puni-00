@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Role } from './index';
-import { ROLE_POSITION_STEP } from './index';
+import type { Project, Step } from './index';
+import { STEP_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { ProjectRepository } from './project';
@@ -52,12 +52,12 @@ function project(name: string, createdAt: number): Project {
   };
 }
 
-function roles(projectId: string, ...names: string[]): Role[] {
+function steps(projectId: string, ...names: string[]): Step[] {
   return names.map((name, place) => ({
     id: crypto.randomUUID(),
     projectId,
     name,
-    position: (place + 1) * ROLE_POSITION_STEP,
+    position: (place + 1) * STEP_POSITION_STEP,
   }));
 }
 
@@ -95,7 +95,7 @@ describe('ProjectRepository', () => {
 
   it('rolls the solution reference back and forward without losing a project', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
       '20260830120000_add_dep_reach',
@@ -125,8 +125,8 @@ describe('ProjectRepository', () => {
   it('refuses one solution slug naming two projects', async () => {
     const shed = project('Rewire the shed', 100);
     const fence = project('Paint the fence', 200);
-    await repo.create(shed, roles(shed.id, 'Dev'));
-    await repo.create(fence, roles(fence.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(fence, steps(fence.id, 'Dev'));
     await repo.update(shed.id, {
       solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/site-refresh' },
     });
@@ -140,9 +140,9 @@ describe('ProjectRepository', () => {
     ).toMatch(/UNIQUE/);
   });
 
-  it('writes a project and its starting roles together', async () => {
+  it('writes a project and its starting steps together', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev', 'QA'));
+    await repo.create(shed, steps(shed.id, 'Dev', 'QA'));
 
     expect(await repo.findById(shed.id)).toMatchObject({
       name: 'Rewire the shed',
@@ -151,21 +151,21 @@ describe('ProjectRepository', () => {
       estimateMethod: 'pert',
       startDate: null,
     });
-    expect((await repo.rolesOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
+    expect((await repo.stepsOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
   });
 
   it('lists projects newest first, whoever owns them', async () => {
     const older = project('Older', 100);
     const newer = project('Newer', 200);
-    await repo.create(older, roles(older.id, 'Dev'));
-    await repo.create(newer, roles(newer.id, 'Dev'));
+    await repo.create(older, steps(older.id, 'Dev'));
+    await repo.create(newer, steps(newer.id, 'Dev'));
 
     expect((await repo.list()).map((p) => p.name)).toEqual(['Newer', 'Older']);
   });
 
   it('patches name and restricted, leaving the rest alone', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
 
     const updated = await repo.update(shed.id, { restricted: true });
 
@@ -176,18 +176,18 @@ describe('ProjectRepository', () => {
     expect(await repo.update(crypto.randomUUID(), { name: 'Ghost' })).toBeNull();
   });
 
-  it('refuses two roles with one name in one project', async () => {
+  it('refuses two steps with one name in one project', async () => {
     // The uniqueness lives in the schema rather than the service because two
-    // concurrent role additions both pass a check-then-insert.
+    // concurrent step additions both pass a check-then-insert.
     const shed = project('Rewire the shed', 100);
-    expect(await rejection(repo.create(shed, roles(shed.id, 'Dev', 'Dev')))).toMatch(/UNIQUE/);
+    expect(await rejection(repo.create(shed, steps(shed.id, 'Dev', 'Dev')))).toMatch(/UNIQUE/);
   });
 
   it('lists per account: opened first by recency, then never-opened by creation', async () => {
     const a = project('A', 100);
     const b = project('B', 200);
     const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'));
 
     await repo.recordOpen(ownerId, a.id, 1000);
     await repo.recordOpen(ownerId, b.id, 2000);
@@ -208,7 +208,7 @@ describe('ProjectRepository', () => {
     const a = project('A', 100);
     const b = project('B', 200);
     const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'));
     await repo.recordOpen(ownerId, a.id, 1000);
     await repo.recordOpen(other, c.id, 500);
 
@@ -229,7 +229,7 @@ describe('ProjectRepository', () => {
     });
     const shed = project('Rewire the shed', 100);
     const fence: Project = { ...project('Paint the fence', 200), ownerId: strip };
-    for (const p of [shed, fence]) await repo.create(p, roles(p.id, 'Dev'));
+    for (const p of [shed, fence]) await repo.create(p, steps(p.id, 'Dev'));
     await repo.recordOpen(ownerId, shed.id, 1000);
 
     const listed = await repo.listFor(ownerId);
@@ -246,7 +246,7 @@ describe('ProjectRepository', () => {
 
   it('keeps one record per pair, holding the later moment', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
 
     await repo.recordOpen(ownerId, shed.id, 1000);
     await repo.recordOpen(ownerId, shed.id, 3000);
@@ -256,7 +256,7 @@ describe('ProjectRepository', () => {
 
   it('patches the estimate method', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
 
     const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' });
 
@@ -270,7 +270,7 @@ describe('ProjectRepository', () => {
     // Written past the repository on purpose: this is the case where the
     // *stored* value is wrong, which no amount of request validation prevents.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE project SET estimate_method = 'median' WHERE id = '${shed.id}'`);
@@ -326,7 +326,7 @@ describe('ProjectRepository', () => {
     // 1 against 51.
     for (let made = 0; made < 50; made += 1) {
       const p = project(`Project ${String(made)}`, 100 + made);
-      await repo.create(p, roles(p.id, 'Dev'));
+      await repo.create(p, steps(p.id, 'Dev'));
     }
     const statements: string[] = [];
     const counted = new ProjectRepository(
@@ -352,7 +352,7 @@ describe('ProjectRepository', () => {
     // connection, this connection is opened, used and closed here, and the
     // repository's own connection never has it off.
     const kept = project('Rewire the shed', 100);
-    await repo.create(kept, roles(kept.id, 'Dev'));
+    await repo.create(kept, steps(kept.id, 'Dev'));
     const orphan = project('Orphan', 200);
     const db = openDatabase(join(dir, 'test.db'));
     try {
@@ -374,6 +374,6 @@ describe('ProjectRepository', () => {
     // Proof that foreign keys are enforced rather than merely declared: this
     // insert parses fine and is rejected only because the pragma is on.
     const orphan: Project = { ...project('Orphan', 100), ownerId: crypto.randomUUID() };
-    expect(await rejection(repo.create(orphan, roles(orphan.id, 'Dev')))).toMatch(/FOREIGN KEY/);
+    expect(await rejection(repo.create(orphan, steps(orphan.id, 'Dev')))).toMatch(/FOREIGN KEY/);
   });
 });

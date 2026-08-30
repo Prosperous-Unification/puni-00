@@ -13,15 +13,15 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
-import { RoleRepository } from '../repository/role';
-import { RoleMeasureRepository } from '../repository/role-measure';
-import { RoleProgressRepository } from '../repository/role-progress';
+import { StepRepository } from '../repository/step';
+import { StepMeasureRepository } from '../repository/step-measure';
+import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
 import { ProjectService } from '../service/project.service';
-import { RoleService } from '../service/role.service';
+import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -34,7 +34,7 @@ import { testWrites } from '../testing/writes-fixture';
 /**
  * The directory commands, over real SQLite.
  *
- * Real for the same reason `role.controller.test.ts` is: every status asserted
+ * Real for the same reason `step.controller.test.ts` is: every status asserted
  * here is decided by rows — the unique index behind a 409 `taken`, the
  * assignments behind a 409 `in_use` — and a fixture answering them would be a
  * second implementation of the rules under test.
@@ -48,7 +48,7 @@ let sqlite: ReturnType<typeof openDatabase>;
 let store: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projects: ProjectRepository;
-let roleStore: RoleRepository;
+let stepStore: StepRepository;
 let token: string;
 
 beforeEach(async () => {
@@ -61,7 +61,7 @@ beforeEach(async () => {
   projects = new ProjectRepository(db);
   store = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
-  roleStore = new RoleRepository(db);
+  stepStore = new StepRepository(db);
 
   app = buildApp({
     directory: new DirectoryService({ directory: store, broadcast: recordingBroadcaster() }),
@@ -70,14 +70,14 @@ beforeEach(async () => {
     history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
-    roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),
+    steps: new StepService({ projects, steps: stepStore, broadcast: recordingBroadcaster() }),
     workItems: new WorkItemService({
       workItems,
       projects,
       estimates: new EstimateRepository(db),
       actuals: new ActualRepository(db),
-      measures: new RoleMeasureRepository(db),
-      progress: new RoleProgressRepository(db),
+      measures: new StepMeasureRepository(db),
+      progress: new StepProgressRepository(db),
       dependencies: new DependencyRepository(db),
       directory: store,
       capacity: inMemoryCapacity(),
@@ -421,7 +421,7 @@ describe('deletePerson and deleteTeam', () => {
   async function planWithOneRow(): Promise<{
     projectOf: string;
     workItemOf: string;
-    roleOf: string;
+    stepOf: string;
   }> {
     const { body } = await call('POST', '/api/projects', { name: 'Rollout' });
     const { project } = body as { project: { id: string } };
@@ -433,19 +433,19 @@ describe('deletePerson and deleteTeam', () => {
         name: 'Design',
       }),
     );
-    const roles = await roleStore.listByProject(project.id);
-    const dev = roles.find((each) => each.name === 'Dev');
-    if (dev === undefined) throw new Error('the seeded project had no Dev role');
-    return { projectOf: project.id, workItemOf, roleOf: dev.id };
+    const steps = await stepStore.listByProject(project.id);
+    const dev = steps.find((each) => each.name === 'Dev');
+    if (dev === undefined) throw new Error('the seeded project had no Dev step');
+    return { projectOf: project.id, workItemOf, stepOf: dev.id };
   }
 
   it('answers 409 in_use carrying the usage, then 200 on the cascade', async () => {
     const kat = await addPerson('Kat', []);
-    const { projectOf, workItemOf, roleOf } = await planWithOneRow();
+    const { projectOf, workItemOf, stepOf } = await planWithOneRow();
     const assigned = await planCommand(projectOf, {
       kind: 'setAssignee',
       workItemId: workItemOf,
-      roleId: roleOf,
+      stepId: stepOf,
       personId: kat,
     });
     expect(assigned.status).toBe(200);
@@ -468,7 +468,7 @@ describe('deletePerson and deleteTeam', () => {
                 number: '010',
                 name: 'Design',
                 effects: [
-                  { kind: 'assignment_dropped', role: { id: roleOf, name: 'Dev' } },
+                  { kind: 'assignment_dropped', step: { id: stepOf, name: 'Dev' } },
                   { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
                 ],
               },

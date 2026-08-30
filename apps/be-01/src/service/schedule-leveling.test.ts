@@ -4,8 +4,8 @@ import type { WorkItem } from '../repository';
 import type { DependencyEdge, Schedule, ScheduledSlice, Slice } from './schedule';
 import { schedule, sliceKey } from './schedule';
 
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -31,15 +31,15 @@ const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
 
 const slice = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   days: number | null,
   personId: string | null = null,
-): Slice => ({ workItemId, roleId, days, personId, width: 1, poolIds: [] });
+): Slice => ({ workItemId, stepId, days, personId, width: 1, poolIds: [] });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
-const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {
-  const one = found.slices.get(sliceKey(workItemId, roleId));
-  if (one === undefined) throw new Error(`no slice for ${workItemId}/${roleId}`);
+const planned = (found: Schedule, workItemId: string, stepId: string): ScheduledSlice => {
+  const one = found.slices.get(sliceKey(workItemId, stepId));
+  if (one === undefined) throw new Error(`no slice for ${workItemId}/${stepId}`);
   return one;
 };
 
@@ -133,7 +133,7 @@ describe('leveling — a person does one thing at a time', () => {
     expect(planned(found, 'short', DEV)).toMatchObject({ earliestStart: 4, earliestFinish: 5 });
   });
 
-  it('breaks a remaining tie on the work item number, then on role order', () => {
+  it('breaks a remaining tie on the work item number, then on step order', () => {
     // Identical in every way that matters to the plan, so the tree order
     // decides — and the same plan therefore schedules the same way twice.
     // Numbered `010` and `020` by their positions, and handed over in the other
@@ -166,9 +166,9 @@ describe('leveling — a person does one thing at a time', () => {
     });
   });
 
-  it('queues every role of a work item one person covers', () => {
+  it('queues every step of a work item one person covers', () => {
     // The assumed assignee is a queue of one, which is the whole point of it:
-    // `kat` doing both roles of `b` cannot start either while she is on `a`.
+    // `kat` doing both steps of `b` cannot start either while she is on `a`.
     const rows = [item('a'), item('b')];
     const slices = [slice('a', DEV, 3, 'kat'), slice('b', DEV, 1, 'kat'), slice('b', QA, 2, 'kat')];
 
@@ -186,7 +186,7 @@ describe('leveling — a person does one thing at a time', () => {
     // busy for zero days.
     //
     // Until `assumed-duration-schedules` (2026-08-29) this read `null` here and
-    // was about the role nobody had put a number against. That case moved and
+    // was about the step nobody had put a number against. That case moved and
     // is now the opposite claim — an unestimated slice is two workdays wide and
     // **does** occupy its assignee (`schedule-assumed-duration.test.ts`, `two
     // unestimated slices for one person do not overlap`). What survives is the
@@ -235,13 +235,13 @@ describe('leveling — a person does one thing at a time', () => {
     });
   });
 
-  it('names the role before it when a work item waits on its own earlier role', () => {
+  it('names the step before it when a work item waits on its own earlier step', () => {
     const rows = [item('a')];
     const slices = [slice('a', DEV, 3, null), slice('a', QA, 2, null)];
 
     const found = schedule(rows, [], slices);
 
-    expect(planned(found, 'a', QA)).toMatchObject({ earliestStart: 3, boundBy: 'roleOrder' });
+    expect(planned(found, 'a', QA)).toMatchObject({ earliestStart: 3, boundBy: 'stepOrder' });
   });
 
   it('names the manual floor when that is what pushed a slice', () => {
@@ -419,11 +419,11 @@ describe('leveling — the anchor reach and the queue', () => {
     // so the leveller has to choose, and the loser records whom it waited for.
     //
     // The tie goes to `lead`'s QA on the critical-path ranking, so `sub` is the
-    // one that queues: 5→6, `boundBy` the person, behind `lead/role-qa`.
+    // one that queues: 5→6, `boundBy` the person, behind `lead/step-qa`.
     //
     // Proof: `anchorNode` set to the leaf's last node — the whole-item rule —
     // and this failed on `boundBy` `person` → `predecessor` and
-    // `resourcePredecessorId` `lead/role-qa` → `null`, on the same day 5. That
+    // `resourcePredecessorId` `lead/step-qa` → `null`, on the same day 5. That
     // is the finding exactly: under the old rule this contention could not
     // exist, and the days alone would not have shown it. Watched 2026-08-11.
     const rows = [item('lead'), item('sub')];

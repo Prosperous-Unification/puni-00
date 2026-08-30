@@ -7,7 +7,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   StoredActual,
   WorkItemStore,
 } from '../repository';
@@ -29,16 +29,16 @@ import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
-let journal: CommandJournalStore & { events: { kind: string; roleId: string | null }[] };
+let progress: StepProgressStore;
+let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
 
@@ -52,7 +52,7 @@ beforeEach(async () => {
   progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
-  const recorded: { kind: string; roleId: string | null }[] = [];
+  const recorded: { kind: string; stepId: string | null }[] = [];
   // The journal, with the history rows it is handed kept where a test can read
   // them. H1 writes the plan's event from inside `append`, so this is the seam
   // an actual has to arrive through if it is to be in the history for free.
@@ -60,7 +60,7 @@ beforeEach(async () => {
     ...store,
     events: recorded,
     async append(entry, event) {
-      recorded.push({ kind: event.kind, roleId: event.roleId });
+      recorded.push({ kind: event.kind, stepId: event.stepId });
       await store.append(entry, event);
     },
   };
@@ -117,8 +117,8 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
  */
 function stored(
   rows: readonly StoredActual[],
-): { workItemId: string; roleId: string; days: number }[] {
-  return rows.map(({ workItemId, roleId, days }) => ({ workItemId, roleId, days }));
+): { workItemId: string; stepId: string; days: number }[] {
+  return rows.map(({ workItemId, stepId, days }) => ({ workItemId, stepId, days }));
 }
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
@@ -132,7 +132,7 @@ async function add(name: string, parentId: string | null = null): Promise<string
  *
  * A Map rather than a Record for the reason `estimate.test.ts` gives: indexing
  * a Record is typed as always present, and every assertion here turns on the
- * difference between a role that is absent and one that is zero.
+ * difference between a step that is absent and one that is zero.
  */
 async function shown(): Promise<Map<string, Record<string, number>>> {
   const tree = await service.tree(projectId);
@@ -155,7 +155,7 @@ describe('recording actual days', () => {
     expect(tree?.workItems.find((w) => w.name === 'Strip')?.estimates[DEV]).toEqual(days(1, 2, 3));
   });
 
-  it('leaves a role nobody has recorded absent rather than zero', async () => {
+  it('leaves a step nobody has recorded absent rather than zero', async () => {
     // The rule this table is built on. `{QA: 0}` and `{}` render identically in
     // a spreadsheet and mean opposite things: "QA spent no days on it" against
     // "nobody has said what QA spent", and only the second is true here.
@@ -189,12 +189,12 @@ describe('recording actual days', () => {
     expect((await shown()).get('Strip')).toEqual({});
   });
 
-  it('refuses a role this project does not hold, and writes nothing', async () => {
+  it('refuses a step this project does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
-    const outcome = await service.setActual(strip, OWNER, 'role-design', 4);
+    const outcome = await service.setActual(strip, OWNER, 'step-design', 4);
 
-    expect(outcome).toEqual({ ok: false, reason: 'unknown_role' });
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_step' });
     expect((await shown()).get('Strip')).toEqual({});
   });
 
@@ -252,10 +252,10 @@ describe('recording actual days', () => {
     await service.clearActual(strip, OWNER, DEV);
 
     expect(journal.events.map((each) => each.kind)).toEqual(['create', 'actual', 'clear_actual']);
-    // The role travels on the event, which is what "how did this figure move"
+    // The step travels on the event, which is what "how did this figure move"
     // filters on.
-    expect(journal.events.at(1)?.roleId).toBe(DEV);
-    expect(journal.events.at(2)?.roleId).toBe(DEV);
+    expect(journal.events.at(1)?.stepId).toBe(DEV);
+    expect(journal.events.at(2)?.stepId).toBe(DEV);
   });
 
   it('records nothing at all for clearing days that were never recorded', async () => {
@@ -323,14 +323,14 @@ describe('actuals through the structural commands', () => {
     // which is what makes the move invisible to whoever typed it.
     expect(moved.get('Strip')).toEqual({ [DEV]: 8 });
     expect(stored(await actuals.listByProject(projectId))).toEqual([
-      { workItemId: sockets, roleId: DEV, days: 8 },
+      { workItemId: sockets, stepId: DEV, days: 8 },
     ]);
 
     await service.undo(projectId, OWNER);
 
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 8 });
     expect(stored(await actuals.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, days: 8 },
+      { workItemId: strip, stepId: DEV, days: 8 },
     ]);
   });
 

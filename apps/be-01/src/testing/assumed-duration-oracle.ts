@@ -5,7 +5,7 @@ import { expect } from 'bun:test';
  * `assumed-duration-schedules` (2026-08-29).
  *
  * That oracle is sixteen plans and the answer a be-01 at `050fd45` gave each of
- * them, and thirteen of the sixteen leave at least one work item/role pair
+ * them, and thirteen of the sixteen leave at least one work item/step pair
  * unestimated. Those pairs used to take no time; they now take
  * `ASSUMED_SLICE_WORKDAYS`, so the answers to those thirteen moved **by
  * design**, and a differential that re-recorded them would be a fixture made to
@@ -66,15 +66,15 @@ interface CapturedTree {
   waitingForCapacity: number;
 }
 
-/** Whether every leaf of `plan` carries an estimate for every role the project lists. */
+/** Whether every leaf of `plan` carries an estimate for every step the project lists. */
 export function isFullyEstimated(plan: {
-  roleIds: readonly string[];
+  stepIds: readonly string[];
   rows: readonly { id: string; parentId: string | null; estimates: Record<string, unknown> }[];
 }): boolean {
   const parents = new Set(plan.rows.map((row) => row.parentId));
   return plan.rows
     .filter((row) => !parents.has(row.id))
-    .every((row) => plan.roleIds.every((roleId) => Object.hasOwn(row.estimates, roleId)));
+    .every((row) => plan.stepIds.every((stepId) => Object.hasOwn(row.estimates, stepId)));
 }
 
 const MOVED = new Set<string>(MOVED_SCHEDULE_FIELDS);
@@ -119,7 +119,7 @@ export function withoutPlacement(tree: Record<string, unknown>): Record<string, 
  *
  * A count and **not** a direction. "An assumed duration can only push work
  * later" is false, and measured to be: with the assumption on, `p14-g2-l1
- * role-0` starts on day 6 where the capture has it on day 11. Leveling ranks its
+ * step-0` starts on day 6 where the capture has it on day 11. Leveling ranks its
  * queue by the unlevelled float, the assumption changes that float, and a slice
  * whose rank rose takes the person earlier. That is the leveller working as
  * designed and it is why this asserts that the placement moved rather than which

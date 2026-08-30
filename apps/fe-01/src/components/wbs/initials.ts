@@ -1,7 +1,7 @@
 /**
- * The two characters a folded role cell names its assignee by.
+ * The two characters a folded step cell names its assignee by.
  *
- * A folded role is 96px wide and holds a figure as well as a person, which left
+ * A folded step is 96px wide and holds a figure as well as a person, which left
  * the name about 40px: `vadym` printed as `vad…` and `kucherenko` as `kuc…`, and
  * three characters of a name with an ellipsis after them is not a name — two
  * different people on one plan read identically. Initials are the same length

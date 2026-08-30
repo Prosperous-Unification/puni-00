@@ -69,7 +69,7 @@ const COLUMN_HINTS = new Map<string, string>([
   ],
   [
     'depends',
-    'The rows this one waits for. It starts after each named row’s first estimated role ' +
+    'The rows this one waits for. It starts after each named row’s first estimated step ' +
       'rather than after that row finishes, so pushing a row you depend on pushes this one too.',
   ],
   [
@@ -106,7 +106,7 @@ const COLUMN_HINTS = new Map<string, string>([
   ],
   [
     'final-total',
-    'Every role’s final figure for this work item, added up — and the length of its bar. ' +
+    'Every step’s final figure for this work item, added up — and the length of its bar. ' +
       'Computed: change an estimate, or how many work on it at once, and this moves with it.',
   ],
   [
@@ -144,7 +144,7 @@ function scheduleHint(what: string, state: ColumnHintState): string {
 }
 
 /**
- * What one of a role's three estimate boxes says.
+ * What one of a step's three estimate boxes says.
  *
  * The word is the first thing in it because the heading is a single letter —
  * `o`, `r`, `p` — and 44px of column is why. A hint that opened with the effect
@@ -153,29 +153,29 @@ function scheduleHint(what: string, state: ColumnHintState): string {
  */
 function pointHint(point: string): string {
   const opening: Record<string, string> = {
-    optimistic: 'Optimistic: days for this role if nothing gets in the way.',
-    realistic: 'Realistic: days for this role as it usually goes.',
-    pessimistic: 'Pessimistic: days for this role if it goes badly.',
+    optimistic: 'Optimistic: days for this step if nothing gets in the way.',
+    realistic: 'Realistic: days for this step as it usually goes.',
+    pessimistic: 'Pessimistic: days for this step if it goes badly.',
   };
   return (
-    `${opening[point] ?? ''} The three combine as (o + 4r + p) ÷ 6 into the role’s figure, ` +
+    `${opening[point] ?? ''} The three combine as (o + 4r + p) ÷ 6 into the step’s figure, ` +
     'which is what its bar and every date after it are built from.'
   );
 }
 
 /**
- * What a role's folded column says.
+ * What a step's folded column says.
  *
  * A named export because the fold button in that heading opens with it — the
  * button covers most of the cell, so the `<th>`'s own `title` would be
  * unreachable there — and a column definition may not read the hint state:
- * `columns` is a `useMemo` whose dependencies are the roles alone, and anything
+ * `columns` is a `useMemo` whose dependencies are the steps alone, and anything
  * else it closed over would be stale by a render (landmine #1). Constant for
  * exactly that reason: this sentence turns on nothing about the plan.
  */
-export const ROLE_FINAL_HINT =
-  'This role’s days for the work item, from its three points. Roles on one item run ' +
-  'in order, so this one waits for the role before it.';
+export const STEP_FINAL_HINT =
+  'This step’s days for the work item, from its three points. Steps on one item run ' +
+  'in order, so this one waits for the step before it.';
 
 /** An id no sentence was written for — a typo, or a new column nobody explained. */
 export class UnexplainedColumnError extends Error {
@@ -192,9 +192,9 @@ export class UnexplainedColumnError extends Error {
 /**
  * The sentence the heading with this id carries, for this plan.
  *
- * Role columns are matched by suffix and named by kind rather than by role,
- * exactly as {@link defaultWidthFor} sizes them: a role is created at runtime,
- * so the role half of the id is whatever the project called it. The role's own
+ * Step columns are matched by suffix and named by kind rather than by step,
+ * exactly as {@link defaultWidthFor} sizes them: a step is created at runtime,
+ * so the step half of the id is whatever the project called it. The step's own
  * name is already the heading the reader is resting on.
  *
  * @throws {UnexplainedColumnError} when nothing explains that id.
@@ -205,10 +205,10 @@ export function hintFor(columnId: string, state: ColumnHintState): string {
   if (columnId === 'start') return scheduleHint('earliest start', state);
   if (columnId === 'finish') return scheduleHint('earliest finish', state);
   if (columnId.includes('-')) {
-    if (columnId.endsWith('-final')) return ROLE_FINAL_HINT;
+    if (columnId.endsWith('-final')) return STEP_FINAL_HINT;
     if (columnId.endsWith('-assignee')) {
       return (
-        'Who does this role. A named person does one thing at a time, so their next item waits ' +
+        'Who does this step. A named person does one thing at a time, so their next item waits ' +
         'for their last — and naming somebody switches off this item’s people-at-once compression.'
       );
     }

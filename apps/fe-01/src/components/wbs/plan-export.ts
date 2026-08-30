@@ -20,7 +20,7 @@ export interface ExportTrio {
  * a plain one: no children, because the export is flat and the number carries
  * the outline.
  *
- * `estimates` and `finalDays` are `| undefined` on purpose. **A role a row was
+ * `estimates` and `finalDays` are `| undefined` on purpose. **A step a row was
  * never estimated for is absent from both**, and that absence is what the
  * export renders as an empty cell rather than a zero.
  */
@@ -95,7 +95,7 @@ export interface ExportRow {
   dates: { startsOn: string; endsOn: string } | null;
   schedule: { earliestStart: number; earliestFinish: number; float: number; critical: boolean };
   assignees: Record<string, string | undefined>;
-  doesEveryPhase: string | null;
+  doesEveryStep: string | null;
 }
 
 /**
@@ -119,7 +119,7 @@ export interface ExportRow {
  * `mermaid-gantt`.** It always was one at runtime — `planForExport` assigns
  * `chartRead.slices` verbatim (`wbs-table.tsx`) — and the four-field interface
  * that used to stand here only hid the rest from the type checker. A chart
- * cannot be drawn from four fields: `planToMermaid` needs the role, the person,
+ * cannot be drawn from four fields: `planToMermaid` needs the step, the person,
  * the offsets, the critical flag and whether anybody estimated the pair, and
  * every one of them was already in the object. Widening was therefore a change
  * with no new plumbing and no second request, which is the cheapest kind.
@@ -173,7 +173,7 @@ function danglingDependencies(plan: PlanExport): number {
   );
 }
 
-/** A role, team or person as the export needs it: something with a name to print. */
+/** A step, team or person as the export needs it: something with a name to print. */
 export interface NamedEntry {
   id: string;
   name: string;
@@ -201,7 +201,7 @@ export interface PlanExport {
   startDate: string | null;
   /** `cycle` when be-01 could not order the graph, and so has no schedule to report. */
   scheduleError: 'cycle' | null;
-  roles: readonly NamedEntry[];
+  steps: readonly NamedEntry[];
   teams: readonly NamedEntry[];
   /** The tag vocabulary, for the Tags column — `teams`' shape, one dimension over. */
   tags: readonly NamedEntry[];
@@ -416,18 +416,18 @@ function endsCell(plan: PlanExport, row: ExportRow): string {
 }
 
 /**
- * Who does one role's work on one row.
+ * Who does one step's work on one row.
  *
- * The every-phase assumption is spelled out rather than left as a blank: the
+ * The every-step assumption is spelled out rather than left as a blank: the
  * table shows it in grey beside the picker, and an export that dropped it
  * would say nobody is doing the QA of a row one person is plainly doing all
  * of.
  */
-function assigneeCell(plan: PlanExport, row: ExportRow, roleId: string): string {
-  const assigned = row.assignees[roleId];
+function assigneeCell(plan: PlanExport, row: ExportRow, stepId: string): string {
+  const assigned = row.assignees[stepId];
   if (assigned !== undefined) return nameOf(plan.people, assigned);
-  if (row.doesEveryPhase === null) return '';
-  return `${nameOf(plan.people, row.doesEveryPhase)} (assumed — the only assignee does every phase)`;
+  if (row.doesEveryStep === null) return '';
+  return `${nameOf(plan.people, row.doesEveryStep)} (assumed — the only assignee does every step)`;
 }
 
 /** One column of the exported table: what it is called, and what a row puts in it. */
@@ -583,8 +583,8 @@ function serviceCell(
  * The widths be-01 actually ran a row's slices at, as a cell.
  *
  * A **set**, joined, and not one number: width is decided per slice, so a row
- * of `maxParallel: 3` with one role assigned to somebody reads `1, 3` — that
- * role serialised and the rest not. Printing only the largest would say the
+ * of `maxParallel: 3` with one step assigned to somebody reads `1, 3` — that
+ * step serialised and the rest not. Printing only the largest would say the
  * whole item ran three-up, and printing only the smallest would say it never
  * did.
  *
@@ -650,40 +650,40 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
       cell: (row) => (row.maxParallel === 1 ? '' : String(row.maxParallel)),
     },
     { header: 'Ran at', cell: (row) => ranAtCell(plan, row) },
-    ...plan.roles.flatMap((role): ExportColumn[] => [
+    ...plan.steps.flatMap((step): ExportColumn[] => [
       {
-        header: `${role.name} optimistic`,
+        header: `${step.name} optimistic`,
         cell: (row) => {
-          const trio = row.estimates[role.id];
+          const trio = row.estimates[step.id];
           return trio === undefined ? '' : showFigure(trio.optimistic);
         },
       },
       {
-        header: `${role.name} realistic`,
+        header: `${step.name} realistic`,
         cell: (row) => {
-          const trio = row.estimates[role.id];
+          const trio = row.estimates[step.id];
           return trio === undefined ? '' : showFigure(trio.realistic);
         },
       },
       {
-        header: `${role.name} pessimistic`,
+        header: `${step.name} pessimistic`,
         cell: (row) => {
-          const trio = row.estimates[role.id];
+          const trio = row.estimates[step.id];
           return trio === undefined ? '' : showFigure(trio.pessimistic);
         },
       },
       {
-        header: `${role.name} final (${method})`,
-        cell: (row) => figure(row, row.finalDays[role.id]),
+        header: `${step.name} final (${method})`,
+        cell: (row) => figure(row, row.finalDays[step.id]),
       },
-      { header: `${role.name} by`, cell: (row) => assigneeCell(plan, row, role.id) },
+      { header: `${step.name} by`, cell: (row) => assigneeCell(plan, row, step.id) },
     ]),
     {
       header: `Total days (${method})`,
-      // Empty rather than `0` when no role has a figure: a total of nothing
+      // Empty rather than `0` when no step has a figure: a total of nothing
       // estimated is not a plan that takes no time.
       cell: (row) =>
-        plan.roles.some((role) => row.finalDays[role.id] !== undefined)
+        plan.steps.some((step) => row.finalDays[step.id] !== undefined)
           ? figure(row, row.finalTotal)
           : '',
     },

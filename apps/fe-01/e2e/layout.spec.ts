@@ -70,7 +70,7 @@ const ROW_HEIGHT_BUDGET = 28;
  * How far the frame is scrolled sideways for the sticky half of the checks.
  *
  * Small, because the table fits now. Since 2026-08-08 it is `width: 100%` with
- * a minimum of about 1219px for a two-role plan, so at any ordinary viewport
+ * a minimum of about 1219px for a two-step plan, so at any ordinary viewport
  * there is nothing to scroll at all — {@link NARROW} is the width these tests
  * run at, and this is inside what it leaves over.
  */
@@ -905,7 +905,7 @@ function popoverEscape(
   popoverSelector: string,
   /**
    * The cell to look in, where it is not the first row's `columnId` one — a
-   * last-row probe, or a column named for a role that only exists at runtime.
+   * last-row probe, or a column named for a step that only exists at runtime.
    * `columnId` then names the cell for the failure message and nothing else.
    */
   cellSelector?: string,
@@ -962,7 +962,7 @@ test.describe('the table, measured by a browser', () => {
     page,
   }) => {
     // `configurable-columns`, measured where jsdom cannot: at 1200px the
-    // default two-phase table (1219px) overhangs the frame, and hiding Tags —
+    // default two-step table (1219px) overhangs the frame, and hiding Tags —
     // 120px — is exactly what makes it fit. The declared minimum moves by the
     // column's width and the frame's own overflow goes to nothing, which is the
     // half of the claim the browser owns. Then the column comes back, and so
@@ -1005,7 +1005,7 @@ test.describe('the table, measured by a browser', () => {
     await scrollFrameTo(page, 0);
     const [heading] = await rowBoxes(page, 'thead tr');
     // Or an empty list would satisfy `findOverlap` without a table being laid
-    // out at all. Thirteen fixed columns plus a folded column per role.
+    // out at all. Thirteen fixed columns plus a folded column per step.
     expect(heading.length).toBeGreaterThan(12);
     expect(findOverlap(heading)).toBe(undefined);
   });
@@ -1022,7 +1022,7 @@ test.describe('the table, measured by a browser', () => {
     const controls = await controlBoxes(page);
     // Or an empty table would satisfy the assertion below without laying
     // anything out at all. Seven boxes to a row — the name, the dependency
-    // box, the priority cell, the service/team picker, two folded role cells
+    // box, the priority cell, the service/team picker, two folded step cells
     // and the date — over the
     // two rows this plan seeds. Written as the number it is: it was `> 12`
     // until a browser first ran this, which was one more than a row has held
@@ -1035,7 +1035,7 @@ test.describe('the table, measured by a browser', () => {
     ).toEqual([]);
   });
 
-  test('holds a trio and its figure on one line of a folded role cell', async ({ page }) => {
+  test('holds a trio and its figure on one line of a folded step cell', async ({ page }) => {
     // `estimate-triple-visible`. The seeded plan estimates 010 `2/3/8` and
     // leaves 020 unestimated, so the two rows are the same row with and
     // without this change's content in it.
@@ -1079,14 +1079,14 @@ test.describe('the table, measured by a browser', () => {
           !(box instanceof HTMLInputElement) ||
           !(figure instanceof HTMLElement)
         ) {
-          throw new Error('the first row has no folded role cell with a box and a figure in it');
+          throw new Error('the first row has no folded step cell with a box and a figure in it');
         }
         const cellBox = cell.getBoundingClientRect();
         const boxBox = box.getBoundingClientRect();
         const figureBox = figure.getBoundingClientRect();
         return {
           said: figure.textContent,
-          cell: { id: 'the role column', x: cellBox.x, width: cellBox.width },
+          cell: { id: 'the step column', x: cellBox.x, width: cellBox.width },
           box: { id: 'the trio box', x: boxBox.x, width: boxBox.width },
           figure: { id: 'the derived figure', x: figureBox.x, width: figureBox.width },
           // Whether the box is showing its whole value or scrolling it. This
@@ -1735,7 +1735,7 @@ test.describe('the table, measured by a browser', () => {
 
   test('holds the folded budget at 1280, and says where it stops', async ({ page }) => {
     // D14's own question, and the one nothing in this repository had ever
-    // asked: at 1280, how many folded phases fit before the frame scrolls?
+    // asked: at 1280, how many folded steps fit before the frame scrolls?
     //
     // The 2026-08-14 cloud regression answered it from the markup and got it
     // wrong, because the `<table>` carries **two** width declarations and only
@@ -1751,7 +1751,7 @@ test.describe('the table, measured by a browser', () => {
     // Every figure is re-derived through `foldedTableMinWidth`, never written
     // out — a column that changes width changes this test in the same commit,
     // which is the whole reason that function lives in `table-frame.ts` rather
-    // than as arithmetic in the Phases dialog.
+    // than as arithmetic in the Steps dialog.
     //
     // Proof, twice, and neither could be reasoned:
     //
@@ -1762,17 +1762,17 @@ test.describe('the table, measured by a browser', () => {
     //    1219px)' to be 'min(100%, 1439px)'`, with every scroll assertion in
     //    it still green. Watched on h2puni, 2026-08-14 (fault F1).
     // 2. `['in-parallel', 32]` widened by 32px, which is the fault the P2
-    //    alleged — the budget really blown: this failed on `two folded phases
+    //    alleged — the budget really blown: this failed on `two folded steps
     //    fit a 1280 laptop: expected 1251 to be less than or equal to 1248`.
     //    Watched on h2puni, 2026-08-14 (fault F2).
     //
     //    **The injection had to be 32px and not the 16 first tried**, and that
     //    is worth more than the row it fills in: with the column at the 48 the
-    //    capacity plan originally drew, the two-phase floor is 1235 against
+    //    capacity plan originally drew, the two-step floor is 1235 against
     //    1248 and **nothing scrolls** — watched passing. The folded table has
     //    29px of slack at 1280 today, not none, and every figure in the
     //    2026-08-14 report is inside it.
-    const roleIdsOnScreen = async (): Promise<string[]> =>
+    const stepIdsOnScreen = async (): Promise<string[]> =>
       page.evaluate(() =>
         [...document.querySelectorAll('thead th[data-column]')]
           .map((header) => header.getAttribute('data-column') ?? '')
@@ -1804,44 +1804,44 @@ test.describe('the table, measured by a browser', () => {
 
     // Two, which is what a new project has and what D14's 1219px figure is
     // about.
-    const twoPhases = await roleIdsOnScreen();
-    expect(twoPhases).toHaveLength(2);
+    const twoSteps = await stepIdsOnScreen();
+    expect(twoSteps).toHaveLength(2);
     const two = await budget();
-    expect(two.declaredMinWidth).toBe(`${String(foldedTableMinWidth(twoPhases, SEEDED_PLAN))}px`);
+    expect(two.declaredMinWidth).toBe(`${String(foldedTableMinWidth(twoSteps, SEEDED_PLAN))}px`);
     expect(two.declaredWidth, 'the declared width is the cap, not the floor').toBe(
-      `min(100%, ${String(frameLayout([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS, ...twoPhases.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
+      `min(100%, ${String(frameLayout([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS, ...twoSteps.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
     );
     // And the two really are different numbers, or the assertion above and the
     // one below are the same assertion written twice.
     expect(two.declaredWidth).not.toContain(two.declaredMinWidth);
-    expect(two.frameScrollWidth, 'two folded phases fit a 1280 laptop').toBeLessThanOrEqual(
+    expect(two.frameScrollWidth, 'two folded steps fit a 1280 laptop').toBeLessThanOrEqual(
       two.frameClientWidth,
     );
 
     // Three, which is the state D14 says already scrolled — and nothing had
     // ever watched scroll.
-    // Through `Project settings` and its `Phases` tab, since `project-config-modal`.
+    // Through `Project settings` and its `Steps` tab, since `project-config-modal`.
     await page.getByRole('button', { name: 'Project settings' }).click();
-    await page.getByRole('tab', { name: 'Phases' }).click();
-    await page.getByLabel('New phase').fill('Design');
-    await page.getByRole('button', { name: 'Add phase' }).click();
+    await page.getByRole('tab', { name: 'Steps' }).click();
+    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
 
-    const threePhases = await roleIdsOnScreen();
-    expect(threePhases).toHaveLength(3);
+    const threeSteps = await stepIdsOnScreen();
+    expect(threeSteps).toHaveLength(3);
     const three = await budget();
     expect(three.declaredMinWidth).toBe(
-      `${String(foldedTableMinWidth(threePhases, SEEDED_PLAN))}px`,
+      `${String(foldedTableMinWidth(threeSteps, SEEDED_PLAN))}px`,
     );
-    expect(three.frameScrollWidth, 'three folded phases must scroll a 1280 laptop').toBeGreaterThan(
+    expect(three.frameScrollWidth, 'three folded steps must scroll a 1280 laptop').toBeGreaterThan(
       three.frameClientWidth,
     );
     // And the pins hold the edge once it does, which is what they are the
     // backstop for. Measured at this viewport rather than at `NARROW`, because
     // the claim is about the state a reader really reaches — and scrolled to
-    // the frame's **own** maximum, which at 1280 with three phases is 67px.
+    // the frame's **own** maximum, which at 1280 with three steps is 67px.
     // `SCROLLED`'s 150 is a figure from a 900px window and would leave the
     // frame at 67 with `scrollFrameTo` refusing it, which is that helper doing
     // exactly its job.
@@ -1857,14 +1857,14 @@ test.describe('the table, measured by a browser', () => {
 
     // One, which is the case the regression said no longer fits. It has the
     // most room of the three.
-    for (const phase of ['Design', 'QA']) {
+    for (const step of ['Design', 'QA']) {
       await page.getByRole('button', { name: 'Project settings' }).click();
       await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
-      await page.getByRole('tab', { name: 'Phases' }).click();
+      await page.getByRole('tab', { name: 'Steps' }).click();
       // No estimate stands on either of these two — `seedPlan` estimates Dev
       // alone — so each removal is one press with no cascade to confirm.
-      await page.getByRole('button', { name: `Remove ${phase}` }).click();
-      await expect(page.getByRole('button', { name: `Remove ${phase}` })).toHaveCount(0);
+      await page.getByRole('button', { name: `Remove ${step}` }).click();
+      await expect(page.getByRole('button', { name: `Remove ${step}` })).toHaveCount(0);
       // The modal refuses Escape while a section still holds a write in
       // flight (`project-config-modal` D3), and the removal's reread lands a
       // moment after the button goes. Pressing until the surface is gone is
@@ -1874,19 +1874,19 @@ test.describe('the table, measured by a browser', () => {
         await expect(page.getByRole('dialog')).toHaveCount(0);
       }).toPass();
     }
-    const onePhase = await roleIdsOnScreen();
-    expect(onePhase).toHaveLength(1);
+    const oneStep = await stepIdsOnScreen();
+    expect(oneStep).toHaveLength(1);
     const one = await budget();
-    expect(one.declaredMinWidth).toBe(`${String(foldedTableMinWidth(onePhase, SEEDED_PLAN))}px`);
+    expect(one.declaredMinWidth).toBe(`${String(foldedTableMinWidth(oneStep, SEEDED_PLAN))}px`);
     expect(
       one.frameScrollWidth,
-      'one folded phase fits a 1280 laptop with room to spare',
+      'one folded step fits a 1280 laptop with room to spare',
     ).toBeLessThanOrEqual(one.frameClientWidth);
 
     // The boundary itself, stated as the relation rather than as three
-    // literals: each phase costs one folded column, the floors go up in that
+    // literals: each step costs one folded column, the floors go up in that
     // step, and the frame is between the second and the third.
-    const floors = [onePhase, twoPhases, threePhases].map((ids) =>
+    const floors = [oneStep, twoSteps, threeSteps].map((ids) =>
       foldedTableMinWidth(ids, SEEDED_PLAN),
     );
     expect(floors[1] - floors[0]).toBe(floors[2] - floors[1]);
@@ -1894,22 +1894,22 @@ test.describe('the table, measured by a browser', () => {
     expect(floors[2]).toBeGreaterThan(one.frameClientWidth);
   });
 
-  test('fits every laptop width with the roles folded', async ({ page }) => {
-    // The state a plan is read in, and the one R6 is actually about: two roles
+  test('fits every laptop width with the steps folded', async ({ page }) => {
+    // The state a plan is read in, and the one R6 is actually about: two steps
     // folded is 839px of fixed columns (827 → 839 in `number-column-widen`,
-    // 93 → 105 in `COLUMN_WIDTHS`) plus two 96px roles plus Name's 200
+    // 93 → 105 in `COLUMN_WIDTHS`) plus two 96px steps plus Name's 200
     // floor — 1231px — so both of these have room to spare.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
       // Or this is a check about a table that never laid out. Twelve fixed
-      // columns and one per folded role.
+      // columns and one per folded step.
       expect(measured.columns.length).toBeGreaterThan(11);
       expect(
         equationFor(measured),
         `${viewport.name}: the folded equation should fit this viewport`,
       ).toBeLessThanOrEqual(measured.frame.clientWidth);
-      expectItFits(measured, `${viewport.name}, both roles folded`);
+      expectItFits(measured, `${viewport.name}, both steps folded`);
     }
   });
 
@@ -1985,7 +1985,7 @@ test.describe('the table, measured by a browser', () => {
     // some other column took the difference.
     expect(table).toBeLessThan(measured.frame.clientWidth - 1);
     expect(measured.frame.scrollWidth).toBeLessThanOrEqual(measured.frame.clientWidth);
-    expectItFits(measured, '1920×982, both roles folded, Name capped');
+    expectItFits(measured, '1920×982, both steps folded, Name capped');
   });
 
   test('sets the grid body’s type below the page’s own, and keeps a row inside its budget', async ({
@@ -2056,26 +2056,26 @@ test.describe('the table, measured by a browser', () => {
     );
   });
 
-  test('holds the equation with one role unfolded, and scrolls only where it must', async ({
+  test('holds the equation with one step unfolded, and scrolls only where it must', async ({
     page,
   }) => {
-    // The arithmetic of one open role, measured: 1406px, which fits 1512 and
+    // The arithmetic of one open step, measured: 1406px, which fits 1512 and
     // does not fit 1280. It was 1430 until `spreadsheet-geometry` took the
     // three point columns from 52px to 44. Both answers are asserted — the
     // second is the pinned backstop doing its job, not a failure.
     //
     // **Superseded in part by `unfolding-may-scroll`**: this used to assert
-    // that the *other* role had folded itself, "which is what keeps this to
-    // 1430". No role folds itself now, so the loop folds the previous one by
+    // that the *other* step had folded itself, "which is what keeps this to
+    // 1430". No step folds itself now, so the loop folds the previous one by
     // hand to keep measuring the one-open state — and the both-open state it
     // used to prove impossible is the test below.
-    for (const role of ['Dev', 'QA']) {
-      await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
-      await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
-      const other = role === 'Dev' ? 'QA' : 'Dev';
+    for (const step of ['Dev', 'QA']) {
+      await page.getByRole('button', { name: `Unfold ${step} estimates` }).click();
+      await expect(page.getByLabel(`${step} optimistic for 010`)).toBeVisible();
+      const other = step === 'Dev' ? 'QA' : 'Dev';
       // `exact`, and it is load-bearing: an accessible name is matched as a
       // substring by default, so `Fold QA estimates` finds the **Unfold**
-      // button as well and folding the other role would unfold it instead.
+      // button as well and folding the other step would unfold it instead.
       // Watched on h2puni: `expected 0, received 1` for QA's own box.
       const foldOther = page.getByRole('button', { name: `Fold ${other} estimates`, exact: true });
       if (await foldOther.isVisible()) await foldOther.click();
@@ -2087,27 +2087,27 @@ test.describe('the table, measured by a browser', () => {
         const needed = equationFor(measured);
         expect(
           measured.document.scrollWidth,
-          `${viewport.name}, ${role} unfolded: the page itself scrolls sideways`,
+          `${viewport.name}, ${step} unfolded: the page itself scrolls sideways`,
         ).toBeLessThanOrEqual(measured.document.clientWidth);
         if (needed <= measured.frame.clientWidth) {
-          expectItFits(measured, `${viewport.name}, ${role} unfolded`);
+          expectItFits(measured, `${viewport.name}, ${step} unfolded`);
         } else {
           // Below the minimum the frame scrolls — that is the whole of the
           // backstop, and asserting it is what stops "it fits" being a claim
           // about a table that quietly clipped instead.
           expect(
             measured.frame.scrollWidth,
-            `${viewport.name}, ${role} unfolded: ${String(needed)}px of table in ${String(measured.frame.clientWidth)}px of frame and nothing to scroll`,
+            `${viewport.name}, ${step} unfolded: ${String(needed)}px of table in ${String(measured.frame.clientWidth)}px of frame and nothing to scroll`,
           ).toBeGreaterThan(measured.frame.clientWidth);
         }
       }
     }
   });
 
-  test('opens every role at once, scrolls the frame for it, and holds the pinned block', async ({
+  test('opens every step at once, scrolls the frame for it, and holds the pinned block', async ({
     page,
   }) => {
-    // `unfolding-may-scroll`, measured: two roles open is 1735px of table
+    // `unfolding-may-scroll`, measured: two steps open is 1735px of table
     // (1723 → 1735 in `number-column-widen`, 93 → 105 in `COLUMN_WIDTHS`),
     // and there is no laptop in the matrix it fits. The accordion existed to
     // make
@@ -2115,13 +2115,13 @@ test.describe('the table, measured by a browser', () => {
     // hold is that the frame — never the page — is what scrolls, and that the
     // three pinned columns still stand at their declared offsets once it has.
     //
-    // Proof: `toggleRole` put back to `current.includes(roleId) ? [] :
-    // [roleId]`, this failed on `getByLabel('Dev optimistic for 010') —
+    // Proof: `toggleStep` put back to `current.includes(stepId) ? [] :
+    // [stepId]`, this failed on `getByLabel('Dev optimistic for 010') —
     // element(s) not found`: the accordion had folded Dev as QA opened.
     // Watched on h2puni, 2026-08-12 (fault 1).
-    for (const role of ['Dev', 'QA']) {
-      await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
-      await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
+    for (const step of ['Dev', 'QA']) {
+      await page.getByRole('button', { name: `Unfold ${step} estimates` }).click();
+      await expect(page.getByLabel(`${step} optimistic for 010`)).toBeVisible();
     }
     // Both, at once — the state this change exists for, and the one the
     // accordion made impossible.
@@ -2141,7 +2141,7 @@ test.describe('the table, measured by a browser', () => {
       ).toBeLessThanOrEqual(measured.document.clientWidth);
       // And the table really is wider than the frame here, or the scroll
       // assertion below is about a table that simply fitted.
-      expect(needed, `${viewport.name}: both roles open should not fit this frame`).toBeGreaterThan(
+      expect(needed, `${viewport.name}: both steps open should not fit this frame`).toBeGreaterThan(
         measured.frame.clientWidth,
       );
       expect(
@@ -2403,7 +2403,7 @@ test.describe('the table, measured by a browser', () => {
     expect(box?.width).toBeGreaterThan(cell?.width ?? 0);
   });
 
-  test('opens the folded role’s @ picker out past the bottom of a 96px cell', async ({ page }) => {
+  test('opens the folded step’s @ picker out past the bottom of a 96px cell', async ({ page }) => {
     // The narrowest clip in the table, on the last row and at a laptop width:
     // a list of people hanging off a cell 96px wide and one line high.
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -2435,7 +2435,7 @@ test.describe('the table, measured by a browser', () => {
   });
 
   test('opens the last row’s actions menu at the right edge of a laptop', async ({ page }) => {
-    // The menu, in the state the table is actually used in: 1280px, roles
+    // The menu, in the state the table is actually used in: 1280px, steps
     // folded, on the bottom row and against the right-hand edge — which is
     // where a clipped popover is invisible rather than merely cut short.
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -2501,7 +2501,7 @@ test.describe('the table, measured by a browser', () => {
     // showing about half a date. Watched on h2puni, 2026-08-08.
     //
     // Proof: `DATE_EDITOR_WIDTH` set to 60, this failed on `Expected: >= 137 /
-    // Received: 60`, and `fits every laptop width with the roles folded` with
+    // Received: 60`, and `fits every laptop width with the steps folded` with
     // it. Watched, 2026-08-09.
     const measured = await measure(page);
 
@@ -3069,7 +3069,7 @@ test.describe('the table, measured by a browser', () => {
  *   `table-frame.ts`: `['name', 360]` back in `COLUMN_WIDTHS` and `name` out
  *   of `FLEXIBLE_COLUMNS`.
  * Observed on h2puni, 2026-08-08: three failed — `fits every laptop width with
- * the roles folded` on `1280×800: the folded equation should fit this viewport,
+ * the steps folded` on `1280×800: the folded equation should fit this viewport,
  * Expected: <= 1200, Received: 1304`; `gives the name column everything the
  * other columns did not take` on `Expected: 256, Received: 360`; and the deep
  * fixture on `the frame scrolls sideways with 1304px of table in 1200px of
@@ -3097,10 +3097,10 @@ test.describe('the table, measured by a browser', () => {
  * `input[type=date]` in the table's own font and holds the column against that
  * — which is also what moved `not-before` from the planned 108 to 146.
  *
- * FAULT L — the folded role's cell clipping the `@` people picker, which is
+ * FAULT L — the folded step's cell clipping the `@` people picker, which is
  * the narrowest clip in the table: a list off a 96px cell one line high.
  *   `wbs-table.tsx`: drop the `-final` suffix from `opensAPopover`.
- * Observed on h2puni, 2026-08-08: `opens the folded role's @ picker out past
+ * Observed on h2puni, 2026-08-08: `opens the folded step's @ picker out past
  * the bottom of a 96px cell` failed on `4px below the folded QA cell is <div>
  * in the no column, not the open list`.
  *
@@ -3331,7 +3331,7 @@ test.describe('the plan toolbar’s own width', () => {
     // its budget · Expected: <= 1600 · Received: 1658.828125`. Watched in
     // Chromium at 1280×900 under the heavy-work lock, 2026-08-30.
     await page.setViewportSize({ width: 1280, height: 900 });
-    // Folded: no role unfolded and nothing typed in Find, which is the state
+    // Folded: no step unfolded and nothing typed in Find, which is the state
     // the figure was taken in. Both are the default on a fresh plan, and are
     // asserted rather than assumed — a toolbar also carrying a `1 of 2 rows`
     // count is a different bar being measured.

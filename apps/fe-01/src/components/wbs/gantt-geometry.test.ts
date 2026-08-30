@@ -49,14 +49,14 @@ const rowAt = (
   // to state a team it is not asking about.
   team: { state: 'none' },
   tags: { own: [], inherited: [] },
-  trioByRole: new Map(),
+  trioByStep: new Map(),
   waitsFor: [],
   ...extras,
 });
 
 /**
  * A scheduled slice over these workdays, floored by the project start and
- * under the `dev` role, unless `extras` says otherwise.
+ * under the `dev` step, unless `extras` says otherwise.
  *
  * `duration` is the difference here only because these fixtures are whole
  * days end to end; the one test about a fraction passes its own.
@@ -70,7 +70,7 @@ const sliceAt = (
 ): GanttSlice => ({
   id,
   workItemId,
-  roleId: 'dev',
+  stepId: 'dev',
   personId: null,
   duration: earliestFinish - earliestStart,
   estimated: true,
@@ -104,7 +104,7 @@ const treeFrom = (rows: readonly GanttRow[]): { id: string; parentId: string | n
   });
 };
 
-/** A plan with two roles and one person, over the rows and slices given. */
+/** A plan with two steps and one person, over the rows and slices given. */
 const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   rows: [],
   slices: [],
@@ -112,7 +112,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   tree: treeFrom(parts.rows ?? []),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
-  roles: [
+  steps: [
     { id: 'dev', name: 'Dev' },
     { id: 'qa', name: 'QA' },
   ],
@@ -141,14 +141,14 @@ const calendarOf = (startDate = '2026-09-01'): FloorCalendar => ({
 });
 
 describe('bars', () => {
-  it('draws one per slice of a leaf, in role order', () => {
+  it('draws one per slice of a leaf, in step order', () => {
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('strip', 0, 5)],
-        // Fed out of role order on purpose: the order bars sit in is the
-        // plan's role order, not the payload's array order.
+        // Fed out of step order on purpose: the order bars sit in is the
+        // plan's step order, not the payload's array order.
         slices: [
-          sliceAt('strip-qa', 'strip', 3, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 3, 5, { stepId: 'qa' }),
           sliceAt('strip-dev', 'strip', 0, 3),
         ],
       }),
@@ -214,7 +214,7 @@ describe('bars', () => {
         slices: [
           sliceAt('a-dev', 'a', 0, 1),
           sliceAt('b-dev', 'b', 1, 2, { boundBy: 'predecessor' }),
-          sliceAt('c-dev', 'c', 2, 3, { boundBy: 'roleOrder' }),
+          sliceAt('c-dev', 'c', 2, 3, { boundBy: 'stepOrder' }),
           sliceAt('d-dev', 'd', 3, 4, { boundBy: 'notBefore' }),
         ],
       }),
@@ -222,8 +222,8 @@ describe('bars', () => {
 
     expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
       'Starts with the project',
-      'Waits for a dependency’s first estimated role',
-      'Waits for an earlier role on this item',
+      'Waits for a dependency’s first estimated step',
+      'Waits for an earlier step on this item',
       'Held by its start-no-earlier-than date',
     ]);
   });
@@ -271,9 +271,9 @@ describe('bars', () => {
     // predecessor would be the chart naming one cause and explaining another.
     //
     // Proof: the reason appended to the shared `projectStart`/`predecessor`/
-    // `roleOrder` arm as well — **1 failed, 103 passed** — and this failed on
-    // `expected 'Waits for a dependency’s first estimated role — waiting on
-    // client sign-off' to be 'Waits for a dependency’s first estimated role'`.
+    // `stepOrder` arm as well — **1 failed, 103 passed** — and this failed on
+    // `expected 'Waits for a dependency’s first estimated step — waiting on
+    // client sign-off' to be 'Waits for a dependency’s first estimated step'`.
     // Watched 2026-08-18.
     const chart = layOutGantt(
       planOf({
@@ -291,12 +291,12 @@ describe('bars', () => {
       }),
     );
 
-    expect(chart.bars[1].floorWords).toBe('Waits for a dependency’s first estimated role');
+    expect(chart.bars[1].floorWords).toBe('Waits for a dependency’s first estimated step');
   });
 
   it('says the same words on every bar of a row the not-before holds', () => {
     // The reason is the **row's**, and a work item's not-before holds every one
-    // of its roles — so a row estimated for two phases draws two bars and both
+    // of its steps — so a row estimated for two steps draws two bars and both
     // are floored by the same date for the same reason. One sentence, said
     // wherever it is true.
     const chart = layOutGantt(
@@ -304,7 +304,7 @@ describe('bars', () => {
         rows: [rowAt('sand', 3, 5, { notBeforeReason: 'waiting on client sign-off' })],
         slices: [
           sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' }),
-          sliceAt('sand-qa', 'sand', 3, 5, { boundBy: 'notBefore', roleId: 'qa' }),
+          sliceAt('sand-qa', 'sand', 3, 5, { boundBy: 'notBefore', stepId: 'qa' }),
         ],
       }),
     );
@@ -321,7 +321,7 @@ describe('summary brackets', () => {
   const staggeredChildren = (): GanttPlan =>
     planOf({
       rows: [
-        rowAt('phase', 0, 6, { leaf: false }),
+        rowAt('step', 0, 6, { leaf: false }),
         rowAt('strip', 0, 3, { depth: 1 }),
         rowAt('sand', 2, 6, { depth: 1 }),
       ],
@@ -331,7 +331,7 @@ describe('summary brackets', () => {
   it('spans a parent over staggered children', () => {
     const chart = layOutGantt(staggeredChildren());
 
-    expect(chart.brackets).toEqual([{ rowId: 'phase', rowIndex: 0, start: 0, finish: 6 }]);
+    expect(chart.brackets).toEqual([{ rowId: 'step', rowIndex: 0, start: 0, finish: 6 }]);
     expect(chart.bars.map((bar) => bar.rowIndex)).toEqual([1, 2]);
   });
 
@@ -348,7 +348,7 @@ describe('summary brackets', () => {
   it('draws no bracket for a leaf and no bar for a parent', () => {
     const chart = layOutGantt(staggeredChildren());
 
-    expect(chart.brackets.map((bracket) => bracket.rowId)).toEqual(['phase']);
+    expect(chart.brackets.map((bracket) => bracket.rowId)).toEqual(['step']);
     expect(chart.bars.map((bar) => bar.sliceId)).toEqual(['strip-dev', 'sand-dev']);
   });
 });
@@ -458,7 +458,7 @@ describe('person links', () => {
 
     expect(chart.personLinks).toEqual([]);
     expect(chart.arrows.map((arrow) => [arrow.fromFinish, arrow.toStart])).toEqual([[4, 4]]);
-    expect(chart.bars[2].floorWords).toBe('Waits for a dependency’s first estimated role');
+    expect(chart.bars[2].floorWords).toBe('Waits for a dependency’s first estimated step');
   });
 
   it('names the person and the slice they were finishing', () => {
@@ -961,7 +961,7 @@ describe('dependency arrows', () => {
         rows: [rowAt('strip', 0, 5), rowAt('sand', 3, 6)],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 3),
-          sliceAt('strip-qa', 'strip', 3, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 3, 5, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 3, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
@@ -983,7 +983,7 @@ describe('dependency arrows', () => {
   });
 
   it('an arrow from a branch leaves its latest anchor', () => {
-    // `rig` depends on the parent: every leaf's first-role work must be done,
+    // `rig` depends on the parent: every leaf's first-step work must be done,
     // and `sand`'s Dev is the later of them at day 4 — `strip`'s at 2, both
     // QAs running on to 5. The arrow leaves day 4, from the parent's own
     // bracket row.
@@ -997,9 +997,9 @@ describe('dependency arrows', () => {
         ],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 2),
-          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 2, 5, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 0, 4),
-          sliceAt('sand-qa', 'sand', 4, 5, { roleId: 'qa' }),
+          sliceAt('sand-qa', 'sand', 4, 5, { stepId: 'qa' }),
           sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
@@ -1029,9 +1029,9 @@ describe('dependency arrows', () => {
         rows: [rowAt('hull', 0, 5, { leaf: false }), rowAt('rig', 4, 6)],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 2),
-          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 2, 5, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 0, 4),
-          sliceAt('sand-qa', 'sand', 4, 5, { roleId: 'qa' }),
+          sliceAt('sand-qa', 'sand', 4, 5, { stepId: 'qa' }),
           sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
         ],
         tree: [
@@ -1063,7 +1063,7 @@ describe('dependency arrows', () => {
   it('anchors a parent of parents through the leaves two levels down', () => {
     // `hull` holds `deck`, and only `deck` holds the leaves `strip` and
     // `sand` — plus `keel` directly under `hull`. `rig` depends on `hull`, so
-    // the anchor is the latest-finishing first-role work among the leaf
+    // the anchor is the latest-finishing first-step work among the leaf
     // descendants at **any** depth: `keel`'s Dev ends day 1, `strip`'s day 2,
     // `sand`'s day 4 — the arrow leaves day 4, from `hull`'s bracket row. A
     // walk that stopped at `hull`'s direct children would take `deck` for a
@@ -1086,11 +1086,11 @@ describe('dependency arrows', () => {
         ],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 2),
-          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 2, 5, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 0, 4),
-          sliceAt('sand-qa', 'sand', 4, 6, { roleId: 'qa' }),
+          sliceAt('sand-qa', 'sand', 4, 6, { stepId: 'qa' }),
           sliceAt('keel-dev', 'keel', 0, 1),
-          sliceAt('keel-qa', 'keel', 1, 3, { roleId: 'qa' }),
+          sliceAt('keel-qa', 'keel', 1, 3, { stepId: 'qa' }),
           sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
@@ -1111,7 +1111,7 @@ describe('dependency arrows', () => {
     ]);
   });
 
-  it('an arrow leaves the first estimated role, not the unestimated one in front of it', () => {
+  it('an arrow leaves the first estimated step, not the unestimated one in front of it', () => {
     // The engine's own probe, drawn: `strip`'s Dev carries no estimate, so the
     // anchor walks on to its QA — 5→9 — and the arrow leaves day 9, which is
     // where `sand` starts. An arrow from the unestimated Dev would leave day 5
@@ -1127,7 +1127,7 @@ describe('dependency arrows', () => {
         rows: [rowAt('strip', 5, 9), rowAt('sand', 9, 11)],
         slices: [
           sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
-          sliceAt('strip-qa', 'strip', 5, 9, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 5, 9, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
@@ -1223,7 +1223,7 @@ describe('dependency arrows', () => {
         slices: [
           sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
           sliceAt('strip-qa', 'strip', 5, 5, {
-            roleId: 'qa',
+            stepId: 'qa',
             duration: 0,
             estimated: false,
           }),
@@ -1260,7 +1260,7 @@ describe('the rest of the chart', () => {
     const chart = layOutGantt(
       planOf({
         rows: [
-          rowAt('phase', 0, 6, { leaf: false, number: '010', name: 'Prep' }),
+          rowAt('step', 0, 6, { leaf: false, number: '010', name: 'Prep' }),
           rowAt('strip', 0, 3, { depth: 1, number: '010.1', name: 'Strip' }),
         ],
         slices: [sliceAt('strip-dev', 'strip', 0, 3)],
@@ -1268,11 +1268,11 @@ describe('the rest of the chart', () => {
     );
 
     // Proof: `number: row.number` dropped from the label — this test alone
-    // failed, on `expected { id: 'phase', name: 'Prep', … } to deeply equal {
-    // id: 'phase', number: '010', … }`, and the panel drew a column of names
+    // failed, on `expected { id: 'step', name: 'Prep', … } to deeply equal {
+    // id: 'step', number: '010', … }`, and the panel drew a column of names
     // with no numbers in it. Watched, 2026-08-09.
     expect(chart.labels).toEqual([
-      { id: 'phase', number: '010', name: 'Prep', depth: 0, rowIndex: 0 },
+      { id: 'step', number: '010', name: 'Prep', depth: 0, rowIndex: 0 },
       { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1 },
     ]);
   });
@@ -1304,7 +1304,7 @@ describe('the rest of the chart', () => {
   it('reaches as far as the latest finish of anything drawn', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('phase', 0, 9, { leaf: false }), rowAt('strip', 0, 3, { depth: 1 })],
+        rows: [rowAt('step', 0, 9, { leaf: false }), rowAt('strip', 0, 3, { depth: 1 })],
         slices: [sliceAt('strip-dev', 'strip', 0, 3)],
       }),
     );
@@ -1320,22 +1320,22 @@ describe('the rest of the chart', () => {
     expect(chart.labels).toEqual([]);
   });
 
-  it('throws when a slice is under a role the plan does not list', () => {
-    const strangerRole = planOf({
+  it('throws when a slice is under a step the plan does not list', () => {
+    const strangerStep = planOf({
       rows: [rowAt('strip', 0, 3)],
-      slices: [sliceAt('strip-ops', 'strip', 0, 3, { roleId: 'ops' })],
+      slices: [sliceAt('strip-ops', 'strip', 0, 3, { stepId: 'ops' })],
     });
 
-    expect(() => layOutGantt(strangerRole)).toThrow(GanttDataError);
-    expect(() => layOutGantt(strangerRole)).toThrow('does not list');
+    expect(() => layOutGantt(strangerStep)).toThrow(GanttDataError);
+    expect(() => layOutGantt(strangerStep)).toThrow('does not list');
   });
 
-  it('puts a slice belonging to no role after the ones that do', () => {
+  it('puts a slice belonging to no step after the ones that do', () => {
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('strip', 0, 5)],
         slices: [
-          sliceAt('strip-none', 'strip', 3, 5, { roleId: null }),
+          sliceAt('strip-none', 'strip', 3, 5, { stepId: null }),
           sliceAt('strip-dev', 'strip', 0, 3),
         ],
       }),
@@ -1346,34 +1346,34 @@ describe('the rest of the chart', () => {
 });
 
 describe('what a bar knows about itself', () => {
-  it('names its work item, its role and its person, and carries its float', () => {
+  it('names its work item, its step and its person, and carries its float', () => {
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('strip', 0, 3, { name: 'Strip the hull' })],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat', float: 2.5 }),
-          sliceAt('strip-qa', 'strip', 3, 4, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 3, 4, { stepId: 'qa' }),
         ],
       }),
     );
 
     expect(
-      chart.bars.map((bar) => [bar.workItemName, bar.roleName, bar.personName, bar.float]),
+      chart.bars.map((bar) => [bar.workItemName, bar.stepName, bar.personName, bar.float]),
     ).toEqual([
       ['Strip the hull', 'Dev', 'Kat', 2.5],
       ['Strip the hull', 'QA', null, 0],
     ]);
   });
 
-  it('leaves the role nameless on a slice that belongs to none', () => {
+  it('leaves the step nameless on a slice that belongs to none', () => {
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('strip', 0, 3)],
-        slices: [sliceAt('strip-none', 'strip', 0, 3, { roleId: null })],
+        slices: [sliceAt('strip-none', 'strip', 0, 3, { stepId: null })],
       }),
     );
 
-    expect(chart.bars[0].roleName).toBeNull();
+    expect(chart.bars[0].stepName).toBeNull();
   });
 
   it('throws when a slice is assigned to somebody the plan does not name', () => {
@@ -1422,7 +1422,7 @@ describe('tags reach the bar and nothing that computes a position', () => {
       ],
       slices: [
         sliceAt('strip-dev', 'strip', 0, 3, extras),
-        sliceAt('strip-qa', 'strip', 3, 4, { roleId: 'qa' }),
+        sliceAt('strip-qa', 'strip', 3, 4, { stepId: 'qa' }),
         sliceAt('sand-dev', 'sand', 3, 5, { boundBy: 'predecessor' }),
       ],
       dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
@@ -1632,10 +1632,10 @@ describe('the shapes a real schedule makes', () => {
         rows: [rowAt('a', 0, first), rowAt('b', first, first + second)],
         slices: [
           sliceAt('a-dev', 'a', 0, first, { duration: first }),
-          sliceAt('a-qa', 'a', first, first + third, { roleId: 'qa', duration: third }),
+          sliceAt('a-qa', 'a', first, first + third, { stepId: 'qa', duration: third }),
           sliceAt('b-dev', 'b', first, first + second, {
             duration: second,
-            boundBy: 'roleOrder',
+            boundBy: 'stepOrder',
           }),
         ],
       }),
@@ -2274,14 +2274,14 @@ describe('routing an arrow past the bars it does not join', () => {
     ]);
   });
 
-  it('leaves on the anchor’s own edge when the next role stands against it', () => {
+  it('leaves on the anchor’s own edge when the next step stands against it', () => {
     const placed = placeOnWorkdays(
       layOutGantt(
         planOf({
           rows: [rowAt('010', 0, 5), rowAt('020', 5, 7)],
           slices: [
             sliceAt('010-dev', '010', 0, 3),
-            sliceAt('010-qa', '010', 3, 5, { roleId: 'qa' }),
+            sliceAt('010-qa', '010', 3, 5, { stepId: 'qa' }),
             sliceAt('020-dev', '020', 5, 7),
           ],
           dependencies: [{ predecessorId: '010', successorId: '020' }],
@@ -2406,7 +2406,7 @@ describe('the invariant over a sweep of generated plans', () => {
 
   /**
    * A small plan with a schedule that hangs together: three to seven leaves,
-   * one or two roles each, some of them unestimated, dependencies that only
+   * one or two steps each, some of them unestimated, dependencies that only
    * ever point backwards through the build order — and then the **rows
    * shuffled**, so an arrow is as likely to climb the chart as to descend it.
    *
@@ -2434,12 +2434,12 @@ describe('the invariant over a sweep of generated plans', () => {
       }
       let cursor = start;
       const own: GanttSlice[] = [];
-      for (const roleId of next(2) === 0 ? ['dev'] : ['dev', 'qa']) {
+      for (const stepId of next(2) === 0 ? ['dev'] : ['dev', 'qa']) {
         const estimated = next(4) !== 0;
         const duration = estimated ? 1 + next(4) : 0;
         own.push(
-          sliceAt(`${id}-${roleId}`, id, cursor, cursor + duration, {
-            roleId,
+          sliceAt(`${id}-${stepId}`, id, cursor, cursor + duration, {
+            stepId,
             estimated,
             duration,
           }),
@@ -2723,7 +2723,7 @@ describe('what holds a row’s start, for the table', () => {
         rows: [rowAt('020', 0, 5)],
         slices: [
           sliceAt('020-dev', '020', 0, 2),
-          sliceAt('020-qa', '020', 2, 5, { roleId: 'qa', boundBy: 'roleOrder' }),
+          sliceAt('020-qa', '020', 2, 5, { stepId: 'qa', boundBy: 'stepOrder' }),
         ],
       }),
       calendarOf(),
@@ -2739,7 +2739,7 @@ describe('what holds a row’s start, for the table', () => {
     // pass every other assertion here and still name the wrong row.
     //
     // The anchor inside `Strip` is its Dev, not its QA: a dependency binds to
-    // the predecessor's first estimated role (design.md D6, Dany 2026-08-11),
+    // the predecessor's first estimated step (design.md D6, Dany 2026-08-11),
     // which is the whole reason `020` may start before `Strip`'s `End` column.
     //
     // Proof of the date, watched 2026-08-23 — `lastWorkdayOf(start, finish)`
@@ -2758,7 +2758,7 @@ describe('what holds a row’s start, for the table', () => {
         ],
         slices: [
           sliceAt('030-dev', '030', 0, 5),
-          sliceAt('030-qa', '030', 5, 8, { roleId: 'qa' }),
+          sliceAt('030-qa', '030', 5, 8, { stepId: 'qa' }),
           sliceAt('040-dev', '040', 0, 2),
           sliceAt('020-dev', '020', 5, 9, { boundBy: 'predecessor' }),
         ],
@@ -2857,15 +2857,15 @@ describe('what holds a row’s start, for the table', () => {
     expect(floors.get('020')).toBe('Waits for Strip (Dev)');
   });
 
-  it('names the work item alone when the slice it waits for is under no role', () => {
-    // A slice belonging to no role is a real state on this wire, and
+  it('names the work item alone when the slice it waits for is under no step', () => {
+    // A slice belonging to no step is a real state on this wire, and
     // `Waits for Strip (null)` would be the sentence saying the tool is broken
     // in the one place a planner would believe it.
     const floors = startFloorByRow(
       planOf({
         rows: [rowAt('030', 0, 3, { name: 'Strip' }), rowAt('020', 3, 6)],
         slices: [
-          sliceAt('030-loose', '030', 0, 3, { roleId: null }),
+          sliceAt('030-loose', '030', 0, 3, { stepId: null }),
           sliceAt('020-dev', '020', 3, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: '030', successorId: '020' }],
@@ -2924,7 +2924,7 @@ describe('what holds a row’s start, for the table', () => {
       calendarOf(),
     );
 
-    expect(floors.get('020')).toBe('Waits for a dependency’s first estimated role');
+    expect(floors.get('020')).toBe('Waits for a dependency’s first estimated step');
     // The unreadable row loses its own sentence and nothing else does.
     expect(floors.has('040')).toBe(false);
     expect(floors.get('030')).toBe('Starts with the project');
@@ -2950,7 +2950,7 @@ describe('what holds a row’s start, for the table', () => {
       calendarOf(),
     );
 
-    expect(floors.get('020')).toBe('Waits for a dependency’s first estimated role');
+    expect(floors.get('020')).toBe('Waits for a dependency’s first estimated step');
   });
 
   it('names the leaf under a parent dependency that actually finishes last', () => {
@@ -3056,13 +3056,13 @@ describe('what holds a row’s start, for the table', () => {
     expect(floors.get('010')).toBe('Starts with the project');
   });
 
-  it('skips a row whose slice is under a role the plan does not list', () => {
+  it('skips a row whose slice is under a step the plan does not list', () => {
     const floors = startFloorByRow(
       planOf({
         rows: [rowAt('010', 0, 2), rowAt('020', 0, 2)],
         slices: [
           sliceAt('010-dev', '010', 0, 2),
-          sliceAt('020-ops', '020', 0, 2, { roleId: 'ops' }),
+          sliceAt('020-ops', '020', 0, 2, { stepId: 'ops' }),
         ],
       }),
       calendarOf(),

@@ -1,11 +1,11 @@
-import type { ProjectStore, Role, RoleRemoved, RoleStore, RoleUsageRows } from '../repository';
-import { ROLE_POSITION_STEP } from '../repository';
-import { RoleService } from '../service/role.service';
+import type { ProjectStore, Step, StepRemoved, StepStore, StepUsageRows } from '../repository';
+import { STEP_POSITION_STEP } from '../repository';
+import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
- * A RoleStore backed by an array, for tests that only need `buildApp` to be
+ * A StepStore backed by an array, for tests that only need `buildApp` to be
  * constructible.
  *
  * It keeps the one rule a caller branches on — a name a project already holds
@@ -17,14 +17,14 @@ import { inMemoryProjects } from './project-fixture';
  * An array has no statement to put them in, so claiming them here would be a
  * second implementation of the rule under test. `remove` therefore reports what
  * it took and nothing else, and every behavioural claim about a removal is
- * asserted against real SQLite in `repository/role.test.ts` and
- * `service/role.service.test.ts` — the same call `subtree-fixture.ts` makes,
+ * asserted against real SQLite in `repository/step.test.ts` and
+ * `service/step.service.test.ts` — the same call `subtree-fixture.ts` makes,
  * for the same reason.
  */
-export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
-  readonly rows: Role[];
+export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
+  readonly rows: Step[];
 } {
-  const rows: Role[] = [...seed];
+  const rows: Step[] = [...seed];
   return {
     rows,
     listByProject(projectId) {
@@ -38,33 +38,33 @@ export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
           .sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1)),
       );
     },
-    findById(roleId) {
-      return Promise.resolve(rows.find((each) => each.id === roleId) ?? null);
+    findById(stepId) {
+      return Promise.resolve(rows.find((each) => each.id === stepId) ?? null);
     },
     add(toAdd) {
       const held = rows.filter((each) => each.projectId === toAdd.projectId);
       if (held.some((each) => each.name === toAdd.name)) {
         return Promise.resolve({ ok: false, reason: 'taken' });
       }
-      const written: Role = {
+      const written: Step = {
         ...toAdd,
-        position: Math.max(0, ...held.map((each) => each.position)) + ROLE_POSITION_STEP,
+        position: Math.max(0, ...held.map((each) => each.position)) + STEP_POSITION_STEP,
       };
       rows.push(written);
-      return Promise.resolve({ ok: true, role: written });
+      return Promise.resolve({ ok: true, step: written });
     },
-    rename(roleId, name) {
-      const found = rows.find((each) => each.id === roleId);
+    rename(stepId, name) {
+      const found = rows.find((each) => each.id === stepId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const taken = rows.some(
-        (each) => each.projectId === found.projectId && each.name === name && each.id !== roleId,
+        (each) => each.projectId === found.projectId && each.name === name && each.id !== stepId,
       );
       if (taken) return Promise.resolve({ ok: false, reason: 'taken' });
       found.name = name;
-      return Promise.resolve({ ok: true, role: found });
+      return Promise.resolve({ ok: true, step: found });
     },
-    usageOf(): Promise<RoleUsageRows> {
-      // Nothing points at a role here: this fixture holds no estimates, no
+    usageOf(): Promise<StepUsageRows> {
+      // Nothing points at a step here: this fixture holds no estimates, no
       // actuals, no stated progress, no figures and no assignments to point
       // with.
       return Promise.resolve({
@@ -75,12 +75,12 @@ export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
         assignments: [],
       });
     },
-    remove(projectId, roleId): Promise<RoleRemoved> {
-      const found = rows.findIndex((each) => each.id === roleId && each.projectId === projectId);
-      // The one thing this can model of the real removal: a role that is not
+    remove(projectId, stepId): Promise<StepRemoved> {
+      const found = rows.findIndex((each) => each.id === stepId && each.projectId === projectId);
+      // The one thing this can model of the real removal: a step that is not
       // this project's, or is already gone, is `not_found` and writes nothing.
       // The refusal-when-used branch is unreachable here because nothing can
-      // point at a role in an array with no estimates in it.
+      // point at a step in an array with no estimates in it.
       if (found < 0) return Promise.resolve({ ok: false, reason: 'not_found' });
       rows.splice(found, 1);
       return Promise.resolve({
@@ -98,10 +98,10 @@ export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
   };
 }
 
-/** A RoleService over the in-memory stores, for tests that only need `buildApp` to construct. */
-export function testRoleService(
+/** A StepService over the in-memory stores, for tests that only need `buildApp` to construct. */
+export function testStepService(
   projects: ProjectStore = inMemoryProjects(),
-  roles: RoleStore = inMemoryRoles(),
-): RoleService {
-  return new RoleService({ projects, roles, broadcast: recordingBroadcaster() });
+  steps: StepStore = inMemorySteps(),
+): StepService {
+  return new StepService({ projects, steps, broadcast: recordingBroadcaster() });
 }

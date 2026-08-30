@@ -3,25 +3,31 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
   Assignment,
-  NewRole,
-  Role,
-  RoleRemoved,
-  RoleStore,
-  RoleUsageRows,
-  RoleWritten,
+  NewStep,
+  Step,
+  StepRemoved,
+  StepStore,
+  StepUsageRows,
+  StepWritten,
 } from './index';
-import { ROLE_POSITION_STEP } from './index';
+import { STEP_POSITION_STEP } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
-import { actual, assignment, estimate, role, roleMeasure, roleProgress, workItem } from './schema';
+import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem } from './schema';
 
 /**
- * Whether a thrown error is SQLite refusing a second role of the same name in
+ * Whether a thrown error is SQLite refusing a second step of the same name in
  * one project.
  *
  * The message rather than a typed error, because `bun:sqlite` has no typed
  * one — the same translation `UserRepository.create` makes for usernames. It
  * names the index's columns so that a different constraint failing here is
  * still an unknown, and still throws.
+ *
+ * Those columns are spelled `role.…` because SQLite quotes the **physical**
+ * table, which `steps-not-phases` deliberately left alone — see {@link step} in
+ * `schema.ts` and the change that closes the gap, `steps-schema-rename`.
+ * Renaming this string with the identifiers around it would take every
+ * duplicate name from a 409 `taken` to an uncaught 500.
  */
 function isDuplicateName(err: unknown): boolean {
   return (
@@ -33,16 +39,16 @@ function isDuplicateName(err: unknown): boolean {
 /**
  * Every assignment in one project, read through the work items that hold them.
  *
- * The whole project's rather than one role's, because whether a work item's
- * assumed assignee moves when a role goes depends on what it holds for the roles
- * that stay — see {@link RoleUsageRows}. Takes the writer so the refusal can
+ * The whole project's rather than one step's, because whether a work item's
+ * assumed assignee moves when a step goes depends on what it holds for the steps
+ * that stay — see {@link StepUsageRows}. Takes the writer so the refusal can
  * read it inside the transaction that refused.
  */
 function assignmentsIn(reader: Pick<SQLiteBunDatabase, 'select'>, projectId: string): Assignment[] {
   return reader
     .select({
       workItemId: assignment.workItemId,
-      roleId: assignment.roleId,
+      stepId: assignment.stepId,
       personId: assignment.personId,
     })
     .from(assignment)
@@ -52,79 +58,79 @@ function assignmentsIn(reader: Pick<SQLiteBunDatabase, 'select'>, projectId: str
 }
 
 /**
- * A project's roles, and the writes that change them.
+ * A project's steps, and the writes that change them.
  *
  * Its own repository rather than more methods on `ProjectRepository`: removing
- * a role spans six tables — estimates, recorded days, stated progress, the
- * figures that are not days, assignments and the role itself — plus the
+ * a step spans six tables — estimates, recorded days, stated progress, the
+ * figures that are not days, assignments and the step itself — plus the
  * revisions of everything that lost a row, and that transaction has nothing to
  * do with a project's own columns.
  *
- * Every write here moves the **project's** revision, because a role is a
+ * Every write here moves the **project's** revision, because a step is a
  * satellite of the project: adding, renaming or removing one changes what every
  * estimate in it means. See `project.revision` in `schema.ts`.
  */
-export class RoleRepository implements RoleStore {
+export class StepRepository implements StepStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * The project's roles, in role order.
+   * The project's steps, in step order.
    *
    * The `ORDER BY` is load-bearing, not tidiness: without it SQLite answers
    * `WHERE project_id = ?` from the `role_project_name` index and hands back
-   * the rows in **name** order, which puts a role called `Analysis` in front of
-   * `Dev` however late it was added — and role order is what a work item's
+   * the rows in **name** order, which puts a step called `Analysis` in front of
+   * `Dev` however late it was added — and step order is what a work item's
    * slices run in.
    *
-   * Proof: with the `orderBy` removed, `reads a role added later last, however
+   * Proof: with the `orderBy` removed, `reads a step added later last, however
    * its name sorts` fails with `Analysis, Dev, QA`; watched 2026-08-09.
    */
-  listByProject(projectId: string): Promise<Role[]> {
+  listByProject(projectId: string): Promise<Step[]> {
     return this.db
       .select()
-      .from(role)
-      .where(eq(role.projectId, projectId))
-      .orderBy(role.position, role.id);
+      .from(step)
+      .where(eq(step.projectId, projectId))
+      .orderBy(step.position, step.id);
   }
 
-  async findById(roleId: string): Promise<Role | null> {
-    const rows = await this.db.select().from(role).where(eq(role.id, roleId)).limit(1);
+  async findById(stepId: string): Promise<Step | null> {
+    const rows = await this.db.select().from(step).where(eq(step.id, stepId)).limit(1);
     return rows.at(0) ?? null;
   }
 
   /**
-   * Writes the role and the project's bump together, or writes neither.
+   * Writes the step and the project's bump together, or writes neither.
    *
    * The refusal comes from the unique index rather than from a read first: two
    * clients adding `Design` at the same moment both see it free.
    *
-   * The place it takes is read **inside** the transaction, so two roles added
+   * The place it takes is read **inside** the transaction, so two steps added
    * at the same moment cannot both be told the same last position — one of them
    * would then sort by id, which is a UUID, which is no order at all.
    *
    * Proof: with the `isDuplicateName` branch removed, `refuses a name the
-   * project already holds, and leaves the roles as they were` fails with the
+   * project already holds, and leaves the steps as they were` fails with the
    * raw `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this
-   * translation exists to prevent. With `bumpProject` removed, `adds a role and
+   * translation exists to prevent. With `bumpProject` removed, `adds a step and
    * moves the project’s revision` fails, 1 expected and 0 read. Both watched
    * 2026-08-08.
    */
-  async add(toAdd: NewRole): Promise<RoleWritten> {
+  async add(toAdd: NewStep): Promise<StepWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
         const last = tx
-          .select({ position: max(role.position) })
-          .from(role)
-          .where(eq(role.projectId, toAdd.projectId))
+          .select({ position: max(step.position) })
+          .from(step)
+          .where(eq(step.projectId, toAdd.projectId))
           .get();
-        const written: Role = {
+        const written: Step = {
           ...toAdd,
-          position: (last?.position ?? 0) + ROLE_POSITION_STEP,
+          position: (last?.position ?? 0) + STEP_POSITION_STEP,
         };
-        tx.insert(role).values(written).run();
+        tx.insert(step).values(written).run();
         bumpProject(tx, toAdd.projectId);
-        return { ok: true, role: written };
+        return { ok: true, step: written };
       });
     } catch (err) {
       if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
@@ -133,27 +139,27 @@ export class RoleRepository implements RoleStore {
   }
 
   /**
-   * Renames one role, or says why it could not.
+   * Renames one step, or says why it could not.
    *
    * A refused rename writes nothing, the project's revision included: a request
    * that changed nothing must not defeat somebody else's precondition.
    *
    * Proof: with the empty-`returning` branch reporting success instead,
-   * `reports a role that is gone rather than pretending to rename it` fails —
+   * `reports a step that is gone rather than pretending to rename it` fails —
    * a rename of nothing answered `ok`; watched 2026-08-08.
    */
-  async rename(roleId: string, name: string): Promise<RoleWritten> {
+  async rename(stepId: string, name: string): Promise<StepWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
-        const rows = tx.update(role).set({ name }).where(eq(role.id, roleId)).returning().all();
+        const rows = tx.update(step).set({ name }).where(eq(step.id, stepId)).returning().all();
         const renamed = rows.at(0);
-        // Nothing was updated, so there is no role by that id — and nothing to
+        // Nothing was updated, so there is no step by that id — and nothing to
         // bump. Rolling back is not needed (the update wrote nothing), but the
         // early return keeps the bump and the write in the same branch.
         if (renamed === undefined) return { ok: false, reason: 'not_found' };
         bumpProject(tx, renamed.projectId);
-        return { ok: true, role: renamed };
+        return { ok: true, step: renamed };
       });
     } catch (err) {
       if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
@@ -164,36 +170,36 @@ export class RoleRepository implements RoleStore {
   /**
    * What a removal would take with it, read for the refusal that names it.
    *
-   * The assignments are the whole project's — see {@link RoleUsageRows} for why
-   * this role's own rows cannot answer the question.
+   * The assignments are the whole project's — see {@link StepUsageRows} for why
+   * this step's own rows cannot answer the question.
    */
-  async usageOf(projectId: string, roleId: string): Promise<RoleUsageRows> {
+  async usageOf(projectId: string, stepId: string): Promise<StepUsageRows> {
     const held = await this.db
       .select({ workItemId: estimate.workItemId })
       .from(estimate)
-      .where(eq(estimate.roleId, roleId));
+      .where(eq(estimate.stepId, stepId));
     // Read through `actual_by_role`, which exists for this question and for the
     // one `remove` asks: the primary key leads with the work item, so counting
-    // one role's rows without it is a scan.
+    // one step's rows without it is a scan.
     const recorded = await this.db
       .select({ workItemId: actual.workItemId })
       .from(actual)
-      .where(eq(actual.roleId, roleId));
+      .where(eq(actual.stepId, stepId));
     // Read through `role_progress_by_role`, which exists for this question for
     // `actual_by_role`'s reason.
     const spoken = await this.db
-      .select({ workItemId: roleProgress.workItemId })
-      .from(roleProgress)
-      .where(eq(roleProgress.roleId, roleId));
+      .select({ workItemId: stepProgress.workItemId })
+      .from(stepProgress)
+      .where(eq(stepProgress.stepId, stepId));
     // Read through `role_measure_by_role`, which exists for this question for
     // `actual_by_role`'s reason — the primary key leads with the work item, so
-    // counting one role's rows without it would be a scan. Nothing owed here:
+    // counting one step's rows without it would be a scan. Nothing owed here:
     // the index has shipped with the table since
     // `20260821140000_add_role_measure`.
     const measured = await this.db
-      .select({ workItemId: roleMeasure.workItemId })
-      .from(roleMeasure)
-      .where(eq(roleMeasure.roleId, roleId));
+      .select({ workItemId: stepMeasure.workItemId })
+      .from(stepMeasure)
+      .where(eq(stepMeasure.stepId, stepId));
     const ids = await this.db
       .select({ id: workItem.id })
       .from(workItem)
@@ -237,28 +243,28 @@ export class RoleRepository implements RoleStore {
    * every number is read here, freshly.
    *
    * The estimates are deleted **explicitly**: `estimate.role_id` has no
-   * `onDelete` cascade, so deleting the role row on its own hits the foreign key
+   * `onDelete` cascade, so deleting the step row on its own hits the foreign key
    * and answers 500. The assignments are deleted explicitly too, though their
    * column does cascade, so that what this reports having removed is what this
    * statement removed rather than what the database did behind it.
    *
-   * Every read and every delete is scoped through `roleInProject`, a subquery
-   * that is empty for a role that has gone or never belonged to this project. So
+   * Every read and every delete is scoped through `stepInProject`, a subquery
+   * that is empty for a step that has gone or never belonged to this project. So
    * the loser of two removals counts nothing, deletes nothing, and is told
    * `not_found` by its own `DELETE ... RETURNING` — no revision moves and its
    * caller has no event to announce. The same scoping is what stops one
-   * project's route from deleting another project's role by id.
+   * project's route from deleting another project's step by id.
    *
    * Proof, all watched: the estimate delete removed, and all three removal cases
-   * fail on `FOREIGN KEY constraint failed` — the 500 a bare role delete answers
+   * fail on `FOREIGN KEY constraint failed` — the 500 a bare step delete answers
    * today (2026-08-08). The bump set narrowed to the assignments alone, and
    * `deletes an estimate written between the count and the confirmed removal`
    * fails on the third work item's revision (2026-08-08). The counting left in
    * the service alone, and `refuses an unconfirmed removal when an estimate
    * lands after the count` deletes it instead; the `RETURNING` check dropped,
    * and `refuses the loser of two removals, bumping and announcing nothing`
-   * moves the project's revision and answers `ok`; the role delete's
-   * `projectId` condition dropped, and `reports another project’s role as not
+   * moves the project's revision and answers `ok`; the step delete's
+   * `projectId` condition dropped, and `reports another project’s step as not
    * there, and leaves it alone` deletes theirs (2026-08-09).
    *
    * What no test here can observe is a writer landing **inside** this
@@ -266,54 +272,54 @@ export class RoleRepository implements RoleStore {
    * the API actually faces — count, somebody else's write, confirm — is
    * reproduced across two calls rather than inside one.
    */
-  async remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved> {
+  async remove(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
-      const roleInProject = tx
-        .select({ id: role.id })
-        .from(role)
-        .where(and(eq(role.id, roleId), eq(role.projectId, projectId)));
+      const stepInProject = tx
+        .select({ id: step.id })
+        .from(step)
+        .where(and(eq(step.id, stepId), eq(step.projectId, projectId)));
       const estimated = tx
         .select({ workItemId: estimate.workItemId })
         .from(estimate)
-        .where(inArray(estimate.roleId, roleInProject))
+        .where(inArray(estimate.stepId, stepInProject))
         .all();
       // Counted inside the transaction with the estimates, and counted at all
-      // because an actual is a record of work somebody has already done: a role
+      // because an actual is a record of work somebody has already done: a step
       // that holds one and no estimate is `in_use`, and an unconfirmed removal
       // of it is refused rather than quietly taking the only record of that
-      // week. `actual.role_id` has no cascade for exactly this — see `role` in
+      // week. `actual.role_id` has no cascade for exactly this — see `step` in
       // `schema.ts`.
       const recorded = tx
         .select({ workItemId: actual.workItemId })
         .from(actual)
-        .where(inArray(actual.roleId, roleInProject))
+        .where(inArray(actual.stepId, stepInProject))
         .all();
-      // And the statements, counted here for the recorded days' reason: a role
+      // And the statements, counted here for the recorded days' reason: a step
       // that holds no estimate and no actual but has been said to be **done** on
       // a work item is `in_use`, and an unconfirmed removal of it would turn
       // finished work back into work nobody has started, silently.
       const spoken = tx
-        .select({ workItemId: roleProgress.workItemId })
-        .from(roleProgress)
-        .where(inArray(roleProgress.roleId, roleInProject))
+        .select({ workItemId: stepProgress.workItemId })
+        .from(stepProgress)
+        .where(inArray(stepProgress.stepId, stepInProject))
         .all();
       // And the figures that are not days, counted here for the recorded days'
       // reason in two of its three units and for the estimates' reason in the
       // third: a `token_actual` or an `hours_actual` is an account of work that
-      // has already happened, and a role holding one and nothing else is
+      // has already happened, and a step holding one and nothing else is
       // `in_use`. Rows, not pairs — a pair holding a token estimate and an hours
       // fact is two statements, and the number a person is shown before
       // consenting has to be the number of statements that go.
       const measured = tx
-        .select({ workItemId: roleMeasure.workItemId })
-        .from(roleMeasure)
-        .where(inArray(roleMeasure.roleId, roleInProject))
+        .select({ workItemId: stepMeasure.workItemId })
+        .from(stepMeasure)
+        .where(inArray(stepMeasure.stepId, stepInProject))
         .all();
       const assigned = tx
         .select({ workItemId: assignment.workItemId })
         .from(assignment)
-        .where(inArray(assignment.roleId, roleInProject))
+        .where(inArray(assignment.stepId, stepInProject))
         .all();
       if (
         !cascade &&
@@ -335,28 +341,28 @@ export class RoleRepository implements RoleStore {
           },
         };
       }
-      tx.delete(estimate).where(inArray(estimate.roleId, roleInProject)).run();
+      tx.delete(estimate).where(inArray(estimate.stepId, stepInProject)).run();
       // Explicit, like the estimates and for the identical reason: `role_id`
-      // carries no cascade here, so the role delete below hits the foreign key
+      // carries no cascade here, so the step delete below hits the foreign key
       // and answers 500 without this statement.
-      tx.delete(actual).where(inArray(actual.roleId, roleInProject)).run();
+      tx.delete(actual).where(inArray(actual.stepId, stepInProject)).run();
       // Explicit for the same reason once more: `role_progress.role_id` carries
       // no cascade either, deliberately.
-      tx.delete(roleProgress).where(inArray(roleProgress.roleId, roleInProject)).run();
+      tx.delete(stepProgress).where(inArray(stepProgress.stepId, stepInProject)).run();
       // Explicit for the third time and the same reason: `role_measure.role_id`
-      // carries no cascade either (`schema.ts`, `roleMeasure`), so without this
-      // statement the role delete below hits the foreign key and answers 500 to
+      // carries no cascade either (`schema.ts`, `stepMeasure`), so without this
+      // statement the step delete below hits the foreign key and answers 500 to
       // a confirmed cascade — the exact failure the estimates' delete was added
       // for in 2026-08-08, one table later.
-      tx.delete(roleMeasure).where(inArray(roleMeasure.roleId, roleInProject)).run();
-      tx.delete(assignment).where(inArray(assignment.roleId, roleInProject)).run();
+      tx.delete(stepMeasure).where(inArray(stepMeasure.stepId, stepInProject)).run();
+      tx.delete(assignment).where(inArray(assignment.stepId, stepInProject)).run();
       const removed = tx
-        .delete(role)
-        .where(and(eq(role.id, roleId), eq(role.projectId, projectId)))
+        .delete(step)
+        .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
         .returning()
         .all();
       // Nothing was deleted, so there was nothing here to delete: somebody
-      // else's removal committed first, or this role belongs to another
+      // else's removal committed first, or this step belongs to another
       // project. Either way this request changed nothing and must move no
       // revision — the two deletes above touched nothing for the same reason.
       if (removed.length === 0) return { ok: false, reason: 'not_found' };

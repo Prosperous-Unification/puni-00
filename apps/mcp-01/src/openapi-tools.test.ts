@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'bun:test';
 
 import type { DerivedTool } from './openapi-tools';
@@ -46,14 +48,14 @@ const fixture = (): FixtureDocument => ({
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       },
     },
-    '/api/projects/{id}/bands/{roleId}': {
+    '/api/projects/{id}/bands/{stepId}': {
       put: {
         operationId: 'putBand',
         summary: 'Set a band',
         description: 'Bands are derived downstream.',
         parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-          { name: 'roleId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'stepId', in: 'path', required: true, schema: { type: 'string' } },
         ],
         requestBody: {
           description: 'The schema here is documentation, not validation.',
@@ -82,7 +84,7 @@ describe('toolsFromDocument, on a fixture document', () => {
   it('names each tool after its operationId and keeps its method and path', () => {
     const band = byName(toolsFromDocument(fixture()), 'putBand');
     expect(band.method).toBe('put');
-    expect(band.path).toBe('/api/projects/{id}/bands/{roleId}');
+    expect(band.path).toBe('/api/projects/{id}/bands/{stepId}');
     expect(band.description).toContain('Set a band');
     expect(band.description).toContain('Bands are derived downstream.');
   });
@@ -140,10 +142,10 @@ describe('toolsFromDocument, on a fixture document', () => {
       'floor',
       'id',
       'label',
-      'roleId',
+      'stepId',
     ]);
-    expect([...(band.inputSchema.required ?? [])].sort()).toEqual(['floor', 'id', 'roleId']);
-    expect(band.locations).toEqual({ id: 'path', roleId: 'path', floor: 'body', label: 'body' });
+    expect([...(band.inputSchema.required ?? [])].sort()).toEqual(['floor', 'id', 'stepId']);
+    expect(band.locations).toEqual({ id: 'path', stepId: 'path', floor: 'body', label: 'body' });
     expect(band.inputSchema.properties['floor']).toEqual({ type: 'number' });
     expect(band.inputSchema.additionalProperties).toBe(false);
   });
@@ -166,7 +168,7 @@ describe('toolsFromDocument, on a fixture document', () => {
 
   it('refuses a name claimed by both a parameter and a body property', () => {
     const document = fixture();
-    const body = document.paths['/api/projects/{id}/bands/{roleId}']?.['put']?.requestBody;
+    const body = document.paths['/api/projects/{id}/bands/{stepId}']?.['put']?.requestBody;
     const properties = body?.content?.['application/json']?.schema?.properties;
     if (properties === undefined) throw new Error('the fixture lost its body schema');
     properties['id'] = { type: 'string' };
@@ -229,8 +231,8 @@ describe('toolsFromDocument, on the committed document', () => {
    *
    * **47 to 49 with `token-tracking`'s two measure routes**, and the decision is
    * the one Dany asked for on 2026-08-21 19:06 — token figures must be reachable
-   * from MCP as well. `putApiWork-itemsByIdMeasuresByMetricByRoleId` and
-   * `deleteApiWork-itemsByIdMeasuresByMetricByRoleId` are the tools, derived
+   * from MCP as well. `putApiWork-itemsByIdMeasuresByMetricByStepId` and
+   * `deleteApiWork-itemsByIdMeasuresByMetricByStepId` are the tools, derived
    * from the committed document with nothing added here: neither path matches an
    * exclusion class, so "free" turned out to be true — but this line is what
    * checked it rather than assuming it.
@@ -248,7 +250,7 @@ describe('toolsFromDocument, on the committed document', () => {
     // **51 to 19 with `plan-commands`.** Every single-item plan and directory
     // write is excluded — a model gets one write tool, `commands`, and cannot
     // pick the slow path — and the batch route arrives. What stays: the reads,
-    // `commands`, undo, redo, the project and role routes that are not plan
+    // `commands`, undo, redo, the project and step routes that are not plan
     // edits, the export, and the directory's own batch route (the directory
     // has no project). The single-item routes are gone from be-01, so nothing
     // needs excluding beyond the five classes.
@@ -330,13 +332,13 @@ describe('toolsFromDocument, on the committed document', () => {
   });
 
   it('derives a write with path parameters and a body from both sides', () => {
-    // The role rename: two path parameters and a typebox body. Until
+    // The step rename: two path parameters and a typebox body. Until
     // `plan-commands` this read the estimate PUT, which is a batch command now.
-    const rename = byName(tools, 'patchApiProjectsByIdRolesByRoleId');
+    const rename = byName(tools, 'patchApiProjectsByIdStepsByStepId');
     expect(rename.method).toBe('patch');
-    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual(['id', 'name', 'roleId']);
-    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'name', 'roleId']);
-    expect(rename.locations['roleId']).toBe('path');
+    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual(['id', 'name', 'stepId']);
+    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'name', 'stepId']);
+    expect(rename.locations['stepId']).toBe('path');
     expect(rename.locations['name']).toBe('body');
     // And the one hand-parsed write left says so, as the eight used to.
     expect(byName(tools, 'postApiProjectsByIdCommands').description).toContain(
@@ -355,6 +357,83 @@ describe('toolsFromDocument, on the committed document', () => {
       expect(tool.name).toMatch(/^[a-zA-Z0-9_-]{1,128}$/);
       expect(tool.description.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The README against the tools it documents.
+ *
+ * `apps/mcp-01/README.md` is the list a person reads before writing a client,
+ * and it is on disk rather than derived, so nothing but this stops it drifting
+ * from `openapi.json`. `steps-not-phases` renamed both a tool and a command
+ * field, which is exactly the drift this catches.
+ */
+describe('the README names the tools that exist', () => {
+  const tools = toolsFromDocument(readDocument());
+  const readme = readFileSync(new URL('../README.md', import.meta.url).pathname, 'utf8');
+
+  it('names no tool the document does not derive', () => {
+    const named = [...readme.matchAll(/\b(?:get|post|patch|put|delete)Api[A-Za-z-]+\b/g)].map(
+      (found) => found[0],
+    );
+    // Non-vacuous: the README does name tools, so an empty intersection below
+    // would be a regex that stopped matching rather than a document that agrees.
+    expect(named.length).toBeGreaterThan(0);
+
+    const derived = new Set(tools.map((tool) => tool.name));
+    expect(named.filter((name) => !derived.has(name))).toEqual([]);
+
+    /*
+      And the prose beside the names, which no schema checks. The README
+      describes the tool set in words — "the project and step routes" — and a
+      sentence is where a rename survives a green gate.
+
+      Proof: that clause spelled back to "the project and role routes". This
+      failed on `expect(received).not.toMatch(expected)` with
+      `Received: "…undo, redo, the project and role routes, the export…"`.
+      Watched 2026-08-29.
+    */
+    expect(readme).not.toMatch(/\b(phase|phases|role|roles)\b/i);
+  });
+
+  it('spells the example batch in the fields the commands tool declares', () => {
+    /*
+      Proof: `"stepId"` in the README's `setEstimate` example spelled back to
+      `"roleId"` — the drift `steps-not-phases` would have left behind. This
+      failed on `expect(received).toEqual(expected) … + [ "setEstimate.roleId" ]`.
+      Watched 2026-08-29.
+    */
+    const fenced = /```json\n([\s\S]*?)```/.exec(readme)?.[1];
+    if (fenced === undefined) throw new Error('the README has no json example to check');
+    const example = JSON.parse(fenced) as { commands: Record<string, unknown>[] };
+
+    const variants = (
+      byName(tools, 'postApiProjectsByIdCommands').inputSchema.properties['commands'] as {
+        items: { oneOf: { title: string; properties: Record<string, unknown> }[] };
+      }
+    ).items.oneOf;
+
+    const undeclared: string[] = [];
+    for (const command of example.commands) {
+      const kind = command['kind'];
+      const variant = variants.find((each) => each.title === kind);
+      if (variant === undefined) {
+        undeclared.push(`${String(kind)} is not a command kind`);
+        continue;
+      }
+      for (const field of Object.keys(command)) {
+        // `…Ref` names something an earlier command in the same batch created;
+        // it stands in for the `…Id` the variant declares, which is why the
+        // variant carries both.
+        if (!(field in variant.properties)) undeclared.push(`${String(kind)}.${field}`);
+      }
+    }
+
+    expect(undeclared).toEqual([]);
+    // Non-vacuous: the example really was read and really was matched to
+    // variants, so an empty list is agreement rather than an empty loop.
+    expect(example.commands.length).toBeGreaterThan(2);
+    expect(example.commands.some((command) => command['kind'] === 'setEstimate')).toBe(true);
   });
 });
 

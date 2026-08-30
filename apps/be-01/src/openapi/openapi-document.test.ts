@@ -10,7 +10,7 @@ import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import { documentFromApp, OPENAPI_DOCUMENT_FILE, serialiseDocument } from './document-from-app';
@@ -21,7 +21,7 @@ const app = () =>
     auth: testAuthService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),
-    roles: testRoleService(),
+    steps: testStepService(),
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),

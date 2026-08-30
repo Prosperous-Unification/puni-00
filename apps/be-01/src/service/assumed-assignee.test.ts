@@ -3,9 +3,9 @@ import { describe, expect, it } from 'bun:test';
 import type { Assignment } from '../repository';
 import { assumedAssignee, assumedAssigneeFlips } from './assumed-assignee';
 
-const assigned = (workItemId: string, roleId: string, personId: string): Assignment => ({
+const assigned = (workItemId: string, stepId: string, personId: string): Assignment => ({
   workItemId,
-  roleId,
+  stepId,
   personId,
 });
 
@@ -16,15 +16,15 @@ describe('assumedAssignee', () => {
     expect(assumedAssignee({})).toBeNull();
   });
 
-  it('is nobody when one person holds two roles', () => {
+  it('is nobody when one person holds two steps', () => {
     // Two rows, so nothing is being assumed: that person was named for both
-    // phases rather than covering one nobody was named for.
+    // steps rather than covering one nobody was named for.
     expect(assumedAssignee({ dev: 'ada', qa: 'ada' })).toBeNull();
   });
 });
 
 describe('assumedAssigneeFlips', () => {
-  it('names the work item where removing a role starts the assumption', () => {
+  it('names the work item where removing a step starts the assumption', () => {
     const flips = assumedAssigneeFlips(
       [assigned('strip', 'dev', 'ada'), assigned('strip', 'qa', 'grace')],
       'qa',
@@ -33,7 +33,7 @@ describe('assumedAssigneeFlips', () => {
     expect(flips).toEqual([{ workItemId: 'strip', assumedNow: null, assumedAfter: 'ada' }]);
   });
 
-  it('names the work item where removing a role ends the assumption', () => {
+  it('names the work item where removing a step ends the assumption', () => {
     const flips = assumedAssigneeFlips([assigned('strip', 'qa', 'grace')], 'qa');
 
     expect(flips).toEqual([{ workItemId: 'strip', assumedNow: 'grace', assumedAfter: null }]);
@@ -55,7 +55,7 @@ describe('assumedAssigneeFlips', () => {
     expect(flips).toEqual([]);
   });
 
-  it('leaves alone a work item with no assignment on the role', () => {
+  it('leaves alone a work item with no assignment on the step', () => {
     const flips = assumedAssigneeFlips([assigned('strip', 'dev', 'ada')], 'qa');
 
     expect(flips).toEqual([]);

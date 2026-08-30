@@ -3,7 +3,7 @@ import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
 
 /** One of the three points, as the row holds it: `''` where nobody typed one. */
-export interface FoldedRolePoint {
+export interface FoldedStepPoint {
   point: Point;
   days: string;
 }
@@ -18,8 +18,8 @@ export const SHORTHAND_HELP =
   'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. ' +
   '@ looks somebody up to do it.';
 
-export interface FoldedRoleCardProps {
-  roleName: string;
+export interface FoldedStepCardProps {
+  stepName: string;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
   /**
@@ -30,7 +30,7 @@ export interface FoldedRoleCardProps {
    * label does to a description.
    */
   id: string;
-  points: readonly FoldedRolePoint[];
+  points: readonly FoldedStepPoint[];
   /** The figure the folded cell shows — `''` where there is nothing to show. */
   final: string;
   doing: CardAssignee | null;
@@ -43,11 +43,11 @@ export interface FoldedRoleCardProps {
 }
 
 /**
- * What one folded role column cell folds away, in full.
+ * What one folded step column cell folds away, in full.
  *
  * The cell at rest is `4.8 · Ka…` in 96px: one computed figure, and a person's
  * name cut to about four characters. The trio behind the figure is only on
- * screen while the role is unfolded — and unfolding one folds another, so a
+ * screen while the step is unfolded — and unfolding one folds another, so a
  * plan cannot be read with every trio open. This is where the folded ones are
  * read.
  *
@@ -56,24 +56,24 @@ export interface FoldedRoleCardProps {
  * who is doing it and whether anybody said so.
  *
  * It is also the folded cell's `aria-describedby`, so that a reader with no
- * pointer is not simply told less. That is why the role and the number are the
+ * pointer is not simply told less. That is why the step and the number are the
  * first line of the card rather than an `aria-label` on it — a label would be
  * read out *instead of* everything under it.
  */
-export function FoldedRoleCard({
-  roleName,
+export function FoldedStepCard({
+  stepName,
   number,
   id,
   points,
   final,
   doing,
   problem,
-}: FoldedRoleCardProps) {
+}: FoldedStepCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
   return (
     <HoverCard id={id}>
       <div style={{ fontWeight: 600 }}>
-        {roleName} for {number}
+        {stepName} for {number}
       </div>
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
@@ -89,7 +89,7 @@ export function FoldedRoleCard({
         <div>
           {doing.name}
           {doing.assumed &&
-            ' — assumed: they are the only person assigned, so they are taken to be doing this phase too'}
+            ' — assumed: they are the only person assigned, so they are taken to be doing this step too'}
         </div>
       )}
       {/*
@@ -108,13 +108,13 @@ export function FoldedRoleCard({
         <div style={{ color: 'var(--muted-foreground)' }}>{doing.outside}</div>
       )}
       {/*
-        Proof: this line deleted, four tests failed — `a folded role cannot
+        Proof: this line deleted, four tests failed — `a folded step cannot
         hide a complaint`, `sends nothing for a trio that runs backwards, and
         says why`, `lets a box replace what the folded cell was holding`,
         `marks the folded cell when the boxes hold a trio that saves nothing`
         — each on the complaint missing from the card. And the fault the
         removal of the native `title` guards against: the `title` put back on
-        the folded wrapper, `a folded role cannot hide a complaint` failed on
+        the folded wrapper, `a folded step cannot hide a complaint` failed on
         `expected 'Fill all three…' to be null`. Both watched, 2026-08-09.
       */}
       {problem !== null && <div style={{ color: 'var(--destructive)' }}>{problem}</div>}

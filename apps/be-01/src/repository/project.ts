@@ -7,9 +7,9 @@ import {
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from './index';
+import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from './index';
 import { bumpedProject } from './revision';
-import { project, projectAccess, role, users } from './schema';
+import { project, projectAccess, step, users } from './schema';
 
 /**
  * A stored row as a {@link Project}, checking the two columns SQLite cannot
@@ -88,12 +88,12 @@ function withOwnerName<T extends { name: string; ownerName: string | null }>(
 }
 
 /**
- * `create` writes the project and its roles in one transaction. A project that
- * existed briefly without roles would accept an estimate with no role to belong
+ * `create` writes the project and its steps in one transaction. A project that
+ * existed briefly without steps would accept an estimate with no step to belong
  * to, and the failure would surface later as a missing join rather than here as
  * a rejected write.
  *
- * Role name uniqueness is left to the schema index: checking first is a race
+ * Step name uniqueness is left to the schema index: checking first is a race
  * two concurrent additions both win.
  */
 export class ProjectRepository implements ProjectStore {
@@ -103,7 +103,7 @@ export class ProjectRepository implements ProjectStore {
   // synchronous, so a constraint violation would otherwise be thrown before the
   // promise this signature advertises exists — and a caller holding it with
   // `.catch()` would never see the rejection.
-  async create(toCreate: Project, startingRoles: readonly Role[]): Promise<Project> {
+  async create(toCreate: Project, startingSteps: readonly Step[]): Promise<Project> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       const { solutionRef, ...fields } = toCreate;
@@ -114,9 +114,9 @@ export class ProjectRepository implements ProjectStore {
           solutionUrl: solutionRef?.url ?? null,
         })
         .run();
-      if (startingRoles.length > 0)
-        tx.insert(role)
-          .values([...startingRoles])
+      if (startingSteps.length > 0)
+        tx.insert(step)
+          .values([...startingSteps])
           .run();
     });
     return toCreate;
@@ -254,20 +254,20 @@ export class ProjectRepository implements ProjectStore {
   }
 
   /**
-   * The project's roles, in role order — the same order and the same reason as
-   * {@link RoleRepository.listByProject}, which this does not replace: the
-   * schedule reads its role order through here.
+   * The project's steps, in step order — the same order and the same reason as
+   * {@link StepRepository.listByProject}, which this does not replace: the
+   * schedule reads its step order through here.
    *
    * Proof: with the `orderBy` removed, `reads the same order through the
    * project, which is where the schedule asks` fails with `Analysis, Dev, QA`
    * — SQLite answers this from the `(project_id, name)` index; watched
    * 2026-08-09.
    */
-  rolesOf(projectId: string): Promise<Role[]> {
+  stepsOf(projectId: string): Promise<Step[]> {
     return this.db
       .select()
-      .from(role)
-      .where(eq(role.projectId, projectId))
-      .orderBy(role.position, role.id);
+      .from(step)
+      .where(eq(step.projectId, projectId))
+      .orderBy(step.position, step.id);
   }
 }

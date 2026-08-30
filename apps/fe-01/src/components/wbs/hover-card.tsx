@@ -464,7 +464,7 @@ export function HoverCard({
         boxShadow: '0 4px 14px oklch(0 0 0 / 14%)',
         textAlign: 'left',
         // The cells these open from are bold, right-aligned, or both — a
-        // folded role's figure is `font-weight: 600` — and a card inheriting
+        // folded step's figure is `font-weight: 600` — and a card inheriting
         // that reads as a heading rather than as a paragraph.
         fontWeight: 400,
         ...scrolling,

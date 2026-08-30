@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Role, StoredDependency, WorkItem } from '../repository';
-import { ROLE_POSITION_STEP } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import { STEP_POSITION_STEP } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
@@ -52,7 +52,7 @@ interface CapturedRow {
 
 interface CapturedPlan {
   projectId: string;
-  roleIds: string[];
+  stepIds: string[];
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
   rows: CapturedRow[];
@@ -171,7 +171,7 @@ describe('every plan schedules identically across the migration', () => {
       'person',
       'predecessor',
       'projectStart',
-      'roleOrder',
+      'stepOrder',
     ]);
     expect(slices.filter((slice) => slice.boundBy === 'capacity')).toHaveLength(25);
     expect(
@@ -203,7 +203,7 @@ describe('every plan schedules identically across the migration', () => {
     //
     // Proof: the seeded map replaced by an empty one — every pair unstated, which
     // is the shape of forgetting the seeding altogether — and this failed on `p1`'s
-    // very first comparison: `p1-g0-l0role-1` came back `boundBy: 'roleOrder'` with
+    // very first comparison: `p1-g0-l0step-1` came back `boundBy: 'stepOrder'` with
     // an empty `capacityPredecessorIds` where `boundBy: 'capacity'` and four
     // predecessors were owed, and its `earliestStart` moved 7.5 → 3. Watched
     // 2026-08-13.
@@ -555,13 +555,13 @@ describe('every plan schedules identically across the migration', () => {
       revision: 0,
       createdAt: 1,
     };
-    const roles: Role[] = plan.roleIds.map((id, place) => ({
+    const steps: Step[] = plan.stepIds.map((id, place) => ({
       id,
       projectId: plan.projectId,
-      name: `Role ${String(place)}`,
-      position: (place + 1) * ROLE_POSITION_STEP,
+      name: `Step ${String(place)}`,
+      position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await projects.create(project, roles);
+    await projects.create(project, steps);
     for (const row of plan.rows) {
       const stored: WorkItem = {
         id: row.id,
@@ -582,11 +582,11 @@ describe('every plan schedules identically across the migration', () => {
     // After the rows, so an estimate is never written against a work item that is
     // not there yet — the fixture mirrors the foreign key.
     for (const row of plan.rows) {
-      for (const [roleId, days] of Object.entries(row.estimates)) {
-        await estimates.set({ workItemId: row.id, roleId, ...days });
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        await estimates.set({ workItemId: row.id, stepId, ...days });
       }
-      for (const [roleId, personId] of Object.entries(row.assignees)) {
-        await directory.assign(row.id, roleId, personId);
+      for (const [stepId, personId] of Object.entries(row.assignees)) {
+        await directory.assign(row.id, stepId, personId);
       }
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {

@@ -110,7 +110,7 @@ export class CommandJournalRepository implements CommandJournalStore {
           kind: event.kind,
           label: event.label,
           workItemId: event.workItemId,
-          roleId: event.roleId,
+          stepId: event.stepId,
           before: JSON.stringify(event.before),
           after: JSON.stringify(event.after),
           createdAt: event.createdAt,

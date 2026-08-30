@@ -347,7 +347,7 @@ export class PlanCommandRunner {
             await workItems.setEstimate(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               command.days,
             ),
           );
@@ -358,7 +358,7 @@ export class PlanCommandRunner {
             await workItems.clearEstimate(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
             ),
           );
           results.push(plain());
@@ -368,7 +368,7 @@ export class PlanCommandRunner {
             await workItems.setActual(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               command.days,
             ),
           );
@@ -379,7 +379,7 @@ export class PlanCommandRunner {
             await workItems.clearActual(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
             ),
           );
           results.push(plain());
@@ -389,7 +389,7 @@ export class PlanCommandRunner {
             await workItems.setProgress(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               command.state,
             ),
           );
@@ -400,7 +400,7 @@ export class PlanCommandRunner {
             await workItems.clearProgress(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
             ),
           );
           results.push(plain());
@@ -410,7 +410,7 @@ export class PlanCommandRunner {
             await workItems.setMeasure(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               command.metric,
               command.value,
             ),
@@ -422,7 +422,7 @@ export class PlanCommandRunner {
             await workItems.clearMeasure(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               command.metric,
             ),
           );
@@ -433,7 +433,7 @@ export class PlanCommandRunner {
             await workItems.assign(
               required(command.workItemId, command.workItemRef),
               actorId,
-              command.roleId,
+              command.stepId,
               id(command.personId, command.personRef),
             ),
           );

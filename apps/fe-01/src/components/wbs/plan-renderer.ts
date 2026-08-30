@@ -14,7 +14,7 @@ export type PlanRenderer = 'cards' | 'table';
  * The width the table stops being the right answer at, in CSS pixels.
  *
  * 768 is the width the table cannot be made to fit rather than a convention
- * borrowed from a framework: a two-phase plan's columns add up to about 1106px
+ * borrowed from a framework: a two-step plan's columns add up to about 1106px
  * before anything scrolls (`table-frame.ts`), and every way of closing that gap
  * — smaller type, fewer columns, a horizontal scroll — is a table nobody can
  * read on a phone. Below this the plan is cards.

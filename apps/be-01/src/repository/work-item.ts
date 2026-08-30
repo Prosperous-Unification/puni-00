@@ -22,10 +22,10 @@ import {
   dependency,
   estimate,
   externalSystem,
-  roleMeasure,
-  roleProgress,
   service,
   serviceTeam,
+  stepMeasure,
+  stepProgress,
   tag,
   workItem,
   workItemExternalRef,
@@ -784,7 +784,7 @@ export class SubtreeRepository implements SubtreeStore {
       // back the reading the delete took with the rows. See
       // {@link SubtreeCopy.progress}.
       if (copy.progress.length > 0)
-        tx.insert(roleProgress)
+        tx.insert(stepProgress)
           .values([...copy.progress])
           .run();
       // Beside the two above, and the one write here whose emptiness is not a
@@ -794,7 +794,7 @@ export class SubtreeRepository implements SubtreeStore {
       // around it, because the metric is in the key. See
       // {@link SubtreeCopy.measures}.
       if (copy.measures.length > 0)
-        tx.insert(roleMeasure)
+        tx.insert(stepMeasure)
           .values([...copy.measures])
           .run();
       if (copy.assignments.length > 0)
@@ -813,7 +813,7 @@ export class SubtreeRepository implements SubtreeStore {
       // count the same days twice for as long as the window lasted.
       for (const taken of copy.removedEstimates) {
         tx.delete(estimate)
-          .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.roleId, taken.roleId)))
+          .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.stepId, taken.stepId)))
           .run();
       }
       // The same statement for the same reason, one table over: a restored leaf
@@ -821,7 +821,7 @@ export class SubtreeRepository implements SubtreeStore {
       // same week twice.
       for (const taken of copy.removedActuals) {
         tx.delete(actual)
-          .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.roleId, taken.roleId)))
+          .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.stepId, taken.stepId)))
           .run();
       }
       // And the statements, for the reason above in the tense this table is
@@ -829,11 +829,11 @@ export class SubtreeRepository implements SubtreeStore {
       // finished would report the same branch as done twice, on two rows, one of
       // which is now a parent whose reading is supposed to be folded.
       for (const taken of copy.removedProgress) {
-        tx.delete(roleProgress)
+        tx.delete(stepProgress)
           .where(
             and(
-              eq(roleProgress.workItemId, taken.workItemId),
-              eq(roleProgress.roleId, taken.roleId),
+              eq(stepProgress.workItemId, taken.workItemId),
+              eq(stepProgress.stepId, taken.stepId),
             ),
           )
           .run();
@@ -844,12 +844,12 @@ export class SubtreeRepository implements SubtreeStore {
       // handed it: an hours fact it has held since before the delete, gone
       // because a token estimate came home.
       for (const taken of copy.removedMeasures) {
-        tx.delete(roleMeasure)
+        tx.delete(stepMeasure)
           .where(
             and(
-              eq(roleMeasure.workItemId, taken.workItemId),
-              eq(roleMeasure.roleId, taken.roleId),
-              eq(roleMeasure.metric, taken.metric),
+              eq(stepMeasure.workItemId, taken.workItemId),
+              eq(stepMeasure.stepId, taken.stepId),
+              eq(stepMeasure.metric, taken.metric),
             ),
           )
           .run();

@@ -1,18 +1,18 @@
 import { isIsoDate } from '@wbs/domain';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from '../repository';
-import { ROLE_POSITION_STEP } from '../repository';
+import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
+import { STEP_POSITION_STEP } from '../repository';
 
 /**
- * The roles a project starts with, **in role order**. Two sets of estimates is
+ * The steps a project starts with, **in step order**. Two sets of estimates is
  * the default the product asks for; a project that began with none would accept
- * no estimates at all until someone thought to add a role.
+ * no estimates at all until someone thought to add a step.
  */
-export const STARTING_ROLES = ['Dev', 'QA'] as const;
+export const STARTING_STEPS = ['Dev', 'QA'] as const;
 
-export interface ProjectWithRoles {
+export interface ProjectWithSteps {
   project: Project;
-  roles: Role[];
+  steps: Step[];
 }
 
 export type UpdateOutcome =
@@ -47,7 +47,7 @@ export class ProjectService {
     this.newId = opts.newId ?? (() => crypto.randomUUID());
   }
 
-  async create(name: string, ownerId: string): Promise<ProjectWithRoles> {
+  async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
     const project: Project = {
       id: this.newId(),
       name,
@@ -67,23 +67,23 @@ export class ProjectService {
       // state, and inventing one would put dates on screen nobody chose.
       startDate: null,
       solutionRef: null,
-      // Never written to since it came into being. Its starting roles arrive
+      // Never written to since it came into being. Its starting steps arrive
       // in the same transaction, so they are part of that beginning rather
       // than a first change to it.
       revision: 0,
       createdAt: this.now(),
     };
     // Positions written here rather than left to the store: `create` takes the
-    // seed as it is, and `STARTING_ROLES` is already an order — Dev is done
+    // seed as it is, and `STARTING_STEPS` is already an order — Dev is done
     // before QA, which is the order the schedule runs a work item's slices in.
-    const roles = STARTING_ROLES.map((roleName, place) => ({
+    const steps = STARTING_STEPS.map((stepName, place) => ({
       id: this.newId(),
       projectId: project.id,
-      name: roleName,
-      position: (place + 1) * ROLE_POSITION_STEP,
+      name: stepName,
+      position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await this.opts.projects.create(project, roles);
-    return { project, roles };
+    await this.opts.projects.create(project, steps);
+    return { project, steps };
   }
 
   /**
@@ -117,16 +117,16 @@ export class ProjectService {
     return true;
   }
 
-  async read(id: string): Promise<ProjectWithRoles | null> {
+  async read(id: string): Promise<ProjectWithSteps | null> {
     const project = await this.opts.projects.findById(id);
     if (project === null) return null;
-    return { project, roles: await this.opts.projects.rolesOf(id) };
+    return { project, steps: await this.opts.projects.stepsOf(id) };
   }
 
-  async readBySolutionSlug(slug: string): Promise<ProjectWithRoles | null> {
+  async readBySolutionSlug(slug: string): Promise<ProjectWithSteps | null> {
     const project = await this.opts.projects.findBySolutionSlug(slug);
     if (project === null) return null;
-    return { project, roles: await this.opts.projects.rolesOf(project.id) };
+    return { project, steps: await this.opts.projects.stepsOf(project.id) };
   }
 
   async update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {

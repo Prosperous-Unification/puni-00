@@ -13,7 +13,7 @@ import type { ExpandedState } from '@tanstack/react-table';
  * "fully estimated" would put a word on screen the data does not support
  * (`notes/wbs-brief-2026-08-17-r10-filtering.md` §1, §8.8).
  *
- * The grain is a **row**, never a slice. Assignee, phase and critical are facts
+ * The grain is a **row**, never a slice. Assignee, step and critical are facts
  * about a slice; a row carries the union of its slices' answers, so a row
  * matches when *any* of its work does and every one of its bars is then drawn.
  * Filtering at slice grain would draw a row with some of its bars removed,
@@ -86,12 +86,12 @@ export interface RowFacets {
    * work — `assignedOutsideTeam`, the second signal and the same vocabulary.
    */
   assignedOutsideTeam: boolean;
-  /** Everybody named on any of this row's phases, deduplicated. */
+  /** Everybody named on any of this row's steps, deduplicated. */
   assigneeIds: readonly string[];
   /** What this plan's ladder calls this row's priority, or null where nobody has said. */
   priorityBand: string | null;
-  /** The phases this row carries an estimate for — `Object.hasOwn`, the same reading `findEstimateGaps` makes. */
-  estimatedRoleIds: readonly string[];
+  /** The steps this row carries an estimate for — `Object.hasOwn`, the same reading `findEstimateGaps` makes. */
+  estimatedStepIds: readonly string[];
   /** Whether this row is one of the leaves the readiness badge counts. */
   unestimated: boolean;
   /** Whether any of this row's work is on the critical path. */
@@ -150,7 +150,7 @@ export interface FilterCriteria {
   assigneeIds: readonly string[];
   /** Band **labels**, not start values — what the ladder calls the rung, which is what the control offers. */
   priorityBands: readonly string[];
-  estimatedRoleIds: readonly string[];
+  estimatedStepIds: readonly string[];
   unestimated: boolean;
   critical: boolean;
 }
@@ -175,7 +175,7 @@ export const NO_FACETS: FacetCriteria = {
   assignedOutsideTeam: false,
   assigneeIds: [],
   priorityBands: [],
-  estimatedRoleIds: [],
+  estimatedStepIds: [],
   unestimated: false,
   critical: false,
 };
@@ -215,7 +215,7 @@ function anyFacetChosen(criteria: FilterCriteria): boolean {
     criteria.assignedOutsideTeam ||
     criteria.assigneeIds.length > 0 ||
     criteria.priorityBands.length > 0 ||
-    criteria.estimatedRoleIds.length > 0 ||
+    criteria.estimatedStepIds.length > 0 ||
     criteria.unestimated ||
     criteria.critical
   );
@@ -249,7 +249,7 @@ export interface FilterLabels {
   serviceName: (serviceId: string) => string;
   typeName: (typeId: string) => string;
   personName: (personId: string) => string;
-  phaseName: (roleId: string) => string;
+  stepName: (stepId: string) => string;
 }
 
 /**
@@ -292,7 +292,7 @@ export function filterWords(criteria: FilterCriteria, labels: FilterLabels): str
   // The bands travel as their labels rather than as ids — what the ladder calls
   // the rung is what the control offers and what a reader recognises.
   chosen('priority band', criteria.priorityBands, (band) => band);
-  chosen('estimated for', criteria.estimatedRoleIds, labels.phaseName);
+  chosen('estimated for', criteria.estimatedStepIds, labels.stepName);
   if (criteria.unestimated) words.push('unestimated only');
   if (criteria.critical) words.push('on the critical path only');
   // Last, and phrased as what the rows have in common rather than as a facet
@@ -330,7 +330,7 @@ function carriesAnyChosen(chosen: readonly string[], carried: readonly string[])
  *    whole of the filter**. Typing `Kitchen` is how a person asks for a whole
  *    branch, and answering with the parent alone would hide the work it is a
  *    heading for. Ticking `assignee = Ada` is not: a parent row that happens to
- *    name Ada on one phase would drag in forty rows nobody assigned to her, and
+ *    name Ada on one step would drag in forty rows nobody assigned to her, and
  *    the count beside the box would read `47 of 60` for a filter with three
  *    real hits. So the moment any facet is ticked — with or without a name
  *    beside it — this rule stands down and the filter is a per-row question.
@@ -400,7 +400,7 @@ export function narrowTree(
       criteria.priorityBands,
       row.facets.priorityBand === null ? [] : [row.facets.priorityBand],
     ) &&
-    carriesAnyChosen(criteria.estimatedRoleIds, row.facets.estimatedRoleIds) &&
+    carriesAnyChosen(criteria.estimatedStepIds, row.facets.estimatedStepIds) &&
     (!criteria.unestimated || row.facets.unestimated) &&
     (!criteria.critical || row.facets.critical) &&
     // The two signals read as `unestimated` and `critical` do — an unticked box

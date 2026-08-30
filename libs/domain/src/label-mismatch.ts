@@ -125,7 +125,7 @@ export function builtByNonOwner({
  */
 export interface AssignedOutsideTeamAsked {
   /**
-   * Everybody named on any of this row's phases, deduplicated —
+   * Everybody named on any of this row's steps, deduplicated —
    * `RowFacets.assigneeIds`' grain, because the signal is shown on a row's
    * assignee cell and a row is what carries the union of its slices' answers.
    */

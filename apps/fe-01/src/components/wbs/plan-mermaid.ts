@@ -52,8 +52,8 @@ const UNNAMED_ROW = '(unnamed)';
 /** What a project with no name is called in the diagram's title. */
 const UNNAMED_PROJECT = 'Plan';
 
-/** What a slice under no role at all is called — reachable on a project holding no phases. */
-const NO_ROLE = 'no phase';
+/** What a slice under no step at all is called — reachable on a project holding no steps. */
+const NO_STEP = 'no step';
 
 /** What a slice nobody is named on is called, under `assignee` sectioning. */
 const UNASSIGNED = 'unassigned';
@@ -71,8 +71,8 @@ const UNKNOWN_NAME = '(unknown)';
  * - `outline` (the default, M1's own choice) — the plan's own outline, this
  *   row's outermost ancestor. Needs no new concept and matches the order the
  *   plan is already read in.
- * - `phase` — the role a bar is estimated under (`Dev`, `QA`, …), this
- *   codebase's own word for it (`phases-panel.tsx`).
+ * - `step` — the step a bar is estimated under (`Dev`, `QA`, …), this
+ *   codebase's own word for it (`steps-panel.tsx`).
  * - `assignee` — who is on the bar. The brief's argument for this one: our
  *   chart spends its colour channel on people (`PERSON_BAR_COLORS`) and
  *   Mermaid has no per-task colour at all, only a `section0..3` class cycling
@@ -80,7 +80,7 @@ const UNKNOWN_NAME = '(unknown)';
  *   partially recover that lane structure, the same one
  *   `refs/gantt/gantt_chart_v2.py` was built around.
  */
-export type SectionMode = 'outline' | 'phase' | 'assignee';
+export type SectionMode = 'outline' | 'step' | 'assignee';
 
 /** What a caller gets who does not ask — M1's own behaviour, unchanged. */
 export const DEFAULT_SECTION_MODE: SectionMode = 'outline';
@@ -90,8 +90,8 @@ export const DEFAULT_SECTION_MODE: SectionMode = 'outline';
  *
  * Mermaid's gantt lexer reads a task line as `[^:\n]+` and then everything from
  * the **first** colon as metadata (`gantt.jison`). A work item called
- * `Phase 1: strip` therefore does not break the diagram — it silently moves that
- * split, and the reader is handed a task called `Phase 1` whose id is
+ * `Step 1: strip` therefore does not break the diagram — it silently moves that
+ * split, and the reader is handed a task called `Step 1` whose id is
  * `strip` and whose dates are gone. A homoglyph rather than ` - `, because the
  * name is the one part of this document a person typed and it should read back
  * the way they typed it.
@@ -184,10 +184,10 @@ const POINT_WORDS: Record<PointReason, string> = {
  *
  * `order` is a sort key, not a display value: `outline` reuses the row's own
  * position (subtrees are already contiguous in `plan.rows`, which is what let
- * M1's original sort work with no separate grouping key at all), while `phase`
- * and `assignee` group by the role's or the person's position in the plan's
+ * M1's original sort work with no separate grouping key at all), while `step`
+ * and `assignee` group by the step's or the person's position in the plan's
  * own list — the same order the chart and the pickers already show them in —
- * with the ungrouped case (no role, nobody named) sorted **last**, after every
+ * with the ungrouped case (no step, nobody named) sorted **last**, after every
  * named group, rather than interleaved among them.
  */
 function sectionOf(
@@ -197,7 +197,7 @@ function sectionOf(
   slice: ExportSlice,
   byId: ReadonlyMap<string, ExportRow>,
   rowOrder: ReadonlyMap<string, number>,
-  roleOrder: ReadonlyMap<string, number>,
+  stepOrder: ReadonlyMap<string, number>,
   personOrder: ReadonlyMap<string, number>,
 ): { order: number; label: string } {
   switch (mode) {
@@ -206,12 +206,12 @@ function sectionOf(
         order: rowOrder.get(row.id) ?? 0,
         label: mermaidPhrase(namedRow(outermost(row, byId))),
       };
-    case 'phase':
-      return slice.roleId === null
-        ? { order: plan.roles.length, label: NO_ROLE }
+    case 'step':
+      return slice.stepId === null
+        ? { order: plan.steps.length, label: NO_STEP }
         : {
-            order: roleOrder.get(slice.roleId) ?? plan.roles.length,
-            label: mermaidPhrase(nameOf(plan.roles, slice.roleId)),
+            order: stepOrder.get(slice.stepId) ?? plan.steps.length,
+            label: mermaidPhrase(nameOf(plan.steps, slice.stepId)),
           };
     case 'assignee':
       return slice.personId === null
@@ -236,7 +236,7 @@ interface MermaidTask {
 }
 
 /**
- * What one bar is called: its row, its phase, and whose it is.
+ * What one bar is called: its row, its step, and whose it is.
  *
  * **No team name.** Not an omission: R2 is rewriting `ServiceTeamLabel` into
  * `teams[]` and `services[]` this week, and a team on a bar here would make this
@@ -250,9 +250,9 @@ function taskTextOf(
   slice: ExportSlice,
   point: PointReason | null,
 ) {
-  const role = slice.roleId === null ? NO_ROLE : nameOf(plan.roles, slice.roleId);
+  const step = slice.stepId === null ? NO_STEP : nameOf(plan.steps, slice.stepId);
   const person = slice.personId === null ? null : nameOf(plan.people, slice.personId);
-  const head = `${namedRow(row)} - ${role}`;
+  const head = `${namedRow(row)} - ${step}`;
   return mermaidPhrase(
     [
       person === null ? head : `${head} (${person})`,
@@ -263,7 +263,7 @@ function taskTextOf(
 
 /**
  * Every slice of the plan as a dated task, grouped and ordered by
- * `sectionMode` — row order then role order within each group.
+ * `sectionMode` — row order then step order within each group.
  *
  * **The dates are the chart's own reading, not a second one.** `calendarScale`
  * is what the Gantt places its bars with, and its docstring records four
@@ -285,17 +285,17 @@ function taskTextOf(
  * **The sort's primary key is the section's own order, not the row's.** Under
  * `outline` those coincide — `plan.rows` is already a depth-first walk, so a
  * subtree is contiguous and sorting by the row's own position groups it for
- * free, which is why M1 needed no separate grouping key. `phase` and
+ * free, which is why M1 needed no separate grouping key. `step` and
  * `assignee` scatter a section's slices across the row list (a `Dev` slice on
  * row 3 and another on row 40 belong to the same section), so those two sort
- * by the section's position first and fall back to row order, then role
+ * by the section's position first and fall back to row order, then step
  * order, only inside it — otherwise Mermaid would see the same section name
  * repeated non-contiguously and draw it as separate bands.
  */
 function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode): MermaidTask[] {
   const byId = new Map(plan.rows.map((row) => [row.id, row]));
   const rowOrder = new Map(plan.rows.map((row, at) => [row.id, at]));
-  const roleOrder = new Map(plan.roles.map((role, at) => [role.id, at]));
+  const stepOrder = new Map(plan.steps.map((step, at) => [step.id, at]));
   const personOrder = new Map(plan.people.map((person, at) => [person.id, at]));
   const scale = calendarScale(startDate);
   // The same normalisation `calendarScale` makes of its own origin: a project
@@ -313,12 +313,12 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
     })
     .sort(
       (a, b) =>
-        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, roleOrder, personOrder).order -
-          sectionOf(sectionMode, plan, b.row, b.slice, byId, rowOrder, roleOrder, personOrder)
+        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, stepOrder, personOrder).order -
+          sectionOf(sectionMode, plan, b.row, b.slice, byId, rowOrder, stepOrder, personOrder)
             .order ||
         (rowOrder.get(a.row.id) ?? 0) - (rowOrder.get(b.row.id) ?? 0) ||
-        (a.slice.roleId === null ? plan.roles.length : (roleOrder.get(a.slice.roleId) ?? 0)) -
-          (b.slice.roleId === null ? plan.roles.length : (roleOrder.get(b.slice.roleId) ?? 0)) ||
+        (a.slice.stepId === null ? plan.steps.length : (stepOrder.get(a.slice.stepId) ?? 0)) -
+          (b.slice.stepId === null ? plan.steps.length : (stepOrder.get(b.slice.stepId) ?? 0)) ||
         a.slice.earliestStart - b.slice.earliestStart ||
         a.slice.id.localeCompare(b.slice.id),
     );
@@ -331,12 +331,12 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
     const first = Math.floor(scale.startOf(slice.earliestStart));
     const last = Math.max(first, Math.ceil(scale.endOf(slice.earliestFinish)) - 1);
     return {
-      section: sectionOf(sectionMode, plan, row, slice, byId, rowOrder, roleOrder, personOrder)
+      section: sectionOf(sectionMode, plan, row, slice, byId, rowOrder, stepOrder, personOrder)
         .label,
       text: taskTextOf(plan, row, slice, point),
       // Generated, and that is what keeps every user-typed character out of the
       // metadata position: an id taken from a name would collide the moment two
-      // rows share a phase, and one taken from `slice.id` would carry be-01's
+      // rows share a step, and one taken from `slice.id` would carry be-01's
       // opaque keys into a document a person reads.
       id: `s${String(at + 1)}`,
       critical: slice.critical,
@@ -397,7 +397,7 @@ function commentLines(plan: PlanExport): string[] {
  *
  * **Absolute dates, never `after`.** Mermaid's `after` is a layout instruction —
  * it would recompute the schedule, knowing nothing about capacity floors, person
- * floors, role order or not-before dates — so a diagram laid out by it would
+ * floors, step order or not-before dates — so a diagram laid out by it would
  * silently disagree with be-01 on exactly the plans where the disagreement
  * matters. be-01 has already solved this schedule; the fence renders it. Same
  * rule the CSV follows: the export computes nothing, so it cannot disagree with

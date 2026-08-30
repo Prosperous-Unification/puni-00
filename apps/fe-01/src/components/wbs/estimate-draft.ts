@@ -3,7 +3,7 @@ import type { Days } from '@/lib/wbs-api';
 export const POINTS = ['optimistic', 'realistic', 'pessimistic'] as const;
 export type Point = (typeof POINTS)[number];
 
-/** What is in the three boxes of one row-and-role trio, exactly as typed. */
+/** What is in the three boxes of one row-and-step trio, exactly as typed. */
 export type TypedTrio = Record<Point, string>;
 
 /** Which boxes are wrong, and what to tell the person about them. */
@@ -104,9 +104,9 @@ function readDays(part: string): number | null {
 /**
  * The trio behind `2/3/8`, `0.5 / 1 / 2` or `5`, or why it is not one.
  *
- * The folded role column shows be-01's computed final figure at rest and
+ * The folded step column shows be-01's computed final figure at rest and
  * takes this shorthand when it is typed into, so one cell replaces unfolding
- * a role and filling three boxes — the loop an estimating session is almost
+ * a step and filling three boxes — the loop an estimating session is almost
  * entirely made of.
  *
  * It repairs nothing, in exactly the sense {@link trioProblem} does not: a
@@ -157,7 +157,7 @@ export function parseTrioShorthand(typed: string): TrioShorthand {
  * to disagree about which strings are one estimate. `estimate-draft.test.ts`
  * asserts the round trip rather than the spelling alone.
  *
- * **This is what a folded role's cell holds at rest**, since
+ * **This is what a folded step's cell holds at rest**, since
  * `estimate-triple-visible`. Until then the cell showed be-01's computed final
  * figure, which cost two things: the three numbers somebody chose left the
  * screen the moment they landed (Dany, 2026-08-29 — *"i want to keep seeing

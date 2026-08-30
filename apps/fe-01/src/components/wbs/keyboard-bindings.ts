@@ -151,7 +151,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Alt + ↑ / Alt + ↓',
-    does: 'Moves the row up or down among its siblings: Depends on, Teams and the assignee boxes answer it even while they are offering something. A half-typed @ mention in a folded role’s cell is the one list that holds it back, until Escape closes it. It never changes what the row sits under, and it stops at either end of the group.',
+    does: 'Moves the row up or down among its siblings: Depends on, Teams and the assignee boxes answer it even while they are offering something. A half-typed @ mention in a folded step’s cell is the one list that holds it back, until Escape closes it. It never changes what the row sits under, and it stops at either end of the group.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
@@ -169,7 +169,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: '2/3/8',
-    does: 'In a folded role’s cell: optimistic, realistic and pessimistic in one go.',
+    does: 'In a folded step’s cell: optimistic, realistic and pessimistic in one go.',
     where: 'Estimates',
     renderers: EITHER_RENDERER,
   },
@@ -181,7 +181,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Empty it',
-    does: 'Emptying a folded role’s cell clears the estimate it held.',
+    does: 'Emptying a folded step’s cell clears the estimate it held.',
     where: 'Estimates',
     renderers: EITHER_RENDERER,
   },
@@ -193,7 +193,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: '@',
-    does: 'In a folded role’s cell, looks somebody up to do the work: type @ and the name. Enter takes the first one offered, or adds a contributor nobody had. On its own, @ offers to take the current one off. What is typed in front of the @ stays the estimate — 2/3/8@kat is one gesture.',
+    does: 'In a folded step’s cell, looks somebody up to do the work: type @ and the name. Enter takes the first one offered, or adds a contributor nobody had. On its own, @ offers to take the current one off. What is typed in front of the @ stays the estimate — 2/3/8@kat is one gesture.',
     where: 'Pickers',
     renderers: EITHER_RENDERER,
   },

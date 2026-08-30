@@ -10,8 +10,8 @@ import {
   ModalTrigger,
 } from '@/components/ui/modal';
 
-import { PhasesPanel, type PhasesPanelProps } from './phases-panel';
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
+import { StepsPanel, type StepsPanelProps } from './steps-panel';
 import { TeamsPanel, type TeamsPanelProps } from './teams-panel';
 import { SettingsIcon } from './toolbar-icons';
 
@@ -20,12 +20,12 @@ import { SettingsIcon } from './toolbar-icons';
  * list shows them — the order the three toolbar buttons stood in until
  * `project-config-modal` folded them into this one surface.
  */
-export type SettingsSection = 'teams' | 'priorities' | 'phases';
+export type SettingsSection = 'teams' | 'priorities' | 'steps';
 
 const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'teams', label: 'Teams' },
   { id: 'priorities', label: 'Priorities' },
-  { id: 'phases', label: 'Phases' },
+  { id: 'steps', label: 'Steps' },
 ];
 
 const FIRST_SECTION: SettingsSection = 'teams';
@@ -86,12 +86,12 @@ export interface ProjectSettingsModalProps {
   trigger: 'glyph' | 'labelled';
   teams: SectionOwn<TeamsPanelProps>;
   priorities: SectionOwn<PrioritiesPanelProps>;
-  phases: SectionOwn<PhasesPanelProps>;
+  steps: SectionOwn<StepsPanelProps>;
 }
 
 /**
  * One modal for everything a project configures about itself: its teams and
- * their capacity, its priority ladder, and its phases.
+ * their capacity, its priority ladder, and its steps.
  *
  * Three toolbar buttons each opened a `Modal` of its own until
  * `project-config-modal` (2026-08-30). Each was a thing somebody sets once and
@@ -138,7 +138,7 @@ export function ProjectSettingsModal({
   trigger,
   teams,
   priorities,
-  phases,
+  steps,
 }: ProjectSettingsModalProps) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState<SettingsSection>(FIRST_SECTION);
@@ -186,7 +186,7 @@ export function ProjectSettingsModal({
     () => ({
       teams: reporterFor('teams'),
       priorities: reporterFor('priorities'),
-      phases: reporterFor('phases'),
+      steps: reporterFor('steps'),
     }),
     [reporterFor],
   );
@@ -289,7 +289,7 @@ export function ProjectSettingsModal({
           size={trigger === 'glyph' ? 'square' : 'sm'}
           type="button"
           aria-label="Project settings"
-          title="Teams, priorities and phases of this project"
+          title="Teams, priorities and steps of this project"
         >
           <SettingsIcon />
           {trigger === 'labelled' && <span>Project settings</span>}
@@ -388,11 +388,11 @@ export function ProjectSettingsModal({
             </div>
             <div
               role="tabpanel"
-              id={panelId('phases')}
-              aria-labelledby={tabId('phases')}
-              hidden={shown !== 'phases'}
+              id={panelId('steps')}
+              aria-labelledby={tabId('steps')}
+              hidden={shown !== 'steps'}
             >
-              <PhasesPanel {...phases} onDirtyChange={reporters.phases} />
+              <StepsPanel {...steps} onDirtyChange={reporters.steps} />
             </div>
           </div>
         </div>

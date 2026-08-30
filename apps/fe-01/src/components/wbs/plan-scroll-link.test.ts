@@ -238,7 +238,7 @@ describe('reading a face off the page', () => {
     const frame = fakeFrame(IDS);
     const group = document.createElement('tr');
     frame.querySelector('tbody')?.append(group);
-    // A `<tr>` with no id is a phase group's heading, not a row of the plan.
+    // A `<tr>` with no id is a step group's heading, not a row of the plan.
     // Counting it would move every index below it off its own bar.
     expect(rendererFace(frame).count).toBe(IDS.length);
     expect(panelFace(fakePanel(IDS)).count).toBe(IDS.length);
@@ -335,7 +335,7 @@ describe('the two faces held on one row', () => {
   it('never writes sideways, on either face', () => {
     const frame = fakeFrame(IDS);
     const panel = fakePanel(IDS);
-    // The frame's is which columns are on screen with a role unfolded; the
+    // The frame's is which columns are on screen with a step unfolded; the
     // panel's is which fortnight of the calendar is, and the month caption is
     // computed from it.
     frame.scrollLeft = 320;

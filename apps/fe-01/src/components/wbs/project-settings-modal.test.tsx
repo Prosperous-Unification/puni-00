@@ -43,9 +43,9 @@ function held(): { promise: Promise<void>; land: () => void } {
 function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
   const setCapacity = vi.fn(() => Promise.resolve());
   const setBands = vi.fn<[readonly PriorityBandView[]], Promise<void>>(() => Promise.resolve());
-  const addRole = vi.fn(() => Promise.resolve({ id: 'role-design', name: 'Design' }));
-  const renameRole = vi.fn(() => Promise.resolve({ id: 'role-qa', name: 'Review' }));
-  const removeRole = vi.fn(() => Promise.resolve({ ok: true }));
+  const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
+  const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
+  const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
   const props: ProjectSettingsModalProps = {
     projectId: PROJECT,
@@ -59,24 +59,24 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
       onChanged,
     },
     priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged },
-    phases: {
-      roles: [
-        { id: 'role-dev', name: 'Dev' },
-        { id: 'role-qa', name: 'QA' },
+    steps: {
+      steps: [
+        { id: 'step-dev', name: 'Dev' },
+        { id: 'step-qa', name: 'QA' },
       ],
       frameState: { hasAnyNotBefore: false },
       hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
       numberOf: () => null,
       nameOf: () => null,
-      addRole,
-      renameRole,
-      removeRole,
+      addStep,
+      renameStep,
+      removeStep,
       onChanged,
     },
     ...overrides,
   };
   render(<ProjectSettingsModal {...props} />);
-  return { setCapacity, setBands, addRole, renameRole, removeRole, onChanged };
+  return { setCapacity, setBands, addStep, renameStep, removeStep, onChanged };
 }
 
 const trigger = (): HTMLElement => screen.getByRole('button', { name: 'Project settings' });
@@ -112,7 +112,7 @@ describe('one modal for the project’s three settings', () => {
     const list = screen.getByRole('tablist');
     expect(
       [...list.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Phases']);
+    ).toEqual(['Teams', 'Priorities', 'Steps']);
     // The first section is showing, and it is the teams'.
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: 'Teams' })).toBeVisible();
@@ -126,20 +126,20 @@ describe('one modal for the project’s three settings', () => {
     fireEvent.click(tab('Priorities'));
     expect(tab('Priorities')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: 'Priorities' })).toBeVisible();
-    // By id rather than by role: a `hidden` element is outside the accessibility
+    // By id rather than by step: a `hidden` element is outside the accessibility
     // tree, which is the point, and a role query that could find it would be
     // asserting the opposite of what `hidden` means.
     expect(document.getElementById('project-settings-panel-teams')).not.toBeVisible();
 
     // Arrow keys select as they go — automatic activation — and wrap.
     fireEvent.keyDown(tab('Priorities'), { key: 'ArrowDown' });
-    expect(tab('Phases')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByLabelText('New phase')).toBeVisible();
-    fireEvent.keyDown(tab('Phases'), { key: 'ArrowRight' });
+    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('New step')).toBeVisible();
+    fireEvent.keyDown(tab('Steps'), { key: 'ArrowRight' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
-    expect(tab('Phases')).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(tab('Phases'), { key: 'Home' });
+    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Steps'), { key: 'Home' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -171,7 +171,7 @@ describe('closing over an edit', () => {
     async () => {
       mounted();
       open();
-      fireEvent.click(tab('Phases'));
+      fireEvent.click(tab('Steps'));
 
       escape();
       await settle();
@@ -179,7 +179,7 @@ describe('closing over an edit', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
       // Radix's `onCloseAutoFocus` cancels the default restore and focuses its
       // **trigger** — so a modal opened without a `ModalTrigger` puts the focus
-      // nowhere. Found in a browser for the phases dialog this replaces, and
+      // nowhere. Found in a browser for the steps dialog this replaces, and
       // kept here because it is the modal's rule now.
       expect(document.activeElement).toBe(trigger());
     },
@@ -187,7 +187,7 @@ describe('closing over an edit', () => {
 
   itDom('an in-flight write holds the modal open and is shown', async () => {
     // The spec's own scenario: the ladder is saving from the priorities section,
-    // the reader has moved to the phases section, and Escape must neither close
+    // the reader has moved to the steps section, and Escape must neither close
     // nor leave them looking at the wrong section for why.
     //
     // Proof: `requestClose`'s `dirtyRef.current.size > 0` refusal removed, and
@@ -205,8 +205,8 @@ describe('closing over an edit', () => {
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await settle();
-    fireEvent.click(tab('Phases'));
-    expect(tab('Phases')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(tab('Steps'));
+    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
 
     escape();
     await settle();
@@ -229,7 +229,7 @@ describe('closing over an edit', () => {
     fireEvent.change(screen.getByLabelText('How many of Platform at once'), {
       target: { value: '7' },
     });
-    fireEvent.click(tab('Phases'));
+    fireEvent.click(tab('Steps'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await settle();
@@ -240,12 +240,12 @@ describe('closing over an edit', () => {
   });
 
   itDom('refuses to close over a confirmation nobody has answered', async () => {
-    // `phases-panel.test.tsx` — `phases-dialog.test.tsx` when it was written —
+    // `steps-panel.test.tsx` — `steps-dialog.test.tsx` when it was written —
     // used to assert the opposite: that the ✕ *cleared*
     // an open confirmation silently. The modal refuses instead: a confirmation
     // somebody walked away from is not one they agreed to, and it is also not
     // one they declined.
-    const removeRole = vi.fn((_roleId: string, cascade: boolean) =>
+    const removeStep = vi.fn((_stepId: string, cascade: boolean) =>
       cascade
         ? Promise.resolve({ ok: true })
         : Promise.resolve({
@@ -254,23 +254,23 @@ describe('closing over an edit', () => {
           }),
     );
     mounted({
-      phases: {
-        roles: [{ id: 'role-qa', name: 'QA' }],
+      steps: {
+        steps: [{ id: 'step-qa', name: 'QA' }],
         frameState: { hasAnyNotBefore: false },
         hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
         numberOf: () => null,
         nameOf: () => null,
-        addRole: vi.fn(),
-        renameRole: vi.fn(),
-        removeRole,
+        addStep: vi.fn(),
+        renameStep: vi.fn(),
+        removeStep,
         onChanged: vi.fn(() => Promise.resolve()),
       },
     });
     open();
-    fireEvent.click(tab('Phases'));
+    fireEvent.click(tab('Steps'));
     fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
     await settle();
-    expect(screen.getByLabelText('Delete them along with the phase')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delete them along with the step')).toBeInTheDocument();
 
     escape();
     await settle();
@@ -353,7 +353,7 @@ describe('the section it reopens on', () => {
 
   it('knows its own sections and nothing else', () => {
     expect(isSettingsSection('teams')).toBe(true);
-    expect(isSettingsSection('phases')).toBe(true);
+    expect(isSettingsSection('steps')).toBe(true);
     expect(isSettingsSection('7')).toBe(false);
     expect(isSettingsSection(7)).toBe(false);
     expect(isSettingsSection(null)).toBe(false);

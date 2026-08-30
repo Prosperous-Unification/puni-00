@@ -17,9 +17,9 @@ import { schedule, sliceKey } from './schedule';
  * thing under test moves with it and can never see it move.
  */
 
-const DESIGN = 'role-design';
-const DEV = 'role-dev';
-const QA = 'role-qa';
+const DESIGN = 'step-design';
+const DEV = 'step-dev';
+const QA = 'step-qa';
 const PLATFORM = 'team-platform';
 
 let position = 0;
@@ -50,15 +50,15 @@ const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
 
 const slice = (
   workItemId: string,
-  roleId: string,
+  stepId: string,
   days: number | null,
   extra: Partial<Pick<Slice, 'personId' | 'width' | 'poolIds'>> = {},
-): Slice => ({ workItemId, roleId, days, personId: null, width: 1, poolIds: [], ...extra });
+): Slice => ({ workItemId, stepId, days, personId: null, width: 1, poolIds: [], ...extra });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
-const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {
-  const one = found.slices.get(sliceKey(workItemId, roleId));
-  if (one === undefined) throw new Error(`no slice for ${workItemId}/${roleId}`);
+const planned = (found: Schedule, workItemId: string, stepId: string): ScheduledSlice => {
+  const one = found.slices.get(sliceKey(workItemId, stepId));
+  if (one === undefined) throw new Error(`no slice for ${workItemId}/${stepId}`);
   return one;
 };
 
@@ -83,7 +83,7 @@ function overlaps(found: Schedule): string[] {
         if (left === right) continue;
         if (left.earliestStart < right.earliestFinish && right.earliestStart < left.earliestFinish)
           clashes.push(
-            `${personId}: ${left.workItemId}/${left.roleId ?? ''} and ${right.workItemId}/${right.roleId ?? ''}`,
+            `${personId}: ${left.workItemId}/${left.stepId ?? ''} and ${right.workItemId}/${right.stepId ?? ''}`,
           );
       }
     }
@@ -152,8 +152,8 @@ describe('an unestimated slice takes its assumed duration', () => {
     // Proof: the person floor's gate changed from the node's own duration to
     // `(node.slice.days ?? 0) > 0`, so the assumption reaches the dependency
     // graph and not the leveller — an unestimated slice takes time and occupies
-    // nobody. This failed on `- [] / + [ "kat: a/role-dev and b/role-dev",
-    // "kat: b/role-dev and a/role-dev" ]`, with `b` back at 0→2 beside `a`;
+    // nobody. This failed on `- [] / + [ "kat: a/step-dev and b/step-dev",
+    // "kat: b/step-dev and a/step-dev" ]`, with `b` back at 0→2 beside `a`;
     // watched 2026-08-30.
     const rows = [item('a'), item('b')];
     const slices = [

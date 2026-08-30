@@ -10,7 +10,7 @@ import {
   NOT_STARTED,
   ORDINARY_BAND_RANK,
   type PriorityBand,
-  type RoleState,
+  type StepState,
   workdaysBetween,
 } from '@wbs/domain';
 
@@ -29,8 +29,8 @@ import type {
   Project,
   ProjectStore,
   Reparented,
-  Role,
-  RoleProgressStore,
+  Step,
+  StepProgressStore,
   StoredActual,
   StoredEstimate,
   StoredMeasure,
@@ -68,7 +68,7 @@ import {
   rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
-  workedRolesOf,
+  workedStepsOf,
 } from './roll-up';
 import {
   schedule,
@@ -99,28 +99,28 @@ const UNSCHEDULED: Scheduled = {
 };
 
 /**
- * The project's plan as slices: one per leaf and role, in role order.
+ * The project's plan as slices: one per leaf and step, in step order.
  *
  * The order is the project's, and it is the order the work runs in — Dev
  * finishes, then QA starts. That was an assumption written as a sum until this
- * change; it is now an edge, and the schedule can say when each role's part of
+ * change; it is now an edge, and the schedule can say when each step's part of
  * a work item happens rather than only when the whole of it does.
  *
  * A pair nobody has estimated carries `null` rather than zero, which is what
  * lets the schedule report it as unestimated instead of instant. Every leaf
- * gets a slice for every role even so, because an unestimated `Dev` in front of
+ * gets a slice for every step even so, because an unestimated `Dev` in front of
  * an estimated `QA` is what hands `QA` the work item's predecessors.
  *
- * Two shapes the project's own role list does not cover:
+ * Two shapes the project's own step list does not cover:
  *
- * - **No roles at all.** Reachable — a project's last role can be removed. Each
+ * - **No steps at all.** Reachable — a project's last step can be removed. Each
  *   leaf gets one slice belonging to nobody, so the plan still schedules
  *   instead of losing every row that a neighbour depends on.
- * - **An estimate naming a role the project does not hold.** Not reachable
- *   through the API — every write that names a role is refused with
- *   `unknown_role`, and `estimate.role_id` is a foreign key — but the days are
+ * - **An estimate naming a step the project does not hold.** Not reachable
+ *   through the API — every write that names a step is refused with
+ *   `unknown_step`, and `estimate.role_id` is a foreign key — but the days are
  *   somebody's typing and they already count towards today's duration. They are
- *   kept, in a slice after the roles the project does hold, rather than dropped
+ *   kept, in a slice after the steps the project does hold, rather than dropped
  *   silently or thrown over the whole project's read.
  */
 /**
@@ -178,10 +178,10 @@ function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
-  roleIds: readonly string[],
+  stepIds: readonly string[],
   method: EstimateMethod,
   /**
-   * Each work item's assignees by role, from which every slice's person is
+   * Each work item's assignees by step, from which every slice's person is
    * read.
    *
    * The planner takes the person per slice and never derives one, so this is
@@ -206,32 +206,32 @@ function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
-  const held = new Set(roleIds);
+  const held = new Set(stepIds);
   const days = new Map<string, number>();
   const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
     if (!inProject.has(estimate.workItemId)) continue;
-    days.set(sliceKey(estimate.workItemId, estimate.roleId), finalDays(estimate, method));
-    if (!held.has(estimate.roleId)) unlisted.add(estimate.roleId);
+    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, method));
+    if (!held.has(estimate.stepId)) unlisted.add(estimate.stepId);
   }
 
-  const order = [...roleIds, ...[...unlisted].sort()];
+  const order = [...stepIds, ...[...unlisted].sort()];
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
-    const byRole = assigneesOf.get(row.id) ?? {};
-    // The role's own assignee, or — when exactly one role is named — the person
+    const byStep = assigneesOf.get(row.id) ?? {};
+    // The step's own assignee, or — when exactly one step is named — the person
     // that one assignment is read as covering the lot. {@link assumedAssignee}
-    // is that reading, shared with the tree's `doesEveryPhase` and with the
-    // role removal that has to say whose answer it would change.
+    // is that reading, shared with the tree's `doesEveryStep` and with the
+    // step removal that has to say whose answer it would change.
     //
     // Proof: the fallback dropped, so that only named assignments queue, and
-    // `queues every phase of a work item its one assignee is assumed to be
+    // `queues every step of a work item its one assignee is assumed to be
     // doing` failed — the work item finished on day 3 with its `QA` running
     // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
-    const personFor = (roleId: string | null): string | null =>
-      (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
+    const personFor = (stepId: string | null): string | null =>
+      (stepId === null ? undefined : byStep[stepId]) ?? assumedAssignee(byStep);
     const { poolIds, slots } = poolsFor(teamOf.get(row.id)?.teamIds ?? [], teamSizes);
     /**
      * How many slots one of this row's slices holds while it runs.
@@ -240,9 +240,9 @@ function slicesOf(
      * makes:
      *
      * 1. **A named person is one person.** `assumedAssignee` means one named
-     *    assignment covers every role of the item, so naming somebody on a
+     *    assignment covers every step of the item, so naming somebody on a
      *    `maxParallel: 3` item collapses the whole item to width 1 and
-     *    serialises its roles. One human cannot work beside themselves, and the
+     *    serialises its steps. One human cannot work beside themselves, and the
      *    alternative — "kat plus two others" — has the engine claiming people
      *    the plan has not named.
      * 2. **Nobody may claim more people than the team has** — and where the
@@ -273,7 +273,7 @@ function slicesOf(
       const personId = personFor(null);
       slices.push({
         workItemId: row.id,
-        roleId: null,
+        stepId: null,
         days: null,
         personId,
         width: widthFor(personId),
@@ -281,12 +281,12 @@ function slicesOf(
       });
       continue;
     }
-    for (const roleId of order) {
-      const personId = personFor(roleId);
+    for (const stepId of order) {
+      const personId = personFor(stepId);
       slices.push({
         workItemId: row.id,
-        roleId,
-        days: days.get(sliceKey(row.id, roleId)) ?? null,
+        stepId,
+        days: days.get(sliceKey(row.id, stepId)) ?? null,
         personId,
         width: widthFor(personId),
         poolIds,
@@ -297,18 +297,23 @@ function slicesOf(
 }
 
 /**
- * A row's assignees, and who — if anyone — is assumed to be doing every phase.
+ * A row's assignees, and who — if anyone — is assumed to be doing every step.
  *
- * The reading itself is {@link assumedAssignee}, shared with the role removal
+ * The reading itself is {@link assumedAssignee}, shared with the step removal
  * that has to say whose answer it would change. Written out twice, the two
  * would drift, and the drift would show up as a confirmation naming the wrong
  * people.
+ *
+ * Named for what it returns rather than for the word `step`: it was `phasesOf`
+ * until `steps-not-phases`, and `stepsOf` would have collided with
+ * `ProjectRepository.stepsOf` in this same file, which answers something else
+ * entirely — a project's steps, not one row's assignment fields.
  */
-function phasesOf(assignees: Record<string, string>): {
+function assignmentFieldsOf(assignees: Record<string, string>): {
   assignees: Record<string, string>;
-  doesEveryPhase: string | null;
+  doesEveryStep: string | null;
 } {
-  return { assignees, doesEveryPhase: assumedAssignee(assignees) };
+  return { assignees, doesEveryStep: assumedAssignee(assignees) };
 }
 
 /**
@@ -347,29 +352,29 @@ function datesOf(
 }
 
 /**
- * One row's final figure per role, and their sum, under the project's method.
+ * One row's final figure per step, and their sum, under the project's method.
  *
  * Split out so the shape is built in one place: `finalDays` and `finalTotal`
  * disagreeing would be two answers to one question, and the table prints both
  * side by side.
  */
 function finalsOf(
-  byRole: ReadonlyMap<string, Days>,
+  byStep: ReadonlyMap<string, Days>,
   method: EstimateMethod,
 ): { finalDays: Record<string, number>; finalTotal: number } {
-  const perRole: Record<string, number> = {};
+  const perStep: Record<string, number> = {};
   let total = 0;
-  for (const [roleId, days] of byRole) {
+  for (const [stepId, days] of byStep) {
     const final = finalDays(days, method);
-    perRole[roleId] = final;
+    perStep[stepId] = final;
     total += final;
   }
-  return { finalDays: perRole, finalTotal: total };
+  return { finalDays: perStep, finalTotal: total };
 }
 
 /**
  * A work item as a reader sees it: the stored row, the number derived for it and
- * its estimates by role — its own if it is a leaf, its descendants' sums if not.
+ * its estimates by step — its own if it is a leaf, its descendants' sums if not.
  */
 export interface NumberedWorkItem extends LabelledWorkItem {
   /**
@@ -397,15 +402,15 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   /** True when the estimates above are sums and therefore not editable here. */
   rolledUp: boolean;
   /**
-   * The figures that are not days: **metric first, then role**, its own if it is
+   * The figures that are not days: **metric first, then step**, its own if it is
    * a leaf and the sum of its descendants' if it is not.
    *
    * Nested rather than flat because the primary key is a triple and a flat
    * `Record<string, number>` would have to spell the other two into one string —
-   * `token_actual:role-dev` — which every reader would then have to take apart
+   * `token_actual:step-dev` — which every reader would then have to take apart
    * again. Metric outermost because that is the axis a reader picks first: a
-   * column of tokens and a column of hours are two columns, and the roles inside
-   * each are the same roles.
+   * column of tokens and a column of hours are two columns, and the steps inside
+   * each are the same steps.
    *
    * **A metric nobody has recorded anywhere below is absent, not `{}`.** The
    * distinction is the one this whole table is built on, one level up from where
@@ -415,7 +420,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * all — rather than three empty objects, and a face rendering a missing metric
    * as `0` is inventing a statement.
    *
-   * Absence is per metric and per role both: a pair holding a `token_actual` and
+   * Absence is per metric and per step both: a pair holding a `token_actual` and
    * nothing else puts that pair under `token_actual` and leaves it out of
    * `hours_actual` entirely. See {@link rollUpMeasures}.
    *
@@ -426,18 +431,18 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**
-   * The one number this row is planned with, per role, and their sum.
+   * The one number this row is planned with, per step, and their sum.
    *
    * Computed here rather than on the client, from the same {@link finalDays}
    * the schedule's durations come from. Two implementations of "the final
    * estimate" is how a table comes to disagree with the dates printed beside
    * it, and this figure sits in the next column along from those dates.
    *
-   * A role with no estimate anywhere below is absent, exactly as `estimates`
+   * A step with no estimate anywhere below is absent, exactly as `estimates`
    * is: absent and zero mean opposite things.
    */
   finalDays: Record<string, number>;
-  /** Every role's final figure, summed — the row's whole planning duration. */
+  /** Every step's final figure, summed — the row's whole planning duration. */
   finalTotal: number;
   /**
    * When this can happen, in whole days from the project's day zero.
@@ -461,17 +466,17 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    */
   dates: { startsOn: IsoDate; endsOn: IsoDate } | null;
   /**
-   * Who is doing this work, by role id.
+   * Who is doing this work, by step id.
    *
-   * A role with nobody assigned is absent rather than null. When exactly one
-   * role is assigned, `doesEveryPhase` names that person: Dany's "when just
+   * A step with nobody assigned is absent rather than null. When exactly one
+   * step is assigned, `doesEveryStep` names that person: Dany's "when just
    * one is assigned it is assumed they do both dev and QA". It is reported as
    * a reading of the assignments rather than written as a second row, so
    * nobody is recorded against work they were never given, and assigning the
-   * other role simply stops the assumption.
+   * other step simply stops the assumption.
    */
   assignees: Record<string, string>;
-  doesEveryPhase: string | null;
+  doesEveryStep: string | null;
 }
 
 /**
@@ -481,7 +486,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
  * `id` is that key — {@link sliceKey}'s string, and opaque on both sides of the
  * wire. It is what a slice's `resourcePredecessorId` names, so the person a
  * reader draws a link from is **looked up** among these ids rather than derived
- * from a work item and a role: reconstructing the key on the client would be a
+ * from a work item and a step: reconstructing the key on the client would be a
  * second implementation of {@link sliceKey}, and the two would disagree the day
  * either changes.
  *
@@ -519,19 +524,19 @@ export type WorkItemRefusal =
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
   | 'too_large'
   /**
-   * A role the project does not hold — usually one somebody removed while this
+   * A step the project does not hold — usually one somebody removed while this
    * caller had it on screen. `estimate.role_id` and `assignment.role_id` are
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
    */
-  | 'unknown_role'
+  | 'unknown_step'
   /**
    * A figure in a unit this release does not keep — anything outside
    * {@link MEASURE_METRICS}.
    *
    * A **404** and not a 400, which is the one refusal in `token-tracking` that
    * is not cloned from the actual pair. The metric is in the path, and it names
-   * a thing: `/measures/tokens_estimate/role-dev` is a request for a figure that
+   * a thing: `/measures/tokens_estimate/step-dev` is a request for a figure that
    * does not exist in the same way a work item id nobody holds does not exist.
    * A 400 would say the request was malformed, and it is not — it is
    * well-formed about a unit this release has never heard of.
@@ -680,14 +685,14 @@ export interface WorkItemServiceOptions {
    */
   measures: MeasureStore;
   /**
-   * Where each role says its work on a work item has got to.
+   * Where each step says its work on a work item has got to.
    *
    * Required rather than optional, for {@link WorkItemServiceOptions.actuals}'
    * reason exactly: a service built without one would answer every read with
    * nothing stated anywhere, which is the true answer for every plan on the day
    * this ships and therefore an invisible mistake for a week.
    */
-  progress: RoleProgressStore;
+  progress: StepProgressStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -775,7 +780,7 @@ type ApplyOutcome = { ok: true; detail: string | null } | { ok: false; detail: s
 /**
  * The largest subtree one duplication will copy.
  *
- * A judgement rather than a measurement: well above any phase somebody builds
+ * A judgement rather than a measurement: well above any step somebody builds
  * by hand, well below anything that makes one transaction slow. It exists
  * because each duplication can double what the next one copies, and nothing
  * else in the tool bounds that.
@@ -1132,7 +1137,7 @@ export class WorkItemService {
      * is what it is a projection **of**, and it is what a chart draws — one bar
      * per entry, and the person links from `resourcePredecessorId`. Both are
      * carried because they answer different questions, and neither is derivable
-     * from the other: a row's span does not say which role ran when, and a
+     * from the other: a row's span does not say which step ran when, and a
      * slice does not know its parent's bracket.
      *
      * Empty when there is no schedule at all, exactly as the row schedules
@@ -1142,19 +1147,19 @@ export class WorkItemService {
      */
     slices: IdentifiedSlice[];
     /**
-     * The project's roles, in the order the engine ran the slices in.
+     * The project's steps, in the order the engine ran the slices in.
      *
      * The same array `slicesOf` was given, carried on the read that produced
      * the slices rather than left to `/api/projects/:id` — which is a second
-     * request at a second moment. A chart reads a slice's `roleId` to place its
-     * bar and to name its phase, and a peer removing a phase between the two
-     * reads left a client holding slices under a role its own role list no
+     * request at a second moment. A chart reads a slice's `stepId` to place its
+     * bar and to name its step, and a peer removing a step between the two
+     * reads left a client holding slices under a step its own step list no
      * longer had. Within one payload that skew cannot exist.
      *
-     * Read **after** the rows and before the schedule, so a phase added between
-     * them is at worst a role nothing points at, never a slice with no role.
+     * Read **after** the rows and before the schedule, so a step added between
+     * them is at worst a step nothing points at, never a slice with no step.
      */
-    roles: Role[];
+    steps: Step[];
     /**
      * Every person an assignment on these rows names, by id and name.
      *
@@ -1183,7 +1188,7 @@ export class WorkItemService {
      *
      * The same map `slotsOf` was built from, carried on the read that produced
      * the slices rather than left to a route of its own — the argument
-     * {@link roles} makes, and it is stronger here: the dates in this payload were
+     * {@link steps} makes, and it is stronger here: the dates in this payload were
      * computed **from** these numbers, and a second request at a second moment
      * could hand a client a number that does not explain the bars beside it.
      *
@@ -1198,7 +1203,7 @@ export class WorkItemService {
      * What this project calls its priority numbers — five bands in rank order.
      *
      * Carried on the read that produced the rows rather than left to a route of
-     * its own, which is the argument {@link roles} and {@link teamCapacities}
+     * its own, which is the argument {@link steps} and {@link teamCapacities}
      * make. The reason is weaker here in one way and stronger in another: no date
      * in this payload was computed from the ladder, so a stale one cannot
      * contradict a bar the way a stale capacity can — but *every* face draws
@@ -1226,7 +1231,7 @@ export class WorkItemService {
     startDate: IsoDate | null;
     /**
      * The project row's own revision, which moves on its name, restriction,
-     * estimate method, start date and roles — and on none of the work items
+     * estimate method, start date and steps — and on none of the work items
      * below it, each of which carries its own.
      */
     projectRevision: number;
@@ -1263,7 +1268,7 @@ export class WorkItemService {
     for (const each of assigned) {
       assigneesOf.set(each.workItemId, {
         ...(assigneesOf.get(each.workItemId) ?? {}),
-        [each.roleId]: each.personId,
+        [each.stepId]: each.personId,
       });
     }
     const numbers = deriveNumbers(rows);
@@ -1278,16 +1283,16 @@ export class WorkItemService {
       MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
     );
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-    // Which roles have work on each leaf: the ones with an estimate, the ones
+    // Which steps have work on each leaf: the ones with an estimate, the ones
     // with a recorded day, and the ones somebody has already spoken about.
     //
     // This set is what makes `done` mean anything. A leaf where Dev says done
     // and QA holds an estimate nobody has spoken about is **in progress**, not
     // finished — and the only way the fold can know QA exists on that row is for
     // the estimate to put it here. See `rollUpProgress`.
-    const statedTotals = rollUpProgress(rows, stated, workedRolesOf(stored, recorded, stated));
+    const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
     // The row's own reading, folded over its **children** rather than over its
-    // rolled-up roles — see `rollUpItemStates` for why the two differ and which
+    // rolled-up steps — see `rollUpItemStates` for why the two differ and which
     // one is true.
     const itemStates = rollUpItemStates(rows, statedTotals);
     // The write path refuses an edge that would close a cycle, but two clients
@@ -1296,9 +1301,9 @@ export class WorkItemService {
     // still work: the rows are there, and a plan nobody can open is worse than
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
-    // Role order comes from the project, because the order the roles are read
-    // in is the order the work runs in — see `ProjectRepository.rolesOf`.
-    const roles = await this.opts.projects.rolesOf(projectId);
+    // Step order comes from the project, because the order the steps are read
+    // in is the order the work runs in — see `ProjectRepository.stepsOf`.
+    const steps = await this.opts.projects.stepsOf(projectId);
     // How many slots this project may take of each team, read here rather than
     // inside `slicesOf` so the adapter stays a pure function of what it is
     // handed.
@@ -1328,7 +1333,7 @@ export class WorkItemService {
       rows,
       stored,
       hasChildren,
-      roles.map((each) => each.id),
+      steps.map((each) => each.id),
       project.estimateMethod,
       assigneesOf,
       teamOf,
@@ -1425,41 +1430,41 @@ export class WorkItemService {
         // The days recorded against this row: its own if it is a leaf, the sum
         // of its descendants' if it is not — the same fold, one table over.
         //
-        // A role nobody has recorded days for is **absent from this object**,
+        // A step nobody has recorded days for is **absent from this object**,
         // and an empty object means nobody has recorded anything on this row.
         // Neither is a zero, and a face that renders a missing key as `0` is
         // saying somebody stated the work took no time. See `actual` in
         // `schema.ts`.
         actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
-        // The figures that are not days, metric first. A metric with no roles
+        // The figures that are not days, metric first. A metric with no steps
         // under this row is **struck from the object** rather than carried as
         // `{}`, which is the same absence rule one level up: an empty object
         // would say somebody looked at that unit on this row.
         measures: Object.fromEntries(
           [...measuredTotals]
             .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
-            .filter(([, byRole]) => byRole.size > 0)
-            .map(([metric, byRole]) => [metric, Object.fromEntries(byRole)]),
+            .filter(([, byStep]) => byStep.size > 0)
+            .map(([metric, byStep]) => [metric, Object.fromEntries(byStep)]),
         ),
-        // Where each role's work on this row has got to: its own if it is a
+        // Where each step's work on this row has got to: its own if it is a
         // leaf, `agree` across its descendants' if it is not.
         //
-        // **A role reading `not_started` is absent from this object**, exactly
-        // as an unestimated role is absent from `estimates` — the absence of a
+        // **A step reading `not_started` is absent from this object**, exactly
+        // as an unestimated step is absent from `estimates` — the absence of a
         // statement is how "nobody has said" is spelled everywhere in this tool,
         // including on the wire. So an empty object means nobody has said
-        // anything about this row, and a role that is not a key has not been
+        // anything about this row, and a step that is not a key has not been
         // spoken about.
         progress: Object.fromEntries(
           [...(statedTotals.get(row.id) ?? [])].filter(
-            (entry): entry is [string, RoleState] => entry[1] !== NOT_STARTED,
+            (entry): entry is [string, StepState] => entry[1] !== NOT_STARTED,
           ),
         ),
-        // The row's own reading, **derived from its roles and never stored**:
-        // `done` when every role with work on it says so, `not_started` when
+        // The row's own reading, **derived from its steps and never stored**:
+        // `done` when every step with work on it says so, `not_started` when
         // none of them has said anything, and `in_progress` for every
         // disagreement in between — including the one that matters most, one
-        // role finished and another silent. `@wbs/domain`'s `agree`.
+        // step finished and another silent. `@wbs/domain`'s `agree`.
         state: itemStates.get(row.id) ?? NOT_STARTED,
         // A parent's final figure is its rolled-up totals put through the same
         // method, not the sum of its children's finals. For PERT the two agree
@@ -1472,7 +1477,7 @@ export class WorkItemService {
         // work item from elsewhere — which the schema does not prevent — would
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
-        ...phasesOf(assigneesOf.get(row.id) ?? {}),
+        ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
         dates: datesOf(
           project.startDate,
@@ -1488,11 +1493,11 @@ export class WorkItemService {
       waitingForPerson,
       waitingForCapacity,
       slices: scheduledSlices,
-      // The very array `slicesOf` was handed the ids of, so a slice's `roleId`
-      // is a role this list has and its place in the list is the order the
-      // engine placed the bars in. Neither is true of a role list fetched
+      // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
+      // is a step this list has and its place in the list is the order the
+      // engine placed the bars in. Neither is true of a step list fetched
       // separately.
-      roles,
+      steps,
       assignedPeople,
       // Built from `slotsOf` rather than read a second time, so the numbers a
       // client renders and the numbers these dates came out of cannot be answers
@@ -1637,22 +1642,22 @@ export class WorkItemService {
         externalDependencies: [],
         removedEstimates: handedDown.map((each) => ({
           workItemId: each.workItemId,
-          roleId: each.roleId,
+          stepId: each.stepId,
         })),
         removedActuals: recordedHandedDown.map((each) => ({
           workItemId: each.workItemId,
-          roleId: each.roleId,
+          stepId: each.stepId,
         })),
         removedProgress: statedHandedDown.map((each) => ({
           workItemId: each.workItemId,
-          roleId: each.roleId,
+          stepId: each.stepId,
         })),
         // The metric rides along, unlike the three above: these keys are
         // triples, and a pair here would take every figure off the parent
         // rather than the ones this create handed down.
         removedMeasures: measuredHandedDown.map((each) => ({
           workItemId: each.workItemId,
-          roleId: each.roleId,
+          stepId: each.stepId,
           metric: each.metric,
         })),
       },
@@ -1743,7 +1748,7 @@ export class WorkItemService {
   }
 
   /**
-   * Sets, replaces or clears who does one work item's work for one role.
+   * Sets, replaces or clears who does one work item's work for one step.
    *
    * The person is deliberately **not** checked against the work item's
    * `serviceTeamId`: Dany's call, 2026-08-06 — "keep people and service/team
@@ -1754,21 +1759,21 @@ export class WorkItemService {
   async assign(
     id: string,
     actorId: string,
-    roleId: string,
+    stepId: string,
     personId: string | null,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    if (!(await this.holdsRole(workItem.projectId, roleId)))
-      return { ok: false, reason: 'unknown_role' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
     const before =
-      (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
+      (await this.opts.directory.assignmentsOf([id])).find((each) => each.stepId === stepId)
         ?.personId ?? null;
-    const assigned = await this.writeNamingRole(workItem.projectId, roleId, () =>
-      this.opts.directory.assign(id, roleId, personId),
+    const assigned = await this.writeNamingStep(workItem.projectId, stepId, () =>
+      this.opts.directory.assign(id, stepId, personId),
     );
-    if (assigned === null) return { ok: false, reason: 'unknown_role' };
+    if (assigned === null) return { ok: false, reason: 'unknown_step' };
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
@@ -1779,8 +1784,8 @@ export class WorkItemService {
         ? `clear who does ${quoteName(workItem.name)}`
         : `assign ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'assign', workItemId: id, roleId, personId },
-        inverse: { do: 'assign', workItemId: id, roleId, personId: before },
+        forward: { do: 'assign', workItemId: id, stepId, personId },
+        inverse: { do: 'assign', workItemId: id, stepId, personId: before },
         touched: [id],
         before: context.result.rows,
       },
@@ -2119,43 +2124,43 @@ export class WorkItemService {
       const measuredHandedUp: StoredMeasure[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
         const totals = rollUp(rows, storedEstimates);
-        for (const [roleId, days] of totals.get(id) ?? []) {
-          handedUp.push({ workItemId: parentId, roleId, ...days });
+        for (const [stepId, days] of totals.get(id) ?? []) {
+          handedUp.push({ workItemId: parentId, stepId, ...days });
         }
         const recordedInside = storedActuals.filter((each) => inside.has(each.workItemId));
-        for (const [roleId, days] of rollUpActuals(rows, storedActuals).get(id) ?? []) {
+        for (const [stepId, days] of rollUpActuals(rows, storedActuals).get(id) ?? []) {
           const latest = recordedInside
-            .filter((each) => each.roleId === roleId)
+            .filter((each) => each.stepId === stepId)
             .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
-          recordedHandedUp.push({ workItemId: parentId, roleId, days, recordedAt: latest });
+          recordedHandedUp.push({ workItemId: parentId, stepId, days, recordedAt: latest });
         }
         const statedInside = storedProgress.filter((each) => inside.has(each.workItemId));
         const branchStates = rollUpProgress(
           rows,
           storedProgress,
-          workedRolesOf(storedEstimates, storedActuals, storedProgress),
+          workedStepsOf(storedEstimates, storedActuals, storedProgress),
         ).get(id);
-        for (const [roleId, state] of branchStates ?? []) {
+        for (const [stepId, state] of branchStates ?? []) {
           if (state === NOT_STARTED) continue;
           const latest = statedInside
-            .filter((each) => each.roleId === roleId)
+            .filter((each) => each.stepId === stepId)
             .reduce((newest, each) => Math.max(newest, each.statedAt), 0);
-          statedHandedUp.push({ workItemId: parentId, roleId, state, statedAt: latest });
+          statedHandedUp.push({ workItemId: parentId, stepId, state, statedAt: latest });
         }
         const measuredInside = storedMeasures.filter((each) => inside.has(each.workItemId));
         for (const metric of MEASURE_METRICS) {
-          for (const [roleId, value] of rollUpMeasures(rows, storedMeasures, metric).get(id) ??
+          for (const [stepId, value] of rollUpMeasures(rows, storedMeasures, metric).get(id) ??
             []) {
             // The newest stamp **in this metric**, not the newest in the branch.
             // A pair whose hours were recorded this morning and whose tokens
             // were recorded a fortnight ago hands up two figures, and the token
             // one did not become a fortnight newer by being summed.
             const latest = measuredInside
-              .filter((each) => each.roleId === roleId && each.metric === metric)
+              .filter((each) => each.stepId === stepId && each.metric === metric)
               .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
             measuredHandedUp.push({
               workItemId: parentId,
-              roleId,
+              stepId,
               metric,
               value,
               recordedAt: latest,
@@ -2223,19 +2228,19 @@ export class WorkItemService {
           ),
           removedEstimates: handedUp.map((each) => ({
             workItemId: each.workItemId,
-            roleId: each.roleId,
+            stepId: each.stepId,
           })),
           removedActuals: recordedHandedUp.map((each) => ({
             workItemId: each.workItemId,
-            roleId: each.roleId,
+            stepId: each.stepId,
           })),
           removedProgress: statedHandedUp.map((each) => ({
             workItemId: each.workItemId,
-            roleId: each.roleId,
+            stepId: each.stepId,
           })),
           removedMeasures: measuredHandedUp.map((each) => ({
             workItemId: each.workItemId,
-            roleId: each.roleId,
+            stepId: each.stepId,
             metric: each.metric,
           })),
         },
@@ -2426,7 +2431,7 @@ export class WorkItemService {
   }
 
   /**
-   * Writes one work item's estimate for one role.
+   * Writes one work item's estimate for one step.
    *
    * Refused for a work item that has children: its figures are the sum of what
    * is below it, and a stored estimate there would either be ignored or
@@ -2435,20 +2440,20 @@ export class WorkItemService {
   async setEstimate(
     id: string,
     actorId: string,
-    roleId: string,
+    stepId: string,
     days: Days,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsRole(workItem.projectId, roleId)))
-      return { ok: false, reason: 'unknown_role' };
-    const before = await this.storedTrio(workItem.projectId, id, roleId);
-    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
-      this.opts.estimates.set({ workItemId: id, roleId, ...days }),
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before = await this.storedTrio(workItem.projectId, id, stepId);
+    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
+      this.opts.estimates.set({ workItemId: id, stepId, ...days }),
     );
-    if (written === null) return { ok: false, reason: 'unknown_role' };
+    if (written === null) return { ok: false, reason: 'unknown_step' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -2456,11 +2461,11 @@ export class WorkItemService {
       'estimate',
       `estimate ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_estimate', workItemId: id, roleId, days },
+        forward: { do: 'set_estimate', workItemId: id, stepId, days },
         inverse:
           before === null
-            ? { do: 'clear_estimate', workItemId: id, roleId }
-            : { do: 'set_estimate', workItemId: id, roleId, days: before },
+            ? { do: 'clear_estimate', workItemId: id, stepId }
+            : { do: 'set_estimate', workItemId: id, stepId, days: before },
         touched: [id],
         before: context.result.rows,
       },
@@ -2469,7 +2474,7 @@ export class WorkItemService {
   }
 
   /**
-   * Takes one work item's estimate for one role back off.
+   * Takes one work item's estimate for one step back off.
    *
    * Idempotent: clearing a trio that is not stored is the state the caller
    * asked for, so it succeeds rather than reporting a 404 for an estimate.
@@ -2488,12 +2493,12 @@ export class WorkItemService {
    * subscribers, with the ancestors whose totals moved` alone. Both watched
    * 2026-08-06 — see `openspec/changes/clear-estimate/verify.md`.
    */
-  async clearEstimate(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+  async clearEstimate(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    const before = await this.storedTrio(workItem.projectId, id, roleId);
-    await this.opts.estimates.remove(id, roleId);
+    const before = await this.storedTrio(workItem.projectId, id, stepId);
+    await this.opts.estimates.remove(id, stepId);
     await this.announceWorkItem(workItem.projectId, id);
     // Clearing a trio that was not there changed nothing — the call is
     // idempotent by design — so there is nothing to put back.
@@ -2504,8 +2509,8 @@ export class WorkItemService {
         'clear_estimate',
         `clear the estimate on ${quoteName(workItem.name)}`,
         {
-          forward: { do: 'clear_estimate', workItemId: id, roleId },
-          inverse: { do: 'set_estimate', workItemId: id, roleId, days: before },
+          forward: { do: 'clear_estimate', workItemId: id, stepId },
+          inverse: { do: 'set_estimate', workItemId: id, stepId, days: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2515,13 +2520,13 @@ export class WorkItemService {
   }
 
   /**
-   * Writes the days one role actually spent on one work item.
+   * Writes the days one step actually spent on one work item.
    *
    * Guarded exactly as {@link WorkItemService.setEstimate} is, and the two
    * refusals are the same two for the same reasons: a row with children is
    * `rolled_up`, because its figures are the sum of what is below it and a
-   * stored number there would be ignored or double-counted; a `roleId` this
-   * project does not hold is `unknown_role`.
+   * stored number there would be ignored or double-counted; a `stepId` this
+   * project does not hold is `unknown_step`.
    *
    * **Nothing about this reaches the schedule.** The engine's input map is built
    * from estimates in `slicesOf` and this number is not in it, so recording an
@@ -2538,20 +2543,20 @@ export class WorkItemService {
   async setActual(
     id: string,
     actorId: string,
-    roleId: string,
+    stepId: string,
     days: number,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsRole(workItem.projectId, roleId)))
-      return { ok: false, reason: 'unknown_role' };
-    const before = await this.storedActual(workItem.projectId, id, roleId);
-    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
-      this.opts.actuals.set({ workItemId: id, roleId, days, recordedAt: this.now() }),
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before = await this.storedActual(workItem.projectId, id, stepId);
+    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
+      this.opts.actuals.set({ workItemId: id, stepId, days, recordedAt: this.now() }),
     );
-    if (written === null) return { ok: false, reason: 'unknown_role' };
+    if (written === null) return { ok: false, reason: 'unknown_step' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -2559,15 +2564,15 @@ export class WorkItemService {
       'actual',
       `record days on ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_actual', workItemId: id, roleId, days },
+        forward: { do: 'set_actual', workItemId: id, stepId, days },
         // The number that was there, or its absence. A `clear_actual` inverse
         // is what makes undoing the first recording take the row away rather
         // than write a zero — the one thing this table must never hold as a
         // stand-in for "nobody said".
         inverse:
           before === null
-            ? { do: 'clear_actual', workItemId: id, roleId }
-            : { do: 'set_actual', workItemId: id, roleId, days: before },
+            ? { do: 'clear_actual', workItemId: id, stepId }
+            : { do: 'set_actual', workItemId: id, stepId, days: before },
         touched: [id],
         before: context.result.rows,
       },
@@ -2576,7 +2581,7 @@ export class WorkItemService {
   }
 
   /**
-   * Takes the recorded days back off one work item for one role.
+   * Takes the recorded days back off one work item for one step.
    *
    * Idempotent, and not refused on a rolled-up row, for exactly the reasons
    * {@link WorkItemService.clearEstimate} gives: clearing what is not stored is
@@ -2585,12 +2590,12 @@ export class WorkItemService {
    * one place and a success everywhere else. A missing **work item** is still
    * `not_found`.
    */
-  async clearActual(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+  async clearActual(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    const before = await this.storedActual(workItem.projectId, id, roleId);
-    await this.opts.actuals.remove(id, roleId);
+    const before = await this.storedActual(workItem.projectId, id, stepId);
+    await this.opts.actuals.remove(id, stepId);
     await this.announceWorkItem(workItem.projectId, id);
     // Nothing was stored, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` makes, and the reason a plan does not gain
@@ -2602,8 +2607,8 @@ export class WorkItemService {
         'clear_actual',
         `clear the recorded days on ${quoteName(workItem.name)}`,
         {
-          forward: { do: 'clear_actual', workItemId: id, roleId },
-          inverse: { do: 'set_actual', workItemId: id, roleId, days: before },
+          forward: { do: 'clear_actual', workItemId: id, stepId },
+          inverse: { do: 'set_actual', workItemId: id, stepId, days: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2614,7 +2619,7 @@ export class WorkItemService {
 
   /**
    * Writes one figure in one unit that is not days — tokens estimated, tokens
-   * spent, hours spent — for one role on one work item.
+   * spent, hours spent — for one step on one work item.
    *
    * Guarded exactly as {@link WorkItemService.setActual} is, plus **one refusal
    * that pair does not have**: a `metric` outside {@link MEASURE_METRICS} is
@@ -2637,7 +2642,7 @@ export class WorkItemService {
   async setMeasure(
     id: string,
     actorId: string,
-    roleId: string,
+    stepId: string,
     /**
      * `string`, not {@link MeasureMetric}, and that is the honest type: this
      * value arrives as a path segment, so the caller genuinely has a string and
@@ -2653,13 +2658,13 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsRole(workItem.projectId, roleId)))
-      return { ok: false, reason: 'unknown_role' };
-    const before = await this.storedMeasure(workItem.projectId, id, roleId, metric);
-    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
-      this.opts.measures.set({ workItemId: id, roleId, metric, value, recordedAt: this.now() }),
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
+    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
+      this.opts.measures.set({ workItemId: id, stepId, metric, value, recordedAt: this.now() }),
     );
-    if (written === null) return { ok: false, reason: 'unknown_role' };
+    if (written === null) return { ok: false, reason: 'unknown_step' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -2667,7 +2672,7 @@ export class WorkItemService {
       'measure',
       `record ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_measure', workItemId: id, roleId, metric, value },
+        forward: { do: 'set_measure', workItemId: id, stepId, metric, value },
         // The figure that was there **in this metric**, or its absence. The
         // inverse of a first recording is `clear_measure` and never
         // `set_measure 0`, for the reason `set_actual` gives: zero is somebody
@@ -2675,8 +2680,8 @@ export class WorkItemService {
         // stand-in for nobody having said. verify.md F7 watches it.
         inverse:
           before === null
-            ? { do: 'clear_measure', workItemId: id, roleId, metric }
-            : { do: 'set_measure', workItemId: id, roleId, metric, value: before },
+            ? { do: 'clear_measure', workItemId: id, stepId, metric }
+            : { do: 'set_measure', workItemId: id, stepId, metric, value: before },
         touched: [id],
         before: context.result.rows,
       },
@@ -2685,7 +2690,7 @@ export class WorkItemService {
   }
 
   /**
-   * Takes one recorded figure back off one work item for one role, in one
+   * Takes one recorded figure back off one work item for one step, in one
    * metric, leaving that pair's other metrics alone.
    *
    * Idempotent and not refused on a rolled-up row, exactly as
@@ -2698,7 +2703,7 @@ export class WorkItemService {
   async clearMeasure(
     id: string,
     actorId: string,
-    roleId: string,
+    stepId: string,
     /** `string` for {@link WorkItemService.setMeasure}'s reason. */
     metric: string,
   ): Promise<WorkItemOutcome<null>> {
@@ -2706,8 +2711,8 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    const before = await this.storedMeasure(workItem.projectId, id, roleId, metric);
-    await this.opts.measures.remove(id, roleId, metric);
+    const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
+    await this.opts.measures.remove(id, stepId, metric);
     await this.announceWorkItem(workItem.projectId, id);
     // Nothing was stored in this metric, so nothing changed and there is
     // nothing to put back — `clearActual`'s skip, per metric.
@@ -2718,8 +2723,8 @@ export class WorkItemService {
         'clear_measure',
         `clear the recorded ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
         {
-          forward: { do: 'clear_measure', workItemId: id, roleId, metric },
-          inverse: { do: 'set_measure', workItemId: id, roleId, metric, value: before },
+          forward: { do: 'clear_measure', workItemId: id, stepId, metric },
+          inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2729,15 +2734,15 @@ export class WorkItemService {
   }
 
   /**
-   * States where one role's work on one work item has got to.
+   * States where one step's work on one work item has got to.
    *
    * Guarded exactly as {@link WorkItemService.setActual} is, and the two
    * refusals are the same two for the same reasons: a row with children is
    * `rolled_up`, because its reading is folded from what is below it and a
-   * stored state there would be ignored by every reader; a `roleId` this project
-   * does not hold is `unknown_role`.
+   * stored state there would be ignored by every reader; a `stepId` this project
+   * does not hold is `unknown_step`.
    *
-   * **Nothing about this reaches the schedule.** Recording that a role is done
+   * **Nothing about this reaches the schedule.** Recording that a step is done
    * moves no date, no bar and no critical path — `service/schedule.ts` has an
    * empty diff in the change that adds this. What it buys is that the number
    * beside it becomes readable: 8 days spent against 5 estimated, **finished**,
@@ -2745,9 +2750,9 @@ export class WorkItemService {
    * still running, is a different sentence about the same two numbers.
    *
    * **What `done` makes true, and it is a rule rather than a note:** an actual on
-   * a role marked done is **final** — the whole of what that role spent, not a
+   * a step marked done is **final** — the whole of what that step spent, not a
    * running count. The change that lets the engine consume this reads exactly
-   * that (finished roles freeze; in-progress roles get
+   * that (finished steps freeze; in-progress steps get
    * `remaining = max(0, estimate − actual)`), and it must not have to
    * re-litigate the meaning of rows this method wrote.
    *
@@ -2758,20 +2763,20 @@ export class WorkItemService {
   async setProgress(
     id: string,
     actorId: string,
-    roleId: string,
-    state: RoleState,
+    stepId: string,
+    state: StepState,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsRole(workItem.projectId, roleId)))
-      return { ok: false, reason: 'unknown_role' };
-    const before = await this.storedProgress(workItem.projectId, id, roleId);
-    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
-      this.opts.progress.set({ workItemId: id, roleId, state, statedAt: this.now() }),
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before = await this.storedProgress(workItem.projectId, id, stepId);
+    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
+      this.opts.progress.set({ workItemId: id, stepId, state, statedAt: this.now() }),
     );
-    if (written === null) return { ok: false, reason: 'unknown_role' };
+    if (written === null) return { ok: false, reason: 'unknown_step' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -2779,15 +2784,15 @@ export class WorkItemService {
       'progress',
       `${state === 'done' ? 'finish' : 'start'} work on ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_progress', workItemId: id, roleId, state },
+        forward: { do: 'set_progress', workItemId: id, stepId, state },
         // What was said before, or that nothing was. A `clear_progress` inverse
         // is what makes undoing the first statement take the row away rather
         // than write a `not_started` — the one value this table must never hold,
         // because it is the absence of a row everywhere else.
         inverse:
           before === null
-            ? { do: 'clear_progress', workItemId: id, roleId }
-            : { do: 'set_progress', workItemId: id, roleId, state: before },
+            ? { do: 'clear_progress', workItemId: id, stepId }
+            : { do: 'set_progress', workItemId: id, stepId, state: before },
         touched: [id],
         before: context.result.rows,
       },
@@ -2796,7 +2801,7 @@ export class WorkItemService {
   }
 
   /**
-   * Takes the statement back, leaving the role reading as not started.
+   * Takes the statement back, leaving the step reading as not started.
    *
    * Idempotent, and not refused on a rolled-up row, for exactly the reasons
    * {@link WorkItemService.clearActual} gives: clearing what is not stored is
@@ -2808,12 +2813,12 @@ export class WorkItemService {
    * was undone, it says nobody has spoken about it. Those are different
    * sentences and this is the second one.
    */
-  async clearProgress(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+  async clearProgress(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    const before = await this.storedProgress(workItem.projectId, id, roleId);
-    await this.opts.progress.remove(id, roleId);
+    const before = await this.storedProgress(workItem.projectId, id, stepId);
+    await this.opts.progress.remove(id, stepId);
     await this.announceWorkItem(workItem.projectId, id);
     // Nothing was stated, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` and `clearActual` make, and the reason a
@@ -2825,8 +2830,8 @@ export class WorkItemService {
         'clear_progress',
         `clear the progress on ${quoteName(workItem.name)}`,
         {
-          forward: { do: 'clear_progress', workItemId: id, roleId },
-          inverse: { do: 'set_progress', workItemId: id, roleId, state: before },
+          forward: { do: 'clear_progress', workItemId: id, stepId },
+          inverse: { do: 'set_progress', workItemId: id, stepId, state: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2837,8 +2842,8 @@ export class WorkItemService {
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
   /**
-   * Records "`predecessorId`'s anchor — its first slice in role order — must
-   * finish before this starts"; the predecessor's later roles run beside it.
+   * Records "`predecessorId`'s anchor — its first slice in step order — must
+   * finish before this starts"; the predecessor's later steps run beside it.
    *
    * Broadcast as a whole-tree change, not a patch: one edge moves every date
    * downstream of it, and working out which rows those are is the schedule's
@@ -3153,42 +3158,42 @@ export class WorkItemService {
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
-        // The phase the trio belonged to has been removed since. Putting the
+        // The step the trio belonged to has been removed since. Putting the
         // figures back would be a foreign key error on a key somebody pressed
         // to be safe, so the entry is refused and discarded like any other
         // command the plan has moved past.
-        if (!(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
           this.opts.estimates.set({
             workItemId: command.workItemId,
-            roleId: command.roleId,
+            stepId: command.stepId,
             ...command.days,
           }),
         );
         if (restored === null)
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+          return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_estimate':
-        await this.opts.estimates.remove(command.workItemId, command.roleId);
+        await this.opts.estimates.remove(command.workItemId, command.stepId);
         return { ok: true, detail: null };
       case 'set_actual': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
-        // The phase the days were recorded against has been removed since.
+        // The step the days were recorded against has been removed since.
         // `actual.role_id` is a foreign key, so putting the number back would be
         // a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
           this.opts.actuals.set({
             workItemId: command.workItemId,
-            roleId: command.roleId,
+            stepId: command.stepId,
             days: command.days,
             // Now, not the stamp the row carried. An undo is somebody recording
             // the number again, and this column says when it was recorded — see
@@ -3197,27 +3202,27 @@ export class WorkItemService {
           }),
         );
         if (restored === null)
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+          return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_actual':
-        await this.opts.actuals.remove(command.workItemId, command.roleId);
+        await this.opts.actuals.remove(command.workItemId, command.stepId);
         return { ok: true, detail: null };
       case 'set_measure': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
-        // The phase the figure was recorded against has been removed since.
+        // The step the figure was recorded against has been removed since.
         // `role_measure.role_id` is a foreign key, so putting the number back
         // would be a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
           this.opts.measures.set({
             workItemId: command.workItemId,
-            roleId: command.roleId,
+            stepId: command.stepId,
             metric: command.metric,
             value: command.value,
             // Now, not the stamp the row carried — `set_actual`'s reading of
@@ -3226,27 +3231,27 @@ export class WorkItemService {
           }),
         );
         if (restored === null)
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+          return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_measure':
-        await this.opts.measures.remove(command.workItemId, command.roleId, command.metric);
+        await this.opts.measures.remove(command.workItemId, command.stepId, command.metric);
         return { ok: true, detail: null };
       case 'set_progress': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
-        // The phase the statement was made about has been removed since.
+        // The step the statement was made about has been removed since.
         // `role_progress.role_id` is a foreign key, so putting the statement
         // back would be a constraint error on a key somebody pressed to be safe.
-        if (!(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
           this.opts.progress.set({
             workItemId: command.workItemId,
-            roleId: command.roleId,
+            stepId: command.stepId,
             state: command.state,
             // Now, not the stamp the row carried. An undo is somebody saying it
             // again, and this column says when it was said — the same reading
@@ -3255,22 +3260,22 @@ export class WorkItemService {
           }),
         );
         if (restored === null)
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+          return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_progress':
-        await this.opts.progress.remove(command.workItemId, command.roleId);
+        await this.opts.progress.remove(command.workItemId, command.stepId);
         return { ok: true, detail: null };
       case 'assign':
-        if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (command.personId !== null && !(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
         }
         {
-          const reassigned = await this.writeNamingRole(projectId, command.roleId, () =>
-            this.opts.directory.assign(command.workItemId, command.roleId, command.personId),
+          const reassigned = await this.writeNamingStep(projectId, command.stepId, () =>
+            this.opts.directory.assign(command.workItemId, command.stepId, command.personId),
           );
           if (reassigned === null) {
-            return { ok: false, detail: 'that phase is no longer in this project.' };
+            return { ok: false, detail: 'that step is no longer in this project.' };
           }
           // The person was removed after the command ran. Undo never
           // resurrects one, so the entry is refused and discarded like any
@@ -3624,7 +3629,7 @@ export class WorkItemService {
         kind,
         label,
         workItemId: subject.workItemId,
-        roleId: subject.roleId,
+        stepId: subject.stepId,
         // The compensating command, which is where the before-state lives: for
         // the estimate kinds it carries the trio that was stored, and for the
         // rest it is the only before-state that exists. See `plan_event`.
@@ -3639,68 +3644,68 @@ export class WorkItemService {
   }
 
   /**
-   * Runs a write that names a role, answering `null` when the role went between
+   * Runs a write that names a step, answering `null` when the step went between
    * the check above it and the statement itself, and otherwise whatever the
    * write answered.
    *
-   * {@link WorkItemService.holdsRole} narrows the window and does not close it:
+   * {@link WorkItemService.holdsStep} narrows the window and does not close it:
    * a removal can commit between that read and this write, and `estimate` and
-   * `assignment` both reference `role.id` by foreign key. Left alone that is a
+   * `assignment` both reference `step.id` by foreign key. Left alone that is a
    * 500 for a caller whose only fault is being a moment out of date, which R5
    * calls a modeled condition wearing an invariant's clothes.
    *
    * The translation is deliberately narrow. SQLite's message names no column,
-   * so the role is re-read before the refusal is believed: a foreign key that
+   * so the step is re-read before the refusal is believed: a foreign key that
    * failed over a work item or a person that has gone is still unknown, and
    * still thrown.
    *
    * Proof: with the `catch` removed, `refuses the estimate rather than
    * answering with the foreign key` and `refuses the assignee the same way`
    * both fail with `SQLiteError: FOREIGN KEY constraint failed`; with the
-   * `holdsRole` re-read dropped, `still throws a foreign key that is not about
-   * the role` fails, an absent person reported as an absent phase. Watched
+   * `holdsStep` re-read dropped, `still throws a foreign key that is not about
+   * the step` fails, an absent person reported as an absent step. Watched
    * 2026-08-09.
    */
-  private async writeNamingRole<T>(
+  private async writeNamingStep<T>(
     projectId: string,
-    roleId: string,
+    stepId: string,
     write: () => Promise<T>,
   ): Promise<T | null> {
     try {
       return await write();
     } catch (err) {
       if (!isForeignKeyViolation(err)) throw err;
-      if (await this.holdsRole(projectId, roleId)) throw err;
+      if (await this.holdsStep(projectId, stepId)) throw err;
       return null;
     }
   }
 
   /**
-   * Whether the project still holds this role.
+   * Whether the project still holds this step.
    *
-   * Asked on every write that names one, because a role can be removed while a
+   * Asked on every write that names one, because a step can be removed while a
    * client has it on screen — and both `estimate` and `assignment` reference it
-   * by foreign key. Reading the project's roles rather than taking a role store
+   * by foreign key. Reading the project's steps rather than taking a step store
    * of its own: the answer is one column of a list this service already reads.
    *
    * Proof: with both calls removed, `refuses an estimate and an assignee for a
-   * role that has gone, rather than 500ing` fails with two 500s, and `leaves an
-   * undo whose role has gone refusing as stale, not writing` 500s too; watched
+   * step that has gone, rather than 500ing` fails with two 500s, and `leaves an
+   * undo whose step has gone refusing as stale, not writing` 500s too; watched
    * 2026-08-08.
    */
-  private async holdsRole(projectId: string, roleId: string): Promise<boolean> {
-    const roles = await this.opts.projects.rolesOf(projectId);
-    return roles.some((each) => each.id === roleId);
+  private async holdsStep(projectId: string, stepId: string): Promise<boolean> {
+    const steps = await this.opts.projects.stepsOf(projectId);
+    return steps.some((each) => each.id === stepId);
   }
 
-  /** One work item's stored trio for one role, or null when it holds none. */
+  /** One work item's stored trio for one step, or null when it holds none. */
   private async storedTrio(
     projectId: string,
     workItemId: string,
-    roleId: string,
+    stepId: string,
   ): Promise<Days | null> {
     const found = (await this.opts.estimates.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.roleId === roleId,
+      (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     if (found === undefined) return null;
     return {
@@ -3711,7 +3716,7 @@ export class WorkItemService {
   }
 
   /**
-   * One work item's recorded days for one role, or null when it holds none.
+   * One work item's recorded days for one step, or null when it holds none.
    *
    * Null rather than 0, and every caller of this treats the two as different
    * answers: 0 is a person saying the work took no time, and null is nobody
@@ -3721,16 +3726,16 @@ export class WorkItemService {
   private async storedActual(
     projectId: string,
     workItemId: string,
-    roleId: string,
+    stepId: string,
   ): Promise<number | null> {
     const found = (await this.opts.actuals.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.roleId === roleId,
+      (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     return found?.days ?? null;
   }
 
   /**
-   * One work item's recorded figure in one metric for one role, or null when it
+   * One work item's recorded figure in one metric for one step, or null when it
    * holds none in that metric.
    *
    * Null rather than 0, on {@link WorkItemService.storedActual}'s reading and
@@ -3741,17 +3746,17 @@ export class WorkItemService {
   private async storedMeasure(
     projectId: string,
     workItemId: string,
-    roleId: string,
+    stepId: string,
     metric: MeasureMetric,
   ): Promise<number | null> {
     const found = (await this.opts.measures.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.roleId === roleId && each.metric === metric,
+      (each) => each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
     );
     return found?.value ?? null;
   }
 
   /**
-   * What one work item's role currently says, or null when it has said nothing.
+   * What one work item's step currently says, or null when it has said nothing.
    *
    * Null rather than `not_started`, and every caller treats the two as one
    * answer with two spellings only in the direction that matters: null is what
@@ -3761,10 +3766,10 @@ export class WorkItemService {
   private async storedProgress(
     projectId: string,
     workItemId: string,
-    roleId: string,
-  ): Promise<RoleState | null> {
+    stepId: string,
+  ): Promise<StepState | null> {
     const found = (await this.opts.progress.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.roleId === roleId,
+      (each) => each.workItemId === workItemId && each.stepId === stepId,
     );
     return found?.state ?? null;
   }

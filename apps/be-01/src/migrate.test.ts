@@ -8,7 +8,7 @@ import { testHistoryService } from './testing/history-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
-import { testRoleService } from './testing/role-fixture';
+import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 import { testWrites } from './testing/writes-fixture';
 
@@ -23,7 +23,7 @@ describe('migrate lifecycle', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
-      roles: testRoleService(),
+      steps: testStepService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),

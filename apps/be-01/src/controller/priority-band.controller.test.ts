@@ -19,7 +19,7 @@ import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -95,7 +95,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({ projects: projectStore, bands, broadcast }),
       history: testHistoryService(projectStore),
-      roles: testRoleService(),
+      steps: testStepService(),
       workItems: testWorkItemService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',

@@ -72,8 +72,8 @@ function parseCsv(text: string): string[][] {
   return records;
 }
 
-const DEV = { id: 'role-dev', name: 'Dev' };
-const QA = { id: 'role-qa', name: 'QA' };
+const DEV = { id: 'step-dev', name: 'Dev' };
+const QA = { id: 'step-qa', name: 'QA' };
 
 const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): ExportRow => ({
   // At the root and one at a time, which is every row of a plan nobody has
@@ -107,7 +107,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   dates: null,
   schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
   assignees: {},
-  doesEveryPhase: null,
+  doesEveryStep: null,
   // Unranked, and spelled out rather than left off. `ExportRow.priority` is
   // `number | null` and not optional, but a spread of a `Partial` satisfies
   // that check, so the omission compiled — and every row every test in this
@@ -124,7 +124,7 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
   method: 'pert',
   startDate: null,
   scheduleError: null,
-  roles: [DEV, QA],
+  steps: [DEV, QA],
   teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
   tags: [
     { id: 'tag-regulatory', name: 'regulatory' },
@@ -280,7 +280,7 @@ describe('the header block', () => {
 });
 
 describe('the columns', () => {
-  it('labels each role final with the method that produced it', () => {
+  it('labels each step final with the method that produced it', () => {
     expect(csvColumns(planToCsv(plan()))).toEqual([
       'Number',
       'Name',
@@ -617,25 +617,23 @@ describe('the columns', () => {
     expect(csvDataRow(csv, 2)[columnAt(csv, 'Depends on')]).toBe('010, 020');
   });
 
-  it('says who is assumed to do a phase nobody was assigned to', () => {
+  it('says who is assumed to do a step nobody was assigned to', () => {
     const rows = [
       row({
         id: 'a',
         number: '010',
-        assignees: { 'role-dev': 'person-ada' },
-        doesEveryPhase: 'person-ada',
+        assignees: { 'step-dev': 'person-ada' },
+        doesEveryStep: 'person-ada',
       }),
     ];
     const csv = planToCsv(plan({ rows }));
     const cells = csvDataRow(csv);
     expect(cells[columnAt(csv, 'Dev by')]).toBe('ada');
-    expect(cells[columnAt(csv, 'QA by')]).toBe(
-      'ada (assumed — the only assignee does every phase)',
-    );
+    expect(cells[columnAt(csv, 'QA by')]).toBe('ada (assumed — the only assignee does every step)');
   });
 
   it('names an assignee nobody knows rather than printing an id', () => {
-    const rows = [row({ id: 'a', number: '010', assignees: { 'role-dev': 'person-gone' } })];
+    const rows = [row({ id: 'a', number: '010', assignees: { 'step-dev': 'person-gone' } })];
     const csv = planToCsv(plan({ rows }));
     const cells = csvDataRow(csv);
     expect(cells[columnAt(csv, 'Dev by')]).toBe('(unknown)');
@@ -674,7 +672,7 @@ describe('the capacity columns', () => {
   const slice = (workItemId: string, width: number, effort: number): ExportSlice => ({
     id: `${workItemId}-${String(width)}-${String(effort)}`,
     workItemId,
-    roleId: DEV.id,
+    stepId: DEV.id,
     personId: null,
     estimated: true,
     earliestStart: 0,
@@ -772,7 +770,7 @@ describe('the capacity columns', () => {
   });
 
   it('carries every width a row ran at rather than one of them', () => {
-    // One phase assigned to somebody and one not: the assigned phase runs one
+    // One step assigned to somebody and one not: the assigned step runs one
     // at a time whatever the row asks for, and the other runs three-up. Either
     // number alone is a claim about the whole row that is false of half of it.
     const rows = [row({ id: 'a', number: '010', maxParallel: 3 })];
@@ -830,8 +828,8 @@ describe('raw against displayed', () => {
       row({
         id: 'a',
         number: '010',
-        estimates: { 'role-dev': { optimistic: 2, realistic: 3, pessimistic: 8 } },
-        finalDays: { 'role-dev': 22 / 6 },
+        estimates: { 'step-dev': { optimistic: 2, realistic: 3, pessimistic: 8 } },
+        finalDays: { 'step-dev': 22 / 6 },
         finalTotal: 22 / 6,
       }),
     ];
@@ -845,7 +843,7 @@ describe('raw against displayed', () => {
   it('leaves an unestimated leaf empty, never zero', () => {
     const rows = [row({ id: 'a', number: '010', name: 'Nobody has looked' })];
     const cells = csvDataRow(planToCsv(plan({ rows })));
-    // Every estimate cell of the two roles, their finals, and the total.
+    // Every estimate cell of the two steps, their finals, and the total.
     expect(cells.slice(3, 14)).toEqual(['', '', '', '', '', '', '', '', '', '', '']);
     // A zero here would read as "this takes no time" rather than "nobody has
     // looked", which is the whole of the raw-versus-displayed rule.
@@ -864,13 +862,13 @@ describe('raw against displayed', () => {
     ]);
   });
 
-  it('leaves the roles a row was never estimated for empty while another carries a figure', () => {
+  it('leaves the steps a row was never estimated for empty while another carries a figure', () => {
     const rows = [
       row({
         id: 'a',
         number: '010',
-        estimates: { 'role-dev': { optimistic: 1, realistic: 1, pessimistic: 1 } },
-        finalDays: { 'role-dev': 1 },
+        estimates: { 'step-dev': { optimistic: 1, realistic: 1, pessimistic: 1 } },
+        finalDays: { 'step-dev': 1 },
         finalTotal: 1,
       }),
     ];
@@ -889,8 +887,8 @@ describe('raw against displayed', () => {
         id: 'a',
         number: '010',
         rolledUp: true,
-        estimates: { 'role-dev': { optimistic: 4, realistic: 6, pessimistic: 16 } },
-        finalDays: { 'role-dev': 7 },
+        estimates: { 'step-dev': { optimistic: 4, realistic: 6, pessimistic: 16 } },
+        finalDays: { 'step-dev': 7 },
         finalTotal: 7,
       }),
     ];

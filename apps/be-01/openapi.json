@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "wbs-tool API",
-    "description": "The API behind wbs-tool: projects, work items, estimates, dependencies, the\ndirectory of teams and people, and per-project capacity and priority bands.\n\n**Authentication.** Every route outside `POST /api/auth/register` and\n`POST /api/auth/login` needs the secure browser session cookie. Non-browser\nclients use `Authorization: Bearer <token>`; the retired `x-wbs-token`\nheader is refused. OIDC tokens are issuer- and audience-bound, expire at the\nprovider's limit, and carry environment-scoped read/write permissions.\n`/internal/*` is gw-01's own surface and takes a shared secret in\n`x-internal-auth` instead — no account token opens it.\n\n**Writing to a plan is one route.** `POST /api/projects/:id/commands` takes an\nordered list of up to 200 typed commands — every plan edit and every directory\nedit — applies them all or none in one transaction and records them as one undo.\nLater commands may name what earlier ones created by `ref`. A refused command\nrefuses the batch with `{ \"error\", \"at\", \"kind\" }` and nothing is applied. Its\nbody is described under the route, one variant per command kind.\n\n**Bodies this document declares, and bodies it only describes.** The project,\nrole and auth routes declare a schema to Elysia, and those appear here as\nschemas. The two batch routes parse their body by hand — because Elysia strips\nunknown properties before a handler runs, which would silently delete refusals\nlike `number_is_derived` and the priority and parallelism guards — and each\ncommand inside them is checked by the parser its retired route had. Their bodies\nare written out under `requestBody`, one variant per command kind, and\n**nothing validates against that document**; the handler's own parse is the\ncontract, and it answers 400 with a code, the command's index and its kind.\n\n**Refusals.** A refused request answers `{ \"error\": \"<code>\" }` with a status\nthat means something: 400 \"do not send this\", 409 \"try again against a different\nstate\", 404 \"that id is not here\", 403 \"you may read it but not write it\". A\nrefused batch adds `\"at\"` and `\"kind\"`. The batch routes list their codes in\ntheir own descriptions. The rest do not yet — that pass is change A2.\n\n**Numbers are derived.** Work-item numbers, dates, floats and slices are\nrecomputed from the tree on every read; a write that names one is refused rather\nthan ignored. Re-read `GET /api/projects/:id/work-items` after any write: the\nwhole schedule can move.",
+    "description": "The API behind wbs-tool: projects, work items, estimates, dependencies, the\ndirectory of teams and people, and per-project capacity and priority bands.\n\n**Authentication.** Every route outside `POST /api/auth/register` and\n`POST /api/auth/login` needs the secure browser session cookie. Non-browser\nclients use `Authorization: Bearer <token>`; the retired `x-wbs-token`\nheader is refused. OIDC tokens are issuer- and audience-bound, expire at the\nprovider's limit, and carry environment-scoped read/write permissions.\n`/internal/*` is gw-01's own surface and takes a shared secret in\n`x-internal-auth` instead — no account token opens it.\n\n**Writing to a plan is one route.** `POST /api/projects/:id/commands` takes an\nordered list of up to 200 typed commands — every plan edit and every directory\nedit — applies them all or none in one transaction and records them as one undo.\nLater commands may name what earlier ones created by `ref`. A refused command\nrefuses the batch with `{ \"error\", \"at\", \"kind\" }` and nothing is applied. Its\nbody is described under the route, one variant per command kind.\n\n**Bodies this document declares, and bodies it only describes.** The project,\nstep and auth routes declare a schema to Elysia, and those appear here as\nschemas. The two batch routes parse their body by hand — because Elysia strips\nunknown properties before a handler runs, which would silently delete refusals\nlike `number_is_derived` and the priority and parallelism guards — and each\ncommand inside them is checked by the parser its retired route had. Their bodies\nare written out under `requestBody`, one variant per command kind, and\n**nothing validates against that document**; the handler's own parse is the\ncontract, and it answers 400 with a code, the command's index and its kind.\n\n**Refusals.** A refused request answers `{ \"error\": \"<code>\" }` with a status\nthat means something: 400 \"do not send this\", 409 \"try again against a different\nstate\", 404 \"that id is not here\", 403 \"you may read it but not write it\". A\nrefused batch adds `\"at\"` and `\"kind\"`. The batch routes list their codes in\ntheir own descriptions. The rest do not yet — that pass is change A2.\n\n**Numbers are derived.** Work-item numbers, dates, floats and slices are\nrecomputed from the tree on every read; a write that names one is refused rather\nthan ignored. Re-read `GET /api/projects/:id/work-items` after any write: the\nwhole schedule can move.",
     "version": "0.0.0"
   },
   "paths": {
@@ -465,7 +465,7 @@
         "operationId": "patchApiProjectsById"
       }
     },
-    "/api/projects/{id}/roles": {
+    "/api/projects/{id}/steps": {
       "post": {
         "parameters": [
           {
@@ -521,10 +521,10 @@
             }
           }
         },
-        "operationId": "postApiProjectsByIdRoles"
+        "operationId": "postApiProjectsByIdSteps"
       }
     },
-    "/api/projects/{id}/roles/{roleId}": {
+    "/api/projects/{id}/steps/{stepId}": {
       "patch": {
         "parameters": [
           {
@@ -536,7 +536,7 @@
             }
           },
           {
-            "name": "roleId",
+            "name": "stepId",
             "in": "path",
             "required": true,
             "schema": {
@@ -588,7 +588,7 @@
             }
           }
         },
-        "operationId": "patchApiProjectsByIdRolesByRoleId"
+        "operationId": "patchApiProjectsByIdStepsByStepId"
       },
       "delete": {
         "parameters": [
@@ -601,7 +601,7 @@
             }
           },
           {
-            "name": "roleId",
+            "name": "stepId",
             "in": "path",
             "required": true,
             "schema": {
@@ -609,7 +609,7 @@
             }
           }
         ],
-        "operationId": "deleteApiProjectsByIdRolesByRoleId"
+        "operationId": "deleteApiProjectsByIdStepsByStepId"
       }
     },
     "/api/projects/{id}/work-items": {
@@ -829,7 +829,7 @@
                         {
                           "type": "object",
                           "title": "setEstimate",
-                          "description": "Set the three-point estimate of one phase on a leaf work item.",
+                          "description": "Set the three-point estimate of one step on a leaf work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -845,9 +845,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "days": {
                               "type": "object",
@@ -872,14 +872,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "days"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearEstimate",
-                          "description": "Remove one phase’s estimate from a work item.",
+                          "description": "Remove one step’s estimate from a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -895,20 +895,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setActual",
-                          "description": "Record the days one phase actually took on a work item.",
+                          "description": "Record the days one step actually took on a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -924,9 +924,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "days": {
                               "type": "number"
@@ -934,14 +934,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "days"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearActual",
-                          "description": "Remove one phase’s actual from a work item.",
+                          "description": "Remove one step’s actual from a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -957,20 +957,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setProgress",
-                          "description": "Mark one phase of a work item in progress or done.",
+                          "description": "Mark one step of a work item in progress or done.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -986,9 +986,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "state": {
                               "type": "string",
@@ -1000,14 +1000,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "state"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearProgress",
-                          "description": "Take a phase back to not started.",
+                          "description": "Take a step back to not started.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -1023,20 +1023,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setMeasure",
-                          "description": "Record a measured figure (tokens, hours…) for one phase of a work item.",
+                          "description": "Record a measured figure (tokens, hours…) for one step of a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -1052,9 +1052,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -1066,7 +1066,7 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "metric",
                             "value"
                           ]
@@ -1090,9 +1090,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -1101,14 +1101,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "metric"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setAssignee",
-                          "description": "Name who does one phase of a work item, or null to unassign.",
+                          "description": "Name who does one step of a work item, or null to unassign.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -1124,9 +1124,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "personId": {
                               "type": "string",
@@ -1140,7 +1140,7 @@
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
@@ -1966,7 +1966,7 @@
                         {
                           "type": "object",
                           "title": "setEstimate",
-                          "description": "Set the three-point estimate of one phase on a leaf work item.",
+                          "description": "Set the three-point estimate of one step on a leaf work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -1982,9 +1982,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "days": {
                               "type": "object",
@@ -2009,14 +2009,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "days"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearEstimate",
-                          "description": "Remove one phase’s estimate from a work item.",
+                          "description": "Remove one step’s estimate from a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2032,20 +2032,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setActual",
-                          "description": "Record the days one phase actually took on a work item.",
+                          "description": "Record the days one step actually took on a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2061,9 +2061,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "days": {
                               "type": "number"
@@ -2071,14 +2071,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "days"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearActual",
-                          "description": "Remove one phase’s actual from a work item.",
+                          "description": "Remove one step’s actual from a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2094,20 +2094,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setProgress",
-                          "description": "Mark one phase of a work item in progress or done.",
+                          "description": "Mark one step of a work item in progress or done.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2123,9 +2123,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "state": {
                               "type": "string",
@@ -2137,14 +2137,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "state"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "clearProgress",
-                          "description": "Take a phase back to not started.",
+                          "description": "Take a step back to not started.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2160,20 +2160,20 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             }
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setMeasure",
-                          "description": "Record a measured figure (tokens, hours…) for one phase of a work item.",
+                          "description": "Record a measured figure (tokens, hours…) for one step of a work item.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2189,9 +2189,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -2203,7 +2203,7 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "metric",
                             "value"
                           ]
@@ -2227,9 +2227,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -2238,14 +2238,14 @@
                           },
                           "required": [
                             "kind",
-                            "roleId",
+                            "stepId",
                             "metric"
                           ]
                         },
                         {
                           "type": "object",
                           "title": "setAssignee",
-                          "description": "Name who does one phase of a work item, or null to unassign.",
+                          "description": "Name who does one step of a work item, or null to unassign.",
                           "properties": {
                             "kind": {
                               "type": "string",
@@ -2261,9 +2261,9 @@
                               "type": "string",
                               "description": "The work item this command is aimed at — the `ref` an earlier command in this batch gave it."
                             },
-                            "roleId": {
+                            "stepId": {
                               "type": "string",
-                              "description": "The phase (role) this figure belongs to."
+                              "description": "The step (step) this figure belongs to."
                             },
                             "personId": {
                               "type": "string",
@@ -2277,7 +2277,7 @@
                           },
                           "required": [
                             "kind",
-                            "roleId"
+                            "stepId"
                           ]
                         },
                         {

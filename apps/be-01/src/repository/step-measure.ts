@@ -3,7 +3,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { MeasureStore, StoredMeasure } from './index';
 import { bumpWorkItems } from './revision';
-import { type MeasureMetric, role, roleMeasure, workItem } from './schema';
+import { type MeasureMetric, step, stepMeasure, workItem } from './schema';
 
 /**
  * A measure is a **satellite** of the work item it is for, exactly as an
@@ -30,18 +30,18 @@ import { type MeasureMetric, role, roleMeasure, workItem } from './schema';
  * the fold — `rollUpMeasures(metric)`, task 5.1 — not about the list underneath
  * it, which carries the metric on each row instead.
  */
-export class RoleMeasureRepository implements MeasureStore {
+export class StepMeasureRepository implements MeasureStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Every measure in the project, **in role order** within each work item and in
+   * Every measure in the project, **in step order** within each work item and in
    * metric order within each pair.
    *
    * Ordered for `ActualRepository.listByProject`'s reasons — floating-point
    * addition is not associative, so the order decides the last bit of a parent's
    * roll-up, and two reads of an unchanged plan must not disagree about the
-   * order of a row's roles on screen — plus one this table is the first to need:
-   * a pair may hold three rows, so the roles alone are not a total order.
+   * order of a row's steps on screen — plus one this table is the first to need:
+   * a pair may hold three rows, so the steps alone are not a total order.
    * `metric` breaks that tie by its stored text, which is arbitrary but fixed.
    */
   async listByProject(projectId: string): Promise<StoredMeasure[]> {
@@ -53,29 +53,29 @@ export class RoleMeasureRepository implements MeasureStore {
     return (
       this.db
         .select({
-          workItemId: roleMeasure.workItemId,
-          roleId: roleMeasure.roleId,
-          metric: roleMeasure.metric,
-          value: roleMeasure.value,
-          recordedAt: roleMeasure.recordedAt,
+          workItemId: stepMeasure.workItemId,
+          stepId: stepMeasure.stepId,
+          metric: stepMeasure.metric,
+          value: stepMeasure.value,
+          recordedAt: stepMeasure.recordedAt,
         })
-        .from(roleMeasure)
+        .from(stepMeasure)
         // Inner rather than left: `role_measure.role_id` is a foreign key, so a
-        // measure whose role is gone cannot exist — `RoleRepository.remove`
-        // deletes them in the same transaction as the role (task 6.3).
-        .innerJoin(role, eq(roleMeasure.roleId, role.id))
+        // measure whose step is gone cannot exist — `StepRepository.remove`
+        // deletes them in the same transaction as the step (task 6.3).
+        .innerJoin(step, eq(stepMeasure.stepId, step.id))
         .where(
           inArray(
-            roleMeasure.workItemId,
+            stepMeasure.workItemId,
             ids.map((row) => row.id),
           ),
         )
-        .orderBy(roleMeasure.workItemId, role.position, roleMeasure.roleId, roleMeasure.metric)
+        .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric)
     );
   }
 
   /**
-   * Writes one work item's figure in one metric for one role, replacing any
+   * Writes one work item's figure in one metric for one step, replacing any
    * earlier one **in that metric only**.
    *
    * The conflict target is all three key columns, which is the whole of D1's
@@ -90,10 +90,10 @@ export class RoleMeasureRepository implements MeasureStore {
   async set(toSet: StoredMeasure): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.insert(roleMeasure)
+      tx.insert(stepMeasure)
         .values(toSet)
         .onConflictDoUpdate({
-          target: [roleMeasure.workItemId, roleMeasure.roleId, roleMeasure.metric],
+          target: [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
           set: { value: toSet.value, recordedAt: toSet.recordedAt },
         })
         .run();
@@ -101,21 +101,21 @@ export class RoleMeasureRepository implements MeasureStore {
     });
   }
 
-  async remove(workItemId: string, roleId: string, metric: MeasureMetric): Promise<void> {
+  async remove(workItemId: string, stepId: string, metric: MeasureMetric): Promise<void> {
     // All three parts of the key, not one or two: the primary key is (work
-    // item, role, metric). Narrowing to the role would clear it across the whole
+    // item, step, metric). Narrowing to the step would clear it across the whole
     // database, and narrowing to the pair would take the hours away with the
-    // tokens. `role-measure.test.ts` keeps a survivor for each of the three so
+    // tokens. `step-measure.test.ts` keeps a survivor for each of the three so
     // none of those three mistakes can pass — the guard `actual.test.ts` keeps
     // for its two halves, with the third the discriminator adds.
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.delete(roleMeasure)
+      tx.delete(stepMeasure)
         .where(
           and(
-            eq(roleMeasure.workItemId, workItemId),
-            eq(roleMeasure.roleId, roleId),
-            eq(roleMeasure.metric, metric),
+            eq(stepMeasure.workItemId, workItemId),
+            eq(stepMeasure.stepId, stepId),
+            eq(stepMeasure.metric, metric),
           ),
         )
         .run();
@@ -143,9 +143,9 @@ export class RoleMeasureRepository implements MeasureStore {
   async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.update(roleMeasure)
+      tx.update(stepMeasure)
         .set({ workItemId: toWorkItemId })
-        .where(eq(roleMeasure.workItemId, fromWorkItemId))
+        .where(eq(stepMeasure.workItemId, fromWorkItemId))
         .run();
       const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
       if (changed === undefined) {

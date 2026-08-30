@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
-import type { Project, Role, WorkItem } from './index';
+import type { Project, Step, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { workItemExternalRef } from './schema';
@@ -75,8 +75,8 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  const roles: Role[] = [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }];
-  await new ProjectRepository(db).create(project, roles);
+  const steps: Step[] = [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }];
+  await new ProjectRepository(db).create(project, steps);
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();

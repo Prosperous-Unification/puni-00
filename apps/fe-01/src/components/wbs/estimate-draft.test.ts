@@ -203,7 +203,7 @@ describe('isTrioEmpty', () => {
 
 describe('showTrio', () => {
   it('says nothing about an estimate that does not exist', () => {
-    // A role nobody has estimated is ordinary, and the cell that shows it is
+    // A step nobody has estimated is ordinary, and the cell that shows it is
     // an empty box with a placeholder — not a `0/0/0` nobody typed.
     expect(showTrio(undefined)).toBe('');
   });

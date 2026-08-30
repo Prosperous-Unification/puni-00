@@ -7,7 +7,7 @@ import type {
   MeasureStore,
   Project,
   ProjectStore,
-  RoleProgressStore,
+  StepProgressStore,
   StoredMeasure,
   WorkItemStore,
 } from '../repository';
@@ -28,17 +28,17 @@ import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
-const DEV = 'role-dev';
-const QA = 'role-qa';
-const GONE = 'role-that-was-removed';
+const DEV = 'step-dev';
+const QA = 'step-qa';
+const GONE = 'step-that-was-removed';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
 let measures: MeasureStore;
-let progress: RoleProgressStore;
-let journal: CommandJournalStore & { events: { kind: string; roleId: string | null }[] };
+let progress: StepProgressStore;
+let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
 
@@ -52,7 +52,7 @@ beforeEach(async () => {
   progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
-  const recorded: { kind: string; roleId: string | null }[] = [];
+  const recorded: { kind: string; stepId: string | null }[] = [];
   // The same seam `actual.test.ts` reads the history through: H1 writes the
   // plan's event from inside `append`, so a measure that arrives through
   // `record` is in the history for free and a second write path is what this
@@ -61,7 +61,7 @@ beforeEach(async () => {
     ...store,
     events: recorded,
     async append(entry, event) {
-      recorded.push({ kind: event.kind, roleId: event.roleId });
+      recorded.push({ kind: event.kind, stepId: event.stepId });
       await store.append(entry, event);
     },
   };
@@ -120,10 +120,10 @@ async function add(name: string, parentId: string | null = null): Promise<string
  */
 function stored(
   rows: readonly StoredMeasure[],
-): { workItemId: string; roleId: string; metric: string; value: number }[] {
-  return rows.map(({ workItemId, roleId, metric, value }) => ({
+): { workItemId: string; stepId: string; metric: string; value: number }[] {
+  return rows.map(({ workItemId, stepId, metric, value }) => ({
     workItemId,
-    roleId,
+    stepId,
     metric,
     value,
   }));
@@ -137,7 +137,7 @@ describe('recording the figures that are not days', () => {
 
     expect(written.ok).toBe(true);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_estimate', value: 12_000 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
     ]);
   });
 
@@ -152,8 +152,8 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_estimate', value: 12_000 },
-      { workItemId: strip, roleId: DEV, metric: 'token_actual', value: 15_400 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
+      { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
     ]);
   });
 
@@ -165,7 +165,7 @@ describe('recording the figures that are not days', () => {
     await service.clearMeasure(strip, OWNER, DEV, 'token_estimate');
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'hours_actual', value: 3 },
+      { workItemId: strip, stepId: DEV, metric: 'hours_actual', value: 3 },
     ]);
   });
 
@@ -175,7 +175,7 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 0);
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_actual', value: 0 },
+      { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 0 },
     ]);
   });
 
@@ -215,12 +215,12 @@ describe('recording the figures that are not days', () => {
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 
-  it('refuses a role this project does not hold, and writes nothing', async () => {
+  it('refuses a step this project does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
     const refused = await service.setMeasure(strip, OWNER, GONE, 'token_estimate', 12_000);
 
-    expect(refused).toEqual({ ok: false, reason: 'unknown_role' });
+    expect(refused).toEqual({ ok: false, reason: 'unknown_step' });
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 
@@ -253,10 +253,10 @@ describe('recording the figures that are not days', () => {
     await service.clearMeasure(strip, OWNER, DEV, 'token_actual');
 
     expect(journal.events.map((each) => each.kind)).toEqual(['create', 'measure', 'clear_measure']);
-    // The role travels on the event, which is what "how did this figure move"
+    // The step travels on the event, which is what "how did this figure move"
     // filters on.
-    expect(journal.events.at(1)?.roleId).toBe(DEV);
-    expect(journal.events.at(2)?.roleId).toBe(DEV);
+    expect(journal.events.at(1)?.stepId).toBe(DEV);
+    expect(journal.events.at(2)?.stepId).toBe(DEV);
   });
 
   it('records nothing at all for clearing a metric that was never recorded', async () => {
@@ -292,7 +292,7 @@ describe('recording the figures that are not days', () => {
     await service.undo(projectId, OWNER);
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_estimate', value: 12_000 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
     ]);
   });
 
@@ -303,12 +303,12 @@ describe('recording the figures that are not days', () => {
 
     await service.undo(projectId, OWNER);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_actual', value: 15_400 },
+      { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
     ]);
 
     await service.redo(projectId, OWNER);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_actual', value: 15_950 },
+      { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_950 },
     ]);
   });
 
@@ -320,7 +320,7 @@ describe('recording the figures that are not days', () => {
     await service.undo(projectId, OWNER);
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'hours_actual', value: 6 },
+      { workItemId: strip, stepId: DEV, metric: 'hours_actual', value: 6 },
     ]);
   });
 });
@@ -335,7 +335,7 @@ describe('the figures that are not days, read back through the tree', () => {
     return row.measures;
   }
 
-  it('answers a leaf’s own figures, metric first and then role', async () => {
+  it('answers a leaf’s own figures, metric first and then step', async () => {
     const strip = await add('Strip');
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
     await service.setMeasure(strip, OWNER, QA, 'token_actual', 2_100);
@@ -364,7 +364,7 @@ describe('the figures that are not days, read back through the tree', () => {
     expect(await measuresOn('Strip')).toEqual({});
   });
 
-  it('sums a parent’s descendants per metric and per role, and no further', async () => {
+  it('sums a parent’s descendants per metric and per step, and no further', async () => {
     // Two children holding two units between them. The parent's tokens are the
     // sum of the tokens and its hours the sum of the hours — never one number
     // made of both, which is what a fold that ignored the metric would answer.
@@ -400,7 +400,7 @@ describe('the figures that are not days, read back through the tree', () => {
     await service.setMeasure(strip, OWNER, DEV, 'hours_actual', 0);
     await service.setMeasure(pull, OWNER, QA, 'hours_actual', 2);
 
-    // `DEV` is a key holding 0 — a statement — where an unrecorded role is no
+    // `DEV` is a key holding 0 — a statement — where an unrecorded step is no
     // key at all. `toEqual` would pass on a dropped zero if this only read the
     // value, so the presence is asserted on its own.
     const measured = await measuresOn('Rewire');
@@ -461,9 +461,9 @@ describe('the figures that are not days, through the structural commands', () =>
     await service.undo(projectId, OWNER);
 
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: DEV, metric: 'token_estimate', value: 12_000 },
-      { workItemId: strip, roleId: DEV, metric: 'token_actual', value: 15_400 },
-      { workItemId: strip, roleId: QA, metric: 'hours_actual', value: 3 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
+      { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
+      { workItemId: strip, stepId: QA, metric: 'hours_actual', value: 3 },
     ]);
   });
 

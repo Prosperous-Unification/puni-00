@@ -52,9 +52,9 @@ describe('the plan’s history, against a real database', () => {
       kind: 'estimate',
       label: `estimate ${id}`,
       workItemId: 'w1' as string | null,
-      roleId: 'r1' as string | null,
-      before: { do: 'clear_estimate', workItemId: 'w1', roleId: 'r1' },
-      after: { do: 'set_estimate', workItemId: 'w1', roleId: 'r1', days: { o: 1, r: 2, p: 3 } },
+      stepId: 'r1' as string | null,
+      before: { do: 'clear_estimate', workItemId: 'w1', stepId: 'r1' },
+      after: { do: 'set_estimate', workItemId: 'w1', stepId: 'r1', days: { o: 1, r: 2, p: 3 } },
       ...over,
     };
     sqlite.run(
@@ -67,7 +67,7 @@ describe('the plan’s history, against a real database', () => {
         row.kind,
         row.label,
         row.workItemId,
-        row.roleId,
+        row.stepId,
         JSON.stringify(row.before),
         JSON.stringify(row.after),
         at,
@@ -136,7 +136,7 @@ describe('the plan’s history, against a real database', () => {
   it('narrows to one work item, and leaves the plan-wide events out of it', async () => {
     write('on-w1', 1_000);
     write('on-w2', 2_000, { workItemId: 'w2' });
-    write('plan-wide', 3_000, { workItemId: null, roleId: null, kind: 'freeze' });
+    write('plan-wide', 3_000, { workItemId: null, stepId: null, kind: 'freeze' });
 
     expect((await events.listFor('p1', { workItemId: 'w1' })).map((each) => each.id)).toEqual([
       'on-w1',
@@ -179,10 +179,10 @@ describe('the plan’s history, against a real database', () => {
     expect(event.after).toEqual({
       do: 'set_estimate',
       workItemId: 'w1',
-      roleId: 'r1',
+      stepId: 'r1',
       days: { o: 1, r: 2, p: 3 },
     });
-    expect(event.before).toEqual({ do: 'clear_estimate', workItemId: 'w1', roleId: 'r1' });
+    expect(event.before).toEqual({ do: 'clear_estimate', workItemId: 'w1', stepId: 'r1' });
   });
 
   it('throws on a stored command that is not JSON, rather than answering half a history', () => {

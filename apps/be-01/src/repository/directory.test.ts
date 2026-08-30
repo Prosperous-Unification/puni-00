@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { personAdded } from '../testing/directory-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
-import type { Project, Role, WorkItem } from './index';
+import type { Project, Step, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -19,8 +19,8 @@ let dir: string;
 let repo: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
-let roleId: string;
-let otherRoleId: string;
+let stepId: string;
+let otherStepId: string;
 let itemId: string;
 
 beforeEach(async () => {
@@ -39,8 +39,8 @@ beforeEach(async () => {
     createdAt: 1,
   });
   projectId = crypto.randomUUID();
-  roleId = crypto.randomUUID();
-  otherRoleId = crypto.randomUUID();
+  stepId = crypto.randomUUID();
+  otherStepId = crypto.randomUUID();
   const project: Project = {
     id: projectId,
     name: 'Rewire the shed',
@@ -51,11 +51,11 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  const roles: Role[] = [
-    { id: roleId, projectId, name: 'Dev', position: 10 },
-    { id: otherRoleId, projectId, name: 'QA', position: 20 },
+  const steps: Step[] = [
+    { id: stepId, projectId, name: 'Dev', position: 10 },
+    { id: otherStepId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, roles);
+  await new ProjectRepository(db).create(project, steps);
   itemId = crypto.randomUUID();
   const item: WorkItem = {
     id: itemId,
@@ -200,22 +200,22 @@ describe('DirectoryRepository', () => {
     });
   });
 
-  it('holds one assignee per role, replacing rather than adding', async () => {
+  it('holds one assignee per step, replacing rather than adding', async () => {
     const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
     const grace = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));
 
-    await repo.assign(itemId, roleId, ada.id);
-    await repo.assign(itemId, roleId, grace.id);
+    await repo.assign(itemId, stepId, ada.id);
+    await repo.assign(itemId, stepId, grace.id);
 
     expect(await repo.assignmentsOf([itemId])).toEqual([
-      { workItemId: itemId, roleId, personId: grace.id },
+      { workItemId: itemId, stepId, personId: grace.id },
     ]);
   });
 
-  it('clears one work item’s role without touching the other role or anyone else’s', async () => {
+  it('clears one work item’s step without touching the other step or anyone else’s', async () => {
     // Both halves of the condition are load-bearing, and each needs its own
     // survivor to prove it. The first attempt at this test had one work item,
-    // so narrowing the delete to the role alone — which would clear that role
+    // so narrowing the delete to the step alone — which would clear that step
     // on every work item in the database — passed it.
     const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
     const otherItemId = crypto.randomUUID();
@@ -237,18 +237,18 @@ describe('DirectoryRepository', () => {
       },
       [],
     );
-    await repo.assign(itemId, roleId, ada.id);
-    await repo.assign(itemId, otherRoleId, ada.id);
-    await repo.assign(otherItemId, roleId, ada.id);
+    await repo.assign(itemId, stepId, ada.id);
+    await repo.assign(itemId, otherStepId, ada.id);
+    await repo.assign(otherItemId, stepId, ada.id);
 
-    await repo.assign(itemId, roleId, null);
+    await repo.assign(itemId, stepId, null);
 
     const left = await repo.assignmentsOf([itemId, otherItemId]);
     expect(left).toHaveLength(2);
-    // The same role on another work item survives — that is the work-item half.
-    expect(left).toContainEqual({ workItemId: otherItemId, roleId, personId: ada.id });
-    // And the other role on this one — that is the role half.
-    expect(left).toContainEqual({ workItemId: itemId, roleId: otherRoleId, personId: ada.id });
+    // The same step on another work item survives — that is the work-item half.
+    expect(left).toContainEqual({ workItemId: otherItemId, stepId, personId: ada.id });
+    // And the other step on this one — that is the step half.
+    expect(left).toContainEqual({ workItemId: itemId, stepId: otherStepId, personId: ada.id });
   });
 
   it('refuses an assignment naming a person who has been removed', async () => {
@@ -257,7 +257,7 @@ describe('DirectoryRepository', () => {
     // holding a picker rendered a moment too early is out of date, not broken.
     const gone = crypto.randomUUID();
 
-    expect(await repo.assign(itemId, roleId, gone)).toEqual({
+    expect(await repo.assign(itemId, stepId, gone)).toEqual({
       ok: false,
       reason: 'unknown_person',
     });

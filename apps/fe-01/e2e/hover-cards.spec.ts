@@ -59,9 +59,9 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
  * The folded Dev cell of one row — the wrapper the figure, the assignee and the
  * card share.
  *
- * Found through the box inside it rather than by `[data-final="…"]`: a role's
+ * Found through the box inside it rather than by `[data-final="…"]`: a step's
  * id is whatever be-01 minted when the project was made, so the only stable
- * handle on this cell is the label the column writes from the role's *name*.
+ * handle on this cell is the label the column writes from the step's *name*.
  */
 const foldedDevCell = (page: Page, number: string): Locator =>
   page.getByLabel(`Dev estimate for ${number}`).locator('..');
@@ -194,13 +194,13 @@ const PIN_OVERLAP = 60;
 test.describe('a card and the pinned columns it slides under', () => {
   test('paints over the pinned cell of the row below it', async ({ page }) => {
     // agy round 3, finding 6: the row lift (`POPOVER_ROW_LAYER`) is applied to
-    // the Name column alone, so does a depends or folded-role card paint *under*
+    // the Name column alone, so does a depends or folded-step card paint *under*
     // a pinned cell of the row below?
     //
     // The answer is no, and the reason is the one the lift's own comment gives:
     // it exists because the Name cell is `position: sticky` **with a z-index**,
     // which makes that `<td>` a stacking context and traps the preview inside it
-    // at the pinned layer. Neither `depends` nor `<roleId>-final` is pinned —
+    // at the pinned layer. Neither `depends` nor `<stepId>-final` is pinned —
     // `table-frame.test.ts` asserts `pinnedCellStyle` answers `undefined` for
     // both — so nothing on the way from those cards to the frame establishes a
     // stacking context, and the card's own `z-index: 20` competes directly with
@@ -1012,7 +1012,7 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
 });
 
 /**
- * What the pointer does to a row, on both phases of the stripe.
+ * What the pointer does to a row, on both steps of the stripe.
  *
  * `--grid-hover` was one absolute shade, and the body is banded: a plain row
  * moved `oklab(1)` → `oklab(0.939 …)` under the pointer and a banded one
@@ -1025,10 +1025,10 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
  * computed-value time, `:hover` is a state jsdom never enters, and the pinned
  * Name cell reaches its colour only through the `--cell-bg` join. What is
  * asserted is the *step*, in rasterised luminance, because that is the
- * quantity a reader sees — and it is asserted on both phases, because one
- * phase passing is how this shipped.
+ * quantity a reader sees — and it is asserted on both steps, because one
+ * step passing is how this shipped.
  */
-test.describe('the pointer moves a row by the same ink on both phases of the stripe', () => {
+test.describe('the pointer moves a row by the same ink on both steps of the stripe', () => {
   /** Where the pointer goes to be nowhere near a row. */
   const parkPointer = (page: Page): Promise<void> => page.mouse.move(0, 0);
 
@@ -1105,7 +1105,7 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
       const stepPlain = (restPlain - hoverPlain) * toward;
       const stepBand = (restBand - hoverBand) * toward;
 
-      // Each phase moves at all, and the right way.
+      // Each step moves at all, and the right way.
       expect(stepPlain, 'the pointer did not move a plain row toward the ink').toBeGreaterThan(8);
       expect(stepBand, 'the pointer did not move a banded row toward the ink').toBeGreaterThan(8);
       // And by the same amount. This is the assertion the single absolute token
@@ -1117,7 +1117,7 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
     });
 
     test(`a hovered banded row is nobody else’s colour, in ${palette}`, async ({ page }) => {
-      // The other half of "reads on both phases": the hovered banded row has to
+      // The other half of "reads on both steps": the hovered banded row has to
       // be distinct from the rest shade of *both* kinds of row, or the pointer
       // is saying something one row along already says.
       await wearPalette(page, palette);

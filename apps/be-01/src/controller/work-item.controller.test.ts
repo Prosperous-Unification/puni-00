@@ -18,7 +18,7 @@ import { inMemoryPriorityBands, testPriorityBandService } from '../testing/prior
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { testRoleService } from '../testing/role-fixture';
+import { testStepService } from '../testing/step-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -45,7 +45,7 @@ function buildHarness() {
     history: testHistoryService(),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
-    roles: testRoleService(projectStore),
+    steps: testStepService(projectStore),
     workItems: new WorkItemService({
       workItems: workItemStore,
       projects: projectStore,
@@ -124,14 +124,14 @@ async function setup() {
   });
   const body = (await created.json()) as {
     project: { id: string };
-    roles: { id: string; name: string }[];
+    steps: { id: string; name: string }[];
   };
-  // The seeded roles' real ids. Estimates and assignees are refused for a role
-  // the project does not hold, so a literal `role-dev` would be asserting
+  // The seeded steps' real ids. Estimates and assignees are refused for a step
+  // the project does not hold, so a literal `step-dev` would be asserting
   // against a write production answers 404 to.
-  const devId = body.roles.find((each) => each.name === 'Dev')?.id;
-  const qaId = body.roles.find((each) => each.name === 'QA')?.id;
-  if (devId === undefined || qaId === undefined) throw new Error('a project without its roles');
+  const devId = body.steps.find((each) => each.name === 'Dev')?.id;
+  const qaId = body.steps.find((each) => each.name === 'QA')?.id;
+  if (devId === undefined || qaId === undefined) throw new Error('a project without its steps');
   return { token, send, measures, writes, projectId: body.project.id, devId, qaId };
 }
 
@@ -230,7 +230,7 @@ describe('work item routes', () => {
           {
             kind: 'setEstimate',
             workItemRef: 'sand',
-            roleId: devId,
+            stepId: devId,
             days: { optimistic: 1, realistic: 2, pessimistic: 3 },
           },
           { kind: 'addDependency', workItemRef: 'sand', predecessorRef: 'strip' },
@@ -260,6 +260,68 @@ describe('work item routes', () => {
     ]);
   });
 
+  it('has no payload field named roleId', async () => {
+    const { token, send, projectId, devId } = await setup();
+    await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
+          {
+            kind: 'setEstimate',
+            workItemRef: 'strip',
+            stepId: devId,
+            days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+          },
+        ],
+      }),
+    });
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const plan: unknown = await tree.json();
+
+    /*
+      Every key at every depth, because the wire is the contract and a single
+      surviving `roleId` on one nested shape is the whole of what design D3
+      refused to ship a compatibility layer for. The **values** are ids the
+      project generated, so only the names are read.
+
+      Proof: `scheduledSlices` in `work-item.service.ts` given the old spelling
+      back — `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))`.
+      This failed on `expect(received).toEqual(expected)` with
+      `+ [ "slices[0].roleId", "slices[1].roleId" ]`. Watched 2026-08-29.
+
+      The **first** site tried was `slicesOf`'s own push, and that one passed:
+      the payload's slices are rebuilt from the scheduler's placement, so a
+      field added before the schedule never reaches the wire. A negative has to
+      be injected where the fault would live.
+    */
+    const stale: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) {
+        node.forEach((each, index) => {
+          walk(each, `${at}[${String(index)}]`);
+        });
+        return;
+      }
+      if (node === null || typeof node !== 'object') return;
+      for (const [key, value] of Object.entries(node)) {
+        const here = at === '' ? key : `${at}.${key}`;
+        if (/^(role|roles|roleId|roleIds)$/.test(key)) stale.push(here);
+        // The estimate and actual records are keyed by a step's **id**, so
+        // their keys are the project's uuids and not names to be read. Their
+        // values still are.
+        walk(value, here);
+      }
+    };
+    walk(plan, '');
+
+    expect(stale).toEqual([]);
+    // And the payload really was walked, so the emptiness above is a reading
+    // rather than a shape nobody entered.
+    expect(JSON.stringify(plan)).toContain('stepId');
+  });
+
   it('refuses a batch at the failing command, naming its index and kind, with nothing applied', async () => {
     const { token, send, projectId, writes } = await setup();
     const res = await send(`/api/projects/${projectId}/commands`, token, {
@@ -270,14 +332,14 @@ describe('work item routes', () => {
           {
             kind: 'setEstimate',
             workItemRef: 'a',
-            roleId: 'no-such-role',
+            stepId: 'no-such-step',
             days: { optimistic: 1, realistic: 2, pessimistic: 3 },
           },
         ],
       }),
     });
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'unknown_role', at: 1, kind: 'setEstimate' });
+    expect(await res.json()).toEqual({ error: 'unknown_step', at: 1, kind: 'setEstimate' });
     // The stores here are the in-memory fixtures, which no transaction can
     // roll back; what this layer can prove is that the route opened one and
     // rolled it back. That the rollback takes the create with it is
@@ -324,11 +386,11 @@ describe('work item routes', () => {
       'priority_must_be_a_whole_number_from_1',
     );
     await refused(
-      { kind: 'setEstimate', workItemId: 'w', roleId: devId, days: { optimistic: 'x' } },
+      { kind: 'setEstimate', workItemId: 'w', stepId: devId, days: { optimistic: 'x' } },
       'invalid_estimate',
     );
     await refused(
-      { kind: 'setActual', workItemId: 'w', roleId: devId, days: -1 },
+      { kind: 'setActual', workItemId: 'w', stepId: devId, days: -1 },
       'invalid_actual',
     );
     await refused(
@@ -421,10 +483,10 @@ describe('work item routes', () => {
             {
               kind: 'setEstimate',
               workItemId: id,
-              roleId: devId,
+              stepId: devId,
               days: { optimistic: days, realistic: days, pessimistic: days },
             },
-            { kind: 'setAssignee', workItemId: id, roleId: devId, personId },
+            { kind: 'setAssignee', workItemId: id, stepId: devId, personId },
           ],
         }),
       });
@@ -1144,7 +1206,7 @@ describe('work item routes', () => {
     const res = await command(send, token, projectId, {
       kind: 'setEstimate',
       workItemId: id,
-      roleId: devId,
+      stepId: devId,
       days: { optimistic: 1, realistic: 5, pessimistic: 3 },
     });
 
@@ -1160,7 +1222,7 @@ describe('work item routes', () => {
     const res = await command(send, token, projectId, {
       kind: 'setEstimate',
       workItemId: childId,
-      roleId: devId,
+      stepId: devId,
       days: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
 
@@ -1192,10 +1254,10 @@ describe('clearing an estimate', () => {
     const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
     const sockets = await addWorkItem(send, token, projectId, { parentId, name: 'Sockets' });
     const boxes = await addWorkItem(send, token, projectId, { parentId, name: 'Back boxes' });
-    const estimate = (workItemId: string, roleId: string, days: Record<string, number>) =>
-      command(send, token, projectId, { kind: 'setEstimate', workItemId, roleId, days });
-    const clear = (workItemId: string, roleId: string, as: string = token) =>
-      command(send, as, projectId, { kind: 'clearEstimate', workItemId, roleId });
+    const estimate = (workItemId: string, stepId: string, days: Record<string, number>) =>
+      command(send, token, projectId, { kind: 'setEstimate', workItemId, stepId, days });
+    const clear = (workItemId: string, stepId: string, as: string = token) =>
+      command(send, as, projectId, { kind: 'clearEstimate', workItemId, stepId });
     return { token, send, projectId, parentId, sockets, boxes, devId, qaId, estimate, clear };
   }
 
@@ -1235,11 +1297,11 @@ describe('clearing an estimate', () => {
     expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({});
   });
 
-  it('leaves the other role on the same work item alone', async () => {
+  it('leaves the other step on the same work item alone', async () => {
     const { token, send, projectId, sockets, devId, qaId, estimate, clear } =
       await parentAndTwoLeaves();
-    for (const roleId of [devId, qaId]) {
-      await estimate(sockets, roleId, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    for (const stepId of [devId, qaId]) {
+      await estimate(sockets, stepId, { optimistic: 1, realistic: 2, pessimistic: 3 });
     }
 
     await clear(sockets, devId);
@@ -1403,7 +1465,7 @@ describe('dependency commands', () => {
 
   it('answers 409 for an edge onto an ancestor', async () => {
     const { token, send, projectId } = await setup();
-    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Phase' });
+    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Step' });
     const childId = await addWorkItem(send, token, projectId, { parentId: parent, name: 'Task' });
 
     const res = await command(send, token, projectId, {
@@ -1470,7 +1532,7 @@ describe('dependency commands', () => {
   });
 });
 
-describe('recording the days a role actually spent', () => {
+describe('recording the days a step actually spent', () => {
   const actualsOf = async (send: Send, token: string, projectId: string, name: string) => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const body = (await tree.json()) as {
@@ -1487,7 +1549,7 @@ describe('recording the days a role actually spent', () => {
     const res = await command(send, token, projectId, {
       kind: 'setActual',
       workItemId: sockets,
-      roleId: devId,
+      stepId: devId,
       days: 8,
     });
 
@@ -1510,7 +1572,7 @@ describe('recording the days a role actually spent', () => {
       const res = await command(send, token, projectId, {
         kind: 'setActual',
         workItemId: strip,
-        roleId: devId,
+        stepId: devId,
         ...given,
       });
       expect([label, res.status]).toEqual([label, 400]);
@@ -1520,14 +1582,14 @@ describe('recording the days a role actually spent', () => {
     const zero = await command(send, token, projectId, {
       kind: 'setActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       days: 0,
     });
     expect(zero.status).toBe(200);
     expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 0 });
   });
 
-  it('refuses a row that has children with 409, and a role that is not there with 404', async () => {
+  it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
     const { token, send, projectId, devId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
     const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
@@ -1535,22 +1597,22 @@ describe('recording the days a role actually spent', () => {
     const rolled = await command(send, token, projectId, {
       kind: 'setActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       days: 4,
     });
     // On the **leaf**: the parent would answer `rolled_up` first, which is the
     // order `setEstimate` guards in, and a case that read 409 twice would say
-    // nothing about the role check at all.
+    // nothing about the step check at all.
     const unknown = await command(send, token, projectId, {
       kind: 'setActual',
       workItemId: sockets,
-      roleId: crypto.randomUUID(),
+      stepId: crypto.randomUUID(),
       days: 4,
     });
 
     expect([rolled.status, unknown.status]).toEqual([409, 404]);
     expect(await rolled.json()).toEqual({ error: 'rolled_up', at: 0, kind: 'setActual' });
-    expect(await unknown.json()).toEqual({ error: 'unknown_role', at: 0, kind: 'setActual' });
+    expect(await unknown.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setActual' });
   });
 
   it('refuses an unauthenticated caller on both verbs, and leaves the figure alone', async () => {
@@ -1561,20 +1623,20 @@ describe('recording the days a role actually spent', () => {
     await command(send, token, projectId, {
       kind: 'setActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       days: 8,
     });
 
     const written = await command(send, 'not-a-token', projectId, {
       kind: 'setActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       days: 99,
     });
     const cleared = await command(send, 'not-a-token', projectId, {
       kind: 'clearActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
@@ -1584,11 +1646,11 @@ describe('recording the days a role actually spent', () => {
   it('clears back to absence, and clearing again is still a success', async () => {
     const { token, send, projectId, devId, qaId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    for (const roleId of [devId, qaId]) {
+    for (const stepId of [devId, qaId]) {
       await command(send, token, projectId, {
         kind: 'setActual',
         workItemId: strip,
-        roleId,
+        stepId,
         days: 5,
       });
     }
@@ -1596,17 +1658,17 @@ describe('recording the days a role actually spent', () => {
     const first = await command(send, token, projectId, {
       kind: 'clearActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
     const again = await command(send, token, projectId, {
       kind: 'clearActual',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
 
     expect([first.status, again.status]).toEqual([200, 200]);
     expect(((await first.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    // The other role is untouched, and the cleared one is **absent** rather
+    // The other step is untouched, and the cleared one is **absent** rather
     // than zero.
     expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [qaId]: 5 });
   });
@@ -1618,7 +1680,7 @@ describe('recording the days a role actually spent', () => {
     const res = await command(send, token, projectId, {
       kind: 'clearActual',
       workItemId: crypto.randomUUID(),
-      roleId: devId,
+      stepId: devId,
     });
 
     expect(res.status).toBe(404);
@@ -1626,14 +1688,14 @@ describe('recording the days a role actually spent', () => {
   });
 });
 
-describe('recording what a role’s work cost in tokens and hours', () => {
+describe('recording what a step’s work cost in tokens and hours', () => {
   /**
    * Read off the store, not off the tree: the payload carries these figures in
    * section 5 and does not yet. Without the `recordedAt` — the moment is the
    * clock's, and asserting it here would be asserting about `Date.now()`.
    */
-  const stored = (rows: { workItemId: string; roleId: string; metric: string; value: number }[]) =>
-    rows.map(({ workItemId, roleId, metric, value }) => ({ workItemId, roleId, metric, value }));
+  const stored = (rows: { workItemId: string; stepId: string; metric: string; value: number }[]) =>
+    rows.map(({ workItemId, stepId, metric, value }) => ({ workItemId, stepId, metric, value }));
 
   it('records a figure in each unit against one pair, and clears one without touching the others', async () => {
     const { token, send, measures, projectId, devId } = await setup();
@@ -1647,7 +1709,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
       const res = await command(send, token, projectId, {
         kind: 'setMeasure',
         workItemId: strip,
-        roleId: devId,
+        stepId: devId,
         metric,
         value,
       });
@@ -1659,23 +1721,23 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     // metric on the command reaching the write, rather than one row overwritten
     // three times.
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: devId, metric: 'token_estimate', value: 400_000 },
-      { workItemId: strip, roleId: devId, metric: 'token_actual', value: 512_345 },
-      { workItemId: strip, roleId: devId, metric: 'hours_actual', value: 6 },
+      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
+      { workItemId: strip, stepId: devId, metric: 'token_actual', value: 512_345 },
+      { workItemId: strip, stepId: devId, metric: 'hours_actual', value: 6 },
     ]);
 
     const cleared = await command(send, token, projectId, {
       kind: 'clearMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
     });
 
     expect(cleared.status).toBe(200);
     expect(((await cleared.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: devId, metric: 'token_estimate', value: 400_000 },
-      { workItemId: strip, roleId: devId, metric: 'hours_actual', value: 6 },
+      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
+      { workItemId: strip, stepId: devId, metric: 'hours_actual', value: 6 },
     ]);
   });
 
@@ -1691,7 +1753,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
       const res = await command(send, token, projectId, {
         kind: 'setMeasure',
         workItemId: strip,
-        roleId: devId,
+        stepId: devId,
         metric: 'token_actual',
         ...given,
       });
@@ -1703,13 +1765,13 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     const zero = await command(send, token, projectId, {
       kind: 'setMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 0,
     });
     expect(zero.status).toBe(200);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: devId, metric: 'token_actual', value: 0 },
+      { workItemId: strip, stepId: devId, metric: 'token_actual', value: 0 },
     ]);
   });
 
@@ -1717,7 +1779,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     // The refusal this command pair has and the actuals' does not. 404 rather
     // than 400 — the step names a unit, and this release keeps no such unit;
     // `statusForBatch` maps every `unknown_*` but `unknown_ref` there, beside
-    // `unknown_role`. The clear half matters on its own: a clear of a metric
+    // `unknown_step`. The clear half matters on its own: a clear of a metric
     // that does not exist is not the idempotent clear of a row that is not
     // there.
     const { token, send, measures, projectId, devId } = await setup();
@@ -1726,14 +1788,14 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     const written = await command(send, token, projectId, {
       kind: 'setMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'tokens_estimate',
       value: 12_000,
     });
     const cleared = await command(send, token, projectId, {
       kind: 'clearMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'story_points',
     });
 
@@ -1743,7 +1805,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 
-  it('refuses a row that has children with 409, and a role that is not there with 404', async () => {
+  it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
     const { token, send, projectId, devId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
     const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
@@ -1751,23 +1813,23 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     const rolled = await command(send, token, projectId, {
       kind: 'setMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 900,
     });
     // On the leaf, for the actuals' reason: the parent answers `rolled_up`
-    // first, so a case that read 409 twice would say nothing about the role.
+    // first, so a case that read 409 twice would say nothing about the step.
     const unknown = await command(send, token, projectId, {
       kind: 'setMeasure',
       workItemId: sockets,
-      roleId: crypto.randomUUID(),
+      stepId: crypto.randomUUID(),
       metric: 'token_actual',
       value: 900,
     });
 
     expect([rolled.status, unknown.status]).toEqual([409, 404]);
     expect(await rolled.json()).toEqual({ error: 'rolled_up', at: 0, kind: 'setMeasure' });
-    expect(await unknown.json()).toEqual({ error: 'unknown_role', at: 0, kind: 'setMeasure' });
+    expect(await unknown.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setMeasure' });
   });
 
   it('refuses an unauthenticated caller on both verbs, and leaves the figure alone', async () => {
@@ -1778,7 +1840,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     await command(send, token, projectId, {
       kind: 'setMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 512_345,
     });
@@ -1786,20 +1848,20 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     const written = await command(send, 'not-a-token', projectId, {
       kind: 'setMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
       value: 1,
     });
     const cleared = await command(send, 'not-a-token', projectId, {
       kind: 'clearMeasure',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
     expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, roleId: devId, metric: 'token_actual', value: 512_345 },
+      { workItemId: strip, stepId: devId, metric: 'token_actual', value: 512_345 },
     ]);
   });
 
@@ -1810,7 +1872,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
     const res = await command(send, token, projectId, {
       kind: 'clearMeasure',
       workItemId: crypto.randomUUID(),
-      roleId: devId,
+      stepId: devId,
       metric: 'token_actual',
     });
 
@@ -1819,7 +1881,7 @@ describe('recording what a role’s work cost in tokens and hours', () => {
   });
 });
 
-describe('saying where a role’s work has got to', () => {
+describe('saying where a step’s work has got to', () => {
   const rowOf = async (send: Send, token: string, projectId: string, name: string) => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const body = (await tree.json()) as {
@@ -1828,7 +1890,7 @@ describe('saying where a role’s work has got to', () => {
     return body.workItems.find((w) => w.name === name);
   };
 
-  it('states the role and carries it on the tree, folded into the parent', async () => {
+  it('states the step and carries it on the tree, folded into the parent', async () => {
     const { token, send, projectId, devId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
     const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
@@ -1836,7 +1898,7 @@ describe('saying where a role’s work has got to', () => {
     const res = await command(send, token, projectId, {
       kind: 'setProgress',
       workItemId: sockets,
-      roleId: devId,
+      stepId: devId,
       state: 'done',
     });
 
@@ -1853,12 +1915,12 @@ describe('saying where a role’s work has got to', () => {
     });
   });
 
-  it('refuses a state outside the two a role may be put in, not_started included', async () => {
+  it('refuses a state outside the two a step may be put in, not_started included', async () => {
     // `not_started` is refused with the nonsense, and that is the point: the way
     // to say it is `clearProgress`, because the absence of a row is how it is
     // spelled everywhere else in this tool.
     //
-    // Proof: `isRoleState` replaced by a `typeof state === 'string'` check in
+    // Proof: `isStepState` replaced by a `typeof state === 'string'` check in
     // `parseProgress`, and this fails with 200 for `{"state":"not_started"}` —
     // a value written into a column whose `CHECK` would then refuse it, turning
     // a 400 into a 500; watched 2026-08-18.
@@ -1876,7 +1938,7 @@ describe('saying where a role’s work has got to', () => {
       const res = await command(send, token, projectId, {
         kind: 'setProgress',
         workItemId: strip,
-        roleId: devId,
+        stepId: devId,
         ...given,
       });
       expect([label, res.status]).toEqual([label, 400]);
@@ -1889,7 +1951,7 @@ describe('saying where a role’s work has got to', () => {
     });
   });
 
-  it('refuses a row that has children with 409, and a role that is not there with 404', async () => {
+  it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
     const { token, send, projectId, devId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
     const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
@@ -1897,22 +1959,22 @@ describe('saying where a role’s work has got to', () => {
     const rolled = await command(send, token, projectId, {
       kind: 'setProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       state: 'done',
     });
     // On the **leaf**, for the actuals' reason: the parent answers `rolled_up`
-    // first, and a case that read 409 twice would say nothing about the role
+    // first, and a case that read 409 twice would say nothing about the step
     // check at all.
     const unknown = await command(send, token, projectId, {
       kind: 'setProgress',
       workItemId: sockets,
-      roleId: crypto.randomUUID(),
+      stepId: crypto.randomUUID(),
       state: 'done',
     });
 
     expect([rolled.status, unknown.status]).toEqual([409, 404]);
     expect(await rolled.json()).toEqual({ error: 'rolled_up', at: 0, kind: 'setProgress' });
-    expect(await unknown.json()).toEqual({ error: 'unknown_role', at: 0, kind: 'setProgress' });
+    expect(await unknown.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setProgress' });
   });
 
   it('refuses an unauthenticated caller on both verbs, and leaves the statement alone', async () => {
@@ -1923,20 +1985,20 @@ describe('saying where a role’s work has got to', () => {
     await command(send, token, projectId, {
       kind: 'setProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       state: 'done',
     });
 
     const written = await command(send, 'not-a-token', projectId, {
       kind: 'setProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
       state: 'in_progress',
     });
     const cleared = await command(send, 'not-a-token', projectId, {
       kind: 'clearProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
@@ -1948,11 +2010,11 @@ describe('saying where a role’s work has got to', () => {
   it('clears back to absence, and clearing again is still a success', async () => {
     const { token, send, projectId, devId, qaId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    for (const roleId of [devId, qaId]) {
+    for (const stepId of [devId, qaId]) {
       await command(send, token, projectId, {
         kind: 'setProgress',
         workItemId: strip,
-        roleId,
+        stepId,
         state: 'done',
       });
     }
@@ -1960,23 +2022,23 @@ describe('saying where a role’s work has got to', () => {
     const first = await command(send, token, projectId, {
       kind: 'clearProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
     const again = await command(send, token, projectId, {
       kind: 'clearProgress',
       workItemId: strip,
-      roleId: devId,
+      stepId: devId,
     });
 
     expect([first.status, again.status]).toEqual([200, 200]);
     expect(((await first.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    // The other role is untouched and the cleared one is **absent** rather than
+    // The other step is untouched and the cleared one is **absent** rather than
     // `not_started`.
     //
     // The row still reads `done`, and that is the rule rather than a leak: Dev
     // has no estimate and no recorded day on this row, so retracting the only
     // thing anybody ever said about it leaves Dev with no work here at all — and
-    // `done` is unanimous across the roles that *have* work. A Dev estimate on
+    // `done` is unanimous across the steps that *have* work. A Dev estimate on
     // the row makes the same clear read `in_progress`, which is the case in
     // `service/progress.test.ts`.
     expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
@@ -1992,7 +2054,7 @@ describe('saying where a role’s work has got to', () => {
     const res = await command(send, token, projectId, {
       kind: 'clearProgress',
       workItemId: crypto.randomUUID(),
-      roleId: devId,
+      stepId: devId,
     });
 
     expect(res.status).toBe(404);

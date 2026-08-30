@@ -121,7 +121,7 @@ describe('a field outliving the thing that renders it', () => {
    * arrives, and the only copy of what be-01 refused was in the box that went
    * with it.
    *
-   * Not the phase-change remount `wbs-table.test.tsx` already covers — that one
+   * Not the step-change remount `wbs-table.test.tsx` already covers — that one
    * unmounts and remounts *the same* renderer, so a hold living anywhere that
    * survives a React unmount would pass it. This one changes the component
    * doing the rendering, which is what a breakpoint does.
@@ -131,7 +131,7 @@ describe('a field outliving the thing that renders it', () => {
    * - The hold moved back inside the face: `takeNode` restoring from a private
    *   field of `LiveField`, which is constructed once per mount. This and the
    *   test below it failed on `expected 'Rewire the shed' to be 'Strip the
-   *   wiring'` — and so did `keeps a draft be-01 refused when a new phase
+   *   wiring'` — and so did `keeps a draft be-01 refused when a new step
    *   rebuilds every column`, which is the fault it was written for.
    * - The restore gated on `node.closest('table') !== null`, which is the
    *   assumption this change exists to remove. **Only this test saw it**: 695

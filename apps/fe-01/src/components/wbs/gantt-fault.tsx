@@ -49,7 +49,7 @@ interface GanttFaultState {
  * take the table down with the drawing.
  *
  * **The fallback says why.** {@link GanttDataError}'s messages are sentences
- * naming the slice and what it promised — `slice x is under role y, which this
+ * naming the slice and what it promised — `slice x is under step y, which this
  * plan does not list` — and they are the only description anybody has of a skew
  * that is over by the time it is read about. Printing "something went wrong"
  * over them would throw away the one artefact of the fault.

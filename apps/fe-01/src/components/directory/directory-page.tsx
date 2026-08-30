@@ -121,7 +121,7 @@ export interface EffectContext {
 export function effectSentence(effect: DirectoryEffect, on: EffectContext): string {
   switch (effect.kind) {
     case 'assignment_dropped':
-      return `The ${effect.role.name} assignment goes.`;
+      return `The ${effect.step.name} assignment goes.`;
     case 'label_nulled':
       return 'The team label is cleared.';
     case 'label_removed':
@@ -640,7 +640,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * five on `Unable to find role="dialog"` (no confirmation ever drawn) and
    * `removes an entry nothing points at on the first request` on
    * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
-   * fault `phases-panel` already knows. Watched 2026-08-09.
+   * fault `steps-panel` already knows. Watched 2026-08-09.
    */
   function askToRemove(kind: DirectoryKind, entry: { id: string; name: string }): void {
     void attempt(async () => {
