@@ -13,6 +13,7 @@ const PERSON_KIND = '20260821150000_add_person_kind';
 const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
 const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
+const EXTERNAL_REF = '20260830020000_add_external_ref';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-identity-migrate-'));
@@ -27,6 +28,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    EXTERNAL_REF,
     WORK_ITEM_TYPE,
     SOLUTION_REF,
     OIDC_IDENTITY,
@@ -114,6 +116,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
         OIDC_IDENTITY,
@@ -165,6 +168,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
         OIDC_IDENTITY,
@@ -232,7 +236,7 @@ describe('the OIDC identity migration', () => {
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-        ).toEqual({ users: 2, projects: 2, migrations: 29 });
+        ).toEqual({ users: 2, projects: 2, migrations: 30 });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

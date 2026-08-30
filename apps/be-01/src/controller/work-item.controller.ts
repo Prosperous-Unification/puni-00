@@ -115,6 +115,48 @@ export const MOST_SERVICES_ON_ONE_ITEM = 10;
 export const MOST_TYPES_ON_ONE_ITEM = 10;
 
 /**
+ * How many external refs one work item may carry.
+ *
+ * {@link MOST_TAGS_ON_ONE_ITEM}'s bound rather than the service's, because a ref
+ * list is open the way a taxonomy is: a long-running item can honestly
+ * accumulate a dozen PRs. Fifty is far past that and small enough that hitting
+ * it is a mistake rather than a limit somebody reached honestly.
+ */
+export const MOST_REFS_ON_ONE_ITEM = 50;
+
+/**
+ * The refs a patch states, validated at this boundary and precise afterwards.
+ *
+ * Each entry must be an object with a `systemId` and a `url`, both non-empty
+ * strings. A URL is **not** parsed here and not checked against `systemOfUrl`:
+ * the caller may override a derived type deliberately (design D1), and refusing
+ * a mismatch would make an override impossible. What the store still refuses is
+ * a `systemId` the directory does not hold.
+ *
+ * @throws {BadRequest} for a non-list, an over-long list, or an entry that is
+ * not `{ systemId, url }` — a malformed request, never a 500.
+ */
+function asOptionalExternalRefs(
+  value: unknown,
+): readonly { systemId: string; url: string }[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new BadRequest('externalRefs_must_be_a_list');
+  if (value.length > MOST_REFS_ON_ONE_ITEM) throw new BadRequest('too_many_externalRefs');
+  return value.map((entry) => {
+    const record = asRecord(entry);
+    const systemId = record['systemId'];
+    const url = record['url'];
+    if (typeof systemId !== 'string' || systemId === '') {
+      throw new BadRequest('externalRefs_entry_needs_a_systemId');
+    }
+    if (typeof url !== 'string' || url === '') {
+      throw new BadRequest('externalRefs_entry_needs_a_url');
+    }
+    return { systemId, url };
+  });
+}
+
+/**
  * The label set a patch names, whole, or `undefined` where it names none —
  * tags and, since task 10.2, services.
  *
@@ -406,6 +448,7 @@ function parsePatch(body: unknown): {
   maxParallel?: number | null;
   tagIds?: readonly string[];
   typeIds?: readonly string[];
+  externalRefs?: readonly { systemId: string; url: string }[];
 } {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -432,6 +475,7 @@ function parsePatch(body: unknown): {
     maxParallel: asOptionalParallelism(raw['maxParallel'], 'maxParallel'),
     tagIds: asOptionalLabelIds(raw['tagIds'], 'tagIds', MOST_TAGS_ON_ONE_ITEM),
     typeIds: asOptionalLabelIds(raw['typeIds'], 'typeIds', MOST_TYPES_ON_ONE_ITEM),
+    externalRefs: asOptionalExternalRefs(raw['externalRefs']),
   };
 }
 

@@ -389,6 +389,46 @@ export interface LabelledWorkItem extends WorkItem {
    * unchanged plan answer the same array.
    */
   typeIds: readonly string[];
+  /**
+   * Where this row's work also exists, in the order the refs were added.
+   *
+   * **Not a label set, and the only reference-shaped field here that is a list
+   * of records rather than of ids.** A tag or a service is a name from a
+   * vocabulary; a ref is a vocabulary name *plus* the address of one thing, and
+   * two refs into the same system are two different links rather than one fact
+   * stated twice.
+   *
+   * Nothing inherits here either: a ref is on the row that carries it.
+   */
+  externalRefs: readonly ExternalRef[];
+}
+
+/**
+ * One link out of a work item: which system, and where.
+ *
+ * `systemId` is the **stored** derivation (design D1) — `systemOfUrl` answered
+ * it when the ref was written and nothing re-derives it on read, so a ref keeps
+ * the type it was given when the rule later changes.
+ *
+ * `url` is a string and not a parsed URL: it is stored as typed, and every
+ * surface that renders it as a link checks the scheme first. A `javascript:`
+ * URL written by a peer edit is the fault that rule exists for.
+ */
+export interface ExternalRef {
+  id: string;
+  systemId: string;
+  url: string;
+}
+
+/**
+ * One external system in the global directory — {@link Tag}'s two columns.
+ *
+ * Seeded where the tag is empty: these names are what `systemOfUrl` can answer,
+ * so the vocabulary and the deriving rule are one fact.
+ */
+export interface ExternalSystem {
+  id: string;
+  name: string;
 }
 
 /**
@@ -596,6 +636,26 @@ export interface WorkItemPatch {
    * and the refusal a reader gets must name the type rather than be a 500.
    */
   typeIds?: readonly string[];
+  /**
+  /**
+   * Where this row's work also exists, **whole**: the list as it will stand.
+   *
+   * `tagIds`' replacement rule and its undo argument, with one difference that
+   * matters — the members are records, so "the same list" means the same refs in
+   * the same order rather than the same set of ids. `[]` removes every ref.
+   *
+   * A ref whose `systemId` the directory does not hold refuses the **whole**
+   * patch with `unknown_system`, decided inside the write's transaction:
+   * `work_item_external_ref.system_id` cascades, so a system removed between a
+   * precheck and the write leaves nothing for a foreign key to catch.
+   */
+  externalRefs?: readonly ExternalRefWrite[];
+}
+
+/** A ref as a caller states it — no `id`, because the store mints one per row. */
+export interface ExternalRefWrite {
+  systemId: string;
+  url: string;
 }
 
 /**
@@ -647,6 +707,7 @@ export type WorkItemPatched =
         | 'unknown_tag'
         | 'unknown_service'
         | 'unknown_type'
+        | 'unknown_system'
         | 'not_before_reason_needs_a_date';
     };
 
@@ -1352,6 +1413,16 @@ export interface DirectoryStore {
    * the labelling — all in one transaction, bumping every row that lost one.
    */
   removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * Every external system in the global directory, by name.
+   *
+   * Read-only: the vocabulary is seeded by the migration and grows only when a
+   * ref names a system that is not there — which the write path does, rather
+   * than a route of its own. There is no rename and no removal, and that absence
+   * is the change's own non-goal: removing a system takes every **link** with
+   * it, not a label off a row, and nothing has asked for that yet.
+   */
+  listExternalSystems(): Promise<ExternalSystem[]>;
   /** Every service in the global directory, by name. */
   listServices(): Promise<Service[]>;
   /**

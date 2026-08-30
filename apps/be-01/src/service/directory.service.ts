@@ -6,6 +6,7 @@ import type {
   PersonWithTeams,
   Service,
   ServiceTeam,
+  ExternalSystem,
   Tag,
   WorkItemType,
   TeamPatch,
@@ -310,6 +311,10 @@ export class DirectoryService {
     }
     await this.announce(removed.removal.projectIds);
     return { ok: true };
+  }
+
+  listExternalSystems(): Promise<ExternalSystem[]> {
+    return this.opts.directory.listExternalSystems();
   }
 
   listServices(): Promise<Service[]> {

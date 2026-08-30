@@ -270,6 +270,7 @@ describe('every plan schedules identically across the migration', () => {
             tagIds,
             serviceIds,
             typeIds,
+            externalRefs,
             actuals,
             measures,
             progress,
@@ -316,6 +317,11 @@ describe('every plan schedules identically across the migration', () => {
             // at all that fault is invisible *here* — which is why the negative for
             // it lives in `work-item-type.test.ts`, on a tree that does carry one.
             expect(typeIds).toEqual([]);
+            // `externalRefs` is lifted and asserted empty for `serviceIds`' reason exactly:
+            // the oracle predates `external-refs`, no row in the replayed plans links to
+            // anything, and the empty list on every one of them is that change's own
+            // claim — the payload grew a field and moved no date.
+            expect(externalRefs).toEqual([]);
             // Lifted for `teamIds`' reason and asserted for the same one:
             // `actual-days` (R6 H2) put this key on every row and the oracle
             // predates the table. Empty on all sixteen replayed plans is the
