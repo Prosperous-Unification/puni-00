@@ -27,6 +27,11 @@ tests match with, every `Proof:` quoting the fault, the OpenSpec change names
 SQLite's own error strings, and the change's own name. A second rename pass ate
 all of them once; each is restored by name now.
 
+**The enumerated list is 127 `[Rr]ole` tokens, not the 108 `design.md` D1
+estimated**, plus 21 `[Pp]hase` ones — `identifiers.txt` holds all of them with
+a disposition each. The estimate was made before the list was taken; the list is
+what the rename was done from.
+
 ## Test-case counts (slices 1.2 and 5.1)
 
 Two readings, because the base moved mid-change.
@@ -94,9 +99,9 @@ and three in `wbs-table.test.tsx` (`expected 'clip' to be 'hidden'` plus two
 | `bunx nx run-many -t test --projects=domain,mcp-01`                  | pass — 128 and 105                              |
 | `bunx nx run be-01:test`                                             | pending                                         |
 | `bunx nx run fe-01:test`                                             | pending                                         |
-| `bunx nx run-many -t lint`                                           | pending                                         |
+| `bunx nx run-many -t lint` | pass — one pre-existing `react-hooks/exhaustive-deps` warning from main, 0 errors |
 | `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                     | run; `openapi.json` committed beside the routes |
-| `bunx openspec validate --all --json`                                | pending                                         |
+| `bunx openspec validate --all --json` | pass — 92 of 92 |
 | `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                      | pending                                         |
 
 ## Failure proofs (R5)
@@ -112,6 +117,7 @@ was injected with `git checkout` — the tree carried uncommitted work throughou
 | the README names tools that exist     | the README's prose spelled back to `the project and role routes`                                                    | `names no tool the document does not derive`                        | `expect(received).not.toMatch(expected)` — `Received: "…undo, redo, the project and role routes, the export…"` |
 | the README's example matches the tool | `"stepId"` in the README's `setEstimate` example spelled back to `"roleId"`                                         | `spells the example batch in the fields the commands tool declares` | `expect(received).toEqual(expected)` — `+ [ "setEstimate.roleId" ]`                                            |
 | no `Phase`/`Role` on screen           | the trigger's label and `<ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                               | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                               |
+| the dialog is named for what it holds | `<ModalTitle>Steps</ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                                      | `the dialog is called Steps`                                        | `TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Steps"`, the dump showing `Name "Phases"` |
 | **ARIA `role` was excluded**          | `role="combobox"` on the project picker (`project-page.tsx`) renamed to `step="combobox"`                           | `app-router.test.tsx`, three cases through `projectShowing()`       | `expect(projectShowing()).toBe(true)` — `- true  + false`, 3 failed / 2 passed                                 |
 
 Two of those negatives were **rewritten after they passed with the fault in**,

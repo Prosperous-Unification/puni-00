@@ -92,13 +92,15 @@ describe('the steps a project holds', () => {
   });
 
   itDom('the dialog is called Steps', () => {
+    // The trigger's own name is asserted by getting here: {@link stubbed} opens
+    // this surface through `getByRole('button', { name: 'Steps' })`, and Radix
+    // puts the rest of the page behind `aria-hidden` once it is open, so the
+    // trigger cannot be read again from inside. `Phase` was the word on all
+    // three until `steps-not-phases`, and `Role` was the same thing below.
     stubbed();
 
-    // The trigger, the title and the sentence under it — the three places the
-    // word is written on this surface. `Phase` was every one of them until
-    // `steps-not-phases`, and `Role` was the same thing everywhere below.
-    expect(screen.getByRole('button', { name: 'Steps' })).toBeDefined();
     expect(screen.getByRole('dialog', { name: 'Steps' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Steps' })).toBeDefined();
     expect(screen.getByRole('dialog').textContent).not.toMatch(/phase|role/i);
   });
 
