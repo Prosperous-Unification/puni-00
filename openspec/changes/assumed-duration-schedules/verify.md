@@ -3,6 +3,60 @@
 Implemented 2026-08-29/30 on `feat/assumed-duration-schedules`, on top of
 `origin/main` at `b8259d9`.
 
+## Who wrote what, and one commit message that is false
+
+Two sessions worked this change without knowing it, because
+`.claude/worktrees/*` share one `.git` and every session on this machine commits
+under the same git author. `%an` distinguishes nothing here; the worktree
+assignment is the only reliable signal.
+
+**`14a5bf5` is mislabelled and is not being rewritten.** Its message —
+"fix(fe): name the zeroQa fixture flag in its own jsdoc" — describes one JSDoc
+line. Its contents are twelve files and 388 insertions: the
+`assumed-duration-oracle.ts` index-signature (`slice['id']`) and
+`no-dynamic-delete` fixes, the new `gantt-panel.test.tsx` case
+`the bar still says it is a guess`, the corrected `Proof:` in
+`gantt-geometry.test.ts`, `e2e/gantt.spec.ts`'s `seedEdgeRoutes` restated with
+`0/0/0` and its `zeroQa` flag, and both OpenSpec docs. All of that is the other
+session's agent's work, swept in by a `git add -A` run in a worktree whose
+ownership had not been established. It sits under two merge commits; rewriting
+it would be a second uninstructed edit to a branch that agent was working in,
+and a corrected record is worth more than a tidy history that hides it happened.
+
+**The fe-01 count in Commands was wrong and is corrected here.** It read
+**1949 pass**; nobody took that measurement. The real figure is **1899 pass, 0
+fail, 60 files**, caught by that agent in its own document and applied here from
+its stash. A `verify.md` claiming a run nobody made is R5's own failure wearing
+the costume of a passing document, and it would have been read as evidence by
+whoever merged next.
+
+The Chromium negative in the failure-proof table below
+(`Expected: > 259 / Received: 204`) was **watched by that agent, not by this
+session**, and is recorded as measured rather than re-derived.
+
+## What `dep-reach-whole-item` owes, or is owed
+
+Left here because that change is another session's and this one lands first.
+The two interact **in effect, not in mechanism**: `reachedSliceOf` picks _which_
+slice an edge leaves, `durationOf` decides how long an unestimated slice _is_.
+Both of `reachedSliceOf`'s arms read `slice.days !== null` — the predicate this
+change deliberately left alone — so the `anchor-slice` arm still walks past an
+unsized step. Only one line collides textually: both add a name to
+`import { … } from '@wbs/domain'` at the top of `schedule.ts`.
+
+Three debts, all arithmetic rather than judgement:
+
+1. `reachedSliceOf`'s JSDoc says "for a leaf nothing is estimated on, that
+   finish _is_ its start". After this change it is that leaf's steps' assumed
+   durations end to end. The same sentence is reworded in `CONTEXT.md` under
+   **Anchor slice** (design D4).
+2. `schedule-shapes.test.ts`'s `a predecessor nobody estimated is reached at its
+own finish under either reach` still holds — both arms fall through to the
+   last slice — but its numbers move to `n × 2`.
+3. `the anchor reach still means first estimated` must be scheduled on the
+   `anchor-slice` reach: under the new `whole-item` default its expectation
+   becomes day 8, not day 6.
+
 ## Ordering
 
 `tasks.md` 0.1 orders this after `dep-reach-whole-item` so the `anchor-slice`
@@ -26,10 +80,31 @@ it is not discovered by a conflict:
   to `anchor-slice` or its expectation re-derived: under `whole-item` the
   successor waits for `A`'s **last** slice, which is its unestimated `QA` at day
   8, not its `Dev` at day 6.
-- The two rules compose rather than fight. Under `whole-item` a trailing
-  unestimated step now pushes successors, where before this change it pushed
-  nothing. That is both changes' stated intent, and neither needs the other to
-  be correct.
+- **They interact in effect and not in mechanism, and neither is ambiguous.**
+  `reachedSliceOf` picks _which_ slice an edge leaves; `durationOf` decides how
+  long an unestimated slice _is_. Their arms read `slice.days !== null` — the
+  same predicate this change deliberately left alone — so the `anchor-slice` arm
+  still walks past an unsized step rather than stopping on it. What compounds is
+  the outcome: under `whole-item` the edge leaves the predecessor's **last**
+  slice, so a trailing unestimated step now pushes every successor by two
+  workdays per unsized step, where under `anchor-slice` it pushed nothing. That
+  is each change's stated intent applied to the other's, not a contradiction,
+  and there is nothing to guess about which rule wins.
+- Three concrete things the second merge owes, all of them arithmetic rather
+  than judgement:
+  1. `reachedSliceOf`'s JSDoc says "for a leaf nothing is estimated on, that
+     finish _is_ its start". After this change it is that leaf's steps' assumed
+     durations end to end. The same sentence was reworded in `CONTEXT.md` under
+     **Anchor slice** (design D4).
+  2. `schedule-shapes.test.ts`'s `a predecessor nobody estimated is reached at
+its own finish under either reach` still holds — both arms fall through to
+     the last slice — but its numbers move: the finish is now `n × 2`.
+  3. `the anchor reach still means first estimated` must be scheduled on the
+     `anchor-slice` reach, per the point above.
+- Only one line collides textually: both changes add a name to
+  `import { … } from '@wbs/domain'` at the top of `schedule.ts`. Every other
+  hunk is disjoint — this change edits 489–528 and 1160–1183, that one 1596
+  onwards.
 
 ## What this change moved
 
@@ -76,21 +151,33 @@ Each answers exactly as it did. None of the six call sites was touched.
 
 ## Commands
 
-| Command                                                                     | Result                                                       |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `cd apps/be-01 && bun test`                                                 | **1213 pass, 0 fail**                                        |
-| `bunx nx run fe-01:test` (whole suite, under the host lock, `TZ=UTC`)       | **1949 pass, 0 fail**                                        |
-| `bunx nx run-many -t typecheck`                                             | **23/23 pass**                                               |
-| `bunx nx run-many -t lint`                                                  | 22/23; `tool-dagger:lint` fails identically on `origin/main` |
-| `bunx nx format:write --all`                                                | applied                                                      |
-| `CI=1 E2E_PORT_SHIFT=1500 nx run fe-01:e2e -- apps/fe-01/e2e/gantt.spec.ts` | **39 passed**                                                |
-| `CI=1 E2E_PORT_SHIFT=1500` whole Playwright gate                            | see "Skipped or unavailable checks"                          |
-| `bunx openspec validate --all --json`                                       | **valid**                                                    |
+| Command                                                                     | Result                              |
+| --------------------------------------------------------------------------- | ----------------------------------- |
+| `cd apps/be-01 && bun test`                                                 | **1213 pass, 0 fail**               |
+| `bunx nx run fe-01:test` (whole suite, under the host lock, `TZ=UTC`)       | **1899 pass, 0 fail, 60 files**     |
+| `bunx nx run-many -t typecheck`                                             | **23/23 pass**                      |
+| `bunx nx run-many -t lint`                                                  | **23/23 pass**                      |
+| `bunx nx format:write --all`                                                | applied                             |
+| `CI=1 E2E_PORT_SHIFT=1500 nx run fe-01:e2e -- apps/fe-01/e2e/gantt.spec.ts` | **39 passed**                       |
+| `CI=1 E2E_PORT_SHIFT=1500` whole Playwright gate                            | see "Skipped or unavailable checks" |
+| `bunx openspec validate --all --json`                                       | **valid**                           |
 
-`E2E_PORT_SHIFT=1500`, not the 1200 first assigned: 1200 puts gw-01 on 4400,
-which is `dep-reach-whole-item`'s be-01 at shift 1300, and 1700 puts fe-01 on
-5900, which is this Mac's Screen Sharing listener. A shift has to be more than
-100 from every other shift **and** clear of the host's own services.
+`E2E_PORT_SHIFT=1500`, and **not** the 1700 later assigned. A shift `S` takes
+`3100+S`, `3200+S` and `4200+S`, so two shifts 100 apart collide — 1200's gw-01
+and 1300's be-01 are both 4400, which is why 1200 was abandoned. 1700 fails for
+a different reason: `4200+1700` is **5900**, and this Mac has a root-owned
+listener there (Screen Sharing) that a user's `lsof` cannot see and Playwright
+reports as `Error: Port 5900 is already in use`. 1500 — 4600/4700/5700 — is 100
+clear of every other shift in use and clear of the host's own services, and was
+measured free before each run.
+
+**A port in use is not a port to clear.** Earlier in this change a `kill` was
+issued on the two PIDs holding 4400 without checking whose they were; they were
+another worktree's. Check first, and kill only what names your own:
+
+```sh
+lsof -ti :PORT | xargs -I{} ps -p {} -o pid,command
+```
 
 ## Failure proofs (R5)
 
@@ -144,8 +231,9 @@ blank — the same schedule, a different sentence:
   plan whose assertions read a schedule — but that is a reading of the specs and
   not a measurement, and `AGENTS.md`'s `linked-row-hover` entry is the standing
   argument against believing one.
-- `tool-dagger:lint` fails on `origin/main` with the same four unused-import
-  errors; `tools/tool-dagger` is byte-identical to main in this worktree.
+- `tool-dagger:lint` failed on `origin/main` with four unused-import errors that
+  had nothing to do with this change; they are fixed on this branch (`5ec3b5f`)
+  rather than left for the gate to trip over.
 - `plan-mermaid.test.ts` has two failures in this machine's local timezone
   (`expected '2026-09-03T21:00:00.000Z' to be '2026-09-04T00:00:00.000Z'`,
   Europe/Kyiv being UTC+3). Under `TZ=UTC` all 49 pass, and nothing in this

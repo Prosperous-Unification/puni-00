@@ -524,7 +524,9 @@ function groupByWorkItem(
  *
  * Proof: the assumed arm removed, so an unestimated slice is zero days again,
  * and `an entirely unestimated predecessor delays its successor` failed on
- * `expected 0 to be 2`; watched 2026-08-29.
+ * `- "earliestFinish": 2 / + "earliestFinish": 0`, with the Chromium chain spec
+ * red beside it on `the successor is drawn left of the work it waits for`;
+ * watched 2026-08-30.
  */
 function durationOf(slice: Slice): number {
   if (slice.days === null) return ASSUMED_SLICE_WORKDAYS;
