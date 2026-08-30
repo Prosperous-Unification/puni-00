@@ -55,6 +55,14 @@ const isCi = process.env['CI'] !== undefined;
  * about what else is running on the host, which it cannot. Space assignments
  * by 500 and the question does not arise.
  *
+ * Nor can it know what else the *machine* listens on. Shift 1700 puts fe-01 on
+ * **5900**, which on macOS is Screen Sharing — a root-owned listener a user's
+ * `lsof` cannot see, so a pre-flight port check finds it free and Playwright
+ * then reports `Port 5900 is already in use` (2026-08-30). A shift is a
+ * proposal about a host, and the host has the last word: if a run refuses on a
+ * port you believe is free, check for a privileged listener before you doubt
+ * the config.
+ *
  * @throws When `E2E_PORT_SHIFT` is set to something that is not a
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.
