@@ -271,10 +271,11 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in step order that somebody estimated — the one a dependency
-waits on. A step listed in front of it and left unestimated is stepped over. Reordering a
-project's steps moves what every dependency waits for. Where nothing is estimated the
-anchor is the work item's finish, which for a work item of no days is its own start.
+A work item's first slice in role order that somebody estimated — the one a dependency
+waits on. A role listed in front of it and left unestimated is stepped over, and having an
+assumed duration does not make it the anchor. Reordering a project's roles moves what every
+dependency waits for. Where nothing is estimated the anchor is the work item's finish,
+which is its steps' assumed durations end to end.
 _Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
@@ -406,12 +407,18 @@ its width is the days it is drawn over, weekends inside it included, while the w
 numbers it carries stay the engine's.
 _Avoid_: segment, block, task bar
 
-**Assumed span**:
-The two workdays an unestimated slice's bar is drawn across, so that a slice nobody has
-sized reads as work of unknown length rather than as nothing at all. A property of the
-drawing and never of the schedule: the engine's numbers, the date columns and the arrows
-between rows do not know about it, and the bar says it is a guess by how it is painted.
+**Assumed duration**:
+The two workdays a schedule gives a slice nobody has estimated, so that unsized work is
+work of unknown length rather than no work. One constant, shared by the engine and the
+drawing. It is never an estimate: nothing is written, the days column and the roll-up stay
+blank, and the readiness badge still counts the gap.
 _Avoid_: default duration, placeholder estimate, assumed estimate
+
+**Assumed span**:
+How a slice on its assumed duration is painted: a dotted translucent bar with a `?`, so
+that the width reads as a guess. The width itself is the schedule's — what the bar adds is
+the saying.
+_Avoid_: ghost bar, placeholder bar
 
 **Summary bracket**:
 The drawing of a parent on the Gantt panel: a bracket over its projection. A span,
