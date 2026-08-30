@@ -80,8 +80,18 @@ here because leaving it alone would have been the lie:
    captured oracle's **keys** were renamed with the code that reads them. No
    date, day or id in it moved; the identity tests below are what say so.
 
-The counts the runners themselves report (which include cases generated inside
-loops, so they are higher than the static count) are in **Commands** below.
+**The runners agree, and every suite is green.** One locked run of all four
+projects on the merged tree: `domain` 128 pass / 0 fail, `mcp-01` 105 pass / 0
+fail, `be-01` 1207 pass / 0 fail across 88 files, `fe-01` 1900 passed across 60
+files — `NX Successfully ran target test for 4 projects`. The runners' totals
+run higher than the static counts above because cases generated inside loops
+are counted once each there and once per iteration here; what matters is that
+nothing is red and nothing is skipped.
+
+That is also **five fewer failures than the base this change started from**: the
+old checkout's `login-throttle` timeout, the `priority-band` JSON parse
+downstream of it and three in `wbs-table.test.tsx` are all gone, fixed on main
+between the two merges. None of the five was this change's.
 
 The pre-merge baseline, for the record: measured on `7ac1285` before a single
 identifier moved — `domain` 118/0 failed, `be-01` 1172/2 failed, `fe-01`
@@ -93,16 +103,15 @@ and three in `wbs-table.test.tsx` (`expected 'clip' to be 'hidden'` plus two
 
 ## Commands
 
-| Command                                                              | Result                                          |
-| -------------------------------------------------------------------- | ----------------------------------------------- |
-| `bunx nx run-many -t typecheck --projects=domain,be-01,fe-01,mcp-01` | pass                                            |
-| `bunx nx run-many -t test --projects=domain,mcp-01`                  | pass — 128 and 105                              |
-| `bunx nx run be-01:test`                                             | pending                                         |
-| `bunx nx run fe-01:test`                                             | pending                                         |
-| `bunx nx run-many -t lint` | pass — one pre-existing `react-hooks/exhaustive-deps` warning from main, 0 errors |
-| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                     | run; `openapi.json` committed beside the routes |
-| `bunx openspec validate --all --json` | pass — 92 of 92 |
-| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                      | pending                                         |
+| Command                                                                                                                                | Result                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck --projects=domain,be-01,fe-01,mcp-01`                                                                   | pass                                                                              |
+| `HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh -- bunx nx run-many -t test --projects=domain,mcp-01,be-01,fe-01 --skip-nx-cache` | **pass, all four** — `NX Successfully ran target test for 4 projects`             |
+| `bunx nx format:check --all`                                                                                                           | pass, after three `--write` passes (it is not idempotent on these docs)           |
+| `bunx nx run-many -t lint`                                                                                                             | pass — one pre-existing `react-hooks/exhaustive-deps` warning from main, 0 errors |
+| `bun apps/be-01/src/openapi/emit-openapi-cli.ts`                                                                                       | run; `openapi.json` committed beside the routes                                   |
+| `bunx openspec validate --all --json`                                                                                                  | pass — 92 of 92                                                                   |
+| `CI=1 E2E_PORT_SHIFT=600 bunx nx run fe-01:e2e`                                                                                        | pending                                                                           |
 
 ## Failure proofs (R5)
 
@@ -110,15 +119,15 @@ Every one watched by hand: the fault written in, the named test run, the exact
 message read, the fault taken back out, the test run again green. None of these
 was injected with `git checkout` — the tree carried uncommitted work throughout.
 
-| Check                                 | Fault injected                                                                                                      | Test that saw it fail                                               | Exact failure                                                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| the old routes are gone               | `.post('/:id/roles', …)` left mounted beside `/:id/steps` in `step.controller.ts`, forwarding to the same handler   | `refuses the old roles route as unknown`                            | `expect(received).toBe(expected)` — `Expected: 404  Received: 200`                                             |
-| no `roleId` on the wire               | `scheduledSlices` given the old spelling back: `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))` | `has no payload field named roleId`                                 | `expect(received).toEqual(expected)` — `+ [ "slices[0].roleId", "slices[1].roleId" ]`                          |
-| the README names tools that exist     | the README's prose spelled back to `the project and role routes`                                                    | `names no tool the document does not derive`                        | `expect(received).not.toMatch(expected)` — `Received: "…undo, redo, the project and role routes, the export…"` |
-| the README's example matches the tool | `"stepId"` in the README's `setEstimate` example spelled back to `"roleId"`                                         | `spells the example batch in the fields the commands tool declares` | `expect(received).toEqual(expected)` — `+ [ "setEstimate.roleId" ]`                                            |
-| no `Phase`/`Role` on screen           | the trigger's label and `<ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                               | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                               |
-| the dialog is named for what it holds | `<ModalTitle>Steps</ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                                      | `the dialog is called Steps`                                        | `TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Steps"`, the dump showing `Name "Phases"` |
-| **ARIA `role` was excluded**          | `role="combobox"` on the project picker (`project-page.tsx`) renamed to `step="combobox"`                           | `app-router.test.tsx`, three cases through `projectShowing()`       | `expect(projectShowing()).toBe(true)` — `- true  + false`, 3 failed / 2 passed                                 |
+| Check                                 | Fault injected                                                                                                      | Test that saw it fail                                               | Exact failure                                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| the old routes are gone               | `.post('/:id/roles', …)` left mounted beside `/:id/steps` in `step.controller.ts`, forwarding to the same handler   | `refuses the old roles route as unknown`                            | `expect(received).toBe(expected)` — `Expected: 404  Received: 200`                                                                           |
+| no `roleId` on the wire               | `scheduledSlices` given the old spelling back: `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))` | `has no payload field named roleId`                                 | `expect(received).toEqual(expected)` — `+ [ "slices[0].roleId", "slices[1].roleId" ]`                                                        |
+| the README names tools that exist     | the README's prose spelled back to `the project and role routes`                                                    | `names no tool the document does not derive`                        | `expect(received).not.toMatch(expected)` — `Received: "…undo, redo, the project and role routes, the export…"`                               |
+| the README's example matches the tool | `"stepId"` in the README's `setEstimate` example spelled back to `"roleId"`                                         | `spells the example batch in the fields the commands tool declares` | `expect(received).toEqual(expected)` — `+ [ "setEstimate.roleId" ]`                                                                          |
+| no `Phase`/`Role` on screen           | the trigger's label and `<ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                               | `no rendered string says Phase or Role`                             | `expected [ 'text: Phases' ] to deeply equal []`                                                                                             |
+| the dialog is named for what it holds | `<ModalTitle>Steps</ModalTitle>` in `steps-dialog.tsx` spelled back to `Phases`                                     | `the dialog is called Steps`                                        | `TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "Steps"`, the dump showing `Name "Phases"` |
+| **ARIA `role` was excluded**          | `role="combobox"` on the project picker (`project-page.tsx`) renamed to `step="combobox"`                           | `app-router.test.tsx`, three cases through `projectShowing()`       | `expect(projectShowing()).toBe(true)` — `- true  + false`, 3 failed / 2 passed                                                               |
 
 Two of those negatives were **rewritten after they passed with the fault in**,
 which is the part worth keeping:
