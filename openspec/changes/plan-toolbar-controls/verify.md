@@ -157,7 +157,7 @@ heavy-work lock for their whole run.
 | `bunx openspec validate --all --json`                                           | **pass** — 91/91 changes valid, 0 failed                                                                   |
 | `CI=1 E2E_PORT_SHIFT=800 bunx nx run fe-01:e2e` (whole gate, no grep)           | 233 passed, 3 failed, 1 skipped of 237 planned — none of the 3 reachable from this diff                    |
 | `bin/h2puni-gate.sh` (`format:check --all`, then test/lint/typecheck/build ×23) | `fe-01`, `be-01`, `gw-01`, `mcp-01` and the libs pass; 3 `tools/*` test targets fail on macOS host tooling |
-| `bunx nx run fe-01:test` (inside the gate)                                      | **pass** — 1885 tests, 60 files, 0 failed                                                                  |
+| `bunx nx run fe-01:test` (inside the gate)                                      | **pass** — 1899 tests, 60 files, 0 failed                                                                  |
 | `bunx nx run fe-01:lint` (inside the gate)                                      | **pass** — 0 errors, 1 pre-existing warning                                                                |
 | `bunx nx run fe-01:typecheck`, `fe-01:build` (inside the gate)                  | **pass**                                                                                                   |
 
@@ -227,7 +227,7 @@ both new browser cases pass:
 
 > nx run fe-01:test
  Test Files  60 passed (60)
-      Tests  1885 passed (1885)
+      Tests  1899 passed (1899)
 ```
 
 The warning is pre-existing, on a `useMemo` this change does not touch. The two
