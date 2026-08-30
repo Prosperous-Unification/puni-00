@@ -346,6 +346,7 @@ function fakeApi(): ProjectApi & {
     },
     listTeams: () => Promise.resolve(teams.map((t) => ({ ...t, serviceIds: [...t.serviceIds] }))),
     listTags: () => Promise.resolve([]),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve([...services]),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
@@ -6597,6 +6598,11 @@ describe('Tab moves between the fields, from every cell', () => {
       'Service or team for 010',
       'Tags for 010',
       'Services for 010',
+      // In table order, between Services and People at once —
+      // `work-item-types`. This walk renders every hideable column, Teams
+      // included, which is why the Types cell is here despite being hidden by
+      // default on a plan nobody has configured.
+      'Types for 010',
       'People at once for 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',
@@ -6726,9 +6732,10 @@ describe('Tab moves between the fields, from every cell', () => {
     assignee.focus();
     expect(fireEvent.keyDown(assignee, { key: 'Tab', shiftKey: true })).toBe(false);
 
-    // The Services cell: with every column shown it is the last field before
-    // the trio (the In-parallel cell is a parent's rolled-up figure too).
-    expect(document.activeElement).toBe(screen.getByLabelText('Services for 010'));
+    // The Types cell: with every column shown it is the last field before the
+    // trio (the In-parallel cell is a parent's rolled-up figure too). It was
+    // Services until `work-item-types` put a fourth reference column after it.
+    expect(document.activeElement).toBe(screen.getByLabelText('Types for 010'));
   });
 
   itDom('at the edges of the grid the key is left to the browser', async () => {
@@ -8096,6 +8103,7 @@ describe('dependencies in the table — cross-review findings', () => {
     setStartDate: () => Promise.resolve(),
     listTeams: () => Promise.resolve([]),
     listTags: () => Promise.resolve([]),
+    listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     addTeam: () => Promise.reject(new Error('not_in_these_tests')),
     listPeople: () => Promise.resolve([]),
@@ -8902,6 +8910,7 @@ describe('the chart under a plan being edited', () => {
       setStartDate: () => Promise.resolve(),
       listTeams: () => Promise.resolve([]),
       listTags: () => Promise.resolve([]),
+      listWorkItemTypes: () => Promise.resolve([]),
       listServices: () => Promise.resolve([]),
       addTeam: () => Promise.reject(new Error('not_in_these_tests')),
       listPeople: () => Promise.resolve([]),
@@ -15291,6 +15300,9 @@ describe('the columns a reader has hidden', () => {
       { label: 'Teams', checked: false },
       { label: 'Tags', checked: true },
       { label: 'Services', checked: false },
+      // Unticked like Teams and Services: `work-item-types` put `type` in
+      // `DEFAULT_HIDDEN_COLUMNS` so the default table stays the width it was.
+      { label: 'Types', checked: false },
       { label: 'People at once', checked: true },
       { label: 'Dev', checked: true },
       { label: 'QA', checked: true },
@@ -15310,11 +15322,11 @@ describe('the columns a reader has hidden', () => {
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).not.toContain('depends');
       expect(screen.queryByLabelText('Add a dependency to 010')).toBeNull();
-      expect(stored()).toBe(JSON.stringify(['team', 'service', 'depends']));
+      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'depends']));
 
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).toContain('depends');
-      expect(stored()).toBe(JSON.stringify(['team', 'service']));
+      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type']));
       // Proof: `rememberHiddenColumns` left out of the toggle, this failed on
       // `expected null to be '["team","service","depends"]'`. Watched, 2026-08-28.
     },
@@ -15328,7 +15340,7 @@ describe('the columns a reader has hidden', () => {
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
     expect(headerIds().filter((id) => id.startsWith('role-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['service', 'role-qa']));
+    expect(stored()).toBe(JSON.stringify(['service', 'type', 'role-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {

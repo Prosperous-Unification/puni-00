@@ -11,7 +11,19 @@ import {
 import { CreatablePicker, type CreatablePickerProps } from './creatable-picker';
 import type { CommitOutcome } from './live-editing';
 
-export type ReferenceSetKind = 'team' | 'tag' | 'service';
+/**
+ * The dimensions this strip draws.
+ *
+ * `type` is the fourth and the one that never sets `inheritedLabel`: a work item
+ * type does not inherit, so there is no ancestor reading for the placeholder or
+ * the sheet's `Inherited:` line to show
+ * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The field stays
+ * optional rather than growing a per-kind type, because the strip's behaviour is
+ * "draw it if you were given one" either way, and a union that made it
+ * impossible for `type` would be a rule enforced in the one place nobody can
+ * read it from — the cell that would have passed it.
+ */
+export type ReferenceSetKind = 'team' | 'tag' | 'service' | 'type';
 
 export interface ReferenceSetEntry {
   id: string;
