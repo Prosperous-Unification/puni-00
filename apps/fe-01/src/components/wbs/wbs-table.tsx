@@ -8629,6 +8629,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           )
                         }
                       />
+                    ) : unfolded ? (
+                      atRest
                     ) : (
                       // A parent's folded cell reads the shape its leaves do —
                       // a column that printed a trio on a leaf and a bare
@@ -8637,7 +8639,50 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // point, and the method applied to that sum is the sum of
                       // the methods applied (PERT is linear), so the pair below
                       // cannot contradict the leaves it is made of.
-                      atRest
+                      //
+                      // `flex: 1`, the box above's own width rule, so the
+                      // figure and the assignee after this land in the same
+                      // right-hand slot on a parent as on the leaves under it —
+                      // a column where `· 5` stands two different places on
+                      // adjacent rows reads as two columns (Dany, 2026-08-30).
+                      // The clip mirrors the box's own: a wide roll-up loses
+                      // characters to the same edge a wide typed trio scrolls
+                      // behind, and the card carries the whole of both.
+                      <span
+                        data-rolled-trio={step.id}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          // **The box under a leaf's trio, spelled again.** A
+                          // leaf types into an `<input>`, which carries the
+                          // user agent's own `padding: 2px` and 1px border;
+                          // this span carried neither, so a parent's first
+                          // digit stood three pixels left of its children's
+                          // and the column read as two columns — the same
+                          // fault the figure had, one box further in (Dany,
+                          // 2026-08-30). Transparent rather than absent: the
+                          // border has to take its pixels for the text to
+                          // start where the typed text starts, and a visible
+                          // one would draw a box around a figure nobody can
+                          // type into. `styles.css` does this for the Name
+                          // cell's two boxes and gives the argument in full.
+                          //
+                          // **2px, which is the `<input>`'s own and not the
+                          // `<textarea>`'s 1px** — Chromium's user agent
+                          // defaults them differently and the box beside this
+                          // one is an input. Written as the figure the browser
+                          // reports rather than guessed: at 1px the test below
+                          // failed on `borderLeftWidth "2px" / "1px"`, which is
+                          // how the number was learned.
+                          boxSizing: 'border-box',
+                          padding: 2,
+                          border: '2px solid transparent',
+                        }}
+                      >
+                        {atRest}
+                      </span>
                     )}
                     {finalSaysMore && (
                       // `2/2/3 · 2.2`: the trio a person typed, and what the

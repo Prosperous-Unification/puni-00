@@ -1147,6 +1147,92 @@ test.describe('the table, measured by a browser', () => {
     holdsItsContents(wide);
   });
 
+  test('stands a parent’s figure in the same slot as its leaves’', async ({ page }) => {
+    // Dany, 2026-08-30: `3/5/7 · 5` on a parent hugged its trio while the
+    // leaves under it pinned `· 2` to the cell's right edge — one column,
+    // two places for the same figure. The parent's rolled-up trio now takes
+    // the same `flex: 1` slot the leaf's box does, and a browser is the only
+    // oracle that can see where a flex item put a span: jsdom computes no
+    // layout (`AGENTS.md`, R5 #14/#15).
+    //
+    // The seed has no parent, so one is made: a fresh row indented under 020
+    // makes 020 the parent whose roll-up is measured against the leaf's.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    await addRow.click();
+    const fresh = page.getByLabel('Name of 030', { exact: true });
+    await expect(fresh).toBeVisible();
+    await fresh.focus();
+    await fresh.press('Tab');
+
+    const child = page.getByLabel('Dev estimate for 020.1');
+    await expect(child).toBeVisible();
+    await child.fill('2/3/8');
+    await child.blur();
+
+    const rowOf = (number: string) =>
+      page
+        .locator('tbody tr')
+        .filter({ has: page.getByLabel(`Name of ${number}`, { exact: true }) });
+    const parentFigure = rowOf('020').locator('[data-folded-final]').first();
+    const leafFigure = rowOf('020.1').locator('[data-folded-final]').first();
+    // The round trip, not the keystroke: a parent's cell changes only once
+    // be-01 has answered with the roll-up (`estimate-triple-visible`'s
+    // lesson — wait on something only the answer can produce).
+    await expect(parentFigure).toHaveText('· 3.7');
+    await expect(leafFigure).toHaveText('· 3.7');
+
+    const parentBox = await parentFigure.boundingBox();
+    const leafBox = await leafFigure.boundingBox();
+    if (parentBox === null || leafBox === null) throw new Error('a figure has no box');
+    // Area before position — a zero-width span stands wherever it is told
+    // and an equality against one cannot fail (R5 #16).
+    expect(parentBox.width).toBeGreaterThan(0);
+    expect(leafBox.width).toBeGreaterThan(0);
+    // Proof: the parent's trio unwrapped back to a bare text node, this
+    // failed on `Expected: 864.53125 / Received: 827.921875` — the parent's
+    // figure 36.6px left of the leaf's. Watched in Chromium, 2026-08-30.
+    expect(parentBox.x).toBeCloseTo(leafBox.x, 0);
+
+    // **And the trio itself**, which is the other half of one column reading
+    // as one column: Dany, 2026-08-30, _"make sure that the o/r/p 's always
+    // align vertically, no matter is it parent item or child item"_.
+    //
+    // A leaf's trio is the text of an `<input>` and a parent's is a `<span>`,
+    // so aligning their boxes is not enough — the input carries the user
+    // agent's own `padding: 2px` and 1px border and the span carried neither,
+    // which put the parent's first digit three pixels left of the leaf's. The
+    // two boxes are held to the same metrics, the way the Name cell's two are
+    // (`[data-cell-rendered]` in `styles.css`, "one spelling, two boxes").
+    const trioMetrics = (node: Element) => {
+      const style = getComputedStyle(node);
+      return {
+        paddingLeft: style.paddingLeft,
+        borderLeftWidth: style.borderLeftWidth,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+      };
+    };
+    const parentTrio = rowOf('020').locator('[data-rolled-trio]').first();
+    const leafTrio = page.getByLabel('Dev estimate for 020.1');
+    await expect(parentTrio).toHaveText('2/3/8');
+
+    // Proof: the padding and border taken back off the rolled-up trio, this
+    // failed on `borderLeftWidth: "2px" / "0px"` and `paddingLeft: "2px" /
+    // "0px"` together — the parent's first digit four pixels left of its
+    // leaf's. Watched in Chromium, 2026-08-30.
+    expect(await parentTrio.evaluate(trioMetrics)).toEqual(await leafTrio.evaluate(trioMetrics));
+
+    const parentTrioBox = await parentTrio.boundingBox();
+    const leafTrioBox = await leafTrio.boundingBox();
+    if (parentTrioBox === null || leafTrioBox === null) throw new Error('a trio has no box');
+    expect(parentTrioBox.width).toBeGreaterThan(0);
+    expect(leafTrioBox.width).toBeGreaterThan(0);
+    expect(parentTrioBox.x, 'the trios of a parent and its leaf start at different x').toBeCloseTo(
+      leafTrioBox.x,
+      0,
+    );
+  });
+
   test('puts the pinned columns exactly where they are declared to sit', async ({ page }) => {
     await scrollFrameTo(page, 0);
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
