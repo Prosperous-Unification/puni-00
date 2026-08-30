@@ -27,7 +27,10 @@
       real edge: ada and grace both subscribed to one project, grace renamed the
       row, and the frame carrying it arrived on ada's socket. That is the path the
       fix rides on — a peer's edit reaching the client that has to survive it.
-- [ ] 3.3 **The caret itself, in a browser.** Not done and not doable from h1claw:
-      no browser and no Playwright on the box, and jsdom has no caret to move. What
-      3.2 proves is that the edit arrives; what nobody has watched is where the
-      caret is a moment later. `verify.md` says so under what this does not cover.
+- [x] 3.3 **The caret itself, in a browser.** Written on a box that has one:
+      `apps/fe-01/e2e/live-caret.spec.ts`, two browser contexts against one project
+      over the real gateway. A caret is put in the middle of a half-typed name with
+      a four-character backward selection, the peer renames that very row and then a
+      bystander row, and the caret is read only once the bystander's new name is on
+      screen — the one thing that says the refetch carrying the withheld value has
+      landed. Both faults watched in Chromium (`verify.md`).
