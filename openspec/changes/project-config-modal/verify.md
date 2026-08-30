@@ -153,6 +153,33 @@ cannot satisfy the budget by shrinking.
 That is `plan-toolbar-controls-gate`'s own lesson applied one change later: a
 budget pinned to the wrong bar, or resolved from the current one, is decoration.
 
+## Which tree the figures above describe
+
+Every gate figure in this document was measured at **`da2534f`**. The branch has
+moved since, and the delta is **comment-only** — ten files, 21 insertions, 17
+deletions, every changed line inside a `//` or `/* */` block. Verified rather
+than asserted:
+
+```
+$ git diff da2534f..HEAD -- '*.ts' '*.tsx' \
+    | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+    | grep -vE '^[+-]\s*(\*|//|/\*)' | grep -vE '^[+-]\s*$'
+```
+
+returns one line, and that line is inside a `/* */` block in
+`directory-page.tsx` whose continuation lines carry no `*` prefix. `tsc --build
+--force` is clean at `HEAD`.
+
+The commits are the cross-reference repair: every live JSDoc pointer to
+`teams-dialog.tsx`, `priorities-dialog.tsx` or `phases-dialog.tsx` — files this
+change renamed — resolved to nothing. `openspec/changes/*` and `docs/plans/*`
+were deliberately left alone, per `steps-not-phases` 2.2: a change records what
+was decided in the words of its day.
+
+Stated because a verify table is a measurement of a tree and the tree moves —
+the fault this repo met three times on 2026-08-30, most expensively as a browser
+gate cited 43 minutes after the merge that invalidated it.
+
 ## Failure proofs (R5)
 
 Eight negatives named in `tasks.md`. Six were watched by three Opus subagents in
