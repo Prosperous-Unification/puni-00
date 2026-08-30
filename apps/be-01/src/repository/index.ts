@@ -3,7 +3,7 @@ import type {
   EstimateMethod,
   IsoDate,
   PriorityBand,
-  RoleState,
+  StepState,
 } from '@wbs/domain';
 
 import type { MeasureMetric, PersonKind } from './schema';

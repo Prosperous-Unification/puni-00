@@ -166,7 +166,7 @@ describe('shapes — a dependency between two nested branches', () => {
  * calls below are the figures `dep-waits-on-first-role` shipped, kept as that
  * arm's oracle rather than deleted (`dep-reach-whole-item`, tasks 3.1).
  */
-const roledPlan = (
+const steppedPlan = (
   rows: readonly WorkItem[],
   edges: readonly DependencyEdge[],
   days: Record<string, [number | null, number | null]>,
@@ -252,7 +252,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
   it('waits for the first step, not the last', () => {
     // `B` needs `A`'s Dev, never its QA: the anchor — `A`'s first slice in
     // role order — finishes on day 3, and `A`'s QA runs 3→5 alongside `B`.
-    const found = roledPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       {
@@ -274,7 +274,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // successor side did not move (design.md D2): the edge lands on `B`'s
     // first slice plain, never its first *estimated* one, so the row waits
     // even though nobody has put a number on its Dev.
-    const found = roledPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       {
@@ -308,7 +308,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // slice plain, zero days long, and `B` started on day 0 with the edge
     // having decided nothing. Dany's call, on the probe below: "first in list
     // of project roles, then first that is estimated".
-    const found = roledPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       {
@@ -387,7 +387,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // the reach decides nothing here either way: with nothing estimated both
     // arms fall through to the same last slice. The `under either reach` case
     // in the reach block below is the one that asserts that.
-    const found = threeRolePlan(
+    const found = threeStepPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       {
@@ -446,7 +446,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // `Q` waits for all of `P`'s first-step work: `P1`'s anchor ends day 2,
     // `P2`'s day 4, and the latest of them releases `Q` on day 4 while `P`'s
     // own projection runs to day 5 (design.md D3).
-    const found = stepdPlan(
+    const found = steppedPlan(
       [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
       [edge('P', 'Q')],
       { P1: [2, 3], P2: [4, 1], Q: [1, null] },
@@ -474,7 +474,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // On `anchor-slice`: "the edge leaves the anchor" is the whole premise, so
     // this fixture belongs to that arm. Under `whole-item` the edge would leave
     // `A`'s QA and `B` would start on day 5.
-    const found = roledPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       {
@@ -511,7 +511,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // while `A`'s QA runs 2→5 beside it; `B`'s Dev 2→6 releases `C` on day 6
     // while `B`'s QA runs 6→8 beside it. The rows: `A` 0→5, `B` 2→8, `C`
     // 6→12 — each QA tail overlapping the successor it no longer holds.
-    const found = roledPlan(
+    const found = steppedPlan(
       [item('A'), item('B'), item('C')],
       [edge('A', 'B'), edge('B', 'C')],
       {
@@ -539,7 +539,7 @@ describe('shapes — a dependency waits on the anchor slice', () => {
     // a join at the projections would put `D` at 8 either way. The anchors
     // differ: `B`'s Dev ends day 4, `C`'s day 7, and `D` starts at 7 — `C`'s
     // longer Dev is the binding predecessor.
-    const found = stepdPlan(
+    const found = steppedPlan(
       [item('A'), item('B'), item('C'), item('D')],
       [edge('A', 'B'), edge('A', 'C'), edge('B', 'D'), edge('C', 'D')],
       { A: [1, 1], B: [3, 4], C: [6, 1], D: [2, 2] },
@@ -569,7 +569,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     // index — the rule this change replaced — and this failed on
     // `expect(received).toBe(expected) / Expected: 5 / Received: 3`; watched
     // 2026-08-29.
-    const whole = roledPlan(
+    const whole = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [3, 2], B: [1, 1] },
@@ -587,7 +587,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     });
     expect(projectionOf(whole, 'A')).toMatchObject({ earliestStart: 0, earliestFinish: 5 });
 
-    const anchored = roledPlan(
+    const anchored = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [3, 2], B: [1, 1] },
@@ -616,7 +616,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     // and the last slice's day 8 are two days apart. The reach is therefore
     // asserted on both arms here rather than pinned to one, because this
     // fixture has become a place they can be told apart.
-    const anchored = threeRolePlan(
+    const anchored = threeStepPlan(
       [item('c1'), item('c2'), item('c3')],
       [edge('c1', 'c2'), edge('c2', 'c3')],
       { c1: [null, 4, null], c2: [null, 4, null], c3: [null, 4, null] },
@@ -627,7 +627,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     expect(projectionOf(anchored, 'c2')).toMatchObject({ earliestStart: 6, earliestFinish: 14 });
     expect(projectionOf(anchored, 'c3')).toMatchObject({ earliestStart: 12, earliestFinish: 20 });
 
-    const whole = threeRolePlan(
+    const whole = threeStepPlan(
       [item('c1'), item('c2'), item('c3')],
       [edge('c1', 'c2'), edge('c2', 'c3')],
       { c1: [null, 4, null], c2: [null, 4, null], c3: [null, 4, null] },
@@ -640,7 +640,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     // And the predecessor's later steps really do run alongside the successor,
     // which is the whole of what the anchor reach is for. `A`'s QA is
     // estimated here so that "alongside" is a span rather than a point.
-    const alongside = roledPlan(
+    const alongside = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [2, 6], B: [3, 1] },
@@ -670,7 +670,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     // case makes is unchanged and is the reason it survives the re-derivation:
     // the two arms agree, whatever the number is.
     for (const reach of ['whole-item', 'anchor-slice'] as const) {
-      const found = threeRolePlan(
+      const found = threeStepPlan(
         [item('A'), item('B')],
         [edge('A', 'B')],
         { A: [null, null, null], B: [2, null, null] },
@@ -699,7 +699,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
       ['whole-item', 7, 13],
       ['anchor-slice', 5, 11],
     ] as const) {
-      const found = threeRolePlan(
+      const found = threeStepPlan(
         [item('A'), item('B'), item('C')],
         [edge('A', 'B'), edge('B', 'C')],
         { A: [null, 3, null], B: [null, null, null], C: [1, null, null] },
@@ -739,7 +739,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
       Q: [4, 2],
     };
 
-    const whole = roledPlan(rows, [edge('P', 'Q')], days, 'whole-item');
+    const whole = steppedPlan(rows, [edge('P', 'Q')], days, 'whole-item');
 
     expect(projectionOf(whole, 'Q')).toMatchObject({ earliestStart: 5, earliestFinish: 11 });
     expect(whole.slices.get(sliceKey('Q', DEV))).toMatchObject({
@@ -749,12 +749,12 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     });
     expect(whole.slices.get(sliceKey('Q', QA))).toMatchObject({
       earliestStart: 9,
-      boundBy: 'roleOrder',
+      boundBy: 'stepOrder',
     });
     // The parent itself is spanned over its leaves and is not moved by the reach.
     expect(projectionOf(whole, 'P')).toMatchObject({ earliestStart: 0, earliestFinish: 5 });
 
-    const anchored = roledPlan(rows, [edge('P', 'Q')], days, 'anchor-slice');
+    const anchored = steppedPlan(rows, [edge('P', 'Q')], days, 'anchor-slice');
 
     expect(projectionOf(anchored, 'Q')).toMatchObject({ earliestStart: 2, earliestFinish: 8 });
     expect(anchored.slices.get(sliceKey('Q', DEV))).toMatchObject({
@@ -776,14 +776,14 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     const rows = [item('A'), item('B')];
     const days: Record<string, [number | null, number | null]> = { A: [3, 2], B: [1, 1] };
 
-    const anchoredFirst = roledPlan(rows, [edge('A', 'B')], days, 'anchor-slice');
-    const wholeSecond = roledPlan(rows, [edge('A', 'B')], days, 'whole-item');
+    const anchoredFirst = steppedPlan(rows, [edge('A', 'B')], days, 'anchor-slice');
+    const wholeSecond = steppedPlan(rows, [edge('A', 'B')], days, 'whole-item');
 
     expect(projectionOf(anchoredFirst, 'B').earliestStart).toBe(3);
     expect(projectionOf(wholeSecond, 'B').earliestStart).toBe(5);
 
-    const wholeFirst = roledPlan(rows, [edge('A', 'B')], days, 'whole-item');
-    const anchoredSecond = roledPlan(rows, [edge('A', 'B')], days, 'anchor-slice');
+    const wholeFirst = steppedPlan(rows, [edge('A', 'B')], days, 'whole-item');
+    const anchoredSecond = steppedPlan(rows, [edge('A', 'B')], days, 'anchor-slice');
 
     expect(projectionOf(wholeFirst, 'B').earliestStart).toBe(5);
     expect(projectionOf(anchoredSecond, 'B').earliestStart).toBe(3);
@@ -797,7 +797,7 @@ describe('shapes — the project decides how far a dependency reaches', () => {
     // the kind of claim that stops being true quietly.
     for (const reach of ['whole-item', 'anchor-slice'] as const) {
       expect(() =>
-        roledPlan(
+        steppedPlan(
           [item('A'), item('B')],
           [edge('A', 'B'), edge('B', 'A')],
           { A: [3, 2], B: [1, 1] },
@@ -813,7 +813,7 @@ describe('shapes — a multi-role dependency beside a manual floor', () => {
     // `A`'s anchor lets go on day 2 (Dev 0→2, QA 2→4 beside everything), and
     // `B`'s own floor says day 5: the floor is later, `B`'s Dev runs 5→8, its
     // QA 8→9, and the floor is named.
-    const found = stepdPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [2, 2], B: [3, 1] },
@@ -832,7 +832,7 @@ describe('shapes — a multi-role dependency beside a manual floor', () => {
     // The same shape with `A`'s Dev at four days: day 2 is already gone when
     // the anchor lets go on day 4, so the floor decided nothing and the
     // dependency is named. `B`'s Dev 4→7, QA 7→8.
-    const found = stepdPlan(
+    const found = steppedPlan(
       [item('A'), item('B')],
       [edge('A', 'B')],
       { A: [4, 2], B: [3, 1] },

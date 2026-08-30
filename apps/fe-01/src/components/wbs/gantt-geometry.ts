@@ -2620,7 +2620,7 @@ function reachedSliceOf(
 ): PlacedSlice {
   const leafIds = leavesUnder.get(predecessorId) ?? [predecessorId];
   const reached = leafIds.map((leafId) => {
-    const own = inRoleOrder(slicesByWorkItem.get(leafId) ?? [], rolesById);
+    const own = inStepOrder(slicesByWorkItem.get(leafId) ?? [], stepsById);
     const found =
       reach === 'whole-item'
         ? own.at(-1)

@@ -49,15 +49,15 @@ const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
  * back to the button that opened it` and `leaves no half-answered confirmation
  * behind`, were about the shell and moved there with it.
  */
-function stubbed(overrides: Partial<Parameters<typeof PhasesPanel>[0]> = {}) {
-  const addRole = vi.fn(() => Promise.resolve({ id: 'role-design', name: 'Design' }));
-  const renameRole = vi.fn(() => Promise.resolve({ id: 'role-qa', name: 'Review' }));
-  const removeRole = vi.fn(() => Promise.resolve({ ok: true }));
+function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
+  const addStep = vi.fn(() => Promise.resolve({ id: 'step-design', name: 'Design' }));
+  const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
+  const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const setDepReach = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
   const onDirtyChange = vi.fn();
   const props = {
-    roles: [DEV, QA],
+    steps: [DEV, QA],
     depReach: 'whole-item' as DependencyReach,
     setDepReach,
     frameState: UNDATED,
@@ -72,8 +72,8 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesPanel>[0]> = {}) {
     onDirtyChange,
     ...overrides,
   };
-  render(<PhasesPanel {...props} />);
-  return { addRole, renameRole, removeRole, setDepReach, onChanged, onDirtyChange, props };
+  render(<StepsPanel {...props} />);
+  return { addStep, renameStep, removeStep, setDepReach, onChanged, onDirtyChange, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -109,13 +109,14 @@ describe('the steps a project holds', () => {
     // title of its own since `project-config-modal` split it out of the dialog
     // it used to be. `Phase` was the word on every control here until
     // `steps-not-phases`, and `Role` was the same thing below.
-    const { container } = stubbed();
+    stubbed();
 
-    expect(container.textContent).not.toMatch(/phase|role/i);
+    const drawn = document.body.textContent;
+    expect(drawn).not.toMatch(/phase|role/i);
     // Non-vacuous: the panel really drew its controls, so an empty match is a
-    // reading rather than an empty container.
+    // reading rather than an empty page.
     expect(screen.getByRole('button', { name: 'Remove Dev' })).toBeDefined();
-    expect(container.textContent).toContain('Dev');
+    expect(drawn).toContain('Dev');
   });
 
   itDom('lists every step, each with a way to rename it and remove it', () => {
@@ -269,7 +270,7 @@ describe('how far a dependency reaches', () => {
 
   itDom('shows the project’s own reach, not the one it was last shown', () => {
     // The dialog holds nothing about the reach: what is checked is be-01's
-    // answer, arriving as a prop, exactly as the phase names beside it do.
+    // answer, arriving as a prop, exactly as the step names beside it do.
     stubbed({ depReach: 'anchor-slice' });
 
     expect(screen.getByRole('radio', { name: new RegExp(ANCHOR) })).toBeChecked();

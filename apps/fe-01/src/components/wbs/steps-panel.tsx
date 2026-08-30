@@ -97,9 +97,9 @@ export interface StepsPanelProps extends SettingsSectionReport {
   hiddenColumnIds: readonly string[];
   numberOf: NumberOf;
   nameOf: NameOf;
-  addRole: (name: string) => Promise<RoleView>;
-  renameRole: (roleId: string, name: string) => Promise<RoleView>;
-  removeRole: (roleId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: RoleUsage }>;
+  addStep: (name: string) => Promise<StepView>;
+  renameStep: (stepId: string, name: string) => Promise<StepView>;
+  removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
   /**
    * How far into a predecessor this project's dependencies reach — be-01's
    * answer, not this dialog's. What is ticked is read straight off it, so a
@@ -178,9 +178,9 @@ export function StepsPanel({
   hiddenColumnIds,
   numberOf,
   nameOf,
-  addRole,
-  renameRole,
-  removeRole,
+  addStep,
+  renameStep,
+  removeStep,
   depReach,
   setDepReach,
   onChanged,

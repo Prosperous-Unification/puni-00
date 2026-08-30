@@ -464,7 +464,7 @@ describe('the slice engine against the one it replaced', () => {
     // other than an edge — the "no" row of that change's identity table.
     for (const reach of REACHES) {
       for (let seed = 1; seed <= 1000; seed += 1) {
-        const plan = generatePlan(seed, RELEASED_ROLES);
+        const plan = generatePlan(seed, RELEASED_STEPS);
         const durations = durationsFrom(plan, true, seed);
         const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
         const found = schedule(
@@ -884,7 +884,7 @@ describe('the slice engine against the one it replaced', () => {
     let edgesChecked = 0;
     let movedFromAnchor = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       if (plan.edges.length === 0) continue;
       const index = indexTree(plan.rows);
       const found = schedule(
@@ -901,20 +901,20 @@ describe('the slice engine against the one it replaced', () => {
         if (row === undefined) throw new Error(`${leafId} lost its schedule`);
         return row;
       };
-      const anchorRoleOf = new Map<string, string>();
+      const anchorStepOf = new Map<string, string>();
       for (const each of plan.estimates) {
-        if (each.days === null || anchorRoleOf.has(each.workItemId)) continue;
-        anchorRoleOf.set(each.workItemId, each.roleId);
+        if (each.days === null || anchorStepOf.has(each.workItemId)) continue;
+        anchorStepOf.set(each.workItemId, each.stepId);
       }
 
       for (const { predecessorId, successorId } of expandToLeaves(index, plan.edges)) {
         edgesChecked += 1;
         const owed = rowOf(predecessorId).earliestFinish;
-        const anchorRole = anchorRoleOf.get(predecessorId);
+        const anchorStep = anchorStepOf.get(predecessorId);
         const anchorFinish =
-          anchorRole === undefined
+          anchorStep === undefined
             ? owed
-            : (found.slices.get(sliceKey(predecessorId, anchorRole))?.earliestFinish ?? owed);
+            : (found.slices.get(sliceKey(predecessorId, anchorStep))?.earliestFinish ?? owed);
         if (owed > anchorFinish + 1e-9) movedFromAnchor += 1;
         const successor = rowOf(successorId);
         // Not `toBe`: PERT sixths, and the claim is an inequality.
@@ -935,7 +935,7 @@ describe('the slice engine against the one it replaced', () => {
       for (const leafId of index.leafIds) {
         const own = plan.estimates
           .filter((each) => each.workItemId === leafId)
-          .map((each) => found.slices.get(sliceKey(leafId, each.roleId)))
+          .map((each) => found.slices.get(sliceKey(leafId, each.stepId)))
           .filter((placed) => placed !== undefined);
         if (own.length === 0) continue;
         expect(rowOf(leafId).earliestStart).toBe(Math.min(...own.map((s) => s.earliestStart)));
@@ -961,7 +961,7 @@ describe('the slice engine against the one it replaced', () => {
     let plansMoved = 0;
     let rowsMoved = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_ROLES);
+      const plan = generatePlan(seed, RELEASED_STEPS);
       if (plan.edges.length === 0) continue;
       plansCompared += 1;
       const august = schedule(

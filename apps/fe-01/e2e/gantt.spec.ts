@@ -3102,11 +3102,12 @@ async function seedTwoStepChain(page: Page): Promise<void> {
 /** Picks a reach in the Phases dialog and closes it again. */
 async function chooseTheReach(page: Page, option: string): Promise<void> {
   // Two gestures since `project-config-modal`: the toolbar's one `Project
-  // settings` control, then its `Phases` tab. The reach lives on that section
-  // because it is a statement about how the steps above it chain.
+  // settings` control, then its `Steps` tab (`Phases` until `steps-not-phases`).
+  // The reach lives on that section because it is a statement about how the
+  // steps above it chain.
   await page.getByRole('button', { name: 'Project settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Phases' }).click();
+  await page.getByRole('tab', { name: 'Steps' }).click();
   const saved = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' &&

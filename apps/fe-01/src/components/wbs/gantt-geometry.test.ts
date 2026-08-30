@@ -1160,7 +1160,7 @@ describe('dependency arrows', () => {
         rows: [rowAt('strip', 5, 9), rowAt('sand', 9, 11)],
         slices: [
           sliceAt('strip-dev', 'strip', 5, 7),
-          sliceAt('strip-qa', 'strip', 7, 9, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 7, 9, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
@@ -1188,9 +1188,9 @@ describe('dependency arrows', () => {
         ],
         slices: [
           sliceAt('strip-dev', 'strip', 0, 2),
-          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('strip-qa', 'strip', 2, 5, { stepId: 'qa' }),
           sliceAt('sand-dev', 'sand', 0, 4),
-          sliceAt('sand-qa', 'sand', 4, 6, { roleId: 'qa' }),
+          sliceAt('sand-qa', 'sand', 4, 6, { stepId: 'qa' }),
           sliceAt('rig-dev', 'rig', 6, 8, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
@@ -2792,7 +2792,7 @@ describe('what holds a row’s start, for the table', () => {
         rows: [rowAt('030', 0, 8, { name: 'Strip' }), rowAt('020', 8, 12)],
         slices: [
           sliceAt('030-dev', '030', 0, 5),
-          sliceAt('030-qa', '030', 5, 8, { roleId: 'qa' }),
+          sliceAt('030-qa', '030', 5, 8, { stepId: 'qa' }),
           sliceAt('020-dev', '020', 8, 12, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: '030', successorId: '020' }],

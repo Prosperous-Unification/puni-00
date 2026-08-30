@@ -283,7 +283,7 @@ describe('ProjectRepository', () => {
 
   it('patches the dependency reach', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
 
     const updated = await repo.update(shed.id, { depReach: 'anchor-slice' });
 
@@ -308,7 +308,7 @@ describe('ProjectRepository', () => {
     // `Received: "(resolved without throwing)"` — the project came back read,
     // silently, under a rule nobody chose. Watched 2026-08-29.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, roles(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'));
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE project SET dep_reach = 'first-role' WHERE id = '${shed.id}'`);

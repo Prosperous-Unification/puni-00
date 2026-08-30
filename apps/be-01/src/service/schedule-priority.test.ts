@@ -401,7 +401,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         float: 0,
         critical: true,
         personId: 'sam',
-        boundBy: 'roleOrder',
+        boundBy: 'stepOrder',
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
@@ -438,7 +438,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         critical: false,
         personId: 'sam',
         boundBy: 'person',
-        resourcePredecessorId: 'c-p1/role-qa',
+        resourcePredecessorId: 'c-p1/step-qa',
         capacityPredecessorIds: [],
       },
       'c-d/step-dev': {

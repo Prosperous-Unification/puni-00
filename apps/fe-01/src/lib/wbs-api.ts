@@ -1914,9 +1914,9 @@ export function httpProjectApi(token: string): ProjectApi {
         body: JSON.stringify({ depReach: reach }),
       });
     },
-    async roles(projectId) {
-      const body = await send<{ roles: RoleView[] }>(`/api/projects/${projectId}`, token);
-      return body.roles;
+    async steps(projectId) {
+      const body = await send<{ steps: StepView[] }>(`/api/projects/${projectId}`, token);
+      return body.steps;
     },
     async addStep(projectId, name) {
       const body = await send<{ step: StepView }>(`/api/projects/${projectId}/steps`, token, {

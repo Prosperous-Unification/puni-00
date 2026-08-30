@@ -1897,7 +1897,7 @@ interface ChartRead {
  */
 const NO_CHART_READ: ChartRead = {
   slices: [],
-  roles: [],
+  steps: [],
   people: [],
   depReach: 'whole-item',
   generation: 0,
@@ -10149,9 +10149,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           frameState,
           numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
-          addRole: (name) => api.addRole(projectId, name),
-          renameRole: (roleId, name) => api.renameRole(projectId, roleId, name),
-          removeRole: (roleId, cascade) => api.removeRole(projectId, roleId, cascade),
+          addStep: (name) => api.addStep(projectId, name),
+          renameStep: (stepId, name) => api.renameStep(projectId, stepId, name),
+          removeStep: (stepId, cascade) => api.removeStep(projectId, stepId, cascade),
           // How far a dependency reaches, on the same surface as the steps it
           // is about: reordering them moves what an `anchor-slice` dependency
           // waits for. Off the chart read rather than a state of its own, so
