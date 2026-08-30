@@ -105,7 +105,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   // `rendererForViewport` draws the table from 768 wide up, and only where the
   // viewport is at least `TABLE_NEEDS_HEIGHT` tall.
   if (!drawsCards(page)) {
-    await expect(page.getByRole('button', { name: 'Teams' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Project settings' })).toBeVisible();
     return;
   }
 
@@ -372,6 +372,8 @@ test.describe('the plan on a phone, measured by a browser', () => {
    *
    * Watched red at `22b9a73` — the sheet reported 30 short controls (13px tick
    * rows, 25px `Close`, 32px buttons), the Teams dialog 2, the account menu 4.
+   * That dialog is the project settings modal's teams section since
+   * `project-config-modal`, and the sweep now also covers its tab list.
    */
   test('gives every control on the phone’s own surfaces at least 44px', async ({ page }) => {
     // The account menu **first**, and the order is not arbitrary: it is chrome
@@ -412,16 +414,23 @@ test.describe('the plan on a phone, measured by a browser', () => {
       .soft(await shortTargetsIn(page, '[data-modal-surface]'), 'on the Plan actions sheet')
       .toEqual([]);
 
-    // The Teams dialog, opened from that sheet because there is no other way in
-    // at this width. This plan carries no team labels — nothing on a card edits
-    // one — so what is on screen is the empty sentence, `Done` and the ✕ rather
-    // than the seven capacity boxes the sweep measured. The floor those boxes
-    // sit under is the same `input` rule, and it *is* measured above: the sheet
-    // carries the Find box.
-    await page.getByRole('button', { name: 'Teams' }).click();
-    await expect(page.getByRole('dialog', { name: 'Teams on this plan' })).toBeVisible();
+    // The project settings modal, opened from that sheet because there is no
+    // other way in at this width. Its teams section is what the Teams dialog
+    // was until `project-config-modal`; this plan carries no team labels —
+    // nothing on a card edits one — so what is on screen is the empty
+    // sentence, `Done` and the ✕ rather than the seven capacity boxes the
+    // sweep measured. The floor those boxes sit under is the same `input`
+    // rule, and it *is* measured above: the sheet carries the Find box.
+    //
+    // The **tab list** is the surface's own new control, and it is measured
+    // here for the first time: three tabs a thumb has to hit.
+    await page.getByRole('button', { name: 'Project settings' }).click();
+    await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
     expect
-      .soft(await shortTargetsIn(page, '[data-modal-surface="centre"]'), 'in the Teams dialog')
+      .soft(
+        await shortTargetsIn(page, '[data-modal-surface="centre"]'),
+        'in the project settings modal',
+      )
       .toEqual([]);
   });
 
@@ -1372,8 +1381,8 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
   test('leaves a dialog and the account menu at their own size at 1400 and at 768', async ({
     page,
   }) => {
-    await page.getByRole('button', { name: 'Teams' }).click();
-    await expect(page.getByRole('dialog', { name: 'Teams on this plan' })).toBeVisible();
+    await page.getByRole('button', { name: 'Project settings' }).click();
+    await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
 
     const done = page.getByRole('button', { name: 'Done' });
     const close = page.getByRole('button', { name: 'Close' });

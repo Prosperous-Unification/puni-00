@@ -1066,8 +1066,9 @@ describe('the toolbar sheet', () => {
    * menu reaches the phone by construction — what this asserts is that it
    * arrives as **one** entry and that it opens where a phone can read it.
    *
-   * The trigger is exempt from the sheet's own close for `PhasesDialog`'s
-   * reason and by `PhasesDialog`'s mechanism: `closingControlIn` leaves a
+   * The trigger is exempt from the sheet's own close for the reason and by the
+   * mechanism `PhasesDialog` established — that surface is
+   * `ProjectSettingsModal` now: `closingControlIn` leaves a
    * control carrying `aria-haspopup` alone, and closing the sheet on the click
    * that opened the menu would unmount the menu with it.
    *
@@ -1133,12 +1134,15 @@ describe('the toolbar sheet', () => {
    *
    * Proof, two faults, both watched 2026-08-09. The `aria-haspopup` exemption
    * removed: failed on `Unable to find an accessible element with the role
-   * "dialog" and name "Phases"` — the sheet closed on the trigger's own click
+   * "dialog" and name "Phases"` (the dialog's name at the time) — the sheet closed on the trigger's own click
    * and took the dialog with it. The surface check removed so a click anywhere
    * closes the sheet: `adds a phase from inside the sheet` failed the same way
    * one click later, on the dialog's own Add.
    */
-  itDom('lets the phases dialog open from inside it', async () => {
+  itDom('lets the project settings open from inside it', async () => {
+    // `Project settings` since `project-config-modal`: the phases dialog this
+    // case was written for is one section of that modal now, and the sheet
+    // lists the control by its name rather than by a gear.
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1147,9 +1151,55 @@ describe('the toolbar sheet', () => {
     });
     openTheSheet();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Phases', exact: true }));
+    const control = await screen.findByRole('button', { name: 'Project settings' });
+    expect(control.textContent).toContain('Project settings');
+    fireEvent.click(control);
 
-    expect(await screen.findByRole('dialog', { name: 'Phases' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+  });
+
+  /**
+   * `project-config-modal` slice 3.2: closing the modal hands the focus back to
+   * the control that opened it, from inside the sheet — Radix's own restore to
+   * its **trigger**.
+   *
+   * **What does not guard this, and was claimed to.** The slice is written as
+   * "the control carries no `data-takes-the-focus`", and the first cut of this
+   * comment said that attribute had been injected and watched failing. It was
+   * watched **passing**: {@link closingControlIn} never returns a control that
+   * opens a surface of its own (`aria-haspopup`), so nothing ever reads the
+   * attribute off this trigger and its presence changes nothing. `AGENTS.md`'s
+   * "delete the guard whose removal you cannot see" — here there was nothing to
+   * delete, only a claim to withdraw. Found by an isolated re-run of the
+   * negative, 2026-08-30.
+   *
+   * Proof, the fault that is real: the `ModalTrigger` swapped for a plain
+   * `Button` with an `onClick`, so Radix's `onCloseAutoFocus` cancels the default
+   * restore and has no trigger to put the focus on. This failed on
+   * `expected <body …> to be <button …>` — the focus left on `<body>` — and so
+   * did `project-settings-modal.test.tsx`'s `a clean modal closes from any
+   * section, and gives the focus back to its control`. Watched 2026-08-30.
+   */
+  itDom('closing project settings puts the focus back on its trigger', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+    const control = await screen.findByRole('button', { name: 'Project settings' });
+    fireEvent.click(control);
+    await screen.findByRole('dialog', { name: 'Project settings' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(control);
+    });
   });
 
   /**
@@ -1174,19 +1224,20 @@ describe('the toolbar sheet', () => {
     render(<WbsTable projectId="p1" api={api} />);
     await addAWorkItem();
     openTheSheet();
-    fireEvent.click(await screen.findByRole('button', { name: 'Phases', exact: true }));
-    await screen.findByRole('dialog', { name: 'Phases' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+    await screen.findByRole('dialog', { name: 'Project settings' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Phases' }));
 
     fireEvent.change(screen.getByLabelText('New phase'), { target: { value: 'Review' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
 
     // The new phase reaches the cards behind both surfaces, which is what says
-    // the refetch the dialog asked for was not thrown away with them.
+    // the refetch the modal asked for was not thrown away with them.
     expect(await screen.findByLabelText('Review estimate for 010')).toBeInTheDocument();
-    // And the dialog is still there to add a second one. This is the half the
-    // line above cannot see: a sheet that closed under it would take the dialog
+    // And the modal is still there to add a second one. This is the half the
+    // line above cannot see: a sheet that closed under it would take the modal
     // with it *after* the phase had already been sent.
-    expect(screen.getByRole('dialog', { name: 'Phases' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
   });
 
   /**

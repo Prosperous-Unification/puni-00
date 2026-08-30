@@ -139,7 +139,7 @@ export function priorityBandOf(
  * `null` where it is a ladder.
  *
  * **One function, one caller.** `priorityBandController` is the only thing that
- * asks, exactly as `TeamsDialog` sends `0` and `1001` to be refused rather than
+ * asks, exactly as `TeamsPanel` sends `0` and `1001` to be refused rather than
  * holding a second copy of the capacity rule — a validation repeated in the
  * browser is a rule free to disagree with the one that stores the row. It lives
  * here rather than in be-01 because the invariants it enforces are what

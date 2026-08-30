@@ -126,15 +126,14 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
-import { PhasesDialog } from './phases-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
-import { PrioritiesDialog } from './priorities-dialog';
 import { PriorityCell, priorityTyped } from './priority-cell';
+import { ProjectSettingsModal } from './project-settings-modal';
 import {
   REFERENCE_SET_ADD_CLASS,
   REFERENCE_SET_CHIP_CLASS,
@@ -166,7 +165,7 @@ import {
   tableWidthStyle,
   WIDEST_COLUMN,
 } from './table-frame';
-import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
+import { teamsOnThePlan } from './teams-panel';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { CollapseIcon, ExpandIcon, KeyboardIcon } from './toolbar-icons';
 import {
@@ -1778,13 +1777,13 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
- * - **A control that opens a surface of its own.** `PhasesDialog` is on this
- *   sheet, and closing the sheet unmounts the dialog its trigger was about to
- *   open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
+ * - **A control that opens a surface of its own.** `ProjectSettingsModal`'s
+ *   trigger is on this sheet, and closing the sheet unmounts the modal it was
+ *   about to open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
  *   question asked here.
  * - **A click on another surface entirely.** React sends a portal's events up
  *   the **React** tree, so every click inside that phases dialog arrives here
- *   even though the dialog is nowhere near this element in the DOM — and would
+ *   even though the modal is nowhere near this element in the DOM — and would
  *   close the sheet under it, mid-click, on the way to adding a phase.
  *
  * @param target What was clicked — `event.target`, not the handler's element.
@@ -10070,69 +10069,67 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         Gantt
       </Button>
       {/*
-        The phases, which are the project's to choose since `R1 role-crud`.
-        The button belongs to the dialog rather than sitting beside it: Radix
+        Everything the **project** configures about itself — its teams' capacity,
+        its priority ladder, and its phases — behind one control, since
+        `project-config-modal` (2026-08-30). These were three labelled buttons
+        here, each a thing somebody sets once and then leaves for weeks, sitting
+        permanently beside `Add work item` and `Undo` on a bar whose width is the
+        scarce resource. The three surfaces are three sections of one modal now.
+
+        The button belongs to the modal rather than sitting beside it: Radix
         restores the focus to its **trigger** on close and to nothing at all
         without one, so the two are one component. The surface itself lands in
-        a portal, not here.
+        a portal, not here. A gear on this bar and its name on the phone's
+        sheet, which lists its controls by word and has the room.
 
-        Not disabled by `busy`: it has its own in-flight state, and a button
-        that went dead while somebody else's edit was refetching would be
-        unopenable on a plan two people are working on.
-      */}
-      {/*
-        How many of each team on this plan are at work at once. Beside the phases
-        for the reason it is beside them: both are the **project's** own lists,
-        both move what the table draws, and the button belongs to the dialog rather
-        than sitting next to it because Radix restores focus to its trigger.
+        Not disabled by `busy`: each section has its own in-flight state, and a
+        button that went dead while somebody else's edit was refetching would
+        be unopenable on a plan two people are working on.
 
-        C3 put this box in the directory, where a global size belonged. The number
-        is one plan's now — `capacity-per-project`, Dany 2026-08-13 — and the
-        directory page has no plan; design.md D5 has the argument.
+        The teams section reads every row's **effective** teams, so a team only
+        an ancestor carries is offered a box: its pool is what the leaves below
+        it spend. The same reading the cell, the cards, the export and the bars
+        use — one `effectiveTeamsOf` per render and never a second copy.
+        Flattened, because a row on two teams puts a box beside each of them.
+        C3 put that box in the directory, where a global size belonged; the
+        number is one plan's now (`capacity-per-project`, Dany 2026-08-13), and
+        the directory page has no plan.
 
-        Not disabled by `busy`: it has its own in-flight state, and a button that
-        went dead while somebody else's edit was refetching would be unopenable on
-        a plan two people are working on.
+        The phases section is handed the same `frameState` the `<colgroup>`
+        above is resolved from, so the figure it quotes and the width the table
+        lays out cannot be answers to two different questions.
       */}
-      <TeamsDialog
-        teams={teamsOnThePlan(
-          teams,
-          teamCapacities,
-          // Every row's **effective** teams, so a team only an ancestor carries
-          // is offered a box: its pool is what the leaves below it spend. The
-          // same reading the cell, the cards, the export and the bars use — one
-          // `effectiveTeamsOf` per render and never a second copy. Flattened,
-          // because a row on two teams puts a box beside each of them.
-          flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
-        )}
-        setCapacity={(teamId, size) => api.setTeamCapacity(projectId, teamId, size)}
-        onChanged={refreshOrMarkStale}
-      />
-      {/*
-        What this plan calls its priority numbers, beside the Teams box because it
-        is the same class of fact: a project's own configuration, read by every
-        face, edited from the plan's own toolbar. `priority-bands`' design.md D5.
-      */}
-      <PrioritiesDialog
-        bands={priorityBands}
-        setBands={(bands) => api.setPriorityBands(projectId, bands)}
-        onChanged={refreshOrMarkStale}
-      />
-      <PhasesDialog
-        roles={roles}
-        hiddenColumnIds={hiddenColumnIds}
-        // The same object the `<colgroup>` above is resolved from, so the
-        // figure this dialog quotes and the width the table lays out cannot
-        // be answers to two different questions.
-        frameState={frameState}
-        numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
-        nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
-        addRole={(name) => api.addRole(projectId, name)}
-        renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
-        removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
-        // The same reread every other change on this page makes, which is what
-        // puts the new columns on the table and the new list in the dialog.
-        onChanged={refreshOrMarkStale}
+      <ProjectSettingsModal
+        projectId={projectId}
+        trigger={renderer === 'cards' ? 'labelled' : 'glyph'}
+        teams={{
+          teams: teamsOnThePlan(
+            teams,
+            teamCapacities,
+            flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
+          ),
+          setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
+          onChanged: refreshOrMarkStale,
+        }}
+        priorities={{
+          bands: priorityBands,
+          setBands: (bands) => api.setPriorityBands(projectId, bands),
+          onChanged: refreshOrMarkStale,
+        }}
+        phases={{
+          roles,
+          hiddenColumnIds,
+          frameState,
+          numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
+          nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
+          addRole: (name) => api.addRole(projectId, name),
+          renameRole: (roleId, name) => api.renameRole(projectId, roleId, name),
+          removeRole: (roleId, cascade) => api.removeRole(projectId, roleId, cascade),
+          // The same reread every other change on this page makes, which is
+          // what puts the new columns on the table and the new list in the
+          // section.
+          onChanged: refreshOrMarkStale,
+        }}
       />
       {/*
         Find. Deliberately without `data-cell`: this is not a cell of the
@@ -10504,7 +10501,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           <Modal open={toolbarSheetOpen} onOpenChange={setToolbarSheetOpen}>
             {/*
               The trigger belongs to the modal rather than sitting beside it,
-              for `PhasesDialog`'s reason: Radix restores the focus to its
+              for `ProjectSettingsModal`'s reason: Radix restores the focus to its
               trigger on close, and to nothing at all without one.
             */}
             <ModalTrigger asChild>

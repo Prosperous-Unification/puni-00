@@ -340,6 +340,13 @@ it renames what a plan's numbers are called and moves no date. A project that ha
 none reads the default five.
 _Avoid_: priority scheme, priority config, priority scale
 
+**Project settings**:
+The one surface where a project's own configuration is edited: its teams' capacity, its
+priority ladder and its phases, each a section of one modal opened from one plan-toolbar
+control. A section holds an edit until it is saved or abandoned, and the surface refuses to
+close over one.
+_Avoid_: project config, settings dialog, Teams dialog, Priorities dialog, Phases dialog
+
 **Rank**:
 A band's position in its ladder, 0 (most important) to 4. What every face keys a band's
 colour off, because a label can be renamed out from under one and a position cannot, and
