@@ -170,6 +170,40 @@ here rather than left for somebody to find. No other stored key carries the word
 one name in one file, beside `ProjectRepository.stepsOf`. It is
 `assignmentFieldsOf` now, with the reason on the symbol.
 
+## Reconciling with `project-config-modal`
+
+Ask 3 landed first, by agreement: it was told to build against `phases-dialog.tsx`
+rather than wait, so this reconciliation is this change's to pay. It arrived as a
+**rename/rename** — this change renames `phases-dialog.tsx` to `steps-dialog.tsx`,
+ask 3 renames it to `phases-panel.tsx` and splits the body into a
+`ProjectSettingsModal` with `teams-panel`, `priorities-panel` and the steps one.
+
+Resolved the way every other merge here was: **ask 3's structure wins wholesale**
+(`-X theirs`, and the two tree conflicts resolved by hand to its files), then the
+rename is re-applied over the result from `identifiers.txt`. The panel is
+`steps-panel.tsx` / `steps-panel.test.tsx` now, and `StepsDialog`'s dead import
+in `wbs-table.tsx` — a non-conflicting line of this change's that `-X theirs`
+could not know was stale — was deleted.
+
+**One test changed shape, because the surface did.** `the dialog is called Steps`
+asserted a dialog title; the panel has no title of its own any more. Its two
+claims are split where they now live: ask 3's own
+`opens on one control and offers every section from its tab list` already asserts
+the tab list, and this change turns that assertion from
+`['Teams', 'Priorities', 'Phases']` into `['Teams', 'Priorities', 'Steps']` — so
+the spec's "its title SHALL read `Steps`" is covered there. What the panel still
+owns is asserted on the panel, as `says nothing on this panel that reads Phase or
+Role`. No claim was dropped and the case count is unchanged.
+
+**The one real behaviour fix survived, and was re-measured.**
+`schedule-benchmark.test.ts`'s outer loop is still `parent` rather than `step`.
+`assumed-duration-schedules` moved the fixture's figure from 175 to 188 on main,
+so the old proof no longer described anything; the fault was re-injected —
+`parent` and `parentId` renamed to `step` and `stepId` through `buildPlan`, which
+restores the shadowing — and watched failing on `Expected: 188  Received: 190`.
+The JSDoc now quotes that, and keeps the original 175/173 as the reading when the
+fault was first found.
+
 ## The browser gate, and the four it fails
 
 `231 passed, 1 skipped, 4 failed` on shift 600. Each of the four is attributed,

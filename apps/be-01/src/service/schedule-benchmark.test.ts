@@ -16,8 +16,15 @@ import { schedule } from './schedule';
  * The 20 were called *phases* until `steps-not-phases`, where the word became
  * the project's own spelling of what a slice is under. They are top-level work
  * items and never were a step, so they are `parent` here rather than collapsing
- * into the inner loop's name — which is exactly what a blind rename did, taking
- * `waitingForPerson` from 175 to 173.
+ * into the inner loop's name — which is exactly what a blind rename did. The
+ * inner `stepIds.forEach((stepId, step) => …)` shadows both, and the fixture's
+ * own arithmetic moves with them.
+ *
+ * Proof: `parent` and `parentId` renamed to `step` and `stepId` throughout this
+ * function, so the shadowing is back. `is the plan it claims to be` failed on
+ * `expect(received).toBe(expected)` · `Expected: 188  Received: 190`; watched
+ * 2026-08-30, re-measured against `assumed-duration-schedules`' figure. It read
+ * 175 against 173 when the fault was first found.
  */
 function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice[] } {
   const stepIds = ['step-dev', 'step-qa', 'step-doc'];

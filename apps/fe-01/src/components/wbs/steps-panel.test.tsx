@@ -68,8 +68,8 @@ function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
     onDirtyChange,
     ...overrides,
   };
-  render(<StepsPanel {...props} />);
-  return { addStep, renameStep, removeStep, onChanged, onDirtyChange, props };
+  const { container } = render(<StepsPanel {...props} />);
+  return { addStep, renameStep, removeStep, onChanged, onDirtyChange, props, container };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -99,17 +99,19 @@ describe('the steps a project holds', () => {
     // dev', 'step-qa' ], …, [ 'depends' ] ]`. Watched, 2026-08-28.
   });
 
-  itDom('the dialog is called Steps', () => {
-    // The trigger's own name is asserted by getting here: {@link stubbed} opens
-    // this surface through `getByRole('button', { name: 'Steps' })`, and Radix
-    // puts the rest of the page behind `aria-hidden` once it is open, so the
-    // trigger cannot be read again from inside. `Phase` was the word on all
-    // three until `steps-not-phases`, and `Role` was the same thing below.
-    stubbed();
+  itDom('says nothing on this panel that reads Phase or Role', () => {
+    // The panel's own surface. What it is *called* is the settings modal's tab,
+    // asserted in `project-settings-modal.test.tsx` — this panel renders no
+    // title of its own since `project-config-modal` split it out of the dialog
+    // it used to be. `Phase` was the word on every control here until
+    // `steps-not-phases`, and `Role` was the same thing below.
+    const { container } = stubbed();
 
-    expect(screen.getByRole('dialog', { name: 'Steps' })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Steps' })).toBeDefined();
-    expect(screen.getByRole('dialog').textContent).not.toMatch(/phase|role/i);
+    expect(container.textContent).not.toMatch(/phase|role/i);
+    // Non-vacuous: the panel really drew its controls, so an empty match is a
+    // reading rather than an empty container.
+    expect(screen.getByRole('button', { name: 'Remove Dev' })).toBeDefined();
+    expect(container.textContent).toContain('Dev');
   });
 
   itDom('lists every step, each with a way to rename it and remove it', () => {
