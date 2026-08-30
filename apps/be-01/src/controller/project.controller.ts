@@ -1,4 +1,4 @@
-import { ESTIMATE_METHODS } from '@wbs/domain';
+import { DEPENDENCY_REACHES, ESTIMATE_METHODS } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
@@ -16,6 +16,12 @@ const projectPatch = t.Object({
   // would be read back as malformed data and throw on every later read of the
   // project. Refusing it here is a 422 on one request instead.
   estimateMethod: t.Optional(t.Union(ESTIMATE_METHODS.map((method) => t.Literal(method)))),
+  // The same union for the same reason: an unrecognised reach in the column is
+  // read back as malformed data and throws on every later read of the project,
+  // so it is refused here as a 422 on one request instead. It is a **choice**
+  // the owner makes about their plan, not a scheduling parameter a client sends
+  // per read — see `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+  depReach: t.Optional(t.Union(DEPENDENCY_REACHES.map((reach) => t.Literal(reach)))),
   // A day, or null to take the plan back off the calendar. The pattern is the
   // shape only; `ProjectService.update` refuses a shape-valid non-day like
   // `2026-02-31`, which is a date this schema cannot express.

@@ -248,8 +248,18 @@ describe('every plan schedules identically across the migration', () => {
         }
         return null;
       };
+      const { depReach, ...treeWithoutReach } = tree;
+      // **`depReach` is lifted by `dep-reach-whole-item` (2026-08-29)**, and
+      // asserted to be the reach these plans were replayed on rather than
+      // dropped. The oracle predates the setting entirely, so the payload now
+      // carries a field the capture cannot have — a payload that gained a
+      // field, which is not a payload that moved a date. Asserting it here is
+      // what keeps the whole differential honest: if the replay ever stopped
+      // setting `anchor-slice`, every one of these plans would be measured
+      // against an oracle for a rule it was not scheduled by.
+      expect(depReach).toBe('anchor-slice');
       const lifted = {
-        ...tree,
+        ...treeWithoutReach,
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
         // asserted on its own here: the oracle predates the field, and a
         // payload that gained one is not a payload that moved a date.
@@ -498,6 +508,12 @@ describe('every plan schedules identically across the migration', () => {
       ownerId: 'owner',
       restricted: false,
       estimateMethod: plan.estimateMethod,
+      // The oracle was captured at a tip whose engine had no reach at all and
+      // waited on the anchor slice, so these plans are replayed on
+      // `anchor-slice`. Replaying them on the default would be measuring
+      // `dep-reach-whole-item` with a differential written about a different
+      // change, and the two would fail each other's claims for ever after.
+      depReach: 'anchor-slice',
       startDate: plan.startDate,
       revision: 0,
       createdAt: 1,

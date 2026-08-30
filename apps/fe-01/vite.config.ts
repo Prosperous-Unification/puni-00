@@ -128,6 +128,15 @@ export default defineConfig(({ command, mode }) => ({
       // is what be-01 validates a ladder against. A second copy here is a table
       // that names a priority differently from the API that stored it.
       '@wbs/domain/priority-band': resolve(__dirname, '../../libs/domain/src/priority-band.ts'),
+      // And a fourth: `dependency-reach.ts` is a two-member enum and its
+      // guard, and the rule it holds — how far into a predecessor a
+      // dependency reaches — is what be-01 schedules by. A second copy here
+      // is a chart drawing an arrow out of a slice the engine never joined
+      // the edge to.
+      '@wbs/domain/dependency-reach': resolve(
+        __dirname,
+        '../../libs/domain/src/dependency-reach.ts',
+      ),
     },
   },
   server: {

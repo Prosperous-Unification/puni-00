@@ -177,6 +177,15 @@ const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
 const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
 const EXTERNAL_REF = '20260830020000_add_external_ref';
+/**
+ * The newest, and a column on `project` alone: `dep_reach`, `NOT NULL DEFAULT
+ * 'whole-item'`, added by `dep-reach-whole-item`. Additive forward, dropped by
+ * its own `down.sql`, so it appears in the order and in nothing else this file
+ * checks. Stamped past both folders above on the rebase — see
+ * `migrate-down.test.ts` for why a stamp that sorts before an applied
+ * migration is a fault rather than a detail.
+ */
+const DEP_REACH = '20260830120000_add_dep_reach';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -274,6 +283,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -599,6 +609,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -1056,6 +1067,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -1288,6 +1300,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -1574,6 +1587,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -1796,6 +1810,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -2063,6 +2078,7 @@ describe('the role progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -2312,6 +2328,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -2548,6 +2565,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -2891,6 +2909,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -3027,6 +3046,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      DEP_REACH,
       EXTERNAL_REF,
       WORK_ITEM_TYPE,
       SOLUTION_REF,
@@ -3174,6 +3194,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -3455,6 +3476,7 @@ describe('the role measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -3538,6 +3560,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, ROLE_MEASURE)).toEqual([
+      DEP_REACH,
       EXTERNAL_REF,
       WORK_ITEM_TYPE,
       SOLUTION_REF,
@@ -3756,6 +3779,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, ROLE_MEASURE)).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,

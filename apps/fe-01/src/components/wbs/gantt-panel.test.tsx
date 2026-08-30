@@ -124,6 +124,8 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   personNames: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
   priorityBands: DEFAULT_PRIORITY_BANDS,
+  // The default a project takes unless it asks otherwise.
+  depReach: 'whole-item',
   ...parts,
 });
 
@@ -3006,6 +3008,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         teamCapacities: [],
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
+        depReach: 'whole-item' as const,
         startDate,
         projectRevision: 0,
         undoable: false,

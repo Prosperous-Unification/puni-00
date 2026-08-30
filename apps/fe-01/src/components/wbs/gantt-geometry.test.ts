@@ -1,3 +1,4 @@
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -117,6 +118,11 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   ],
   personNames: new Map([['kat', 'Kat']]),
   teamNames: new Map([['team-platform', 'Platform']]),
+  priorityBands: DEFAULT_PRIORITY_BANDS,
+  // The default a project takes unless it asks otherwise. The `anchor-slice`
+  // fixtures below name it, so a test written for one rule cannot be read under
+  // the other.
+  depReach: 'whole-item',
   ...parts,
 });
 
@@ -959,6 +965,7 @@ describe('dependency arrows', () => {
           sliceAt('sand-dev', 'sand', 3, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+        depReach: 'anchor-slice',
       }),
     );
 
@@ -996,6 +1003,7 @@ describe('dependency arrows', () => {
           sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+        depReach: 'anchor-slice',
       }),
     );
 
@@ -1033,6 +1041,7 @@ describe('dependency arrows', () => {
           { id: 'rig', parentId: null },
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+        depReach: 'anchor-slice',
       }),
     );
 
@@ -1085,6 +1094,7 @@ describe('dependency arrows', () => {
           sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+        depReach: 'anchor-slice',
       }),
     );
 
@@ -1121,10 +1131,83 @@ describe('dependency arrows', () => {
           sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+        depReach: 'anchor-slice',
       }),
     );
 
     expect(chart.arrows[0]).toMatchObject({ fromStart: 5, fromFinish: 9, toStart: 9 });
+  });
+
+  it('the arrow leaves the finish under the whole-item reach', () => {
+    // The default reach, and the fixture is chosen so the two arms disagree:
+    // `strip`'s Dev runs 5→7 and its QA 7→9, so the anchor finishes on day 7
+    // and the last slice on day 9. `sand` starts on day 9, which is what
+    // be-01 computed under `whole-item`.
+    //
+    // The failure this prevents, asserted rather than described: an arrow
+    // leaving day 7 over a schedule computed whole-item points at a bar two
+    // days to its right with nothing in between, and reads as slack that is
+    // not there. So the arrow is asserted **not to point backwards** — its
+    // finish is the successor's own start — beside the two numbers.
+    //
+    // Proof: `reachedSliceOf`'s `whole-item` arm replaced by the anchor walk —
+    // the origin left where `dep-waits-on-first-role` put it while the
+    // schedule is whole-item — and this failed on `expected { predecessorId:
+    // 'strip', …(6) } to match object { fromStart: 7, fromFinish: 9, …(1) }`
+    // with `fromStart: 5, fromFinish: 7` received. Watched 2026-08-29.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 5, 9), rowAt('sand', 9, 11)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 5, 7),
+          sliceAt('strip-qa', 'strip', 7, 9, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.arrows[0]).toMatchObject({ fromStart: 7, fromFinish: 9, toStart: 9 });
+    // Never backwards: the slice the arrow leaves finishes no later than the
+    // bar it lands on starts.
+    expect(chart.arrows[0].fromFinish).toBeLessThanOrEqual(chart.arrows[0].toStart);
+  });
+
+  it('a parent under the whole-item reach leaves its latest leaf finish', () => {
+    // The parent expansion under the default reach, against the same shape the
+    // `anchor-slice` case above uses: `strip` runs Dev 0→2 then QA 2→5,
+    // `sand` runs Dev 0→4 then QA 4→6. The anchors finish on days 2 and 4; the
+    // last slices on days 5 and 6. `rig` waits for the latest of those, day 6.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 6, { leaf: false }),
+          rowAt('strip', 0, 5, { depth: 1 }),
+          rowAt('sand', 0, 6, { depth: 1 }),
+          rowAt('rig', 6, 8),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 0, 4),
+          sliceAt('sand-qa', 'sand', 4, 6, { roleId: 'qa' }),
+          sliceAt('rig-dev', 'rig', 6, 8, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+      }),
+    );
+
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'hull',
+        successorId: 'rig',
+        fromRowIndex: 0,
+        fromStart: 4,
+        fromFinish: 6,
+        toRowIndex: 3,
+        toStart: 6,
+      },
+    ]);
   });
 
   it('a zero-length anchor draws from its own day', () => {
@@ -2157,6 +2240,7 @@ describe('routing an arrow past the bars it does not join', () => {
             sliceAt('020-dev', '020', 5, 7),
           ],
           dependencies: [{ predecessorId: '010', successorId: '020' }],
+          depReach: 'anchor-slice',
         }),
       ),
     );
@@ -2637,6 +2721,7 @@ describe('what holds a row’s start, for the table', () => {
           { predecessorId: '040', successorId: '020' },
           { predecessorId: '030', successorId: '020' },
         ],
+        depReach: 'anchor-slice',
       }),
       calendarOf(),
     );
@@ -2644,6 +2729,33 @@ describe('what holds a row’s start, for the table', () => {
     // Workday 4 counted from a Tuesday start is the Monday after: the date is
     // the plan's calendar, not four days added to a number.
     expect(floors.get('020')).toBe('Waits for Strip (Dev) — finishes 7 Sep');
+  });
+
+  it('names the last step under the whole-item reach', () => {
+    // The same shape as the `anchor-slice` case above, under the default: the
+    // sentence has to name the step the **engine** waited for, or the row
+    // prints a confident sentence about a slice that did not hold it. `Strip`
+    // runs Dev 0→5 then QA 5→8, and `020` starts at 8 rather than at 5.
+    //
+    // Proof: `latestReachedAmong` given `'anchor-slice'` in place of
+    // `plan.depReach` — the sentence keyed on the August rule over a
+    // whole-item schedule — and this failed on `expected 'Waits for Strip
+    // (Dev) — finishes 7 Sep' to be 'Waits for Strip (QA) — finishes 10 Sep'`.
+    // Watched 2026-08-29.
+    const floors = startFloorByRow(
+      planOf({
+        rows: [rowAt('030', 0, 8, { name: 'Strip' }), rowAt('020', 8, 12)],
+        slices: [
+          sliceAt('030-dev', '030', 0, 5),
+          sliceAt('030-qa', '030', 5, 8, { roleId: 'qa' }),
+          sliceAt('020-dev', '020', 8, 12, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: '030', successorId: '020' }],
+      }),
+      calendarOf(),
+    );
+
+    expect(floors.get('020')).toBe('Waits for Strip (QA) — finishes 10 Sep');
   });
 
   it('says a fractional anchor frees the row up *during* its own start day', () => {

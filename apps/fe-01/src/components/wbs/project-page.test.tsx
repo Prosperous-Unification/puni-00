@@ -75,6 +75,7 @@ function fakeProjects(
         teamCapacities: [],
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
+        depReach: 'whole-item' as const,
         startDate: null,
         projectRevision: 0,
         undoable: false,

@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RoleUsage, RoleView } from '@/lib/wbs-api';
@@ -43,9 +44,12 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
   const addRole = vi.fn(() => Promise.resolve({ id: 'role-design', name: 'Design' }));
   const renameRole = vi.fn(() => Promise.resolve({ id: 'role-qa', name: 'Review' }));
   const removeRole = vi.fn(() => Promise.resolve({ ok: true }));
+  const setDepReach = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
   const props = {
     roles: [DEV, QA],
+    depReach: 'whole-item' as DependencyReach,
+    setDepReach,
     frameState: UNDATED,
     // The table's own default, so every figure below is the default table's.
     hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
@@ -61,7 +65,7 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
   // Opened through its own trigger, because the trigger is the component's now:
   // Radix restores the focus to it on close and to nothing without one.
   fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
-  return { addRole, renameRole, removeRole, onChanged, props };
+  return { addRole, renameRole, removeRole, setDepReach, onChanged, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -207,6 +211,79 @@ describe('the phases a project holds', () => {
     );
     expect(document.body.textContent).not.toContain('taken');
     expect(stub.onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('how far a dependency reaches', () => {
+  const WHOLE = 'The whole work item';
+  const ANCHOR = 'The first estimated step';
+
+  itDom('the reach is chosen and written', async () => {
+    // Two options and a sentence each, in the section about the steps — a
+    // dependency's reach is a statement about how steps chain. The project's
+    // stored value is what is checked; picking the other one writes it and
+    // re-reads the plan, because every date on the table may move on it.
+    //
+    // Proof: the `setDepReach(...)` call dropped from the handler — the choice
+    // left as a rendered radio nobody wrote — and this failed on
+    // `expected "spy" to be called with arguments: [ 'anchor-slice' ] /
+    // Received: / Number of calls: 0`, taking the two cases below with it.
+    // Watched 2026-08-29.
+    const { setDepReach, onChanged } = stubbed();
+
+    expect(screen.getByRole('radio', { name: new RegExp(WHOLE) })).toBeChecked();
+    expect(screen.getByRole('radio', { name: new RegExp(ANCHOR) })).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(ANCHOR) }));
+
+    expect(setDepReach).toHaveBeenCalledWith('anchor-slice');
+    // After the write, not beside it: the plan is re-read because the reach
+    // decided every date in it.
+    await settle();
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  itDom('shows the project’s own reach, not the one it was last shown', () => {
+    // The dialog holds nothing about the reach: what is checked is be-01's
+    // answer, arriving as a prop, exactly as the phase names beside it do.
+    stubbed({ depReach: 'anchor-slice' });
+
+    expect(screen.getByRole('radio', { name: new RegExp(ANCHOR) })).toBeChecked();
+    expect(screen.getByRole('radio', { name: new RegExp(WHOLE) })).not.toBeChecked();
+  });
+
+  itDom('does not move the choice while the write is still in flight', () => {
+    // The window the fault lives in. A dialog that kept the choice in a
+    // `useState` of its own would tick the other option the instant it was
+    // clicked and go on showing it whatever be-01 said — so the assertion is
+    // made **while the request is unanswered**, which is the only moment an
+    // optimistic dialog and a patient one look different.
+    //
+    // Proof: a local `useState` mirror added, set in the handler before the
+    // request and read by `checked` — and this failed on
+    // `expect(element).toBeChecked() / Received element is not checked:
+    // <input checked="" class="mt-1" name="dep-reach" type="radio" …`, the
+    // whole-item option unticked against a project be-01 had not answered for.
+    // Watched 2026-08-29.
+    const held = vi.fn(() => new Promise<void>(() => undefined));
+    stubbed({ setDepReach: held });
+
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(ANCHOR) }));
+
+    expect(held).toHaveBeenCalledWith('anchor-slice');
+    expect(screen.getByRole('radio', { name: new RegExp(WHOLE) })).toBeChecked();
+    expect(screen.getByRole('radio', { name: new RegExp(ANCHOR) })).not.toBeChecked();
+  });
+
+  itDom('says what a refused reach was refused for, on the surface', async () => {
+    // The dialog's own rule: refusals are sentences on this surface rather
+    // than codes in a toast over the page it covers.
+    stubbed({ setDepReach: vi.fn(() => Promise.reject(new Error('forbidden'))) });
+
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(ANCHOR) }));
+    await settle();
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 });
 

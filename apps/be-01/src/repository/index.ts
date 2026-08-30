@@ -1,4 +1,10 @@
-import type { EstimateMethod, IsoDate, PriorityBand, RoleState } from '@wbs/domain';
+import type {
+  DependencyReach,
+  EstimateMethod,
+  IsoDate,
+  PriorityBand,
+  RoleState,
+} from '@wbs/domain';
 
 import type { MeasureMetric, PersonKind } from './schema';
 
@@ -64,6 +70,13 @@ export interface Project {
   restricted: boolean;
   /** How this project turns its three-point estimates into one planning number. */
   estimateMethod: EstimateMethod;
+  /**
+   * How far into a predecessor this project's dependencies reach — see
+   * {@link DependencyReach}. Read by the scheduler and never supplied by a
+   * client: the schedule is the server's answer, and a client-supplied
+   * scheduling rule is one two clients can disagree about.
+   */
+  depReach: DependencyReach;
   /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
   startDate: IsoDate | null;
   /** The external solution this plan implements, or null when it is standalone. */
@@ -254,6 +267,7 @@ export interface ProjectPatch {
   name?: string;
   restricted?: boolean;
   estimateMethod?: EstimateMethod;
+  depReach?: DependencyReach;
   /** `null` takes the plan back off the calendar. */
   startDate?: IsoDate | null;
   /** `null` detaches the plan from its external solution. */
