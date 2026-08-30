@@ -1,3 +1,4 @@
+import { DEPENDENCY_REACHES, type DependencyReach } from '@wbs/domain/dependency-reach';
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -96,12 +97,44 @@ export interface StepsPanelProps extends SettingsSectionReport {
   hiddenColumnIds: readonly string[];
   numberOf: NumberOf;
   nameOf: NameOf;
-  addStep: (name: string) => Promise<StepView>;
-  renameStep: (stepId: string, name: string) => Promise<StepView>;
-  removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
+  addRole: (name: string) => Promise<RoleView>;
+  renameRole: (roleId: string, name: string) => Promise<RoleView>;
+  removeRole: (roleId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: RoleUsage }>;
+  /**
+   * How far into a predecessor this project's dependencies reach — be-01's
+   * answer, not this dialog's. What is ticked is read straight off it, so a
+   * reach somebody else changed redraws here.
+   */
+  depReach: DependencyReach;
+  /**
+   * Writes the project's reach. Every date on the plan may move on it, which is
+   * why the caller re-reads through {@link PhasesDialogProps.onChanged}
+   * afterwards like every other change made here.
+   */
+  setDepReach: (reach: DependencyReach) => Promise<void>;
   /** Re-reads the project, which is what puts the new columns on the table. */
   onChanged: () => Promise<void>;
 }
+
+/**
+ * The two reaches, in the order they are offered, with the sentence each one
+ * makes about the plan.
+ *
+ * Read off `DEPENDENCY_REACHES` rather than written out, so a third value
+ * cannot appear in the domain and be silently unofferable here — the type of
+ * this record makes that a compile error.
+ */
+const REACH_WORDS: Record<DependencyReach, { title: string; sentence: string }> = {
+  'whole-item': {
+    title: 'The whole work item',
+    sentence: 'A dependency waits until every step of the work item it depends on is finished.',
+  },
+  'anchor-slice': {
+    title: 'The first estimated step',
+    sentence:
+      'A dependency waits for the first step anybody estimated; the steps behind it run alongside the work waiting on it.',
+  },
+};
 
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
@@ -145,9 +178,11 @@ export function StepsPanel({
   hiddenColumnIds,
   numberOf,
   nameOf,
-  addStep,
-  renameStep,
-  removeStep,
+  addRole,
+  renameRole,
+  removeRole,
+  depReach,
+  setDepReach,
   onChanged,
   onDirtyChange,
 }: StepsPanelProps) {
@@ -392,6 +427,41 @@ export function StepsPanel({
               </li>
             ))}
           </ul>
+
+          {/*
+              How far a dependency reaches, here rather than in a dialog of its
+              own because it is a statement about how the steps above chain:
+              reordering them moves what an `anchor-slice` dependency waits for,
+              and the two facts belong on one surface.
+
+              Nothing is held locally — `checked` is be-01's answer arriving as
+              a prop, the same rule the phase names above keep. The write goes
+              through `attempt`, so a refusal is a sentence on this surface and
+              the plan is re-read either way: every date on it can move on this.
+            */}
+          <fieldset className="flex flex-col gap-2" disabled={busy}>
+            <legend className="text-sm font-medium">A dependency waits for</legend>
+            {DEPENDENCY_REACHES.map((reach) => (
+              <Label key={reach} className="flex items-start gap-2 font-normal">
+                <input
+                  type="radio"
+                  name="dep-reach"
+                  value={reach}
+                  className="mt-1"
+                  checked={depReach === reach}
+                  onChange={() => {
+                    void attempt(() => setDepReach(reach));
+                  }}
+                />
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm">{REACH_WORDS[reach].title}</span>
+                  <span className="text-muted-foreground text-sm">
+                    {REACH_WORDS[reach].sentence}
+                  </span>
+                </span>
+              </Label>
+            ))}
+          </fieldset>
 
           <form className="flex items-end gap-2" onSubmit={submitNew}>
             <div className="flex flex-1 flex-col gap-1">

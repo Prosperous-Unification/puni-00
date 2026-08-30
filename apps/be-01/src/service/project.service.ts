@@ -57,6 +57,12 @@ export class ProjectService {
       // a project that had to choose before it had any estimates would be
       // choosing about risk it has not met yet.
       estimateMethod: 'pert',
+      // A dependency means the predecessor is finished, which is what almost
+      // everybody reading a chart takes an arrow to say. The `anchor-slice`
+      // rule is a hand-off convention a project asks for; it is not what a new
+      // project should have to opt out of. Same value as the column default,
+      // so a row this writes and a row the migration reached read alike.
+      depReach: 'whole-item',
       // Not the day it was made: a plan with no start date is an ordinary
       // state, and inventing one would put dates on screen nobody chose.
       startDate: null,

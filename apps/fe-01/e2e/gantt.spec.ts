@@ -1305,15 +1305,27 @@ test.describe('the chart under a plan being edited', () => {
     await expect(firstBar).toHaveAttribute('data-finish', '4');
 
     // An estimate edit stretches the open bar: 2/4/6 → 8/10/12 is ten days by
-    // PERT. The dependent `010.2` follows to day 10 — its own not-before still
-    // names day 4, and the dependency out-floors it.
+    // PERT. The dependent `010.2` follows — its own not-before still names day
+    // 4, and the dependency out-floors it.
+    //
+    // **It follows to day 12, not day 10, and the two workdays between are the
+    // whole of what `dep-reach-whole-item` and `assumed-duration-schedules`
+    // compose to.** Under the anchor rule `010.2` waited for `010.1`'s first
+    // *estimated* slice — its `Dev`, finishing at 10. Under `whole-item`, now
+    // the default, it waits for the whole work item, and `010.1`'s last slice
+    // is a `QA` nobody estimated, which since `assumed-duration-schedules`
+    // takes two workdays rather than none. So `010.1` is 0→10 then 10→12, and
+    // `010.2` is 12→16. Measured on the merged tree rather than re-derived:
+    // every bar's `data-start`/`data-finish` read out of the page, 2026-08-30.
     const estimate = page.getByLabel('Dev estimate for 010.1');
     await estimate.fill('8/10/12');
     const savedEstimate = savedCommand(page, 'setEstimate');
     await estimate.blur();
     await savedEstimate;
     await expect(firstBar).toHaveAttribute('data-finish', '10');
-    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="14"]')).toBeVisible();
+    // `010.1`'s own assumed `QA`, which is the slice the dependency now reaches.
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="12"]')).toBeVisible();
+    await expect(page.locator('[data-gantt-bar][data-start="12"][data-finish="16"]')).toBeVisible();
 
     // A not-before edit past everything else moves the row's bar to the day it
     // names: 2026-09-07 is workday 20 of a plan starting Monday 2026-08-10.
@@ -3042,6 +3054,147 @@ test.describe('the pointed row, across both faces', () => {
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
     await expect(name).toBeFocused();
     await expect(name).toHaveValue('Survey the racking bef');
+  });
+});
+
+/**
+ * Two roots, both steps of the first one estimated, and the second waiting on
+ * it — the smallest plan the two dependency reaches disagree about.
+ *
+ * `010` is Dev 0→2 then QA 2→5; `020` is Dev alone. Under `whole-item` the
+ * wait is `010`'s QA, so `020` starts at workday 5; under `anchor-slice` it is
+ * `010`'s Dev and `020` starts at workday 2. A plan whose predecessor has one
+ * estimated step — which is what `seedPlan` above builds — is a plan the two
+ * reaches agree about entirely, and would make every assertion below vacuous.
+ */
+async function seedTwoStepChain(page: Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+
+  await createProject(page);
+  await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
+  await setDate(page, 'Project start date', PLAN_START);
+
+  const addRow = page.getByRole('button', { name: 'Add work item' });
+  for (const number of ['010', '020']) {
+    await addRow.click();
+    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+  }
+
+  for (const [number, role, days] of [
+    ['010', 'Dev', '2/2/2'],
+    ['010', 'QA', '3/3/3'],
+    ['020', 'Dev', '1/1/1'],
+  ] as const) {
+    const box = page.getByLabel(`${role} estimate for ${number}`);
+    await box.fill(days);
+    await box.blur();
+    await expect(box).not.toHaveValue('');
+  }
+
+  const depends = page.getByLabel('Add a dependency to 020');
+  await depends.click();
+  await depends.fill('010');
+  await depends.press('Enter');
+  await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
+}
+
+/** Picks a reach in the Phases dialog and closes it again. */
+async function chooseTheReach(page: Page, option: string): Promise<void> {
+  // Two gestures since `project-config-modal`: the toolbar's one `Project
+  // settings` control, then its `Phases` tab. The reach lives on that section
+  // because it is a statement about how the steps above it chain.
+  await page.getByRole('button', { name: 'Project settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Phases' }).click();
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      /\/api\/projects\/[^/]+$/.test(response.url()) &&
+      (response.request().postData() ?? '').includes('"depReach"'),
+  );
+  await page.getByRole('radio', { name: new RegExp(option) }).click();
+  await saved;
+  // The modal refuses a close while any section holds a write in flight
+  // (`project-config-modal` D3), and the reach's own re-read lands just after
+  // the PATCH awaited above. Press until the surface is gone rather than once.
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Project settings' })).toHaveCount(0);
+  }).toPass();
+}
+
+test.describe('how far a dependency reaches, from the chart', () => {
+  test('the successor bar moves when the project changes its reach', async ({ page }) => {
+    // The change's headline in a browser: the same plan, the reach flipped, and
+    // the successor's bar measured where the browser actually draws it.
+    //
+    // Both halves are asserted. `data-start` is the engine's own workday, which
+    // is what moved; the rectangle is the layout, which jsdom cannot compute at
+    // all and which is the only thing that can say the chart the reader sees
+    // moved with it. The bar is found through its row and its role — never by
+    // position, since every leaf here draws two bars — and `rectOfLocator`
+    // refuses a box with no area, so a bar that stopped being drawn cannot
+    // compare equal to one that moved.
+    //
+    // Proof: `attempt(() => setDepReach(reach))` in `phases-dialog.tsx`
+    // replaced by a bare `void setDepReach(reach)` — the write made and the
+    // plan never re-read, which is the fault a jsdom test that asserts on a
+    // mock cannot see — and this failed on
+    // `expect(received).toBe(expected) // Object.is equality
+    //  Expected: "2"  Received: "5"`, the chart still drawn for the old reach
+    // with be-01 already holding the new one. Watched 2026-08-29.
+    await seedTwoStepChain(page);
+    await openTheChart(page);
+
+    const successor = barOf(page, '020', 'Dev');
+    await expect(successor).toHaveAttribute('data-start', '5');
+    const wholeItem = await rectOfLocator(successor, "020's Dev bar under whole-item");
+    // The predecessor's own QA is what the wait reaches to, and it must not
+    // move: the reach decides what an edge leaves from, never what a step costs.
+    const qa = barOf(page, '010', 'QA');
+    await expect(qa).toHaveAttribute('data-start', '2');
+    const qaBefore = await rectOfLocator(qa, "010's QA bar");
+
+    await chooseTheReach(page, 'The first estimated step');
+
+    await expect(successor).toHaveAttribute('data-start', '2');
+    const anchored = await rectOfLocator(successor, "020's Dev bar under anchor-slice");
+    expect(anchored.left).toBeLessThan(wholeItem.left);
+    // And back again, so the assertion above is about the reach rather than
+    // about any write at all moving the chart leftwards.
+    await chooseTheReach(page, 'The whole work item');
+    await expect(successor).toHaveAttribute('data-start', '5');
+    expect((await rectOfLocator(successor, "020's Dev bar, back")).left).toBe(wholeItem.left);
+    // The dates that must not move, measured rather than argued.
+    await expect(qa).toHaveAttribute('data-start', '2');
+    expect(await rectOfLocator(qa, "010's QA bar, after")).toEqual(qaBefore);
+  });
+
+  test('the arrow leaves the slice the reach names', async ({ page }) => {
+    // The drawing and the schedule cannot disagree. Under `whole-item` the
+    // arrow leaves `010`'s **QA** bar; under `anchor-slice` it leaves its Dev.
+    // Measured as the arrow's own left-hand end against the two bars, because
+    // an arrow keyed on the wrong reach reads as slack that is not there — and
+    // no jsdom test can say where a path was painted.
+    await seedTwoStepChain(page);
+    await openTheChart(page);
+    await askForTheDetail(page, 1);
+
+    const dev = await rectOfLocator(barOf(page, '010', 'Dev'), "010's Dev bar");
+    const qa = await rectOfLocator(barOf(page, '010', 'QA'), "010's QA bar");
+    // The precondition: the two bars are at different places, or "leaves the QA
+    // bar" and "leaves the Dev bar" would be the same claim.
+    expect(qa.right).toBeGreaterThan(dev.right);
+
+    const wholeItem = await rectOf(page, '[data-gantt-arrow]');
+    expect(wholeItem.left).toBeGreaterThanOrEqual(dev.right);
+
+    await chooseTheReach(page, 'The first estimated step');
+    await expect(barOf(page, '020', 'Dev')).toHaveAttribute('data-start', '2');
+
+    const anchored = await rectOf(page, '[data-gantt-arrow]');
+    expect(anchored.left).toBeLessThan(wholeItem.left);
   });
 });
 

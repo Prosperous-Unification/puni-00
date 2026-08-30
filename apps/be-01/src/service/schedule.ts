@@ -1,4 +1,4 @@
-import { ASSUMED_SLICE_WORKDAYS, snapWorkdays } from '@wbs/domain';
+import { ASSUMED_SLICE_WORKDAYS, type DependencyReach, snapWorkdays } from '@wbs/domain';
 
 import type { WorkItem } from '../repository';
 import { deriveNumbers } from './derive-numbers';
@@ -1625,6 +1625,53 @@ function slackOf(latestStart: number, earliestStart: number): number {
 }
 
 /**
+ * Which of one leaf's slices a dependency on it waits for — the index, in step
+ * order, of the slice whose finish releases the successor.
+ *
+ * The one place the project's {@link DependencyReach} is read. Everything
+ * downstream — parent expansion to leaves, successor-side attachment to the
+ * first slice plain, floors, cycle detection and the item-anchored arithmetic —
+ * takes the answer and does not know which arm produced it.
+ *
+ * - `whole-item`: the **last** slice, so a dependency waits for the whole work
+ *   item. Dany's call on 2026-08-29, having seen the August rule drawn.
+ * - `anchor-slice`: the first slice somebody **estimated** — his words on
+ *   2026-08-11, "first in list of project roles, then first that is estimated"
+ *   — and the last slice when nobody estimated any of them. `days !== null`
+ *   rather than `days > 0`, which is what `Scheduled.estimated` means
+ *   everywhere else here: an explicit zero is somebody saying this step takes
+ *   no time, and the walk honours the statement. Nobody having said anything is
+ *   the different fact, and it is the one this walk steps over — a `Design`
+ *   step a project lists and this plan left blank must not stand in front of
+ *   the `Dev` the wait is really about, or every edge in such a plan decides
+ *   nothing.
+ *
+ * Both arms fall through to the last slice, which is why an unestimated
+ * predecessor is reached at its own finish under either reach.
+ *
+ * That finish used to be the leaf's own start, so such an edge imposed exactly
+ * what the leaf's own predecessors imposed and nothing more.
+ * `assumed-duration-schedules` (2026-08-29) ended that: an unestimated slice is
+ * {@link ASSUMED_SLICE_WORKDAYS} long, so a leaf nobody has estimated finishes
+ * its steps' assumed durations end to end — three unestimated steps run 0→6 —
+ * and a dependency on it now imposes a real wait. "Has a duration" and "is
+ * estimated" are different questions, and only the `anchor-slice` arm asks the
+ * second: its `days !== null` walk still steps over a slice that has a duration
+ * nobody stated.
+ *
+ * `slices` is never empty: `groupByWorkItem` only makes a group because a slice
+ * went into it, and the leaf it made none for is what `slicesOf` refuses. So
+ * `length - 1` is a real index rather than `-1`.
+ *
+ * See `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+ */
+export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[]): number {
+  if (reach === 'whole-item') return slices.length - 1;
+  const estimated = slices.findIndex((slice) => slice.days !== null);
+  return estimated === -1 ? slices.length - 1 : estimated;
+}
+
+/**
  * The schedule for a project: computed in slices, and levelled so that one
  * person does one thing at a time.
  *
@@ -1652,26 +1699,24 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * hands `QA` its work item's predecessors.
  *
  * Edges are taken as written and expanded here: one declared on a parent means
- * every leaf beneath its predecessor has its **anchor slice** finish before
- * every leaf beneath its successor starts, which is "all of 010's first-step
- * work before any of 020" (Dany's rule, 2026-08-11: a dependency waits on the
- * predecessor's Dev, never on its QA).
+ * every leaf beneath its predecessor has its **reached slice** finish before
+ * every leaf beneath its successor starts. Which slice that is comes from the
+ * project's own `reach` and from nothing else — {@link reachedSliceOf} — so
+ * this pass holds "all of 010 before any of 020" and "all of 010's first
+ * estimated step before any of 020" with one line of difference between them.
+ * `whole-item` is the default and Dany's 2026-08-29 call; `anchor-slice` is the
+ * rule of 2026-08-11, which a project now asks for.
  *
- * The anchor is the first slice in step order **that somebody estimated** —
- * "first in list of project steps, then first that is estimated", his words —
- * and the work item's finish when nobody estimated any of it. A `Design` step
- * the project lists and this plan left blank therefore does not stand in
- * front of the `Dev` the wait is really about; without that walk every edge
- * in such a plan would anchor on a zero-length slice and decide nothing.
- *
- * On the **successor** side the edge lands on the first slice plain, never
- * the first estimated one: that would leave an unestimated `Dev` with no
- * predecessor at all and start the row before the thing it waits for. The
- * asymmetry is the point — see `design.md` D2. The predecessor's slices
- * behind its anchor are free to run in parallel with the successor. Edges
- * still touch only slices of one item's own chain and those chains are
- * private, forward-only paths, so a cycle is still a property of the leaf
- * graph alone and {@link hasCycle} still answers for it.
+ * On the **successor** side the edge lands on the first slice plain under
+ * either reach, never the first estimated one and never the last: either would
+ * leave an unestimated `Dev` with no predecessor at all and start the row
+ * before the thing it waits for. The asymmetry is the point — see
+ * `dep-waits-on-first-role`'s `design.md` D2. Under `anchor-slice` the
+ * predecessor's slices behind its anchor are then free to run in parallel with
+ * the successor; under `whole-item` there are none behind it. Edges still touch
+ * only slices of one item's own chain and those chains are private,
+ * forward-only paths, so a cycle is still a property of the leaf graph alone
+ * and {@link hasCycle} still answers for it under either reach.
  *
  * **The arithmetic is anchored on each work item's own start**, not accumulated
  * from slice to slice: a slice finishes at `base + offsets[i + 1]` rather than
@@ -1723,6 +1768,17 @@ export function schedule(
    * this engine performed before capacity existed.
    */
   poolSizes: PoolSizes = new Map(),
+  /**
+   * How far into a predecessor a dependency reaches — the project's own
+   * setting, read from `project.dep_reach` and never supplied by a client.
+   *
+   * Defaulted to `whole-item` because that is the column's default and the rule
+   * every plan takes unless it asks otherwise; a call that omits it schedules
+   * the way an unmigrated caller's project would. The arm it selects is
+   * {@link reachedSliceOf}'s, and nothing downstream of the edge join knows
+   * which one produced the answer.
+   */
+  reach: DependencyReach = 'whole-item',
 ): Schedule {
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -1783,7 +1839,7 @@ export function schedule(
    */
   const nodes: SliceNode[] = [];
   const firstNode = new Map<string, number>();
-  const anchorNode = new Map<string, number>();
+  const reachedNode = new Map<string, number>();
   let items = 0;
   for (const leafId of leafIds) {
     const { slices: own, offsets } = slicesOf(leafId);
@@ -1812,30 +1868,13 @@ export function schedule(
     // a leaf with no node rather than a dangling index.
     if (nodes.length > first) {
       firstNode.set(leafId, first);
-      // The **anchor**: the first slice in step order somebody estimated, and
-      // the leaf's last slice when nobody estimated any of them. Dany's rule
-      // in his own words (2026-08-11): "first in list of project steps, then
-      // first that is estimated".
-      //
-      // `days !== null` and not `days > 0`, which is what `Scheduled.estimated`
-      // means everywhere else in this engine: an explicit zero is somebody
-      // saying this step takes no time, and the anchor honours the statement
-      // rather than second-guessing it. Nobody having said anything is the
-      // different fact, and it is the one this walk steps over.
-      //
-      // The fall-through is the **last** node rather than the first, so the
-      // edge leaves the work item's finish. For a leaf nothing is estimated on
-      // that finish *is* its start, so the edge imposes exactly what the leaf's
-      // own predecessors imposed and nothing more — the degenerate case, kept
-      // as a stated consequence.
-      const estimated = own.findIndex((slice) => slice.days !== null);
-      anchorNode.set(leafId, estimated === -1 ? nodes.length - 1 : first + estimated);
+      reachedNode.set(leafId, first + reachedSliceOf(reach, own));
     }
   }
 
   /**
    * Where a leaf's slices begin among the nodes — the node an external edge
-   * arrives at. It leaves from {@link anchorNodeOf}, which is not always
+   * arrives at. It leaves from {@link reachedNodeOf}, which is not always
    * this one.
    *
    * Every leaf has an entry: the loop above made one for each of them, and
@@ -1856,39 +1895,51 @@ export function schedule(
   };
 
   /**
-   * The leaf's **anchor** node — where an external edge leaves it. Recorded
+   * The leaf's **reached** node — where an external edge leaves it, chosen by
+   * the project's {@link DependencyReach} in {@link reachedSliceOf}. Recorded
    * beside {@link firstNode} above, and absent for exactly the leaf that map is
    * absent for, so this throws for the same reason and with the same words.
    */
-  const anchorNodeOf = (leafId: string): number => {
-    const found = anchorNode.get(leafId);
+  const reachedNodeOf = (leafId: string): number => {
+    const found = reachedNode.get(leafId);
     if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
     return found;
   };
 
-  // The predecessor's **anchor** slice to the successor's **first**: the anchor
-  // finishes before any of the successor starts, the predecessor's later steps
-  // run in parallel with it, and the successor's own order carries the wait to
-  // the steps behind its first. Pushed onto the two nodes rather than rebuilt
-  // into a map — the adjacency is written once per edge.
+  // The predecessor's **reached** slice to the successor's **first**: the
+  // reached slice finishes before any of the successor starts, and the
+  // successor's own step order carries the wait to the steps behind its first.
+  // Pushed onto the two nodes rather than rebuilt into a map — the adjacency is
+  // written once per edge.
   //
-  // Proof: the join reverted to the predecessor's **last** node — the
-  // whole-item rule this replaced — and `waits for the first step, not the
-  // last` failed on `Expected: 3, Received: 5`, `a branch releases at its
-  // anchors` on `Expected: 4, Received: 5` (`schedule-shapes.test.ts`);
-  // watched 2026-08-11.
+  // The asymmetry is deliberate and the reach does not touch it: the edge lands
+  // on the successor's first slice **plain**, never its first estimated one and
+  // never its last, because either would leave an unestimated first step with
+  // no predecessor and start the row before the thing it waits for.
   //
-  // Proof: `anchorNodeOf` replaced by `firstNodeOf` — the first slice plain,
-  // this change's own predecessor — and four failed: `a chain does not
-  // collapse because a project lists a step nobody estimated` on `c2`
-  // `earliestStart` `Expected: 4, Received: 0`, `walks past an unestimated
-  // step to the first one somebody estimated` on `Expected: 4, Received: 0`,
-  // `a branch anchors each leaf on its own first estimate` on `Expected: 5,
-  // Received: 0`, and `carries an unestimated predecessor's own wait through
-  // to its successor` on `B` `earliestStart` `Expected: 3, Received: 0`;
-  // watched 2026-08-11.
+  // Proof: the join reverted to the predecessor's **last** node while the reach
+  // was `anchor-slice` — the whole-item rule `dep-waits-on-first-role`
+  // replaced — and `waits for the first role, not the last` failed on
+  // `Expected: 3, Received: 5`, `a branch releases at its anchors` on
+  // `Expected: 4, Received: 5` (`schedule-shapes.test.ts`); watched 2026-08-11.
+  //
+  // Proof: `reachedNodeOf` replaced by `firstNodeOf` — the first slice plain,
+  // the rule before August — and four failed: `a chain does not collapse
+  // because a project lists a role nobody estimated` on `c2` `earliestStart`
+  // `Expected: 4, Received: 0`, `walks past an unestimated role to the first
+  // one somebody estimated` on `Expected: 4, Received: 0`, `a branch anchors
+  // each leaf on its own first estimate` on `Expected: 5, Received: 0`, and
+  // `carries an unestimated predecessor's own wait through to its successor`
+  // on `B` `earliestStart` `Expected: 3, Received: 0`; watched 2026-08-11.
+  //
+  // Proof: `reachedNodeOf` used on the **successor** side too — the reach
+  // applied to both ends — and `a parent predecessor expands to its leaves
+  // under either reach` failed on `Q`'s projection, `earliestStart` /
+  // `earliestFinish` `{5, 11}` against a received `{0, 7}`: the successor's own
+  // first step escaped the wait entirely and only its last was held. Watched
+  // 2026-08-30.
   for (const { predecessorId, successorId } of leafEdges) {
-    const before = anchorNodeOf(predecessorId);
+    const before = reachedNodeOf(predecessorId);
     const after = firstNodeOf(successorId);
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
@@ -2063,10 +2114,12 @@ export function schedule(
  * where there was none. The endpoints are the first slice's own two numbers, so
  * reading them is the same answer with none of that noise.
  *
- * A work item stops tiling when a person pulled it apart — or, since the
- * anchor rule, whenever a successor's edge leaves a middle slice and splits
- * the late times with nobody assigned (design.md D5: the non-tiling arm is
- * ordinary now, not rare). Then the endpoints are not the answer at all: a row whose `QA` was held back until its assignee
+ * A work item stops tiling when a person pulled it apart — or, under the
+ * `anchor-slice` reach, whenever a successor's edge leaves a middle slice and
+ * splits the late times with nobody assigned (`dep-waits-on-first-role`'s
+ * design.md D5: on that reach the non-tiling arm is ordinary, not rare). Under
+ * `whole-item` the edge leaves the last slice, so nothing behind it is split
+ * and the arm is back to being about people. Then the endpoints are not the answer at all: a row whose `QA` was held back until its assignee
  * came free has a critical `QA` and a slack `Dev`, and the difference of its
  * ends would report the slack of the `Dev` and no red.
  *

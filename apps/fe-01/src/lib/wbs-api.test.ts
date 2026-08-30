@@ -32,6 +32,7 @@ const TREE = (projectId: string, ids: string[]): string =>
     teamCapacities: [],
     priorityBands: [],
     estimateMethod: 'pert',
+    depReach: 'whole-item',
     startDate: null,
     projectRevision: 1,
     undoable: false,

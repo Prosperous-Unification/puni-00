@@ -169,6 +169,19 @@ const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
 const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
 const EXTERNAL_REF = '20260830020000_add_external_ref';
+/**
+ * The newest, and a column on `project` alone: `dep_reach`, `NOT NULL DEFAULT
+ * 'whole-item'`, added by `dep-reach-whole-item`. Additive forward, dropped by
+ * its own `down.sql`, so it appears in the order and in nothing else this file
+ * checks.
+ *
+ * Stamped `20260830120000` on the rebase, past both folders above: it was
+ * written as `20260829120000` while they were still on a branch, and a stamp
+ * sorting **before** an already-applied migration applies out of order on every
+ * database that took that release. Same trap as the 2026-08-14 collision this
+ * file's duplicate-stamp check was written for, one direction along.
+ */
+const DEP_REACH = '20260830120000_add_dep_reach';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -185,6 +198,19 @@ function tables(dbPath: string): string[] {
   try {
     return db
       .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table'")
+      .all()
+      .map((r) => r.name);
+  } finally {
+    db.close();
+  }
+}
+
+/** The `project` table's column names, in declaration order. */
+function projectColumns(dbPath: string): string[] {
+  const db = openDatabase(dbPath);
+  try {
+    return db
+      .query<{ name: string }, []>("SELECT name FROM pragma_table_info('project')")
       .all()
       .map((r) => r.name);
   } finally {
@@ -269,6 +295,7 @@ describe('readMigrationFolders', () => {
       SOLUTION_REF,
       WORK_ITEM_TYPE,
       EXTERNAL_REF,
+      DEP_REACH,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -372,11 +399,13 @@ describe('rollbackTo, against a real database', () => {
         SOLUTION_REF,
         WORK_ITEM_TYPE,
         EXTERNAL_REF,
+        DEP_REACH,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -459,7 +488,65 @@ describe('rollbackTo, against a real database', () => {
         SOLUTION_REF,
         WORK_ITEM_TYPE,
         EXTERNAL_REF,
+        DEP_REACH,
       ]);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('puts every project already on disk onto the whole-item reach, and takes the column away again', () => {
+    // `dep-reach-whole-item`'s headline, at the layer that actually decides it:
+    // the column's default is what carries an **existing** row onto the new
+    // rule. So the row is written while the column does not exist yet — rolled
+    // back to `SOLUTION_REF` first — and read after the forward migration.
+    //
+    // The rollback half is asserted too, because a `down.sql` that left the
+    // column standing would make the next forward run fail on a duplicate
+    // column name rather than here.
+    //
+    // Proof: the migration's `DEFAULT 'whole-item'` changed to
+    // `DEFAULT 'anchor-slice'` and this failed on `{"dep_reach": "whole-item"}`
+    // against a received `{"dep_reach": "anchor-slice"}` — an existing row left
+    // on the August rule, which is the one thing the column default is for.
+    //
+    // Proof: `down.sql` replaced by a valid statement that does not drop the
+    // column (`UPDATE project SET dep_reach = 'whole-item';`) and this failed on
+    // `Expected to not contain: "dep_reach"`. Both watched 2026-08-29.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, SOLUTION_REF);
+      expect(projectColumns(db.path)).not.toContain('dep_reach');
+
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'owner', 'x', 1)",
+        );
+        before.run(
+          "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Rewire the shed', 'u1', 1)",
+        );
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      expect(projectColumns(db.path)).toContain('dep_reach');
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<{ dep_reach: string }, []>("SELECT dep_reach FROM project WHERE id = 'p1'")
+            .get(),
+        ).toEqual({ dep_reach: 'whole-item' });
+      } finally {
+        after.close();
+      }
+
+      rollbackTo(db.path, FOLDER, SOLUTION_REF);
+      expect(projectColumns(db.path)).not.toContain('dep_reach');
     } finally {
       db.cleanup();
     }
@@ -472,6 +559,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
         SOLUTION_REF,
@@ -531,19 +619,17 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      // The newest applied is `external_ref`, so rolling back *to* it reverses
+      // The newest applied is `dep_reach`, so rolling back *to* it reverses
       // nothing. Each step down names everything newer than its target, newest
       // first — which is the half a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([]);
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TYPE)).toEqual([EXTERNAL_REF]);
-      // Only the type, because the line above already reversed the ref —
+      expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([DEP_REACH]);
+      // Only the reach, because the line above already reversed it —
       // `rollbackTo` performs the rollback rather than describing it, so each
       // step here starts from what the previous one left.
+      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TYPE)).toEqual([EXTERNAL_REF]);
       expect(rollbackTo(db.path, FOLDER, SOLUTION_REF)).toEqual([WORK_ITEM_TYPE]);
       expect(rollbackTo(db.path, FOLDER, OIDC_IDENTITY)).toEqual([SOLUTION_REF]);
-      // And the one before it still answers with exactly what is newer than it,
-      // which is the half of this case a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([OIDC_IDENTITY]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

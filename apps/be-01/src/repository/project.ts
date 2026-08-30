@@ -1,4 +1,9 @@
-import { type EstimateMethod, isEstimateMethod } from '@wbs/domain';
+import {
+  type DependencyReach,
+  type EstimateMethod,
+  isDependencyReach,
+  isEstimateMethod,
+} from '@wbs/domain';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -7,32 +12,48 @@ import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
 
 /**
- * A stored row as a {@link Project}, checking the one column SQLite cannot
+ * A stored row as a {@link Project}, checking the two columns SQLite cannot
  * constrain.
  *
  * `estimate_method` is text, so the database will hold `median` as happily as
  * `pert`. Reading one is malformed trusted data and it throws rather than
  * falling back to PERT: a project silently planned by a method nobody chose is
  * a wrong answer delivered confidently, and R5 exists to stop exactly that.
+ *
+ * `dep_reach` is the same shape of column and the same refusal. Its two values
+ * differ by every date behind a multi-step predecessor, so reading an
+ * unrecognised one as `whole-item` would schedule a plan by a rule nobody
+ * chose and say nothing about it. The case is not hypothetical: an older colour
+ * reading a value a newer release wrote arrives here mid-swap.
  */
 function toProject<
-  T extends { estimateMethod: string; solutionSlug: string | null; solutionUrl: string | null },
+  T extends {
+    estimateMethod: string;
+    depReach: string;
+    solutionSlug: string | null;
+    solutionUrl: string | null;
+  },
 >(
   row: T,
-): Omit<T, 'estimateMethod' | 'solutionSlug' | 'solutionUrl'> & {
+): Omit<T, 'estimateMethod' | 'depReach' | 'solutionSlug' | 'solutionUrl'> & {
   estimateMethod: EstimateMethod;
+  depReach: DependencyReach;
   solutionRef: { slug: string; url: string } | null;
 } {
   if (!isEstimateMethod(row.estimateMethod)) {
     throw new Error(`unknown estimate method in the database: ${row.estimateMethod}`);
   }
+  if (!isDependencyReach(row.depReach)) {
+    throw new Error(`unknown dependency reach in the database: ${row.depReach}`);
+  }
   if ((row.solutionSlug === null) !== (row.solutionUrl === null)) {
     throw new Error('project has a partial solution reference');
   }
-  const { estimateMethod, solutionSlug, solutionUrl, ...rest } = row;
+  const { estimateMethod, depReach, solutionSlug, solutionUrl, ...rest } = row;
   return {
     ...rest,
     estimateMethod,
+    depReach,
     solutionRef:
       solutionSlug === null || solutionUrl === null
         ? null
@@ -157,6 +178,7 @@ export class ProjectRepository implements ProjectStore {
         ownerId: project.ownerId,
         restricted: project.restricted,
         estimateMethod: project.estimateMethod,
+        depReach: project.depReach,
         startDate: project.startDate,
         solutionSlug: project.solutionSlug,
         solutionUrl: project.solutionUrl,
@@ -204,6 +226,7 @@ export class ProjectRepository implements ProjectStore {
       patch.name === undefined &&
       patch.restricted === undefined &&
       patch.estimateMethod === undefined &&
+      patch.depReach === undefined &&
       patch.startDate === undefined &&
       patch.solutionRef === undefined
     ) {

@@ -336,7 +336,10 @@ describe('leveling — slack and critical through people', () => {
       slice('tail', DEV, 1, null),
     ];
 
-    const found = schedule(rows, [edge('w', 'tail')], slices);
+    // On the `anchor-slice` reach, which is what this fixture is about: under
+    // the default `whole-item` reach `tail` waits for `w`'s QA and runs from
+    // day 8, and the contention below cannot arise.
+    const found = schedule(rows, [edge('w', 'tail')], slices, undefined, undefined, 'anchor-slice');
 
     expect(planned(found, 'w', DEV)).toMatchObject({ earliestStart: 0, earliestFinish: 1 });
     expect(planned(found, 'w', QA)).toMatchObject({ earliestStart: 6, earliestFinish: 8 });
@@ -361,7 +364,7 @@ describe('leveling — slack and critical through people', () => {
   });
 });
 
-describe('leveling — the anchor and the queue', () => {
+describe('leveling — the anchor reach and the queue', () => {
   it('holds a successor to the anchor a person pushed, not to the anchor the plan alone would have', () => {
     // `kat` does `hog` (0→6, the longest path there is, so hers first) and then
     // `lead`'s `Dev`, which is `lead`'s anchor and cannot start before she is
@@ -381,7 +384,14 @@ describe('leveling — the anchor and the queue', () => {
       slice('sub', DEV, 1, null),
     ];
 
-    const found = schedule(rows, [edge('lead', 'sub')], slices);
+    const found = schedule(
+      rows,
+      [edge('lead', 'sub')],
+      slices,
+      undefined,
+      undefined,
+      'anchor-slice',
+    );
 
     expect(planned(found, 'lead', DEV)).toMatchObject({
       earliestStart: 6,
@@ -400,9 +410,9 @@ describe('leveling — the anchor and the queue', () => {
     expect(overlaps(found)).toEqual([]);
   });
 
-  it('queues a predecessor’s later step against its own successor’s work', () => {
-    // The contention the anchor rule created and nothing could produce before
-    // it: `kat` holds both `lead`'s `QA` and `sub`'s `Dev`, and under the
+  it('queues a predecessor’s later role against its own successor’s work', () => {
+    // The contention the `anchor-slice` reach creates and no other reach can
+    // produce: `kat` holds both `lead`'s `QA` and `sub`'s `Dev`, and under the
     // whole-item rule `lead`'s QA always ran first because `sub` could not
     // start until it had. Now they are eligible on the same day — `lead`'s
     // anchor releases `sub` on day 2, and `lead`'s QA is free from day 2 too —
@@ -423,7 +433,14 @@ describe('leveling — the anchor and the queue', () => {
       slice('sub', DEV, 1, 'kat'),
     ];
 
-    const found = schedule(rows, [edge('lead', 'sub')], slices);
+    const found = schedule(
+      rows,
+      [edge('lead', 'sub')],
+      slices,
+      undefined,
+      undefined,
+      'anchor-slice',
+    );
 
     expect(planned(found, 'lead', QA)).toMatchObject({ earliestStart: 2, earliestFinish: 5 });
     expect(planned(found, 'sub', DEV)).toMatchObject({

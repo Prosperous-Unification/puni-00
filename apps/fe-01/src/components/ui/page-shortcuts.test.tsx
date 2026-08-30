@@ -95,6 +95,7 @@ function silentApi(): SilentApi {
           teamCapacities: [],
           priorityBands: DEFAULT_PRIORITY_BANDS,
           estimateMethod: 'pert' as const,
+          depReach: 'whole-item' as const,
           startDate: null,
           projectRevision: 1,
           undoable: true,

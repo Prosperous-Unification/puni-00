@@ -86,6 +86,7 @@ export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectSt
         name: patch.name ?? existing.name,
         restricted: patch.restricted ?? existing.restricted,
         estimateMethod: patch.estimateMethod ?? existing.estimateMethod,
+        depReach: patch.depReach ?? existing.depReach,
         startDate: patch.startDate === undefined ? existing.startDate : patch.startDate,
         solutionRef: patch.solutionRef === undefined ? existing.solutionRef : patch.solutionRef,
       };

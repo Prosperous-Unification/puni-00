@@ -321,6 +321,9 @@ describe('a priority ladder moves no date', () => {
         ownerId: 'owner',
         restricted: false,
         estimateMethod: 'realistic',
+        // The `anchor-slice` reach, for the reason the replayed plans below
+        // carry it: this fixture's figures were derived before a reach existed.
+        depReach: 'anchor-slice',
         startDate: null,
         revision: 0,
         createdAt: 1,
@@ -434,8 +437,18 @@ describe('a priority ladder moves no date', () => {
       return null;
     };
 
+    const { depReach, ...treeWithoutReach } = tree;
+    // **`depReach` is lifted by `dep-reach-whole-item` (2026-08-29)**, and
+    // asserted to be the reach these plans were replayed on rather than
+    // dropped. The oracle predates the setting entirely, so the payload now
+    // carries a field the capture cannot have — a payload that gained a
+    // field, which is not a payload that moved a date. Asserting it here is
+    // what keeps the whole differential honest: if the replay ever stopped
+    // setting `anchor-slice`, every one of these plans would be measured
+    // against an oracle for a rule it was not scheduled by.
+    expect(depReach).toBe('anchor-slice');
     return {
-      ...tree,
+      ...treeWithoutReach,
       // The capture predates the pool named on each slice. Assert the new field
       // against the replayed plan, then lift it so the old scheduling oracle
       // continues to compare only fields that existed when it was recorded.
@@ -654,6 +667,12 @@ describe('a priority ladder moves no date', () => {
       ownerId: 'owner',
       restricted: false,
       estimateMethod: plan.estimateMethod,
+      // The oracle was captured at a tip whose engine had no reach at all and
+      // waited on the anchor slice, so these plans are replayed on
+      // `anchor-slice`. Replaying them on the default would be measuring
+      // `dep-reach-whole-item` with a differential written about a different
+      // change, and the two would fail each other's claims for ever after.
+      depReach: 'anchor-slice',
       startDate: plan.startDate,
       revision: 0,
       createdAt: 1,

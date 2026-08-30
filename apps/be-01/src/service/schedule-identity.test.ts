@@ -1,4 +1,4 @@
-import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
+import { ASSUMED_SLICE_WORKDAYS, type DependencyReach } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
@@ -430,6 +430,13 @@ function expectSameSchedule(
 /** `Dev` and `QA`: the most steps any project in a released database can hold. */
 const RELEASED_STEPS = 2;
 
+/**
+ * Both dependency reaches, for the runs whose claim is that they answer the
+ * same thing under either. Spelled as a constant so a run that quietly lost one
+ * of them is a one-line diff rather than an invisible narrowing.
+ */
+const REACHES: readonly DependencyReach[] = ['whole-item', 'anchor-slice'];
+
 describe('the slice engine against the one it replaced', () => {
   it('answers what it answered for a two-step plan, however the old sum was ordered', () => {
     // The change's central claim, at the size every project that already exists
@@ -445,20 +452,32 @@ describe('the slice engine against the one it replaced', () => {
     // `critical` is a red row, and both are read off exact comparisons with zero.
     //
     // Narrowed 2026-08-11 (`dep-waits-on-first-role`): the generated edges are
-    // dropped from both engines. A dependency now waits on the predecessor's
-    // anchor slice, so a multi-step plan with dependencies moves **by design**
-    // and parity with the whole-item oracle holds only where the two rules
-    // coincide — no dependencies here, edges kept in the single-step run below
-    // (design.md D7). The anchor rule has direct tests instead:
-    // `schedule-shapes.test.ts`, and the growth property at the end of this
-    // block.
-    for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, RELEASED_STEPS);
-      const durations = durationsFrom(plan, true, seed);
-      const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
-      const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
+    // dropped from both engines. A dependency waits on the predecessor's
+    // reached slice, so a multi-role plan with dependencies moves **by design**
+    // on the `anchor-slice` reach and parity with the whole-item oracle holds
+    // only where the two rules coincide — no dependencies here, edges kept in
+    // the single-role run below (`dep-waits-on-first-role`'s design.md D7).
+    //
+    // Run under **both** reaches since `dep-reach-whole-item` (2026-08-29):
+    // with no dependencies there is nothing for a reach to decide, so a plan
+    // that moved between the two would be the reach leaking into something
+    // other than an edge — the "no" row of that change's identity table.
+    for (const reach of REACHES) {
+      for (let seed = 1; seed <= 1000; seed += 1) {
+        const plan = generatePlan(seed, RELEASED_ROLES);
+        const durations = durationsFrom(plan, true, seed);
+        const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
+        const found = schedule(
+          plan.rows,
+          [],
+          slicesFrom(plan),
+          plan.notBefore,
+          undefined,
+          reach,
+        ).workItems;
 
-      expectSameSchedule(seed, expected, found);
+        expectSameSchedule(seed, expected, found);
+      }
     }
   });
 
@@ -471,32 +490,58 @@ describe('the slice engine against the one it replaced', () => {
     // now hands them over, come out the same on both sides.
     //
     // Narrowed 2026-08-11 (`dep-waits-on-first-role`): edges dropped, for the
-    // two-step run's reason — three steps with a dependency is exactly the
-    // shape the anchor rule moves on purpose.
-    for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, 3);
-      const durations = durationsFrom(plan, false, seed);
-      const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
-      const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
+    // two-role run's reason — three roles with a dependency is exactly the
+    // shape the `anchor-slice` reach moves on purpose. Both reaches, for the
+    // two-role run's second reason.
+    for (const reach of REACHES) {
+      for (let seed = 1; seed <= 1000; seed += 1) {
+        const plan = generatePlan(seed, 3);
+        const durations = durationsFrom(plan, false, seed);
+        const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
+        const found = schedule(
+          plan.rows,
+          [],
+          slicesFrom(plan),
+          plan.notBefore,
+          undefined,
+          reach,
+        ).workItems;
 
-      expectSameSchedule(seed, expected, found);
+        expectSameSchedule(seed, expected, found);
+      }
     }
   });
 
-  it('answers what it answered for a single-step plan, edges and all', () => {
-    // The one multi-row scope where the anchor rule and the whole-item rule
-    // are the same rule: with one step the first slice *is* the last slice, so
-    // the edges stay in and every number still has to match the oracle to the
-    // bit (2026-08-11, design.md D7). One addend per work item makes the
+  it('a single-step plan schedules identically under both reaches', () => {
+    // The one multi-row scope where the two reaches are the same rule: with one
+    // step the first slice *is* the last slice, so the edges stay in and every
+    // number still has to match the oracle to the bit under either
+    // (2026-08-11, `dep-waits-on-first-role`'s design.md D7; re-run under both
+    // reaches at `dep-reach-whole-item`). One addend per work item makes the
     // shuffle moot, so the totals are summed as they arrived.
-    for (let seed = 1; seed <= 1000; seed += 1) {
-      const plan = generatePlan(seed, 1);
-      const durations = durationsFrom(plan, false, seed);
-      const expected = previousSchedule(plan.rows, plan.edges, durations, plan.notBefore);
-      const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
+    //
+    // The corpus half is the two counters below: a run over plans with no edges
+    // in them would prove nothing about a rule that only edges consult.
+    let withEdges = 0;
+    for (const reach of REACHES) {
+      for (let seed = 1; seed <= 1000; seed += 1) {
+        const plan = generatePlan(seed, 1);
+        if (plan.edges.length > 0) withEdges += 1;
+        const durations = durationsFrom(plan, false, seed);
+        const expected = previousSchedule(plan.rows, plan.edges, durations, plan.notBefore);
+        const found = schedule(
+          plan.rows,
+          plan.edges,
+          slicesFrom(plan),
+          plan.notBefore,
+          undefined,
+          reach,
+        ).workItems;
 
-      expectSameSchedule(seed, expected, found);
+        expectSameSchedule(seed, expected, found);
+      }
     }
+    expect(withEdges).toBeGreaterThan(1000);
   });
 
   it('a fully estimated plan is not moved at all by the assumed duration', () => {
@@ -628,18 +673,23 @@ describe('the slice engine against the one it replaced', () => {
     expect(turnedRed).toBeGreaterThan(0);
   });
 
-  it('never moves a successor when a predecessor’s later slices grow', () => {
-    // The property the whole-item rule could never satisfy, and the new rule's
-    // whole point: a successor waits on its predecessors' anchors alone, so
-    // doubling every predecessor's non-first slice — QA grown everywhere — may
-    // move late starts and floats, and must move no successor's start.
+  it('never moves a successor when a predecessor’s later slices grow, on the anchor reach', () => {
+    // The property the `whole-item` reach cannot satisfy and the `anchor-slice`
+    // reach exists for: a successor waits on its predecessors' anchors alone,
+    // so doubling every predecessor's non-first slice — QA grown everywhere —
+    // may move late starts and floats, and must move no successor's start.
     //
-    // Proof: with `anchorNode` in `schedule.ts` set to the leaf's **last**
-    // node — the whole-item rule this change replaced — this failed at seed 3,
+    // Kept as that arm's oracle rather than deleted at `dep-reach-whole-item`
+    // (tasks 3.1): it is the one corpus-sized statement of what choosing
+    // `anchor-slice` buys, and the arm would otherwise be present and untested
+    // over anything but fixtures.
+    //
+    // Proof: with `reachedSliceOf`'s `anchor-slice` arm returning the leaf's
+    // **last** slice — the `whole-item` rule — this failed at seed 3,
     // `r1c0 moved from 8.666666666666666 to 11.333333333333332 when only later
-    // slices grew`, and alone: the narrowed parity runs above cannot see the
-    // revert, which is exactly why this test exists. Watched 2026-08-11 and
-    // re-watched against the estimated-anchor walk the same day.
+    // slices grew`, and alone: the parity runs above cannot see the revert,
+    // which is exactly why this test exists. Watched 2026-08-11, and re-watched
+    // 2026-08-30 against the arm rather than against the old `anchorNode`.
     let grownPlans = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, RELEASED_STEPS);
@@ -677,8 +727,22 @@ describe('the slice engine against the one it replaced', () => {
       if (grown.every((slice, at) => slice.days === plan.estimates[at].days)) continue;
       grownPlans += 1;
 
-      const before = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
-      const after = schedule(plan.rows, plan.edges, grown, plan.notBefore).workItems;
+      const before = schedule(
+        plan.rows,
+        plan.edges,
+        slicesFrom(plan),
+        plan.notBefore,
+        undefined,
+        'anchor-slice',
+      ).workItems;
+      const after = schedule(
+        plan.rows,
+        plan.edges,
+        grown,
+        plan.notBefore,
+        undefined,
+        'anchor-slice',
+      ).workItems;
       for (const id of successorLeaves) {
         const was = before.get(id)?.earliestStart;
         const now = after.get(id)?.earliestStart;
@@ -695,7 +759,7 @@ describe('the slice engine against the one it replaced', () => {
     expect(grownPlans).toBeGreaterThan(500);
   });
 
-  it('holds the anchor rule’s own invariants over every multi-step plan with edges', () => {
+  it('holds the anchor reach’s own invariants over every multi-role plan with edges', () => {
     // What the narrowing cost, paid back. Parity with the whole-item oracle was
     // the only thing this corpus proved about multi-step plans *with*
     // dependencies, and this change had to drop it — the two engines disagree
@@ -724,7 +788,14 @@ describe('the slice engine against the one it replaced', () => {
       const plan = generatePlan(seed, RELEASED_STEPS);
       if (plan.edges.length === 0) continue;
       const index = indexTree(plan.rows);
-      const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore);
+      const found = schedule(
+        plan.rows,
+        plan.edges,
+        slicesFrom(plan),
+        plan.notBefore,
+        undefined,
+        'anchor-slice',
+      );
 
       const anchorStepOf = new Map<string, string | null>();
       for (const each of plan.estimates) {
@@ -790,6 +861,146 @@ describe('the slice engine against the one it replaced', () => {
     // whole corpus, which is the shape this test was written to stop.
     expect(edgesChecked).toBeGreaterThan(1000);
     expect(walkedPast).toBeGreaterThan(0);
+  });
+
+  it('holds the whole-item reach’s own invariants over every multi-role plan with edges', () => {
+    // The default reach's corpus half, written the same way as the anchor
+    // reach's above and asserting the opposite thing: every successor starts no
+    // earlier than the **latest projection finish** among its predecessors,
+    // which under `whole-item` is exactly "the predecessor's last slice". The
+    // predecessor's projection finish is its last slice's finish, because a
+    // leaf's projection spans its slices — asserted here too, third check, so
+    // that reading the wait off the projection is not an assumption.
+    //
+    // `movedFromAnchor` is the corpus half: it counts the edges whose two
+    // reaches genuinely disagree — a predecessor whose reached slice finishes
+    // later under `whole-item` than under `anchor-slice`. A green run with that
+    // at zero would be a corpus in which this change was invisible, which is
+    // the shape of test R5 exists to stop.
+    //
+    // Proof: `reachedSliceOf`'s `whole-item` arm returning the anchor index and
+    // this failed at seed 3, `r1c0 starts 6, before r0c0g0 finishes at
+    // 8.666666666666666`; watched 2026-08-29.
+    let edgesChecked = 0;
+    let movedFromAnchor = 0;
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      if (plan.edges.length === 0) continue;
+      const index = indexTree(plan.rows);
+      const found = schedule(
+        plan.rows,
+        plan.edges,
+        slicesFrom(plan),
+        plan.notBefore,
+        undefined,
+        'whole-item',
+      );
+
+      const rowOf = (leafId: string): Scheduled => {
+        const row = found.workItems.get(leafId);
+        if (row === undefined) throw new Error(`${leafId} lost its schedule`);
+        return row;
+      };
+      const anchorRoleOf = new Map<string, string>();
+      for (const each of plan.estimates) {
+        if (each.days === null || anchorRoleOf.has(each.workItemId)) continue;
+        anchorRoleOf.set(each.workItemId, each.roleId);
+      }
+
+      for (const { predecessorId, successorId } of expandToLeaves(index, plan.edges)) {
+        edgesChecked += 1;
+        const owed = rowOf(predecessorId).earliestFinish;
+        const anchorRole = anchorRoleOf.get(predecessorId);
+        const anchorFinish =
+          anchorRole === undefined
+            ? owed
+            : (found.slices.get(sliceKey(predecessorId, anchorRole))?.earliestFinish ?? owed);
+        if (owed > anchorFinish + 1e-9) movedFromAnchor += 1;
+        const successor = rowOf(successorId);
+        // Not `toBe`: PERT sixths, and the claim is an inequality.
+        if (successor.earliestStart < owed - 1e-9) {
+          throw new Error(
+            `seed ${String(seed)}: ${successorId} starts ${String(successor.earliestStart)}, ` +
+              `before ${predecessorId} finishes at ${String(owed)}`,
+          );
+        }
+      }
+
+      for (const [key, placed] of found.slices) {
+        if (placed.float < -1e-9) {
+          throw new Error(`seed ${String(seed)}: ${key} carries float ${String(placed.float)}`);
+        }
+      }
+
+      for (const leafId of index.leafIds) {
+        const own = plan.estimates
+          .filter((each) => each.workItemId === leafId)
+          .map((each) => found.slices.get(sliceKey(leafId, each.roleId)))
+          .filter((placed) => placed !== undefined);
+        if (own.length === 0) continue;
+        expect(rowOf(leafId).earliestStart).toBe(Math.min(...own.map((s) => s.earliestStart)));
+        expect(rowOf(leafId).earliestFinish).toBe(Math.max(...own.map((s) => s.earliestFinish)));
+      }
+    }
+
+    expect(edgesChecked).toBeGreaterThan(1000);
+    expect(movedFromAnchor).toBeGreaterThan(0);
+  });
+
+  it('existing plans move to the whole-item rule', () => {
+    // The change's headline, over the corpus rather than over one fixture: a
+    // plan that exists today is scheduled by the reach the column default gives
+    // it, and for every plan with a multi-step predecessor that is a different
+    // set of dates from the one the August rule produced.
+    //
+    // Asserted as a count rather than as "every plan moves", because plenty of
+    // generated plans have no estimated step behind their predecessors' anchors
+    // and the two reaches agree on those. What must not be true is that
+    // **nothing** moved — that would mean the default never reached the engine.
+    let plansCompared = 0;
+    let plansMoved = 0;
+    let rowsMoved = 0;
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      if (plan.edges.length === 0) continue;
+      plansCompared += 1;
+      const august = schedule(
+        plan.rows,
+        plan.edges,
+        slicesFrom(plan),
+        plan.notBefore,
+        undefined,
+        'anchor-slice',
+      ).workItems;
+      // No reach passed: the default, which is the column's default, which is
+      // what an existing row now holds.
+      const today = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
+
+      let moved = false;
+      for (const [id, was] of august) {
+        const now = today.get(id);
+        if (now === undefined) throw new Error(`seed ${String(seed)}: ${id} lost its schedule`);
+        // A successor may only ever start **later** under `whole-item`: the
+        // last slice never finishes before the anchor does. A row that moved
+        // earlier would be the reach doing something other than lengthening a
+        // wait.
+        if (now.earliestStart < was.earliestStart - 1e-9) {
+          throw new Error(
+            `seed ${String(seed)}: ${id} starts ${String(now.earliestStart)} under whole-item, ` +
+              `earlier than ${String(was.earliestStart)} under anchor-slice`,
+          );
+        }
+        if (now.earliestStart > was.earliestStart + 1e-9) {
+          moved = true;
+          rowsMoved += 1;
+        }
+      }
+      if (moved) plansMoved += 1;
+    }
+
+    expect(plansCompared).toBeGreaterThan(500);
+    expect(plansMoved).toBeGreaterThan(100);
+    expect(rowsMoved).toBeGreaterThan(100);
   });
 
   it('generates plans worth measuring, so a green run is not an empty one', () => {

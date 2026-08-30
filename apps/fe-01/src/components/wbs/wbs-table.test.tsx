@@ -8,6 +8,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,6 +95,7 @@ function fakeApi(): ProjectApi & {
   let next = 0;
   let seq = -1;
   let estimateMethod: EstimateMethod = 'pert';
+  let depReach: DependencyReach = 'whole-item';
   let startDate: string | null = null;
   /**
    * `serviceIds` present and empty on every team, never absent — be-01 sends
@@ -383,6 +385,11 @@ function fakeApi(): ProjectApi & {
         teamCapacities: [],
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod,
+        // Present on every read, never absent: be-01 always sends the project's
+        // reach, and a fake that left it off would hand the chart an
+        // `undefined` it can never see in production — every arrow would then
+        // be drawn out of the anchor slice whatever the plan was scheduled by.
+        depReach,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
         // work item writes, and be-01 keeps the project's revision off them.
@@ -390,6 +397,11 @@ function fakeApi(): ProjectApi & {
         undoable: stack.undoable,
         redoable: stack.redoable,
       }),
+    setDepReach(_projectId, reach) {
+      depReach = reach;
+      renumber();
+      return Promise.resolve();
+    },
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
       renumber();
@@ -8423,6 +8435,7 @@ describe('dependencies in the table — cross-review findings', () => {
         teamCapacities: [],
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
+        depReach: 'whole-item' as const,
         workItems: [
           {
             id: 'w1',
@@ -9223,6 +9236,7 @@ describe('the chart under a plan being edited', () => {
           teamCapacities: [],
           priorityBands: DEFAULT_PRIORITY_BANDS,
           estimateMethod: 'pert' as const,
+          depReach: 'whole-item' as const,
           workItems: [
             {
               id: 'w1',

@@ -7,6 +7,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table';
+import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { effectiveServicesOf } from '@wbs/domain/effective-service';
 import { effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
@@ -1867,6 +1868,15 @@ interface ChartRead {
   steps: StepView[];
   people: AssignedPersonView[];
   /**
+   * How far into a predecessor this plan's dependencies reach.
+   *
+   * Here rather than in a `useState` of its own for the reason `roles` is: the
+   * chart draws each arrow out of the slice this names, so a reach from one
+   * moment against slices from another draws an arrow the engine never placed.
+   * They arrive in one payload and they are held as one.
+   */
+  depReach: DependencyReach;
+  /**
    * Which read this is: `refresh`'s own generation, and 0 before any has
    * landed.
    *
@@ -1878,8 +1888,20 @@ interface ChartRead {
   generation: number;
 }
 
-/** No read has landed yet: no slices, no steps, nobody, and no generation. */
-const NO_CHART_READ: ChartRead = { slices: [], steps: [], people: [], generation: 0 };
+/**
+ * No read has landed yet: no slices, no roles, nobody, and no generation.
+ *
+ * The reach is the column's own default, which is what a project has unless it
+ * asks otherwise — and with no slices to draw there is no arrow for it to place
+ * either way.
+ */
+const NO_CHART_READ: ChartRead = {
+  slices: [],
+  roles: [],
+  people: [],
+  depReach: 'whole-item',
+  generation: 0,
+};
 
 const column = createColumnHelper<TreeRow>();
 
@@ -3392,6 +3414,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       slices: tree.slices,
       steps: tree.steps,
       people: tree.assignedPeople,
+      depReach: tree.depReach,
       generation,
     });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
@@ -9761,6 +9784,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // The ladder the chart names its priorities with. Off the same state the
     // table's cells read, so a bar's cap and its row's digits are one colour.
     priorityBands,
+    // Off the chart read for `roles`' reason exactly: the arrow leaves the
+    // slice this names, and a reach out of step with the slices beside it
+    // draws an arrow the engine never placed.
+    depReach: chartRead.depReach,
   };
 
   // The `Start` column's sentences, off the same payload the chart is drawn
@@ -10122,9 +10149,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           frameState,
           numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
-          addStep: (name) => api.addStep(projectId, name),
-          renameStep: (stepId, name) => api.renameStep(projectId, stepId, name),
-          removeStep: (stepId, cascade) => api.removeStep(projectId, stepId, cascade),
+          addRole: (name) => api.addRole(projectId, name),
+          renameRole: (roleId, name) => api.renameRole(projectId, roleId, name),
+          removeRole: (roleId, cascade) => api.removeRole(projectId, roleId, cascade),
+          // How far a dependency reaches, on the same surface as the steps it
+          // is about: reordering them moves what an `anchor-slice` dependency
+          // waits for. Off the chart read rather than a state of its own, so
+          // the value ticked here and the reach the arrows were drawn with are
+          // one fact.
+          depReach: chartRead.depReach,
+          setDepReach: (reach: DependencyReach) => api.setDepReach(projectId, reach),
           // The same reread every other change on this page makes, which is
           // what puts the new columns on the table and the new list in the
           // section.
