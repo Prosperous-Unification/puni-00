@@ -79,6 +79,12 @@ function fakeApi(): ProjectApi & {
    * joined `ProjectApi` on 2026-08-23, so it is no longer listed here.
    */
   labelWithService: (workItemId: string, serviceIds: readonly string[]) => void;
+  /**
+   * The tag half of the same thing, added by `tags-accumulate` because that
+   * change is the first to need a **tagged ancestor** in this file: until then
+   * the tag directory was empty here and the Tags cell had nothing to inherit.
+   */
+  labelWithTag: (workItemId: string, tagIds: readonly string[]) => void;
   ownService: (teamId: string, serviceId: string) => void;
   /** The same write undone, for the map emptying under a ticked signal. */
   disownService: (teamId: string, serviceId: string) => void;
@@ -99,6 +105,8 @@ function fakeApi(): ProjectApi & {
   const teams: { id: string; name: string; serviceIds: string[] }[] = [];
   /** The global service directory, in the order it was added. */
   const services: { id: string; name: string }[] = [];
+  /** The global tag directory, `services`' shape — a tag is a name and nothing else. */
+  const tags: { id: string; name: string }[] = [];
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
   /**
@@ -236,6 +244,13 @@ function fakeApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
+    labelWithTag(workItemId: string, tagIds: readonly string[]) {
+      const row = rows.find((r) => r.id === workItemId);
+      // The row's **own** set, which is all be-01 ever sends: what the row
+      // carries from above is `effectiveTagsOf`'s answer and is never stored.
+      if (row !== undefined) row.tagIds = [...tagIds];
+      renumber();
+    },
     disownService(teamId: string, serviceId: string) {
       const team = teams.find((t) => t.id === teamId);
       if (team === undefined) return;
@@ -345,8 +360,16 @@ function fakeApi(): ProjectApi & {
       return Promise.resolve();
     },
     listTeams: () => Promise.resolve(teams.map((t) => ({ ...t, serviceIds: [...t.serviceIds] }))),
-    listTags: () => Promise.resolve([]),
+    listTags: () => Promise.resolve([...tags]),
     listWorkItemTypes: () => Promise.resolve([]),
+    addTag(name: string) {
+      // Idempotent by name, `addTeam`'s and `addService`'s rule and be-01's.
+      const already = tags.find((each) => each.name === name);
+      if (already !== undefined) return Promise.resolve(already);
+      const tag = { id: `tag${String(tags.length + 1)}`, name };
+      tags.push(tag);
+      return Promise.resolve(tag);
+    },
     listServices: () => Promise.resolve([...services]),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
@@ -13720,7 +13743,10 @@ describe('narrowing the plan by facet', () => {
    * question a facet control gets wrong is which of them it offers: the
    * directory holds every team in the deployment and this is one plan.
    */
-  async function aFacetedPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+  // The fake's own type rather than `ProjectApi & { rows }`: `labelWithTag` is
+  // one of the writes this fixture models directly, and a narrowed return type
+  // would hide it from the tag facet's case.
+  async function aFacetedPlan(): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
     const strip = await api.create('p1', {
       parentId: null,
@@ -13816,6 +13842,49 @@ describe('narrowing the plan by facet', () => {
     tick('Team Billing');
 
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+  });
+
+  itDom('keeps a row that inherits a ticked tag while stating tags of its own', async () => {
+    // The team case above with the rule ADR 0008 reversed. `010.1.1` carries a
+    // team of its own and is therefore **out** of `Team Billing`; the same row
+    // tagged `Ready` is still `Risk`, because a tag says what kind of thing the
+    // work is and a child of a risky parent is risky. The two facets sitting
+    // next to each other in one panel and answering by two rules is the whole
+    // of what this change did, and this is where a reader can see it.
+    //
+    // Proof: `accumulate` in `effective-tag.ts` reduced to its stated half —
+    // the override this change replaces — and this failed on
+    // `expected [ '010' ] to deeply equal [ '010', '010.1' ]`. Watched
+    // 2026-08-30.
+    //
+    // Its own fixture rather than `aFacetedPlan`, which carries no tags: a Tag
+    // group appearing in the panel would change what every other case in this
+    // describe is counting.
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const risk = await api.addTag('Risk');
+    const ready = await api.addTag('Ready');
+    api.labelWithTag(strip.id, [risk.id]);
+    api.labelWithTag(sockets.id, [ready.id]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    openFilters();
+
+    tick('Tag Risk');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1']);
   });
 
   itDom('drops the subtree the moment a facet joins a name that was bringing one', async () => {
@@ -14971,6 +15040,93 @@ describe('what the filter says it dropped, and what it exports', () => {
     expect(text).toContain('Strip the walls');
     expect(text).toContain('Paint');
     expect(text).not.toContain('Scope');
+  });
+});
+
+describe('the tag cell', () => {
+  beforeEach(showEveryColumn);
+
+  /**
+   * The Tags cell's own strip, which is what carries both kinds of chip.
+   *
+   * `closest` rather than a query from the row, because the box is the only
+   * thing in the cell with an accessible name and the chips hang beside it.
+   */
+  const TAG_CELL = '[data-reference-set="tag"]';
+
+  /**
+   * `010` tagged `Risk` and `Review`, and `010.1` under it stating `Ready`.
+   *
+   * That is the 2026-08-29 report exactly: before ADR 0008 the child's cell
+   * drew `Ready` and nothing else, and the two words its parent put on the work
+   * were simply gone from every face.
+   */
+  async function aTaggedPlan(): Promise<ReturnType<typeof fakeApi>> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    const risk = await api.addTag('Risk');
+    const review = await api.addTag('Review');
+    const ready = await api.addTag('Ready');
+    api.labelWithTag(strip.id, [risk.id, review.id]);
+    api.labelWithTag(sockets.id, [ready.id]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    return api;
+  }
+
+  itDom('keeps an ancestor’s tags on a row that has tags of its own', async () => {
+    await aTaggedPlan();
+
+    const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
+    // Its own, removable where it was written.
+    expect(within(cell).getByText('Ready')).toBeTruthy();
+    expect(screen.getByLabelText('Remove Ready from 010.1')).toBeTruthy();
+    // What it carries, drawn beside them and told apart by the `↳` and by the
+    // attribute — this is the assertion the report is about.
+    //
+    // Proof: the Tags cell's `inheritedEntries: tagging.inherited` deleted, so
+    // the strip is handed nothing to draw, and this failed on `expected [] to
+    // deeply equal [ '↳ Risk', '↳ Review' ]`. Watched 2026-08-30.
+    expect(
+      [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) => chip.textContent),
+    ).toEqual(['↳ Risk', '↳ Review']);
+    // And **not** removable here. A tag comes off the row that states it.
+    expect(screen.queryByLabelText('Remove Risk from 010.1')).toBeNull();
+    expect(screen.queryByLabelText('Remove Review from 010.1')).toBeNull();
+    // Said once per surface: the box no longer repeats the inherited names in
+    // its placeholder ink, because the chips beside it are now saying them.
+    expect(screen.getByLabelText('Tags for 010.1')).toHaveAttribute('placeholder', 'add');
+    // The parent states both of its own, so it carries nothing.
+    const parent = screen.getByLabelText('Tags for 010').closest<HTMLElement>(TAG_CELL)!;
+    expect(parent.querySelectorAll('[data-reference-inherited-chip]')).toHaveLength(0);
+    expect(screen.getByLabelText('Remove Risk from 010')).toBeTruthy();
+  });
+
+  itDom('names the row an inherited tag was written on', async () => {
+    // The sentence a reader is owed for a word they cannot take off here. Per
+    // chip, because two inherited tags may have been written on two rows.
+    await aTaggedPlan();
+
+    const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
+    expect(
+      [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) =>
+        chip.getAttribute('title'),
+      ),
+    ).toEqual([
+      'Risk — inherited from 010 Strip the walls. Remove it there.',
+      'Review — inherited from 010 Strip the walls. Remove it there.',
+    ]);
   });
 });
 

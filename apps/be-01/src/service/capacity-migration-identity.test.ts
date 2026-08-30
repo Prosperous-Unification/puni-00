@@ -296,6 +296,18 @@ describe('every plan schedules identically across the migration', () => {
             // sixteen replayed plans is labelled, and an empty set on every row is
             // this change's own claim — a plan nobody has tagged reads as untagged.
             // A bare lift would let a read path that invented a label pass silently.
+            //
+            // **These are the row's STATED tags, and they must stay stated.**
+            // `tags-accumulate` (ADR 0008) made the *effective* set a union of
+            // every ancestor's, and this assertion survived it untouched because
+            // no replayed row states a tag and this payload has never carried the
+            // effective reading. If it ever goes red on a tag, the fix is not to
+            // lift `effectiveTagsOf` in here: this file's claim is that a plan
+            // schedules identically across a migration, so an effective assertion
+            // would report every future inheritance-rule change as a fidelity
+            // regression — and, because an effective set is a function of tree
+            // shape, would test the walk sixteen times inside a file about
+            // migration identity, leaving a red unable to say which broke.
             expect(tagIds).toEqual([]);
             // `serviceIds` is lifted and asserted empty for `tagIds`' reason exactly,
             // one dimension over: the oracle predates the dimension, no row in the

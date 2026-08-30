@@ -104,6 +104,31 @@ a row stating one team is on that team alone however many its parent states. A r
 computed in one place and never written down.
 _Avoid_: inherited teams, resolved teams, effective team
 
+**Tag**:
+A word for what kind of thing a work item is — `regulatory`, `tech-debt`, `q3-must-have`.
+Global, named, and unique across the directory; it has no pool, no size, and no effect on
+any date.
+_Avoid_: label, category, type, marker
+
+**Tag set**:
+The tags one work item states — none, one, or several. Stated in `work_item_tag` and read
+from there. Empty means the row has added no word of its own, never "deliberately
+untagged".
+_Avoid_: tags field, labels
+
+**Effective tag set**:
+The tags in force for a row: its own **plus every ancestor's**, unioned, each carrying the
+row that states it. Accumulated rather than replaced — the opposite of an Effective team
+set, because a child of a `Risk` parent is still risky (ADR 0008). A tag two rows both
+state belongs to the nearer one. A reading, computed in one place and never written down.
+_Avoid_: inherited tags, resolved tags, effective tag
+
+**Stating row**:
+The work item a label in force was actually written on — itself for a stated one, an
+ancestor for an inherited one. What decides where a label can be removed: only its stating
+row can take it off.
+_Avoid_: source, owner, origin
+
 **Capacity**:
 How many of one team may be at work at once on **one project's plan**. A fact about the
 pair, never about the team: two plans labelled with the same team each state their own,

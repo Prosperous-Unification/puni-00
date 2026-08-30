@@ -88,6 +88,7 @@ import { FoldedRoleCard } from './folded-role-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import {
   type GanttPlan,
+  type InheritedTagLabel,
   type ServiceLabel,
   type ServiceTeamLabel,
   startFloorByRow,
@@ -3985,33 +3986,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   };
 
   /**
-   * A row's tags as a cell or a card can state them: its own set, or the one it
-   * inherits and the row that carries it.
+   * A row's tags as a cell or a card can state them: what it says itself, and
+   * what it carries from above with the row that said each one.
    *
-   * {@link effectiveTeamLabelOf}'s shape, one dimension over, and the whole set
-   * rather than `at(0)`: there is no single-member stage in this dimension to
-   * grow out of. A name the directory read has not caught up with is simply
-   * left out — see {@link TagLabel} for why there is no `unresolved` arm.
+   * **Two lists rather than {@link effectiveTeamLabelOf}'s three states**, since
+   * ADR 0008: tags accumulate, so `named` and `inherited` stopped being
+   * exclusive and a row answers both at once. The split is decided on
+   * `fromId === row.id` and nowhere else — the domain walk already settled which
+   * row states each tag, and a second reading of `row.tagIds` here would be a
+   * second answer to a question that has one.
+   *
+   * A name the directory read has not caught up with is simply left out — see
+   * {@link TagLabel} for why there is no `unresolved` arm.
    */
   const effectiveTagLabelOf = (row: TreeRow): TagLabel => {
-    const namesFor = (ids: readonly string[]): string[] =>
-      ids.flatMap((id) => {
-        const found = tags.find((each) => each.id === id);
-        return found === undefined ? [] : [found.name];
-      });
-    if (row.tagIds.length > 0) {
-      const names = namesFor(row.tagIds);
-      return names.length === 0 ? { state: 'none' } : { state: 'named', names };
+    const own: string[] = [];
+    const inherited: InheritedTagLabel[] = [];
+    for (const each of effectiveTags.get(row.id) ?? []) {
+      const found = tags.find((entry) => entry.id === each.tagId);
+      if (found === undefined) continue;
+      if (each.fromId === row.id) own.push(found.name);
+      else
+        inherited.push({
+          id: found.id,
+          name: found.name,
+          fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
+        });
     }
-    const inherited = effectiveTags.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const names = namesFor(inherited.tagIds);
-    if (names.length === 0) return { state: 'none' };
-    return {
-      state: 'inherited',
-      names,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
+    return { own, inherited };
   };
 
   /**
@@ -4133,12 +4135,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             teamIds,
             // The **effective** tags, for the effective team's reason one line
             // up: a leaf under a `regulatory` parent is regulatory, and a filter
-            // reading stored labels would not find it.
-            tagIds: effectiveTags.get(row.id)?.tagIds ?? [],
+            // reading stored labels would not find it. Since ADR 0008 that holds
+            // even where the leaf states tags of its own — the union, not the
+            // nearer statement, which is exactly the case the override rule used
+            // to lose.
+            tagIds: (effectiveTags.get(row.id) ?? []).map((each) => each.tagId),
             // The row's **own** set, and no `effectiveTypes` map beside the two
             // above because there is no such walk: a type does not inherit
             // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so
             // the stored set is already the effective reading.
+            //
+            // Three facets, three inheritance rules, on purpose: the team is the
+            // nearest statement, the tag is every statement above it, and the
+            // type is this row's alone. Each is the rule its own question takes.
             typeIds: row.typeIds,
             // The **effective** service, for the same reason a third time, and
             // `?? null` because absence from the map is how this walk spells
@@ -7889,35 +7898,43 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           id: 'tag',
           header: 'Tags',
           cell: ({ row }) => {
-            // The same reading the Team cell makes, one dimension over: a row
-            // with no tags of its own still *is* whatever an ancestor said it
-            // was, and the placeholder says so in the box's own muted ink with
-            // `↳` for the inheritance.
-            const inherited = live.current.effectiveTagLabelOf(row.original);
+            // **Not** the reading the Team cell makes. A row with no tags of its
+            // own still *is* whatever an ancestor said it was — and since ADR
+            // 0008 so is a row that has tags of its own, because a tag says what
+            // kind of thing the work is and adding one adds a word rather than
+            // replacing the sentence. Adding `Ready` to 010.1 and watching
+            // `Risk` and `Review` disappear from the cell was the 2026-08-29
+            // report.
+            //
+            // So the inheritance is drawn as **chips** here, where the team's is
+            // a placeholder: a placeholder is only visible on an empty box, and
+            // this cell is not empty in the case the report is about. The chips
+            // wear `↳` and no ✕ — see `REFERENCE_SET_INHERITED_CHIP_CLASS` — and
+            // `inheritedLabel` is deliberately not passed beside them, or the
+            // same claim would be on screen twice.
+            const tagging = live.current.effectiveTagLabelOf(row.original);
             const own = row.original.tagIds;
             return (
               <ReferenceSetStrip
                 label={`Tags for ${row.original.number}`}
                 addLabel={`Add a tag to ${row.original.number}`}
                 removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
-                placeholder={
-                  own.length > 0
-                    ? 'add'
-                    : inherited.state === 'inherited'
-                      ? `↳ ${inherited.names.join(', ')}`
-                      : 'search'
-                }
+                placeholder={own.length > 0 || tagging.inherited.length > 0 ? 'add' : 'search'}
                 title={
-                  own.length === 0 && inherited.state === 'inherited'
-                    ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
-                    : undefined
+                  tagging.inherited.length === 0
+                    ? undefined
+                    : tagging.inherited
+                        .map(
+                          (each) =>
+                            `${each.name} — inherited from ${each.fromRow}. Remove it there.`,
+                        )
+                        .join('\n')
                 }
                 adapter={{
                   kind: 'tag',
                   entries: live.current.tags,
                   ownIds: own,
-                  inheritedLabel:
-                    inherited.state === 'inherited' ? inherited.names.join(', ') : undefined,
+                  inheritedEntries: tagging.inherited,
                   replace: (tagIds) => live.current.setTagsOf(row.original.id, tagIds),
                   create: (name, current) =>
                     live.current.createTagFor(row.original.id, name, current),

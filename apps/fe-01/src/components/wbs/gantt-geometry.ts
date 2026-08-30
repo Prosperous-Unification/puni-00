@@ -177,26 +177,73 @@ export type ServiceTeamLabel =
   | { state: 'inherited'; name: string; fromRow: string }
   | { state: 'unresolved' };
 
+/** One tag a row carries because an ancestor states it, and which ancestor. */
+export interface InheritedTagLabel {
+  /**
+   * The tag's own id, which the two faces that draw it as a chip need and the
+   * chart does not.
+   *
+   * Carried here rather than looked up a second time by the cell, because the
+   * alternative is two walks over the same directory answering the same
+   * question — and the Tags cell's chip and the chart's hover sentence must not
+   * be able to disagree about which tag they are naming. It makes this
+   * structurally an `InheritedReferenceEntry`, which is what
+   * `reference-set-field.tsx` takes, deliberately: one shape, no adapter.
+   */
+  id: string;
+  name: string;
+  /** The stating row, as a reader knows it — `010 Compliance`, never an id. */
+  fromRow: string;
+}
+
 /**
- * What kind of thing a row is, as any face can state it — {@link
- * ServiceTeamLabel}'s shape for the other dimension, with two differences that
- * are both the model rather than the surface.
+ * What kind of thing a row is, as any face can state it.
  *
- * **`names` is a list**, because a work item carries as many tags as somebody
- * put on it. The team's is a single `name` because the write path still sends
- * one team; there is no such stage here and never was.
+ * **Not a discriminated union**, which is the shape `ServiceTeamLabel` and
+ * {@link ServiceLabel} still have and the shape this had until
+ * `tags-accumulate`. Those two dimensions override, so a row's answer comes
+ * whole from exactly one stating row and `named` / `inherited` are genuinely
+ * exclusive. Tags accumulate (ADR 0008): a row states `Ready` and carries `Risk`
+ * from `010` in the same cell, so the arms are not exclusive and a discriminant
+ * would have to pick one of two true things to be.
  *
- * **There is no `unresolved` arm.** A team can go missing between the tree read
- * and the directory read, and the chart has to say so rather than draw a blank
- * pool. A tag that the directory has not caught up with narrows nothing and
- * decides nothing — no date depends on it — so a face that simply does not
- * name it is telling the truth, and a fourth state would be a word on screen
- * about a race nobody can act on.
+ * Both lists are ordered as `effectiveTagsOf` answers — own in the row's stored
+ * order, inherited nearest-ancestor first — because the faces draw them in that
+ * order and a second sort would be a second opinion.
+ *
+ * **Both empty is "no tags anywhere"**, which is the state a face draws nothing
+ * for. There is no `none` member: an empty list already says it once, and a
+ * discriminant saying it again is a second spelling every reader has to handle.
+ *
+ * **There is no `unresolved` arm**, and that survives the reshape. A team can go
+ * missing between the tree read and the directory read, and the chart has to say
+ * so rather than draw a blank pool. A tag the directory has not caught up with
+ * narrows nothing and decides nothing — no date depends on it — so a face that
+ * simply does not name it is telling the truth, and another state would be a
+ * word on screen about a race nobody can act on.
  */
-export type TagLabel =
-  | { state: 'none' }
-  | { state: 'named'; names: readonly string[] }
-  | { state: 'inherited'; names: readonly string[]; fromRow: string };
+export interface TagLabel {
+  /**
+   * The names this row states itself, resolved against the directory.
+   *
+   * Removable **here**, which is the whole reason this list is apart from the
+   * one below: a tag comes off where it was written, and the Tags cell's ✕ is
+   * drawn on exactly these.
+   */
+  own: readonly string[];
+  /**
+   * The names in force from above that this row does not state.
+   *
+   * Read-only on this row by construction — there is no id here a writer could
+   * send, because taking one off means editing the ancestor that states it.
+   */
+  inherited: readonly InheritedTagLabel[];
+}
+
+/** Whether a row has anything at all to say about what kind of thing it is. */
+export function hasTags(tags: TagLabel): boolean {
+  return tags.own.length > 0 || tags.inherited.length > 0;
+}
 
 /**
  * What a row is **delivered by**, as any face can state it.
@@ -1868,11 +1915,13 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         // `floorWordsOf` above: that sentence says what is holding this bar up,
         // and a tag has never held anything up.
         //
-        // Proof: this line replaced by `tags: { state: 'none' }` — the bar
-        // built, drawn and placed identically, saying only that the work is of
-        // no particular kind. `2 failed | 106 passed` in
-        // `gantt-geometry.test.ts`, on `expected { state: 'none' } to deeply
-        // equal { state: 'inherited', …(2) }`. Watched on h2puni, 2026-08-20.
+        // Proof: this line replaced by `tags: { own: [], inherited: [] }` — the
+        // bar built, drawn and placed identically, saying only that the work is
+        // of no particular kind. `2 failed | 106 passed` over the override
+        // shape on 2026-08-20; over this one, `carries a stated and an
+        // inherited tag together, each with its source` failed on `expected {
+        // own: [], inherited: [] } to deeply equal { own: [ 'Ready' ], …(1) }`.
+        // Watched 2026-08-30.
         tags: row.tags,
         // The engine's own two numbers, carried rather than recomputed: the
         // width the dates were placed with and the effort they were placed

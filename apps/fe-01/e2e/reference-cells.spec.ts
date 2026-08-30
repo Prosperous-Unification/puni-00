@@ -12,6 +12,17 @@ interface Seed {
   teams: Entry[];
   tags: Entry[];
   services: Entry[];
+  /**
+   * The plan and the child row, for a test that needs to arrange a **resting**
+   * cell rather than drive one.
+   *
+   * A cell is arranged through the UI wherever the gesture is part of the
+   * claim. It is arranged through the API where it is not: an open picker is a
+   * panel over the row below, so driving a parent's cell and then a child's in
+   * one pass measures a page with a popover standing on it.
+   */
+  projectId: string;
+  childId: string;
 }
 
 async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> {
@@ -96,7 +107,7 @@ async function seed(page: Page): Promise<Seed> {
   if (id010 === undefined || id020 === undefined || id030 === undefined || id040 === undefined)
     throw new Error('the four reference rows were not created');
 
-  await commands(page, projectId, [
+  const [childId] = await commands(page, projectId, [
     { kind: 'createWorkItem', parentId: id010, afterId: null, name: 'Inherited reference child' },
     {
       kind: 'patchWorkItem',
@@ -110,15 +121,33 @@ async function seed(page: Page): Promise<Seed> {
     { kind: 'addDependency', workItemId: id040, predecessorId: id010 },
     { kind: 'addDependency', workItemId: id040, predecessorId: id020 },
   ]);
+  if (childId === undefined) throw new Error('the inherited reference child was not created');
   await page.reload();
-  return { teams, tags, services };
+  return { teams, tags, services, projectId, childId };
 }
 
+/**
+ * Pick an existing entry in one reference cell, and **leave the cell**.
+ *
+ * The blur is not tidiness. Since `reference-cell-popover` a focused strip
+ * leaves the flow and opens as a panel `calc(100% + 4px)` wide that hangs over
+ * the rows below — deliberately, those being the pixels a popover is allowed to
+ * take — so a `choose` that returned with the focus still in the box leaves an
+ * opaque panel standing over the next row's cells.
+ *
+ * It is **not sufficient** on its own, and that is worth knowing: with the blur
+ * in place, a following click aimed at the row below still timed out at 60s on
+ * `<span data-reference-chips>… from <tr …> subtree intercepts pointer events`.
+ * Whatever else is standing there, this file does not drive two cells of
+ * neighbouring rows in one pass; it arranges the second through the API and
+ * reloads. Watched 2026-08-30.
+ */
 async function choose(page: Page, label: string, name: string): Promise<void> {
   const box = page.getByRole('combobox', { name: label, exact: true });
   await box.click();
   await box.fill(name);
   await page.getByRole('option', { name, exact: true }).click();
+  await box.blur();
 }
 
 async function chooseTheme(page: Page, answer: 'Light' | 'Dark'): Promise<void> {
@@ -150,6 +179,11 @@ async function showReferenceColumns(page: Page): Promise<void> {
  * own answer, which is the only one that knows about clipping, masks and
  * whatever is painted over it. jsdom lays nothing out and cannot be asked.
  */
+/** The `<td>` a reference cell's box stands in, found by the box's own name. */
+function cellOf(page: Page, label: string): Locator {
+  return page.getByRole('combobox', { name: label, exact: true }).locator('xpath=ancestor::td[1]');
+}
+
 async function hitsItself(target: Locator): Promise<boolean> {
   return target.evaluate((node) => {
     const box = node.getBoundingClientRect();
@@ -240,14 +274,24 @@ test('round-trips every desktop reference set with three reachable values in bot
       })
       .first(),
   );
-  // The desktop's whole reading of inheritance: the box's own placeholder ink,
-  // and no second line under it. `Inherited: …` is the phone sheet's line, and
+  // The desktop's whole reading of inheritance: one drawing of it per cell, and
+  // no second line under it. `Inherited: …` is the phone sheet's line, and
   // drawing both is what stood the Tags column three lines tall (4b.3).
   await expect(page.locator('[data-reference-inherited]')).toHaveCount(0);
+  // The **team** cell still says it in the box's placeholder ink, because that
+  // dimension overrides and the box is empty exactly when there is something to
+  // say. The tag cell draws chips instead (ADR 0008) — a row that states a tag
+  // of its own carries its ancestor's too, and there is no empty box left.
+  await expect(
+    page.getByRole('combobox', { name: 'Service or team for 010.1', exact: true }),
+  ).toHaveAttribute('placeholder', /^↳ /);
   await expect(page.getByRole('combobox', { name: 'Tags for 010.1', exact: true })).toHaveAttribute(
     'placeholder',
-    /^↳ /,
+    'add',
   );
+  await expect(
+    cellOf(page, 'Tags for 010.1').locator('[data-reference-inherited-chip]'),
+  ).toHaveCount(3);
   for (const palette of ['Light', 'Dark'] as const) {
     await chooseTheme(page, palette);
     await assertReachablePaint(page, roots);
@@ -319,12 +363,35 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   // a resting value could repeat. 030 states nothing and is the baseline.
   await choose(page, 'Tags for 010', seeded.tags[2].name);
   await choose(page, 'Service or team for 020', seeded.teams[0].name);
+  // 010.1 states the third tag itself and carries the other two from 010 —
+  // ADR 0008's own row, and the shape the 2026-08-29 report is about. It is the
+  // most crowded Tags cell on the page: one own chip with a ✕, two inherited
+  // ones without.
+  //
+  // **Written through the API, not the picker**, and that is a finding rather
+  // than a shortcut. This test measures rows at rest, and every cell it opens
+  // on the way there leaves an opaque panel `calc(100% + 4px)` wide standing
+  // over the row below (`reference-cell-popover`). 010.1 is the row below 010,
+  // whose Tags cell this test opens two lines up, so driving 010.1's cell in the
+  // same pass aims a click at a page with a popover on it: Chromium timed out at
+  // 60s on `<span data-reference-chips>… from <tr …> subtree intercepts pointer
+  // events`, twice — once clicking the box and once clicking the `+` — and a
+  // `blur()` between them did not clear it. Watched 2026-08-30.
+  //
+  // The gesture is not what this test is about; the resting geometry is. Both
+  // are covered — the picker on a crowded cell is the paragraph below, in the
+  // state the cell is actually removed from.
+  await commands(page, seeded.projectId, [
+    {
+      kind: 'patchWorkItem',
+      workItemId: seeded.childId,
+      patch: { tagIds: [seeded.tags[2].id] },
+    },
+  ]);
   await page.reload();
 
-  const cellOf = (label: string): Locator =>
-    page.getByRole('combobox', { name: label, exact: true }).locator('xpath=ancestor::td[1]');
   const heightOf = async (label: string, what: string): Promise<number> => {
-    const box = await cellOf(label).boundingBox();
+    const box = await cellOf(page, label).boundingBox();
     if (box === null) throw new Error(`${what} has no painted box`);
     return box.height;
   };
@@ -343,12 +410,62 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
     await heightOf('Tags for 010.1', 'the inheriting row'),
     'an inherited set stands the row taller than a row with none',
   ).toBeLessThanOrEqual(bare + 1);
+  /*
+    The accumulating cell, on the one line the two heights above have just
+    measured: its own chip first, the two it carries after it.
+
+    **A `scrollWidth > clientWidth` assertion stood here and was deleted**, and
+    the deletion is the point. It was written on the reasoning that a height
+    check might be vacuous — the `<td>` clips with `overflow: clip` since
+    `reference-cell-popover`, so a wrapped strip could be cut rather than push
+    its row taller — and that a wrapped line's missing horizontal overflow would
+    catch what the height missed.
+
+    Injecting the fault it was written for said otherwise. `flexWrap` pinned to
+    `'wrap'` on the resting strip failed on `three tags stand the row taller
+    than a row with none`, `Expected: <= 27.1875 / Received: 68.1875` — the
+    height check three lines up, doing exactly its job, on the row that carries
+    three chips of its own. Moved above the heights the new assertion still
+    never ran, because that one fires first and it is not mine to reorder. A
+    guard whose removal cannot be observed does not ship (R5, `P phases-ui`,
+    `T1 column-widths-drag`). The heights are the oracle; this block asserts
+    what is drawn, not how tall it is.
+  */
+  const carrying = cellOf(page, 'Tags for 010.1');
+  await expect(carrying.locator('[data-reference-chip]')).toHaveCount(1);
+  await expect(carrying.locator('[data-reference-inherited-chip]')).toHaveCount(2);
+  // A tag comes off where it was written, which is ADR 0008's own consequence:
+  // the only ✕ in this cell belongs to the tag this row states.
+  //
+  // Proof: a `Remove` button added inside the inherited chip — the shape a
+  // reader would reach for on seeing a chip without one — and this failed in
+  // Chromium on `Expected: 1 / Received: 3`. Watched 2026-08-30. jsdom watched
+  // the same fault at `reference-set-field.test.tsx`; the browser is what says
+  // the extra ✕ is also **reachable**, which is what makes it a bug.
+  await expect(carrying.getByRole('button', { name: /^Remove / })).toHaveCount(1);
+  await expect(
+    carrying.getByRole('button', { name: `Remove ${seeded.tags[2].name} from 010.1` }),
+  ).toHaveCount(1);
+  expect(
+    await hitsItself(carrying.locator('[data-reference-chip]').first()),
+    'the row’s own chip is clipped or covered by what it carries',
+  ).toBe(true);
+  // **The way into a cell that carries more than it can draw.** Three chips fill
+  // this 120px line and the search box behind them has no width left to click,
+  // so the `+` is the only gesture that still opens the picker. It is
+  // `shrink-0` and first in the strip for this reason, and this is where that
+  // stops being a claim: without it, a row under a tagged ancestor could be
+  // tagged from nowhere at all.
+  expect(
+    await hitsItself(carrying.locator('[data-reference-add]')),
+    'the add button is clipped or covered on a cell full of inherited chips',
+  ).toBe(true);
   expect(
     await heightOf('Service or team for 020', 'the one-member row'),
     'one own member stands the row taller than a row with none',
   ).toBeLessThanOrEqual(bare + 1);
 
-  const crowded = cellOf('Tags for 010');
+  const crowded = cellOf(page, 'Tags for 010');
   const crowdedCell = await crowded.boundingBox();
   const strip = crowded.locator('[data-reference-strip]');
   const stripBox = await strip.boundingBox();
@@ -455,7 +572,7 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   const list = page.locator('[data-picker-list]');
   await expect(list).toHaveCount(1);
   const listBox = await list.boundingBox();
-  const emptyCell = await cellOf('Tags for 030').boundingBox();
+  const emptyCell = await cellOf(page, 'Tags for 030').boundingBox();
   if (listBox === null || emptyCell === null) throw new Error('the open list is not painted');
   // Three options at 22px. Cut to the sliver of Dany's screenshot — the cell
   // scrolled under an unexempted clip — this is a few pixels tall.
@@ -466,7 +583,7 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   ).toBe(true);
   // The cell has not been scrolled to reveal it, which is the fault itself.
   expect(
-    await cellOf('Tags for 030').evaluate((cell) => cell.scrollTop),
+    await cellOf(page, 'Tags for 030').evaluate((cell) => cell.scrollTop),
     'the opened cell has been scrolled, so its contents left its row',
   ).toBe(0);
   await empty.blur();
@@ -501,11 +618,11 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
 
   // Said once, per surface. The desktop's reading is the placeholder's `↳`.
   expect(
-    await drawnSayings(cellOf('Tags for 010.1'), seeded.tags[0].name),
+    await drawnSayings(cellOf(page, 'Tags for 010.1'), seeded.tags[0].name),
     'the inherited set is drawn more than once',
   ).toBe(1);
   expect(
-    await drawnSayings(cellOf('Service or team for 020'), seeded.teams[0].name),
+    await drawnSayings(cellOf(page, 'Service or team for 020'), seeded.teams[0].name),
     'the sole own member is drawn more than once',
   ).toBe(1);
 
@@ -525,7 +642,7 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   ).toHaveCount(0);
   await page.reload();
   await expect(
-    cellOf('Tags for 010').locator(`[data-reference-chip="${first}"]`),
+    cellOf(page, 'Tags for 010').locator(`[data-reference-chip="${first}"]`),
     'the removal did not survive a reload',
   ).toHaveCount(0);
 });
@@ -629,7 +746,26 @@ test.describe('390x844 reference sheets', () => {
     await expect(inherited).toHaveCount(1);
     for (const field of fields) {
       const dialog = await openSheet(field, inherited);
-      await expect(dialog.locator('[data-reference-inherited]')).toContainText('from 010');
+      if (field.kind === 'tag') {
+        // The accumulating dimension says it as chips, on the sheet as in the
+        // cell: `inheritedLabel` cannot describe a row that states one tag and
+        // carries two, so the tag adapter passes `inheritedEntries` and the
+        // `Inherited:` line is not drawn at all (ADR 0008).
+        //
+        // Watched failing on the way in: with the tag sheet still handed
+        // `inheritedLabel`, this loop asserted the line for all three fields and
+        // Chromium failed on `expect(locator).toContainText(expected) failed …
+        // element(s) not found` for `Edit Tags for 010`. 2026-08-30.
+        await expect(dialog.locator('[data-reference-inherited]')).toHaveCount(0);
+        // Three: 010 states all three seeded tags by now, and 010.1 states
+        // none of its own, so it carries every one of them.
+        const chips = dialog.locator('[data-reference-inherited-chip]');
+        await expect(chips).toHaveCount(3);
+        await expect(chips.first()).toContainText('↳ ');
+        await expect(chips.first()).toHaveAttribute('title', /inherited from 010 /);
+      } else {
+        await expect(dialog.locator('[data-reference-inherited]')).toContainText('from 010');
+      }
       await closeSheet(field, dialog);
     }
 
