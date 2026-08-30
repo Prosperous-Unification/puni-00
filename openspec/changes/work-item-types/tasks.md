@@ -28,7 +28,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 5. In a browser
 
-- [ ] 5.1 **Not done, and blocked on a browser rather than on code.** Chromium at 1280 and 390×844: the column shown from `Columns`, a row of three types the same height as a row of none, the chip run clipped rather than wrapped — negative: `flex-wrap: wrap` on the strip, watched failing on the measured height. jsdom computes no layout.
+- [x] 5.1 Chromium at 1280 and 390×844 (`e2e/types-cell.spec.ts`, 5 cases). **The 390 half of this task asked for a measurement that does not exist** — at that width the plan is `mobile-cards`' card list, with no table, no column and no cell; the case asserts that instead and fails if the table is ever rendered there. **And the named negative (`flex-wrap: wrap`) could not be made to fail**: the cell clips, so wrap and nowrap are indistinguishable at the row, and a strip comparison fails on correct code (87px with three chips, 48px with one, both under `nowrap`). The clip is asserted directly instead and watched failing on `overflow: visible`. Original text: the column shown from `Columns`, a row of three types the same height as a row of none, the chip run clipped rather than wrapped — negative: `flex-wrap: wrap` on the strip, watched failing on the measured height. jsdom computes no layout.
 
 ## 6. Gate
 
