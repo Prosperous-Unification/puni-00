@@ -239,8 +239,14 @@ _Avoid_: points, effort, sizing
 
 **Trio shorthand**:
 One estimate written as one value — `2/3/8`, or `5` meaning all three are five. What a
-folded role's cell takes, in place of three boxes.
+folded role's cell shows and takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
+
+**Final days**:
+One role's single number of days for one work item — the project's estimate method applied
+to its **estimate**, rolled up over its children. Shown beside the **trio shorthand** it
+came from, and summed across roles into the work item's total days.
+_Avoid_: PERT number, computed figure, effective estimate
 
 **Estimate gap**:
 One leaf work item and one role it holds no estimate for. A work item with children never

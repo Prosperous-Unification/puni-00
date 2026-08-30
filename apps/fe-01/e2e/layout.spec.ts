@@ -1035,6 +1035,118 @@ test.describe('the table, measured by a browser', () => {
     ).toEqual([]);
   });
 
+  test('holds a trio and its figure on one line of a folded role cell', async ({ page }) => {
+    // `estimate-triple-visible`. The seeded plan estimates 010 `2/3/8` and
+    // leaves 020 unestimated, so the two rows are the same row with and
+    // without this change's content in it.
+    //
+    // **jsdom is the oracle for what the cell says and can be the oracle for
+    // neither of the two things below** (`AGENTS.md`, R5 #14/#15): whether the
+    // figure fits beside the box in 96px, and whether a row that holds both is
+    // still one line tall.
+    //
+    // Both names are cut to one line first — the seed's are two sentences long
+    // and wrap at this width, and a wrapped name is a taller row for a reason
+    // that has nothing to do with an estimate.
+    for (const [label, name] of [
+      ['Name of 010', 'Survey'],
+      ['Name of 020', 'Draft'],
+    ] as const) {
+      const box = page.getByLabel(label);
+      await box.fill(name);
+      await box.blur();
+      await expect(box).toHaveValue(name);
+    }
+    await expect(page.getByLabel('Dev estimate for 010')).toHaveValue('2/3/8');
+
+    const measure = () =>
+      page.evaluate(() => {
+        const rows = [...document.querySelectorAll('tbody tr')];
+        // The count, not `rows[1] === undefined`: without
+        // `noUncheckedIndexedAccess` an index into this array types as
+        // `Element`, so the nullish test is one the compiler has already
+        // decided and eslint refuses as unreachable. The length is a fact
+        // about the page, and the second row is what the first is compared
+        // against below.
+        if (rows.length < 2) {
+          throw new Error(`the plan has ${String(rows.length)} rows; this needs two`);
+        }
+        const cell = rows[0]?.querySelector('td[data-column$="-final"]');
+        const box = cell?.querySelector('input');
+        const figure = cell?.querySelector('[data-folded-final]');
+        if (
+          !(cell instanceof HTMLElement) ||
+          !(box instanceof HTMLInputElement) ||
+          !(figure instanceof HTMLElement)
+        ) {
+          throw new Error('the first row has no folded role cell with a box and a figure in it');
+        }
+        const cellBox = cell.getBoundingClientRect();
+        const boxBox = box.getBoundingClientRect();
+        const figureBox = figure.getBoundingClientRect();
+        return {
+          said: figure.textContent,
+          cell: { id: 'the role column', x: cellBox.x, width: cellBox.width },
+          box: { id: 'the trio box', x: boxBox.x, width: boxBox.width },
+          figure: { id: 'the derived figure', x: figureBox.x, width: figureBox.width },
+          // Whether the box is showing its whole value or scrolling it. This
+          // is the assertion the change exists for: a trio nobody can read is
+          // the figure-only cell again with more characters in it.
+          clipped: box.scrollWidth - box.clientWidth,
+          estimated: rows[0].getBoundingClientRect().height,
+          bare: rows[1].getBoundingClientRect().height,
+        };
+      });
+
+    /** What this cell has to hold at rest, whatever else it holds. */
+    const holdsItsContents = (measured: Awaited<ReturnType<typeof measure>>): void => {
+      // Both boxes have area before anything is asserted about where they are.
+      // A zero-width rectangle sits inside every cell there is, and an overlap
+      // check against one is a check that cannot fail — `G gantt-calendar-axis`,
+      // R5 #16.
+      expect(measured.box.width).toBeGreaterThan(0);
+      expect(measured.figure.width).toBeGreaterThan(0);
+      expect(measured.cell.width).toBe(96);
+      expect(findOverrun(measured.cell, measured.box)).toBe(undefined);
+      expect(findOverrun(measured.cell, measured.figure)).toBe(undefined);
+      // Proof: the figure drawn at the row's own 13px rather than the table's
+      // 10px caption size, this failed on the wide case — `the trio does not
+      // fit the box beside its figure — Expected: <= 0, Received: 8`. Watched
+      // in Chromium, 2026-08-30, and it is why the figure is set small.
+      expect(
+        measured.clipped,
+        'the trio does not fit the box beside its figure',
+      ).toBeLessThanOrEqual(0);
+      // Proof: the cell wrapper's `display: flex` written as `display: block`,
+      // so the figure drops under the box — this failed on `Expected: 26.1875
+      // / Received: 44.375`, a row two lines tall. Watched in Chromium,
+      // 2026-08-30.
+      expect(
+        measured.estimated,
+        'a row holding a trio and a figure is taller than one holding neither',
+      ).toBeCloseTo(measured.bare, 1);
+      expect(measured.estimated).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
+    };
+
+    const seeded = await measure();
+    expect(seeded.said).toBe('· 3.7');
+    holdsItsContents(seeded);
+
+    // The widest trio this column has been asked to hold in anger: `20/24/30`,
+    // typed live on dev by `wbs-e2e-planning-qa` on 2026-08-22 and quoted in
+    // `wbs-table.tsx` beside the Enter that sends it. Eight characters and a
+    // four-character figure is what the 96px budget has to survive, and it is
+    // the case the design is chosen against rather than the seed's short one.
+    const estimate = page.getByLabel('Dev estimate for 010');
+    await estimate.fill('20/24/30');
+    await estimate.blur();
+    await expect(page.locator('[data-folded-final]').first()).toHaveText('· 24.3');
+
+    const wide = await measure();
+    expect(wide.said).toBe('· 24.3');
+    holdsItsContents(wide);
+  });
+
   test('puts the pinned columns exactly where they are declared to sit', async ({ page }) => {
     await scrollFrameTo(page, 0);
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
@@ -3112,9 +3224,34 @@ test.describe('the Number column keeps its figures in a line', () => {
 });
 
 /**
- * What the folded toolbar's controls asked for at 1280 **before**
- * `plan-toolbar-controls`, in px — the figure this change is only done if it
- * beat.
+ * What the folded toolbar's controls are allowed to ask for at 1280, in px —
+ * a budget measured on the bar `plan-toolbar-controls` shipped, not the
+ * before-figure `tasks.md` 5.1 asked for.
+ *
+ * **The before-figure would have been a check that cannot fail, which is why
+ * it is not what is pinned here.** The negative this test exists for is
+ * `Expand all` and `Collapse all` given their text labels back — and the bar
+ * before this change carried those labels *and* `Freeze numbering` and
+ * `Unfreeze all` as two separate buttons where there is now one `Freeze #`
+ * menu. So the fault rebuilds a bar strictly narrower than the one the
+ * before-figure describes, `asked <= before` holds with the fault in, and the
+ * assertion is decoration. The pin has to be this bar's own width for the
+ * fault to have anything to exceed.
+ *
+ * Measured in Chromium at 1280×900 on 2026-08-29, both figures read off this
+ * same test with the budget temporarily set to 1:
+ *
+ * - this bar: `asked` **1552.734375**
+ * - the two labels restored (`size="sm"`, the words as the child, no
+ *   `aria-label`, no icon): `asked` **1658.828125** — 106.09px wider
+ *
+ * Pinned at **1600**: the measured 1552.73 plus about 47px, which is headroom
+ * for font-metric drift between this Mac's Chromium and CI's Linux one and is
+ * still only a little over **half** what the named fault adds. A toolbar
+ * change worth catching moves this by a control's width; one that moves it by
+ * ten pixels is a font, not a control. Should CI's Chromium disagree, it fails
+ * loudly with both numbers rather than quietly — and the figure is then
+ * re-measured there.
  *
  * A pinned number rather than a "narrower than it was" comparison, and that is
  * the whole of the check: a relative assertion passes on a one-pixel
@@ -3123,29 +3260,9 @@ test.describe('the Number column keeps its figures in a line', () => {
  * `gantt-calendar-axis`, where a canvas was measured against an axis it had
  * been sized from.
  *
- * **`null`, and the test is `fixme` until it is measured.** The change was
- * implemented on a machine that could not run Chromium — ports 3100/3200/4200
- * were held by a dev server, and `bun run e2e` reuses whatever holds them, so a
- * run there measures another checkout (`LLM_README.md`'s landmine). The
- * before-figure has to be read off the toolbar as it stood at `b3acb7b`:
- *
- * ```sh
- * git stash                                   # or check out the parent commit
- * CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts \
- *   -g 'the folded toolbar fits its budget'   # fails on the null, printing `asked`
- * ```
- *
  * See `openspec/changes/plan-toolbar-controls/verify.md`, "Measurements".
- *
- * A function rather than a `const`, and only so that this file's own
- * `no-unnecessary-condition` lint can still be believed: TypeScript narrows a
- * `const` initialised to `null` to exactly `null`, and the guard below then
- * reads as dead code to the rule — which is the shape of a check that cannot
- * fail. Through a declared return type it stays a real `number | null`.
  */
-function foldedToolbarControlsBeforePx(): number | null {
-  return null;
-}
+const FOLDED_TOOLBAR_BUDGET_PX = 1600;
 
 /**
  * The width the toolbar's controls ask for, and the figures that say what
@@ -3190,19 +3307,14 @@ async function foldedToolbarWidth(
 test.describe('the plan toolbar’s own width', () => {
   test('the folded toolbar fits its budget', async ({ page }) => {
     // The point of `plan-toolbar-controls` was bar width, so the change is only
-    // done if the bar got narrower — measured, against a number, at the one
+    // done if the bar stays narrow — measured, against a number, at the one
     // viewport that number was taken at.
     //
-    // Negative: `Expand all`'s and `Collapse all`'s words restored on the face
-    // of the two icon buttons, watched failing against the pinned figure.
-    // **Not yet watched** — see the figure above and `verify.md`.
-    const pinned = foldedToolbarControlsBeforePx();
-    test.fixme(
-      pinned === null,
-      'the pre-change figure is not measured yet — openspec/changes/plan-toolbar-controls/verify.md',
-    );
-    if (pinned === null) throw new Error('the pre-change figure is not measured yet');
-
+    // Proof: `Expand all`'s and `Collapse all`'s words restored on the face of
+    // the two icon buttons (`size="sm"`, the label as the child, no
+    // `aria-label`, no icon) — failed on `the toolbar asks for more room than
+    // its budget · Expected: <= 1600 · Received: 1658.828125`. Watched in
+    // Chromium at 1280×900, 2026-08-29.
     await page.setViewportSize({ width: 1280, height: 900 });
     // Folded: no role unfolded and nothing typed in Find, which is the state
     // the figure was taken in. Both are the default on a fresh plan, and are
@@ -3213,8 +3325,8 @@ test.describe('the plan toolbar’s own width', () => {
 
     const measured = await foldedToolbarWidth(page);
 
-    expect(measured.asked, 'the toolbar asks for more room than it did before').toBeLessThanOrEqual(
-      pinned,
+    expect(measured.asked, 'the toolbar asks for more room than its budget').toBeLessThanOrEqual(
+      FOLDED_TOOLBAR_BUDGET_PX,
     );
     // The bar never overflows — it wraps — so this is a precondition on the
     // measurement rather than the measurement itself: were it ever to fail, the

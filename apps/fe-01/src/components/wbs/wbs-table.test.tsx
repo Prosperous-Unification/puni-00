@@ -200,6 +200,32 @@ function fakeApi(): ProjectApi & {
       .sort((a, b) => (a.workItemId < b.workItemId ? -1 : 1));
   }
 
+  /**
+   * One row's estimates as be-01 sends them: its own where it is a leaf, and
+   * the sum of every descendant's per role and per point where it is not.
+   *
+   * A work item with children has no estimate of its own (`CONTEXT.md`), so
+   * summing the whole subtree and summing the leaves in it are the same walk.
+   */
+  function rolledUpEstimates(of: { id: string }): Record<string, Days> {
+    const summed: Record<string, Days> = {};
+    const walk = (rowId: string): void => {
+      const row = rows.find((r) => r.id === rowId);
+      if (row === undefined) return;
+      for (const [roleId, days] of Object.entries(row.estimates)) {
+        const already = summed[roleId] ?? { optimistic: 0, realistic: 0, pessimistic: 0 };
+        summed[roleId] = {
+          optimistic: already.optimistic + days.optimistic,
+          realistic: already.realistic + days.realistic,
+          pessimistic: already.pessimistic + days.pessimistic,
+        };
+      }
+      for (const child of rows.filter((r) => r.parentId === rowId)) walk(child.id);
+    };
+    walk(of.id);
+    return summed;
+  }
+
   function renumber(): void {
     seq += 1;
     const numberOf = new Map<string | null, string>([[null, '']]);
@@ -289,10 +315,20 @@ function fakeApi(): ProjectApi & {
           ...r,
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
+          // A parent carries the sum of its descendants' trios, per role and
+          // per point — `work-item.service.ts`'s `totals`, which is what
+          // `WorkItemRow.estimates` means on the wire for a row with children.
+          // Until 2026-08-29 this fake handed a parent `{}` and its own
+          // `rolledUp` flag in the same object, so the roll-up column read
+          // empty in jsdom and every claim about it was made against nothing.
+          estimates: rolledUpEstimates(r),
           finalDays: Object.fromEntries(
-            Object.entries(r.estimates).map(([roleId, days]) => [roleId, finalOf(days)]),
+            Object.entries(rolledUpEstimates(r)).map(([roleId, days]) => [roleId, finalOf(days)]),
           ),
-          finalTotal: Object.values(r.estimates).reduce((total, days) => total + finalOf(days), 0),
+          finalTotal: Object.values(rolledUpEstimates(r)).reduce(
+            (total, days) => total + finalOf(days),
+            0,
+          ),
           // be-01 works the dates out; the fake only has to place them on the
           // calendar the same way, so the table is asserted on what it renders.
           dates: startDate === null ? null : { startsOn: startDate, endsOn: startDate },
@@ -4649,9 +4685,19 @@ describe('assigning from a folded role’s cell with @', () => {
 });
 
 describe('one cell for the whole trio', () => {
-  /** The folded role's cell: shows the final figure, takes `o/r/p`. */
+  /** The folded role's cell: holds the trio shorthand, takes `o/r/p`. */
   const combinedCell = (number: string, role = 'Dev') =>
     screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+
+  /**
+   * The muted figure beside that cell, or null where the cell says it already.
+   *
+   * By its own attribute rather than by reading the whole cell: the assignee's
+   * initials sit in the same box, and a text assertion over both would pass on
+   * a figure that had moved into the wrong span.
+   */
+  const foldedFinal = (number: string, roleId = 'role-dev') =>
+    rowFor(number).querySelector(`[data-folded-final="${roleId}"]`);
 
   /** Types shorthand into the folded cell and leaves it, the way a person does. */
   const typeCombined = (number: string, value: string) => {
@@ -4701,16 +4747,129 @@ describe('one cell for the whole trio', () => {
     expect(written).toEqual([['w1', 'role-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]);
   });
 
-  itDom('goes back to showing be-01’s final figure once the trio lands', async () => {
-    // The honest shape of this cell: a computed figure at rest, shorthand
-    // while it is being typed into. `2/3/10` is PERT 4, which is not any of
-    // the three numbers typed.
+  itDom('keeps the trio in the cell once the estimate lands', async () => {
+    // Dany, 2026-08-29: *"i want to keep seeing the values i've put in"*. Until
+    // `estimate-triple-visible` this cell went back to be-01's computed figure
+    // — `2/3/10` is PERT 4 — and the three numbers somebody chose left the
+    // screen the moment they landed.
+    //
+    // **The wait is on the figure, not on the box**, and that is the whole of
+    // whether this can fail. The box holds what was typed from the keystroke
+    // onwards, so a `waitFor` on its value is satisfied at once — with
+    // `combinedValue` put back to the final figure it passed, because it never
+    // looked again after the round trip that would have replaced `2/3/10` with
+    // `4`. The figure beside it appears only once be-01 has answered, so
+    // waiting for that puts the assertion in the window the fault lives in
+    // (`AGENTS.md`, R5, `D directory-page`).
+    //
+    // Proof: `combinedValue` put back to `showFinal(row.finalDays[roleId])`,
+    // this failed on `expected '4' to be '2/3/10'`. Watched 2026-08-29.
     await oneRow();
 
     typeCombined('010', '2/3/10');
 
     await waitFor(() => {
-      expect(combinedCell('010').value).toBe('4');
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+    expect(combinedCell('010').value).toBe('2/3/10');
+  });
+
+  itDom('stands the derived figure beside the trio it came from', async () => {
+    // The other half of the same sentence — *"and let 2.3 estimate be added to
+    // total days"*. The figure the project's estimate method makes of the trio
+    // is still on screen, and still the number the row's total days is made of.
+    await oneRow();
+
+    typeCombined('010', '2/3/10');
+
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+    // The plan's own total, unchanged by any of this: one role, one leaf.
+    expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('4');
+  });
+
+  itDom('says a flat trio once', async () => {
+    // `5` stores `5/5/5` and every estimate method answers `5`, so a cell that
+    // printed both read `5 · 5` — in 96px shared with an assignee.
+    //
+    // The wait is on the row's total days, which is the only thing on this row
+    // that moves when the estimate lands: the box holds `5` from the keystroke
+    // onwards and an unestimated row has no figure beside it either, so both
+    // assertions below are satisfied before the round trip and say nothing
+    // until it has happened.
+    //
+    // Proof: `finalSaysMore` widened to `final !== ''`, this failed on
+    // `expected <span …(2)></span> to be null` — the cell reading `5 · 5`.
+    // Watched 2026-08-29.
+    await oneRow();
+
+    typeCombined('010', '5');
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
+    });
+    expect(combinedCell('010').value).toBe('5');
+    expect(foldedFinal('010')).toBeNull();
+  });
+
+  itDom('keeps the stored figure beside a cell holding a refused entry', async () => {
+    // The figure is what be-01 holds, not what the box beside it is holding —
+    // {@link FoldedRoleCard}'s rule for the same two fields. A figure derived
+    // from the draft would stand a number beside `9/9/` claiming to be its
+    // answer, and there is no answer: `9/9/` is not an estimate.
+    //
+    // **Refused and left**, not typed and still open: the folded cell writes no
+    // draft on a keystroke (the `@` list is what `onTyped` is for), so a box
+    // that has only been typed into leaves `combinedValue` reading the stored
+    // trio and a draft-derived figure indistinguishable from this one. The
+    // window the fault lives in opens on the blur that holds the refusal.
+    //
+    // Proof: the figure computed from `combinedValue`'s text instead — the
+    // live-preview shape — this failed on `expected '· ' to be '· 4'` with the
+    // cell holding `9/9/`. Watched 2026-08-29.
+    await oneRow();
+    typeCombined('010', '2/3/10');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+
+    const cell = typeCombined('010', '9/9/');
+
+    expect(cell.value).toBe('9/9/');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(foldedFinal('010')?.textContent).toBe('· 4');
+  });
+
+  itDom('copies one row’s cell into another and lands the same estimate', async () => {
+    // The wart under the complaint: `2.2` was never a legal way to have typed
+    // `2/2/3`, so what the cell showed did not describe the estimate it stood
+    // for. This is that property on the production path — and it has to be
+    // **two rows**, because typing a cell's own value back into itself is a
+    // keystroke `LiveField` diffs away as no edit at all, whatever the cell
+    // was showing. `estimate-draft.test.ts` holds the round trip as a
+    // property; this holds it where a person does it.
+    //
+    // Proof: `combinedValue` put back to `showFinal(row.finalDays[roleId])`,
+    // this failed on `expected { optimistic: 4, realistic: 4, pessimistic: 4 }
+    // to deeply equal { optimistic: 2, realistic: 3, pessimistic: 10 }`.
+    // Watched 2026-08-29.
+    const api = await oneRow();
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    typeCombined('010', '2/3/10');
+    await waitFor(() => {
+      expect(foldedFinal('010')?.textContent).toBe('· 4');
+    });
+
+    typeCombined('020', combinedCell('010').value);
+
+    await waitFor(() => {
+      expect(api.rows[1]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 10,
+      });
     });
   });
 
@@ -4774,8 +4933,9 @@ describe('one cell for the whole trio', () => {
 
     await waitFor(() => {
       // `2/3/8` is PERT 3.7, which is none of the three numbers typed — the
-      // cell going back to be-01's computed figure is what says the trio landed.
-      expect(combinedCell('010').value).toBe('3.7');
+      // figure appearing beside the cell is what says the trio landed, since
+      // the cell itself holds the same characters either way.
+      expect(foldedFinal('010')?.textContent).toBe('· 3.7');
     });
     expect(written).toHaveLength(1);
   });
@@ -4953,8 +5113,37 @@ describe('one cell for the whole trio', () => {
     expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
     expect(rowFor('010').querySelector('[data-final="role-dev"]')).not.toBeNull();
     await waitFor(() => {
-      expect(combinedCell('010.1').value).toBe('4');
+      expect(combinedCell('010.1').value).toBe('2/3/10');
     });
+  });
+
+  itDom('reads a parent’s roll-up as a trio too', async () => {
+    // One column, one reading. A column that printed a trio on a leaf and a
+    // bare figure on the row above it would be two readings of one heading —
+    // and a parent's trio is the sum of its descendants' per point, so the
+    // figure beside it cannot contradict the leaves it is made of.
+    //
+    // Proof: the parent's cell put back to the figure alone, this failed on
+    // `expected '4· 4' to contain '2/3/10'`. Watched 2026-08-29.
+    const api = await oneRow();
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    typeCombined('010.1', '2/3/10');
+    await waitFor(() => {
+      expect(api.rows.find((row) => row.id === 'w2')?.estimates['role-dev']).toBeDefined();
+    });
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toContain(
+        '2/3/10',
+      );
+    });
+    expect(foldedFinal('010')?.textContent).toBe('· 4');
   });
 
   itDom('is a cell of the keyboard grid, so a column can be typed down', async () => {
@@ -5050,10 +5239,11 @@ describe('one cell for the whole trio', () => {
         pessimistic: 3,
       });
     });
-    // Folded again, the cell shows the figure be-01 computed — not the `8/3/2`
-    // that was refused before the boxes said something else.
+    // Folded again, the cell shows what be-01 now holds — not the `8/3/2` that
+    // was refused before the boxes said something else.
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(combinedCell('010').value).toBe('2');
+    expect(combinedCell('010').value).toBe('1/2/3');
+    expect(foldedFinal('010')?.textContent).toBe('· 2');
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'false');
   });
 
