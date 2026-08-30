@@ -240,7 +240,8 @@ describe('closing over an edit', () => {
   });
 
   itDom('refuses to close over a confirmation nobody has answered', async () => {
-    // `phases-dialog.test.tsx` used to assert the opposite — that the ✕ *cleared*
+    // `phases-panel.test.tsx` — `phases-dialog.test.tsx` when it was written —
+    // used to assert the opposite: that the ✕ *cleared*
     // an open confirmation silently. The modal refuses instead: a confirmation
     // somebody walked away from is not one they agreed to, and it is also not
     // one they declined.

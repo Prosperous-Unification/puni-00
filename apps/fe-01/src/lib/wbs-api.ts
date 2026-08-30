@@ -1018,7 +1018,7 @@ export interface ProjectApi {
    * rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all sent
    * and answered on. The two things the caller decides, because be-01 cannot see
    * them, are what an *empty box* means and that a non-finite draft is not sent;
-   * both are argued in `teams-dialog.tsx` and were C3's D6 before that.
+   * both are argued in `teams-panel.tsx` and were C3's D6 before that.
    */
   setTeamCapacity(projectId: string, teamId: string, size: number | null): Promise<void>;
   /**
