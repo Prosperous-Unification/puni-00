@@ -438,6 +438,15 @@ test.describe('the command chords, in a browser', () => {
     //
     // `Unfreeze all` on a frozen plan, because a no-op write leaves nothing to
     // observe: the lock on the rows is what says the item did or did not run.
+    //
+    // Proof: `MenuControl`'s item `preventDefault` moved back below the
+    // modifier guard — failed on `after Shift+Enter · Expected: 2 · Received:
+    // 0`, both locks gone because the browser clicked the item the guard had
+    // just refused. Watched in Chromium under the heavy-work lock, 2026-08-30.
+    // The `ControlOrMeta+Enter` before it in the same loop passed with the
+    // fault in: Chromium fires a button's own click from Shift+Enter and not
+    // from Cmd+Enter, which is why the loop tries all three rather than the
+    // one chord the routing matrix is about.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
 
     await page.getByRole('button', { name: 'Freeze #' }).click();

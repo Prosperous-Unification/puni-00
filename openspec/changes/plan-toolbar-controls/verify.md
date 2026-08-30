@@ -1,35 +1,80 @@
 # verify — `plan-toolbar-controls`
 
-Implemented on 2026-08-29 in a worktree at `b3acb7b`. Slices 1–4 are done; slice
-5 is written and **pending a browser**; slice 6 is not run here.
+Implemented on 2026-08-29 in a worktree at `b3acb7b`. Slices 1–4 were done then.
+Slices 3.3, 5.1 and 6.1 were written but **not executed** — there was no browser
+on that machine — and were finished on **2026-08-30** on branch
+`feat/plan-toolbar-controls-gate`, merged up to `origin/main` **five times** —
+main moved 28 commits, then 10, 4, 4 and 16 more while this ran — so that every
+figure below describes the bar as `work-item-types`, the reference-cell rework,
+`estimate-triple-visible`, `assumed-duration-schedules` and the Gantt dock left
+it. The figures did not move across any of the five merges; that is stated under
+"Measurements" rather than assumed.
 
-**No browser was available for this change.** Ports 3100/3200/4200 were held by
-a dev server, and `bun run e2e` sets `reuseExistingServer: !isCi` — a run here
-would have measured another checkout, which is `LLM_README.md`'s landmine and
-`AGENTS.md`'s R5 entry for `gantt-calendar-axis`. Every Playwright assertion
-below is **written and unexecuted**, and said so again under "Skipped".
+**Every browser run below is reconciled before it is believed.** A killed
+Playwright run exits 0 with a summary describing only the fragment it reached,
+and a fragment that happens to contain the case being measured reads exactly
+like a pass — so each run's `Running N tests` is checked against its own
+passed + failed + skipped. The whole gate: `Running 237 tests`, and
+`233 passed + 3 failed + 1 skipped = 237`.
+
+**The browser is real now, and the ports are its own.** `E2E_PORT_SHIFT=800`
+(landed on main as `10ccc41`/`3ea2ade`) moves be-01/gw-01/fe-01 to
+3900/4000/5000, so the gate runs beside the dev server holding 3100/3200/4200
+instead of reusing it. Reusing it is `LLM_README.md`'s landmine and `AGENTS.md`'s
+R5 entry for `gantt-calendar-axis`: 66 tests green against a checkout that never
+built them. Every measurement and every negative below was taken while this
+process **held the canonical heavy-work lock**, because an overnight run on this
+host at load average 555 timed out for 60 seconds merely clicking `Freeze #`.
 
 ## Measurements
 
-The folded toolbar's width was to be pinned as a number before the change. It
-could not be measured here, so it is pinned as `null` and the test that reads it
-is `test.fixme` with that reason in its message — a placeholder that says so
-every run, rather than a relative assertion that would pass on a regression.
+Read in Chromium at 1280×900 on 2026-08-30, on a host holding the heavy-work
+lock, off `the folded toolbar fits its budget` with its budget temporarily
+forced to 1 so that the assertion prints what it measured.
 
-| Figure                                        | Before                | After   |
-| --------------------------------------------- | --------------------- | ------- |
-| folded toolbar controls at 1280 (`asked`, px) | **pending a browser** | pending |
-| folded toolbar rows at 1280 (`lines`)         | **pending a browser** | pending |
+**Is this figure pinnable on this machine at all?** Asked before it was
+believed, because a number that holds once is not a pin. The bar was read
+**twice in a row under the same lock**, nothing else running either time:
 
-**What would be pinned, and how.** `foldedToolbarControlsBeforePx()` in
-`apps/fe-01/e2e/layout.spec.ts` returns `null` today. To fill it in:
-
-```sh
-git stash                                    # the toolbar as it stood at b3acb7b
-CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts \
-  -g 'the folded toolbar fits its budget'    # throws on the null, printing `asked`
-git stash pop                                # then paste that figure into the function
 ```
+== E1: this bar, first quiet reading ==   Received: 1552.734375
+== E2: this bar, second quiet reading ==  Received: 1552.734375
+```
+
+Identical to the last digit — and identical again to the readings taken hours
+earlier on a **loaded** host, and across all five merges of `main` this branch
+took. It is pinnable on this machine; had it moved between two quiet runs, this
+section would say so instead of naming a number that held once.
+
+| Figure                                                       | Value           |
+| ------------------------------------------------------------ | --------------- |
+| folded toolbar controls at 1280, this bar (`asked`, px)      | **1552.734375** |
+| the same bar with the two text labels restored (`asked`, px) | **1658.828125** |
+| what the words cost                                          | **106.09px**    |
+| rows the bar wraps onto at 1280 (`lines`)                    | **2**, asserted |
+| pinned budget (`FOLDED_TOOLBAR_BUDGET_PX`)                   | **1600**        |
+
+Both figures reproduce to the last digit across runs, across a loaded host and
+an idle one, and across five merges of `main` — sixty-two commits, including
+`work-item-types`, `estimate-triple-visible`, `assumed-duration-schedules` and
+the Gantt dock. A width is a layout, not a race, and every one of those changes
+is in the table or the chart rather than on the bar above them.
+
+**The figure `tasks.md` 5.1 asked for would have been a check that cannot
+fail, and that is the third correction to this slice.** 5.1 said to pin the
+folded toolbar's width **before** the change and assert the bar got narrower.
+But the negative written for it restores two text labels, while the bar before
+this change carried those labels _and_ `Freeze numbering` and `Unfreeze all` as
+two separate buttons where there is now one `Freeze #` menu. The fault therefore
+rebuilds a bar strictly narrower than the pre-change one: `asked <= before`
+holds with the fault in, and the assertion is decoration. Pinned that way this
+test would have joined `AGENTS.md`'s tally rather than guarded against it.
+
+So the pin is the **shipped** bar's own budget: 1600, which is the measured
+1552.73 plus about 47px of headroom for font-metric drift between this Mac's
+Chromium and CI's Linux one — a little over half of the 106.09px the fault adds,
+so the fault clears it either way. A toolbar change worth catching moves this by
+a control's width; ten pixels is a font, not a control.
 
 **`scrollWidth` alone is not the measurement, and `design.md` D5 asking for it
 was the vacuity it warns about.** The toolbar is `flex-wrap`: it never
@@ -98,98 +143,148 @@ The three in bold, in full:
 | `the controls are found by the names they always had`                          | `wbs-table.test`     | icon buttons, words gone from the face          |
 | `the cheat sheet control carries a drawn icon`                                 | `wbs-table.test`     | no `⌨`, an `aria-hidden` SVG instead            |
 | `offers freezing once, as a menu that opens on the sheet`                      | `plan-cards.test`    | one entry on the phone sheet; the menu opens    |
-| `a modified Enter or Space on a freeze menu item takes nothing`                | `e2e/keyboard.spec`  | **browser only** — see Skipped                  |
-| `the folded toolbar fits its budget`                                           | `e2e/layout.spec`    | **browser only, and `fixme`** — see Skipped     |
+| `a modified Enter or Space on a freeze menu item takes nothing`                | `e2e/keyboard.spec`  | Chromium: a modified Enter takes no item        |
+| `the folded toolbar fits its budget`                                           | `e2e/layout.spec`    | Chromium: `asked` under its pinned budget       |
 
 ## Commands
 
-| Command                                                                           | Result                                          |
-| --------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `bunx nx run fe-01:test`                                                          | see below — 1814 tests, 2 pre-existing failures |
-| `bunx nx run fe-01:lint`                                                          | pass (0 errors, 1 pre-existing warning)         |
-| `bunx nx run fe-01:typecheck`                                                     | pass                                            |
-| `bin/h2puni-gate.sh`                                                              | **not run** — out of scope for this worktree    |
-| `openspec validate --all --json`                                                  | see below                                       |
-| `CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts` (whole gate) | **not run** — no browser; ports held            |
+Every row was run on 2026-08-30 from this worktree, on `feat/plan-toolbar-controls-gate`
+merged up to `origin/main`. The three heavy rows each held the canonical
+heavy-work lock for their whole run.
 
-### `bunx nx run fe-01:test`
+| Command                                                                         | Result                                                                                                     |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `bunx openspec validate --all --json`                                           | **pass** — 91/91 changes valid, 0 failed                                                                   |
+| `CI=1 E2E_PORT_SHIFT=800 bunx nx run fe-01:e2e` (whole gate, no grep)           | 233 passed, 3 failed, 1 skipped of 237 planned — none of the 3 reachable from this diff                    |
+| `bin/h2puni-gate.sh` (`format:check --all`, then test/lint/typecheck/build ×23) | `fe-01`, `be-01`, `gw-01`, `mcp-01` and the libs pass; 3 `tools/*` test targets fail on macOS host tooling |
+| `bunx nx run fe-01:test` (inside the gate)                                      | **pass** — 1899 tests, 60 files, 0 failed                                                                  |
+| `bunx nx run fe-01:lint` (inside the gate)                                      | **pass** — 0 errors, 1 pre-existing warning                                                                |
+| `bunx nx run fe-01:typecheck`, `fe-01:build` (inside the gate)                  | **pass**                                                                                                   |
 
-```
- Test Files  1 failed | 57 passed (58)
-      Tests  2 failed | 1812 passed (1814)
-   Duration  160.04s
+### `bunx openspec validate --all --json`
 
- FAIL  src/components/wbs/plan-mermaid.test.ts > a real Mermaid parse (M5) > the excludes-weekends trap, watched rather than argued > leaves a bar crossing a weekend exactly where it was told, manualEndTime true
-AssertionError: expected '2026-09-03T21:00:00.000Z' to be '2026-09-04T00:00:00.000Z'
-
- FAIL  src/components/wbs/plan-mermaid.test.ts > … > still parses a point (unestimated/zero) as a real milestone with equal dates
-AssertionError: expected '2026-09-02T21:00:00.000Z' to be '2026-09-03T00:00:00.000Z'
+```json
+{ "totals": { "items": 91, "passed": 91, "failed": 0 } }
 ```
 
-**Both are pre-existing and unrelated** — a three-hour timezone offset in
-`plan-mermaid.test.ts`, a file this change does not touch. Watched failing the
-same way on the tree with this change stashed:
+### The whole browser gate
 
 ```
-$ git stash push -- src e2e ../../openspec
-$ bunx vitest run --root . src/components/wbs/plan-mermaid.test.ts --silent
-     → expected '2026-09-03T21:00:00.000Z' to be '2026-09-04T00:00:00.000Z'
-     → expected '2026-09-02T21:00:00.000Z' to be '2026-09-03T00:00:00.000Z'
-      Tests  2 failed | 47 passed (49)
+Running 237 tests using 1 worker
+  3 failed
+    [chromium] › apps/fe-01/e2e/keyboard.spec.ts:525:3 › the command chords, in a browser › Escape leaves the stored day alone, blur and all
+    [chromium] › apps/fe-01/e2e/keyboard.spec.ts:669:3 › the command chords, in a browser › saves only the year that was typed, digit by digit, in a real Chrome
+    [chromium] › apps/fe-01/e2e/plan-surface.spec.ts:253:3 › the plan and its chart as one surface › docks the chart under the last row rather than at the bottom of the window
+  1 skipped
+  233 passed (6.3m)
 ```
 
-`src/components/wbs/wbs-table.test.tsx (544 tests)` passed in that same run, and
-so did `plan-cards.test.tsx (110)`, `actions-menu.test.tsx (15)`,
-`page-shortcuts.test.tsx (7)` and the new `toolbar-icons.test.tsx (2)`.
+`233 + 3 + 1 = 237`, the count it planned — so this is the whole suite and not
+a fragment of one.
 
-### `bunx nx run fe-01:lint`
+**None of the three is this change's, and each was identified rather than
+assumed.** `git diff origin/main --stat` for this branch touches
+`apps/fe-01/e2e/layout.spec.ts` and `apps/fe-01/e2e/keyboard.spec.ts` —
+comments in both — and three markdown files. **No production source at all**, so
+nothing here can reach a spec about a chart or a date field.
+
+- The two `keyboard.spec.ts` cases are the documented locale pair: they type
+  digits into a native `<input type="date">` and this host renders `dd.mm.yyyy`,
+  so they fail on `Expected: "2026-07-01" / Received: "2026-01-07"` and
+  `Expected: "2026-05-20" / Received: "2026-02-05"` — the month-and-day swap
+  `playwright.config.ts` and `AGENTS.md` both describe.
+- `plan-surface.spec.ts:253` is a **stale test** rather than a regression:
+  `527px between the last row and the chart, against 215px anything asked for ·
+Expected: <= 217.4375 · Received: 527.4375`. The Gantt dock changed where the
+  chart sits and its spec has not caught up; another session owns the
+  correction, so it is left alone here.
+
+Two failures this file recorded earlier in the day are **gone**, and neither was
+touched here: `deps-cell.spec.ts:432`'s animation poll was a fault in its own
+theme drain, fixed on `main` (`26d6166`), and `phases.spec.ts:204` was
+`estimate-triple-visible` leaving a spec behind, fixed on `main` (`a4648e4`)
+after this file reported it.
+
+The 1 skipped is `gantt.spec.ts`'s pre-existing `test.fixme` — **no longer**
+this change's own. `the folded toolbar fits its budget` is `fixme` no more, and
+both new browser cases pass:
 
 ```
-/…/apps/fe-01/src/components/wbs/wbs-table.tsx
-  4061:5  warning  React Hook useMemo has unnecessary dependencies: 'ownedServicesByTeam' and 'teamsByPerson'…
+  ✓  110 [chromium] › apps/fe-01/e2e/keyboard.spec.ts:429:3 › a modified Enter or Space on a freeze menu item takes nothing (1.5s)
+  ✓  170 [chromium] › apps/fe-01/e2e/layout.spec.ts:3314:3 › the folded toolbar fits its budget (910ms)
+```
 
+### `bin/h2puni-gate.sh`
+
+`bunx nx format:check --all` passed, and so did every `test`, `lint`,
+`typecheck` and `build` target for the four apps and the libs, `--parallel=2
+--skip-nx-cache`:
+
+```
+> nx run fe-01:lint
+  4193:5  warning  React Hook useMemo has unnecessary dependencies: 'ownedServicesByTeam' and 'teamsByPerson'…
 ✖ 1 problem (0 errors, 1 warning)
 
- NX   Successfully ran target lint for project fe-01
+> nx run fe-01:test
+ Test Files  60 passed (60)
+      Tests  1899 passed (1899)
 ```
 
-The warning is pre-existing and is on a `useMemo` this change does not touch.
-Two **errors** were introduced and fixed on the way, both in the new e2e file:
-`@typescript-eslint/no-unnecessary-condition` on `pinned === null`, because
-TypeScript narrows a `const` initialised to `null` to exactly `null` and the
-guard then read as dead code. The pinned figure comes from a function with a
-declared `number | null` return now, so the guard is real again — and the lint
-that would have called it dead is believable.
+The warning is pre-existing, on a `useMemo` this change does not touch. The two
+timezone failures in `plan-mermaid.test.ts` that this file recorded on
+2026-08-29 are gone: `fe-01:test` is fully green.
 
-### `bunx nx run fe-01:typecheck`
+Three targets failed:
 
 ```
-> bunx tsc --build --force apps/fe-01/tsconfig.app.json
-> bunx tsc --build --force apps/fe-01/tsconfig.e2e.json
+ NX   Running targets test, lint, typecheck, build for 23 projects failed
 
- NX   Successfully ran target typecheck for project fe-01
+Failed tasks:
+- tool-dagger:test
+- tool-devsync:test
+- tool-bootstrap:test
 ```
+
+**All three are host tooling, and none is reachable from this change.**
+`git diff origin/main --stat` for this branch is two files, both of them
+`apps/fe-01/e2e/*.spec.ts`; nothing under `tools/` is touched. They were then
+re-run **outside** the lock, in case the gate holding the canonical lock was
+itself the cause, and they fail identically without it:
+
+```
+$ bunx nx run-many -t test --projects=tool-dagger,tool-devsync --skip-nx-cache
+✗ with-heavy-lock > uses one canonical production lock even when callers set different overrides
+  error: ENOENT: no such file or directory, open '/var/folders/…/wbs-heavy-lock-PWvyC3/flock-argv'
+✗ with-heavy-lock > refuses immediately with exit 75 while another heavy operation owns the lock
+✗ dev MCP preflight > refuses a missing or incomplete MCP environment before deployment
+✗ dev MCP preflight > prints persistent exposure state and refuses malformed state
+```
+
+`tool-bootstrap`'s seven are the `configure.sh Caddyfile merge, executed` cases,
+which shell out to a real `caddy` unit and a pinned `bun` on the host; four of
+them time out at 60s. These are the macOS-host gap `AGENTS.md`'s gate section is
+about, and they are **not** cleared by this change — see "Skipped".
 
 ## Failure proofs (R5)
 
 Every fault below was injected into the production file, the named test run, and
 the message copied out of that run. Dates are 2026-08-29.
 
-| Check                                       | Fault injected                                                            | Test that saw it fail                                                                                                                                                                                                                                | Watched                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| an icon takes the control's colour          | `ICON.stroke` → `'#111827'`                                               | `every icon inherits the colour and the size…`                                                                                                                                                                                                       | `KeyboardIcon: expected '#111827' to be 'currentColor'`                               |
-| an icon takes the control's size            | `ICON.width`/`height` → `16`                                              | `every icon inherits the colour and the size…`                                                                                                                                                                                                       | `KeyboardIcon: expected '16' to be '1em'`                                             |
-| an icon names nothing of its own            | `<title>Keyboard</title>` added to `KeyboardIcon`                         | `every icon is hidden…and says nothing of its own`                                                                                                                                                                                                   | `KeyboardIcon: expected 'Keyboard' to be ''`                                          |
-| **an icon is out of the a11y tree**         | `aria-hidden` removed from `ICON`                                         | the accessible-name oracle `tasks.md` asked for                                                                                                                                                                                                      | **PASSED — see "Vacuous negatives" below**                                            |
-| the old freeze buttons are gone (table)     | `Unfreeze all` restored as a second `<Button>` on the bar                 | `one control offers both writes`                                                                                                                                                                                                                     | `expected [ 'Freeze #', 'Unfreeze all' ] to deeply equal [ 'Freeze #' ]`              |
-| the old freeze buttons are gone (phone)     | the same                                                                  | `offers freezing once, as a menu that opens on the sheet`                                                                                                                                                                                            | `expected [ 'Freeze #', 'Unfreeze all' ] to deeply equal [ 'Freeze #' ]`              |
-| the accessible names held                   | `aria-label="Collapse all"` dropped from the icon button                  | `the controls are found by the names they always had`                                                                                                                                                                                                | `Unable to find role="button" and name "Collapse all"`                                |
-| …and the old suite is the real proof        | the same                                                                  | `the expansion controls stand down while a search is on`, `collapses every branch and opens them all again`, `remembers each project separately`, `stands the expansion controls down while a facet is on with nothing typed`, and 2 in `plan-cards` | `Unable to find an accessible element with the role "button" and name "Collapse all"` |
-| the cheat sheet glyph is gone               | `⌨` put back beside `<KeyboardIcon />`                                    | `the cheat sheet control carries a drawn icon`                                                                                                                                                                                                       | `expected '⌨' to be ''`                                                               |
-| the menu joins the inert-while-open set     | `usePageShortcutsSuspended(open)` → `(false)` in `MenuControl`            | `⌘+Z is inert while the freeze menu is open…`                                                                                                                                                                                                        | `expected [ 'undo' ] to deeply equal []`                                              |
-| the re-shaped phase test still sees its bug | `sameRoles(…)` → `false` at its call site                                 | `rebuilds nothing when the phases came back the same`                                                                                                                                                                                                | `expected <body><div>…(1)</div></body> to be <input …(6)></input>`                    |
-| **a modified Enter takes nothing**          | `MenuControl`'s item `preventDefault` moved back below the modifier guard | `e2e/keyboard.spec.ts`, in Chromium                                                                                                                                                                                                                  | **NOT WATCHED — no browser. See "Skipped"**                                           |
-| **the bar got narrower**                    | the words restored on the face of the two icon buttons                    | `the folded toolbar fits its budget`                                                                                                                                                                                                                 | **NOT WATCHED — no browser, and no before-figure to fail against**                    |
+| Check                                       | Fault injected                                                            | Test that saw it fail                                                                                                                                                                                                                                | Watched                                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| an icon takes the control's colour          | `ICON.stroke` → `'#111827'`                                               | `every icon inherits the colour and the size…`                                                                                                                                                                                                       | `KeyboardIcon: expected '#111827' to be 'currentColor'`                                                   |
+| an icon takes the control's size            | `ICON.width`/`height` → `16`                                              | `every icon inherits the colour and the size…`                                                                                                                                                                                                       | `KeyboardIcon: expected '16' to be '1em'`                                                                 |
+| an icon names nothing of its own            | `<title>Keyboard</title>` added to `KeyboardIcon`                         | `every icon is hidden…and says nothing of its own`                                                                                                                                                                                                   | `KeyboardIcon: expected 'Keyboard' to be ''`                                                              |
+| **an icon is out of the a11y tree**         | `aria-hidden` removed from `ICON`                                         | the accessible-name oracle `tasks.md` asked for                                                                                                                                                                                                      | **PASSED — see "Vacuous negatives" below**                                                                |
+| the old freeze buttons are gone (table)     | `Unfreeze all` restored as a second `<Button>` on the bar                 | `one control offers both writes`                                                                                                                                                                                                                     | `expected [ 'Freeze #', 'Unfreeze all' ] to deeply equal [ 'Freeze #' ]`                                  |
+| the old freeze buttons are gone (phone)     | the same                                                                  | `offers freezing once, as a menu that opens on the sheet`                                                                                                                                                                                            | `expected [ 'Freeze #', 'Unfreeze all' ] to deeply equal [ 'Freeze #' ]`                                  |
+| the accessible names held                   | `aria-label="Collapse all"` dropped from the icon button                  | `the controls are found by the names they always had`                                                                                                                                                                                                | `Unable to find role="button" and name "Collapse all"`                                                    |
+| …and the old suite is the real proof        | the same                                                                  | `the expansion controls stand down while a search is on`, `collapses every branch and opens them all again`, `remembers each project separately`, `stands the expansion controls down while a facet is on with nothing typed`, and 2 in `plan-cards` | `Unable to find an accessible element with the role "button" and name "Collapse all"`                     |
+| the cheat sheet glyph is gone               | `⌨` put back beside `<KeyboardIcon />`                                    | `the cheat sheet control carries a drawn icon`                                                                                                                                                                                                       | `expected '⌨' to be ''`                                                                                   |
+| the menu joins the inert-while-open set     | `usePageShortcutsSuspended(open)` → `(false)` in `MenuControl`            | `⌘+Z is inert while the freeze menu is open…`                                                                                                                                                                                                        | `expected [ 'undo' ] to deeply equal []`                                                                  |
+| the re-shaped phase test still sees its bug | `sameRoles(…)` → `false` at its call site                                 | `rebuilds nothing when the phases came back the same`                                                                                                                                                                                                | `expected <body><div>…(1)</div></body> to be <input …(6)></input>`                                        |
+| **a modified Enter takes nothing**          | `MenuControl`'s item `preventDefault` moved back below the modifier guard | `a modified Enter or Space on a freeze menu item takes nothing`, in Chromium                                                                                                                                                                         | `after Shift+Enter · Expected: 2 · Received: 0` — both locks gone (2026-08-30)                            |
+| **the bar keeps to its budget**             | the words restored on the face of the two icon buttons                    | `the folded toolbar fits its budget`, in Chromium                                                                                                                                                                                                    | `the toolbar asks for more room than its budget · Expected: <= 1600 · Received: 1658.828125` (2026-08-30) |
 
 ### Vacuous negatives, recorded rather than claimed
 
@@ -219,31 +314,48 @@ a real negative (the `<title>`, above) and is what actually guards it.
 bar. Replaced by `asked` and `lines`, with `scrollWidth` demoted to a stated
 precondition. See "Measurements".
 
+**`tasks.md` 5.1's own pin is the third, and it was caught before it was
+written rather than after.** Pinning the _pre-change_ width and asserting
+`asked <= before` cannot fail on the negative it exists for: the fault restores
+two text labels, and the pre-change bar carried those labels **and** two
+separate freeze buttons where there is now one menu, so the faulted bar lands
+under the pre-change figure and passes. The pin is the shipped bar's own budget
+instead, and the fault was then watched failing against it —
+`Expected: <= 1600 · Received: 1658.828125`. This one did **not** ship, so it is
+described in `AGENTS.md` rather than counted there.
+
 ## Skipped or unavailable checks
 
-1. **The whole Playwright gate.** Not run. Ports 3100/3200/4200 were held by a
-   dev server and `reuseExistingServer: !isCi` would have measured that server's
-   checkout rather than this one — `LLM_README.md`'s landmine and `AGENTS.md`'s
-   R5 entry for `gantt-calendar-axis`. Two specs were **written and never
-   executed**: `a modified Enter or Space on a freeze menu item takes nothing`
-   (`e2e/keyboard.spec.ts`) and `the folded toolbar fits its budget`
-   (`e2e/layout.spec.ts`). Six existing `layout.spec.ts` cases were re-pointed
-   through `freezeNumbering(page)` and are likewise unexecuted.
-2. **The browser negative for the item guard is the one this change most needs.**
-   jsdom performs no default action, so it can see the modifier guard deleted
-   and can never see it left half-done — which is exactly how R5 #14 shipped.
-   The guard itself is **not new code**: the freeze menu reuses
-   `MenuControl`'s single item handler rather than a second copy, so the
-   existing browser test `a modified Enter or Space on a menu item takes
-nothing` already covers the code path through the row's ⋯. What the new spec
-   adds is the second **caller**, and it has not been run.
-3. **`bin/h2puni-gate.sh`** — not run; out of scope for this worktree, and it
-   takes the host-wide lock.
-4. **The width figure** — see "Measurements". The test is `test.fixme` with the
-   reason in its skip message, so every run says it is pending rather than
-   reporting a pass.
-5. **`bunx nx run fe-01:test` is red on two pre-existing timezone cases** in
-   `plan-mermaid.test.ts`, shown failing identically with this change stashed.
+Everything `tasks.md` asked for has now been run. What follows is what this
+host could **not** answer, stated rather than glossed.
+
+1. **Three `tools/*` test targets are red on this Mac and were not made green.**
+   `tool-dagger:test` (2), `tool-devsync:test` (2) and `tool-bootstrap:test` (7)
+   fail on host tooling: no BSD `flock` for the lock shim's argv capture, no MCP
+   deployment environment, and no host `caddy` unit or pinned `bun` for
+   `configure.sh`'s merge cases, four of which time out at 60s. They fail
+   identically with the heavy lock free, and `git diff origin/main --stat` for
+   this branch touches only two `apps/fe-01/e2e/*.spec.ts` files — so they are
+   neither caused by this change nor fixable inside it. **They were not run
+   against a pristine `origin/main` checkout**, because the diff proves the
+   change cannot reach them; that is an argument from the diff, not an
+   observation, and it is the weakest claim in this document.
+2. **The pinned width is a figure from _this_ machine's Chromium.** It is
+   asserted with about 47px of headroom against a fault worth 106.09px, which is
+   the margin the drift would have to exceed to matter. CI's Linux Chromium has
+   not yet run it. If it disagrees it fails loudly, printing both numbers, and
+   the figure is re-measured there.
+3. **Three browser cases stay red and none was "fixed"** — see "Commands". Two
+   are the documented `keyboard.spec.ts` date-segment pair, which fail for this
+   host's locale rather than for the code. `plan-surface.spec.ts:253` is a stale
+   test the Gantt dock left on `main`, **reported and left alone** because
+   another session owns its correction. Two earlier red cases —
+   `deps-cell.spec.ts:432` and `phases.spec.ts:204` — were fixed on `main` while
+   this ran and now pass here.
+4. **`nx format:check --all` and the gate ran before this file's own last
+   edits.** `verify.md` and `tasks.md` are formatted and staged through
+   lefthook's pre-commit `format` and `lint` hooks, which is what actually
+   checks them.
 
 ## Domain terms
 
