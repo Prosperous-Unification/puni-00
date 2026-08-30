@@ -326,7 +326,19 @@ test.describe('the Name cell at rest is the name alone', () => {
     await mine.blur();
     await expect(mine).not.toBeFocused();
 
-    expect(await mine.inputValue(), 'the peer name never reached the box').toBe(LONG_NAME);
+    // **Retrying, where the precondition above is one-shot, and the asymmetry is
+    // the whole of this case.** "The peer's name has not arrived yet" is only
+    // true at an instant, so it is read once; "it arrives once the cell is left"
+    // is true after a render this test does not control, so it is waited for.
+    // The witness rename above proves the *tree* carrying both names reached the
+    // client — it cannot prove this box has re-rendered, because the blur is
+    // what releases the hold and blur → state → paint is asynchronous.
+    //
+    // Read once, it failed on CI at `Received: "Strip the wiring"` — the value
+    // the box holds *before* that flush, which is not a fault. It had failed
+    // the same way in a loaded local gate on 2026-08-30 and passed 10/10 alone,
+    // which is what an assertion made a moment too early looks like every time.
+    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
     const after = await boxOf(mine);
     expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
       0.5,
