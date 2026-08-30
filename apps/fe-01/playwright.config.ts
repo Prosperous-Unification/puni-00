@@ -41,10 +41,27 @@ const isCi = process.env['CI'] !== undefined;
  * tokens for a gw-01 it cannot reach, and the failure arrives forty seconds
  * later as a socket that never opens.
  *
+ * **Two concurrent runs need shifts more than 100 apart, not merely
+ * different.** The tiers themselves sit 100 apart, so shift `S` occupies
+ * `3100+S / 3200+S / 4200+S` and any two shifts differing by exactly 100
+ * overlap — the higher run's be-01 lands on the lower run's gw-01. Two agents
+ * were given 1200 and 1300 on 2026-08-30 and one gate refused with
+ * `http://localhost:4400/health is already used`, which is `CI=1` doing its
+ * job: `reuseExistingServer` is false there, so Playwright refused rather than
+ * measuring the other checkout's stack.
+ *
+ * The check below cannot catch that case and is not meant to: it compares a
+ * shift against the **defaults**, which a config can know, and says nothing
+ * about what else is running on the host, which it cannot. Space assignments
+ * by 500 and the question does not arise.
+ *
  * @throws When `E2E_PORT_SHIFT` is set to something that is not a
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.
  */
+/** Where the three tiers sit when nothing has moved them. */
+const DEFAULT_PORTS = [3100, 3200, 4200];
+
 const portShift = ((): number => {
   const asked = process.env['E2E_PORT_SHIFT'];
   if (asked === undefined || asked === '') return 0;
@@ -53,6 +70,26 @@ const portShift = ((): number => {
     throw new Error(
       `E2E_PORT_SHIFT must be a whole number between 0 and 9999; got ${asked}. ` +
         `It moves be-01, gw-01 and fe-01 together — 500 puts them on 3600/3700/4700.`,
+    );
+  }
+  // **A shift may not land one tier on another tier's usual port.** 1000 puts
+  // gw-01 on 4200, which is fe-01's own default and, on a developer's machine,
+  // the dev server they are trying to run beside: an agent asked for 1000 and
+  // got `http://localhost:4200/health is already used` from a gateway that had
+  // collided with a frontend (2026-08-30). 100 is the same fault one tier over,
+  // landing be-01 on gw-01's 3200.
+  //
+  // Refused rather than nudged, because the shift is written into runbooks and
+  // agent instructions: a silently adjusted 1000 is a number that means
+  // something different from what the person typed.
+  const shifted = [3100 + shift, 3200 + shift, 4200 + shift];
+  const collision = shifted.find((port) => DEFAULT_PORTS.includes(port));
+  if (shift !== 0 && collision !== undefined) {
+    throw new Error(
+      `E2E_PORT_SHIFT=${String(shift)} puts a tier on ${String(collision)}, which is another ` +
+        `tier's usual port. The three tiers sit at 3100/3200/4200, so a shift may not be 100, ` +
+        `1000 or 1100. Try 500, or any shift that clears all three — and if another run is ` +
+        `already using a shift, keep more than 100 between them, or your be-01 takes its gw-01.`,
     );
   }
   return shift;

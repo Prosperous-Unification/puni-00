@@ -82,6 +82,7 @@ import {
   type Point,
   POINTS,
   sendableTrio,
+  showTrio,
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
@@ -153,6 +154,7 @@ import {
   floorFor,
   frameLayout,
   type FrameLayoutState,
+  GANTT_DOCK_SLACK,
   hideableColumnIds,
   hierarchyIndentFor,
   numberIndentFor,
@@ -5794,17 +5796,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
 
   /**
    * What the folded role column's cell reads: the pending shorthand if there
-   * is one, and otherwise be-01's computed final figure.
+   * is one, and otherwise the stored estimate as {@link showTrio} prints it.
    *
-   * The one cell in the table whose value at rest is not what typing into it
-   * takes. That is deliberate and it is the point: a plan is read by the final
-   * figure, and the trio behind it is what an estimator types. The draft wins
-   * while it exists for the same reason a box's does — it is what the person
-   * typed and has not been told off about yet.
+   * **The stored trio, not be-01's computed final figure**, since
+   * `estimate-triple-visible`. The figure was what this cell showed from
+   * `role-columns-fold` until 2026-08-29, on the reasoning that a plan is read
+   * by the final figure and the trio behind it is only what an estimator
+   * types. Two things were wrong with it. The three numbers somebody chose
+   * left the screen the moment they landed — Dany, 2026-08-29: *"i want to
+   * keep seeing the values i've put in"* — with a hover card or an unfold as
+   * the only ways back, and unfolding one role folds another. And it made this
+   * the one box in the grid whose value at rest was not a legal way to have
+   * typed what it stood for: `2.2` over a stored `2/2/3` stores
+   * `2.2/2.2/2.2` when it is typed back.
+   *
+   * The figure has not gone anywhere — it stands beside the box, muted, where
+   * it says something the shorthand does not. See the folded cell's
+   * `data-folded-final`.
+   *
+   * The draft still wins while it exists, for the reason a box's does: it is
+   * what the person typed and has not been told off about yet.
    */
   const combinedValue = useCallback(
     (row: TreeRow, roleId: string): string =>
-      drafts[combinedDraftKey(row.id, roleId)] ?? showFinal(row.finalDays[roleId]),
+      drafts[combinedDraftKey(row.id, roleId)] ?? showTrio(row.estimates[roleId]),
     [drafts],
   );
 
@@ -8306,6 +8321,39 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // screen to disagree with it, and a leaf, because a parent's
                 // figure is a sum of what is below it and nothing to type into.
                 const shorthand = !unfolded && !row.original.rolledUp;
+                // What this row holds, off the row: the trio as it would be
+                // typed, and the figure the project's estimate method makes of
+                // it. Both read through `row.original` and **not** through
+                // `combinedValue` beside them, which answers with the draft
+                // where there is one. That is right for the box somebody is
+                // typing in and wrong for the pair below, for the reason
+                // {@link FoldedRoleCard}'s points give at length: a figure is
+                // what be-01 holds, and one recomputed per keystroke would
+                // stand `2.2` beside `9/9/` claiming to be its answer.
+                const stored = showTrio(row.original.estimates[role.id]);
+                const final = showFinal(row.original.finalDays[role.id]);
+                // What this cell says without a box in it — a parent's roll-up
+                // while the role is folded, and every row's while it is
+                // unfolded. The trio when it is the only place the trio is, and
+                // the figure once the three boxes are on screen beside it: an
+                // unfolded role already prints `2 | 2 | 3`, and a fourth column
+                // repeating it would be the fold's own reading with nothing
+                // folded.
+                const atRest = unfolded ? final : stored;
+                // The figure earns its pixels only where it says something the
+                // cell does not say already. A flat trio prints as `5` and its
+                // figure is `5` under every estimate method, so an unguarded
+                // cell read `5 · 5` — and the column is 96px, shared with an
+                // assignee. Unfolded, `atRest` **is** the figure and the
+                // comparison closes the column back down to one reading.
+                //
+                // One condition and not two: a row with no estimate has neither
+                // a trio nor a figure, so a `final !== ''` beside this would be
+                // a check that cannot fail (`AGENTS.md`, R5, `T1
+                // column-widths-drag`). be-01 computes `finalDays` from
+                // `estimates` in the same call — see `WorkItemRow.finalDays` —
+                // so the two are absent together.
+                const finalSaysMore = final !== atRest;
                 // Nobody on this role and exactly one person on another: they are
                 // assumed to be doing this phase too. The same rule the unfolded
                 // column has, in the cell that is always on screen — which is the
@@ -8566,7 +8614,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         }
                       />
                     ) : (
-                      showFinal(row.original.finalDays[role.id])
+                      // A parent's folded cell reads the shape its leaves do —
+                      // a column that printed a trio on a leaf and a bare
+                      // figure one row up would be two readings of one heading.
+                      // A parent's trio is the sum of its descendants', per
+                      // point, and the method applied to that sum is the sum of
+                      // the methods applied (PERT is linear), so the pair below
+                      // cannot contradict the leaves it is made of.
+                      atRest
+                    )}
+                    {finalSaysMore && (
+                      // `2/2/3 · 2.2`: the trio a person typed, and what the
+                      // project's estimate method makes of it. Muted and normal
+                      // weight, the treatment the assignee beside it has, for
+                      // the same reason — the bold thing in this cell is what
+                      // somebody chose, and both of these are the plan's answer
+                      // about it. The row's own total days is where a plan is
+                      // read at a glance, and it is unchanged.
+                      //
+                      // `flex: none`, so a narrow column takes its pixels out
+                      // of the box rather than out of this: the figure is three
+                      // characters and the box scrolls, and a clipped `2.` is
+                      // worse than a clipped trio the box can still be read in.
+                      //
+                      // **10px, the type this table's headings are set in
+                      // (`column-rebalance`), and it is load-bearing rather
+                      // than decorative.** At the row's own 13px the widest
+                      // trio anybody has typed here in anger — `20/24/30`,
+                      // live on dev, 2026-08-22 — did not fit: the box clipped
+                      // by 8px in a 96px column, measured in Chromium. The
+                      // caption size buys that back and leaves the figure
+                      // reading as the annotation it is rather than as a
+                      // second figure competing with the trio.
+                      // Proof: written at the row's own type instead, `holds a
+                      // trio and its figure on one line of a folded role cell`
+                      // failed on `the trio does not fit the box beside its
+                      // figure — Expected: <= 0, Received: 8`. Watched in
+                      // Chromium, 2026-08-30.
+                      <span
+                        data-folded-final={role.id}
+                        style={{
+                          marginLeft: 3,
+                          flex: 'none',
+                          whiteSpace: 'nowrap',
+                          fontWeight: 'normal',
+                          fontSize: 10,
+                          color: 'var(--muted-foreground)',
+                        }}
+                      >
+                        · {final}
+                      </span>
                     )}
                     {problem !== null && ' !'}
                     {doing !== null && (
@@ -8656,7 +8753,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           // 3.7 days'`.
                           days: showDays(row.original.estimates[role.id], point),
                         }))}
-                        final={showFinal(row.original.finalDays[role.id])}
+                        // The same read as the figure beside the box, and the
+                        // same local: a card that computed its own would be a
+                        // second opinion about one number, one element away.
+                        final={final}
                         doing={doing}
                         problem={problem}
                       />
@@ -11084,6 +11184,39 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         and the toggle that mounts it is in the same one toolbar the sheet
         opens.
       */}
+      {/*
+        The slack, given somewhere to live so the chart docks to the bottom of
+        the column instead of floating in the middle of it.
+
+        Dany, 2026-08-30, on a four-row plan: "i need the whole gantt panel to go
+        down". This is the other half of `unified-scroll-docking` and it reverses
+        that change's *outcome* rather than its reasoning. `TABLE_FRAME` went to
+        `flex-grow: 0` on 2026-08-11 to stop a short plan putting 508px of
+        nothing between its last row and the chart — which it did, by moving the
+        same emptiness **below** the chart, where it is worse: the chart stopped
+        being docked to anything. Measured in Chromium at 1600×1000 on a one-row
+        plan, before this element existed: column 943px, children 439px, **528px
+        of dead space under the panel**.
+
+        **A spacer and not `mt-auto` on the handle, and that is the whole reason
+        this is an element rather than a class.** An auto margin was tried first
+        and it docked the panel correctly — and broke the drag, because
+        `getComputedStyle` resolves `margin-top: auto` on a flex item to its
+        *used* value, so `ganttRoomInColumn` read the absorbed slack as margin
+        the column had spent and answered a room of nearly nothing. Dragging the
+        handle up then could not grow the chart at all: 113px before the drag and
+        113px after it, watched in Chromium.
+
+        This element is free of that by the rule that function already documents:
+        it is shrinkable and declares a definite `min-height`, so it is credited
+        its floor of 0 rather than the height it stands at, and the room is the
+        number it was before. Both halves are asserted in `e2e/gantt.spec.ts`.
+
+        Rendered only while the chart is open. With it closed the column has no
+        docked group to push down and the frame's own `flex-grow: 0` is the whole
+        story, exactly as `unified-scroll-docking` left it.
+      */}
+      {ganttOpen && <div aria-hidden="true" style={GANTT_DOCK_SLACK} />}
       {ganttOpen && <GanttHeightHandle heightPx={ganttHeightPx} resize={resizeGantt} />}
       {ganttOpen && (
         // The boundary wraps the panel and nothing else, which is the whole of
