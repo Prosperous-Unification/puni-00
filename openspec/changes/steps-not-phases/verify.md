@@ -1,18 +1,38 @@
 # verify — `steps-not-phases`
 
-Branched from `fix/reference-cell-popover` (`7ac1285`) and then merged with
-`origin/main` at `b8259d9`, which had moved 28 commits under it — `work-item-types`
-through the UI, `external-refs`, the Gantt fold cue, the host-wide heavy lock.
-The merge took `-X theirs` on every conflicting hunk and the mechanical rename
-was re-run over the result, so main's code is main's and the rename is applied
-to it rather than merged against it.
+Branched from `fix/reference-cell-popover` (`7ac1285`) and then merged twice with
+`origin/main`, which moved 37 commits under it — `work-item-types` through the
+UI, `external-refs`, `estimate-triple-visible`, `gantt-resize-scroll`, the
+toolbar budget, the host-wide heavy lock. Base at the second merge: `a4648e4`.
+
+**How the merge was done, because a rename cannot be three-way merged.** Every
+conflicting hunk took `-X theirs` — main's code is main's — and the mechanical
+rename was then re-run over the whole result. So this branch is exactly
+"`origin/main`, renamed", plus the additions below, rather than a merge of two
+divergent spellings.
+
+That is checked rather than asserted: `origin/main` is exported to a scratch
+tree, the file renames are applied, the rename script is run over it, and the
+result is diffed against this worktree. Every difference is one of — the
+regenerated `openapi.json`, one of the nine new tests, one of the four
+deliberate body changes below, an ARIA or physical-name restoration, an
+import-sort or prettier reflow. There is no line of main's that this branch
+lost, and nothing renamed that the script would not rename again.
+
+**The rename script cannot be run without the repair pass beside it**, and that
+is worth writing down: this change's own artefacts spell the old word on purpose
+— the test named `no rendered string says Phase or Role`, the regexes those
+tests match with, every `Proof:` quoting the fault, the OpenSpec change names
+`phases-ui` and `dep-waits-on-first-role`, the physical `role` in raw SQL and in
+SQLite's own error strings, and the change's own name. A second rename pass ate
+all of them once; each is restored by name now.
 
 ## Test-case counts (slices 1.2 and 5.1)
 
 Two readings, because the base moved mid-change.
 
 **The count that answers 5.1** is against the base this branch actually sits on,
-`origin/main` at `b8259d9`, statically: every `it(` / `itDom(` / `test(`
+`origin/main` at `a4648e4`, statically: every `it(` / `itDom(` / `test(`
 declaration in each project, on both refs.
 
 | Project       | Cases on `origin/main` | Cases here | Delta                 |

@@ -15,6 +15,21 @@
 # letters are the domain word, the ARIA attribute and the physical table name.
 # Those occurrences are separated by context, spelled out under `aria` and
 # `physical` below; everything the two do not claim is the domain word.
+#
+# Re-taken after each merge with `origin/main` (last: `a4648e4`, 37 commits
+# including `work-item-types`, `external-refs`, `estimate-triple-visible` and
+# `gantt-resize-scroll`). Those brought no new token to this list: every
+# `[Rr]ole` they carry is one of the ARIA or physical entries below.
+#
+# Three more things spell the old word on purpose and are not in the rename
+# column, because they are not the domain word either:
+#   - the OpenSpec change names `phases-ui`, `role-crud`, `role-columns-fold`,
+#     `role-progress`, `schedule-on-item-role`, `dep-waits-on-first-role` — a
+#     change records what was decided in the words of its day (task 2.2);
+#   - this change's own name, `steps-not-phases`;
+#   - the negatives written for it, which assert the old word is gone and so
+#     have to spell it: `no rendered string says Phase or Role`, the `stale`
+#     regexes, and every `Proof:` quoting an injected fault.
 
 ## aria — untouched
 
