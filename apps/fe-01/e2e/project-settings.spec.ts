@@ -94,9 +94,20 @@ test.describe('the project settings control, in a browser', () => {
     // of D5's measurable claim. The pins are the old bar's figures, so a bar
     // that grew back would fail here even if it still fitted the window.
     //
-    // Proof: `<Button>Teams</Button>` and `<Button>Priorities</Button>` restored
-    // beside the settings control in `toolbarControls`, watched failing on the
-    // laid-out width; see `verify.md` for the figures.
+    // **Two faults, because the first never reaches this line.** Restoring
+    // `<Button>Teams</Button>` and `<Button>Priorities</Button>` beside the
+    // settings control fails on the **precondition** above — `Expected: 0 /
+    // Received: 1`, the Teams control being back — and the run stops there
+    // with this assertion unevaluated. A `Proof:` naming only that fault would
+    // be evidence for the precondition and none at all for the budget.
+    //
+    // Proof: one control added whose name matches none of the three, so the
+    // precondition still passes and the bar is merely wider —
+    // `<Button variant="outline" size="sm">Capacity planning and
+    // priorities</Button>` in `toolbarControls`. Watched failing on
+    // `1465px of controls to lay out, against the 1445.33px the bar had with
+    // three buttons`, `Expected: <= 1447.33 / Received: 1464.703125`;
+    // 2026-08-30. Both faults are in `verify.md`.
     expect(
       measured.laidOut,
       `${String(Math.round(measured.laidOut))}px of controls to lay out, against the ${String(
