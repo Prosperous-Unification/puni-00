@@ -60,11 +60,24 @@ tools, and `openapi.json`, all in this repo and all deployed together. A shim
 would be a second parse path per field, tested or not tested, for callers that
 do not exist. `gw-01` does not read these fields at all.
 
-The one real consumer outside a deploy is an **MCP client holding a cached tool
-list** — a chat session that already fetched `postApiProjectsByIdRoles`. It gets
-a 404 and re-lists. That is the same experience as any tool being renamed, and
-`apps/mcp-01/README.md` is regenerated in the same commit so the list on disk is
-never the stale one.
+Two consumers live outside a deploy, and both are accepted costs rather than
+oversights.
+
+The first is an **MCP client holding a cached tool list** — a chat session that
+already fetched `postApiProjectsByIdRoles`. It gets a 404 and re-lists. That is
+the same experience as any tool being renamed, and `apps/mcp-01/README.md` is
+regenerated in the same commit so the list on disk is never the stale one.
+
+The second is a **browser tab holding an already-loaded `fe-01` bundle across a
+blue/green swap**. The three callers above ship together, but a _tab_ does not:
+one opened before the swap keeps the old bundle until it is reloaded, and its
+next step write goes to `/api/projects/:id/roles` on a be-01 that now serves
+`/steps`. It gets a 404 — the write is refused, loudly, and nothing is silently
+written to the wrong shape. Accepted, and cheap to accept: dev has no prod
+release to swap against (`LLM_README.md`, open findings 1 and 2), the window is
+one reload wide, and the alternative is the same compatibility shim this section
+already declined. It is named here so a reader meets it as a decision rather than
+as a surprise.
 
 ## D4 — `CONTEXT.md` is edited term by term, and two entries change meaning-shape
 
