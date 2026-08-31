@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-one times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -378,6 +378,26 @@ are named now, watched failing on `vitest.setup.ts 153:18 error Unnecessary cond
 the fault back in and green with it gone. Add a new root-level file to that command the day you
 add the file — a lint target scoped to a place the fault is not is the `main`-green landmine
 above wearing a second hat.
+
+One more on 2026-08-31 in `steps-schema-rename`, and it **did not ship** — but it is the first one
+where the _migration_ and its check were wrong together. `ALTER TABLE role RENAME TO step` rewrites
+other tables' `REFERENCES` clauses **only when `foreign_keys` is on as the statement is prepared**,
+and `runMigrations` decided that pragma **once for the whole run**: if any pending migration carried
+`-- foreign-keys-off-rebuild`, every pending migration ran unenforced. On dev, where the one marker
+migration (`20260824010000_add_oidc_identity`) was applied a week earlier, nothing pending asked for
+it and the rename was correct. On a **fresh** database every migration is pending, so the whole
+bootstrap ran with foreign keys off and the rename left five tables pointing at a table that no
+longer existed — `no such table: main.role` on the first insert into any of them. One file, two
+schemas, decided by which database it landed on.
+
+The check written to verify the rename — **"no table, column or index name carries the word
+`role`"**, which is the spec's own scenario — **passed against the broken database**, because the
+word survived only inside FK clauses and constraint names, neither of which is a table, column or
+index. What found it was running the 1249 tests that already existed: 161 of them failed. The window
+is now narrowed to the migrations that ask for it (`pendingNeedingForeignKeysOff`), and the check is
+the reference clause plus a live write through it, watched failing on `Expected to contain:
+"REFERENCES \"step\""` with the whole-run decision put back. **A check written from the spec's own
+words can still be blind to the fault the spec is about — run everything, not the new test.**
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

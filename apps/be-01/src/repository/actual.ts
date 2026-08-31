@@ -49,7 +49,7 @@ export class ActualRepository implements ActualStore {
           recordedAt: actual.recordedAt,
         })
         .from(actual)
-        // Inner rather than left: `actual.role_id` is a foreign key, so an
+        // Inner rather than left: `actual.step_id` is a foreign key, so an
         // actual whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step.
         .innerJoin(step, eq(actual.stepId, step.id))

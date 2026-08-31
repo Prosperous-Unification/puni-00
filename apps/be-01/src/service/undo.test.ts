@@ -641,7 +641,7 @@ describe('undoing each kind of change', () => {
 
   it('restores every statement made in a deleted branch, against the real cascade', async () => {
     // Against real SQLite, and that is the point of putting this here rather
-    // than beside the other progress cases: `role_progress.work_item_id`
+    // than beside the other progress cases: `step_progress.work_item_id`
     // cascades, so the rows are genuinely gone after the delete and can only
     // come back from the command. The in-memory store cannot model that — its
     // rows survive the deletion in an array and reappear with the row — so a
@@ -678,7 +678,7 @@ describe('undoing each kind of change', () => {
 
   it('restores every token and hour recorded in a deleted branch, against the real cascade', async () => {
     // Here rather than beside the other measure cases for the reason the two
-    // above give, one table over: `role_measure.work_item_id` cascades, so the
+    // above give, one table over: `step_measure.work_item_id` cascades, so the
     // rows are genuinely gone after the delete and can only come back from the
     // command. The in-memory store's rows survive the deletion in an array and
     // reappear with the row, so a case written there passes with the restore's

@@ -194,7 +194,21 @@ const DEP_REACH = '20260830120000_add_dep_reach';
  */
 const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 
-const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
+/**
+ * The newest, and the only migration that renames rather than adds: `role` ->
+ * `step`, with the columns and indexes that carry the word. It heads every
+ * descending reversal list below, because it is the first thing any rollback
+ * reverses.
+ */
+const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
+
+// `step` since 20260831120000_rename_role_to_step. Every raw statement in this
+// file runs against whichever schema the `runMigrations` or `rollbackTo` above
+// it left. The rename is the newest migration, so it is the first thing any
+// rollback reverses: below one, the tables are `role`, `role_progress` and
+// `role_measure` again, and the handful of statements that sit there
+// deliberately still say so.
+const WBS_TABLES = ['project', 'work_item', 'step', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
 const DEPENDENCY_TABLES = ['dependency'] as const;
 // Also its own, and also reversed with the domain: it references `project`.
@@ -211,7 +225,7 @@ const TEAM_SET_TABLES = ['work_item_team'] as const;
 const ACTUAL_TABLES = ['actual'] as const;
 // Its own migration, reversed with the domain for `ACTUAL_TABLES`' reason: it
 // references `work_item` and `role` too.
-const STEP_PROGRESS_TABLES = ['role_progress'] as const;
+const STEP_PROGRESS_TABLES = ['step_progress'] as const;
 // Its own migration, and the only one that adds two tables. `work_item_tag`
 // references `work_item`, so both reverse with the domain; `tag` itself
 // references nothing and reverses with them only because they arrived together.
@@ -227,7 +241,7 @@ const SERVICE_TABLES = ['service', 'team_service'] as const;
 // earlier, when this dimension held one value per row.
 const WORK_ITEM_SERVICE_TABLES = ['work_item_service'] as const;
 
-const STEP_MEASURE_TABLES = ['role_measure'] as const;
+const STEP_MEASURE_TABLES = ['step_measure'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -290,6 +304,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -383,7 +398,7 @@ describe('the step position migration', () => {
           .query<
             { id: string; position: number },
             []
-          >('SELECT id, position FROM role ORDER BY position')
+          >('SELECT id, position FROM step ORDER BY position')
           .all();
         expect(rows.map((row) => row.id)).toEqual(['r1', 'r2']);
         expect(rows[0]?.position).toBeLessThan(rows[1]?.position ?? 0);
@@ -418,10 +433,10 @@ describe('the step position migration', () => {
             " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
         );
 
-        sqlite.run("INSERT INTO role (id, project_id, name) VALUES ('r1', 'p', 'Design')");
+        sqlite.run("INSERT INTO step (id, project_id, name) VALUES ('r1', 'p', 'Design')");
 
         const written = sqlite
-          .query<{ position: number }, []>("SELECT position FROM role WHERE id = 'r1'")
+          .query<{ position: number }, []>("SELECT position FROM step WHERE id = 'r1'")
           .get();
         // First rather than last, which is the one thing the default costs: a
         // colour-swap window's worth of wrong order, against a row that would
@@ -617,6 +632,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -1076,6 +1092,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -1310,6 +1327,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -1391,7 +1409,7 @@ describe('the plan event migration', () => {
         );
       }
       db.run(
-        'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+        'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
           " VALUES ('e1', 'p', 'u', 'estimate', 'estimate “Strip”', 'w1', 'r1'," +
           ' \'{"do":"clear_estimate"}\', \'{"do":"set_estimate"}\', 1000)',
       );
@@ -1493,7 +1511,7 @@ describe('the plan event migration', () => {
         // Somebody who edited this plan and owns none of their own, which is what
         // makes their account deletable while the project stands.
         before.run(
-          'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+          'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
             " VALUES ('e2', 'p', 'stranger', 'patch', 'rename “Strip”', 'w1', NULL, '{}', '{}', 2000)",
         );
       } finally {
@@ -1598,6 +1616,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -1677,17 +1696,17 @@ describe('the actual migration', () => {
         'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
           " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
       );
-      db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
       db.run(
         'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
           " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
       );
       db.run(
-        'INSERT INTO estimate (work_item_id, role_id, optimistic, realistic, pessimistic)' +
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)' +
           " VALUES ('w1', 'r1', 1, 2, 3)",
       );
       db.run(
-        "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
+        "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
       );
     } finally {
       db.close();
@@ -1773,9 +1792,9 @@ describe('the actual migration', () => {
         // The estimate first, which has the same missing cascade — otherwise
         // this case would be watching `estimate`'s foreign key rather than this
         // migration's.
-        sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
+        sqlite.run("DELETE FROM estimate WHERE step_id = 'r1'");
         expect(() => {
-          sqlite.run("DELETE FROM role WHERE id = 'r1'");
+          sqlite.run("DELETE FROM step WHERE id = 'r1'");
         }).toThrow(/FOREIGN KEY constraint failed/);
         expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM actual').get()?.n).toBe(
           1,
@@ -1801,7 +1820,7 @@ describe('the actual migration', () => {
       try {
         expect(() => {
           sqlite.run(
-            "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 3, 2000)",
+            "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w1', 'r1', 3, 2000)",
           );
         }).toThrow(/UNIQUE constraint failed/);
       } finally {
@@ -1822,6 +1841,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -1905,20 +1925,20 @@ describe('the step progress migration', () => {
         'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
           " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
       );
-      db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
       db.run(
         'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
           " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
       );
       db.run(
-        'INSERT INTO estimate (work_item_id, role_id, optimistic, realistic, pessimistic)' +
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)' +
           " VALUES ('w1', 'r1', 1, 2, 3)",
       );
       db.run(
-        "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
+        "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
       );
       db.run(
-        "INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w1', 'r1', 'done', 2000)",
+        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w1', 'r1', 'done', 2000)",
       );
       // A second row with nothing said about it, so the `CHECK` case can insert
       // a fourth state without the primary key refusing it first — a UNIQUE
@@ -1941,11 +1961,11 @@ describe('the step progress migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(tables(db.path)).toContain('role_progress');
+      expect(tables(db.path)).toContain('step_progress');
       const sqlite = openDatabase(db.path);
       try {
         expect(
-          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM step_progress').get()?.n,
         ).toBe(0);
       } finally {
         sqlite.close();
@@ -1974,7 +1994,7 @@ describe('the step progress migration', () => {
         for (const state of ['not_started', 'blocked', 'cancelled']) {
           expect(() => {
             sqlite.run(
-              `INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w2', 'r1', '${state}', 1)`,
+              `INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w2', 'r1', '${state}', 1)`,
             );
           }).toThrow(/CHECK constraint failed/);
         }
@@ -2009,7 +2029,7 @@ describe('the step progress migration', () => {
         sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
 
         expect(
-          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM step_progress').get()?.n,
         ).toBe(0);
       } finally {
         sqlite.close();
@@ -2038,13 +2058,13 @@ describe('the step progress migration', () => {
         sqlite.run('PRAGMA foreign_keys = ON');
         // The estimate and the actual out of the way first, so what refuses the
         // step delete is this migration's foreign key rather than one of theirs.
-        sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
-        sqlite.run("DELETE FROM actual WHERE role_id = 'r1'");
+        sqlite.run("DELETE FROM estimate WHERE step_id = 'r1'");
+        sqlite.run("DELETE FROM actual WHERE step_id = 'r1'");
         expect(() => {
-          sqlite.run("DELETE FROM role WHERE id = 'r1'");
+          sqlite.run("DELETE FROM step WHERE id = 'r1'");
         }).toThrow(/FOREIGN KEY constraint failed/);
         expect(
-          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM step_progress').get()?.n,
         ).toBe(1);
       } finally {
         sqlite.close();
@@ -2068,7 +2088,7 @@ describe('the step progress migration', () => {
       try {
         expect(() => {
           sqlite.run(
-            "INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w1', 'r1', 'in_progress', 3000)",
+            "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w1', 'r1', 'in_progress', 3000)",
           );
         }).toThrow(/UNIQUE constraint failed/);
       } finally {
@@ -2091,6 +2111,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -2342,6 +2363,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -2580,6 +2602,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -2925,6 +2948,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -3063,6 +3087,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      RENAME_ROLE_TO_STEP,
       WEIGHTS_AND_ROUNDING,
       DEP_REACH,
       EXTERNAL_REF,
@@ -3212,6 +3237,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -3294,24 +3320,24 @@ describe('the step measure migration', () => {
         'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
           " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
       );
-      db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
       db.run(
         'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
           " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
       );
       db.run(
-        'INSERT INTO estimate (work_item_id, role_id, optimistic, realistic, pessimistic)' +
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)' +
           " VALUES ('w1', 'r1', 1, 2, 3)",
       );
       db.run(
-        "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
+        "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
       );
       db.run(
-        'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+        'INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)' +
           " VALUES ('w1', 'r1', 'token_actual', 4000000, 2000)",
       );
       db.run(
-        'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+        'INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)' +
           " VALUES ('w1', 'r1', 'hours_actual', 3.5, 2000)",
       );
     } finally {
@@ -3322,7 +3348,7 @@ describe('the step measure migration', () => {
   function measureCount(dbPath: string): number {
     const db = openDatabase(dbPath);
     try {
-      return db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_measure').get()?.n ?? -1;
+      return db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM step_measure').get()?.n ?? -1;
     } finally {
       db.close();
     }
@@ -3337,7 +3363,7 @@ describe('the step measure migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(tables(db.path)).toContain('role_measure');
+      expect(tables(db.path)).toContain('step_measure');
       expect(measureCount(db.path)).toBe(0);
     } finally {
       db.cleanup();
@@ -3399,10 +3425,10 @@ describe('the step measure migration', () => {
         sqlite.run('PRAGMA foreign_keys = ON');
         // Everything else holding the step, so this case watches this
         // migration's foreign key rather than one of theirs.
-        sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
-        sqlite.run("DELETE FROM actual WHERE role_id = 'r1'");
+        sqlite.run("DELETE FROM estimate WHERE step_id = 'r1'");
+        sqlite.run("DELETE FROM actual WHERE step_id = 'r1'");
         expect(() => {
-          sqlite.run("DELETE FROM role WHERE id = 'r1'");
+          sqlite.run("DELETE FROM step WHERE id = 'r1'");
         }).toThrow(/FOREIGN KEY constraint failed/);
       } finally {
         sqlite.close();
@@ -3429,7 +3455,7 @@ describe('the step measure migration', () => {
       try {
         expect(() => {
           sqlite.run(
-            'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+            'INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)' +
               " VALUES ('w1', 'r1', 'token_actual', 9, 3000)",
           );
         }).toThrow(/UNIQUE constraint failed/);
@@ -3438,7 +3464,7 @@ describe('the step measure migration', () => {
         // under `(work_item_id, role_id)` alone the line above would be right
         // for the wrong reason and this line would fail.
         sqlite.run(
-          'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+          'INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)' +
             " VALUES ('w1', 'r1', 'token_estimate', 3500000, 3000)",
         );
       } finally {
@@ -3471,7 +3497,7 @@ describe('the step measure migration', () => {
       try {
         expect(() => {
           sqlite.run(
-            'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+            'INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)' +
               " VALUES ('w1', 'r1', 'nonsense', 1, 3000)",
           );
         }).toThrow(/CHECK constraint failed/);
@@ -3495,6 +3521,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -3580,6 +3607,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      RENAME_ROLE_TO_STEP,
       WEIGHTS_AND_ROUNDING,
       DEP_REACH,
       EXTERNAL_REF,
@@ -3800,6 +3828,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -3836,6 +3865,99 @@ describe('the person kind migration', () => {
         after.close();
       }
       expect(counts(db.path)).toEqual({ people: 2, memberships: 2, assignments: 1 });
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the role -> step rename', () => {
+  /**
+   * The migration that gives the physical schema the domain's own names, and
+   * the one property SQLite will not give for free.
+   *
+   * `ALTER TABLE role RENAME TO step` rewrites the `REFERENCES` clauses in every
+   * table that points at it — **but only when foreign keys are enabled when the
+   * statement is prepared.** With them off the rename succeeds, the table list
+   * looks perfect, no name carries the word `role` anywhere, and five tables are
+   * left with `REFERENCES role(id)` pointing at nothing: the first insert into
+   * any of them fails with `no such table: main.role`.
+   *
+   * That is exactly what happened on 2026-08-31. `runMigrations` decided the
+   * foreign-key pragma **once for the whole run**, and on a fresh database every
+   * migration is pending — including the one marker migration
+   * (`20260824010000_add_oidc_identity`) — so the entire bootstrap ran with
+   * foreign keys off. On dev, where that marker migration was applied weeks
+   * ago, the same migration produced a correct schema. One migration, two
+   * schemas, decided by which database it landed on. See
+   * `pendingNeedingForeignKeysOff` in `migrate.ts`.
+   *
+   * Proof: `runMigrations` reduced to its old whole-run decision — foreign keys
+   * off for every pending migration if any of them asks — watched failing here
+   * on `expected 'CONSTRAINT `fk_estimate_role_id_role_id_fk` FOREIGN KEY
+   * ("step_id") REFERENCES `role`(`id`)' to contain 'REFERENCES "step"'`, and
+   * on the insert below with `SQLiteError: no such table: main.role`. Observed
+   * 2026-08-31.
+   */
+  it('renames the step table with every reference to it rewritten, on a database built from nothing', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        // Foreign keys really are on, or the insert below proves nothing: an
+        // unenforced connection prepares a statement against a dangling
+        // reference quite happily.
+        expect(sqlite.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get()).toEqual({
+          foreign_keys: 1,
+        });
+
+        const createOf = (table: string): string =>
+          sqlite
+            .query<
+              { sql: string },
+              [string]
+            >('SELECT sql FROM sqlite_master WHERE type = ? AND name = ?')
+            .get('table', table)?.sql ?? '';
+        for (const table of ['estimate', 'actual', 'assignment', 'step_progress', 'step_measure']) {
+          expect(createOf(table)).toContain('REFERENCES "step"');
+          expect(createOf(table)).not.toContain('REFERENCES `role`');
+        }
+
+        // And the reference is live rather than merely well spelled: a write
+        // through it is what fails with `no such table: main.role` when the
+        // clause is stale, and a write against a step that does not exist is
+        // what fails when the constraint is not enforced at all.
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run(
+          "INSERT INTO step (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)",
+        );
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
+        );
+        sqlite.run(
+          'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)' +
+            " VALUES ('w1', 'r1', 1, 2, 3)",
+        );
+        expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM estimate').get()?.n).toBe(
+          1,
+        );
+        expect(() =>
+          sqlite.run(
+            'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)' +
+              " VALUES ('w1', 'nobody', 1, 2, 3)",
+          ),
+        ).toThrow(/FOREIGN KEY constraint failed/);
+      } finally {
+        sqlite.close();
+      }
     } finally {
       db.cleanup();
     }

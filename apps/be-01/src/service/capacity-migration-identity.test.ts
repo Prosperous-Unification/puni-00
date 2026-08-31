@@ -369,7 +369,7 @@ describe('every plan schedules identically across the migration', () => {
             expect(actuals).toEqual({});
             // Lifted for `actuals`' reason and asserted for the same one, one
             // table over: `token-tracking` put this key on every row and the
-            // oracle predates `role_measure` entirely. `{}` here is the whole
+            // oracle predates `step_measure` entirely. `{}` here is the whole
             // object and not three empty metrics — a metric nobody recorded is
             // struck rather than carried — so this one assertion is both of the
             // change's absence rules at once, and a bare lift would hide a fold

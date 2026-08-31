@@ -49,7 +49,7 @@ export class StepProgressRepository implements StepProgressStore {
           statedAt: stepProgress.statedAt,
         })
         .from(stepProgress)
-        // Inner rather than left: `role_progress.role_id` is a foreign key, so a
+        // Inner rather than left: `step_progress.step_id` is a foreign key, so a
         // statement whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step.
         .innerJoin(step, eq(stepProgress.stepId, step.id))

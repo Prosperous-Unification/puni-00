@@ -322,7 +322,7 @@ function asOptionalDate(value: unknown, field: string): IsoDate | null | undefin
  * **A blank is `null`, not `''`.** Emptying the field is how a reader takes a
  * reason off, and a stored empty string would be a second spelling of "nobody
  * has said" that every reader would then have to fold — the doctrine `actual`
- * and `role_progress` both state as "the absence of a row". Trimmed for the
+ * and `step_progress` both state as "the absence of a row". Trimmed for the
  * same reason a band label is: a reason of three spaces is a reason of none,
  * and the difference between them is invisible on every surface that shows it.
  *

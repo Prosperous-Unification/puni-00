@@ -98,19 +98,19 @@ contract: `docs/runbook-prod-deploy.md`.**
   test until 2026-08-04 matched `be-01-blue` inside `dev-be-01-blue` and read prod's colour wrong.
 - `be-01.internal` resolves to **both colours** mid-swap (round-robin). Two releases, one DB file.
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
-  `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` anywhere else under
-  `apps/be-01/src`, because `busy_timeout`/`foreign_keys` are per-connection and a direct
-  `new Database()` — or a reach into drizzle's `$client` — silently loses them. `boot.ts` opens
-  and closes through `openConnection` for that reason.
-- **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
-  The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
-  is yours, asserted by passing `--with-migrations`.
+  `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` elsewhere under
+  `apps/be-01/src` — `busy_timeout`/`foreign_keys` are per-connection and a direct `new Database()`,
+  or a reach into drizzle's `$client`, silently loses them. `boot.ts` goes through `openConnection`.
+- **`ALTER TABLE … RENAME` rewrites other tables' `REFERENCES` only with `foreign_keys` on** — off
+  for a whole fresh-DB run until `pendingNeedingForeignKeysOff`; a name sweep passed, five FKs dangling.
+- **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world`
+  refuses. The lint catches the obvious destructive statements; the judgement is yours, asserted by
+  `--with-migrations`. One waived rename (`WAIVERS`), gated on `bin/assert-no-prod-release.sh`.
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`) — 66 tests
-  green against another checkout, 2026-08-09, and it keeps its own `DB_PATH`. Shift onto ports the
-  **browser** talks to: 1800 puts fe-01 on 6000, every navigation `ERR_UNSAFE_PORT`; 1900 is good.
+  green against another checkout, 2026-08-09; it keeps its own `DB_PATH`. Shift onto ports the
+  **browser** talks to: 1800 puts fe-01 on 6000 (`ERR_UNSAFE_PORT`); 1900 is good.
 - **A whole-workspace run is not the sum of per-project runs.** Six import-sort errors reached
-  `main` on 2026-08-30 green in every per-project run — imports inserted by regex rather than by
-  editing the block. Per-project lint was scoped to a place the fault was not: gate before merging.
+  `main` on 2026-08-30 green in every per-project run. Gate before merging.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — mode at birth, never chmod after (`configure.sh` does not; see findings).
 - `--platform linux/amd64` is pinned **on the Dagger publish path**, which is the only supported one.
@@ -125,8 +125,8 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 
 Findings 3–5 closed. Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes
-on any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live
-sockets; `tool-secrets` only prints what it would run. Checks that cannot fail: **twenty** (R5).
+on any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints what it would run. Checks that cannot fail: **twenty-one** (R5).
 
 ## More
 

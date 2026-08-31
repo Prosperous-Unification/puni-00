@@ -455,7 +455,7 @@ describe('StepMeasureRepository', () => {
   });
 
   it('goes with the work item it is on, so an old release can still delete one', async () => {
-    // `role_measure.work_item_id` cascades, and it is the blue/green window this
+    // `step_measure.work_item_id` cascades, and it is the blue/green window this
     // is for: the outgoing release knows nothing about this table and its plain
     // `DELETE FROM work_item` must not hit a constraint it cannot see.
     await repo.set({
@@ -478,7 +478,7 @@ describe('StepMeasureRepository', () => {
   });
 
   it('refuses to leave a step that still holds a figure, rather than emptying it quietly', async () => {
-    // `role_measure.role_id` deliberately carries **no** cascade, which is what
+    // `step_measure.step_id` deliberately carries **no** cascade, which is what
     // makes a step delete that forgot the measures fail loudly.
     // `StepRepository.remove` is the caller that will say so explicitly (task
     // 6.3); this is the constraint underneath it, asserted so that a later
@@ -495,7 +495,7 @@ describe('StepMeasureRepository', () => {
     try {
       db.run('PRAGMA foreign_keys = ON');
       expect(() => {
-        db.run(`DELETE FROM role WHERE id = '${devId}'`);
+        db.run(`DELETE FROM step WHERE id = '${devId}'`);
       }).toThrow(/FOREIGN KEY constraint failed/);
     } finally {
       db.close();

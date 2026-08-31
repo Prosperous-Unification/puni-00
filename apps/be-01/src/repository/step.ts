@@ -23,16 +23,24 @@ import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem
  * names the index's columns so that a different constraint failing here is
  * still an unknown, and still throws.
  *
- * Those columns are spelled `role.…` because SQLite quotes the **physical**
- * table, which `steps-not-phases` deliberately left alone — see {@link step} in
- * `schema.ts` and the change that closes the gap, `steps-schema-rename`.
- * Renaming this string with the identifiers around it would take every
- * duplicate name from a 409 `taken` to an uncaught 500.
+ * The columns are spelled the way SQLite quotes them, which is the **physical**
+ * index — `step.project_id, step.name` since
+ * `20260831120000_rename_role_to_step`. This string and the migration have to
+ * move together: a stale spelling here takes every duplicate step name from a
+ * 409 `taken` to an uncaught 500, silently, because the message simply stops
+ * matching.
+ *
+ * Proof: `refuses a name the project already holds, and leaves the steps as
+ * they were` and `refuses a rename onto a name already in use, leaving both
+ * alone` in `step.test.ts` — both watched failing with this string left at the
+ * pre-rename spelling against the renamed schema, on
+ * `SQLiteError: UNIQUE constraint failed: step.project_id, step.name` escaping
+ * the repository instead of becoming a `taken`. Observed 2026-08-31.
  */
 function isDuplicateName(err: unknown): boolean {
   return (
     err instanceof Error &&
-    err.message.includes('UNIQUE constraint failed: role.project_id, role.name')
+    err.message.includes('UNIQUE constraint failed: step.project_id, step.name')
   );
 }
 
@@ -77,7 +85,7 @@ export class StepRepository implements StepStore {
    * The project's steps, in step order.
    *
    * The `ORDER BY` is load-bearing, not tidiness: without it SQLite answers
-   * `WHERE project_id = ?` from the `role_project_name` index and hands back
+   * `WHERE project_id = ?` from the `step_project_name` index and hands back
    * the rows in **name** order, which puts a step called `Analysis` in front of
    * `Dev` however late it was added — and step order is what a work item's
    * slices run in.
@@ -178,21 +186,21 @@ export class StepRepository implements StepStore {
       .select({ workItemId: estimate.workItemId })
       .from(estimate)
       .where(eq(estimate.stepId, stepId));
-    // Read through `actual_by_role`, which exists for this question and for the
+    // Read through `actual_by_step`, which exists for this question and for the
     // one `remove` asks: the primary key leads with the work item, so counting
     // one step's rows without it is a scan.
     const recorded = await this.db
       .select({ workItemId: actual.workItemId })
       .from(actual)
       .where(eq(actual.stepId, stepId));
-    // Read through `role_progress_by_role`, which exists for this question for
-    // `actual_by_role`'s reason.
+    // Read through `step_progress_by_step`, which exists for this question for
+    // `actual_by_step`'s reason.
     const spoken = await this.db
       .select({ workItemId: stepProgress.workItemId })
       .from(stepProgress)
       .where(eq(stepProgress.stepId, stepId));
-    // Read through `role_measure_by_role`, which exists for this question for
-    // `actual_by_role`'s reason — the primary key leads with the work item, so
+    // Read through `step_measure_by_step`, which exists for this question for
+    // `actual_by_step`'s reason — the primary key leads with the work item, so
     // counting one step's rows without it would be a scan. Nothing owed here:
     // the index has shipped with the table since
     // `20260821140000_add_role_measure`.
@@ -242,7 +250,7 @@ export class StepRepository implements StepStore {
    * mentioned it. `cascade` is the only thing carried across the two requests;
    * every number is read here, freshly.
    *
-   * The estimates are deleted **explicitly**: `estimate.role_id` has no
+   * The estimates are deleted **explicitly**: `estimate.step_id` has no
    * `onDelete` cascade, so deleting the step row on its own hits the foreign key
    * and answers 500. The assignments are deleted explicitly too, though their
    * column does cascade, so that what this reports having removed is what this
@@ -288,7 +296,7 @@ export class StepRepository implements StepStore {
       // because an actual is a record of work somebody has already done: a step
       // that holds one and no estimate is `in_use`, and an unconfirmed removal
       // of it is refused rather than quietly taking the only record of that
-      // week. `actual.role_id` has no cascade for exactly this — see `step` in
+      // week. `actual.step_id` has no cascade for exactly this — see `step` in
       // `schema.ts`.
       const recorded = tx
         .select({ workItemId: actual.workItemId })
@@ -342,14 +350,14 @@ export class StepRepository implements StepStore {
         };
       }
       tx.delete(estimate).where(inArray(estimate.stepId, stepInProject)).run();
-      // Explicit, like the estimates and for the identical reason: `role_id`
+      // Explicit, like the estimates and for the identical reason: `step_id`
       // carries no cascade here, so the step delete below hits the foreign key
       // and answers 500 without this statement.
       tx.delete(actual).where(inArray(actual.stepId, stepInProject)).run();
-      // Explicit for the same reason once more: `role_progress.role_id` carries
+      // Explicit for the same reason once more: `step_progress.step_id` carries
       // no cascade either, deliberately.
       tx.delete(stepProgress).where(inArray(stepProgress.stepId, stepInProject)).run();
-      // Explicit for the third time and the same reason: `role_measure.role_id`
+      // Explicit for the third time and the same reason: `step_measure.step_id`
       // carries no cascade either (`schema.ts`, `stepMeasure`), so without this
       // statement the step delete below hits the foreign key and answers 500 to
       // a confirmed cascade — the exact failure the estimates' delete was added

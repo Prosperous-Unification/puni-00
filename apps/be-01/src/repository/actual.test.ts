@@ -278,7 +278,7 @@ describe('ActualRepository', () => {
   });
 
   it('refuses to leave a step that still holds recorded days, rather than emptying it quietly', async () => {
-    // `actual.role_id` deliberately carries **no** cascade, which is what makes
+    // `actual.step_id` deliberately carries **no** cascade, which is what makes
     // a step delete that forgot the actuals fail loudly.
     // `StepRepository.remove` is the caller that says so explicitly; this is the
     // constraint underneath it, asserted so that a later migration cannot add a
@@ -289,7 +289,7 @@ describe('ActualRepository', () => {
     try {
       db.run('PRAGMA foreign_keys = ON');
       expect(() => {
-        db.run(`DELETE FROM role WHERE id = '${devId}'`);
+        db.run(`DELETE FROM step WHERE id = '${devId}'`);
       }).toThrow(/FOREIGN KEY constraint failed/);
     } finally {
       db.close();

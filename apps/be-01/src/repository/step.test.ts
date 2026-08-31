@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -23,7 +23,7 @@ import { WorkItemRepository } from './work-item';
  *
  * Real, and only real. Every claim here is one SQLite makes and no fixture
  * can: the unique index that refuses a second `Design`, the foreign key that
- * `estimate.role_id` has no cascade for, and the revision arithmetic that
+ * `estimate.step_id` has no cascade for, and the revision arithmetic that
  * happens inside the statement rather than in this process.
  */
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -132,45 +132,111 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('the boundary the schema names', () => {
-  /*
-    A **documentation** assertion, and marked as one: it does not stop a fault,
-    it records where the domain name and the physical name disagree so the next
-    reader is not surprised by SQLite answering to `role`.
-
-    It is not vacuous for the same reason a comment would be — it reads the
-    live migrated database rather than the schema file, so it goes red the day
-    `steps-schema-rename` runs its `ALTER TABLE`. That is when the JSDoc on
-    {@link step} and this test both stop being true, and both should be deleted
-    together.
-  */
-  it('the step table’s physical name is still role', () => {
+describe('the names the schema uses', () => {
+  /**
+   * The physical schema and the domain agree, and this reads the **live
+   * migrated database** rather than the schema file to say so.
+   *
+   * It replaces `the step table's physical name is still role`, which recorded
+   * the disagreement `steps-not-phases` left behind and which
+   * `20260831120000_rename_role_to_step` was written to end. That test was
+   * deliberately built to go red the day the rename ran; this is what it
+   * becomes.
+   *
+   * Proof: `ALTER TABLE assignment RENAME COLUMN role_id TO step_id` removed
+   * from the migration, watched failing here on
+   * `Expected to contain: "step_id" / Received: [ "work_item_id", "role_id",
+   * "person_id" ]`. Observed 2026-08-31.
+   *
+   * Removing the **table** rename instead was tried first and is not the fault
+   * to inject: the migration's own
+   * `CREATE UNIQUE INDEX step_project_name ON step` then fails inside
+   * `runMigrations`, so the run dies in `beforeEach` and this assertion is
+   * never reached.
+   */
+  it('names steps everywhere the database does, and role nowhere', () => {
     // Through `openDatabase`, never `new Database`: the pragmas are
     // per-connection and the ESLint rule that keeps them so is the point.
     const sqlite = openDatabase(join(dir, 'test.db'));
     try {
-      const named = (table: string): number =>
+      const objectsNamed = (type: string, name: string): number =>
         sqlite
           .query<
             { n: number },
-            [string]
-          >("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
-          .get(table)?.n ?? 0;
+            [string, string]
+          >('SELECT count(*) AS n FROM sqlite_master WHERE type = ? AND name = ?')
+          .get(type, name)?.n ?? 0;
 
-      expect(named('role')).toBe(1);
-      expect(named('step')).toBe(0);
+      for (const table of ['step', 'step_progress', 'step_measure'])
+        expect(objectsNamed('table', table)).toBe(1);
+      for (const table of ['role', 'role_progress', 'role_measure'])
+        expect(objectsNamed('table', table)).toBe(0);
+      expect(objectsNamed('index', 'step_project_name')).toBe(1);
 
-      // And the column, which is what every join in this repository is written
-      // against.
-      const columns = sqlite
-        .query<{ name: string }, []>("SELECT name FROM pragma_table_info('estimate')")
-        .all()
-        .map((column) => column.name);
-      expect(columns).toContain('role_id');
-      expect(columns).not.toContain('step_id');
+      // The column every join in this repository is written against.
+      const columnsOf = (table: string): string[] =>
+        sqlite
+          .query<{ name: string }, [string]>('SELECT name FROM pragma_table_info(?)')
+          .all(table)
+          .map((column) => column.name);
+      for (const table of ['estimate', 'actual', 'assignment', 'step_progress', 'step_measure'])
+        expect(columnsOf(table)).toContain('step_id');
+      for (const table of ['estimate', 'actual', 'assignment', 'step_progress', 'step_measure'])
+        expect(columnsOf(table)).not.toContain('role_id');
+
+      // Not one table, column or index name left carrying the word. The sweep
+      // rather than a list, because a name nobody thought to name is exactly
+      // the one a rename forgets.
+      const named = sqlite
+        .query<
+          { type: string; name: string },
+          []
+        >("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
+        .all();
+      expect(named.filter((each) => /role/i.test(each.name))).toEqual([]);
+      const roleColumns = named
+        .filter((each) => each.type === 'table')
+        .flatMap((each) =>
+          columnsOf(each.name)
+            .filter((column) => /role/i.test(column))
+            .map((column) => `${each.name}.${column}`),
+        );
+      expect(roleColumns).toEqual([]);
     } finally {
       sqlite.close();
     }
+  });
+
+  /**
+   * There is no boundary left for a comment to reconcile, so `schema.ts` must
+   * not carry one.
+   *
+   * The spec `20260831120000_rename_role_to_step` implements says the schema
+   * "SHALL NOT carry a comment reconciling a physical name with a domain name,
+   * because they SHALL agree". This is that sentence, made breakable: the
+   * paragraph it is about opened with **The physical name is `role`, and the
+   * domain name is `step`.**
+   *
+   * `step.ts` is exempt and named here rather than left to be discovered: its
+   * `isDuplicateName` comment says "physical" about the string SQLite puts in
+   * an error message, which is a real fact about SQLite rather than a
+   * disagreement between two names.
+   *
+   * Proof: that paragraph pasted back onto {@link step}, watched failing on
+   * `expect(received).toEqual(expected)` with
+   * `+ "* **The physical name is \`role\`, and the domain name is \`step\`.**
+   * Every"` among three received lines against an empty expectation. Observed
+   * 2026-08-31.
+   */
+  it('leaves no comment in the schema reconciling a physical name with a domain one', () => {
+    const schema = readFileSync(join(import.meta.dir, 'schema.ts'), 'utf8');
+
+    const reconciling = schema
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /physical name|physical\*\* name|domain name/i.test(line));
+
+    expect(reconciling).toEqual([]);
   });
 });
 
@@ -191,7 +257,7 @@ describe('StepRepository', () => {
 
   it('reads a step added later last, however its name sorts', async () => {
     // The order cannot be inferred from the rows: SQLite answers
-    // `WHERE project_id = ?` from `role_project_name`, so without an ORDER BY
+    // `WHERE project_id = ?` from `step_project_name`, so without an ORDER BY
     // these come back `Analysis, Dev, QA` — and step order is what a work
     // item's slices run in.
     await steps.add({ id: 'analysis', projectId, name: 'Analysis' });
@@ -418,7 +484,7 @@ describe('StepRepository', () => {
     // The case that makes the count load-bearing rather than decorative: this
     // step has no estimate and nobody assigned, so a removal that counted only
     // those two would sail through and take the record of somebody's week with
-    // it. `actual.role_id` has no cascade precisely so this cannot happen
+    // it. `actual.step_id` has no cascade precisely so this cannot happen
     // quietly.
     await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 });
     const before = await revisionOf(projectId);
@@ -449,7 +515,7 @@ describe('StepRepository', () => {
     // decorative: this step has no estimate, no recorded day and nobody
     // assigned, so a removal that counted only those three would sail through
     // and turn finished work back into work nobody has started.
-    // `role_progress.role_id` has no cascade precisely so this cannot happen
+    // `step_progress.step_id` has no cascade precisely so this cannot happen
     // quietly.
     //
     // Proof: `spoken.length > 0` dropped from the `in_use` condition, and this
@@ -517,7 +583,7 @@ describe('StepRepository', () => {
     // The fourth loss. This step has no estimate, no recorded day, no stated
     // progress and nobody assigned, so a removal that counted only those four
     // would sail through and delete what an agent's work on this plan cost —
-    // the figures nobody typed and nobody can retype. `role_measure.role_id`
+    // the figures nobody typed and nobody can retype. `step_measure.step_id`
     // has no cascade precisely so this cannot happen quietly.
     //
     // **Two rows on one pair, and the count is 2.** A count of pairs would say

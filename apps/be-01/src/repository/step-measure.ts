@@ -18,7 +18,7 @@ import { type MeasureMetric, step, stepMeasure, workItem } from './schema';
  * where rows may live, and the failure this shape prevents is the one where
  * estimates and actuals follow a subtree and measures quietly do not.
  *
- * **What is different, and it is only the key.** `role_measure`'s primary key
+ * **What is different, and it is only the key.** `step_measure`'s primary key
  * carries a third column, so `metric` is a parameter of every method that names
  * one row — {@link remove} — and a field of the record on {@link set}. It is
  * deliberately **absent** from the two methods that do not name a row:
@@ -60,7 +60,7 @@ export class StepMeasureRepository implements MeasureStore {
           recordedAt: stepMeasure.recordedAt,
         })
         .from(stepMeasure)
-        // Inner rather than left: `role_measure.role_id` is a foreign key, so a
+        // Inner rather than left: `step_measure.step_id` is a foreign key, so a
         // measure whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step (task 6.3).
         .innerJoin(step, eq(stepMeasure.stepId, step.id))

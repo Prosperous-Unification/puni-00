@@ -268,7 +268,7 @@ export interface StepStore {
    * estimate written after that caller's own count must refuse it rather than be
    * deleted by it.
    *
-   * The estimates are deleted explicitly because `estimate.role_id` has no
+   * The estimates are deleted explicitly because `estimate.step_id` has no
    * cascade: a bare delete of the row hits the foreign key and answers 500. The
    * **actuals** are deleted explicitly for exactly the same reason, and counted
    * for a stronger one — see {@link StepUsageRows.actuals}. The **stated
