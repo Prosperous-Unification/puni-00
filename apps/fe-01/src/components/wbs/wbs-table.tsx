@@ -57,6 +57,7 @@ import {
 import { ActionsMenu, MenuControl } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
+import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type ColumnHintState, hintFor, STEP_FINAL_HINT } from './column-hints';
 import {
   CreatablePicker,
@@ -2245,7 +2246,7 @@ function FilterFacets({
   };
 
   return (
-    <details data-facets className="relative">
+    <details ref={useClosedByPointerOutside()} data-facets className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         title="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
@@ -2376,6 +2377,31 @@ function FilterFacets({
  * the full word, where the header is abbreviated for width (`Prio`, `Not
  * bef.`) or is a glyph (People at once). Steps are named by the project.
  */
+/**
+ * How much of a folded step cell is kept for the assignee, **when that column
+ * has one at all**.
+ *
+ * The derived figure beside the trio is a number people read down the column,
+ * and it only lines up if everything to its right is the same width on every
+ * row. The assignee is not: `· AI` is 19.51px, `· VS` 24.57, `· WW` 31.76 and
+ * an assumed `· (WW)` 40.42, all measured in Chromium at this cell's `13px
+ * sans-serif` on 2026-08-31. A row with nobody assigned reserved nothing at
+ * all, which is the 28.57px Dany photographed.
+ *
+ * **Reserved per column and only when somebody is assigned in it** — his own
+ * call, asked directly: "if there is no assignees on any work item, then
+ * everything is aligned vertically without assignee, if there is at least one
+ * assignee, then every row moves". So a plan nobody has staffed pays nothing
+ * and its trio boxes stay full width; the moment one person is named, every row
+ * in that column gives up the same 32px and the figures line up again.
+ *
+ * 32 and not 41: it seats `· WW`, the widest two-initial form, and lets an
+ * assumed `· (WW)` clip by 8px rather than charge every row for a parenthesis
+ * most plans never draw. The card names whoever it is in full
+ * (`folded-step-card.tsx`), which is what makes the clip affordable.
+ */
+const ASSIGNEE_SLOT_PX = 32;
+
 const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['refs', 'Links'],
   ['depends', 'Depends on'],
@@ -2417,7 +2443,7 @@ function ColumnsControl({
 }) {
   const prefix = useId();
   return (
-    <details data-columns className="relative">
+    <details ref={useClosedByPointerOutside()} data-columns className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         title="Choose which columns are on the table. Number, Name and the row's controls always are."
@@ -2487,7 +2513,7 @@ function SavedViews({
   const filtering = isFiltering(current);
   const canSave = filtering && name.trim() !== '';
   return (
-    <details data-saved-views className="relative">
+    <details ref={useClosedByPointerOutside()} data-saved-views className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         title="Name the current filter, or pick one already named"
@@ -6773,6 +6799,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
+   * Whether any row on the plan names somebody for this step.
+   *
+   * What {@link ASSIGNEE_SLOT_PX} is spent on, and the only thing it is spent
+   * on: a column nobody is assigned in reserves nothing, so an unstaffed plan
+   * keeps its trio boxes at full width. Dany's own rule, 2026-08-31 — "if there
+   * is no assignees on any work item, then everything is aligned vertically
+   * without assignee, if there is at least one assignee, then every row moves".
+   *
+   * `doesEveryStep` counts, because an assumed assignee draws in the cell
+   * exactly as a named one does ({@link assigneeOn} promotes it), and a slot
+   * sized without it would be one the drawn initials overflow.
+   *
+   * Read over `flat` — every row the table is drawing — so a filter that hides
+   * the only assigned row takes the slot with it, and the figures stay lined up
+   * against what is actually on screen.
+   */
+  const anyAssigneeOn = useCallback(
+    (stepId: string): boolean =>
+      flat.some((row) => row.assignees[stepId] !== undefined || row.doesEveryStep !== null),
+    [flat],
+  );
+
+  /**
    * The work items one waits for, in the order it holds them.
    *
    * The entries and not just their numbers, since `card-field-pickers` chunk 7:
@@ -6904,6 +6953,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     toggleStep,
     spanOf,
     assigneeOn,
+    anyAssigneeOn,
     nonOwnerNoteOf,
     waitsFor,
     matchIds: search.matchIds,
@@ -6987,6 +7037,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     toggleStep,
     spanOf,
     assigneeOn,
+    anyAssigneeOn,
     nonOwnerNoteOf,
     waitsFor,
     matchIds: search.matchIds,
@@ -8938,6 +8989,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           boxSizing: 'border-box',
                           font: 'inherit',
                           fontWeight: 600,
+                          // Grows, and that is only safe because what sits to
+                          // its right is now the **same width on every row** —
+                          // see {@link ASSIGNEE_SLOT_PX}. Growing against a
+                          // varying sibling is what made the derived figure's x
+                          // depend on whether somebody was assigned: measured on
+                          // Dany's plan, 2026-08-31, `· 2` at 1143.75 on the
+                          // seven assigned rows and 1172.32 on the one without.
+                          //
+                          // `0 1 59px` was tried instead — stop growing, keep a
+                          // basis wide enough for `20/24/30`. It aligns on a
+                          // roomy column and not on a tight one: at the declared
+                          // 96px the box's `shrink` takes the difference, and
+                          // how much it shrinks depends on the assignee again.
+                          // Measured at 91.22px: assigned rows 40.52, unassigned
+                          // 59, figures 18.48px apart. The slot is the fix; this
+                          // is back to what it was.
                           flex: 1,
                           minWidth: 0,
                           ...(problem === null
@@ -8979,6 +9046,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       <span
                         data-rolled-trio={step.id}
                         style={{
+                          // **The leaf box's width rule, spelled the same way.**
+                          // This span and that box are two spellings of one
+                          // slot, and the moment they disagree a parent's figure
+                          // and its leaves' stop lining up: left behind while
+                          // the box was briefly `0 1 59px`, `stands a parent's
+                          // figure in the same slot as its leaves'` failed on
+                          // `Expected: 858 · Received: 872.875`. Watched in
+                          // Chromium, 2026-08-31.
                           flex: 1,
                           minWidth: 0,
                           overflow: 'hidden',
@@ -9077,6 +9152,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         style={{
                           marginLeft: 4,
                           flex: 'none',
+                          // The slot, so every row in a staffed column gives up
+                          // the same width and the figure before it lands at one
+                          // x. `hidden` rather than an ellipsis: the only form
+                          // that overflows is the assumed `(XX)`, and half a
+                          // bracket reads better than `…` where the card carries
+                          // the whole name anyway.
+                          width: ASSIGNEE_SLOT_PX,
+                          overflow: 'hidden',
                           whiteSpace: 'nowrap',
                           fontWeight: 'normal',
                           color: doing.assumed ? 'var(--muted-foreground)' : undefined,
@@ -9084,6 +9167,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       >
                         · {doing.assumed ? `(${initialsOf(doing.name)})` : initialsOf(doing.name)}
                       </span>
+                    )}
+                    {doing === null && live.current.anyAssigneeOn(step.id) && (
+                      // The empty half of {@link ASSIGNEE_SLOT_PX}: a row with
+                      // nobody on it still gives up the slot, **but only in a
+                      // column where somebody is assigned**. That condition is
+                      // the whole of Dany's answer — an unstaffed plan pays
+                      // nothing and keeps its trio boxes full width.
+                      //
+                      // `aria-hidden` and empty: it is a spacer, and a screen
+                      // reader being told a row has an unnamed assignee would be
+                      // worse than it being told nothing. The cell's card is
+                      // where absence is stated in words.
+                      <span
+                        aria-hidden="true"
+                        data-folded-assignee-slot={step.id}
+                        style={{ marginLeft: 4, flex: 'none', width: ASSIGNEE_SLOT_PX }}
+                      />
                     )}
                     {/*
                       Task 7.2's marker on the folded cell as well as the
@@ -10770,7 +10870,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         names, titles and handlers; the only thing that moved is where they
         sit.
       */}
-      <details data-export className="relative">
+      <details ref={useClosedByPointerOutside()} data-export className="relative">
         <summary
           className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
           title="Copy or download the plan — as a Markdown table, a Mermaid gantt, a CSV, or what is on screen"

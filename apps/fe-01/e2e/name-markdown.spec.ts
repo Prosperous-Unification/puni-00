@@ -279,29 +279,34 @@ test.describe('the Name cell shows one of its two boxes at a time', () => {
     await box.blur();
     await expect(drawn).toBeVisible();
 
-    // **And the modified click is left alone.** What this change controls is
-    // one thing: the handler returns without `preventDefault` when a modifier
-    // is held, so the browser performs the anchor's own default. That is what
-    // is asserted — the editor does **not** take the focus, and a second page
-    // appears in the context.
+    // **And the modified click is left alone**, which is the one thing this
+    // change controls: the handler returns without `preventDefault` when a
+    // modifier is held, so the browser performs the anchor's own default and
+    // the editor does **not** take the focus.
     //
-    // Its URL is deliberately not asserted. A modified click opens a
-    // **background** tab, which Chromium creates before it loads; both
-    // `page.waitForEvent('popup')` and `followed.waitForURL(…)` were written
-    // here first and both timed out, and the one reading straight after the
-    // event got `""`. Where the tab would go is already pinned by the `href`,
-    // `target` and `rel` assertions at the top of this test, which are the
-    // attributes the browser acts on. Asserting a background tab's navigation
-    // would be a check about Chromium's scheduling, not about this code.
-    const opened = page.context().waitForEvent('page');
+    // **Nothing here waits for the tab.** Three shapes were tried and all three
+    // were about Chromium's scheduling rather than about this code:
+    // `page.waitForEvent('popup')` timed out (a modified click opens a
+    // background tab, not a popup); `followed.waitForURL(…)` timed out (the tab
+    // is created before it loads); and reading `followed.url()` straight after
+    // the event gave `""`. `context().waitForEvent('page')` did pass — and then
+    // timed out at 60s in the **full** gate under parallel load, twice, while
+    // passing 3/3 alone. A check that only holds when the machine is quiet is
+    // not a check.
+    //
+    // Where the tab would go is already pinned by the `href`, `target` and
+    // `rel` assertions above, which are the attributes the browser acts on.
+    // What is left is exactly the boundary this code owns, and the negative
+    // still bites through it: with the modifier guard removed the plain-click
+    // path runs, `openEditorUnder` focuses the box, and the assertion below
+    // fails.
+    //
     // `ControlOrMeta`, so this reads the same on the Mac it was written on and
     // on CI's Linux.
     await page.keyboard.down('ControlOrMeta');
     await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
     await page.keyboard.up('ControlOrMeta');
-    const followed = await opened;
     await expect(box, 'a modified click opened the editor as well').not.toBeFocused();
-    await followed.close();
   });
 
   test('a javascript: URL in a name is not a link at all', async ({ page }) => {
