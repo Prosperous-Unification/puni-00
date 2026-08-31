@@ -179,7 +179,24 @@ jobs:
   # were predicted to.
   pixels:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, and it was 15 until 2026-08-31, when this job **cancelled a gate that
+    # had 13 of its 264 cases left**: the suite started at 11:55:41 and the cap
+    # cut it at 12:10:14 with 251 green and nothing red. The same afternoon it
+    # runs in 7.9-8.8m on a Mac, so what this number is about is the runner
+    # rather than the suite — the drift `2026-08-31-svg-export-and-gutter`
+    # inherited (11.3m to 14.3m across one session) walked into a cap that was
+    # never raised with it.
+    #
+    # A cap that cancels does not save the minutes it was set to save: the run
+    # had already spent all 15 and produced no verdict at all. It buys headroom
+    # and adds no capacity, exactly as the per-case caps below it do; when this
+    # is hit again the answer is sharding or a bigger runner, which is a call
+    # about CI budget rather than another number here.
+    #
+    # `retries` in `playwright.config.ts` stays 0 and is not the way out of
+    # this: a check people re-run until it is green is a check that cannot
+    # fail.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 

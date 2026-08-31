@@ -92,3 +92,19 @@ The live panel's label column is still `LABEL_COLUMN_PX` and still truncates.
 A column that sized itself to the longest name would take the chart's room on
 the screen the chart is the point of; the file has no such constraint, which is
 why the two now differ on purpose. The panel's own `⇩` stays where it is.
+
+## CI cancelled the browser gate, and the cap moved
+
+The push of this change ran CI's `gate` job green and its `pixels` job **not at
+all**: `timeout-minutes: 15` cut `bun run e2e` at 14m33s with **251 of 264
+cases green and none red**, and the job came back `cancelled` rather than
+failed. Nothing here is implicated — the same suite is 7.9-8.8m on this Mac,
+three runs — and the 2026-08-31 handoff had already recorded the runner
+drifting from 11.3m to 14.3m across one session while the cap stayed where it
+was.
+
+The cap is 25 now, with the reasoning written where it lives. A cap that
+cancels saves none of the minutes it was set to save: the run had spent all 15
+and produced no verdict. `retries` stays 0. If this is hit again the answer is
+sharding or a bigger runner, which is Dany's call about CI budget rather than
+another number in a workflow file.
