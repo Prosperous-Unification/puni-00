@@ -23,4 +23,4 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 ## 4. Gate
 
 - [x] 4.1 `openspec validate --all --json` (28/28), migration lint, secrets scan, `nx format:check --all`, and `nx run-many -t test lint typecheck build --skip-nx-cache` — all green; be-01 alone is 1250 pass, 0 fail. **`bin/h2puni-gate.sh` was not run** (its heavy-work lock helper does not run on this Mac) and the browser gate was not run (no API, wire or UI surface changed). Both stated in `verify.md`.
-- [ ] 4.2 A dev deploy that restarts be-01 (the migration is read at startup — `docs/runbook-dev-deploy.md`), with the applied set read back and quoted in `verify.md`.
+- [x] 4.2 A dev deploy that restarts be-01 (the migration is read at startup — `docs/runbook-dev-deploy.md`), with the applied set read back and quoted in `verify.md`. Done via the merge, which is what actually deploys dev: a branch deploy was attempted first, reverted by dev's poller four seconds later, and the two documents that said it would work are corrected in this change. Applied set, live schema and a functional read all quoted in `verify.md`.
