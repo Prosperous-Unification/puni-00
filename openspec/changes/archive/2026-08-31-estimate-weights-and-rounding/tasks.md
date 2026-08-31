@@ -80,8 +80,13 @@ table shows`.
 
 ## 7. Gate
 
-- [ ] 7.1 `bunx nx run-many -t test lint typecheck build` for be-01, fe-01 and
-      the libs, plus `bunx openspec validate --all --json`.
+- [x] 7.1 `bunx nx run-many -t test lint typecheck build` for be-01, fe-01 and
+      the libs, plus `bunx openspec validate --all --json`. **Run 2026-08-31**
+      over the tree this landed in: `run-many` exit 0 across the twelve app and
+      lib projects, be-01 1248 pass, fe-01 1992 pass, `openspec validate --all`
+      33/33, and the whole browser gate 260 passed / 0 failed on
+      `E2E_PORT_SHIFT=2600`. `bin/h2puni-gate.sh` was **not** run — it exits 127
+      on this macOS host.
 
 ## 8. The surface
 
@@ -91,8 +96,15 @@ table shows`.
       `estimating-panel.test.tsx`, eleven cases; **negative**: the
       `Number.isFinite` arm of `weightsOfDraft` replaced by a bare `>= 0`,
       watched failing on `1e999`.
-- [ ] 8.2 **BLOCKED — the wiring, and the only thing left.** The panel is not
-      mounted: `ProjectSettingsModal` gains an `Estimating` section and
-      `wbs-table.tsx` passes it one block of props, and this change was
-      forbidden to edit `wbs-table.tsx` (another session held it open all
-      evening). `verify.md` carries the exact patch for both files.
+- [x] 8.2 **Unblocked and wired, 2026-08-31.** The block was that this change
+      could not edit `wbs-table.tsx` — another session held it open all evening
+      — so the panel was written, tested and unreachable. The main session made
+      both edits once that file was free: `ProjectSettingsModal` has an
+      `Estimating` section (fourth, after Steps) and `wbs-table.tsx` passes it
+      one `estimating={{…}}` block, with `pertWeights` and `estimateRounding`
+      riding `chartRead` the way `depReach` already did — so the panel is seeded
+      from the same read that produced the figures on the table, and cannot
+      offer to "change" a value the table is not showing.
+      Tests: `project-settings-modal.test.tsx` names `Estimating` in the tab
+      list and its arrow-key order; `e2e/project-settings.spec.ts` asserts four
+      sections in Chromium. Both were red before the wiring and green after.
