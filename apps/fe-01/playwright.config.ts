@@ -171,7 +171,31 @@ export default defineConfig({
   // hat. A flake in this spec is a bug in this spec.
   retries: 0,
   timeout: 60_000,
-  expect: { timeout: 10_000 },
+  /**
+   * How long one assertion may wait, and **30s on CI against 10s here**.
+   *
+   * The zero above stays zero: a check people re-run until it is green is a
+   * check that cannot fail wearing a different hat, and that rule is right. A
+   * longer wait is not a retry and does not weaken anything — a wrong
+   * assertion still fails, just later. Nothing here re-runs.
+   *
+   * Measured, not guessed. Four CI runs on 2026-08-31 each lost **one** case
+   * out of 260, and a different one each time: `dark-mode`'s seed, then
+   * `name-cell`'s `a peer's longer name arriving…` twice, then `gantt`'s
+   * `flips a surface above a bar that has no room below it`. Every one was a
+   * wait on cross-process work — a create round trip, a websocket delivery, a
+   * layout settling — and every one passed 3/3 alone. The runner takes
+   * **11–12 minutes where this Mac takes 7**, and a 10s budget written on the
+   * Mac is a budget for the wrong machine.
+   *
+   * **This was mistaken for a regression and cost a revert.** `a474047` was
+   * reverted on the strength of two consecutive failures in one case; the
+   * revert then failed on a *different* case, which is what proved the suite
+   * environmental rather than the commit faulty. The per-test 30s bumps written
+   * during that hour are removed in favour of this one figure — three numbers
+   * in three files were three places for the next person to disagree with.
+   */
+  expect: { timeout: isCi ? 30_000 : 10_000 },
   reporter: isCi
     ? [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : [['list']],
