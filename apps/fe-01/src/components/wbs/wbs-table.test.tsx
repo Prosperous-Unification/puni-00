@@ -11892,7 +11892,7 @@ describe('sharing the plan', () => {
     return api;
   };
 
-  itDom('offers all five ways of taking the plan out of the tool, in one Export menu', async () => {
+  itDom('offers all six ways of taking the plan out of the tool, in one Export menu', async () => {
     // `configurable-columns` measured the toolbar at 1280: 683px of five rare
     // actions on one row, and a Columns control pushed it to three rows. The
     // five live behind one `Export` summary now — the same `<details>` the
@@ -11912,6 +11912,7 @@ describe('sharing the plan', () => {
         'Copy as Mermaid',
         'Download CSV',
         'Download as Markdown',
+        'Download chart as SVG',
         'Download what’s on screen',
       ],
     );
@@ -15578,6 +15579,48 @@ describe('what the filter says it dropped, and what it exports', () => {
     );
     expect(text).toContain('| Paint |');
     expect(text).not.toContain('| Strip the walls |');
+  });
+
+  itDom('downloads the chart as an .svg from the Export menu', async () => {
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    click('Download chart as SVG');
+
+    // The same file the panel's own ⇩ writes, which is the whole claim: the
+    // menu lends the act rather than owning a second builder.
+    expect(downloads.names).toEqual([
+      expect.stringMatching(/^gantt-chart-\d{4}-\d{2}-\d{2}\.svg$/),
+    ]);
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    expect(file.type).toBe('image/svg+xml;charset=utf-8');
+    expect(await readBlobText(file)).toContain('<svg');
+    expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('refuses the chart the menu has no drawing of, and says where it is', async () => {
+    // The window the fault lives in is the one where the panel is **not**
+    // mounted: the file is a clone of the live `<svg>`, so a menu holding a
+    // stale downloader would serialize a chart that left the page — or throw
+    // inside a click handler, which is a button that does nothing.
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Gantt chart')).toBeNull();
+    });
+
+    click('Download chart as SVG');
+
+    expect(downloads.names).toEqual([]);
+    expect(toastTexts()).toEqual([
+      'There is no chart on screen to download. Open the Gantt and try again.',
+    ]);
   });
 
   itDom('leaves the four whole-plan exports claiming the whole plan', async () => {

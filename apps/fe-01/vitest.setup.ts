@@ -120,3 +120,38 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'scrollTo', { value: () => undefined, configurable: true });
 }
+
+/**
+ * A width for a `<text>`, so a document with no layout can still be asked one.
+ *
+ * jsdom implements no `SVGTextContentElement` at all — probed 2026-08-31,
+ * `grep getComputedTextLength node_modules/jsdom/lib/jsdom/living/` finds
+ * nothing — and `gantt-panel.tsx`'s `measureLabelGutterPx` **throws** when the
+ * document cannot measure text rather than guessing a width, for the reason
+ * the gutter exists at all: a guessed one is what drew a long name across the
+ * divider and under the bars.
+ *
+ * So the test environment grows a ruler instead of the app growing a branch
+ * for the test environment, exactly as it does for `matchMedia` above. What it
+ * answers is deterministic and **not** a claim about any real font: half an em
+ * per character. That makes the gutter's *arithmetic* assertable in jsdom —
+ * widest word wins, short names keep the constant — while what a real Chromium
+ * makes of a real font stack is asserted where it can be, in
+ * `e2e/gantt.spec.ts`.
+ *
+ * Installed only when it is missing, like the two above.
+ */
+if (typeof SVGElement !== 'undefined') {
+  const svgTextElement = SVGElement.prototype as unknown as {
+    getComputedTextLength?: () => number;
+  };
+  if (typeof svgTextElement.getComputedTextLength !== 'function') {
+    Object.defineProperty(SVGElement.prototype, 'getComputedTextLength', {
+      configurable: true,
+      value(this: SVGElement): number {
+        const fontSize = Number(this.getAttribute('font-size') ?? '10');
+        return (this.textContent.length * fontSize) / 2;
+      },
+    });
+  }
+}

@@ -385,6 +385,18 @@ const UNNAMED_PROJECT = 'Untitled plan';
 const NO_CLIPBOARD =
   'This page has no clipboard — that needs an https address. Download the CSV instead.';
 
+/**
+ * What the Export menu says when it is asked for a chart nobody is looking at.
+ *
+ * A modeled state and not a failure: the file is built by nesting a clone of
+ * the **live** `<svg>` (`gantt-panel.tsx`, `buildStandaloneGanttSvg`), so a
+ * closed chart — or a plan whose dependencies run in a circle, which draws a
+ * sentence instead of a chart — has nothing to serialize. It names the way
+ * out, as the two above do.
+ */
+const NO_CHART_TO_DOWNLOAD =
+  'There is no chart on screen to download. Open the Gantt and try again.';
+
 /** What a clipboard that refused the write says. The permission is the browser's to give. */
 const CLIPBOARD_REFUSED =
   'The browser refused the clipboard, so nothing was copied. Download the CSV instead.';
@@ -4934,6 +4946,47 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     anchor.click();
     URL.revokeObjectURL(url);
   }, [mermaidSectionMode, planForExport, pushToast]);
+
+  /**
+   * The chart's own `.svg` downloader while there is a chart, and `null` while
+   * there is not.
+   *
+   * A ref and not state: nothing on this page is drawn differently for holding
+   * it, and a `setState` from the panel's mount effect would re-render the
+   * whole table for a fact only a click reads. What registers it is
+   * {@link GanttPanel}'s `registerSvgDownload`, which is documented there.
+   */
+  const chartSvgDownload = useRef<(() => void) | null>(null);
+  /**
+   * Stable, so the panel registers once per mount rather than on every render
+   * of this table — the effect that calls it lists it as its only dependency.
+   */
+  const registerSvgDownload = useCallback((download: (() => void) | null) => {
+    chartSvgDownload.current = download;
+  }, []);
+
+  /**
+   * The fifth thing the Export menu can do, and the only one that is not made
+   * of the plan's own text: the chart, as the picture it is on screen.
+   *
+   * Refuses the way the two Mermaid exports refuse — a toast naming the way out
+   * — and for a nearer reason: there is no chart mounted to take a drawing off.
+   * See {@link NO_CHART_TO_DOWNLOAD}.
+   *
+   * Proof: with the refusal made a silent `download?.()`, `refuses the chart
+   * the menu has no drawing of, and says where it is` fails on `expected [] to
+   * deeply equal [ Array(1) ]` — no toast where one was owed. The same output
+   * comes of deleting the panel's own registration cleanup, which is the other
+   * half of the same contract; both watched 2026-08-31.
+   */
+  const downloadChartSvg = useCallback(() => {
+    const download = chartSvgDownload.current;
+    if (download === null) {
+      pushToast({ kind: 'error', text: NO_CHART_TO_DOWNLOAD });
+      return;
+    }
+    download();
+  }, [pushToast]);
 
   /**
    * The work items between `rowId` and the root, nearest first.
@@ -10859,11 +10912,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         clipboard/download outcome the CSV and Markdown-table pair do not
         have: a plan a gantt cannot be drawn of at all (no start date, no
         schedule, or nothing placed), reported the same way a refused
-        clipboard write already is.
+        clipboard write already is. The chart's `.svg` adds a fifth: there is
+        no drawing on screen to take a copy of, which is a fact about this
+        page rather than about the plan — see {@link downloadChartSvg}.
       */}
       {/*
-        One menu for the five, since `configurable-columns`: measured at 1280,
-        the five buttons took 683px of a 1248px toolbar and a thirteenth
+        One menu for the six, since `configurable-columns`: measured at 1280,
+        the five buttons of that day took 683px of a 1248px toolbar and a thirteenth
         control pushed the row to three lines. A `<details>`, as Filters and
         Views are — no dismiss handler, and a `<button>` inside it still
         closes the phone's sheet (`closingControlIn`). The buttons keep their
@@ -10918,7 +10973,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             Download as Markdown
           </Button>
           {/*
-            The fifth action, and the only one that takes the rows on screen. Its
+            The chart as a picture, in the menu every other export is in. It
+            was on the chart's own control strip alone until 2026-08-31 — a
+            `⇩` glyph beside `Full` — which is where somebody already
+            looking at the chart finds it and nowhere a reader asking "how do I
+            send this to somebody" looks. Both stand now: the glyph where the
+            chart is, this where the exports are.
+
+            Not disabled while the chart is closed. A control that is there and
+            says why is a control that teaches where the chart is; a greyed one
+            says nothing at all, and the five beside it are never disabled
+            either.
+          */}
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            data-export-chart-svg
+            title="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+            onClick={downloadChartSvg}
+          >
+            Download chart as SVG
+          </Button>
+          {/*
+            The one action that takes the rows on screen rather than the plan. Its
             own button rather than a switch on the four beside it: a mode on a
             button whose header claims the whole plan is how a partial plan gets
             sent as a whole one, which is what §9's Q3 refused. Always offered, not
@@ -10935,7 +11013,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             Download what’s on screen
           </Button>
           {/*
-            The one setting among the five actions, and it governs two of them:
+            The one setting among the six actions, and it governs two of them:
             `Copy as Mermaid` and `Download as Markdown` both write their fence
             through it. Mermaid has exactly one grouping channel and it is
             `section`, so a fence can be lanes of outline, of step, or of
@@ -11810,6 +11888,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               else setChartFocusedRow(rowId);
             }}
             pointedRow={pointedAt}
+            // The panel lends the toolbar its own `.svg` downloader while it is
+            // mounted, and takes it back when it is not: the file is a clone of
+            // the live drawing, so only the panel can make one.
+            registerSvgDownload={registerSvgDownload}
           />
         </GanttFaultBoundary>
       )}

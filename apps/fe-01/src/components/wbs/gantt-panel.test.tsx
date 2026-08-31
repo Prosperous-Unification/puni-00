@@ -5182,6 +5182,75 @@ describe('downloading the chart as a standalone .svg', () => {
     }
   });
 
+  itDom(
+    'moves the divider, the axis and the chart together for a name that does not fit',
+    async () => {
+      // The arithmetic half of the gutter, and only that half: what a real font
+      // does with a real name is Chromium's business and is asserted in
+      // `e2e/gantt.spec.ts`. jsdom measures nothing, so the width here comes
+      // from `vitest.setup.ts`'s ruler — half an em a character, which makes
+      // this name far wider than the 176px constant and nothing else.
+      //
+      // What is under test is that the widened gutter is **one** number: the
+      // divider, the first day cell, the nested live geometry and every bar all
+      // stand off it. Four separate `LABEL_COLUMN_PX`es is how a file gets a
+      // calendar printed over a chart that starts somewhere else.
+      const longName = 'Hull, frames, plating and the whole forward compartment, welded';
+      render(
+        <GanttPanel
+          plan={planOf({
+            rows: [rowAt('hull', 0, 7, { number: '010', name: longName })],
+            slices: [sliceAt('hull-dev', 'hull', 0, 7, { personId: 'kat' })],
+            personNames: new Map([['kat', 'Kat']]),
+          })}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          dayPx={4}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointedRow={null}
+        />,
+      );
+      const { blobs } = captureDownloads();
+      clickDownload();
+
+      const doc = new DOMParser().parseFromString(await readBlobText(blobs[0]), 'image/svg+xml');
+      expect(doc.querySelector('parsererror')).toBeNull();
+
+      // The divider is the one vertical line in the file: `x1 === x2`.
+      const divider = [...doc.querySelectorAll('line')].find(
+        (line) => line.getAttribute('x1') === line.getAttribute('x2'),
+      );
+      const gutter = Number(divider?.getAttribute('x1'));
+      expect(gutter).toBeGreaterThan(LABEL_COLUMN_PX);
+
+      const nested = doc.querySelector('svg svg');
+      expect(Number(nested?.getAttribute('x'))).toBe(gutter);
+      expect(Number(doc.documentElement.getAttribute('width'))).toBe(
+        gutter + Number(nested?.getAttribute('width')),
+      );
+
+      // The first day cell, off the same origin the axis is drawn from.
+      const bands = [...doc.querySelectorAll('rect')].filter(
+        (rect) => rect.getAttribute('fill-opacity') === '0.1',
+      );
+      const firstBand = Math.min(...bands.map((band) => Number(band.getAttribute('x'))));
+      expect(firstBand - gutter - CHART_PAD_PX).toBe(5 * 4);
+
+      // And the label itself ends left of the divider, which is the fault this
+      // whole gutter is about — measured with the same ruler the app was handed,
+      // so what this says is "the pad was applied", not "the font is that wide".
+      const label = [...doc.documentElement.children].find(
+        (element) => element.tagName === 'text' && element.textContent.includes(longName),
+      );
+      const labelLeft = Number(label?.getAttribute('x'));
+      const drawnWidth = (label?.textContent ?? '').length * 5;
+      expect(labelLeft + drawnWidth).toBeLessThanOrEqual(gutter);
+    },
+  );
+
   itDom('downloads a well-formed, self-contained .svg carrying the chart’s own marks', async () => {
     render(
       <GanttPanel

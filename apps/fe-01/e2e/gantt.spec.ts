@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
+
 import { expect, type Locator, type Page, type Response, test } from '@playwright/test';
 
 import { calendarScale } from '../src/components/wbs/gantt-geometry';
-import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
+import { CHART_PAD_PX, DAY_PX, LABEL_COLUMN_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
 import { createProject } from './create-project';
 
 /**
@@ -3449,5 +3451,100 @@ test.describe('the chart docks to the bottom of its column', () => {
     );
     // And it is still docked, so the growth came out of the slack above it.
     expect(Math.abs(after.bottom - before.bottom)).toBeLessThanOrEqual(NEARLY);
+  });
+});
+
+/**
+ * The downloaded file's gutter, measured in the browser that drew it.
+ *
+ * jsdom measures no text at all, so the arithmetic half of this lives in
+ * `gantt-panel.test.tsx` against a stand-in ruler and the half that is about a
+ * real font in a real font stack lives here. The file is mounted back into the
+ * page rather than parsed: an SVG's own `getBBox` answers in the document's
+ * user units, which is the same space the divider's `x1` is written in, so the
+ * two are directly comparable without a scale anywhere in the middle.
+ */
+test.describe('the chart downloaded as a standalone .svg', () => {
+  test('a name longer than the gutter ends before the first day column', async ({ page }) => {
+    // Long enough that it cannot fit 176px at 10px — and asserted below to
+    // really not fit, rather than assumed: a name that fits would make every
+    // assertion here true of a file with the fault still in it.
+    const longName =
+      'Hull, frames, plating and the whole of the forward compartment, welded and surveyed';
+    await seedPlan(page, nextAccount());
+    const named = page.getByLabel('Name of 010.1');
+    await named.fill(longName);
+    await named.blur();
+    await expect(named).toHaveValue(longName);
+    await openTheChart(page);
+
+    const saving = page.waitForEvent('download');
+    await page.locator('[data-gantt-svg-download]').click();
+    const saved = await saving;
+    const onDisk = await saved.path();
+    const file = await readFile(onDisk, 'utf8');
+
+    const measured = await page.evaluate(
+      ({ text, name }) => {
+        const host = document.createElement('div');
+        host.style.position = 'absolute';
+        host.style.left = '-10000px';
+        host.style.top = '0';
+        document.body.appendChild(host);
+        try {
+          host.innerHTML = text.replace(/^<\?xml[^?]*\?>\s*/, '');
+          const root = host.querySelector('svg');
+          if (root === null) throw new Error('the downloaded file holds no <svg>');
+          // Direct children only: the nested live geometry brings its own
+          // lines, and the divider is the outer document's own.
+          const kids = [...root.children];
+          const divider = kids.find(
+            (kid) => kid.tagName === 'line' && kid.getAttribute('x1') === kid.getAttribute('x2'),
+          );
+          const label = kids.find(
+            (kid) => kid.tagName === 'text' && kid.textContent.includes(name),
+          );
+          const plot = kids.find((kid) => kid.tagName === 'svg');
+          if (divider === undefined) throw new Error('the downloaded file draws no divider');
+          if (label === undefined) throw new Error(`the downloaded file draws no “${name}”`);
+          if (plot === undefined) throw new Error('the downloaded file nests no chart');
+          const box = (label as SVGGraphicsElement).getBBox();
+          return {
+            dividerX: Number(divider.getAttribute('x1')),
+            plotX: Number(plot.getAttribute('x')),
+            labelLeft: box.x,
+            labelRight: box.x + box.width,
+            labelWidth: box.width,
+            labelHeight: box.height,
+          };
+        } finally {
+          host.remove();
+        }
+      },
+      { text: file, name: longName },
+    );
+
+    // The label was really drawn — a `<text>` with no area sits left of
+    // everything and would satisfy the comparison below whatever the gutter is
+    // (R5 #16's zero-width bar, in this file).
+    expect(
+      measured.labelWidth,
+      'the label has no width, so nothing below is a measurement',
+    ).toBeGreaterThan(0);
+    expect(measured.labelHeight).toBeGreaterThan(0);
+    // And it really is a name the old constant could not hold, which is what
+    // makes this case able to fail at all.
+    expect(
+      measured.labelRight,
+      'this name fits the old gutter, so the file under test has nothing to widen',
+    ).toBeGreaterThan(LABEL_COLUMN_PX);
+
+    expect(
+      measured.labelRight,
+      'the name is drawn across the divider and under the bars',
+    ).toBeLessThanOrEqual(measured.dividerX);
+    // And the plot begins where the divider stands, so what the gutter took is
+    // room the chart gave up rather than room drawn over.
+    expect(measured.plotX).toBe(measured.dividerX);
   });
 });

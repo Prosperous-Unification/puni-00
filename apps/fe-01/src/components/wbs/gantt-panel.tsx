@@ -1689,6 +1689,93 @@ interface StandaloneGanttSvgInput {
   theme: GanttSvgTheme;
 }
 
+/** The gap a label keeps from the divider, the same 8px it starts at on the other side. */
+const LABEL_GUTTER_PAD_PX = 8;
+
+/** The font stack every word in the standalone document is drawn in, named once so the measuring pass cannot disagree with the drawing pass. */
+const STANDALONE_FONT_FAMILY = 'ui-sans-serif, system-ui, sans-serif';
+
+/** One word the file will draw in its gutter, as the measuring pass needs it. */
+interface GutterWord {
+  content: string;
+  /** Where the word starts — indent included, so what is measured is its right edge. */
+  x: number;
+  fontSize: number;
+  fontWeight?: string;
+}
+
+/**
+ * How wide the downloaded file's label gutter has to be for every word in it
+ * to end before the divider.
+ *
+ * Measured rather than assumed, and that is the whole point: the live panel's
+ * label column is {@link LABEL_COLUMN_PX} of HTML that **truncates**, and the
+ * file's is `<text>` with nothing clipping it, so until 2026-08-31 a name
+ * longer than 176px was drawn straight across the divider into the plot and
+ * the bars — appended after it — painted over it.
+ *
+ * The measurement is a real one: a `<svg>` attached to the document (a
+ * detached one measures 0 in Chrome), the same font stack and the same
+ * `font-size`/`font-weight` the drawing pass uses, and `getComputedTextLength`
+ * per word. It is torn down in a `finally` so a throw between the two cannot
+ * leave a stray `<svg>` in the page.
+ *
+ * **Throws where the document cannot measure text.** `getComputedTextLength`
+ * is on every browser and on no jsdom — asking a document that has no layout
+ * how wide a word is has no answer, and a guessed one is exactly the gutter
+ * this function exists to stop being guessed. Tests get a deterministic
+ * stand-in from `vitest.setup.ts`, as they already do for `matchMedia`.
+ *
+ * The floor is {@link LABEL_COLUMN_PX}: a chart of short names keeps the
+ * proportions it has always had, and only a name that does not fit moves
+ * anything.
+ *
+ * Proof: with the measurement thrown away (`widest = LABEL_COLUMN_PX`),
+ * `moves the divider, the axis and the chart together for a name that does not
+ * fit` fails on `expected 176 to be greater than 176`; with only the axis put
+ * back on the constant, the same case fails on `expected -165 to be 20`. Both
+ * watched 2026-08-31. What a real font does with a real name is not this
+ * document's to say — `e2e/gantt.spec.ts`'s `a name longer than the gutter
+ * ends before the first day column` is, in Chromium, and under the same
+ * injection it failed on `the name is drawn across the divider and under the
+ * bars · Expected: <= 176 · Received: 469.609375`: 294px of name over the
+ * plot, which is the fault this exists for.
+ */
+function measureLabelGutterPx(words: readonly GutterWord[]): number {
+  const ruler = document.createElementNS(SVG_NS, 'svg');
+  ruler.setAttribute('font-family', STANDALONE_FONT_FAMILY);
+  ruler.setAttribute('aria-hidden', 'true');
+  ruler.style.position = 'absolute';
+  ruler.style.visibility = 'hidden';
+  ruler.style.pointerEvents = 'none';
+  // `visibility: hidden` and not `display: none`: a box that is not laid out
+  // has no text to measure, which is the same answer as no ruler at all.
+  ruler.style.left = '-10000px';
+  ruler.style.top = '0';
+  document.body.appendChild(ruler);
+  try {
+    let widest = LABEL_COLUMN_PX;
+    for (const word of words) {
+      const text = svgText(word.x, 0, word.content, {
+        fontSize: word.fontSize,
+        fill: '#000',
+        fontWeight: word.fontWeight,
+      });
+      ruler.appendChild(text);
+      const measure = (text as Partial<SVGTextContentElement>).getComputedTextLength;
+      if (typeof measure !== 'function') {
+        throw new Error(
+          'this document cannot measure SVG text (no getComputedTextLength), so the downloaded chart cannot size its label gutter',
+        );
+      }
+      widest = Math.max(widest, word.x + measure.call(text) + LABEL_GUTTER_PAD_PX);
+    }
+    return widest;
+  } finally {
+    ruler.remove();
+  }
+}
+
 /**
  * The whole standalone document: the label column and the calendar axis,
  * both built fresh as `<text>` because neither exists inside the live `<svg>`
@@ -1709,7 +1796,19 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   const { chartSvg, labels, axis, drawnBars, monthCaption, theme, dayPx } = input;
   const innerWidth = Number(chartSvg.getAttribute('width') ?? '0');
   const innerHeight = Number(chartSvg.getAttribute('height') ?? '0');
-  const totalWidth = LABEL_COLUMN_PX + innerWidth;
+  // The words that stand in the gutter: every row label, and the corner's own
+  // month caption above them. Built **once** and then both measured and drawn
+  // from — a second expression for `x` further down is how a gutter comes to be
+  // measured for a label the file does not actually draw.
+  const monthWord: GutterWord = { content: monthCaption, x: 8, fontSize: 10, fontWeight: '600' };
+  const labelWords = labels.map((label) => ({
+    content: rowWords(label.number, label.name),
+    x: 8 + hierarchyIndentFor(label.depth),
+    y: ROW_PX + label.rowIndex * ROW_PX + ROW_PX / 2 + 3,
+    fontSize: 10,
+  }));
+  const gutterPx = measureLabelGutterPx([monthWord, ...labelWords]);
+  const totalWidth = gutterPx + innerWidth;
   const totalHeight = ROW_PX + innerHeight;
 
   // No explicit `xmlns` attribute: `createElementNS` already puts the SVG
@@ -1728,26 +1827,24 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
 
   root.appendChild(svgRect(0, 0, totalWidth, totalHeight, theme.background));
   root.appendChild(
-    svgText(8, ROW_PX / 2 + 3, monthCaption, {
-      fontSize: 10,
-      fontWeight: '600',
+    svgText(monthWord.x, ROW_PX / 2 + 3, monthWord.content, {
+      fontSize: monthWord.fontSize,
+      fontWeight: monthWord.fontWeight,
       fill: theme.mutedForeground,
     }),
   );
 
-  for (const label of labels) {
-    const y = ROW_PX + label.rowIndex * ROW_PX + ROW_PX / 2 + 3;
-    const x = 8 + hierarchyIndentFor(label.depth);
+  for (const word of labelWords) {
     root.appendChild(
-      svgText(x, y, rowWords(label.number, label.name), { fontSize: 10, fill: theme.foreground }),
+      svgText(word.x, word.y, word.content, { fontSize: word.fontSize, fill: theme.foreground }),
     );
   }
 
-  root.appendChild(svgLine(LABEL_COLUMN_PX, 0, LABEL_COLUMN_PX, totalHeight, theme.border));
+  root.appendChild(svgLine(gutterPx, 0, gutterPx, totalHeight, theme.border));
   root.appendChild(svgLine(0, ROW_PX, totalWidth, ROW_PX, theme.border));
 
   for (const day of axis) {
-    const cellX = LABEL_COLUMN_PX + CHART_PAD_PX + day.offset * dayPx;
+    const cellX = gutterPx + CHART_PAD_PX + day.offset * dayPx;
     if (day.weekend) {
       const band = svgRect(cellX, 0, dayPx, ROW_PX, theme.mutedForeground);
       band.setAttribute('fill-opacity', '0.1');
@@ -1767,7 +1864,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   }
 
   const nestedChart = withInlineComputedStyle(chartSvg) as SVGSVGElement;
-  nestedChart.setAttribute('x', String(LABEL_COLUMN_PX));
+  nestedChart.setAttribute('x', String(gutterPx));
   nestedChart.setAttribute('y', String(ROW_PX));
   root.appendChild(nestedChart);
 
@@ -1782,7 +1879,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
       : assumedLabelFor(bar.personName, width, dayPx);
     const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width, dayPx);
     if (shown === null) continue;
-    const barLeft = LABEL_COLUMN_PX + x * dayPx + CHART_PAD_PX;
+    const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
     const barTop = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX;
     const clipId = `gantt-bar-label-clip-${String(index)}`;
     const clip = document.createElementNS(SVG_NS, 'clipPath');
@@ -1914,6 +2011,7 @@ export function GanttPanel({
   onPickRow,
   onPointRow,
   pointedRow,
+  registerSvgDownload = () => undefined,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
@@ -1943,6 +2041,7 @@ export function GanttPanel({
       onPickRow={onPickRow}
       onPointRow={onPointRow}
       pointedRow={pointedRow}
+      registerSvgDownload={registerSvgDownload}
     />
   );
 }
@@ -2057,6 +2156,19 @@ interface GanttProps {
    * out of the plan should do.
    */
   pointedRow: string | null;
+  /**
+   * Hands the host this chart's own `.svg` downloader, and takes it back with
+   * `null` when there is no chart to download.
+   *
+   * The Export menu offers the chart beside the four text exports, and it
+   * cannot build the file itself: {@link buildStandaloneGanttSvg} nests a clone
+   * of the **live** `<svg>`, which exists only while this panel is mounted. So
+   * the panel lends the act rather than the toolbar reaching for the drawing —
+   * and a plan whose dependencies run in a circle registers nothing at all,
+   * because {@link GanttPanel} answers that with a sentence and never mounts
+   * {@link GanttChart}. The menu's refusal is that `null`, spoken.
+   */
+  registerSvgDownload?: (download: (() => void) | null) => void;
 }
 
 /**
@@ -2096,6 +2208,7 @@ function GanttChart({
   onPickRow,
   onPointRow,
   pointedRow,
+  registerSvgDownload,
 }: Omit<
   GanttProps,
   'scheduleError' | 'dayPx' | 'onPickDayPx' | 'labelsShown' | 'onPickLabelsShown'
@@ -2104,6 +2217,7 @@ function GanttChart({
   onPickDayPx: (dayPx: DayPx) => void;
   labelsShown: boolean;
   onPickLabelsShown: (labelsShown: boolean) => void;
+  registerSvgDownload: (download: (() => void) | null) => void;
 }) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
@@ -2669,6 +2783,39 @@ function GanttChart({
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  /**
+   * The downloader as it stands **now**, so the act lent to the host is never a
+   * stale closure over a chart read that has since been replaced.
+   *
+   * Two effects rather than one, and the split is the point: the first keeps
+   * the closure current on every render and registers nothing, the second
+   * registers exactly once per host and hands back `null` on the way out. One
+   * effect would have to re-register whenever the chart's labels, bars or rung
+   * changed — which is every read that lands — and a registration that churns
+   * is a registration whose cleanup order decides what the toolbar holds.
+   */
+  const downloadNow = useRef(downloadGanttSvg);
+  useEffect(() => {
+    downloadNow.current = downloadGanttSvg;
+  });
+  useEffect(() => {
+    registerSvgDownload(() => {
+      downloadNow.current();
+    });
+    // Taken back on unmount, which is what makes the Export menu's refusal
+    // true rather than a guess: the chart is closed, the toolbar holds
+    // nothing, and it says so.
+    //
+    // Proof: with this cleanup emptied, `wbs-table.test.tsx`'s `refuses the
+    // chart the menu has no drawing of, and says where it is` fails on
+    // `expected [] to deeply equal [ Array(1) ]` — the stale downloader finds
+    // `chartSvgRef.current` null, returns, and the button does nothing at all.
+    // Watched 2026-08-31.
+    return () => {
+      registerSvgDownload(null);
+    };
+  }, [registerSvgDownload]);
 
   const chartAndItsControls = (
     <>

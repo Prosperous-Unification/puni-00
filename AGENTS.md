@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — nineteen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -367,6 +367,17 @@ disc inside its box, and the same fault was then watched failing on `jira is not
 Expected {"height": 6, "width": 6} · Received {"height": 15, "width": 0}`. **A geometry claim
 about a small box inside a bigger one is a claim about the bigger one**, which is
 `estimate-triple-visible`'s "assert in the window the fault lives in" wearing a third hat.
+
+One more on 2026-08-31 in `svg-export-and-gutter`, and it is the **gate** rather than a test:
+`fe-01:lint` names its inputs one by one in `project.json`, and `vitest.setup.ts` and
+`playwright-config.test.ts` — two of the seven `.ts` files at `apps/fe-01/` — were not among
+them. A real `@typescript-eslint/no-unnecessary-condition` error written into `vitest.setup.ts`
+was reported **clean** by `bunx nx lint fe-01`, and would have been by CI's `run-many -t lint`;
+**lefthook** caught it, which is the hook this file calls bypassable while CI is not. Both files
+are named now, watched failing on `vitest.setup.ts 153:18 error Unnecessary conditional` with
+the fault back in and green with it gone. Add a new root-level file to that command the day you
+add the file — a lint target scoped to a place the fault is not is the `main`-green landmine
+above wearing a second hat.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
