@@ -26,20 +26,64 @@ tree, so the exception cannot outlive the check that bounds it.
 
 ## Commands
 
-| Command                                                         | Result                                                                   |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `bun test` in `apps/be-01`                                      | **1251 pass, 0 fail**, 89 files                                          |
-| `bun test src/assert-no-prod-release.test.ts` in `tool-deploy`  | 7 pass, 0 fail                                                           |
-| `bun test src/hooks/migration-lint.test.ts` in `tool-git-hooks` | 9 pass, 0 fail                                                           |
-| `bunx nx format:check --all`                                    | exit 0                                                                   |
-| `bunx nx run-many -t test lint typecheck build --skip-nx-cache` | `Successfully ran targets test, lint, typecheck, build for 23 projects`  |
-| `bunx nx run tool-deploy:build` (shellcheck)                    | clean; watched failing on an injected `SC2086`                           |
-| migration lint on both new SQL files                            | clean                                                                    |
-| secrets scan on every changed file                              | clean                                                                    |
-| `openspec validate --all --json`                                | 28 items, 28 passed, 0 failed                                            |
-| `bin/h2puni-gate.sh --all`                                      | **not run** — the heavy-work lock helper does not run on this Mac        |
-| `CI=1` Playwright on shifted ports                              | **not run** — no be-01 API surface changed; see below                    |
-| dev deploy + applied-set read-back                              | **attempted, reverted by dev's poller** — see below; task 4.2 still open |
+| Command                                                         | Result                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `bun test` in `apps/be-01`                                      | **1251 pass, 0 fail**, 89 files                                           |
+| `bun test src/assert-no-prod-release.test.ts` in `tool-deploy`  | 7 pass, 0 fail                                                            |
+| `bun test src/hooks/migration-lint.test.ts` in `tool-git-hooks` | 9 pass, 0 fail                                                            |
+| `bunx nx format:check --all`                                    | exit 0                                                                    |
+| `bunx nx run-many -t test lint typecheck build --skip-nx-cache` | `Successfully ran targets test, lint, typecheck, build for 23 projects`   |
+| `bunx nx run tool-deploy:build` (shellcheck)                    | clean; watched failing on an injected `SC2086`                            |
+| migration lint on both new SQL files                            | clean                                                                     |
+| secrets scan on every changed file                              | clean                                                                     |
+| `openspec validate --all --json`                                | 28 items, 28 passed, 0 failed                                             |
+| `bin/h2puni-gate.sh --all`                                      | **not run** — the heavy-work lock helper does not run on this Mac         |
+| `CI=1` Playwright on shifted ports                              | **not run** — no be-01 API surface changed; see below                     |
+| dev deploy + applied-set read-back                              | **done on merge** — `5a05456e`; applied set, schema and a live read below |
+
+## Dev, after the merge
+
+`5a05456e` merged to `main` with both CI checks green (`gate` 7m58s, `pixels` the
+whole Playwright suite). Dev's poller carried it within one tick. Read back from
+the running container:
+
+```
+$ curl -s http://127.0.0.1:3100/health
+{"status":"ok","commit":"5a05456ed4100edd33b7ecf610468e65c213c3eb"}
+
+$ bun apps/be-01/src/migrate-status-cli.ts | tail -1
+20260831120000_rename_role_to_step
+
+$ tail /home/puni1/wbs-dev/logs/deploy.log
+[dev-sync] dev now at 5a05456ed4100edd33b7ecf610468e65c213c3eb
+--- serving 5a05456 (health, attempt 2)
+```
+
+The live schema, queried against `/data/wbs.db`:
+
+```
+objects naming role: []
+step tables:   ["step","step_progress","step_measure"]
+step indexes:  ["step_project_name","actual_by_step","step_progress_by_step","step_measure_by_step"]
+estimate     -> REFERENCES "step" ok      actual        -> REFERENCES "step" ok
+assignment   -> REFERENCES "step" ok      step_progress -> REFERENCES "step" ok
+step_measure -> REFERENCES "step" ok
+estimate columns: ["work_item_id","step_id","optimistic","realistic","pessimistic"]
+```
+
+And a **functional** read rather than a structural one — the app's own
+`ProjectRepository` and `StepRepository`, against dev's real database:
+
+```
+projects on dev: 150
+  "WS URL QA switch 2026-08-29T17:26" -> steps: ["Dev","QA"]
+  "WS URL QA 2026-08-29T17:26"        -> steps: ["Dev","QA"]
+  "Core plan 0829085303"              -> steps: ["Dev","QA"]
+```
+
+150 plans and their steps came back through the code that names `step`, off a
+database that was holding `role` an hour earlier. No data moved: every statement
+in the migration is a rename.
 
 ## What the schema looks like now
 
@@ -146,11 +190,12 @@ projects` with no failed tasks. **Nothing serialised this work against another a
 - The pre-existing test-project typecheck errors named in
   `teams-and-assignees/verify.md` and `gw-01`'s `forward-client.test.ts` are
   still out of the gate's target list and are not this change's.
-- **The browser gate was not run.** This change alters no API surface, no wire
-  shape and no UI: `libs/domain` and `apps/fe-01` see the rename only as two
-  comment lines. `bun run e2e` would be measuring an unchanged chart, and CI's
-  `pixels` job runs the whole suite on every push regardless.
-- **Task 4.2, the dev deploy, was attempted and cannot be done from a branch.**
+- **The browser gate was not run locally, and CI ran it.** This change alters no
+  API surface, no wire shape and no UI — `libs/domain` and `apps/fe-01` see the
+  rename only as two comment lines — so a local `bun run e2e` would have measured
+  an unchanged chart. CI's `pixels` job ran the whole Playwright suite against the
+  real stack on PR #183 and **passed**.
+- **Task 4.2's first attempt failed, and it is worth reading.** Before the merge,
   `d4e737c7` was pushed and `./bin/dev-deploy.sh` ran green — `dev healthy at
 d4e737c7`, with `tool-devsync` correctly reporting `restart required, changed:
 apps/be-01/drizzle`. **Dev was back on `main` four seconds later.** A poller on
@@ -163,12 +208,18 @@ apps/be-01/drizzle`. **Dev was back on `main` four seconds later.** A poller on
   d4e737c HEAD@{2026-08-31 15:26:58 +0000}: reset: moving to d4e737c7...  <- this deploy
   ```
 
-  The migration **did not apply**: dev's newest applied migration is still
-  `20260830130000_add_estimate_weights_and_rounding` and its schema still names
-  `role`, `role_progress` and `role_measure`. That is luck rather than design —
-  be-01's restart lost the race to the revert by about a second, and the other
-  outcome is a dev database holding the renamed schema while dev's code is back on
-  the commit before it. Dev is healthy at `48e58c5`; nothing was left half-migrated.
+  The migration did not apply on that attempt, and **that was luck rather than
+  design**: be-01's restart lost the race to the revert by about a second. Had it
+  won, dev's database would have held the renamed schema while dev's code was back
+  on the commit before it. Nothing was left half-migrated, and the rename reached
+  dev properly on the merge — "Dev, after the merge" above.
+
+  Two documents said a branch deploy reaches dev. `bin/dev-deploy.sh`'s header
+  said "There is no poller and no CI gate", and the runbook opened with the
+  branch-deploy command as the way to reach dev. Both were true until 2026-08-19
+  and then sat on disk for twelve days; both are corrected in this change. The
+  runbook's table of what a deploy can carry was right all along — its premise
+  was wrong.
 
   **So this task needs the commit on `main`, which is a merge decision rather than a
   deploy.** Two documents claimed otherwise and are corrected in this change:
