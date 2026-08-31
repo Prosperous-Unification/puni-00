@@ -187,6 +187,10 @@ jobs:
     # inherited (11.3m to 14.3m across one session) walked into a cap that was
     # never raised with it.
     #
+    # Measured on the run after this: **263 passed, 1 skipped, 0 failed in
+    # 15.1m** — the suite alone is now longer than the cap that was cutting it,
+    # and with the install ahead of it the job stands at ~17m of the 25.
+    #
     # A cap that cancels does not save the minutes it was set to save: the run
     # had already spent all 15 and produced no verdict at all. It buys headroom
     # and adds no capacity, exactly as the per-case caps below it do; when this

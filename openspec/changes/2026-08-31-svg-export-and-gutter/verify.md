@@ -103,7 +103,10 @@ three runs — and the 2026-08-31 handoff had already recorded the runner
 drifting from 11.3m to 14.3m across one session while the cap stayed where it
 was.
 
-The cap is 25 now, with the reasoning written where it lives. A cap that
+The cap is 25 now, with the reasoning written where it lives, and the run after
+it is **green: 263 passed, 1 skipped, 0 failed in 15.1m**. That figure is the
+point — the suite alone is now longer than the cap that was cutting it, and
+with ~1.5m of install ahead of it the job stands at ~17m of the 25. A cap that
 cancels saves none of the minutes it was set to save: the run had spent all 15
 and produced no verdict. `retries` stays 0. If this is hit again the answer is
 sharding or a bigger runner, which is Dany's call about CI budget rather than
