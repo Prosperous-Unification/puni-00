@@ -66,6 +66,32 @@ export function ExpandIcon(): React.JSX.Element {
   );
 }
 
+/**
+ * The Links column's heading: two chain links, drawn.
+ *
+ * A glyph this file draws rather than one it names, for the reason
+ * {@link KeyboardIcon} gives at length: `🔗` (U+1F517) is an emoji presentation
+ * on every platform, so it arrives full-colour beside a row of 10px grey
+ * all-caps headings and reads as a decoration somebody left in; `⛓` (U+26D3) is
+ * the hairline-outline problem the keyboard icon was reported for. A drawn
+ * shape takes `currentColor` and the heading's own size.
+ *
+ * It replaces the word `Links`, which did not fit: the column is 40px and the
+ * heading is set in 10px all-caps, so the word ran under the Name heading
+ * beside it — reported by Dany with a screenshot, 2026-08-31. The word is still
+ * the column's name everywhere a name is read: `COLUMN_LABELS` for the Columns
+ * menu, and an `sr-only` span in the heading itself, because an icon that is
+ * `aria-hidden` leaves a column heading with nothing to announce.
+ */
+export function LinkIcon(): React.JSX.Element {
+  return (
+    <svg {...ICON}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </svg>
+  );
+}
+
 /** `Collapse all`'s icon: the same two chevrons, pointing together. */
 export function CollapseIcon(): React.JSX.Element {
   return (

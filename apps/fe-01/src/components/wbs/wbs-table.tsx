@@ -182,7 +182,7 @@ import {
 } from './table-frame';
 import { teamsOnThePlan } from './teams-panel';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
-import { CollapseIcon, ExpandIcon, KeyboardIcon } from './toolbar-icons';
+import { CollapseIcon, ExpandIcon, KeyboardIcon, LinkIcon } from './toolbar-icons';
 import {
   type FacetCriteria,
   type FilterCriteria,
@@ -7087,10 +7087,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         }),
         column.display({
           id: 'refs',
-          // Five characters at the header's 10px all-caps, which is what a 32px
-          // envelope holds — `Prio`'s bargain, one column over, and for its
-          // reason: a word that wraps makes the whole header row two lines tall.
-          header: 'Links',
+          // **A drawn link, not the word.** `Prio`'s bargain — five characters
+          // at the header's 10px all-caps inside a 32px envelope — does not
+          // survive here: `LINKS` ran under the `NAME` heading beside it, which
+          // Dany photographed on 2026-08-31. A shape has no such width.
+          //
+          // The `sr-only` word is not decoration. {@link LinkIcon} is
+          // `aria-hidden` like every icon in that file, so without it this
+          // column heading announces nothing at all — and a heading is what a
+          // screen reader names every cell under it by.
+          header: () => (
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <LinkIcon />
+              <span className="sr-only">Links</span>
+            </span>
+          ),
           cell: ({ row }) => {
             // Read through `live` and never closed over, the landmine at the top
             // of this file: `columns` may depend on `steps`, `unfoldedSteps` and

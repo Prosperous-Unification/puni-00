@@ -316,6 +316,61 @@ test.describe('the ref column, in a browser', () => {
     expect(measured.wiredCell).toBe(40);
   });
 
+  test('the heading is a drawn link, and the column is ruled off from the name', async ({
+    page,
+  }) => {
+    // Dany, 2026-08-31, from a screenshot: "maybe add a vertical line separator
+    // to links, also maybe change the column header to link symbol". The word
+    // `LINKS` is five characters of 10px all-caps in a 40px column, so it ran
+    // under `NAME`; and with no rule after it, an empty Links column and the
+    // Name column read as one undivided field.
+    //
+    // **Both halves need a browser.** jsdom applies no stylesheet, so the rule
+    // is invisible to it, and it lays out no text, so it cannot see a heading
+    // overflow its column.
+    await seed(page);
+
+    const heading = page.locator('th[data-column="refs"]');
+    // The word is gone from the ink and still there for a reader who is not
+    // looking at ink: an `aria-hidden` icon alone would leave this column
+    // heading announcing nothing, and a heading is what names every cell below.
+    await expect(heading).toHaveAccessibleName(/Links/);
+    expect(await heading.locator('svg').count(), 'the heading draws no link glyph').toBeGreaterThan(
+      0,
+    );
+
+    // Nothing visible sticks out of the 40px the column declares. `sr-only` is
+    // clipped to a 1px box, so it is the icon this measures.
+    const box = await heading.boundingBox();
+    const drawn = await heading.locator('svg').first().boundingBox();
+    if (box === null || drawn === null) throw new Error('the refs heading has no box');
+    expect(box.width).toBe(40);
+    expect(drawn.width, 'the drawn link has no width').toBeGreaterThan(0);
+    expect(drawn.x).toBeGreaterThanOrEqual(box.x);
+    expect(drawn.x + drawn.width).toBeLessThanOrEqual(box.x + box.width);
+
+    // And the rule. It is an `inset` box-shadow rather than a border, because a
+    // border would take a pixel the column's measured width does not include —
+    // the same reason `styles.css` draws every separator in this table this way.
+    //
+    // Proof: `[data-column='refs']` taken back out of that selector list, this
+    // failed on `Expected substring: "-1px -1px" · Received string:
+    // "oklch(0.929 0.013 255.508) 0px -1px 0px 0px inset"` — the horizontal
+    // rule every cell in the table already has, and no vertical one beside it.
+    // Watched in Chromium, 2026-08-31.
+    const ruled = (which: 'th' | 'td') =>
+      page
+        .locator(`${which}[data-column="refs"]`)
+        .first()
+        .evaluate((node) => getComputedStyle(node).boxShadow);
+    for (const which of ['th', 'td'] as const) {
+      expect(
+        await ruled(which),
+        'the refs column is not ruled off from the name beside it',
+      ).toContain('-1px -1px');
+    }
+  });
+
   test('the same at 390×844, where the plan is cards rather than a table', async ({ page }) => {
     await seed(page);
     await page.setViewportSize({ width: 390, height: 844 });

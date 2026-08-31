@@ -736,18 +736,26 @@
   }
 
   /*
-   * The separators. Horizontal everywhere, vertical only at the three
-   * boundaries that carry meaning — the end of the numbering, the end of the
-   * pinned block, and the end of what a row waits for.
+   * The separators. Horizontal everywhere, vertical only at the boundaries that
+   * carry meaning — the end of the numbering, the end of the row's links, the
+   * end of the pinned block, and the end of what a row waits for.
+   *
+   * The links one is the newest and was the least obvious: the column is 40px
+   * of small marks, and with no rule after it those marks read as belonging to
+   * the name beside them rather than to the row. Dany asked for it from a
+   * screenshot on 2026-08-31, where an empty Links column and the Name column
+   * were one undivided field.
    */
   [data-grid] tbody td {
     box-shadow: inset 0 -1px 0 var(--border);
   }
 
   [data-grid] td[data-column='number'],
+  [data-grid] td[data-column='refs'],
   [data-grid] td[data-column='name'],
   [data-grid] td[data-column='depends'],
   [data-grid] th[data-column='number'],
+  [data-grid] th[data-column='refs'],
   [data-grid] th[data-column='name'],
   [data-grid] th[data-column='depends'] {
     box-shadow: inset -1px -1px 0 var(--border);
