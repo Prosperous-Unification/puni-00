@@ -338,17 +338,7 @@ test.describe('the Name cell at rest is the name alone', () => {
     // the box holds *before* that flush, which is not a fault. It had failed
     // the same way in a loaded local gate on 2026-08-30 and passed 10/10 alone,
     // which is what an assertion made a moment too early looks like every time.
-    //
-    // **30s, and only this wait.** Retrying was necessary and not sufficient:
-    // the same `Received: "Strip the wiring"` came back on CI run 33373273021
-    // (2026-08-31), where the gate took 12.0m against 7.0m on the developer's
-    // Mac. What is being waited for is a round trip through be-01, gw-01, a
-    // websocket and a refetch — the slowest thing this suite asks for — and a
-    // 10s budget for it is a budget for a quiet machine. Passed 3/3 locally
-    // after that failure, as it did on 2026-08-30.
-    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME, {
-      timeout: 30_000,
-    });
+    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
     const after = await boxOf(mine);
     expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
       0.5,
