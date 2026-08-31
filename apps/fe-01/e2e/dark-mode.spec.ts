@@ -29,7 +29,18 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020']) {
     await addRow.click();
-    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+    // **30s, and only here.** Seeding is not what this file tests — the palette
+    // is — and a seed that times out takes twenty palette cases down with it
+    // for a reason none of them is about. CI run 33351425115 on 2026-08-31 lost
+    // this exact line on `Name of 020` after 10s while the same helper passed
+    // in 258 other cases and locally 3/3; the whole gate took 11.3m on the
+    // runner against 6.7m here, so the create's round trip and the five reads
+    // behind it simply had longer to take. The re-run was green.
+    //
+    // A longer wait rather than a retry on purpose: a second click would create
+    // a *third* row if the first had merely been slow, and this helper's own
+    // numbering is what every assertion below addresses rows by.
+    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible({ timeout: 30_000 });
   }
   const first = page.getByLabel('Name of 010');
   await first.fill('Survey the existing warehouse racking');
