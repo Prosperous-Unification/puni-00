@@ -115,6 +115,7 @@ import {
   ganttRoomInColumn,
   isDayPx,
 } from './gantt-panel';
+import { HoverCard } from './hover-card';
 import { HoverPreview } from './hover-preview';
 import { initialsOf } from './initials';
 import { renderName } from './inline-markdown';
@@ -462,6 +463,13 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
   // any other in this set except the date editor. Without the exemption it is cut
   // at the cell edge and the reader sees the first three characters of a name.
   'priority',
+  // The Start cell's own card, since `start-date-hover-card`. The sentence that
+  // explains a row's day used to be a native `title` on this `<td>`; Dany asked
+  // for it *instantly*, which no browser tooltip does, so it is a `HoverCard`
+  // like the four reference cells' — and a card is absolutely positioned inside
+  // the cell, so without this exemption it is cut off at a 52px column and a
+  // reader sees five characters of a sentence.
+  'start',
 ]);
 
 /**
@@ -527,6 +535,16 @@ const opensAPopover = (columnId: string): boolean =>
  * is what `opensAPopover` exempts the cell for. The browser gate measures it.
  */
 const DEP_LIST_WIDTH = 260;
+
+/**
+ * The id of one row's Start card, so the `<td>` can point `aria-describedby` at
+ * it while it is open.
+ *
+ * A module constant rather than a string built at each of the two sites that
+ * need it: the cell renders the card with this id and the `<td>` refers to it,
+ * and two spellings of one id is a description that silently refers to nothing.
+ */
+const startCardId = (rowId: string): string => `start-${rowId}`;
 
 /**
  * The truncation cue on the Depends on cell's strip: the strip's last 14px
@@ -9793,24 +9811,41 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           id: 'start',
           // A bare `2.5` under "Start" reads as a date that failed to load, and
           // the header used to say which of the two it was — in 52px it cannot,
-          // so the distinction moved into the `title`. The column is a figure
-          // either way and the cell shows which kind it is.
+          // so the distinction moved into the cell's own hover card. The column
+          // is a figure either way and the cell shows which kind it is.
           header: () => <span>Start</span>,
           cell: ({ row }) => {
             const start = live.current.spanOf(row.original).start;
-            const hasExplanation = start.iso !== null || startFloor.current.has(row.original.id);
-            // The sentence that explains this day has moved to the `<td>` — see
-            // {@link startCellProps} — so the whole cell (not a 34×13px span
-            // inside it) is the target, and a keyboard can reach it. The span
-            // keeps the visible day; its dotted underline is the on-screen mark
-            // that there is more to read, where a bare `title` shows nothing
-            // until a pointer happens to stop on it.
+            const said = startSentence(row.original);
+            // Read through `live` and never closed over — the landmine at the
+            // top of this file. `columns` may depend on `steps`,
+            // `unfoldedSteps` and `hiddenColumnIds` only.
+            const carded =
+              said !== null && live.current.openCard === cellKey(row.original.id, 'start');
             return (
-              <span
-                data-start
-                style={hasExplanation ? { textDecoration: 'underline dotted' } : undefined}
-              >
-                {start.text}
+              // The positioned ancestor the card opens from, `display: block` so
+              // the figure still fills the cell. The pointer handlers are on the
+              // `<td>` and not here — see {@link startCellProps}, and the
+              // `wbs-waiting-sentence-hover-target` reasoning it carries: the
+              // whole cell is the target rather than a 34×13px span inside it.
+              <span style={{ position: 'relative', display: 'block' }}>
+                <span
+                  data-start
+                  // The on-screen mark that there is something to read, which a
+                  // tooltip of any kind shows nothing of until a pointer
+                  // happens to stop on the cell.
+                  style={said === null ? undefined : { textDecoration: 'underline dotted' }}
+                >
+                  {start.text}
+                </span>
+                {carded && (
+                  <HoverCard
+                    id={startCardId(row.original.id)}
+                    label={`Start of ${row.original.number}`}
+                  >
+                    {said}
+                  </HoverCard>
+                )}
               </span>
             );
           },
@@ -10179,33 +10214,92 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   };
 
   /**
-   * What one row's Start `<td>` carries so the sentence that explains its day
-   * is reachable without a pointer resting on the right 34×13px of it.
+   * The sentence that explains one row's Start day, or null where there is
+   * nothing to explain.
    *
-   * The two facts are the same `title` the `Start` cell has always joined —
-   * the whole day, so the shortening costs nothing, then what is holding that
-   * day where it is, the floor sentence word for word from the chart's
-   * `startFloorByRow`. It moved here for `wbs-waiting-sentence-hover-target`:
-   * the `title` used to sit on `span[data-start]` *inside* the cell — a 442px²
-   * surface in a 4116px² cell, `cursor: auto`, no keyboard path, no on-screen
-   * mark that there was anything to read. On the `<td>` the whole cell is the
-   * surface, the `cursor: help` set where the row renders says it is there
-   * while a pointer is over it, the span's dotted underline says it all the
-   * time, and `tabIndex` puts it on the keyboard — a focused cell reads its
-   * day, then this sentence as its accessible description.
+   * Two facts joined: the whole day, so the column's shortening costs nothing,
+   * then what is holding that day where it is — the floor sentence word for word
+   * from the chart's `startFloorByRow`.
    *
    * Built outside the column definitions for the same reason as
    * {@link dependsCellHoverProps}: `columns` depends on `steps` alone, while
    * this sentence depends on `startFloor`, which is filled after the first
    * render.
    */
-  const startCellProps = (row: TreeRow): Pick<ComponentProps<'td'>, 'title' | 'tabIndex'> => {
+  const startSentence = (row: TreeRow): string | null => {
     const said = [live.current.spanOf(row).start.iso, startFloor.current.get(row.id)]
       .filter((part) => part !== null && part !== undefined)
       .join(' — ');
+    return said === '' ? null : said;
+  };
+
+  /**
+   * What one row's Start `<td>` carries so the sentence that explains its day is
+   * reachable without a pointer resting on the right 34×13px of it, **and
+   * without waiting for a browser to decide it has rested long enough**.
+   *
+   * `wbs-waiting-sentence-hover-target` moved this sentence off
+   * `span[data-start]` and onto the `<td>`, which fixed the target: a 442px²
+   * surface in a 4116px² cell, `cursor: auto`, no keyboard path, no on-screen
+   * mark that there was anything to read. It left the sentence a native `title`,
+   * and that is what `start-date-hover-card` replaces (Dany, 2026-08-31 —
+   * hovering the Start date must give an **instant** tooltip, and not the native
+   * one).
+   *
+   * A `title` is the browser's, not this app's: Chromium waits about a second
+   * before showing one, draws it in the platform's own chrome rather than the
+   * page's, and puts it where the pointer is rather than under the cell. Nothing
+   * in a stylesheet reaches any of that. The folded step cell said the same
+   * thing about the same conflict a fortnight earlier — _"no native `title`
+   * here: the card is this cell's one hint, and a browser tooltip raced it over
+   * the same pixels"_ — so this cell now does what that one does.
+   *
+   * The keyboard path is the reason `onFocus` is here beside `onMouseEnter`. A
+   * `title` on a focusable cell is announced as its description; a card that
+   * only a pointer can open is data withheld from anybody who does not use one
+   * (codex round 3, finding 2). So focus opens the same card, and the cell points
+   * `aria-describedby` at it while it is open.
+   */
+  const startCellProps = (
+    row: TreeRow,
+  ): Pick<
+    ComponentProps<'td'>,
+    'tabIndex' | 'onMouseEnter' | 'onMouseLeave' | 'onFocus' | 'onBlur' | 'aria-describedby'
+  > & { 'data-start-said'?: string } => {
+    const said = startSentence(row);
+    if (said === null) return {};
+    const startCell = cellKey(row.id, 'start');
+    // The same-cell guard every surface here clears with: a leave fires after
+    // the enter of whatever the pointer moved on to.
+    const close = () => {
+      setHoveredCell((current) => (current === startCell ? null : current));
+    };
     return {
-      title: said === '' ? undefined : said,
-      tabIndex: said === '' ? undefined : 0,
+      /*
+        The sentence, at rest, for anything that is not a reader.
+
+        The `title` this replaces was read by two oracles as well as by people:
+        `gantt-panel.test.tsx`'s `columnDay` compares the axis under the chart
+        against the day the column is showing, and `e2e/gantt.spec.ts`'s fixture
+        reads a row's own start day back out of the table to type it in as a
+        not-before date. Both need the **whole** day, which the column prints as
+        `14 Aug`, and neither can hover.
+
+        So the fact stays in the DOM and only the tooltip goes. An attribute
+        rather than a hidden span for the same reason the card is not always
+        rendered: this is 40 rows, and a card each is 40 measured boxes.
+      */
+      'data-start-said': said,
+      tabIndex: 0,
+      onMouseEnter: () => {
+        setHoveredCell(startCell);
+      },
+      onMouseLeave: close,
+      onFocus: () => {
+        setHoveredCell(startCell);
+      },
+      onBlur: close,
+      'aria-describedby': openCard === startCell ? startCardId(row.id) : undefined,
     };
   };
 
@@ -11762,8 +11856,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           ...(opensAPopover(cell.column.id)
                             ? { overflow: 'visible' as const }
                             : {}),
-                          ...(cell.column.id === 'start' &&
-                          startCellProps(row.original).title !== undefined
+                          ...(cell.column.id === 'start' && startSentence(row.original) !== null
                             ? { cursor: 'help' as const }
                             : {}),
                           ...flexibleCellStyle(cell.column.id, frameState),

@@ -2133,8 +2133,8 @@ describe('the plan on a calendar', () => {
 
   itDom('shows dates once the project starts on a day, as somebody reads one', async () => {
     // `2026-08-06` in a 52px column, for a reader who already knows what year
-    // it is. The whole day stays in the cell's `title`, so the shortening
-    // costs nothing.
+    // it is. The whole day stays in the cell's own card and in the
+    // `data-start-said` beside it, so the shortening costs nothing.
     // Proof: `printedDay` made to hand back the raw `iso` as its `text`, this
     // failed on `expected '2026-08-06' to be '6 Aug'`. Watched, 2026-08-09.
     const api = await oneRow();
@@ -2149,9 +2149,14 @@ describe('the plan on a calendar', () => {
     // put the floor sentence beside it, and the change is why it is spelled out
     // rather than loosened to `toContain`: what a reader is shown on hover is
     // exactly this, dash and all.
-    expect(rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('title')).toBe(
-      '2026-08-06 — Starts with the project',
-    );
+    //
+    // `data-start-said` and not `title` since `start-date-hover-card`: the cell
+    // shows this sentence in its own card, instantly, and carries the string at
+    // rest for the two oracles and one e2e fixture that read the day back out of
+    // the table. `startCellProps` says the whole of why.
+    expect(
+      rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
+    ).toBe('2026-08-06 — Starts with the project');
     expect(rowFor('010').querySelector('[data-finish]')?.textContent).toContain('6 Aug');
     expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('title')).toContain(
       '2026-08-06',
@@ -2177,7 +2182,7 @@ describe('the plan on a calendar', () => {
   itDom('leaves the workday offsets alone while the plan has no start date', async () => {
     // The fallback this change did not touch: without a project start date
     // there are no dates to shorten, and the columns print day numbers with no
-    // fuller day to put in a `title`.
+    // fuller day to say anywhere.
     //
     // The floor sentence is there anyway, and that is the point of asserting it
     // here rather than deleting the line: what holds a row's start is a fact
@@ -2186,38 +2191,88 @@ describe('the plan on a calendar', () => {
     await oneRow();
 
     expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
-    expect(rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('title')).toBe(
-      'Starts with the project',
-    );
+    expect(
+      rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
+    ).toBe('Starts with the project');
   });
 
   itDom(
-    'makes the Start cell itself the surface: focusable, marked, and the span no longer holds the title',
+    'makes the Start cell itself the surface: marked, focusable, and carrying no native tooltip',
     async () => {
-      // `wbs-waiting-sentence-hover-target`: the sentence explaining a row's
-      // start used to hang off a 34×13px `title` on `span[data-start]` inside the
-      // cell — pointer-only, invisible until hover, and unreachable from a
-      // keyboard. It now lives on the whole `td[data-column="start"]`, which is
-      // focusable (the keyboard path) and carries `cursor: help`; the span that
-      // was the only target keeps just the visible day under a dotted underline.
+      // Two changes, one cell. `wbs-waiting-sentence-hover-target` moved the
+      // sentence off a 34×13px `title` on `span[data-start]` — pointer-only,
+      // invisible until hover, unreachable from a keyboard — and onto the whole
+      // `td[data-column="start"]`. `start-date-hover-card` then took the `title`
+      // away entirely: Dany asked for the tooltip to be **instant**, and a
+      // native one is the browser's own second-long delay in the platform's own
+      // chrome, which no stylesheet reaches.
       await oneRow();
 
       const cell = rowFor('010').querySelector('td[data-column="start"]');
-      // The sentence is on the cell, so the pointer target is the whole cell.
-      expect(cell?.getAttribute('title')).toBe('Starts with the project');
-      // And the cell is on the keyboard.
-      expect(cell?.getAttribute('tabindex')).toBe('0');
-      // The span no longer carries the title — if it came back, the pointer
-      // would be hunting a 34×13px target again, and this is the case that
-      // reddens.
+      // **No `title` anywhere in this cell.** If one came back it would race the
+      // card over the same pixels — the folded step cell's own note, a fortnight
+      // earlier — and this is the case that reddens.
+      expect(cell?.getAttribute('title')).toBeNull();
       expect(rowFor('010').querySelector('[data-start]')?.getAttribute('title')).toBeNull();
-      // And something on screen says "there is more to read here", all the time,
-      // not only while a pointer is over the cell.
+      // The sentence is still there at rest for the oracles that read it: see
+      // `startCellProps`.
+      expect(cell?.getAttribute('data-start-said')).toBe('Starts with the project');
+      // And the cell is on the keyboard, which is what makes the card reachable
+      // without a pointer.
+      expect(cell?.getAttribute('tabindex')).toBe('0');
+      // Something on screen says "there is more to read here", all the time, not
+      // only while a pointer is over the cell.
       expect(rowFor('010').querySelector('[data-start]')?.getAttribute('style')).toContain(
         'underline dotted',
       );
     },
   );
+
+  itDom('opens the Start cell’s own card on hover, and on focus, and closes it again', async () => {
+    // The instant tooltip, which is a `HoverCard` and not the browser's. The
+    // card is what a reader sees; `data-start-said` is what a machine reads, and
+    // asserting only the second would be a check that could not see the card
+    // fail to render at all.
+    await oneRow();
+
+    const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
+    if (cell === null) throw new Error('the row has no Start cell');
+    expect(screen.queryByRole('tooltip', { name: 'Start of 010' })).toBeNull();
+
+    // Proof: `onMouseEnter` deleted from `startCellProps`, watched failing here
+    // on `Unable to find role="tooltip" and name "Start of 010"`.
+    fireEvent.mouseEnter(cell);
+    const card = await screen.findByRole('tooltip', { name: 'Start of 010' });
+    expect(card).toHaveTextContent('Starts with the project');
+    // The description the cell points at while the card is open — the keyboard's
+    // half of the same fact, and what a `title` used to do for free.
+    //
+    // Against the card's **own** id rather than against `start-w1`: a literal
+    // here would pass with the cell and the card spelling the id two different
+    // ways, which is a description that refers to nothing. `startCardId` is the
+    // one spelling and this is what says both sites use it.
+    //
+    // Proof: the `<td>`'s `aria-describedby` given `\`start-${row.number}\``
+    // instead, watched failing on `expected 'start-010' to be 'start-w1'`.
+    expect(cell.getAttribute('aria-describedby')).toBe(card.getAttribute('id'));
+    expect(card.getAttribute('id')).not.toBeNull();
+
+    fireEvent.mouseLeave(cell);
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip', { name: 'Start of 010' })).toBeNull();
+    });
+
+    // And the keyboard path, which is the reason `onFocus` sits beside
+    // `onMouseEnter`: a card only a pointer can open is data withheld from
+    // anybody who does not use one.
+    //
+    // Proof: `onFocus` deleted, watched failing on the same `Unable to find
+    // role="tooltip" and name "Start of 010"` — reached only after the hover
+    // half above it had passed, which is why the two gestures are asserted
+    // apart rather than as one "the card opens".
+    fireEvent.focus(cell);
+    expect(await screen.findByRole('tooltip', { name: 'Start of 010' })).toBeVisible();
+  });
 
   itDom('does not mark a Start cell that has no explanation', async () => {
     // A parent has no floor sentence of its own. Without a project calendar it
@@ -2293,14 +2348,14 @@ describe('the plan on a calendar', () => {
       // start is Monday the 7th, not the 5th — and `<WbsTable>` is the only thing
       // that hands `startFloorByRow` a calendar, so a stubbed or forgotten second
       // argument is invisible to every unit test of the function itself.
-      expect(rowFor('020').querySelector('td[data-column="start"]')?.getAttribute('title')).toBe(
-        '2026-09-01 — Waits for Strip (Dev) — finishes 7 Sep',
-      );
+      expect(
+        rowFor('020').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
+      ).toBe('2026-09-01 — Waits for Strip (Dev) — finishes 7 Sep');
       // Not the successor's own sentence on the row it waits for: the two cells
       // answer for themselves, which a single shared string would hide.
-      expect(rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('title')).toBe(
-        '2026-09-01 — Starts with the project',
-      );
+      expect(
+        rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
+      ).toBe('2026-09-01 — Starts with the project');
     } finally {
       vi.useRealTimers();
     }
@@ -9831,6 +9886,10 @@ describe('the widths the table is laid out by', () => {
           'actions',
           'not-before',
           'priority',
+          // `start` since `start-date-hover-card`: the sentence explaining a
+          // row's day is a `HoverCard` rather than a native `title`, and a card
+          // is absolutely positioned inside a 52px cell.
+          'start',
         ].includes(column) ||
           column.endsWith('-assignee') ||
           // A folded step's cell opens the `@` people picker over a 96px
