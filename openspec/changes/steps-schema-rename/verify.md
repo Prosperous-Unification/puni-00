@@ -26,20 +26,20 @@ tree, so the exception cannot outlive the check that bounds it.
 
 ## Commands
 
-| Command                                                         | Result                                                                     |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `bun test` in `apps/be-01`                                      | **1251 pass, 0 fail**, 89 files                                            |
-| `bun test src/assert-no-prod-release.test.ts` in `tool-deploy`  | 7 pass, 0 fail                                                             |
-| `bun test src/hooks/migration-lint.test.ts` in `tool-git-hooks` | 9 pass, 0 fail                                                             |
-| `bunx nx format:check --all`                                    | exit 0                                                                     |
-| `bunx nx run-many -t test lint typecheck build --skip-nx-cache` | `Successfully ran targets test, lint, typecheck, build for 23 projects`    |
-| `bunx nx run tool-deploy:build` (shellcheck)                    | clean; watched failing on an injected `SC2086`                             |
-| migration lint on both new SQL files                            | clean                                                                      |
-| secrets scan on every changed file                              | clean                                                                      |
-| `openspec validate --all --json`                                | 28 items, 28 passed, 0 failed                                              |
-| `bin/h2puni-gate.sh --all`                                      | **not run** — the heavy-work lock helper does not run on this Mac          |
-| `CI=1` Playwright on shifted ports                              | **not run** — no be-01 API surface changed; see below                      |
-| dev deploy + applied-set read-back                              | **not run** — task 4.2, needs a push and `./bin/dev-deploy.sh` from h1claw |
+| Command                                                         | Result                                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bun test` in `apps/be-01`                                      | **1251 pass, 0 fail**, 89 files                                          |
+| `bun test src/assert-no-prod-release.test.ts` in `tool-deploy`  | 7 pass, 0 fail                                                           |
+| `bun test src/hooks/migration-lint.test.ts` in `tool-git-hooks` | 9 pass, 0 fail                                                           |
+| `bunx nx format:check --all`                                    | exit 0                                                                   |
+| `bunx nx run-many -t test lint typecheck build --skip-nx-cache` | `Successfully ran targets test, lint, typecheck, build for 23 projects`  |
+| `bunx nx run tool-deploy:build` (shellcheck)                    | clean; watched failing on an injected `SC2086`                           |
+| migration lint on both new SQL files                            | clean                                                                    |
+| secrets scan on every changed file                              | clean                                                                    |
+| `openspec validate --all --json`                                | 28 items, 28 passed, 0 failed                                            |
+| `bin/h2puni-gate.sh --all`                                      | **not run** — the heavy-work lock helper does not run on this Mac        |
+| `CI=1` Playwright on shifted ports                              | **not run** — no be-01 API surface changed; see below                    |
+| dev deploy + applied-set read-back                              | **attempted, reverted by dev's poller** — see below; task 4.2 still open |
 
 ## What the schema looks like now
 
@@ -150,7 +150,29 @@ projects` with no failed tasks. **Nothing serialised this work against another a
   shape and no UI: `libs/domain` and `apps/fe-01` see the rename only as two
   comment lines. `bun run e2e` would be measuring an unchanged chart, and CI's
   `pixels` job runs the whole suite on every push regardless.
-- **Task 4.2, the dev deploy, was not done.** The migration is read at startup
-  (`docs/runbook-dev-deploy.md`), so it needs `git push` and `./bin/dev-deploy.sh`
-  from h1claw, then the applied set read back and quoted here. That is the
-  remaining task and it is an outward-facing action.
+- **Task 4.2, the dev deploy, was attempted and cannot be done from a branch.**
+  `d4e737c7` was pushed and `./bin/dev-deploy.sh` ran green — `dev healthy at
+d4e737c7`, with `tool-devsync` correctly reporting `restart required, changed:
+apps/be-01/drizzle`. **Dev was back on `main` four seconds later.** A poller on
+  h2puni (`/home/puni1/wbs-dev/bin/poll.sh`, puni1's crontab, every minute) fetches
+  `origin/main` and resets the checkout to it whenever they differ — ADR
+  `0005-dev-deploys-itself-from-origin-main.md`. The reflog is unambiguous:
+
+  ```
+  48e58c5 HEAD@{2026-08-31 15:27:02 +0000}: reset: moving to 48e58c5...   <- the poller
+  d4e737c HEAD@{2026-08-31 15:26:58 +0000}: reset: moving to d4e737c7...  <- this deploy
+  ```
+
+  The migration **did not apply**: dev's newest applied migration is still
+  `20260830130000_add_estimate_weights_and_rounding` and its schema still names
+  `role`, `role_progress` and `role_measure`. That is luck rather than design —
+  be-01's restart lost the race to the revert by about a second, and the other
+  outcome is a dev database holding the renamed schema while dev's code is back on
+  the commit before it. Dev is healthy at `48e58c5`; nothing was left half-migrated.
+
+  **So this task needs the commit on `main`, which is a merge decision rather than a
+  deploy.** Two documents claimed otherwise and are corrected in this change:
+  `bin/dev-deploy.sh`'s header said "There is no poller and no CI gate", and the
+  runbook opened with the branch-deploy command as the way to reach dev. Both were
+  true until 2026-08-19 and then sat on disk for twelve days — the runbook's table of
+  what a deploy can carry is right, and its premise was wrong.

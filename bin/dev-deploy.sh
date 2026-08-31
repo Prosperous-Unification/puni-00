@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # Deploy the current HEAD to dev. Run this after pushing.
 #
-# There is no poller and no CI gate. The push happens on h1claw, so the trigger
-# happens on h1claw too -- nothing runs between deploys, and there is no timer
-# to notice has died. CI still runs and still reports; it is simply not in the
-# path between a push and dev being current.
+# **Dev tracks `origin/main`, so this only holds for a commit that IS on main.**
+# A poller on h2puni (`/home/puni1/wbs-dev/bin/poll.sh`, puni1's crontab, every
+# minute) fetches `origin/main` and resets the checkout back to it whenever they
+# differ -- so a branch deployed by hand is reverted within 60 seconds, and this
+# script reports success before that happens. Watched on 2026-08-31: a branch
+# landed at 15:26:58 and the poller pulled dev back to main at 15:27:02, four
+# seconds later, while `dev healthy at <branch sha>` had already been printed.
+# `docs/adr/0005-dev-deploys-itself-from-origin-main.md` is why the poller
+# exists; the lines this replaced said there was none, which was true until
+# 2026-08-19 and then stayed on disk for twelve days.
+#
+# What this script is still for: a commit already on main that the poller has
+# not picked up yet, and any deploy where you want the output in front of you.
 #
 # The build host rule still holds: this builds nothing. It asks h2puni to move
 # its checkout, and the watchers already running there do the rest.
