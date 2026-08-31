@@ -170,7 +170,20 @@ export default defineConfig({
   // re-run until it is green is a check that cannot fail wearing a different
   // hat. A flake in this spec is a bug in this spec.
   retries: 0,
-  timeout: 60_000,
+  /**
+   * How long one **case** may take, and 120s on CI against 60s here.
+   *
+   * Raised with `expect.timeout` below and for the same measured reason, after
+   * raising that one alone moved the failure rather than fixing it: run
+   * 33377448974 lost `the successor bar moves when the project changes its
+   * reach` at exactly **1.0m** — the old cap, reached because a case that makes
+   * several cross-process waits can now spend 30s on any one of them.
+   *
+   * A cap is not a budget anybody should hit. It exists to stop a hung case
+   * holding the gate for ever, and 120s still does that: the slowest honest
+   * case in this suite runs in about 22s on the runner.
+   */
+  timeout: isCi ? 120_000 : 60_000,
   /**
    * How long one assertion may wait, and **30s on CI against 10s here**.
    *
@@ -188,12 +201,16 @@ export default defineConfig({
    * **11–12 minutes where this Mac takes 7**, and a 10s budget written on the
    * Mac is a budget for the wrong machine.
    *
-   * **This was mistaken for a regression and cost a revert.** `a474047` was
-   * reverted on the strength of two consecutive failures in one case; the
-   * revert then failed on a *different* case, which is what proved the suite
-   * environmental rather than the commit faulty. The per-test 30s bumps written
-   * during that hour are removed in favour of this one figure — three numbers
-   * in three files were three places for the next person to disagree with.
+   * **This was mistaken for a regression and cost a revert**, and the proof
+   * that it was not is worth keeping: `e2eed4c` and `909b71f` have
+   * **byte-identical trees** (`git rev-parse e2eed4c^{tree}` equals
+   * `909b71f^{tree}` — the second is a clean revert of the two commits between
+   * them). The first passed CI and the second failed it. No code change can
+   * explain that, so no code change was the cause.
+   *
+   * The per-test 30s bumps written during that hour are removed in favour of
+   * these two figures — numbers scattered across spec files are places for the
+   * next person to disagree with the config.
    */
   expect: { timeout: isCi ? 30_000 : 10_000 },
   reporter: isCi
