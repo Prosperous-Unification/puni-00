@@ -60,7 +60,7 @@ describe('the plan’s history, against a real database', () => {
       ...over,
     };
     sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
         ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         id,
@@ -192,7 +192,7 @@ describe('the plan’s history, against a real database', () => {
     // and `asEntry` in `command-journal.ts` makes the identical call. A row read
     // as `null` would put a history on screen with a blank where a change was.
     sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
         " VALUES ('bad', 'p1', 'owner', 'estimate', 'x', NULL, NULL, 'not json', '{}', 1)",
     );
 

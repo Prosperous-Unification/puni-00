@@ -35,7 +35,7 @@ describe('isOrphanedNotBeforeReason', () => {
     // An empty string is not how "no reason" is spelled — the controller turns
     // a blank into `null` before this is ever asked, so a `''` arriving here is
     // a reason that happens to have no characters, and it still needs a date.
-    // One spelling per fact, which is the doctrine `role_progress` states as
+    // One spelling per fact, which is the doctrine `step_progress` states as
     // "not started is the absence of a row".
     expect(isOrphanedNotBeforeReason(null, '')).toBe(true);
   });

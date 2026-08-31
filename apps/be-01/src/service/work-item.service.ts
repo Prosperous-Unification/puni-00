@@ -122,7 +122,7 @@ const UNSCHEDULED: Scheduled = {
  *   instead of losing every row that a neighbour depends on.
  * - **An estimate naming a step the project does not hold.** Not reachable
  *   through the API — every write that names a step is refused with
- *   `unknown_step`, and `estimate.role_id` is a foreign key — but the days are
+ *   `unknown_step`, and `estimate.step_id` is a foreign key — but the days are
  *   somebody's typing and they already count towards today's duration. They are
  *   kept, in a slice after the steps the project does hold, rather than dropped
  *   silently or thrown over the whole project's read.
@@ -539,7 +539,7 @@ export type WorkItemRefusal =
   | 'too_large'
   /**
    * A step the project does not hold — usually one somebody removed while this
-   * caller had it on screen. `estimate.role_id` and `assignment.role_id` are
+   * caller had it on screen. `estimate.step_id` and `assignment.step_id` are
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
    */
@@ -2104,7 +2104,7 @@ export class WorkItemService {
     // days nobody recorded again.
     const storedActuals = await this.opts.actuals.listByProject(workItem.projectId);
     // Read before anything is deleted, for the actuals' reason:
-    // `role_progress.work_item_id` cascades, so a moment later there is nothing
+    // `step_progress.work_item_id` cascades, so a moment later there is nothing
     // left to read and the restore would put the branch back reading as work
     // nobody had started.
     const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
@@ -3225,7 +3225,7 @@ export class WorkItemService {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the days were recorded against has been removed since.
-        // `actual.role_id` is a foreign key, so putting the number back would be
+        // `actual.step_id` is a foreign key, so putting the number back would be
         // a constraint error on a key somebody pressed to be safe.
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
@@ -3254,7 +3254,7 @@ export class WorkItemService {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the figure was recorded against has been removed since.
-        // `role_measure.role_id` is a foreign key, so putting the number back
+        // `step_measure.step_id` is a foreign key, so putting the number back
         // would be a constraint error on a key somebody pressed to be safe.
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
@@ -3283,7 +3283,7 @@ export class WorkItemService {
           return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The step the statement was made about has been removed since.
-        // `role_progress.role_id` is a foreign key, so putting the statement
+        // `step_progress.step_id` is a foreign key, so putting the statement
         // back would be a constraint error on a key somebody pressed to be safe.
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };

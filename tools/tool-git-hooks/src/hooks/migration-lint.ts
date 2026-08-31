@@ -27,6 +27,61 @@ const FORBIDDEN: { label: string; pattern: RegExp }[] = [
   { label: 'TRUNCATE', pattern: /\bTRUNCATE\b/ },
 ];
 
+/**
+ * The migrations allowed to carry a statement {@link FORBIDDEN} refuses, and
+ * what each one must ship to earn that.
+ *
+ * A waiver is not "this migration is trusted". It names the exact labels it
+ * lifts and the gate script that has to be in the tree beside it, so the
+ * argument for the exception lives where the exception is granted. Every other
+ * migration is unaffected: the additive rule is the default and this table is
+ * the only door out of it.
+ *
+ * `20260831120000_rename_role_to_step` renames tables and columns, which no
+ * outgoing colour could read. It is safe only while no prod release exists, and
+ * `bin/assert-no-prod-release.sh` is what reads the recorded release state and
+ * refuses when one does. **The lint requires that script to be present, not to
+ * pass** — CI cannot reach the deploy host, and a gate that quietly succeeded
+ * because it could not reach anything would be worse than none. The operator
+ * runs it against prod's state directory before deploying; the lint's job is
+ * that the migration can never land in a tree where the check has been deleted.
+ *
+ * Proof: `migration-lint.test.ts` `refuses the rename migration when its gate
+ * script is absent` — watched failing with the `existsSync` requirement
+ * removed, on `Received value must be a string: undefined`: the lint returned
+ * no issue at all. Observed 2026-08-31.
+ */
+interface Waiver {
+  readonly labels: readonly string[];
+  readonly gateScript: string;
+}
+
+/**
+ * A `Map` rather than an object literal, so a migration folder called
+ * `constructor` or `toString` cannot resolve to something off Object's
+ * prototype and waive itself. It also types the miss honestly: this repo has
+ * `noUncheckedIndexedAccess` off, so an indexed read would hand back a `Waiver`
+ * for a folder that has none and the guard below would be unreachable.
+ */
+const WAIVERS = new Map<string, Waiver>([
+  [
+    '20260831120000_rename_role_to_step',
+    { labels: ['ALTER TABLE ... RENAME COLUMN'], gateScript: 'bin/assert-no-prod-release.sh' },
+  ],
+]);
+
+/**
+ * Where the gate script must sit, given a migration file.
+ *
+ * The layout is fixed and spelled out rather than searched for:
+ * `<root>/apps/be-01/drizzle/<folder>/migration.sql`, so the root is four
+ * levels above the file. A search upward for a `bin/` directory would find the
+ * wrong root inside a nested checkout and report a missing gate as present.
+ */
+function gateScriptPath(file: string, gateScript: string): string {
+  return join(dirname(file), '..', '..', '..', '..', gateScript);
+}
+
 export interface MigrationIssue {
   file: string;
   reason: string;
@@ -116,10 +171,23 @@ export async function lintMigration(file: string): Promise<MigrationIssue | null
         'so it could not be checked for destructive statements.',
     };
   }
+  const folder = basename(dirname(file));
+  const waiver = WAIVERS.get(folder);
+  if (waiver !== undefined && !existsSync(gateScriptPath(file, waiver.gateScript))) {
+    return {
+      file,
+      reason:
+        `${folder} is waived from ${waiver.labels.join(', ')} only while ` +
+        `${waiver.gateScript} is in the tree, and it is not. That script is what refuses ` +
+        'this migration when a prod release is recorded as deployed; without it the ' +
+        'waiver rests on nothing.',
+    };
+  }
   const rebuildTarget = compatibleRebuildTarget(raw);
   for (const statement of normalizeSql(raw).split(';')) {
     for (const { label, pattern } of FORBIDDEN) {
       if (pattern.test(statement)) {
+        if (waiver?.labels.includes(label)) continue;
         const unquoted = statement.replace(/[`"]/g, '');
         if (
           label === 'DROP TABLE' &&

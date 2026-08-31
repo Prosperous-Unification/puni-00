@@ -739,7 +739,7 @@ export class DirectoryRepository implements DirectoryStore {
       );
       // The `work_item_tag` rows are **not** deleted here: `tag_id` cascades,
       // which is the one place this dimension deliberately differs from
-      // `role_progress`. See the migration for why a label may be taken by the
+      // `step_progress`. See the migration for why a label may be taken by the
       // database where a statement about somebody's work may not.
       const removed = tx.delete(tag).where(eq(tag.id, tagId)).returning({ id: tag.id }).all();
       if (removed.length === 0) return { ok: false, reason: 'not_found' };

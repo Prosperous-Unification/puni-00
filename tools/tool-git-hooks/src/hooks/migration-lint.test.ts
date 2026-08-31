@@ -74,3 +74,71 @@ describe('down script rules', () => {
     expect(await lintMigration(file)).toBeNull();
   });
 });
+
+/**
+ * The waiver that lets `20260831120000_rename_role_to_step` carry a
+ * `RENAME COLUMN`, and the condition it is waived on.
+ *
+ * The folders here are built at the real depth —
+ * `<root>/apps/be-01/drizzle/<folder>/migration.sql` — because that is what
+ * the lint resolves `bin/assert-no-prod-release.sh` against. A shallower
+ * fixture would test a path the hook never walks.
+ */
+describe('the role -> step rename waiver', () => {
+  const roots: string[] = [];
+
+  afterAll(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
+  const RENAME = '20260831120000_rename_role_to_step';
+  const RENAME_SQL = 'ALTER TABLE `estimate` RENAME COLUMN `role_id` TO `step_id`;';
+
+  /** A checkout-shaped tree, with the gate script present only when asked for. */
+  function checkout(folder: string, up: string, opts: { gate: boolean }): string {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-rename-waiver-'));
+    roots.push(root);
+    const migrationDir = join(root, 'apps', 'be-01', 'drizzle', folder);
+    mkdirSync(migrationDir, { recursive: true });
+    writeFileSync(join(migrationDir, 'migration.sql'), up);
+    writeFileSync(join(migrationDir, 'down.sql'), 'SELECT 1;');
+    if (opts.gate) {
+      mkdirSync(join(root, 'bin'), { recursive: true });
+      writeFileSync(join(root, 'bin', 'assert-no-prod-release.sh'), '#!/usr/bin/env bash\n');
+    }
+    return join(migrationDir, 'migration.sql');
+  }
+
+  it('lets the rename migration through while its gate script is in the tree', async () => {
+    const file = checkout(RENAME, RENAME_SQL, { gate: true });
+    expect(await lintMigration(file)).toBeNull();
+  });
+
+  // Proof: the `existsSync(gateScriptPath(...))` requirement removed from
+  // `lintMigration`, watched failing here on
+  // `Received value must be a string: undefined` — the lint returned no issue
+  // at all for a rename migration with no gate script beside it.
+  // Observed 2026-08-31.
+  it('refuses the rename migration when its gate script is absent', async () => {
+    const file = checkout(RENAME, RENAME_SQL, { gate: false });
+    const issue = await lintMigration(file);
+    expect(issue?.reason).toMatch(/assert-no-prod-release\.sh/);
+    expect(issue?.reason).toMatch(/rests on nothing/);
+  });
+
+  // The waiver lifts one label and no others. A rename migration that also
+  // dropped a table would be a different change with a different argument.
+  it('still refuses a DROP TABLE inside the waived migration', async () => {
+    const file = checkout(RENAME, `${RENAME_SQL}\nDROP TABLE role;`, { gate: true });
+    const issue = await lintMigration(file);
+    expect(issue?.reason).toMatch(/DROP TABLE/);
+  });
+
+  // Proof that the waiver is keyed on the folder and not on the statement:
+  // any other migration writing the same SQL is refused, gate script or not.
+  it('refuses the same RENAME COLUMN in any other migration', async () => {
+    const file = checkout('20260901000000_some_other_change', RENAME_SQL, { gate: true });
+    const issue = await lintMigration(file);
+    expect(issue?.reason).toMatch(/RENAME COLUMN/);
+  });
+});

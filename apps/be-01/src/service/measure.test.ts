@@ -470,7 +470,7 @@ describe('the figures that are not days, through the structural commands', () =>
   });
 
   it('hands the branch’s figures up in every metric when its last child is deleted', async () => {
-    // The mirror, and the reason it cannot be skipped: `role_measure.work_item_id`
+    // The mirror, and the reason it cannot be skipped: `step_measure.work_item_id`
     // cascades, so without the hand-up the tokens are gone the moment the last
     // child goes — while the estimate beside them survives on the parent.
     const strip = await add('Strip');
@@ -524,7 +524,7 @@ describe('the figures that are not days, through the structural commands', () =>
 
   // **The restore is not tested here, deliberately** — `actual.test.ts`'s
   // reading, and it applies unchanged. The in-memory store cannot model
-  // `role_measure.work_item_id`'s cascade: a deleted work item's rows sit in the
+  // `step_measure.work_item_id`'s cascade: a deleted work item's rows sit in the
   // array untouched and reappear the moment the row comes back, so a case
   // written here passes with the restore's `measures` replaced by `[]`. It lives
   // in `undo.test.ts`, against real SQLite.

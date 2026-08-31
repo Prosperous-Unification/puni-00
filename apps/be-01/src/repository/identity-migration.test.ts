@@ -22,6 +22,8 @@ const DEP_REACH = '20260830120000_add_dep_reach';
  * appears in the order and in nothing else this file checks.
  */
 const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
+/** The newest, and the first thing every rollback below reverses. */
+const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-identity-migrate-'));
@@ -36,6 +38,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    RENAME_ROLE_TO_STEP,
     WEIGHTS_AND_ROUNDING,
     DEP_REACH,
     EXTERNAL_REF,
@@ -126,6 +129,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -180,6 +184,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -250,7 +255,11 @@ describe('the OIDC identity migration', () => {
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-        ).toEqual({ users: 2, projects: 2, migrations: 32 });
+          // 33 folders on disk, and this figure moves with every migration added
+          // — 32 until 20260831120000_rename_role_to_step. What it is asserting
+          // is that a re-apply leaves the ledger complete rather than short, so
+          // the literal has to be the real count.
+        ).toEqual({ users: 2, projects: 2, migrations: 33 });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

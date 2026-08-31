@@ -190,12 +190,157 @@ const DEP_REACH = '20260830120000_add_dep_reach';
  */
 const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 
+/**
+ * The newest, and the only migration on disk that renames rather than adds:
+ * `role` -> `step` with the columns and indexes that carry the word. It is the
+ * one whose rollback is a **total** inverse — nothing is created, dropped or
+ * defaulted — which is why `the step rename rolls back to the schema it found`
+ * below compares the whole schema and every row rather than counting tables.
+ */
+const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
+
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
   return {
     path: join(dir, 'test.db'),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * Every schema object this database holds, as one comparable list: type, name
+ * and the exact `CREATE` text SQLite stored for it.
+ *
+ * The `sql` text is the load-bearing half and the reason {@link tables} is not
+ * enough here. A rename that was reversed for the table and not for one of its
+ * columns leaves the same table list, the same row counts and the same values —
+ * only this string moves (design D3). `__drizzle_migrations` is excluded
+ * because its rows are bookkeeping about the rollback itself;
+ * {@link appliedNames} asserts those separately.
+ *
+ * **Quote characters are normalised, and nothing else is.** SQLite rewrites the
+ * stored `CREATE` text on an `ALTER TABLE ... RENAME`, and it re-quotes the
+ * identifiers it touched with `"` where drizzle wrote them in backticks — so a
+ * table that has been renamed and renamed back comes out as
+ * `CREATE TABLE "role_progress" ( work_item_id text NOT NULL, "role_id" text
+ * ...`, semantically the schema it started as and textually not. Observed
+ * 2026-08-31 as a 23-line diff in this test, every line of it a quote
+ * character. Collapsing both quote styles to one keeps every **name** in the
+ * comparison, which is what the fault this test exists for moves; comparing raw
+ * text instead would fail on every correct rollback and pass on none.
+ */
+function schemaObjects(dbPath: string): { type: string; name: string; sql: string }[] {
+  const db = openDatabase(dbPath);
+  try {
+    return db
+      .query<{ type: string; name: string; sql: string | null }, []>(
+        "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name <> '__drizzle_migrations' ORDER BY type, name",
+      )
+      .all()
+      .map((r) => ({
+        type: r.type,
+        name: r.name,
+        sql: (r.sql ?? '(implicit)').replace(/[`"]/g, "'"),
+      }));
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Every user table's rows, keyed by table name, each row an object keyed by
+ * column name.
+ *
+ * Keyed by column name deliberately: a `SELECT *` of positional tuples would
+ * compare equal across a column that came back under the wrong name, which is
+ * exactly the fault this snapshot exists to catch. Ordered by `rowid` so the
+ * comparison is about contents rather than about SQLite's scan order.
+ */
+function tableRows(dbPath: string): Record<string, unknown[]> {
+  const db = openDatabase(dbPath);
+  try {
+    const names = db
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> '__drizzle_migrations' ORDER BY name",
+      )
+      .all()
+      .map((r) => r.name);
+    const rows: Record<string, unknown[]> = {};
+    for (const name of names) {
+      rows[name] = db.query<Record<string, unknown>, []>(`SELECT * FROM "${name}"`).all();
+    }
+    return rows;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * A row in every table the role -> step rename touches, written under the
+ * **pre-rename** names because that is the schema it is written against.
+ *
+ * `role`, `role_id`, `role_progress`, `role_measure` here are deliberate and
+ * must not be swept to `step_*` with the rest of the file: this function runs
+ * against the migration folder with `20260831120000_rename_role_to_step`
+ * pruned out, so those are the only names that exist when it runs.
+ *
+ * A round trip over an empty database would compare two empty schemas and pass
+ * with any `down.sql` that happened to restore the table names — so the seed is
+ * part of the check, not scenery.
+ */
+function seedEveryRenamedTable(dbPath: string): void {
+  const db = openDatabase(dbPath);
+  try {
+    db.run(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+    );
+    db.run(
+      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+        " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+    );
+    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r2', 'p', 'QA', 20)");
+    db.run(
+      'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+        " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
+    );
+    db.run(
+      'INSERT INTO estimate (work_item_id, role_id, optimistic, realistic, pessimistic)' +
+        " VALUES ('w1', 'r1', 1, 2, 3)",
+    );
+    db.run(
+      "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
+    );
+    db.run(
+      "INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w1', 'r1', 'done', 2000)",
+    );
+    db.run(
+      'INSERT INTO role_measure (work_item_id, role_id, metric, value, recorded_at)' +
+        " VALUES ('w1', 'r1', 'token_actual', 4000000, 2000)",
+    );
+    db.run("INSERT INTO person (id, name) VALUES ('pe1', 'Ada')");
+    db.run("INSERT INTO assignment (work_item_id, role_id, person_id) VALUES ('w1', 'r1', 'pe1')");
+    db.run(
+      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+        " VALUES ('e1', 'p', 'u', 'estimate', 'estimate Strip', 'w1', 'r1'," +
+        ' \'{"do":"clear_estimate"}\', \'{"do":"set_estimate"}\', 1000)',
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/** The migration folder with one migration pruned out of it. */
+function folderWithout(pruned: string): { path: string; cleanup: () => void } {
+  const copy = mkdtempSync(join(tmpdir(), 'wbs-pre-rename-'));
+  cpSync(FOLDER, copy, { recursive: true });
+  rmSync(join(copy, pruned), { recursive: true, force: true });
+  return {
+    path: copy,
+    cleanup: () => {
+      rmSync(copy, { recursive: true, force: true });
     },
   };
 }
@@ -304,6 +449,7 @@ describe('readMigrationFolders', () => {
       EXTERNAL_REF,
       DEP_REACH,
       WEIGHTS_AND_ROUNDING,
+      RENAME_ROLE_TO_STEP,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -409,11 +555,13 @@ describe('rollbackTo, against a real database', () => {
         EXTERNAL_REF,
         DEP_REACH,
         WEIGHTS_AND_ROUNDING,
+        RENAME_ROLE_TO_STEP,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -500,6 +648,7 @@ describe('rollbackTo, against a real database', () => {
         EXTERNAL_REF,
         DEP_REACH,
         WEIGHTS_AND_ROUNDING,
+        RENAME_ROLE_TO_STEP,
       ]);
     } finally {
       db.cleanup();
@@ -570,6 +719,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
@@ -610,7 +760,12 @@ describe('rollbackTo, against a real database', () => {
         'event_sequencer',
         'project',
         'work_item',
+        // `step` since 20260831120000_rename_role_to_step; a rollback all the
+        // way to INIT reverses that rename first, so by the time the WBS
+        // migration is reversed the table is `role` again and neither name
+        // survives. Both are asserted absent for that reason.
         'role',
+        'step',
         'estimate',
       ]) {
         expect(tables(db.path)).not.toContain(t);
@@ -631,10 +786,11 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      // The newest applied is the weights and rounding, so rolling back *to* it
+      // The newest applied is the role -> step rename, so rolling back *to* it
       // reverses nothing. Each step down names everything newer than its target,
       // newest first — which is the half a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
       expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([DEP_REACH]);
       // Only the reach, because the line above already reversed it —
@@ -645,6 +801,68 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, OIDC_IDENTITY)).toEqual([SOLUTION_REF]);
       expect(tables(db.path)).toContain('users');
     } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The round trip design D3 asks for: apply the rename, reverse it, and assert
+   * the database is byte-for-byte the one it found — schema text included.
+   *
+   * The "before" is taken against the migration folder with the rename pruned
+   * out, so it is the real pre-rename schema rather than a description of one.
+   * The mid-flight assertions are there so the comparison cannot pass by the
+   * rename never having happened.
+   *
+   * Proof: `ALTER TABLE estimate RENAME COLUMN step_id TO step_id;` deleted from
+   * the migration's `down.sql`, watched failing here on the SCHEMA comparison —
+   * `expect(received).toEqual(expected)` with the diff being exactly
+   * `- 'step_id' text NOT NULL / + 'step_id' text NOT NULL` and the same
+   * substitution in `estimate_pk` and the FK clause.
+   *
+   * And D3's claim about *why* the schema text is compared was checked rather
+   * than assumed: with that same fault still in `down.sql`, this test reduced to
+   * the row-count loop alone — the schema and keyed-row comparisons removed —
+   * **passed**. A column that came back under the wrong name holds every value
+   * it held before, so counting rows cannot see it. Both observed 2026-08-31.
+   */
+  it('the step rename rolls back to the schema it found', () => {
+    const db = tempDb();
+    const preRename = folderWithout(RENAME_ROLE_TO_STEP);
+    try {
+      runMigrations(db.path, preRename.path);
+      seedEveryRenamedTable(db.path);
+      const schemaBefore = schemaObjects(db.path);
+      const rowsBefore = tableRows(db.path);
+      // The seed is the check's substance; an empty database would compare two
+      // empty snapshots and pass on any down.sql that restored the names.
+      expect(rowsBefore['role']).toHaveLength(2);
+      expect(rowsBefore['estimate']).toHaveLength(1);
+      expect(schemaBefore.map((o) => o.name)).toContain('role_project_name');
+
+      runMigrations(db.path, FOLDER);
+
+      // The rename really happened, or everything below is a comparison of two
+      // identical databases.
+      expect(tables(db.path)).toContain('step');
+      expect(tables(db.path)).not.toContain('role');
+      expect(appliedNames(db.path)).toContain(RENAME_ROLE_TO_STEP);
+      expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_project_name');
+
+      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
+
+      // Schema first: this is the assertion the missing-rename fault moves, and
+      // the two below it are the ones that cannot see it.
+      expect(schemaObjects(db.path)).toEqual(schemaBefore);
+      const rowsAfter = tableRows(db.path);
+      expect(Object.keys(rowsAfter)).toEqual(Object.keys(rowsBefore));
+      for (const [table, before] of Object.entries(rowsBefore)) {
+        expect(rowsAfter[table]).toHaveLength(before.length);
+      }
+      expect(rowsAfter).toEqual(rowsBefore);
+      expect(appliedNames(db.path)).not.toContain(RENAME_ROLE_TO_STEP);
+    } finally {
+      preRename.cleanup();
       db.cleanup();
     }
   });

@@ -252,7 +252,7 @@ export const workItem = sqliteTable(
      * {@link WorkItemStore.patch} refuses it inside the transaction that would
      * have written it. Deliberately not a `CHECK` — the argument, which turns on
      * the outgoing release writing this table where it does not write
-     * `role_progress`, is on the migration.
+     * `step_progress`, is on the migration.
      *
      * Nullable with no default, because null is a real state and not a missing
      * empty string: the absence of a reason is how "nobody has said" is spelled
@@ -425,28 +425,15 @@ export type WorkItemRow = typeof workItem.$inferSelect;
  * and `QA`, which is a seed rather than the set it may hold: they can be
  * renamed, removed, and joined by others through `StepRepository`.
  *
- * **The physical name is `role`, and the domain name is `step`.** Every
- * identifier above this line says `step` since `steps-not-phases`; the table,
- * its `role_id` columns, its `role_project_name` index and `role_progress` /
- * `role_measure` beside it kept the spelling they were created with. That is
- * not an oversight, it is the boundary: blue and green share one SQLite file
- * during a swap and a forward migration must be additive (`AGENTS.md`,
- * Migrations), so `ALTER TABLE role RENAME TO step` cannot be one migration —
- * the outgoing release is still reading `role` while green migrates. The
- * physical rename is an expand/contract across two releases and is its own
- * change, `steps-schema-rename`. Until it lands the two spellings name one
- * thing, and SQLite's own error strings — `UNIQUE constraint failed:
- * role.project_id, role.name` in `step.ts` — say `role`.
- *
- * `estimate.role_id` deliberately has **no** `onDelete` cascade while
- * `assignment.role_id` does, and the difference is not an oversight. An
+ * `estimate.step_id` deliberately has **no** `onDelete` cascade while
+ * `assignment.step_id` does, and the difference is not an oversight. An
  * estimate is somebody's typing and a removal must count it before taking it;
  * the missing cascade is what makes a step delete that forgot to say so fail
  * loudly instead of quietly emptying the plan. `StepRepository.remove` deletes
  * them explicitly, inside the transaction that removes the step.
  */
 export const step = sqliteTable(
-  'role',
+  'step',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
@@ -459,7 +446,7 @@ export const step = sqliteTable(
      *
      * The order is a contract now that the schedule runs a work item's slices
      * in it, and it cannot be inferred: `WHERE project_id = ?` is answered from
-     * `role_project_name`, so a project's steps come back in **name** order
+     * `step_project_name`, so a project's steps come back in **name** order
      * unless a query says otherwise. `Dev, QA` only looks like the order they
      * were seeded in.
      *
@@ -475,7 +462,7 @@ export const step = sqliteTable(
      */
     position: integer('position').notNull().default(0),
   },
-  (t) => [uniqueIndex('role_project_name').on(t.projectId, t.name)],
+  (t) => [uniqueIndex('step_project_name').on(t.projectId, t.name)],
 );
 
 export type StepRow = typeof step.$inferSelect;
@@ -497,7 +484,7 @@ export const estimate = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id),
-    stepId: text('role_id')
+    stepId: text('step_id')
       .notNull()
       .references(() => step.id),
     optimistic: real('optimistic').notNull(),
@@ -546,7 +533,7 @@ export type EstimateRow = typeof estimate.$inferSelect;
  * successor's dates on a claim nobody made. See
  * `openspec/changes/actual-days/design.md` D3.
  *
- * `role_id` gets **no** `onDelete` cascade, matching {@link estimate.stepId} and
+ * `step_id` gets **no** `onDelete` cascade, matching {@link estimate.stepId} and
  * for the identical reason spelled out on {@link step}: an actual is somebody's
  * typing and a step removal must count it before taking it.
  * `StepRepository.remove` deletes them explicitly, inside the transaction that
@@ -566,7 +553,7 @@ export const actual = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    stepId: text('role_id')
+    stepId: text('step_id')
       .notNull()
       .references(() => step.id),
     days: real('days').notNull(),
@@ -618,7 +605,7 @@ export type ActualRow = typeof actual.$inferSelect;
  * estimates in `slicesOf` and this table is read nowhere below it — R6 is still
  * reporting only, and this change moves no date in either direction.
  *
- * `role_id` gets **no** `onDelete` cascade, matching {@link actual.stepId} and
+ * `step_id` gets **no** `onDelete` cascade, matching {@link actual.stepId} and
  * {@link estimate.stepId}: a state is somebody's statement and a step removal
  * must count it before taking it. `work_item_id` **does** cascade, for the
  * blue/green swap window {@link actual.workItemId} explains.
@@ -634,12 +621,12 @@ export type ActualRow = typeof actual.$inferSelect;
  * folded by none of them.
  */
 export const stepProgress = sqliteTable(
-  'role_progress',
+  'step_progress',
   {
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    stepId: text('role_id')
+    stepId: text('step_id')
       .notNull()
       .references(() => step.id),
     state: text('state', { enum: ['in_progress', 'done'] }).notNull(),
@@ -647,6 +634,13 @@ export const stepProgress = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId] }),
+    // `role_progress_state`, not `step_progress_state`: this is the name SQLite
+    // has stored for the constraint since 20260818010000, and
+    // 20260831120000_rename_role_to_step could not change it. SQLite renames
+    // tables, columns and indexes; a constraint name lives inside the table's
+    // own `CREATE` text, so moving it means rebuilding the table — seven of
+    // them, for strings no query names. Spelling it `step_` here would declare
+    // a constraint the database does not have.
     check('role_progress_state', sql`${t.state} IN ('in_progress', 'done')`),
   ],
 );
@@ -721,7 +715,7 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * value written by a hand-edit or a stale release would be dispatched on by
  * every reader and folded by none of them.
  *
- * `role_id` gets **no** `onDelete` cascade and `work_item_id` does, matching
+ * `step_id` gets **no** `onDelete` cascade and `work_item_id` does, matching
  * {@link actual} exactly: a measure is somebody's typing, so a step removal must
  * count it before taking it, and `StepRepository.remove` deletes these rows
  * explicitly inside its transaction. The cascade on `work_item_id` is the
@@ -734,12 +728,12 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * was.
  */
 export const stepMeasure = sqliteTable(
-  'role_measure',
+  'step_measure',
   {
     workItemId: text('work_item_id')
       .notNull()
       .references(() => workItem.id, { onDelete: 'cascade' }),
-    stepId: text('role_id')
+    stepId: text('step_id')
       .notNull()
       .references(() => step.id),
     metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
@@ -749,6 +743,9 @@ export const stepMeasure = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
     check(
+      // `role_measure_metric` for {@link stepProgress}'s reason: the constraint
+      // name is what SQLite stored in 20260821140000 and a rename cannot reach
+      // it without rebuilding the table.
       'role_measure_metric',
       sql`${t.metric} IN ('token_estimate', 'token_actual', 'hours_actual')`,
     ),
@@ -900,7 +897,7 @@ export type TagRow = typeof tag.$inferSelect;
  * each other.
  *
  * **Both sides cascade, and this is where the tag differs from
- * {@link stepProgress}.** There, `role_id` deliberately does not cascade, because
+ * {@link stepProgress}.** There, `step_id` deliberately does not cascade, because
  * a state is somebody's statement about their own work and a step removal must
  * count it before taking it. A tag is a label: deleting the label should take the
  * labelling with it, and there is nothing to count that the label itself was not.
@@ -1477,7 +1474,7 @@ export const assignment = sqliteTable(
     workItemId: text('work_item_id')
       .notNull()
       .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
-    stepId: text('role_id')
+    stepId: text('step_id')
       .notNull()
       .references(() => step.id, { onDelete: 'cascade' }),
     personId: text('person_id')
@@ -1626,7 +1623,7 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  * pruning a history table by count is deletion of exactly the thing being asked
  * for. See {@link PLAN_EVENT_RETENTION_DAYS}.
  *
- * `work_item_id` and `role_id` are **not** foreign keys, and that is the whole
+ * `work_item_id` and `step_id` are **not** foreign keys, and that is the whole
  * point of a history. A cascade would delete the record of an item when the item
  * went — losing the estimate changes of the very row somebody is asking about —
  * and a restricting reference would refuse the delete instead. The same argument
@@ -1666,7 +1663,7 @@ export const planEvent = sqliteTable(
     /** The one work item the command was aimed at, or null when it named many. */
     workItemId: text('work_item_id'),
     /** The step, for the kinds that carry one: the estimate kinds and `assign`. */
-    stepId: text('role_id'),
+    stepId: text('step_id'),
     before: text('before').notNull(),
     after: text('after').notNull(),
     createdAt: integer('created_at').notNull(),

@@ -20,7 +20,7 @@
  * What one step has said about its own work on one work item.
  *
  * **Two values, because the third is the absence of a row.** "Not started" is
- * never stored: it is what a work item with no `role_progress` row for that step
+ * never stored: it is what a work item with no `step_progress` row for that step
  * reads as, exactly as an unstated capacity and an unrecorded actual are
  * absences rather than zeroes (`project_team_capacity` and `actual` in be-01's
  * `schema.ts`). Storing it would give two spellings of "nobody has said" — no

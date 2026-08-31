@@ -1,6 +1,21 @@
 # Runbook — deploying dev
 
-Dev runs from source on h2puni. One command, from h1claw:
+**Dev is whatever `origin/main` is, within about a minute, with no human step.** A poller
+on h2puni (`/home/puni1/wbs-dev/bin/poll.sh`, puni1's crontab, every minute) fetches
+`origin/main` and resets the checkout to it when they differ —
+`docs/adr/0005-dev-deploys-itself-from-origin-main.md`. So the deploy for a merged commit
+is the merge.
+
+**A branch cannot be deployed to dev.** The poller resets the checkout back to `main`
+within 60 seconds, and `bin/dev-deploy.sh` prints `dev healthy at <sha>` before that
+happens. Watched 2026-08-31: a branch landed at 15:26:58, the poller pulled dev back at
+15:27:02, and the `apps/be-01/drizzle` change it carried never applied — be-01's restart
+lost the race to the revert **by about a second**, which is luck rather than a guarantee.
+Had it won, dev's database would hold a migrated schema while dev's code was back on the
+commit before it.
+
+`bin/dev-deploy.sh` is still the way to push a commit that is _already on main_ without
+waiting for the next poll tick, and to watch the output while it happens:
 
 ```sh
 git push && ./bin/dev-deploy.sh
@@ -8,10 +23,11 @@ git push && ./bin/dev-deploy.sh
 
 Everything below is what that command does, and what it cannot do.
 
-**Dev does not use any of the below.** Since 2026-08-04 dev runs from source:
+**Dev does not use any of the below.** Since 2026-08-04 dev runs from source, and since
+2026-08-19 it deploys itself from `origin/main` (ADR 0005):
 
 ```sh
-git push && ./bin/dev-deploy.sh     # from h1claw, after any change
+git push && ./bin/dev-deploy.sh     # a commit on main, when you will not wait for the poller
 ```
 
 `bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to

@@ -524,7 +524,7 @@ describe('a priority ladder moves no date', () => {
           expect(actuals).toEqual({});
           // `measures` is lifted by `token-tracking` (R10-C) and asserted empty
           // for `actuals`' reason, one table over. The oracle predates
-          // `role_measure` entirely, so every row now carries a key the capture
+          // `step_measure` entirely, so every row now carries a key the capture
           // cannot have — and `{}` is the whole object rather than three empty
           // metrics, because a metric nobody recorded is struck rather than
           // carried. Sixteen replayed plans reporting no metrics at all is this

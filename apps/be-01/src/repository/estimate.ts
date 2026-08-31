@@ -56,7 +56,7 @@ export class EstimateRepository implements EstimateStore {
           pessimistic: estimate.pessimistic,
         })
         .from(estimate)
-        // Inner rather than left: `estimate.role_id` is a foreign key, so an
+        // Inner rather than left: `estimate.step_id` is a foreign key, so an
         // estimate whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step.
         .innerJoin(step, eq(estimate.stepId, step.id))
