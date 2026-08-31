@@ -293,6 +293,13 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // header is `Prio` for the same reason `Not bef.` is abbreviated — a
   // 10px all-caps `PRIORITY` wraps to two lines in this column and makes the
   // whole header row two lines tall.
+  //
+  // **Four digits is now the whole of it, with one pixel to spare.** Since
+  // `priority-chevron` the cell also draws an 8px rung glyph on its leading edge
+  // (`priority-chevron.tsx`), and `9999` was watched clipping by 1px when that
+  // glyph asked for 10px instead of 8. Anything else this column is asked to
+  // hold has to come out of the glyph or out of a wider column, and
+  // `e2e/priority-ramp.spec.ts` measures the budget rather than trusting it.
   ['priority', 48],
   ['team', 120],
   // The tag cell. 120 like the team's, because it holds the same kind of thing

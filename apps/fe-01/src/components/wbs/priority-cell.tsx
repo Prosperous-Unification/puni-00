@@ -7,6 +7,7 @@ import { PickerList } from './creatable-picker';
 import type { CellElement } from './editable-grid';
 import type { SendEdit } from './live-editing';
 import { priorityBandStyleOf } from './priority-band-style';
+import { PRIORITY_GLYPH_ROOM_PX, PriorityChevron } from './priority-chevron';
 
 /**
  * What was typed, with a band's own name turned into the number it writes.
@@ -178,6 +179,12 @@ export function PriorityCell({
           background: 'transparent',
           border: 'none',
           textAlign: 'right',
+          // The room the glyph stands in, on the leading edge and out of the
+          // flow — see {@link PriorityChevron}. Reserved whether or not a glyph
+          // is drawn, so the digits of a prioritised row and an unprioritised one
+          // line up down the column; the alternative is every clear and every
+          // first priority shifting the whole column by 10px.
+          paddingLeft: PRIORITY_GLYPH_ROOM_PX,
           // **The band, in one channel the table has spare.** The cell's ink
           // rather than a background: the Prio column is 48px of right-aligned
           // digits between two bordered cells, and a filled swatch there reads as
@@ -217,6 +224,16 @@ export function PriorityCell({
         value={priority === null ? '' : String(priority)}
         commit={commit}
       />
+      {/*
+        The rung, drawn. After the box in source order and before it in the
+        stacking context that matters — it is `position: absolute` with no
+        `z-index`, so it paints over the input's transparent background and
+        under nothing. `paint === null` is the column's own "blank at rest"
+        bargain: a plan nobody has prioritised is a plain column, and a glyph
+        on every row of it would be the wall of furniture Dany's compaction
+        took out.
+      */}
+      {paint !== null && <PriorityChevron rank={paint.rank} ink={paint.ink} />}
       {open && (
         <PickerList
           id={listId}
