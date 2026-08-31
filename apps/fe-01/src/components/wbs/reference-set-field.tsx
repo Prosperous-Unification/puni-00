@@ -526,7 +526,17 @@ export function ReferenceSetStrip({
           onMouseDown={(event) => {
             event.preventDefault();
           }}
-          onClick={() => root.current?.querySelector<HTMLInputElement>('input')?.focus()}
+          // Focus **and then** click. `focus()` alone was a dead press on a box
+          // that already holds the focus — which is every press of this `+`
+          // straight after adding a value, because a take leaves the focus where
+          // it was — and the box's own `onClick` is what opens the list in that
+          // state. `creatable-picker.tsx`'s input says the whole of
+          // `picker-reopens-on-click`.
+          onClick={() => {
+            const box = root.current?.querySelector<HTMLInputElement>('input');
+            box?.focus();
+            box?.click();
+          }}
         >
           +
         </button>

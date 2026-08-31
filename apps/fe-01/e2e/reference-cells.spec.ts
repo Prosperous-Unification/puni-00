@@ -798,3 +798,100 @@ test.describe('390x844 reference sheets', () => {
     await expect(dependsDialog.locator('[data-card-wait="010"]')).toHaveCount(0);
   });
 });
+
+/**
+ * Adding a second value without leaving the cell — Dany, 2026-08-31: _"after
+ * adding `tag1` the UI invites another tag, but clicking the small add field
+ * shows no dropdown of existing tags"_.
+ *
+ * A browser and not jsdom, and the reason is the whole shape of the fault: the
+ * list opens from the box's `focus`, a successful take closes it **with the box
+ * still focused**, and clicking a node that already holds the focus fires no
+ * focus event. jsdom's `fireEvent.click` dispatches a click with no focus
+ * bookkeeping at all, so a jsdom case can be written that clicks and re-focuses
+ * in the same breath and never sees this. What decides it is the browser's rule
+ * about what a second click on a focused input does, which is nothing.
+ *
+ * `openspec/changes/picker-reopens-on-click/`.
+ */
+test('offers the rest of the directory when the add field is clicked again', async ({ page }) => {
+  const { tags } = await seed(page);
+  await showReferenceColumns(page);
+
+  const box = page.getByRole('combobox', { name: 'Tags for 020', exact: true });
+  /**
+   * How many lines a `CreatablePicker` is offering.
+   *
+   * Scoped to `[data-picker-list]` and **not** `getByRole('option')`, which was
+   * how this was first written: the toolbar holds two native `<select>`s — the
+   * Mermaid axis (`outline`/`step`/`assignee`) and the estimate point
+   * (`PERT`/`optimistic`/…) — whose seven `<option>` elements are in the
+   * document at all times. `expect.poll(optionsOpen).toBe(0)` on a closed list
+   * failed on `Expected: 0 · Received: 7` with nothing whatever wrong.
+   */
+  const optionsOpen = () => page.locator('[data-picker-list] [role="option"]').count();
+  /**
+   * The list is open, and it is offering the rest of the directory.
+   *
+   * **Open is a count and the membership is named — never a count of the
+   * membership.** `toBe(2)` was how this was written, and the directory is
+   * **global**: every project draws from one list on purpose
+   * (`service_team`'s own comment), so `mobile.spec.ts`' `mobile e2e tag` is in
+   * it too and the third line under this box belongs to another spec. It failed
+   * at case 252 of 270 on `Expected: 2 · Received: 3` with the fix working
+   * perfectly, and passed alone because nothing had created that tag yet. A
+   * literal count against a shared directory is a test whose result depends on
+   * which other specs have run.
+   *
+   * So the open-ness is `> 0` — which is what goes to zero when the fix is
+   * removed, watched — and what the list must *contain* is asserted by name.
+   */
+  const expectOffersTheRest = async (where: string): Promise<void> => {
+    expect(await optionsOpen(), where).toBeGreaterThan(0);
+    for (const rest of tags.slice(1)) {
+      await expect(page.getByRole('option', { name: rest.name, exact: true })).toBeVisible();
+    }
+    // And the one already on the row is not offered again, which is the other
+    // half of what "the rest of the directory" means.
+    await expect(page.getByRole('option', { name: tags[0].name, exact: true })).toHaveCount(0);
+  };
+
+  // The first add, through the cell as a reader does it: click in, take a line.
+  await box.click();
+  await expect(page.getByRole('option', { name: tags[0].name, exact: true })).toBeVisible();
+  await page.getByRole('option', { name: tags[0].name, exact: true }).click();
+  // **Scoped to this row's cell, and a page-wide locator here was a wait that
+  // waited for nothing.** `seed` puts `tags[0]` and `tags[1]` on row `010`
+  // already, so `page.locator('[data-reference-chip=…]')` matched 010's chip in
+  // the first frame and this line returned before `020`'s write had left the
+  // browser. Under the load of the whole gate the click below then landed on a
+  // row the server had not yet been told about, the list correctly offered all
+  // three tags, and the case failed on `Expected: 2 · Received: 3` — passing
+  // alone and failing at #252 of 270.
+  await expect(
+    cellOf(page, 'Tags for 020').locator(`[data-reference-chip="${tags[0].id}"]`),
+    'the tag never landed on 020',
+  ).toBeVisible();
+
+  // The take closed the list and left the focus where it was, which is the
+  // state Dany's report is about.
+  await expect(box).toBeFocused();
+  await expect.poll(optionsOpen).toBe(0);
+
+  // **The gesture.** A click on the box that already holds the focus.
+  //
+  // Proof: `onClick` deleted from `CreatablePicker`'s input, watched failing on
+  // `clicking the focused add field offered nothing · Expected: > 0 · Received:
+  // 0` — no list at all, which is the report word for word.
+  await box.click();
+  await expectOffersTheRest('clicking the focused add field offered nothing');
+
+  // The `+` beside it is the other half of "the small add field", and it hands
+  // the focus to a box that already has it — so without the same fix it is the
+  // same dead click.
+  await page.keyboard.press('Escape');
+  await expect.poll(optionsOpen).toBe(0);
+  await expect(box).toBeFocused();
+  await page.getByRole('button', { name: 'Add a tag to 020', exact: true }).click();
+  await expectOffersTheRest('the + offered nothing on a focused box');
+});
