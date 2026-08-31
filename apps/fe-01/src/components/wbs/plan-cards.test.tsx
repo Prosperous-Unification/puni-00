@@ -13,6 +13,7 @@ import type {
   TeamView,
   WorkItemView,
 } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
 import { refusedDraftFor, unsent } from './live-editing';
 import { type CardRowActionHandlers, PlanCards } from './plan-cards';
@@ -240,6 +241,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
+        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+        estimateRounding: 'ceil' as const,
         startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,
         undoable: false,
@@ -249,6 +252,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
     listWorkItemTypes: () => Promise.resolve([]),
+    listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
     create: (_projectId: string, input: { parentId: string | null; name?: string }) => {

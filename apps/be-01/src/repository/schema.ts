@@ -103,6 +103,33 @@ export const project = sqliteTable(
      */
     depReach: text('dep_reach').notNull().default('whole-item'),
     /**
+     * The three coefficients this project's PERT figure weighs optimistic,
+     * realistic and pessimistic by — see `PertWeights` in `@wbs/domain`, which
+     * is also the boundary that reads them back.
+     *
+     * Three `real` columns rather than one JSON blob, for {@link estimateMethod}'s
+     * reason: a database anyone opens says `4` under a column called
+     * `pert_weight_realistic`, and no reader has to parse a string to answer
+     * "what does this project weigh the realistic figure by". Defaulted to the
+     * textbook 1/4/1, which is the arithmetic every project already had, so this
+     * trio alone moves no plan.
+     */
+    pertWeightOptimistic: real('pert_weight_optimistic').notNull().default(1),
+    pertWeightRealistic: real('pert_weight_realistic').notNull().default(4),
+    pertWeightPessimistic: real('pert_weight_pessimistic').notNull().default(1),
+    /**
+     * Which of the three `EstimateRounding`s one step's combined figure is
+     * charged at — `floor`, `round` or `ceil`.
+     *
+     * Text and refused-on-read for {@link estimateMethod}'s reason. Defaulted to
+     * `ceil`, and unlike the weights above **this default moves every existing
+     * plan**: days were fractional until 2026-08-30 and are whole now, rounded
+     * per step before the steps are summed. That is the point of the column, not
+     * a side effect: see
+     * `docs/adr/0011-final-days-are-whole-days-rounded-per-step.md`.
+     */
+    estimateRounding: text('estimate_rounding').notNull().default('ceil'),
+    /**
      * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a project
      * that has not been placed on a calendar.
      *

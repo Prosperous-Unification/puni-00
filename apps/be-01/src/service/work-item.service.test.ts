@@ -90,6 +90,8 @@ beforeEach(async () => {
     ownerId: OWNER,
     restricted: false,
     estimateMethod: 'pert',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
     depReach: 'whole-item',
     startDate: null,
     revision: 0,
@@ -543,6 +545,8 @@ describe('the plan waits for the people in it', () => {
       ownerId: OWNER,
       restricted: false,
       estimateMethod: 'pert',
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: 'ceil',
       depReach: 'whole-item',
       startDate: null,
       revision: 0,
@@ -1114,6 +1118,16 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   const THURSDAY = '2026-08-06';
   const SATURDAY = '2026-08-08';
 
+  // Half a day only reaches the calendar under `exact`. Every other rounding
+  // charges a step whole days, so the boundary arithmetic these tests are about
+  // — a finish at midday, a chain that drifts a bit below a whole day, the snap
+  // that must not eat 14.9 — is unreachable on a project that rounds. The
+  // guards are `snapWorkdays`' and they are still live; this is the arm that
+  // reaches them (`estimate-weights-and-rounding`).
+  beforeEach(async () => {
+    await projects.update(projectId, { estimateRounding: 'exact' });
+  });
+
   /** A flat trio, so the duration in these tests is the number written. */
   const flatDaysOf = async (id: string, days: number) => {
     await service.setEstimate(id, OWNER, stepId, {
@@ -1378,6 +1392,8 @@ describe('the project’s dependency reach', () => {
         ownerId: OWNER,
         restricted: false,
         estimateMethod: 'pert',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'ceil',
         depReach: reach,
         startDate: null,
         revision: 0,
@@ -1486,6 +1502,212 @@ describe('the project’s estimate method', () => {
 
     expect(row?.finalDays).toEqual({});
     expect(row?.finalTotal).toBe(0);
+  });
+});
+
+describe('the project’s estimate arithmetic — weights, and the rounding per step', () => {
+  /**
+   * A project of its own with two steps, because the order the rounding and the
+   * sum happen in is only visible across **two** steps and the fixture's project
+   * has one.
+   */
+  async function twoStepProject(over: {
+    pertWeights?: { optimistic: number; realistic: number; pessimistic: number };
+    estimateRounding?: 'exact' | 'floor' | 'round' | 'ceil';
+  }): Promise<{ id: string; devId: string; qaId: string }> {
+    const id = crypto.randomUUID();
+    const devId = crypto.randomUUID();
+    const qaId = crypto.randomUUID();
+    await projects.create(
+      {
+        id,
+        name: 'Refit',
+        ownerId: OWNER,
+        restricted: false,
+        estimateMethod: 'pert',
+        pertWeights: over.pertWeights ?? { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: over.estimateRounding ?? 'ceil',
+        depReach: 'whole-item',
+        startDate: null,
+        solutionRef: null,
+        revision: 0,
+        createdAt: 1,
+      },
+      [
+        { id: devId, projectId: id, name: 'Dev', position: 10 },
+        { id: qaId, projectId: id, name: 'QA', position: 20 },
+      ],
+    );
+    return { id, devId, qaId };
+  }
+
+  const half = { optimistic: 0.5, realistic: 0.5, pessimistic: 0.5 };
+
+  /** One row of a project's tree, or a throw — a missing row is a broken fixture. */
+  async function rowOf(projectOfIt: string, workItemId: string) {
+    const found = (await service.tree(projectOfIt))?.workItems.find((w) => w.id === workItemId);
+    if (found === undefined) throw new Error(`no row for ${workItemId}`);
+    return found;
+  }
+
+  /**
+   * The order Dany asked for, and the one thing this change is: each step is
+   * charged on its own, and the steps are summed afterwards. Two half-day steps
+   * are two days under `ceil`; summing them first and rounding once is one.
+   *
+   * Proof: with the other order in place — `rollUpFinals` charging
+   * `combinedDays` and `finalsOf` rounding the **sum** with a `Math.ceil` — this
+   * failed on `Expected: 1 / Received: 0.5` at the Dev step, which is the
+   * fraction a plan that rounds its total still carries per step. Watched
+   * 2026-08-30.
+   *
+   * Note what this test does **not** prove, because it cannot: a leaf's steps
+   * were already charged one at a time before this change (`finalsOf` summed
+   * `finalDays` per step). The order only becomes visible across **children**,
+   * and that half is `rollUpFinals`' own proof and the parent test below.
+   */
+  it('rounds each step before summing them', async () => {
+    const { id, devId, qaId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const outcome = await service.create(id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Sand',
+    });
+    if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+    await service.setEstimate(outcome.result.id, OWNER, devId, half);
+    await service.setEstimate(outcome.result.id, OWNER, qaId, half);
+
+    const row = await rowOf(id, outcome.result.id);
+
+    expect(row.finalDays[devId]).toBe(1);
+    expect(row.finalDays[qaId]).toBe(1);
+    expect(row.finalTotal).toBe(2);
+    // What the two steps said, unrounded and unchanged: the trio is still the
+    // estimate somebody typed.
+    expect(row.estimates[devId]).toEqual(half);
+  });
+
+  it('floors, rounds and keeps the fraction when the project says so', async () => {
+    for (const [rounding, owed] of [
+      ['floor', 0],
+      ['round', 1],
+      ['ceil', 1],
+      ['exact', 0.5],
+    ] as const) {
+      const { id, devId } = await twoStepProject({ estimateRounding: rounding });
+      const outcome = await service.create(id, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Sand',
+      });
+      if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+      await service.setEstimate(outcome.result.id, OWNER, devId, half);
+
+      expect((await rowOf(id, outcome.result.id)).finalDays[devId]).toBe(owed);
+    }
+  });
+
+  it('weighs the three points by the coefficients the project set', async () => {
+    // 2/3/10 is 4 days under 1/4/1 and 5 under a plain average — the divisor is
+    // the sum of the weights, not a fixed six.
+    const { id, devId } = await twoStepProject({
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      estimateRounding: 'exact',
+    });
+    const outcome = await service.create(id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Sand',
+    });
+    if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+    await service.setEstimate(outcome.result.id, OWNER, devId, {
+      optimistic: 2,
+      realistic: 3,
+      pessimistic: 10,
+    });
+
+    const row = await rowOf(id, outcome.result.id);
+
+    expect(row.finalDays[devId]).toBe(5);
+    const tree = await service.tree(id);
+    expect(tree?.pertWeights).toEqual({ optimistic: 1, realistic: 1, pessimistic: 1 });
+    expect(tree?.estimateRounding).toBe('exact');
+  });
+
+  /**
+   * The parent half of the same order, and the half that is genuinely new: a
+   * parent used to be its rolled-up triple combined once, which for two
+   * half-day children is one day against the two days their own rows show and
+   * the two the chart draws.
+   *
+   * Proof: with `rollUpFinals` taken back to "roll the triples up, charge the
+   * parent's once" — the arithmetic that shipped until 2026-08-30 — this failed
+   * on `Expected: 2 / Received: 1` at the parent's Dev figure. Watched
+   * 2026-08-30.
+   */
+  it('gives a parent the days its children were charged, and the chart the same', async () => {
+    const { id, devId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const parent = await service.create(id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Refit the shed',
+    });
+    if (!parent.ok) throw new Error(`create failed: ${parent.reason}`);
+    const children: string[] = [];
+    for (const name of ['Strip', 'Sand']) {
+      const child = await service.create(id, OWNER, {
+        parentId: parent.result.id,
+        afterId: null,
+        name,
+      });
+      if (!child.ok) throw new Error(`create failed: ${child.reason}`);
+      await service.setEstimate(child.result.id, OWNER, devId, half);
+      children.push(child.result.id);
+    }
+
+    const tree = await service.tree(id);
+    const parentRow = await rowOf(id, parent.result.id);
+
+    expect(parentRow.rolledUp).toBe(true);
+    expect(parentRow.finalDays[devId]).toBe(2);
+    expect(parentRow.finalTotal).toBe(2);
+    // What the two children said between them — one day — which is no longer
+    // the same question as what the plan charges for them.
+    expect(parentRow.estimates[devId]).toEqual({
+      optimistic: 1,
+      realistic: 1,
+      pessimistic: 1,
+    });
+    for (const child of children) {
+      const slice = tree?.slices.find((one) => one.workItemId === child);
+      expect(slice?.duration).toBe(1);
+      expect((await rowOf(id, child)).finalDays[devId]).toBe(1);
+    }
+  });
+
+  it('plans the dates with the rounded figures it prints', async () => {
+    // The whole point of one `finalDays`: two half-day steps charged as a whole
+    // day each occupy two whole days of the calendar, and the row's own figures
+    // say so. Both steps are estimated, so nothing here is an assumed duration.
+    const { id, devId, qaId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const outcome = await service.create(id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Sand',
+    });
+    if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
+    await service.setEstimate(outcome.result.id, OWNER, devId, half);
+    await service.setEstimate(outcome.result.id, OWNER, qaId, half);
+    await projects.update(id, { startDate: '2026-08-06' });
+
+    const row = await rowOf(id, outcome.result.id);
+
+    expect(row.finalTotal).toBe(2);
+    expect(row.schedule.duration).toBe(2);
+    expect(row.schedule.earliestFinish).toBe(2);
+    // The Thursday and the Friday: one day for Dev, one for QA, where the
+    // fractional arithmetic would have put both inside the Thursday.
+    expect(row.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
   });
 });
 
@@ -1726,6 +1948,12 @@ describe('the slices the schedule placed, on the wire', () => {
     // 3.6666666666666665 and not 3.67, not 4. The next slice of the same
     // person starts exactly there, and a payload that rounded either would put
     // the bar a whole day from where the Start column says it is.
+    //
+    // Under `exact`, because that is the only arm a fraction survives now
+    // (`estimate-weights-and-rounding`): the claim is about the **payload**
+    // never rounding the engine's own numbers, which is exactly as load-bearing
+    // for a project that plans in fractions as it was for every project before.
+    await projects.update(projectId, { estimateRounding: 'exact' });
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, {
@@ -1775,6 +2003,8 @@ describe('the slices the schedule placed, on the wire', () => {
         ownerId: OWNER,
         restricted: false,
         estimateMethod: 'pert',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'ceil',
         depReach: 'whole-item',
         startDate: null,
         revision: 0,
@@ -1910,6 +2140,10 @@ describe('the slices the schedule placed, on the wire', () => {
   });
 
   it('adds slices and moves nothing else in the payload', async () => {
+    // `exact` for the reason above: the row's `finalDays` in this test is the
+    // fraction the engine ran the slice for, and the claim is that the two are
+    // one number.
+    await projects.update(projectId, { estimateRounding: 'exact' });
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, stepId, flat(3));
 
@@ -1927,11 +2161,17 @@ describe('the slices the schedule placed, on the wire', () => {
     // `depReach` is `dep-reach-whole-item`'s, and it rides here for a third
     // reason: every date here was computed from it *and* the chart has to draw
     // its arrows out of the slice it names, so a client without it would draw a
-    // chart that disagrees with the dates beside it.
+    // chart that disagrees with the dates beside it. `pertWeights` and
+    // `estimateRounding` are `estimate-weights-and-rounding`'s, and they ride
+    // here for `estimateMethod`'s reason: they are the arithmetic every figure
+    // in this payload came out of, and a client that guessed would describe the
+    // numbers in front of it with a formula they did not come from.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
       'depReach',
       'estimateMethod',
+      'estimateRounding',
+      'pertWeights',
       'priorityBands',
       'projectRevision',
       'scheduleError',
@@ -1953,6 +2193,8 @@ describe('the slices the schedule placed, on the wire', () => {
     });
     expect(tree?.waitingForPerson).toBe(0);
     expect(tree?.depReach).toBe('whole-item');
+    expect(tree?.pertWeights).toEqual({ optimistic: 1, realistic: 4, pessimistic: 1 });
+    expect(tree?.estimateRounding).toBe('exact');
     expect(tree?.scheduleError).toBeNull();
   });
 });

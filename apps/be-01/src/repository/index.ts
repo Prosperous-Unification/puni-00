@@ -1,7 +1,9 @@
 import type {
   DependencyReach,
   EstimateMethod,
+  EstimateRounding,
   IsoDate,
+  PertWeights,
   PriorityBand,
   StepState,
 } from '@wbs/domain';
@@ -77,6 +79,19 @@ export interface Project {
    * scheduling rule is one two clients can disagree about.
    */
   depReach: DependencyReach;
+  /**
+   * The coefficients this project's PERT figure weighs its three points by, and
+   * whose **sum** is the divisor — see {@link PertWeights}. 1/4/1 unless the
+   * project has said otherwise, which is the arithmetic every plan had before
+   * the weights could be set.
+   */
+  pertWeights: PertWeights;
+  /**
+   * How one step's combined figure is charged as whole days — see
+   * {@link EstimateRounding}. `ceil` unless the project has said otherwise, and
+   * applied per step before any sum is taken.
+   */
+  estimateRounding: EstimateRounding;
   /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
   startDate: IsoDate | null;
   /** The external solution this plan implements, or null when it is standalone. */
@@ -268,6 +283,9 @@ export interface ProjectPatch {
   restricted?: boolean;
   estimateMethod?: EstimateMethod;
   depReach?: DependencyReach;
+  /** All three at once: a weight is only meaningful against the other two. */
+  pertWeights?: PertWeights;
+  estimateRounding?: EstimateRounding;
   /** `null` takes the plan back off the calendar. */
   startDate?: IsoDate | null;
   /** `null` detaches the plan from its external solution. */

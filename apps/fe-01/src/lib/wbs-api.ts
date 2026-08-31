@@ -26,6 +26,55 @@ export function isEstimateMethod(value: string): value is EstimateMethod {
   return (ESTIMATE_METHODS as readonly string[]).includes(value);
 }
 
+/**
+ * The coefficients a project's PERT figure weighs its three points by, and whose
+ * **sum** is the divisor — 1/4/1 is the textbook `/6`, 1/1/1 a plain average.
+ *
+ * Declared here for {@link EstimateMethod}'s reason. be-01 refuses a triple
+ * that cannot average one — negative, non-finite, or summing to zero — with a
+ * 422; this is the description of what comes back, not the rule.
+ */
+export interface PertWeightsView {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+/**
+ * How one step's combined figure is charged as days: `floor`, `round`, `ceil`,
+ * or `exact` for the fraction the method produced.
+ *
+ * `ceil` unless the project says otherwise, and applied **per step** before any
+ * sum is taken — a work item's total is the sum of its steps' charged days, and
+ * a parent's is the sum of its descendants'. Mirrors `EstimateRounding` in
+ * `libs/domain`.
+ */
+/**
+ * The coefficients a project has unless it says otherwise: `(1×o + 4×r + 1×p)`
+ * over their sum, which is the textbook PERT triple.
+ *
+ * Mirrored here rather than imported from `libs/domain`'s
+ * `DEFAULT_PERT_WEIGHTS`, exactly as {@link ESTIMATE_ROUNDINGS} below mirrors
+ * `EstimateRounding`: this module is the front end's boundary onto be-01's
+ * payloads, and the four `@wbs/domain/*` aliases the browser build resolves are
+ * registered in five files apiece. The domain remains the source of record —
+ * this is a placeholder for the moment before a read has landed, and every
+ * figure the table actually draws comes from `tree.pertWeights`.
+ */
+export const DEFAULT_PERT_WEIGHTS_VIEW: PertWeightsView = {
+  optimistic: 1,
+  realistic: 4,
+  pessimistic: 1,
+};
+
+export const ESTIMATE_ROUNDINGS = ['exact', 'floor', 'round', 'ceil'] as const;
+export type EstimateRoundingView = (typeof ESTIMATE_ROUNDINGS)[number];
+
+/** Whether `value` is one of the four, for reading a control's string back. */
+export function isEstimateRounding(value: string): value is EstimateRoundingView {
+  return (ESTIMATE_ROUNDINGS as readonly string[]).includes(value);
+}
+
 export interface Days {
   optimistic: number;
   realistic: number;
@@ -324,6 +373,20 @@ export interface WorkItemView {
    */
   typeIds?: string[];
   /**
+   * Where this row's work also exists, in the order the refs were added.
+   *
+   * **The only reference-shaped field here that is a list of records rather
+   * than of ids**, and the reason is that a ref is not a label: a tag is a name
+   * from a vocabulary, a ref is a vocabulary name *plus* the address of one
+   * thing, so two refs into one system are two different links rather than one
+   * fact stated twice. Nothing inherits — a ref is on the row that carries it.
+   *
+   * **Optional on the wire, required on a `TreeRow`** — `tagIds`' swap window
+   * exactly. `undefined` is "the be-01 that answered has never heard of external
+   * refs"; `toTree` folds it to `[]`, which is the one place it may.
+   */
+  externalRefs?: ExternalRefView[];
+  /**
    * Who does this work, by step id.
    *
    * `string | undefined` rather than `string`: a step nobody is assigned to is
@@ -451,6 +514,69 @@ export interface TeamView {
 export interface TagView {
   id: string;
   name: string;
+}
+
+/**
+ * One link out of a work item: which system, and where.
+ *
+ * `systemId` is the **stored** derivation (design D1) — `systemOfUrl` answered
+ * it when the ref was written and nothing re-derives it on read, so a ref keeps
+ * the type it was given when the rule later changes. A reader who overrode the
+ * derived type simply has a stored value that differs from what the deriver
+ * would say today, and nothing on this client may quietly correct that.
+ *
+ * `url` is a string and not a parsed URL: it is stored as typed, so **every
+ * surface that renders it as a link checks the scheme first**
+ * ({@link followableHref}). A `javascript:` URL written by a peer edit is the
+ * fault that rule exists for.
+ */
+export interface ExternalRefView {
+  id: string;
+  systemId: string;
+  url: string;
+}
+
+/**
+ * One external system in the global directory — {@link TagView}'s two columns.
+ *
+ * Seeded rather than empty, unlike every other vocabulary here: the names are
+ * exactly what `systemOfUrl` in `@wbs/domain` can answer, so the vocabulary and
+ * the deriving rule are one fact and a pasted URL can type itself on a
+ * deployment nobody has configured.
+ */
+export interface ExternalSystemView {
+  id: string;
+  name: string;
+}
+
+/**
+ * The `href` a ref may be followed by, or `null` for one that may only be read.
+ *
+ * **The scheme guard, and the one place it is decided.** A stored URL is
+ * external data on the way *out*: it was typed by somebody, or written by a
+ * peer edit, or seeded by a script, and neither be-01 nor `systemOfUrl` refuses
+ * a scheme at the write (design D1 — a mismatch has to stay storable or an
+ * override is impossible). So the renderer is where `javascript:` stops, and it
+ * stops on **both** surfaces — the hover card and the modal editor — by both of
+ * them asking here rather than each writing an `href` of its own.
+ *
+ * `null` is a modeled answer and not a failure: the ref is still shown, as
+ * text, because a reader who cannot follow a link is better served by seeing
+ * what it says than by an empty row. It is deliberately not a throw — a plan
+ * that renders nothing at all because one row holds a bad URL is worse than the
+ * URL.
+ *
+ * @returns the URL, when it parses as `http:` or `https:`; `null` otherwise,
+ * including for a string no `URL` constructor accepts.
+ */
+export function followableHref(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : null;
 }
 
 /**
@@ -735,6 +861,17 @@ export interface DirectoryApi {
   listWorkItemTypes(): Promise<WorkItemTypeView[]>;
   /** Adds a work item type — `addTag`'s shape. Idempotent by name at be-01. */
   addWorkItemType(name: string): Promise<WorkItemTypeView>;
+  /**
+   * Every external system in the global directory, by name.
+   *
+   * **Read-only, and unlike the tags there is no `add` beside it.** The
+   * vocabulary is seeded with exactly the names `systemOfUrl` can answer, and
+   * be-01 offers no create: a ref naming a system the directory does not hold is
+   * refused whole with `unknown_system`. So the ref editor picks from this list
+   * rather than creating from it — see the ref modal for what a reader does with
+   * a URL no rule claims.
+   */
+  listExternalSystems(): Promise<ExternalSystemView[]>;
   renameWorkItemType(typeId: string, name: string): Promise<DirectoryWrite<WorkItemTypeView>>;
   /**
    * Removes a work item type. Without `cascade` a type anything carries is
@@ -976,6 +1113,17 @@ export interface ProjectApi {
     priorityBands: PriorityBandView[];
     estimateMethod: EstimateMethod;
     /**
+     * The arithmetic every figure in this payload came out of: the coefficients
+     * the PERT numbers were weighed by, and the rounding each step's figure was
+     * charged at.
+     *
+     * Reported for {@link depReach}'s reason — a client that guessed would
+     * describe the numbers in front of it with a formula they did not come from
+     * — and written through {@link ProjectApi.setEstimateArithmetic}.
+     */
+    pertWeights: PertWeightsView;
+    estimateRounding: EstimateRoundingView;
+    /**
      * How far into a predecessor this plan's dependencies reach.
      *
      * **Every date in this payload was computed from it**, on be-01, and the
@@ -1016,6 +1164,22 @@ export interface ProjectApi {
   redo(projectId: string): Promise<UndoResult>;
   /** Changes how the project turns its three-point estimates into one number. */
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
+  /**
+   * Changes the PERT weights, the rounding, or both.
+   *
+   * One call rather than two, because they are one arithmetic and a surface
+   * that sets them apart would put the plan through two rereads and two
+   * intermediate answers. The weights go as a **triple**: the divisor is their
+   * sum, so a request naming one of them is asking for an arithmetic it has not
+   * stated, and be-01 refuses a partial object outright.
+   *
+   * Every figure and every date in the plan may move on either, so the caller
+   * reads the tree again — `setDepReach`'s rule exactly.
+   */
+  setEstimateArithmetic(
+    projectId: string,
+    arithmetic: { pertWeights?: PertWeightsView; estimateRounding?: EstimateRoundingView },
+  ): Promise<void>;
   /**
    * Changes how far into a predecessor this project's dependencies reach.
    *
@@ -1150,6 +1314,25 @@ export interface ProjectApi {
        * transaction. At most 10 ids.
        */
       typeIds?: readonly string[];
+      /**
+       * Where this row's work also exists, **whole**: the list as it will stand,
+       * in the order it will stand in.
+       *
+       * `tagIds`' replacement rule and its undo argument, with one difference
+       * that matters — the members are records, so "the same list" means the
+       * same refs in the same order rather than the same set of ids. `[]`
+       * removes every ref; absent leaves the list alone.
+       *
+       * No `id` on an entry, because the store mints one per row: a caller
+       * states which system and where, and the ref it gets back is a new row
+       * even where the URL is one that was already there. That is what makes
+       * the write a replacement rather than a merge.
+       *
+       * Refused whole with `unknown_system` for a `systemId` the directory does
+       * not hold, decided inside be-01's own write transaction. At most 50
+       * entries.
+       */
+      externalRefs?: readonly { systemId: string; url: string }[];
     },
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
@@ -1179,6 +1362,16 @@ export interface ProjectApi {
    * vocabulary ever gets a first member.
    */
   addWorkItemType(name: string): Promise<WorkItemTypeView>;
+  /**
+   * Every external system in the global directory — {@link
+   * DirectoryApi.listExternalSystems}, read by the plan page for the ref
+   * editor's picker.
+   *
+   * The one vocabulary with no `add` beside it here, and that is a fact about
+   * be-01 rather than an omission: the list is seeded with the names
+   * `systemOfUrl` answers, and there is no create route to make a sixth.
+   */
+  listExternalSystems(): Promise<ExternalSystemView[]>;
   addTag(name: string): Promise<TagView>;
   renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
@@ -1782,6 +1975,13 @@ export function httpDirectoryApi(token: string): DirectoryApi {
       const body = await send<{ workItemTypes: WorkItemTypeView[] }>('/api/work-item-types', token);
       return body.workItemTypes;
     },
+    async listExternalSystems() {
+      const body = await send<{ externalSystems: ExternalSystemView[] }>(
+        '/api/external-systems',
+        token,
+      );
+      return body.externalSystems;
+    },
     addWorkItemType: (name) =>
       directoryCreate<WorkItemTypeView>(token, { kind: 'createWorkItemType', name }),
     renameWorkItemType: (typeId, name) =>
@@ -1860,6 +2060,8 @@ export function httpProjectApi(token: string): ProjectApi {
         teamCapacities: TeamCapacityView[];
         priorityBands: PriorityBandView[];
         estimateMethod: EstimateMethod;
+        pertWeights: PertWeightsView;
+        estimateRounding: EstimateRoundingView;
         depReach: DependencyReach;
         startDate: string | null;
         projectRevision: number;
@@ -1881,6 +2083,7 @@ export function httpProjectApi(token: string): ProjectApi {
     listServices: () => directory.listServices(),
     addService: (name) => directory.addService(name),
     listWorkItemTypes: () => directory.listWorkItemTypes(),
+    listExternalSystems: () => directory.listExternalSystems(),
     addWorkItemType: (name) => directory.addWorkItemType(name),
     addTag: (name) => directory.addTag(name),
     renameTag: (tagId, name) => directory.renameTag(tagId, name),
@@ -1906,6 +2109,12 @@ export function httpProjectApi(token: string): ProjectApi {
       await send(`/api/projects/${projectId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({ estimateMethod: method }),
+      });
+    },
+    async setEstimateArithmetic(projectId, arithmetic) {
+      await send(`/api/projects/${projectId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(arithmetic),
       });
     },
     async setDepReach(projectId, reach) {

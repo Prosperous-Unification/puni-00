@@ -106,8 +106,8 @@ contract: `docs/runbook-prod-deploy.md`.**
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`) — 66 tests
-  green against another checkout, 2026-08-09, and a reused server keeps its own `DB_PATH`. Run
-  `CI=1 E2E_PORT_SHIFT=<n>` on free ports; a killed run leaves its shifted servers up.
+  green against another checkout, 2026-08-09, and it keeps its own `DB_PATH`. Shift onto ports the
+  **browser** talks to: 1800 puts fe-01 on 6000, every navigation `ERR_UNSAFE_PORT`; 1900 is good.
 - **A whole-workspace run is not the sum of per-project runs.** Six import-sort errors reached
   `main` on 2026-08-30 green in every per-project run — imports inserted by regex rather than by
   editing the block. Per-project lint was scoped to a place the fault was not: gate before merging.
@@ -126,7 +126,7 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 
 Findings 3–5 closed. Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes
 on any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live
-sockets; `tool-secrets` only prints what it would run. Checks that cannot fail: **eighteen** (R5).
+sockets; `tool-secrets` only prints what it would run. Checks that cannot fail: **nineteen** (R5).
 
 ## More
 

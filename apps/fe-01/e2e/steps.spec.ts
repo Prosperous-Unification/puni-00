@@ -197,7 +197,10 @@ test.describe('the steps surface, in a browser', () => {
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
 
     // The arithmetic the surface prints, while it is still open to print it.
-    await expect(page.getByText('3 steps need ≥1327px of width to sit side by side')).toBeVisible();
+    // 1327 → 1367 in `external-refs`: the Links column costs the folded table
+    // 40. And 1367 → 1343 on 2026-08-31, when `depends` paid for it (110 → 86);
+    // the other 16 of the column's 40 came out of slack the table already had.
+    await expect(page.getByText('3 steps need ≥1343px of width to sit side by side')).toBeVisible();
     await page.keyboard.press('Escape');
 
     const threeSteps = await columnsOnScreen(page);

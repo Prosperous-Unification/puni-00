@@ -38,6 +38,7 @@
  */
 import type { Project, Step, StoredDependency, WorkItem } from '../src/repository';
 import { STEP_POSITION_STEP } from '../src/repository';
+import { WorkItemService } from '../src/service/work-item.service';
 import { recordingBroadcaster } from '../src/testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../src/testing/command-journal-fixture';
 import { inMemoryDependencies } from '../src/testing/dependency-fixture';
@@ -46,7 +47,6 @@ import { inMemoryEstimates } from '../src/testing/estimate-fixture';
 import { inMemoryProjects } from '../src/testing/project-fixture';
 import { inMemorySubtrees } from '../src/testing/subtree-fixture';
 import { inMemoryWorkItems } from '../src/testing/work-item-fixture';
-import { WorkItemService } from '../src/service/work-item.service';
 
 /** How many plans. Large enough to hold every shape below several times over. */
 const PLANS = 16;
@@ -204,9 +204,15 @@ function planFor(seed: number): Plan {
   // generate a cycle and every plan in the corpus really schedules.
   for (let at = 1; at < topLevel.length; at += 1) {
     if (next() > 0.45) continue;
+    // No nullish guard on these two, and its absence is the point. `at` is
+    // bounded by `topLevel.length` and the second index falls in `[0, at)`, so
+    // both are in range by construction — and without `noUncheckedIndexedAccess`
+    // they type as `string` anyway, which is why eslint called the guard that
+    // stood here unreachable the first time this file was ever linted
+    // (2026-08-31, when it gained a `tsconfig` that reaches it). A check that
+    // cannot fail is worse than no check: it reads as one (`AGENTS.md`, R5).
     const successor = topLevel[at];
     const predecessor = topLevel[Math.floor(next() * at)];
-    if (successor === undefined || predecessor === undefined) continue;
     const row = rows.find((each) => each.id === successor);
     if (row === undefined) throw new Error(`no row for ${successor}`);
     row.dependsOn.push(predecessor);
@@ -251,6 +257,8 @@ async function main(): Promise<void> {
       ownerId: 'owner',
       restricted: false,
       estimateMethod: plan.estimateMethod,
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: 'ceil',
       startDate: plan.startDate,
       revision: 0,
       createdAt: 1,

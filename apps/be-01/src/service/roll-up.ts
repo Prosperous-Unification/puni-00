@@ -1,4 +1,11 @@
-import { agree, type ItemState, NOT_STARTED, stateOf } from '@wbs/domain';
+import {
+  agree,
+  type EstimateRule,
+  finalDays,
+  type ItemState,
+  NOT_STARTED,
+  stateOf,
+} from '@wbs/domain';
 
 import type {
   MeasureMetric,
@@ -103,6 +110,41 @@ export function rollUp(
     ownOf.set(held.workItemId, byStep);
   }
   return foldByStep(rows, ownOf, add);
+}
+
+/**
+ * Every work item's **charged** days by step: a leaf's own estimate combined and
+ * rounded by `rule`, and a parent's the sum of its descendants' **rounded**
+ * figures.
+ *
+ * The order is the product decision and the reason this is not derived from
+ * {@link rollUp}: each step is rounded where it is estimated, and the sums are
+ * taken over whole days afterwards. Rolling the triples up first and rounding
+ * the parent's combined figure once — which is what `finalsOf` did until
+ * `estimate-weights-and-rounding` — charges two children holding half a day
+ * each as **one** day while the two rows beneath show one day apiece and the
+ * chart draws two. See
+ * `docs/adr/0011-final-days-are-whole-days-rounded-per-step.md`.
+ *
+ * A parent's rolled-up **estimate** is still the sum of the triples
+ * ({@link rollUp}); this is what the plan charges rather than what its rows
+ * said, and the two are allowed to differ now.
+ *
+ * A step no descendant estimated is absent here as it is everywhere else — a
+ * zero would say somebody costed it at nothing.
+ */
+export function rollUpFinals(
+  rows: readonly WorkItem[],
+  estimates: readonly StoredEstimate[],
+  rule: EstimateRule,
+): Map<string, Map<string, number>> {
+  const ownOf = new Map<string, Map<string, number>>();
+  for (const held of estimates) {
+    const byStep = ownOf.get(held.workItemId) ?? new Map<string, number>();
+    byStep.set(held.stepId, finalDays(held, rule));
+    ownOf.set(held.workItemId, byStep);
+  }
+  return foldByStep(rows, ownOf, (a, b) => a + b);
 }
 
 /**

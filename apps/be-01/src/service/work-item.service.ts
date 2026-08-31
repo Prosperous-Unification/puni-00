@@ -3,12 +3,15 @@ import {
   type DependencyReach,
   effectiveTeamsOf,
   type EstimateMethod,
+  type EstimateRounding,
+  type EstimateRule,
   finalDays,
   firstWorkdayOf,
   type IsoDate,
   lastWorkdayOf,
   NOT_STARTED,
   ORDINARY_BAND_RANK,
+  type PertWeights,
   type PriorityBand,
   type StepState,
   workdaysBetween,
@@ -65,6 +68,7 @@ import {
   type Days,
   rollUp,
   rollUpActuals,
+  rollUpFinals,
   rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
@@ -179,7 +183,13 @@ function slicesOf(
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
   stepIds: readonly string[],
-  method: EstimateMethod,
+  /**
+   * The project's whole estimate arithmetic — method, weights and rounding.
+   * The number a slice runs for is `finalDays`' own, so the bar the chart
+   * draws and the figure the table prints are one number rather than two
+   * roundings of one estimate.
+   */
+  rule: EstimateRule,
   /**
    * Each work item's assignees by step, from which every slice's person is
    * read.
@@ -212,7 +222,7 @@ function slicesOf(
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
     if (!inProject.has(estimate.workItemId)) continue;
-    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, method));
+    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, rule));
     if (!held.has(estimate.stepId)) unlisted.add(estimate.stepId);
   }
 
@@ -352,22 +362,26 @@ function datesOf(
 }
 
 /**
- * One row's final figure per step, and their sum, under the project's method.
+ * One row's charged days per step, as the payload carries them, and their sum.
  *
- * Split out so the shape is built in one place: `finalDays` and `finalTotal`
- * disagreeing would be two answers to one question, and the table prints both
- * side by side.
+ * Takes the figures {@link rollUpFinals} already charged rather than combining
+ * anything itself: the rounding happens once, per step, where the estimate is
+ * — and a second combine here would be a second answer to the question the
+ * table prints twice, side by side.
+ *
+ * The sum is taken over whole days for the same reason, so `finalTotal` is
+ * always the addition a reader can do in their head from the row's own step
+ * figures.
  */
-function finalsOf(
-  byStep: ReadonlyMap<string, Days>,
-  method: EstimateMethod,
-): { finalDays: Record<string, number>; finalTotal: number } {
+function finalsOf(charged: ReadonlyMap<string, number>): {
+  finalDays: Record<string, number>;
+  finalTotal: number;
+} {
   const perStep: Record<string, number> = {};
   let total = 0;
-  for (const [stepId, days] of byStep) {
-    const final = finalDays(days, method);
-    perStep[stepId] = final;
-    total += final;
+  for (const [stepId, days] of charged) {
+    perStep[stepId] = days;
+    total += days;
   }
   return { finalDays: perStep, finalTotal: total };
 }
@@ -1219,6 +1233,17 @@ export class WorkItemService {
     priorityBands: PriorityBand[];
     estimateMethod: EstimateMethod;
     /**
+     * The coefficients the PERT figures above were weighed by, and the rounding
+     * they were charged at.
+     *
+     * On the wire for {@link depReach}'s reason: a client that guessed would
+     * describe the numbers in front of it with an arithmetic they did not come
+     * from. Both are reported and set through the project patch, never sent per
+     * read.
+     */
+    pertWeights: PertWeights;
+    estimateRounding: EstimateRounding;
+    /**
      * How far into a predecessor this project's dependencies reach.
      *
      * On the wire so that the **drawing** and the schedule cannot disagree: the
@@ -1273,6 +1298,18 @@ export class WorkItemService {
     }
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
+    // The project's whole estimate arithmetic, assembled once and handed to
+    // everything that needs a number of days: the slices the schedule runs and
+    // the figures the table prints. Two assemblies would be two arithmetics.
+    const rule: EstimateRule = {
+      method: project.estimateMethod,
+      pertWeights: project.pertWeights,
+      rounding: project.estimateRounding,
+    };
+    // What each row is **charged**, per step: a leaf's own estimate rounded, a
+    // parent's the sum of its descendants' rounded figures. Not `totals` put
+    // through the method — see `rollUpFinals`.
+    const charged = rollUpFinals(rows, stored, rule);
     const recordedTotals = rollUpActuals(rows, recorded);
     // Three folds over a tree already in memory, one per metric, because adding
     // a token to an hour is the thing `rollUpMeasures` exists to make
@@ -1334,7 +1371,7 @@ export class WorkItemService {
       stored,
       hasChildren,
       steps.map((each) => each.id),
-      project.estimateMethod,
+      rule,
       assigneesOf,
       teamOf,
       slotsOf,
@@ -1466,12 +1503,13 @@ export class WorkItemService {
         // disagreement in between — including the one that matters most, one
         // step finished and another silent. `@wbs/domain`'s `agree`.
         state: itemStates.get(row.id) ?? NOT_STARTED,
-        // A parent's final figure is its rolled-up totals put through the same
-        // method, not the sum of its children's finals. For PERT the two agree
-        // (the weighting is linear); for the others they agree too, since each
-        // picks one point and the points are summed. Doing it from the totals
-        // keeps one path rather than two that happen to match today.
-        ...finalsOf(totals.get(row.id) ?? new Map(), project.estimateMethod),
+        // A parent's charged days are the **sum of its descendants' rounded
+        // figures**, not its rolled-up triple put through the method once. The
+        // two agreed while days were fractional and part company the moment a
+        // step is rounded: two children holding half a day each are charged one
+        // day apiece, and a parent computed from the triples would say one day
+        // for the pair. `rollUpFinals` holds that decision and its proof.
+        ...finalsOf(charged.get(row.id) ?? new Map()),
         rolledUp: hasChildren.has(row.id),
         // Only predecessors that are in this project. A stored edge naming a
         // work item from elsewhere — which the schema does not prevent — would
@@ -1508,6 +1546,8 @@ export class WorkItemService {
         .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
       priorityBands,
       estimateMethod: project.estimateMethod,
+      pertWeights: project.pertWeights,
+      estimateRounding: project.estimateRounding,
       depReach: project.depReach,
       startDate: project.startDate,
       projectRevision: project.revision,

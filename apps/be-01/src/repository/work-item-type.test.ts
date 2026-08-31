@@ -67,6 +67,8 @@ beforeEach(async () => {
     ownerId,
     restricted: false,
     estimateMethod: 'pert',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
     startDate: null,
     solutionRef: null,
     revision: 0,

@@ -44,6 +44,8 @@ function project(name: string, createdAt: number): Project {
     ownerId,
     restricted: false,
     estimateMethod: 'pert',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
     depReach: 'whole-item',
     startDate: null,
     solutionRef: null,
@@ -98,6 +100,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'));
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260830130000_add_estimate_weights_and_rounding',
       '20260830120000_add_dep_reach',
       '20260830020000_add_external_ref',
       '20260830010000_add_work_item_type',
@@ -317,6 +320,92 @@ describe('ProjectRepository', () => {
     }
 
     expect(await rejection(repo.findById(shed.id))).toMatch(/unknown dependency reach/);
+  });
+
+  it('gives a project the arithmetic it has said nothing about: 1/4/1, ceil', async () => {
+    // The four column defaults, read back through the boundary. Every project
+    // the migration reached lands here too — the same statement, one release
+    // earlier — which is what makes `ceil` a change to every stored plan and
+    // 1/4/1 a change to none.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, steps(shed.id, 'Dev'));
+
+    expect(await repo.findById(shed.id)).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: 'ceil',
+    });
+  });
+
+  it('patches the weights and the rounding, and moves the revision for each', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, steps(shed.id, 'Dev'));
+
+    const weighted = await repo.update(shed.id, {
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+    });
+    const rounded = await repo.update(shed.id, { estimateRounding: 'floor' });
+
+    expect(weighted).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      revision: 1,
+    });
+    expect(rounded).toMatchObject({ estimateRounding: 'floor', revision: 2 });
+    expect(await repo.findById(shed.id)).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      estimateRounding: 'floor',
+      // Untouched by either patch: the three weights are written as a triple or
+      // not at all, and neither patch named the method.
+      estimateMethod: 'pert',
+    });
+  });
+
+  it('refuses a stored rounding it does not know', async () => {
+    // `estimate_rounding` is text and SQLite will hold anything. Reading
+    // `nearest` back as `ceil` — which is what a `?? 'ceil'` would do, and what
+    // `roundDays`' last branch would do if the value ever reached it — charges
+    // every step of the plan by a rule nobody chose. R5's case exactly, and it
+    // arrives for real when an older colour reads a value a newer release wrote
+    // mid-swap.
+    //
+    // Proof: the `isEstimateRounding` throw in `toProject` replaced by
+    // `isEstimateRounding(row.estimateRounding) ? row.estimateRounding : 'ceil'`
+    // and this failed on `Expected substring or pattern: /unknown estimate
+    // rounding/`, `Received: "(resolved without throwing)"`. Watched
+    // 2026-08-30.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, steps(shed.id, 'Dev'));
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run(`UPDATE project SET estimate_rounding = 'nearest' WHERE id = '${shed.id}'`);
+    } finally {
+      db.close();
+    }
+
+    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate rounding/);
+  });
+
+  it('refuses stored weights that cannot average a triple', async () => {
+    // Three zeroes have no divisor: every PERT figure in the plan would be
+    // `NaN`, which renders as a blank cell and reports itself as estimated.
+    // Refused as a triple rather than a column at a time, because that is the
+    // shape of the fault — see `PertWeights`.
+    //
+    // Proof: the `type.errors` branch in `toProject` replaced by a cast to the
+    // triple, and this failed on `Expected substring or pattern: /unusable PERT
+    // weights/`, `Received: "(resolved without throwing)"` — the project read
+    // back happily and `tree` then answered `NaN` days. Watched 2026-08-30.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, steps(shed.id, 'Dev'));
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run(
+        `UPDATE project SET pert_weight_optimistic = 0, pert_weight_realistic = 0, pert_weight_pessimistic = 0 WHERE id = '${shed.id}'`,
+      );
+    } finally {
+      db.close();
+    }
+
+    expect(await rejection(repo.findById(shed.id))).toMatch(/unusable PERT weights/);
   });
 
   it('costs one statement however many projects there are', async () => {

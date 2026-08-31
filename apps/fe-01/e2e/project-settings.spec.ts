@@ -124,13 +124,21 @@ test.describe('the project settings control, in a browser', () => {
     );
   });
 
-  test('opens on its control, offers three sections, and closes back onto it', async ({ page }) => {
+  test('opens on its control, offers four sections, and closes back onto it', async ({ page }) => {
     await freshProject(page);
     const control = page.getByRole('button', { name: 'Project settings' });
     await control.click();
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('tab')).toHaveText(['Teams', 'Priorities', 'Steps']);
+    // Four since `estimate-weights-and-rounding`: `Estimating` is where the
+    // PERT weights and the per-step rounding are typed, and it sits last
+    // because it is the section a plan is least often opened for.
+    await expect(dialog.getByRole('tab')).toHaveText([
+      'Teams',
+      'Priorities',
+      'Steps',
+      'Estimating',
+    ]);
 
     // The arrow keys walk the list and select as they go — a real keydown on a
     // real focused tab, which is the half jsdom's synthetic dispatch cannot see.

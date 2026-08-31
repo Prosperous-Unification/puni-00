@@ -30,6 +30,7 @@ function emptyProjects(): ProjectApi {
     listTeams: () => Promise.resolve([]),
     listTags: () => Promise.resolve([]),
     listWorkItemTypes: () => Promise.resolve([]),
+    listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     addTeam: notHere,
     listPeople: () => Promise.resolve([]),

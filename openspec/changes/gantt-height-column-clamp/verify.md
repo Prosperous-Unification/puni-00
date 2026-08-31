@@ -1,15 +1,21 @@
 # verify — `gantt-height-column-clamp`
 
-Implemented for slices 1, 2 and 4, with the browser half of every slice **unrun**
-— see "Skipped or unavailable checks". Slices **3 and 5 are not implemented**
-and not ticked: for each, the mechanism the slice names is shown below not to
-produce the behaviour it asks for, and the finding is written down rather than a
-layout change guessed with no browser to measure it in. Slice 6 is not run.
+Slices 1, 2 and 4 are implemented **and now run in a browser**. Slice 4 grew a
+second half (4.2) that the browser found. Slices **3 and 5 are not implemented**
+and not ticked; 3 is now refused on measurement rather than on argument, and 5
+belongs to `unified-scroll-docking`. Slice 6 is partly run.
 
-## The fault, measured
+Everything below marked "measured" or "watched" is Chromium output from
+2026-08-30, run as `CI=1 E2E_PORT_SHIFT=900 bunx playwright test --config
+apps/fe-01/playwright.config.ts …` from the workspace root — the shifted ports
+being the whole point, because 3100/3200/4200 were held by a dev server and
+`reuseExistingServer: !isCi` would have measured that checkout
+(`LLM_README.md`'s landmine).
+
+## The fault, as first measured
 
 Chrome, 2026-08-29, `localhost:4200`, viewport 963px, one project with the chart
-shown. Read out of the live DOM.
+shown. Kept for the record; the browser gate's own figures are below it.
 
 | Quantity                                       | Measured                                               |
 | ---------------------------------------------- | ------------------------------------------------------ |
@@ -22,220 +28,231 @@ shown. Read out of the live DOM.
 | `document.scrollHeight` after drag 2           | 963 — unchanged, no scrollbar                          |
 | overhang unreachable                           | **245px**                                              |
 
-Ruled out by measurement, not by reading: hit-testing (nine sampled points
-across the 6px strip all returned the handle; `isolate` on the panel and
-`zIndex: 1` on the handle both in force) and the gesture itself (every drag
-committed the right number to `localStorage`).
+## The layout, measured in the gate
 
-## Why the existing suite is green through it
+Chromium, 1400×900 (the project's viewport), the three-row fixture
+`seedPlan` builds, read out of the live DOM. `section[data-slice-count]` is the
+column.
 
-`e2e/gantt.spec.ts`'s `the chart edge the reader drags` asserts the panel's
-height after a drag. The height was right every time — 337.71, then 757, exactly
-what was asked for. It never asserted where the panel's bottom **was**. Slice
-1.1 adds that assertion (`stays inside the column it lives in`), written before
-the fix and **not executed** — the ports were held, as they were during the
-investigation.
+| Child (in order)                   | Height    | `min-height` | `flex-shrink` | `margin-bottom` |
+| ---------------------------------- | --------- | ------------ | ------------- | --------------- |
+| plan toolbar                       | 68        | `auto`       | 0             | 6               |
+| table frame (`[data-table-frame]`) | 320       | `320px`      | 1             | 0               |
+| dock slack (`GANTT_DOCK_SLACK`)    | 312 → 0   | `0px`        | 1             | 0               |
+| height handle                      | 6         | `auto`       | 0             | −6              |
+| **the panel**                      | 113 → 425 | `auto`       | 0             | 0               |
+| footer                             | 24        | `auto`       | 1             | 0               |
+| toast stack                        | 0         | `0px`        | 1 (`fixed`)   | 0               |
+
+- column: top 49, bottom **892**, height **843**; no padding, no border.
+- what the others keep: `6 + 68 + 320 + 0 + 0 + 24` = **418**
+  (the frame at its `320px` floor, the dock slack at its `0px` one, the handle's
+  6px cancelled by its −6 margin, the footer at the height it stands at because
+  its `min-height` is `auto`, the toast stack skipped for being `fixed`).
+- **room = 843 − 418 = 425**, which is exactly the `max-height` the panel is
+  given and exactly the height a maximal drag settles at.
+- at rest: panel 113, `max-height` `360px` — `max-h-[40vh]` of a 900px window,
+  which is the untouched default share.
+- after `dragTheEdge(-400)`: panel **425**, `max-height` **425px**, bottom
+  **868** against a column bottom of 892, and
+  `document.documentElement.scrollHeight − clientHeight` = **0**.
+
+Other windows, same fixture:
+
+| Window   | Column | Room / panel after a maximal drag    |
+| -------- | ------ | ------------------------------------ |
+| 1400×900 | 843    | 425                                  |
+| 1400×700 | 643    | 225                                  |
+| 1400×500 | 443    | **25** — see the open finding below  |
+| 768×900  | 843    | 389 (the toolbar takes a second row) |
 
 ## What was changed
 
+Unchanged from the 2026-08-29 write-up:
+
 - `clampedGanttHeight(px, availablePx)` caps at `min(GANTT_CEILING_PX,
-availablePx)`. `GANTT_VIEWPORT_SHARE` is **deleted** — it had no other reader
-  once the panel's `max-height` stopped using it.
-- `ganttRoomInColumn(column, panel)` is new, and is the only thing that answers
-  "how much room": the column's content height less what every **other** child
-  insists on keeping — its margins always, plus either the definite `min-height`
-  it can shrink to or the height it stands at. All of it read off the live
-  boxes; nothing derived from a constant. It answers `number | null`, and the
-  `null` is "nothing has been laid out", deliberately a different answer from
-  the `0` a column that has run out of room gives.
-- **The room formula was written the other way round first and was wrong.**
-  `panel + slackBelow + shrinkableAbove` reads correctly on a healthy layout and
-  lies on a broken one: a panel that is already overflowing has no slack under it
-  and its shrinkable neighbour is already on its floor, so the sum comes back as
-  the overflowing height itself and the clamp allows exactly what it was meant to
-  refuse — a stable broken state, reached on the very first measurement after the
-  chart is opened at a too-large remembered height. Caught by working the effect
-  through by hand, **not** by a test: no jsdom test could see it, and the browser
-  one is unrun. The formula that shipped does not mention the panel's height at
-  all, which is what makes it right on a broken layout and trivially invariant on
-  a healthy one.
-- The handle measures the room **once per gesture**, at `pointerdown`, beside
-  the from-height it already measured there.
-- `appliedGanttHeight(claim, room)` is new: `wbs-table.tsx` holds the reader's
-  claim and a `ganttRoomPx` measured by a `useLayoutEffect` + `ResizeObserver`
-  on the column, and the panel is handed the claim **re-clamped**, never the
-  claim rewritten. Nothing writes to storage on a re-clamp.
-- The panel's `max-height` is the measured room, falling back to `100%` — the
-  column — where nothing has measured it. Never a `vh`.
-- **The panel keeps `shrink-0`, against the proposal** — see "The finding on
-  slice 3" below.
-- `table-frame.ts`'s JSDoc says the frame is the only shrinkable item in the
-  column. That is still true, and it now says _why the panel being `shrink-0` is
-  load-bearing_ rather than listing it as incidental.
+availablePx)`; `GANTT_VIEWPORT_SHARE` is deleted.
+- `ganttRoomInColumn(column, panel)` answers the room off the live boxes and
+  never from a constant, `null` meaning "nothing has been laid out".
+- The handle measures the room once per gesture, at `pointerdown`.
+- `appliedGanttHeight(claim, room)` re-clamps the claim without rewriting it.
+- The panel's `max-height` is the measured room, falling back to `100%`.
+- The panel keeps `shrink-0` — and that is now a measured decision, below.
+
+Added this session, in `apps/fe-01/src/components/wbs/wbs-table.tsx` (the only
+source file touched, 16 lines, all inside the existing measuring layout effect):
+
+- **the `ResizeObserver` observes every child of the column as well as the
+  column** (task 4.2). Without it, a child that changes height while the column
+  does not is never noticed, and the panel is left drawn against a stale room.
 
 ## Commands
 
-| Command                                                              | Result                                                                                                    |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `bunx nx run fe-01:typecheck`                                        | **pass** — `tsc --build --force` on `tsconfig.app.json` and `tsconfig.e2e.json`                           |
-| `bunx nx run fe-01:lint`                                             | **pass** — 0 errors, 1 pre-existing warning (`wbs-table.tsx:4143`, `useMemo` deps, untouched code)        |
-| `bunx nx run fe-01:test`                                             | **1812 passed, 2 failed** (`--skip-nx-cache`) — both failures pre-existing and local-timezone-only, below |
-| `bunx nx format:write` on the five changed files                     | applied                                                                                                   |
-| `bin/h2puni-gate.sh`                                                 | **not run** (out of scope for this session)                                                               |
-| `openspec validate --all --json`                                     | **not run**                                                                                               |
-| `CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts` | **not run** — ports held; see below                                                                       |
+| Command                                                  | Result                                                                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `bunx nx run fe-01:typecheck --skip-nx-cache`            | **pass** at 20:37 with this change in place; **fails now**, on another agent's in-flight lines — see below |
+| `bunx nx run fe-01:lint --skip-nx-cache`                 | **pass** — 0 errors, 1 pre-existing warning (`wbs-table.tsx:4326`, `useMemo` deps, untouched)              |
+| `bunx nx run fe-01:test --skip-nx-cache`                 | **pass** — 61 files, **1954 passed**, 0 failed                                                             |
+| `CI=1 E2E_PORT_SHIFT=900 … playwright test … gantt`      | **pass** — 46 passed, 1 skipped (`dragging up moves the boundary up`, `test.fixme`)                        |
+| `CI=1 E2E_PORT_SHIFT=900 … playwright test` (whole gate) | **243 passed, 1 skipped, 4 failed** — all four accounted for below                                         |
+| `bunx prettier --write` on both changed files            | applied                                                                                                    |
+| `bunx openspec validate gantt-height-column-clamp`       | `Change 'gantt-height-column-clamp' is valid`                                                              |
+| `bin/h2puni-gate.sh`                                     | **not run** — exits 127 on this host                                                                       |
+| `openspec validate --all --json`                         | **not run**                                                                                                |
 
-### The two failing jsdom cases are neither mine nor real
+### The two typecheck errors are not this change's either
 
-`plan-mermaid.test.ts` → `leaves a bar crossing a weekend exactly where it was
-told` (`expected '2026-09-03T21:00:00.000Z' to be '2026-09-04T00:00:00.000Z'`)
-and `still parses a point … as a real milestone` (`expected
-'2026-09-02T21:00:00.000Z' to be '2026-09-03T00:00:00.000Z'`). Both are a
-three-hour offset: this machine is UTC+3. Watched passing under the timezone CI
-runs at:
+The tree grew a great deal of `estimate-weights-and-rounding` between the run
+above and the end of the session, and `fe-01:typecheck` now reports two errors,
+neither on a line this change wrote:
 
 ```
-$ TZ=UTC bunx vitest run src/components/wbs/plan-mermaid.test.ts
- ✓ src/components/wbs/plan-mermaid.test.ts  (49 tests) 1730ms
- Test Files  1 passed (1)
-      Tests  49 passed (49)
+apps/fe-01/src/components/wbs/project-settings-modal.tsx(418,42): error TS2339: Property 'estimating' does not exist on type '{ teams: … priorities: … steps: … }'.
+apps/fe-01/src/components/wbs/wbs-table.tsx(11,38): error TS2307: Cannot find module '@wbs/domain/estimate' or its corresponding type declarations.
 ```
 
-Nothing in this change touches Mermaid, dates or the workday calendar.
+The second is a missing path mapping rather than a missing module:
+`tsconfig.base.json` maps `@wbs/domain/estimate`, `apps/fe-01/tsconfig.app.json`
+carries its **own** `paths` block, and that block has not been given the entry.
+`domain:typecheck` is green. Both belong to the change adding that import.
+
+**One hazard to record, because it is this session's own.** To prove the three
+estimate failures below were not this change's, `wbs-table.tsx` was reverted to
+`HEAD` with `git checkout --`, four tests were run against it, and the file was
+put back from a snapshot taken moments earlier. Another agent edits that file
+concurrently, and an edit made inside that ~40s window would have been
+overwritten by the restore. Nothing suggests one was — the snapshot carries that
+agent's `pertWeights` / `estimateRounding` work — but the window existed and is
+better written down than assumed away.
+
+### The four browser failures are not this change's
+
+Three of them are the estimate arithmetic another agent has uncommitted in
+`libs/domain/src/estimate.ts` and `apps/be-01/src/repository/`, and they were
+watched failing with **this change's `wbs-table.tsx` reverted to `HEAD`**:
+
+- `layout.spec.ts` → `holds a trio and its figure on one line of a folded step cell`
+- `layout.spec.ts` → `stands a parent’s figure in the same slot as its leaves’`
+- `mobile.spec.ts` → `types a whole estimate on a card without a slash, and it survives a reload`
+  (`expect(locator).toHaveText` on `Final 3.7 days`)
+
+The fourth, `keyboard.spec.ts` → `a held Ctrl+D arms once and never deletes`, is
+a **flake**: it failed once in the whole-gate run and passed on re-run both with
+this change's `wbs-table.tsx` and with `HEAD`'s. Recorded rather than dismissed;
+it is not this change's line, and it is not reliably reproducible either way.
 
 ## Failure proofs (R5)
 
-Every row marked **watched** had the named fault injected on its own, the test
-run, the failure read, and the fault reverted. The quoted strings are that run's
-output.
+Every row had the named fault injected on its own, the test run, the failure
+read off the terminal, and the fault reverted. The quoted strings are that run's
+output — none is written from an expectation.
 
-| Check                                                  | Fault injected                                                              | Test that saw it fail                                                                                    | Watched                                      |
-| ------------------------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| the cap is the column's room                           | `Math.min(GANTT_CEILING_PX, 0.8 * window.innerHeight)` restored             | `caps at the room it is given` — `expected 614.4000000000001 to be 488`                                  | **yes**, 2026-08-29                          |
-| a column nothing laid out is not a column with no room | the handle's fallback removed (`roomPx: room ?? 0`)                         | `follows the pointer while dragged, and remembers where it was let go` — `expected '84px' to be '450px'` | **yes**, 2026-08-29                          |
-| an unresolvable length is 0, not NaN                   | `lengthPx` reduced to a bare `Number.parseFloat`                            | `answers nothing where nothing has been laid out` — `expected NaN to be null`                            | **yes**, 2026-08-29                          |
-| the ceiling is the column                              | `maxHeight: '80vh'` restored                                                | `the panel's ceiling is its column, not the window` — `expected '80vh' to be '488px'`                    | **yes**, 2026-08-29                          |
-| the panel does not split an over-constraint            | `shrink-0` dropped from the non-full-screen arm                             | `does not split an over-constraint with the table frame` — `expected false to be true`                   | **yes**, 2026-08-29                          |
-| a re-clamp does not swallow the unmeasured case        | `clampedGanttHeight(claimPx, roomPx ?? 0)`                                  | `draws the claim unclamped while nothing has measured the column` — `expected 84 to be 700`              | **yes**, 2026-08-29                          |
-| the panel stays in its column                          | the viewport clamp restored                                                 | `stays inside the column it lives in` (`1200 > 955`)                                                     | **NO — written, never run**                  |
-| the room is measured, not derived                      | `available` computed from `TABLE_NEEDS_HEIGHT` and a nominal toolbar height | Chromium at a width where the toolbar wraps                                                              | **NO — no such test written**                |
-| a re-clamp does not rewrite the claim                  | the re-clamp writing back to `localStorage`                                 | `a wider window gives the dragged height back`                                                           | **NO — jsdom cannot reach it**               |
-| the boundary follows the pointer                       | —                                                                           | `dragging up moves the boundary up`                                                                      | **NO — `test.fixme`; see the finding below** |
+| Check                                                  | Fault injected                                                                        | Test that saw it                                                               | Observed                                                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| the cap is the column's room                           | `Math.min(GANTT_CEILING_PX, 0.8 * window.innerHeight)` restored                       | `caps at the room it is given` (jsdom)                                         | `expected 614.4000000000001 to be 488` — **yes**, 2026-08-29                                                                          |
+| a column nothing laid out is not a column with no room | the handle's fallback removed (`roomPx: room ?? 0`)                                   | `follows the pointer while dragged, and remembers where it was let go` (jsdom) | `expected '84px' to be '450px'` — **yes**, 2026-08-29                                                                                 |
+| an unresolvable length is 0, not NaN                   | `lengthPx` reduced to a bare `Number.parseFloat`                                      | `answers nothing where nothing has been laid out` (jsdom)                      | `expected NaN to be null` — **yes**, 2026-08-29                                                                                       |
+| the ceiling is the column                              | `maxHeight: '80vh'` restored                                                          | `the panel's ceiling is its column, not the window` (jsdom)                    | `expected '80vh' to be '488px'` — **yes**, 2026-08-29                                                                                 |
+| a re-clamp does not swallow the unmeasured case        | `clampedGanttHeight(claimPx, roomPx ?? 0)`                                            | `draws the claim unclamped while nothing has measured the column` (jsdom)      | `expected 84 to be 700` — **yes**, 2026-08-29                                                                                         |
+| **the panel stays in its column**                      | the viewport cap **alone**                                                            | `stays inside the column it lives in` (Chromium)                               | **PASSED** — the measured `max-height` held it at 425. 2026-08-30                                                                     |
+| **the panel stays in its column**                      | `maxHeight: '80vh'` **alone**                                                         | `stays inside the column it lives in` (Chromium)                               | **PASSED** — the measured clamp held the height at 425. 2026-08-30                                                                    |
+| **the panel stays in its column**                      | **both together** — the regime this change replaced                                   | `stays inside the column it lives in` (Chromium)                               | `the chart is drawn past the bottom of its column · Expected: <= 893 · Received: 956` — **yes**, 2026-08-30                           |
+| **the room is measured, not derived**                  | `ganttRoomInColumn` → `columnHeight − (68 + 6 + 320 + 0 + 24)`                        | `re-measures the room when the toolbar wraps under a new control` (Chromium)   | `Expected: <= 893 · Received: 904` — **yes**, 2026-08-30                                                                              |
+| **the room is measured, not derived**                  | the same derived sum                                                                  | `stays inside the column it lives in` (Chromium)                               | **PASSED** — 1400×900 is the one size where the constants are exactly right. 2026-08-30                                               |
+| **the room is re-measured on a child's resize**        | the per-child `observe` loop deleted (the column alone observed — what shipped)       | `re-measures the room when the toolbar wraps under a new control` (Chromium)   | `the chart is drawn past the bottom of its column after the toolbar wrapped · Expected: <= 893 · Received: 904` — **yes**, 2026-08-30 |
+| **a re-clamp does not rewrite the claim**              | `setGanttHeightPx` + `rememberGanttHeight` on the measured room, in the layout effect | `a wider window gives the dragged height back` (Chromium)                      | `the chart did not get the dragged height back · Expected: 425 · Received: 225` — **yes**, 2026-08-30                                 |
+| **a re-clamp does not rewrite the claim**              | the same fault                                                                        | `a height dragged in a tall window is clamped in a short one` (Chromium)       | `expect(received).toEqual(expected) … − "425" + "225"` — **yes**, 2026-08-30                                                          |
+| the re-clamp's **height** half                         | `appliedGanttHeight` removed, the raw claim passed to the panel                       | `a height dragged in a tall window is clamped in a short one` (Chromium)       | **PASSED** — the honest hole, written up below. 2026-08-30                                                                            |
+| the panel does not split an over-constraint            | `shrink-0` dropped from the non-full-screen arm                                       | `does not split an over-constraint with the table frame` (jsdom)               | `expected false to be true` — **yes**, 2026-08-29; and now measured in Chromium, below                                                |
+| the boundary follows the pointer                       | —                                                                                     | `dragging up moves the boundary up`                                            | **NO — `test.fixme`; slice 5 is not this change's**                                                                                   |
 
-## Which slices need a browser before they can be believed
+### Two checks that would have been vacuous, and are not now
 
-jsdom measures every box at 0 and answers every computed style with the empty
-string. Every claim below is therefore **unproven** by the run above, and each
-is named where it is made in the code:
+1. **Containment is a conjunction.** `stays inside the column it lives in` can
+   only fail when _both_ the clamp and the `max-height` are the viewport's; each
+   half alone is contained by the other. A `Proof:` naming one of them would
+   have named a fault the line never sees — the `name-links-and-height` failure
+   mode, one change earlier. The three injections are written into the test.
+2. **The derived-room negative had to be run at 768, not at 1400.** At the
+   project's own viewport the constants `68 + 6 + 320 + 0 + 24` come to exactly
+   the 418 the measurement does, so the derived sum passes the containment test
+   it was supposed to fail. The negative is only a check at a width where a
+   child's real height differs from its constant.
 
-1. **1.1 — containment.** `stays inside the column it lives in` is written into
-   `e2e/gantt.spec.ts` and has never executed. It was supposed to be watched
-   failing on the current code _first_; it was not, and the `1200 > 955` in the
-   table above is the 2026-08-29 hand measurement, not a test run. Until it is
-   run against both the old and the new clamp, the fix has no oracle.
-2. **2.2 — the room is measured.** `ganttRoomInColumn` answers `null` in jsdom,
-   so the only jsdom case is the "nothing was laid out" contract. What the sum
-   actually comes to — the toolbar's margin, the table frame's 20rem floor, a
-   banner counted at its standing height — no jsdom test can see, and neither
-   can anything see whether Chrome really reports `min-height: auto` as `auto`
-   for a flex child, which is the assumption that keeps a banner from being
-   counted as fully shrinkable. The negative the slice asks for (the sum derived
-   from constants, at a width where the toolbar wraps to two rows) is not
-   written, because there is nowhere to run it.
-3. **2.3 — the ceiling.** jsdom proves the _value_ of `max-height`. Whether a
-   `max-height` of the measured room actually contains the panel is Chromium's.
-4. **3.1 — the panel gives space back.** Not implemented; the whole of the
-   reasoning below is from the flexbox spec and has never been watched in a
-   browser. It is the single most important thing to check in Chromium.
-5. **4.1 — the re-clamp.** `ganttRoomPx` stays `null` in jsdom, so the whole
-   re-clamp path is dead there: `appliedGanttHeight` is proven pure and correct,
-   and that a resize re-measures, that the panel is redrawn shorter, and that
-   `localStorage` is left alone while it happens are all unproven.
-6. **6.1 — the gate.** Not run.
+## The finding on slice 3, decided in a browser
 
-## The finding on slice 3, and why the panel keeps `shrink-0`
+`shrink-0` was dropped from the non-full-screen arm and three cases measured in
+Chromium on 2026-08-30. `frame` is `[data-table-frame]`; the long plan is
+`seedPlan(page, …, { extraRows: 16 })`.
 
-**A shrinkable panel would make every maximal drag under-deliver.**
+| Case                           | Shipped (`shrink-0`)                 | `shrink-0` dropped                             |
+| ------------------------------ | ------------------------------------ | ---------------------------------------------- |
+| 3 rows, 1400×900, drag −400    | panel **425**, frame 320, bottom 868 | panel **425**, frame 320, bottom 868           |
+| 20 rows, 1400×900, **at rest** | panel **360** (40vh), frame 385      | panel **279.55**, frame 465.45                 |
+| 20 rows, 1400×900, drag −400   | panel **425**, frame 320, bottom 868 | panel **242.38**, frame **502.63**, bottom 868 |
+| 3 rows, 768×900, drag −400     | bottom **904** vs column 892         | bottom **868** — contained                     |
 
-The proposal asks for `shrink-0` to go so that "an over-constrained column
-shrinks the chart rather than pushing it through the bottom". The premise is
-right — a rigid item with an explicit height leaves an over-constrained column
-nothing to do but overflow. The consequence is not, because a browser resolves
-an over-constraint by **sharing** it across every shrinkable item in proportion
-to `flex-shrink × flex-basis`, and this column's other shrinkable item is the
-table frame, whose basis is its whole content.
+The 2026-08-29 reasoning is **right, and it understated the cost**. It predicted
+the panel landing 67px short of a 512px drag; the browser says **182.62px short
+of a 425px drag** on any plan longer than the frame's own 20rem floor, and — the
+part the reasoning never anticipated — the shrinkable panel also collapses the
+_default_ share from 360 to 279.55 before anything is dragged at all, because
+the frame's basis is its whole content and it simply takes the space.
 
-Worked through on the 2026-08-29 measurements. The column is 906px: toolbar 68
-(`shrink-0`), frame basis 446 with a 320 floor, handle 6 (`shrink-0`), panel.
-The room this change computes for the panel is `159.71 + 226.29 + (446 − 320) =
-512`, and 512 is what the clamp then allows.
+The one thing a shrinkable panel did fix is the last row: the 12px overhang at 768. That is fixed by **4.2** instead, by re-measuring, and at no cost to any
+gesture. So `shrink-0` stays, the delta spec's "the panel SHALL be able to give
+space back" is met by the re-clamp, and the jsdom guard
+`does not split an over-constraint with the table frame` now has a browser
+measurement behind it rather than a spec reading.
 
-- **Panel `shrink-0` (shipped).** Sum of bases at height 512 is 1032, a 126px
-  deficit, and the frame is the only shrinkable item: it takes all 126 and lands
-  exactly on its 320 floor. Panel 512, its bottom flush with the column's.
-- **Panel shrinkable (as asked).** Scaled shrink factors are 446 (frame) and 512
-  (panel), so the 126px deficit splits 58.7 / 67.3. Neither hits a limit, the
-  loop ends, and the panel settles at **444.7 where 512 was dragged** — with the
-  frame left 67px above the floor it was supposed to give up.
+## The finding on slice 5, unchanged and untouched
 
-The `max-height` does not rescue that case: it is equal to the height there, so
-there is no max violation for the algorithm to clamp and freeze on. It only
-bites while the height is _above_ the room, which after this change is a single
-frame between a column changing and the observer re-measuring it.
+`shrink-0` is not what stops the boundary following the pointer, and dropping it
+does not fix that symptom: `flex-shrink` is consulted only for _negative_ free
+space, and the symptom is positive leftover sitting below the panel. Where that
+leftover goes is `unified-scroll-docking`'s decision — its follow-up has since
+put an explicit `GANTT_DOCK_SLACK` spacer in the column to hold it, which is why
+the panel now docks to the column's bottom. Whether the boundary should move
+with the pointer is that change's question. The assertion stays `test.fixme` and
+was not touched this session.
 
-A chart that quietly swallows 67px of a gesture is a worse bug than the one this
-change is about, and it would land on every maximal drag rather than on the
-stale-column edge the give-way was wanted for. So containment is the clamp's
-alone — `appliedGanttHeight` plus the `max-height`, both off one measured room —
-and the delta spec's "the panel SHALL be able to give space back" is met by the
-re-clamp instead: the panel does shrink to fit _when the column is measured_,
-which is what that scenario's own wording asks for.
+## Open findings this session's measurements turned up
 
-**This is reasoned from the flexbox spec and never watched in a browser.** It is
-the first thing to check with Chromium in hand, and if the resolution turns out
-otherwise then `shrink-0` should go after all, with a browser assertion beside
-it saying so.
-
-## The finding on slice 5, and why it is not implemented
-
-**`shrink-0` is not what stops the boundary following the pointer, and dropping
-it does not fix that symptom.**
-
-The measured behaviour — a 178px drag up making the panel 178px taller with
-`handleTop` unchanged at 569 — happens because the column had **226px of
-positive free space below the panel** (panel bottom 728.71 against a column
-bottom of 955). `flex-shrink` has no effect on positive free space: it is only
-consulted when the free space is negative. Every item in that column has
-`flex-grow: 0`, so the leftover sits at the end of the column, and the panel
-grows into it before anything above it can move. The clamp does not change this
-either — the room is `panel + slackBelow + shrinkableAbove`, and spending the
-`slackBelow` term is exactly the growth that leaves `handleTop` where it is.
-
-The only mechanisms that move the boundary are ones that stop the leftover being
-below the panel: `margin-top: auto` on the panel, or the frame growing again.
-Both put the same leftover **above** the chart — which is precisely the "508px
-of nothing between its last row and a chart docked to the bottom of the window"
-that `unified-scroll-docking` removed, and that `table-frame.ts` records as the
-reason the frame is `flex: 0 1 auto`.
-
-So symptom 2 is `unified-scroll-docking`'s deliberate trade-off about where a
-short plan's leftover goes, not a bug this change can patch. Guessing a layout
-change with no browser to measure it in is what R5 exists to stop. The
-assertion is written and marked `test.fixme` with this reasoning beside it, so
-it goes green without a rewrite the day that decision is revisited.
-
-Note also that the fixture the browser gate uses is a three-row plan whose frame
-is already at its 20rem floor, so **all** of its room is `slackBelow`: on that
-fixture `handleTop` will not move for any drag, before or after this change.
+1. **The floor does not win over the `max-height`.**
+   `clampedGanttHeight`'s JSDoc says a column shorter than `GANTT_MIN_PX` (84px)
+   gets a panel at the floor, "clipped by the column". Measured at 1400×500: the
+   column has 443px, the room is 25, and the panel is drawn **25px tall** —
+   `height: 84px` with `max-height: 25px`. The delta spec's scenario _the floor
+   wins over the cap_ is therefore false in a browser, and `stops at the floor,
+and is still there to be dragged back open` never sees it because at 900px
+   there is room to spare. Not fixed here: raising the `max-height` to the floor
+   puts the panel back outside its column, which is the fault this change
+   exists for, so the two requirements genuinely conflict on a very short
+   column and the resolution is a decision, not a patch.
+2. **`appliedGanttHeight`'s clamping is not observable in a browser.** With it
+   removed and the raw claim handed to the panel, every Chromium assertion here
+   stays green, because the panel's `max-height` is the same measured room and
+   clamps the drawn height identically. Its jsdom cases assert the _value_ of
+   `style.height`, which is a fact about the call rather than about the layout.
+   By the house rule — _delete the guard whose removal you cannot see_ — it is a
+   candidate for deletion; it is left in place because what it uniquely buys is
+   that the claim in state is never the clamped number, and deciding that is
+   worth its own slice rather than a drive-by.
 
 ## Skipped or unavailable checks
 
-- **The e2e gate was not run.** Ports 3100/3200/4200 are held by a running dev
-  server and `playwright.config.ts` sets `reuseExistingServer: !isCi`, so a run
-  would have measured that checkout rather than this one — the `LLM_README.md`
-  landmine, and R5 #16's third hat. Everything in `e2e/gantt.spec.ts` added here
-  is **unexecuted**.
-- `bin/h2puni-gate.sh` and `openspec validate --all --json` were not run.
-- The `max-h-[40vh]` default share is untouched. It is still a share of the
-  viewport, and it is now contained by the panel's own `flex-shrink` rather than
-  by a clamp — unmeasured, like everything else on this list.
+- `bin/h2puni-gate.sh` — **not run**; it exits 127 on this host.
+- `openspec validate --all --json` — **not run**. `openspec validate
+gantt-height-column-clamp` was, and says valid.
+- The whole browser gate was run on `E2E_PORT_SHIFT=900`, never on
+  3100/3200/4200, which a dev server held throughout.
+- **The `max-h-[40vh]` default share is untouched, and it is outside the column
+  at a short window before anything is dragged.** The inline `max-height:
+roomPx` is written only once a height exists, so while `heightPx` is `null`
+  the panel is bounded by that `vh` and by nothing else. Measured at 1400×900 it
+  is 360 against a room of 425 and the panel sits at 113, inside. Measured at
+  1400×500: the column is 443, its other children keep 418, and the panel's own
+  content is 113 — the column is over-constrained by 88 with nothing left able
+  to shrink, and the panel's bottom stands at **556 against a column bottom of
+  492**, at rest. That is a third face of this change's fault living in the arm
+  it did not touch; no scenario here covers it, and no test pins it.

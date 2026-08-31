@@ -6,13 +6,15 @@ says so.
 
 ## Commands
 
-| Command                                                                 | Result              |
-| ----------------------------------------------------------------------- | ------------------- |
-| `CI=1 E2E_PORT_SHIFT=600 playwright test … name-markdown`               | **7 passed**        |
-| `CI=1 E2E_PORT_SHIFT=600 playwright test … hover-cards -g "followable"` | **1 passed**        |
-| `bunx nx run fe-01:test`                                                | **passed** (exit 0) |
-| `bunx openspec validate name-links-and-height`                          | valid               |
-| the whole `CI=1` Playwright gate on shifted ports                       | see task 3.1        |
+| Command                                                                 | Result                                                                                                                                                          |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CI=1 E2E_PORT_SHIFT=600 playwright test … name-markdown`               | **7 passed**                                                                                                                                                    |
+| `CI=1 E2E_PORT_SHIFT=600 playwright test … hover-cards -g "followable"` | **1 passed**                                                                                                                                                    |
+| `bunx nx run fe-01:test`                                                | **passed** (exit 0)                                                                                                                                             |
+| `bunx openspec validate name-links-and-height`                          | valid                                                                                                                                                           |
+| the whole `CI=1` Playwright gate on shifted ports                       | see task 3.1                                                                                                                                                    |
+| `CI=1 E2E_PORT_SHIFT=2600 playwright test …` (whole gate, 2026-08-31)   | **259 passed / 0 failed / 1 skipped in 6.7m, exit 0** — see task 3.1                                                                                            |
+| `… name-markdown.spec.ts` (2026-08-31, at the shipped widths)           | **7 passed** — its row-height case was red while the Name column was 17px narrower, on the same 42px this file records as that check's own injected-fault proof |
 
 ## Failure proofs (R5)
 

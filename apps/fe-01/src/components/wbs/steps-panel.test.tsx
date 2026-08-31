@@ -89,7 +89,7 @@ const type = (label: string, value: string): void => {
 
 describe('the steps a project holds', () => {
   itDom('quotes the folded width of the columns actually on screen', () => {
-    // `configurable-columns`: a reader who has hidden Depends on is 110px
+    // `configurable-columns`: a reader who has hidden Depends on is 86px
     // narrower than the default table, and the sentence has to say so — the
     // spy is what sees **which** hidden list the figure was resolved against,
     // since a stand-in list and the real one print the same kind of number.
@@ -474,13 +474,15 @@ describe('how wide the steps make the table', () => {
   itDom('says the width, from the table’s own columns', () => {
     stubbed({ steps: [DEV, QA] });
 
-    // 839px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
-    // for two folded steps (827 → 839 in `number-column-widen`, 93 → 105 in
-    // `COLUMN_WIDTHS`). Renderer-neutral wording: this dialog opens from the
-    // phone's toolbar sheet too, and the sentence used to describe a table
-    // that reader has never seen.
+    // 855px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
+    // for two folded steps (827 → 839 → 879 in `number-column-widen` and then
+    // `external-refs`, and 879 → 855 on 2026-08-31 when `depends` paid for that
+    // column, 110 → 86). 1247 against the 1248px frame a 1280 laptop gives it —
+    // one pixel inside. Renderer-neutral wording: this dialog opens from the
+    // phone's toolbar sheet too, and the sentence used to describe a table that
+    // reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 steps need ≥1231px of width to sit side by side',
+      '2 steps need ≥1247px of width to sit side by side',
     );
     expect(document.body.textContent).toContain(
       'under 768px wide or 500px tall the plan is drawn as cards instead',
@@ -498,9 +500,10 @@ describe('how wide the steps make the table', () => {
     // `expected '…≥1144px…' to contain '≥1123px'` for the undated plan and on
     // `≥1151px` for the dated one — one number where the table lays out two.
     // Watched, 2026-08-09, when those two figures were the table's; they were
-    // 1219 and 1247 since `priority-column`, and are 1231 and 1259 since
-    // `number-column-widen` — the assertions below read them from the layout
-    // rather than repeating them.
+    // 1219 and 1247 since `priority-column`, 1231 and 1259 since
+    // `number-column-widen`, 1271 and 1299 for the hours `external-refs` sat
+    // unpaid for, and 1247 and 1275 since 2026-08-31 — the assertions below
+    // read them from the layout rather than repeating them.
     cleanup();
     stubbed({ steps: [DEV, QA], frameState: UNDATED });
     expect(document.body.textContent).toContain(
@@ -575,8 +578,10 @@ describe('how wide the steps make the table', () => {
     // '1 step needs ≥1123px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F5).
     stubbed({ steps: [DEV] });
 
-    // 1123 → 1135 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
-    expect(document.body.textContent).toContain('1 step needs ≥1135px of width to sit side by');
+    // 1123 → 1135 → 1175 in `number-column-widen` (93 → 105 in
+    // `COLUMN_WIDTHS`) and then `external-refs` (the 40px `refs` column), and
+    // 1175 → 1151 on 2026-08-31 when `depends` paid for it (110 → 86).
+    expect(document.body.textContent).toContain('1 step needs ≥1151px of width to sit side by');
     expect(document.body.textContent).not.toContain('1 step need ≥');
   });
 
@@ -590,8 +595,10 @@ describe('how wide the steps make the table', () => {
     // '2 steps need ≥1219px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F6).
     stubbed({ steps: [DEV, QA] });
 
-    // 1219 → 1231 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
-    expect(document.body.textContent).toContain('2 steps need ≥1231px of width to sit side by');
+    // 1219 → 1231 → 1271 in `number-column-widen` (93 → 105 in
+    // `COLUMN_WIDTHS`) and then `external-refs` (the 40px `refs` column), and
+    // 1271 → 1247 on 2026-08-31 when `depends` paid for it (110 → 86).
+    expect(document.body.textContent).toContain('2 steps need ≥1247px of width to sit side by');
     expect(document.body.textContent).not.toContain('2 steps needs');
   });
 });

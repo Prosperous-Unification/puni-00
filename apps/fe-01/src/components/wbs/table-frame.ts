@@ -213,8 +213,81 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // in the product reads, so it stays available as a later change rather than
   // being smuggled into this one. Affordable: two folded steps at 1280 go
   // 1219 → 1231 against a 1248px frame, 12 of the 29px of measured slack.
+  //
+  // **105 → 102 and back to 105, on 2026-08-31.** The `refs` column's 40px was
+  // taken from here first, and this is where it must not come from: at 102 the
+  // column still holds `number-column-widen`'s depth-5 guarantee, but every
+  // pixel taken here is a pixel off the Name column — Name at 1280 with two
+  // steps folded is what the frame leaves — and 102 put Name exactly on its
+  // floor. At 85 and 96 this column broke the guarantee outright: a row and its
+  // own child both drew `030.1.1.`, the 2026-08-12 fault two levels shallower
+  // than `number-column-widen` left it.
+  //
+  // Measured width by width in Chromium, the two ends do not meet: the depth-5
+  // requirement needs **≥ 98** here and the Name column's own assertions need
+  // **≤ 96**. There is no width of this column that is green, so the 40px is
+  // not raised here at all — it comes off `depends`, whose entry below carries
+  // the measurement. Neither this width nor {@link FLEXIBLE_FLOOR} moved in the
+  // end, which is why the depth cases and the Name cases are all green.
   ['number', 105],
-  ['depends', 110],
+  // The external-ref marks, and the narrowest column in the table that is not a
+  // control. 40px is 32px of mark room plus the 8px of padding the declared
+  // width includes — four 6px marks with 2px between them is 30, so the fourth
+  // mark clears the cell edge by 2px and a fifth distinct system collapses into
+  // the overflow mark rather than widening anything.
+  //
+  // **Its 40px is paid for, and it was not free.** `foldedTableMinWidth` over
+  // the default column set with two folded steps was 1231 against a 1248px
+  // frame at 1280 (measured in Chromium, 2026-08-31) — 17px of slack against a
+  // 40px column. `external-refs`'s design D5 budgeted it against "the 240px
+  // `configurable-columns` freed", an arithmetic that does not survive contact
+  // with {@link DEFAULT_HIDDEN_COLUMNS}: teams off paid for tags on, to the
+  // pixel, and freed nothing.
+  //
+  // Dany's answer, asked directly: "make # column and title column a bit
+  // shorter". So {@link FLEXIBLE_FLOOR} gave 20 (200 → 180) and `number` gave 3
+  // (105 → 102) — 3 and not 20, because the browser refused the wider cut: see
+  // the table on `number`. The budget is whole again and this column is on
+  // screen by default, which is what D5 asked for and what hiding it would have
+  // quietly undone.
+  ['refs', 40],
+  // The dependency chips (`030 ✕`) and the box that adds another.
+  //
+  // **110 → 86 on 2026-08-31, and this is where the `refs` column's 40px comes
+  // from.** It was tried on `number` and {@link FLEXIBLE_FLOOR} first, which is
+  // what Dany asked for ("make # column and title column a bit shorter") and
+  // what a browser then refused: `number` below 98 breaks
+  // `number-column-widen`'s depth-5 guarantee, and anything taken from either
+  // comes off the Name column, which at 1280 with two steps folded is simply
+  // what the frame leaves. The two ends do not meet — see the `number` entry
+  // above. This column is the one wide fixed member of the default set whose
+  // width no requirement pins.
+  //
+  // **Bounded from below by one whole chip, measured rather than guessed.** In
+  // Chromium a `030 ✕` chip lays out at **40.52px** (`scrollWidth` 41, so that
+  // is its natural size, not a squeeze) and the add affordance at **15.02px**,
+  // with a 2px gap between them and the 8px of padding the declared width
+  // includes: **65.54, so 66px** is the narrowest this column can be and still
+  // show one whole dependency plus the way to add another.
+  //
+  // **Bounded from above at 86 by the Name column, one pixel tighter than the
+  // frame.** Name at 1280 is `1248 - (fixed + 2 x 96)`, and
+  // `e2e/layout.spec.ts`'s `gives the name column everything the other columns
+  // did not take, up to its cap` requires it strictly above its 200px floor —
+  // 87 puts it exactly on the floor, 86 leaves 201. The folded minimum at 86 is
+  // 1247 against a 1248px frame.
+  //
+  // 86 is the top of that range, not the bottom: no more is taken from this
+  // column than the budget needs. What it costs is the second chip — at 110 two
+  // chips and the add button fitted (108.06 of 110), at 86 one does. The rest
+  // clip, which is this column's designed bargain: the whole list is in the
+  // hover card and in the cell's own `sr-only` description
+  // (`deps-single-line`), and `e2e/deps-cell.spec.ts` measures the clip.
+  //
+  // Both margins are **one pixel**. The next column added to the default set
+  // has nowhere to come from; `tag` and `team` (120 each) are the next
+  // candidates, and both are hideable.
+  ['depends', 86],
   // A priority, and priorities are short: 48px holds four digits and the 8px of padding
   // the declared width includes, which is a scale running past a thousand. The
   // header is `Prio` for the same reason `Not bef.` is abbreviated — a
@@ -411,6 +484,10 @@ export const ROW_CONTROLS: readonly string[] = ['drag', 'number', 'name', 'actio
  */
 export function hideableColumnIds(stepIds: readonly string[]): readonly string[] {
   return [
+    // First, because the column is first: it sits between `#` and Name, which is
+    // where this list has to put it — the Columns control lists these in the
+    // order the table renders them.
+    'refs',
     'depends',
     'priority',
     'team',
@@ -450,8 +527,22 @@ export const FLEXIBLE_COLUMNS: ReadonlySet<string> = new Set(['name']);
  *
  * It is what {@link frameLayout} budgets for the Name column, and it is on the
  * cell as well: below this the table stops shrinking and the frame scrolls
- * instead, with the pinned columns holding the left edge. 200px is about
- * twenty-five characters of the page's font — a phrase rather than a word.
+ * instead, with the pinned columns holding the left edge. 180px is about
+ * twenty-two characters of the page's font — a phrase rather than a word.
+ *
+ * **200 → 180 and back to 200, on 2026-08-31.** The `refs` column's 40px was
+ * taken from here and from `number` first — Dany's answer, "make # column and
+ * title column a bit shorter", given before either was known to be at a hard
+ * limit. It is. At 180 this floor is not just a floor: at 1280 with two steps
+ * folded the table stands *on* it, so the Name column has no remainder at all,
+ * and two browser assertions that need room in it go red —
+ * `e2e/layout.spec.ts`'s `gives the name column everything the other columns
+ * did not take, up to its cap`, and `e2e/name-markdown.spec.ts`'s row-height
+ * case, which drew a 42px row where the reading is 26.19.
+ *
+ * So the 40px comes off `depends` instead; see its entry in
+ * {@link COLUMN_WIDTHS} for the measurement and for what bounds *that* column
+ * from below. This constant is what it was.
  */
 export const FLEXIBLE_FLOOR = 200;
 
@@ -588,11 +679,16 @@ export function widthFor(columnId: string, state: FrameLayoutState): number {
  * column that silently returns to its default on the next reload, and the two
  * numbers would have to be kept in step by hand forever.
  *
- * 600 is three times {@link FLEXIBLE_FLOOR} and most of a 900px window. It
- * bounds a gesture that got away — a pointer that kept going after the reader
- * stopped looking — without bounding a real preference: the widest column the
- * table declares today is Team's 120px, so a reader who wants five times that
- * still has it.
+ * 600 is most of a 900px window. It bounds a gesture that got away — a pointer
+ * that kept going after the reader stopped looking — without bounding a real
+ * preference: the widest column the table declares today is Team's 120px, so a
+ * reader who wants five times that still has it.
+ *
+ * It read "three times {@link FLEXIBLE_FLOOR}" until 2026-08-31, and that was a
+ * coincidence of the floor being 200 rather than a derivation. The floor went
+ * to 180 to pay for the `refs` column and this did **not** move with it: a
+ * narrower floor under the Name column is not a reason a reader may drag any
+ * column less far.
  */
 export const WIDEST_COLUMN = 600;
 
@@ -707,8 +803,15 @@ export function sizableColumn(columnId: string, state: FrameLayoutState): boolea
  *
  * Name being last is load-bearing: it is flexible, so no offset is ever a sum
  * that includes it. {@link frameLayout} throws rather than assumes that.
+ *
+ * **`refs` is here because it sits between `#` and Name, not because anybody
+ * wanted a fourth pin**, and the contiguity rule above is why it had no choice:
+ * an unpinned column between two pinned ones scrolls under the second, and
+ * every offset behind it — Name's — is a sum 40px short of where the browser
+ * really lays the cell out. `external-refs` design D5 chose the placement and
+ * did not follow it here; this is where it lands.
  */
-export const PINNED_COLUMN_IDS: readonly string[] = ['drag', 'number', 'name'];
+export const PINNED_COLUMN_IDS: readonly string[] = ['drag', 'number', 'refs', 'name'];
 
 /**
  * Every width one render declares, resolved from the columns on screen and the

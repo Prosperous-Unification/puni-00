@@ -187,6 +187,13 @@ const EXTERNAL_REF = '20260830020000_add_external_ref';
  */
 const DEP_REACH = '20260830120000_add_dep_reach';
 
+/**
+ * The estimate weights and the per-step rounding, stamped after the reach
+ * above. Additive like it, and its `down.sql` drops the four columns, so it
+ * appears in the order and in nothing else this file checks.
+ */
+const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
+
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
 const DEPENDENCY_TABLES = ['dependency'] as const;
@@ -283,6 +290,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -609,6 +617,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -1067,6 +1076,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -1300,6 +1310,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -1587,6 +1598,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -1810,6 +1822,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -2078,6 +2091,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -2328,6 +2342,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -2565,6 +2580,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -2909,6 +2925,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -3046,6 +3063,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      WEIGHTS_AND_ROUNDING,
       DEP_REACH,
       EXTERNAL_REF,
       WORK_ITEM_TYPE,
@@ -3194,6 +3212,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -3476,6 +3495,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -3560,6 +3580,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      WEIGHTS_AND_ROUNDING,
       DEP_REACH,
       EXTERNAL_REF,
       WORK_ITEM_TYPE,
@@ -3779,6 +3800,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,

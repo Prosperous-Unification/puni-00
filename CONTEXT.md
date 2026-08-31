@@ -244,9 +244,22 @@ _Avoid_: quick entry, inline estimate, compact form
 
 **Final days**:
 One step's single number of days for one work item — the project's estimate method applied
-to its **estimate**, rolled up over its children. Shown beside the **trio shorthand** it
-came from, and summed across steps into the work item's total days.
+to its **estimate** and charged at the project's **estimate rounding**. Shown beside the
+**trio shorthand** it came from, summed across steps into the work item's total days, and
+summed across descendants for a work item with children.
 _Avoid_: PERT number, computed figure, effective estimate
+
+**PERT weights**:
+The three coefficients a project weighs an **estimate**'s optimistic, realistic and
+pessimistic figures by, whose sum is the divisor. 1, 4 and 1 unless the project says
+otherwise; read only under the `pert` estimate method.
+_Avoid_: PERT formula, coefficients, lambda
+
+**Estimate rounding**:
+A project's answer to how one step's combined figure becomes the days it is charged:
+`floor`, `round`, `ceil`, or `exact` for the fraction itself. `ceil` unless the project says
+otherwise, and applied per step before any sum is taken.
+_Avoid_: precision, rounding mode, day granularity
 
 **Estimate gap**:
 One leaf work item and one step it holds no estimate for. A work item with children never
@@ -787,6 +800,29 @@ _Avoid_: mutex, semaphore, queue, serialization
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.
 _Avoid_: private, locked project
+
+**External ref**:
+One link out of a work item to where that work also exists — an external system and a URL,
+in the order the refs were added. A work item may hold several into one system, because two
+pull requests are two links. Nothing about it is fetched: a ref is an address, never a
+status. Always said in full — the bare **Ref** above is the batch-scoped name, and they are
+different things.
+_Avoid_: link (alone), reference, external link, integration
+
+**External system**:
+The name an external ref's target belongs to — `jira-issue`, `github-pr`, `github-issue`,
+`confluence-page`, `slack-message`. A directory-wide vocabulary, unique by name, seeded with
+exactly the names the URL rules can derive. Derived from the URL when a ref is written and
+**stored**; nothing re-derives it on read, so a ref keeps the type it was given when the
+rules later change.
+_Avoid_: provider, integration, source, kind
+
+**Ref mark**:
+One dot in the plan's Links column, standing for a **family** of external systems a row
+links to rather than for a link. Four GitHub pull requests are one mark; a fifth family
+collapses into an overflow mark. Told apart by fill as well as by hue, and named for a
+reader who sees neither.
+_Avoid_: dot, badge, icon, chip
 
 ### Deployment
 

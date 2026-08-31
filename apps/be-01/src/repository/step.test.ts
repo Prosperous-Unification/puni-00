@@ -48,6 +48,8 @@ const newProject = (ownerId: string, name: string): Project => ({
   ownerId,
   restricted: false,
   estimateMethod: 'pert',
+  pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+  estimateRounding: 'ceil',
   startDate: null,
   revision: 0,
   createdAt: 1,

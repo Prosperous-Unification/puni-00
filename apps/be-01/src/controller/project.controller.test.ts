@@ -133,6 +133,8 @@ const PROJECT_FIELDS = [
   'ownerId',
   'restricted',
   'estimateMethod',
+  'pertWeights',
+  'estimateRounding',
   'startDate',
   'solutionRef',
   'revision',
@@ -410,6 +412,86 @@ describe('projects', () => {
     });
 
     expect(res.status).toBe(200);
+  });
+
+  it('sets the PERT weights and the rounding in one patch', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Weighed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        estimateRounding: 'floor',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const read = await send(`/api/projects/${project.id}`, token);
+    expect(((await read.json()) as { project: object }).project).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      estimateRounding: 'floor',
+    });
+  });
+
+  it('refuses weights that cannot average a triple, and keeps the ones it had', async () => {
+    // Three zeroes: a triple that passes every `>= 0` check the route can
+    // express and has no divisor at all, so every PERT figure in the plan would
+    // be `NaN` — a blank cell that reports itself as estimated. It is the
+    // service's refusal rather than the schema's, because there is no shape
+    // rule that says "not all of them".
+    //
+    // Proof: with the `bad_pert_weights` check deleted from
+    // `ProjectService.update`, this failed on `Expected: 422 / Received: 200` —
+    // the triple stored, and the next read of that project throwing at the
+    // boundary instead of answering. Watched 2026-08-30.
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Weighed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: '{"pertWeights":{"optimistic":0,"realistic":0,"pessimistic":0}}',
+    });
+
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: 'bad_pert_weights' });
+
+    const read = await send(`/api/projects/${project.id}`, token);
+    expect(((await read.json()) as { project: object }).project).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    });
+  });
+
+  it('refuses a negative and an infinite weight at the route’s own schema', async () => {
+    // Both are refused before the service sees them, and by two different halves
+    // of one `t.Number({ minimum: 0 })`: below zero makes a step shrink as its
+    // estimate grows, and `1e999` — the only non-finite number JSON can express,
+    // written as text because `JSON.stringify` turns `Infinity` back into `null`
+    // — is refused because TypeBox's number is a finite one. Measured here
+    // rather than assumed: the same literal passes every hand-written `>= 0`,
+    // which is what `T1 column-widths-drag` cost a day to.
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Weighed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    for (const body of [
+      '{"pertWeights":{"optimistic":-1,"realistic":4,"pessimistic":1}}',
+      '{"pertWeights":{"optimistic":1e999,"realistic":4,"pessimistic":1}}',
+    ]) {
+      const res = await send(`/api/projects/${project.id}`, token, { method: 'PATCH', body });
+
+      expect(res.status).toBe(422);
+    }
+
+    const read = await send(`/api/projects/${project.id}`, token);
+    expect(((await read.json()) as { project: object }).project).toMatchObject({
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    });
   });
 
   it('answers a create with the project it wrote and its starting steps', async () => {

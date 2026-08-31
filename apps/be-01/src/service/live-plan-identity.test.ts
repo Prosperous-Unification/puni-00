@@ -125,6 +125,12 @@ async function replay(extraSteps: readonly string[]) {
     ownerId: 'owner',
     restricted: false,
     estimateMethod: plan.estimateMethod,
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    // The arithmetic this capture was taken under: a step's figure reached the
+    // schedule as the fraction the method produced. `estimate-weights-and-rounding`
+    // made `ceil` the default for every project and left `exact` as the arm an
+    // oracle replays on.
+    estimateRounding: 'exact',
     startDate: plan.startDate,
     revision: plan.projectRevision,
     createdAt: 1,

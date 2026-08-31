@@ -2449,6 +2449,16 @@ test.describe('the chart edge the reader drags', () => {
     // against a column bottom of 955 — 245px of chart drawn outside the box it
     // lives in. A sub-pixel of tolerance, for the same reason every other
     // measurement here carries one.
+    //
+    // **Containment is a conjunction, and each half alone is invisible here.**
+    // Proof, watched in Chromium at 1400x900 on 2026-08-30, three injections:
+    // the viewport cap put back in `clampedGanttHeight` alone — **passed**, the
+    // measured `max-height` holding the panel at 425; `maxHeight: '80vh'` put
+    // back alone — **passed**, the measured clamp holding the height at 425;
+    // and the two together, which is the regime this change replaced — failed
+    // on `the chart is drawn past the bottom of its column · Expected: <= 893 ·
+    // Received: 956`, 64px of chart below a column bottom of 892. So a `Proof:`
+    // naming only one of the two would be naming a fault this line never sees.
     expect(panel.bottom, 'the chart is drawn past the bottom of its column').toBeLessThanOrEqual(
       column.bottom + 1,
     );
@@ -2469,6 +2479,166 @@ test.describe('the chart edge the reader drags', () => {
     expect(panel.bottom, 'the chart is drawn past the bottom of the window').toBeLessThanOrEqual(
       await page.evaluate(() => window.innerHeight),
     );
+  });
+
+  /**
+   * The panel's own height, read off the box the browser laid out.
+   *
+   * A function rather than a `Rect` so `expect.poll` can watch it across a
+   * resize: the re-clamp happens on the `ResizeObserver`'s callback, which is a
+   * frame or two after `setViewportSize` returns.
+   */
+  const panelHeight = (page: Page): Promise<number> =>
+    page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (!(panel instanceof HTMLElement)) throw new Error('no chart panel on the page');
+      return Math.round(panel.getBoundingClientRect().height);
+    });
+
+  test('a height dragged in a tall window is clamped in a short one', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+    await dragTheEdge(page, -400);
+    const dragged = await panelHeight(page);
+    // Measured in Chromium 2026-08-30: a 900px window gives this column 843px
+    // and the panel 425 of them. The figure is read rather than written down —
+    // what this test is about is the *relation* between two windows.
+    expect(dragged).toBeGreaterThan(300);
+
+    // The same page, 200px shorter. Nothing was dragged and nothing was
+    // stored: only the column changed, and the height is drawn against the
+    // column. Measured: 843 → 643 of column, 425 → 225 of panel.
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await expect
+      .poll(() => panelHeight(page), { message: 'the chart kept a height the column lost' })
+      .toBeLessThan(dragged - 100);
+
+    // **What this does not prove.** The panel's `max-height` is the same
+    // measured room, so the browser contains it whether or not the height it is
+    // handed was re-clamped: with `appliedGanttHeight` taken out of
+    // `wbs-table.tsx` altogether — the raw claim passed down — this test was
+    // watched **passing** (Chromium, 2026-08-30). What the re-clamp is
+    // separately answerable for is the claim it leaves alone, which is the case
+    // below and the assertion at the end of this one.
+    const shortened = await rectOf(page, '[data-gantt-panel]');
+    const column = await rectOf(page, 'section[data-slice-count]');
+    expect(
+      shortened.bottom,
+      'the chart is drawn past the bottom of the column it was re-clamped into',
+    ).toBeLessThanOrEqual(column.bottom + 1);
+    // And the reader's claim is untouched by having been clamped: it is what
+    // they dragged, not what today's window could show them.
+    expect(await storedHeights(page)).toEqual([String(dragged)]);
+  });
+
+  test('a wider window gives the dragged height back', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+    await dragTheEdge(page, -400);
+    const dragged = await panelHeight(page);
+
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await expect
+      .poll(() => panelHeight(page), { message: 'the short window never re-clamped' })
+      .toBeLessThan(dragged - 100);
+
+    // **The assertion this pair exists for.** A re-clamp that wrote itself back
+    // would have forgotten the gesture here, and the only window in which the
+    // two are distinguishable is this one: a claim and a claim-clamped-once
+    // draw the same panel in the short window and differ only once the room
+    // comes back.
+    //
+    // Proof: with the re-clamp writing itself back — `setGanttHeightPx` and
+    // `rememberGanttHeight` on the measured room, in the layout effect — this
+    // failed on `the chart did not get the dragged height back · Expected: 425
+    // · Received: 225`, and the case above failed on the stored array,
+    // `- "425" + "225"`. Watched in Chromium 2026-08-30.
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await expect
+      .poll(() => panelHeight(page), { message: 'the chart did not get the dragged height back' })
+      .toBe(dragged);
+    expect(await storedHeights(page)).toEqual([String(dragged)]);
+  });
+
+  /**
+   * The room is re-measured when a **child** of the column changes height, not
+   * only when the column itself does.
+   *
+   * Measured in Chromium at 768x900 on 2026-08-30, on the shipped clamp: the
+   * toolbar is one row (68px) while nothing has been dragged, and the commit of
+   * a drag puts `Reset layout` on it, which takes it to two rows (104px). The
+   * column's own box never changes — it is `flex-1` in a full-height page — so
+   * the `ResizeObserver` watching the column alone never fires, the room stays
+   * at the 425 measured at `pointerdown`, and the panel's bottom lands at 904
+   * against a column bottom of 892. Twelve pixels of chart outside the box it
+   * lives in, by the control the gesture itself created.
+   *
+   * The wrap is asserted before the containment, and that is not decoration:
+   * with the toolbar at one row this is `stays inside the column it lives in`
+   * at a narrower window, and it would pass for a reason that has nothing to do
+   * with what it is about.
+   *
+   * Proof, watched in Chromium 2026-08-30, two faults on the same line. With
+   * the children left unobserved — the `ResizeObserver` on the column alone,
+   * which is what shipped — this failed on `the chart is drawn past the bottom
+   * of its column after the toolbar wrapped · Expected: <= 893 · Received:
+   * 904`. And with `ganttRoomInColumn` replaced by the derived sum the slice
+   * warns against (a nominal 68px toolbar, `TABLE_NEEDS_HEIGHT`, the handle and
+   * a 24px footer) it failed identically — while `stays inside the column it
+   * lives in` **passed** through that same fault, because at 1400x900 those
+   * constants come to exactly the 418px the measurement does. That pair is the
+   * whole argument for measuring: the derived sum is right at the one size
+   * everything else is tested at.
+   */
+  test('re-measures the room when the toolbar wraps under a new control', async ({ page }) => {
+    // Narrow enough that the toolbar takes a second row once `Reset layout`
+    // joins it, and wide enough to stay on the table face: the cards renderer
+    // takes over below this and has a different column entirely. Measured
+    // 2026-08-30: 780 and 770 wrap as well, 790 and up do not.
+    await page.setViewportSize({ width: 768, height: 900 });
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    /**
+     * The plan toolbar's height, the panel's bottom and the column's, read
+     * together so they describe one layout.
+     *
+     * The toolbar is found as the column child holding the chart toggle rather
+     * than by an index, so a reordering of the column is a failure here rather
+     * than a silent measurement of the wrong box.
+     */
+    const layout = (): Promise<{ toolbar: number; panelBottom: number; columnBottom: number }> =>
+      page.evaluate(() => {
+        const column = document.querySelector('section[data-slice-count]');
+        if (!(column instanceof HTMLElement)) throw new Error('no plan column on the page');
+        const toggle = Array.from(column.querySelectorAll('button')).find(
+          (button) => button.textContent.trim() === 'Gantt',
+        );
+        if (toggle === undefined) throw new Error('no chart toggle in the plan column');
+        const toolbar = Array.from(column.children).find((child) => child.contains(toggle));
+        if (!(toolbar instanceof HTMLElement))
+          throw new Error('the chart toggle is in no column child');
+        const panel = document.querySelector('[data-gantt-panel]');
+        if (!(panel instanceof HTMLElement)) throw new Error('no chart panel on the page');
+        return {
+          toolbar: toolbar.getBoundingClientRect().height,
+          panelBottom: panel.getBoundingClientRect().bottom,
+          columnBottom: column.getBoundingClientRect().bottom,
+        };
+      });
+
+    const folded = await layout();
+    await dragTheEdge(page, -400);
+    const wrapped = await layout();
+
+    expect(
+      wrapped.toolbar,
+      'the toolbar did not take a second row, so this is the 1400px case at a narrower window',
+    ).toBeGreaterThan(folded.toolbar);
+    expect(
+      wrapped.panelBottom,
+      'the chart is drawn past the bottom of its column after the toolbar wrapped',
+    ).toBeLessThanOrEqual(wrapped.columnBottom + 1);
   });
 
   /**

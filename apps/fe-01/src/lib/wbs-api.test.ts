@@ -32,6 +32,8 @@ const TREE = (projectId: string, ids: string[]): string =>
     teamCapacities: [],
     priorityBands: [],
     estimateMethod: 'pert',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
     depReach: 'whole-item',
     startDate: null,
     projectRevision: 1,
@@ -225,6 +227,59 @@ describe('patching a work item team set', () => {
         ],
       }),
     });
+  });
+});
+
+describe('setting the estimate arithmetic', () => {
+  it('patches the weights and the rounding in one request', async () => {
+    // One `PATCH`, not two: the weights and the rounding are one arithmetic,
+    // and two requests would take the plan through an intermediate answer
+    // nobody asked for — every figure in it recomputed twice.
+    const fetched = stub(() => response(200, JSON.stringify({ project: { id: 'p1' } })));
+    const api = httpProjectApi('t');
+
+    await api.setEstimateArithmetic('p1', {
+      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      estimateRounding: 'floor',
+    });
+
+    expect(fetched).toHaveBeenCalledTimes(1);
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({
+        pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        estimateRounding: 'floor',
+      }),
+    });
+  });
+
+  it('sends only what it was given, so a rounding change leaves the weights alone', async () => {
+    // be-01 writes the three weight columns as a triple or not at all, so a
+    // body carrying `pertWeights: undefined` would be a different request from
+    // one that omits it — `JSON.stringify` drops the key, and this is what says
+    // so out loud.
+    const fetched = stub(() => response(200, JSON.stringify({ project: { id: 'p1' } })));
+    const api = httpProjectApi('t');
+
+    await api.setEstimateArithmetic('p1', { estimateRounding: 'exact' });
+
+    expect(fetched.mock.calls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({ estimateRounding: 'exact' }),
+    });
+  });
+
+  it('reads the arithmetic the plan was computed with off the tree', () => {
+    // The wire's own claim, in the shape the client describes: a face that
+    // wants to say "4 days, PERT 1/4/1, rounded up" reads all three from the
+    // payload it drew the figures from.
+    const tree = JSON.parse(TREE('p1', ['w1'])) as {
+      pertWeights: unknown;
+      estimateRounding: unknown;
+    };
+
+    expect(tree.pertWeights).toEqual({ optimistic: 1, realistic: 4, pessimistic: 1 });
+    expect(tree.estimateRounding).toBe('ceil');
   });
 });
 

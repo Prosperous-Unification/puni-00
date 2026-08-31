@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — eighteen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — nineteen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -320,6 +320,53 @@ Both comments were corrected to what was observed. A guessed `Proof:` is indisti
 from an observed one to every future reader, and one of these two named an assertion the
 fault never reaches — which is exactly how a check that cannot fail acquires a comment saying
 it can. **Write the comment from the failure output, never from the expectation.**
+
+One more on 2026-08-30 in `estimate-weights-and-rounding`, and it **did not ship**. The
+change's headline is an order — a step's three points are combined, that figure is rounded,
+and only then are steps summed — and the negative written for it injected the fault the
+change is _about_: the parent roll-up taken back to "roll the triples up, charge once". It
+was watched **passing**. It had to be: a leaf's steps were already charged one at a time
+before the change (`finalsOf` summed `finalDays` per step), so rolling triples up per step
+changes nothing on a leaf, and the order only becomes visible across **children**. The fault
+that test is actually about is the other order — charge the sum rather than the step — and
+injected that way it failed on `Expected: 1, Received: 0.5`. The parent half now carries the
+roll-up fault as its own proof, on a parent. **Inject the fault at the level the order lives
+at**, which is `estimate-triple-visible`'s "assert in the window the fault lives in" wearing
+a second hat.
+
+Three on 2026-08-31 in `reference-cell-escape-and-hover`, and **none shipped** — but the one
+worth the paragraph is the check that was already on `main` and could not fail.
+`types-cell.spec.ts`'s headline, `a row of three types is the same height as a row of none`,
+carried a recorded note saying its own negative had been watched leaving all five cases
+green, and blamed the `<td>` clip for hiding a wrapped strip. Both halves were wrong: the
+column is exempt from that clip now and the case **still** passed with `flex-wrap: wrap`
+injected on the strip and both chip groups. The reason is that the row was measured **with
+the cell still being edited**, and an edited reference strip is an absolutely positioned
+panel — not in the row's flow at all, free to wrap to any height without moving anything. One
+`blur()` before the measurement, and the same injection failed on `Expected: 26.1875 /
+Received: 87.1875`. **A layout check has to be taken in the layout the reader lives in**, which
+is `estimate-triple-visible`'s "assert in the window the fault lives in" wearing a third hat —
+and a recorded explanation for a vacuity is itself a claim, worth re-checking before it is
+inherited. The other two were written this round and deleted rather than shipped: a focus
+handoff on a chip's `✕` whose negative cannot be reached because the button can never hold
+the focus (Shift+Tab in the box is the grid's move, measured), and an `elementFromPoint` probe
+four pixels past a cell's right edge, which passes with the clip removed because the next
+`<td>` paints its own background over the overflow.
+
+One more on 2026-08-31 in `external-refs`, and it **did not ship**: the plan asked for a
+check the design could not break. `tasks.md` 6.1 said to measure "a row with four systems and
+a row with none ... to the same height", with the negative being "the marks moved into normal
+flow". Injected — `markStyle`'s `position: 'absolute'` changed to `'static'` — the height
+assertion was watched **passing**: 26.1875px either way. It had to. The ref cell's box is
+12px inside a row the Name cell already stands 26.19px tall, so the row is never this cell's
+to move and the equality is a true statement about a column that has nothing to do with it.
+What the fault really does is collapse the marks — a `<span>` in normal flow is inline, width
+and height do not apply, and four 6px discs become zero-width text boxes outside the box they
+were meant to sit in (`[164,150,0,15]`, measured). The check is now that each mark is a 6×6
+disc inside its box, and the same fault was then watched failing on `jira is not a 6×6 disc ·
+Expected {"height": 6, "width": 6} · Received {"height": 15, "width": 0}`. **A geometry claim
+about a small box inside a bigger one is a claim about the bigger one**, which is
+`estimate-triple-visible`'s "assert in the window the fault lives in" wearing a third hat.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

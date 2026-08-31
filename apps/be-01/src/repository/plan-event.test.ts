@@ -35,6 +35,8 @@ describe('the plan’s history, against a real database', () => {
     ownerId: 'owner',
     restricted: false,
     estimateMethod: 'pert',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
     startDate: null,
     revision: 0,
     createdAt: 1,

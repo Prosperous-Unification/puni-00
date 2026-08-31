@@ -16,6 +16,7 @@ import {
   countMovedDates,
   isFullyEstimated,
   withoutPlacement,
+  withSnappedRollUps,
 } from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -255,7 +256,16 @@ describe('every plan schedules identically across the migration', () => {
         }
         return null;
       };
-      const { depReach, ...treeWithoutReach } = tree;
+      const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
+      // The weights and the rounding are lifted for `depReach`'s reason exactly
+      // — the oracle predates both fields — and asserted rather than dropped so
+      // that a replay which stopped setting them would fail here instead of
+      // measuring these plans against an oracle for an arithmetic they were not
+      // computed by. `exact` is not the shipped default: it is the arithmetic
+      // these captures were taken under, when a step's figure was a fraction
+      // and reached the schedule as one.
+      expect(pertWeights).toEqual({ optimistic: 1, realistic: 4, pessimistic: 1 });
+      expect(estimateRounding).toBe('exact');
       // **`depReach` is lifted by `dep-reach-whole-item` (2026-08-29)**, and
       // asserted to be the reach these plans were replayed on rather than
       // dropped. The oracle predates the setting entirely, so the payload now
@@ -384,9 +394,11 @@ describe('every plan schedules identically across the migration', () => {
       // two engines coincide and with the placement set aside where they do
       // not — see {@link withoutPlacement}, which also says what is *not* set
       // aside. `countMovedDates` below holds the part that is.
-      const narrow = isFullyEstimated(plan)
-        ? (document: Record<string, unknown>) => document
-        : withoutPlacement;
+      // `withSnappedRollUps` on both sides for the reassociated parent totals
+      // `estimate-weights-and-rounding` introduced — see its JSDoc for the one
+      // row in this corpus it is about and why 1e-9 cannot hide a real move.
+      const narrow = (document: Record<string, unknown>): Record<string, unknown> =>
+        withSnappedRollUps(isFullyEstimated(plan) ? document : withoutPlacement(document));
       moved += countMovedDates(answer, tree);
       if (isFullyEstimated(plan)) fullyEstimated += 1;
       expect(narrow({ project: plan.projectId, ...lifted })).toEqual(
@@ -545,6 +557,8 @@ describe('every plan schedules identically across the migration', () => {
       ownerId: 'owner',
       restricted: false,
       estimateMethod: plan.estimateMethod,
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: 'exact',
       // The oracle was captured at a tip whose engine had no reach at all and
       // waited on the anchor slice, so these plans are replayed on
       // `anchor-slice`. Replaying them on the default would be measuring

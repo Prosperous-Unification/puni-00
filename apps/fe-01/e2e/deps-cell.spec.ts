@@ -25,7 +25,7 @@ const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 /**
  * Signs up a throwaway account and builds the deep-plan fixture's dependency
  * shape: nine root rows, `020` waiting for seven of them — enough chips that
- * a 110px column is overrun several times — and `030` waiting for nothing,
+ * an 86px column is overrun several times — and `030` waiting for nothing,
  * as the chipless row the height claim is measured against.
  */
 async function seedSevenChips(page: Page, _account: string): Promise<void> {
@@ -545,10 +545,15 @@ test.describe('the cell answers the pointer that is in it', () => {
    *
    * Two rather than the fixture's seven, because two is the case the
    * 2026-08-14 cloud regression measured and the case a real plan is full of:
-   * at 110px two pills, both gaps and the add button already fill the strip
-   * edge to edge, and the box `deps-single-line` shrinks behind them is laid
-   * out **outside its own cell**. Seven would prove the same thing and would
-   * prove it about a cell nobody would call reasonable.
+   * two pills, both gaps and the add button fill the strip past its edge, and
+   * the box `deps-single-line` shrinks behind them is laid out **outside its
+   * own cell**. Seven would prove the same thing and would prove it about a
+   * cell nobody would call reasonable.
+   *
+   * It read "at 110px" until 2026-08-31, when the column went to 86 to pay for
+   * the `refs` column: two pills and the add button measured 108.06 and just
+   * fitted 110, and at 86 the second pill is already clipping. The case is the
+   * same case and is now more crowded, not less.
    */
   async function waitOnTwo(page: Page): Promise<void> {
     const depends = page.getByLabel('Add a dependency to 030');

@@ -1,4 +1,5 @@
-import { isIsoDate } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
+import { type } from '@wbs/validation';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
@@ -17,7 +18,7 @@ export interface ProjectWithSteps {
 
 export type UpdateOutcome =
   | { ok: true; result: Project }
-  | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' };
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' | 'bad_pert_weights' };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
@@ -63,6 +64,12 @@ export class ProjectService {
       // project should have to opt out of. Same value as the column default,
       // so a row this writes and a row the migration reached read alike.
       depReach: 'whole-item',
+      // The textbook 1/4/1 and whole days rounded up — `DEFAULT_ESTIMATE_RULE`
+      // rather than three literals, so a new project and a project the
+      // migration reached (the column defaults) are the same arithmetic, and
+      // there is one place to read what a project gets when it says nothing.
+      pertWeights: DEFAULT_ESTIMATE_RULE.pertWeights,
+      estimateRounding: DEFAULT_ESTIMATE_RULE.rounding,
       // Not the day it was made: a plan with no start date is an ordinary
       // state, and inventing one would put dates on screen nobody chose.
       startDate: null,
@@ -135,6 +142,25 @@ export class ProjectService {
     // parse would throw on every later read of this project.
     if (patch.startDate != null && !isIsoDate(patch.startDate)) {
       return { ok: false, reason: 'bad_start_date' };
+    }
+    // The route's schema takes three numbers at or above zero, which three
+    // zeroes satisfy — and no shape rule can say "not all of them". A triple
+    // that sums to nothing has no divisor, so every PERT figure in the plan
+    // would be `NaN`. Refused here rather than stored, for `bad_start_date`'s
+    // reason exactly: the column would otherwise throw on every later read of
+    // this project.
+    //
+    // The other two unusable triples never reach this. A negative weight is
+    // refused by `minimum: 0`, and `1e999` — the only non-finite number JSON
+    // can express — by TypeBox's number being a finite one; both measured in
+    // `project.controller.test.ts` rather than assumed, because a hand-written
+    // `>= 0` accepts `Infinity` and this codebase has paid for that once.
+    //
+    // Proof: with this check deleted, `refuses weights that cannot average a
+    // triple, and keeps the ones it had` failed on `Expected: 422 / Received:
+    // 200`; watched 2026-08-30.
+    if (patch.pertWeights !== undefined && PertWeights(patch.pertWeights) instanceof type.errors) {
+      return { ok: false, reason: 'bad_pert_weights' };
     }
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };

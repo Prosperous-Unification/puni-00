@@ -33,6 +33,7 @@ import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/co
 import type { ProjectStream } from '@/lib/project-stream';
 import type {
   AssignedPersonView,
+  ExternalSystemView,
   PersonView,
   PriorityBandView,
   ServiceView,
@@ -43,8 +44,11 @@ import type {
 } from '@/lib/wbs-api';
 import {
   type Days,
+  DEFAULT_PERT_WEIGHTS_VIEW,
   type EstimateMethod,
+  type EstimateRoundingView,
   isEstimateMethod,
+  type PertWeightsView,
   type ProjectApi,
   type SliceView,
   type StepView,
@@ -86,6 +90,9 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { MARK_BOX_PX, markStyle, refMarksOf, refMarksSentence } from './external-ref-marks';
+import { ExternalRefsCard } from './external-refs-card';
+import { type ExternalRefDraft, ExternalRefsModal } from './external-refs-modal';
 import { FoldedStepCard } from './folded-step-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import {
@@ -417,8 +424,26 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
   // A column that grows a popover and does not join this set is this bug again.
   'tag',
   'service',
+  // The fourth reference cell, and this set's own sentence coming true: the
+  // Types column shipped in `work-item-types` with a `ReferenceSetStrip` in it
+  // and was never added here, so its `<td>` kept `overflow: clip` and the
+  // picker's list was cut at a 26px row. Measured in Chromium, 2026-08-31: with
+  // `Bug` typed into `Types for 010`, the `Add “Bug”` line's own rectangle
+  // stands at y=175.19 with the cell's bottom edge at y=175.19, and
+  // `elementFromPoint` at the middle of that line answers whichever row is
+  // **next** — `<input aria-label="Types for 020"> … intercepts pointer
+  // events`, a 60s Playwright timeout, and `Types for 010.1` on the fixture
+  // `e2e/reference-cell-panel.spec.ts` now uses. Nothing was offerable, which
+  // is Dany's 2026-08-31 report: *"for types - i need to be able to type same
+  // as tags, services, teams"*. It is also what lets the cell's hover card
+  // open at all.
+  'type',
   'actions',
   'not-before',
+  // The ref cell's hover card, which is the whole list of links hanging off a
+  // 40px column: without the exemption it is cut at the cell edge and a reader
+  // sees five characters of a URL.
+  'refs',
   // The Prio cell's band list, since `priority-bands`. The column is 48px and a
   // line reads `Critical — 10`, so the list is wider than its cell by more than
   // any other in this set except the date editor. Without the exemption it is cut
@@ -463,6 +488,12 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
  * open a hover card as well as a list, and a card is what a reader of a folded
  * plan is left with when nothing is open. `e2e/hover-cards.spec.ts` injects the
  * suffix branch's removal and watches the folded step's card get clipped.
+ *
+ * Since 2026-08-31 the four reference columns are too: `ReferenceSetStrip`
+ * opens a `HoverCard` from its anchor with the whole set on it, which is what a
+ * reader of a clipped one-line cell is otherwise left without. So `team`,
+ * `tag`, `service` and `type` each earn this exemption twice over, and losing
+ * it takes both the list and the card with it.
  *
  * What still keeps these cells from painting into their neighbours, now that the
  * structural backstop is off for them: every control inside them is
@@ -1946,6 +1977,17 @@ interface ChartRead {
    */
   depReach: DependencyReach;
   /**
+   * The arithmetic the plan's days were computed with — the PERT coefficients
+   * and the rounding one step's figure is charged at.
+   *
+   * Here for exactly the reason {@link ChartRead.depReach} is: the figures in
+   * `slices` were produced by *these* weights and *this* rounding, and a
+   * settings panel seeded from another moment would offer to "change" a value
+   * the table is not showing. They arrive in one payload and are held as one.
+   */
+  pertWeights: PertWeightsView;
+  estimateRounding: EstimateRoundingView;
+  /**
    * Which read this is: `refresh`'s own generation, and 0 before any has
    * landed.
    *
@@ -1969,6 +2011,12 @@ const NO_CHART_READ: ChartRead = {
   steps: [],
   people: [],
   depReach: 'whole-item',
+  // The column defaults, which are what a project has unless it asks
+  // otherwise — 1/4/1 and `ceil`, the same figures `libs/domain`'s
+  // `DEFAULT_ESTIMATE_RULE` carries. With no slices to draw, nothing has been
+  // computed with them either way.
+  pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+  estimateRounding: 'ceil',
   generation: 0,
 };
 
@@ -2329,6 +2377,7 @@ function FilterFacets({
  * bef.`) or is a glyph (People at once). Steps are named by the project.
  */
 const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
+  ['refs', 'Links'],
   ['depends', 'Depends on'],
   ['priority', 'Priority'],
   ['team', 'Teams'],
@@ -2977,6 +3026,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const [services, setServices] = useState<ServiceView[]>([]);
   const [workItemTypes, setWorkItemTypes] = useState<WorkItemTypeView[]>([]);
   /**
+   * The external-system vocabulary, for the ref marks' names and the editor's
+   * picker.
+   *
+   * Loaded with the other four and never added to: be-01 seeds this one with
+   * exactly the names `systemOfUrl` can answer and offers no create, so a page
+   * that has read it once has read all of it.
+   */
+  const [externalSystems, setExternalSystems] = useState<ExternalSystemView[]>([]);
+  /**
+   * The row whose links are being edited, or null while no editor is open.
+   *
+   * The row **id** and not the row: the modal is rendered from whatever the
+   * current tree says about that id, so a peer's edit landing while the editor
+   * is open redraws the list instead of leaving a stale copy on screen.
+   */
+  const [refsEditing, setRefsEditing] = useState<string | null>(null);
+  /**
    * How many of each team this plan may have at work at once, as be-01 sent it
    * with the tree.
    *
@@ -3325,6 +3391,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * observer's answer after a re-clamp is the answer it gave before it, and
    * React drops the identical state.
    *
+   * **Every child is observed as well as the column, because a child can change
+   * height without the column changing size at all.** The column is `flex-1` in
+   * a page that is exactly the window tall, so its own box is fixed while the
+   * window is: measured in Chromium at 768x900, committing a drag puts `Reset
+   * layout` on the toolbar, that takes the toolbar from one row to two, and an
+   * observer watching only the column never hears about it — the room stays at
+   * the 425 taken at `pointerdown` and the panel's bottom lands 12px below the
+   * column's. Observing the panel too costs nothing and loops on nothing, for
+   * the reason above: the room does not depend on the panel's own height.
+   *
    * `ResizeObserver` is absent in jsdom, where every box measures 0 and there
    * is nothing to observe anyway; the room stays `null` there and the claim is
    * drawn unclamped. Chromium is the oracle (`e2e/gantt.spec.ts`).
@@ -3344,6 +3420,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     if (typeof ResizeObserver === 'undefined') return;
     const watchColumn = new ResizeObserver(measure);
     watchColumn.observe(column);
+    // Proof: with this loop deleted — the column alone observed, which is what
+    // shipped — `re-measures the room when the toolbar wraps under a new
+    // control` failed on `the chart is drawn past the bottom of its column
+    // after the toolbar wrapped · Expected: <= 893 · Received: 904`. Watched in
+    // Chromium at 768x900, 2026-08-30.
+    for (const child of column.children) watchColumn.observe(child);
     return () => {
       watchColumn.disconnect();
     };
@@ -3432,6 +3514,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       loadedTags,
       loadedServices,
       loadedWorkItemTypes,
+      loadedExternalSystems,
       loadedPeople,
     ] = await Promise.all([
       api.tree(projectId),
@@ -3449,6 +3532,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // that already has the vocabulary, rather than one that is empty until the
       // next refresh — and the type facet is built from this list the same way.
       api.listWorkItemTypes(),
+      // And the fifth, on the same read for the same reason: the ref marks name
+      // their system out of this list, so a tree that arrived first would draw a
+      // row's links as `other` for a frame.
+      api.listExternalSystems(),
       api.listPeople(),
     ]);
     if (projectId !== activeProject.current) return;
@@ -3466,6 +3553,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTags(loadedTags);
     setServices(loadedServices);
     setWorkItemTypes(loadedWorkItemTypes);
+    setExternalSystems(loadedExternalSystems);
     setPeople(loadedPeople);
     const drawn = toTree(tree.workItems);
     setWorkItems(drawn);
@@ -3499,6 +3587,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       steps: tree.steps,
       people: tree.assignedPeople,
       depReach: tree.depReach,
+      pertWeights: tree.pertWeights,
+      estimateRounding: tree.estimateRounding,
       generation,
     });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
@@ -3896,6 +3986,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     walk(workItems);
     return out;
   }, [workItems]);
+
+  /**
+   * The row the ref editor is open on, or null while none is — including the
+   * window after a peer (or this reader) deletes the row the editor stood on.
+   *
+   * Resolved from the current tree on every render rather than held: the modal
+   * shows the list as it now stands, so a peer's write lands in an open editor
+   * instead of being overwritten by a copy taken when it opened.
+   */
+  const refsEditingRow = useMemo(
+    () => (refsEditing === null ? null : (flat.find((row) => row.id === refsEditing) ?? null)),
+    [flat, refsEditing],
+  );
 
   /**
    * Every work item in the plan, named the way a dependency names one.
@@ -6322,6 +6425,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run],
   );
 
+  /**
+   * States where a work item's work also exists, **whole**.
+   *
+   * `setTagsOf`'s shape, with the one difference the dimension forces: the
+   * members are records, so the list is sent in order and two refs into one
+   * system are two entries rather than one id stated twice. `[]` takes every
+   * link off and is the only spelling of that; the field is never omitted by a
+   * caller that means "no links", because an omitted field is "no opinion" to
+   * the patch and would leave the old list standing.
+   *
+   * be-01 refuses a `systemId` its directory does not hold with
+   * `unknown_system`, inside its own write transaction, which is why nothing
+   * here validates a second time.
+   */
+  const setExternalRefsOf = useCallback(
+    (id: string, refs: readonly ExternalRefDraft[]): Promise<CommitOutcome> =>
+      run(() => api.patch(id, { externalRefs: refs.map((ref) => ({ ...ref })) })),
+    [api, run],
+  );
+
   /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
   const setTypesOf = useCallback(
     (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
@@ -6764,11 +6887,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     tags,
     services,
     workItemTypes,
+    externalSystems,
+    setRefsEditing,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
     setTypesOf,
+    setExternalRefsOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
@@ -6844,11 +6970,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     tags,
     services,
     workItemTypes,
+    externalSystems,
+    setRefsEditing,
     people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
     setTypesOf,
+    setExternalRefsOf,
     createTeamFor,
     createServiceFor,
     createTagFor,
@@ -6955,6 +7084,104 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
             </span>
           ),
+        }),
+        column.display({
+          id: 'refs',
+          // Five characters at the header's 10px all-caps, which is what a 32px
+          // envelope holds — `Prio`'s bargain, one column over, and for its
+          // reason: a word that wraps makes the whole header row two lines tall.
+          header: 'Links',
+          cell: ({ row }) => {
+            // Read through `live` and never closed over, the landmine at the top
+            // of this file: `columns` may depend on `steps`, `unfoldedSteps` and
+            // `hiddenColumnIds` only, and a vocabulary in its dependency list
+            // would remount every cell in the table on the first directory read.
+            const marks = refMarksOf(row.original.externalRefs, live.current.externalSystems);
+            const refsCell = cellKey(row.original.id, 'refs');
+            const carded = marks.length > 0 && live.current.openCard === refsCell;
+            const sentenceId = `refs-${row.original.id}`;
+            return (
+              <span
+                // The positioned ancestor the card opens from, and — the Name
+                // cell's arrangement, for the Name cell's reason — the element
+                // that **closes** it: this span holds the marks *and* the card,
+                // so `mouseleave` fires only once the pointer is outside both and
+                // the trip from a 6px dot down to a link on the card never
+                // unmounts what it is travelling to.
+                style={{ position: 'relative', display: 'block' }}
+                onMouseLeave={() => {
+                  // The same-cell guard every surface here clears with: a leave
+                  // fires after the enter of whatever the pointer moved on to.
+                  live.current.setHoveredCell((current) => (current === refsCell ? null : current));
+                }}
+              >
+                <button
+                  type="button"
+                  data-refs-cell={row.original.id}
+                  aria-label={`Links for ${row.original.number}`}
+                  // The whole cell in one sentence for a reader with no pointer
+                  // — the card's content, which a pointer is the only other way
+                  // to reach. Absent on a row with no links, so nothing is
+                  // announced about a cell that says nothing.
+                  aria-describedby={marks.length === 0 ? undefined : sentenceId}
+                  onMouseEnter={() => {
+                    live.current.setHoveredCell(refsCell);
+                  }}
+                  onClick={() => {
+                    live.current.setRefsEditing(row.original.id);
+                  }}
+                  // The fixed-height box the marks are placed inside, and the
+                  // whole of design D2's "the dots never change the row's
+                  // height": every mark is out of flow, so a row wired to four
+                  // systems and a row wired to none lay out identically and the
+                  // claim is one Chromium can measure (jsdom lays nothing out —
+                  // `e2e/external-refs.spec.ts` is the oracle).
+                  //
+                  // The reset in `styles.css` stops at `[data-grid]`, so a
+                  // `<button>` in here keeps the platform's border, background
+                  // and padding unless it is told not to. All three are told.
+                  style={{
+                    position: 'relative',
+                    display: 'block',
+                    width: '100%',
+                    height: MARK_BOX_PX,
+                    padding: 0,
+                    margin: 0,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {marks.map((mark, at) => (
+                    <span
+                      key={mark.kind}
+                      role="img"
+                      // Design D3's third channel: the column is readable with
+                      // no colour at all, because every mark says what it stands
+                      // for and how many links it covers.
+                      aria-label={mark.label}
+                      data-ref-mark={mark.kind}
+                      style={markStyle(mark.kind, at)}
+                    >
+                      {mark.kind === 'overflow' ? '+' : null}
+                    </span>
+                  ))}
+                </button>
+                {marks.length > 0 && (
+                  <span id={sentenceId} hidden>
+                    {refMarksSentence(marks)}
+                  </span>
+                )}
+                {carded && (
+                  <ExternalRefsCard
+                    number={row.original.number}
+                    refs={row.original.externalRefs}
+                    systems={live.current.externalSystems}
+                  />
+                )}
+              </span>
+            );
+          },
         }),
         column.display({
           id: 'name',
@@ -10297,6 +10524,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // section.
           onChanged: refreshOrMarkStale,
         }}
+        estimating={{
+          // The method is reported, not set: `Plan with` on the bar is the one
+          // control for it, and a second would be two answers to one question.
+          method: estimateMethod,
+          // Off the chart read, like the reach above and for the same reason —
+          // these are the weights the figures on screen were computed with.
+          pertWeights: chartRead.pertWeights,
+          estimateRounding: chartRead.estimateRounding,
+          setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
+          onChanged: refreshOrMarkStale,
+        }}
       />
       {/*
         Find. Deliberately without `data-cell`: this is not a cell of the
@@ -11489,6 +11727,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           renderer={renderer}
           onClose={() => {
             setCheatSheetOpen(false);
+          }}
+        />
+      )}
+      {/*
+        The ref editor, rendered only while a row is being edited and driven
+        from the row the tree currently holds rather than from a copy taken when
+        it opened: a peer's edit landing mid-edit redraws the list.
+
+        `refsEditingRow` can be null while `refsEditing` is not — the row was
+        deleted, by this reader or a peer — and that is a modeled state rather
+        than an invariant: the surface simply is not there, which is what a
+        deleted row's editor should be.
+      */}
+      {refsEditingRow !== null && (
+        <ExternalRefsModal
+          open
+          onOpenChange={(open) => {
+            if (!open) setRefsEditing(null);
+          }}
+          number={refsEditingRow.number}
+          refs={refsEditingRow.externalRefs}
+          systems={externalSystems}
+          onReplace={(refs) => {
+            void setExternalRefsOf(refsEditingRow.id, refs);
           }}
         />
       )}

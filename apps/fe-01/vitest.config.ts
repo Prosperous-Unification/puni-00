@@ -55,6 +55,12 @@ export default defineConfig({
         __dirname,
         '../../libs/domain/src/dependency-reach.ts',
       ),
+      // And a fifth, for `external-refs`: `external-system.ts` holds the ordered
+      // URL→system rules, and the deriving rule and the seeded vocabulary are
+      // one fact (`EXTERNAL_SYSTEMS` is asserted against the migration's seed).
+      // A second copy here is a paste that types itself as a system be-01 would
+      // refuse to store.
+      '@wbs/domain/external-system': resolve(__dirname, '../../libs/domain/src/external-system.ts'),
     },
   },
   test: {

@@ -121,6 +121,9 @@ function fakeDirectory(
     listTeams: () => Promise.resolve(heldTeams.map((team) => ({ ...team }))),
     listTags: () => Promise.resolve(heldTags.map((tag) => ({ ...tag }))),
     listWorkItemTypes: () => Promise.resolve(heldWorkItemTypes.map((each) => ({ ...each }))),
+    // The directory page shows no external systems — the vocabulary is seeded
+    // and has no create — so this answers the empty list rather than a held one.
+    listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve(heldServices.map((service) => ({ ...service }))),
     // The service half of the fake, and it is the tag half with the word
     // changed — which is the point: the page's four vocabularies go through one

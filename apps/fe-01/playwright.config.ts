@@ -63,6 +63,14 @@ const isCi = process.env['CI'] !== undefined;
  * port you believe is free, check for a privileged listener before you doubt
  * the config.
  *
+ * **And it cannot know what the browser refuses to talk to.** Shift 1800 puts
+ * fe-01 on **6000**, X11's port, which is on Chromium's own blocked list: the
+ * three servers start, the port is genuinely free, and every navigation fails
+ * on `net::ERR_UNSAFE_PORT` before an assertion runs (2026-08-31). That list is
+ * the browser's and changes with it, so it is not encoded here — 6000, 6665–6669
+ * and 10080 are the ones a four-digit shift can reach. **1900 is the known-good
+ * neighbour**, at 5000/5100/6100.
+ *
  * @throws When `E2E_PORT_SHIFT` is set to something that is not a
  * non-negative integer below 10000. An unusable shift silently read as zero is
  * a run against the dev server wearing the costume of an isolated one.

@@ -1,3 +1,4 @@
+import { DEFAULT_ESTIMATE_RULE, type EstimateRule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type {
@@ -11,6 +12,7 @@ import type {
 import {
   rollUp,
   rollUpActuals,
+  rollUpFinals,
   rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
@@ -433,5 +435,78 @@ describe('rollUpProgress', () => {
 
     expect(states.get('a')).toBe('not_started');
     expect(states.has('gone')).toBe(false);
+  });
+});
+
+describe('rollUpFinals', () => {
+  const ceiling: EstimateRule = { ...DEFAULT_ESTIMATE_RULE, rounding: 'ceil' };
+
+  it('charges a leaf the whole days its own estimate rounds to', () => {
+    const finals = rollUpFinals([item('a', null)], [held('a', 'dev', 0.5, 0.5, 0.5)], ceiling);
+
+    expect(finals.get('a')?.get('dev')).toBe(1);
+  });
+
+  /**
+   * The decision this function exists for. Rolling the triples up first gives
+   * the parent one whole day; charging what its children were charged gives two,
+   * which is also what the schedule runs and what the two rows below it show.
+   *
+   * Proof: with the fold taken back to `rollUp` + one rounding at the parent —
+   * `finalDays({o:1,r:1,p:1}, rule)` over the summed triple — this failed on
+   * `expect(received).toBe(expected) // Expected: 2, Received: 1`; watched
+   * 2026-08-30.
+   */
+  it('gives a parent the sum of what its children were charged, not of what they said', () => {
+    const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
+    const estimates = [held('one', 'dev', 0.5, 0.5, 0.5), held('two', 'dev', 0.5, 0.5, 0.5)];
+
+    const finals = rollUpFinals(rows, estimates, ceiling);
+
+    expect(finals.get('one')?.get('dev')).toBe(1);
+    expect(finals.get('two')?.get('dev')).toBe(1);
+    expect(finals.get('parent')?.get('dev')).toBe(2);
+    // What the two children *said*, for contrast: one whole day between them.
+    expect(rollUp(rows, estimates).get('parent')?.get('dev')).toEqual({
+      optimistic: 1,
+      realistic: 1,
+      pessimistic: 1,
+    });
+  });
+
+  it('rounds by the project’s rounding and weighs by its weights', () => {
+    const rows = [item('a', null)];
+    const estimates = [held('a', 'dev', 2, 3, 10)];
+
+    expect(rollUpFinals(rows, estimates, ceiling).get('a')?.get('dev')).toBe(4);
+    expect(
+      rollUpFinals(rows, estimates, {
+        ...ceiling,
+        pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+      })
+        .get('a')
+        ?.get('dev'),
+    ).toBe(5);
+    expect(
+      rollUpFinals(rows, [held('a', 'dev', 1, 2, 4)], { ...ceiling, rounding: 'floor' })
+        .get('a')
+        ?.get('dev'),
+    ).toBe(2);
+  });
+
+  it('reports a step no descendant estimated as absent, not as zero days', () => {
+    const rows = [item('parent', null), item('one', 'parent')];
+
+    const finals = rollUpFinals(rows, [held('one', 'dev', 1, 2, 3)], ceiling);
+
+    expect(finals.get('parent')?.has('qa')).toBe(false);
+  });
+
+  it('ignores an estimate stored against a work item that has children', () => {
+    const rows = [item('parent', null), item('one', 'parent')];
+    const estimates = [held('parent', 'dev', 99, 99, 99), held('one', 'dev', 1, 2, 3)];
+
+    // `(1 + 4×2 + 3) / 6` is 2 days; the 99s are not counted at all.
+    expect(rollUpFinals(rows, estimates, ceiling).get('parent')?.get('dev')).toBe(2);
   });
 });

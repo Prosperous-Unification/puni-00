@@ -5,27 +5,41 @@
 rather than left to be read as the truth about the tree. The repository, the
 migration, the commands, the column and `e2e/types-cell.spec.ts` are all on
 `main`; the eight `Proof:` comments below are quoted from the tests that carry
-them. Task 6.1 — the whole gate — is the one box genuinely still open, and it
-stays unticked until it is run.
+them. Task 6.1 — the whole gate — was the one box genuinely still open; it was run on
+2026-08-31 and is green (259 passed, 0 failed, 1 skipped), so it is ticked.
 
 **Ordered after `unified-reference-cell-ux`.**
 
 ## The width claim
 
-| Figure                                            | Before  | After   |
-| ------------------------------------------------- | ------- | ------- |
-| `foldedTableMinWidth` over the default column set | pending | pending |
+| Figure                                                       | Before | After |
+| ------------------------------------------------------------ | ------ | ----- |
+| `foldedTableMinWidth([], DATED)` over the default column set | 1067   | 1067  |
+| `foldedTableMinWidth(['step-dev','step-qa'], DATED)`         | 1259   | 1259  |
 
-These must be equal. A difference means the column reached the default set.
+Equal, which is the claim: `type` is in `DEFAULT_HIDDEN_COLUMNS`, so the default
+table is the table it was to the pixel and a reader who wants the dimension
+turns it on in `Columns`. Pinned in `table-frame.test.ts`, `hides Teams and
+Services by default, shows Tags, and the folded figures do not move`, and
+watched on 2026-08-30: `type` struck from `DEFAULT_HIDDEN_COLUMNS` failed on
+`expected 1187 to be 1067`.
+
+Read the figures as of 2026-08-31. They went to 1107/1299 for the hours
+`external-refs` sat on `main` with its 40px column unpaid for, and came back
+when `number` and the Name floor gave 20 each — a movement that is not this
+change's and that this change's claim (**equal before and after**) is
+independent of.
 
 ## Commands
 
-| Command                                                                           | Result  |
-| --------------------------------------------------------------------------------- | ------- |
-| `bin/h2puni-gate.sh`                                                              | not run |
-| `openspec validate --all --json`                                                  | not run |
-| migration lint                                                                    | not run |
-| `CI=1 bunx playwright test --config apps/fe-01/playwright.config.ts` (whole gate) | not run |
+| Command                                                                  | Result                                                            |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `bin/h2puni-gate.sh`                                                     | **not run** — exits 127 on this macOS host                        |
+| `bunx openspec validate --all`                                           | 33 passed, 0 failed (2026-08-31)                                  |
+| migration lint (CI's own command, whole repo)                            | exit 0 (2026-08-31)                                               |
+| `nx run-many -t test lint typecheck build` over the app and lib projects | green — fe-01 1992, be-01 1248, gw-01 105, mcp-01 59 (2026-08-31) |
+| `CI=1 E2E_PORT_SHIFT=2600 playwright test …` (whole gate)                | **259 passed / 0 failed / 1 skipped in 6.7m, exit 0**             |
+| `… e2e/types-cell.spec.ts` (2026-08-31, after the width rebalance)       | **5 passed**                                                      |
 
 ## Failure proofs (R5)
 

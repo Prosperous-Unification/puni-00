@@ -294,6 +294,37 @@
                       "anchor-slice"
                     ]
                   },
+                  "pertWeights": {
+                    "type": "object",
+                    "required": [
+                      "optimistic",
+                      "realistic",
+                      "pessimistic"
+                    ],
+                    "properties": {
+                      "optimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "realistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "pessimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "estimateRounding": {
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "floor",
+                      "round",
+                      "ceil"
+                    ]
+                  },
                   "startDate": {
                     "anyOf": [
                       {
@@ -358,6 +389,37 @@
                       "anchor-slice"
                     ]
                   },
+                  "pertWeights": {
+                    "type": "object",
+                    "required": [
+                      "optimistic",
+                      "realistic",
+                      "pessimistic"
+                    ],
+                    "properties": {
+                      "optimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "realistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "pessimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "estimateRounding": {
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "floor",
+                      "round",
+                      "ceil"
+                    ]
+                  },
                   "startDate": {
                     "anyOf": [
                       {
@@ -420,6 +482,37 @@
                     "enum": [
                       "whole-item",
                       "anchor-slice"
+                    ]
+                  },
+                  "pertWeights": {
+                    "type": "object",
+                    "required": [
+                      "optimistic",
+                      "realistic",
+                      "pessimistic"
+                    ],
+                    "properties": {
+                      "optimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "realistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "pessimistic": {
+                        "minimum": 0,
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "estimateRounding": {
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "floor",
+                      "round",
+                      "ceil"
                     ]
                   },
                   "startDate": {

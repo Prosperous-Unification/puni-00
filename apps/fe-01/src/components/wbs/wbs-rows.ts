@@ -1,4 +1,4 @@
-import type { WorkItemView } from '@/lib/wbs-api';
+import type { ExternalRefView, WorkItemView } from '@/lib/wbs-api';
 
 /** A work item with its children attached, which is the shape a table row model wants. */
 export interface TreeRow extends WorkItemView {
@@ -32,6 +32,16 @@ export interface TreeRow extends WorkItemView {
    * the ancestors", and here means "there is nothing".
    */
   typeIds: string[];
+  /**
+   * Required here where {@link WorkItemView} has it optional, `tagIds`' rule and
+   * the same swap window.
+   *
+   * The default is `[]`, and it is the whole answer rather than half of one: a
+   * row with no refs links to nothing and takes no ancestor's, so an outgoing
+   * be-01's silence and a row nobody has wired up arrive at every surface as the
+   * same thing — an empty cell.
+   */
+  externalRefs: ExternalRefView[];
 }
 
 /**
@@ -64,6 +74,7 @@ export function toTree(flat: readonly WorkItemView[]): TreeRow[] {
         tagIds: item.tagIds ?? [],
         serviceIds: item.serviceIds ?? [],
         typeIds: item.typeIds ?? [],
+        externalRefs: item.externalRefs ?? [],
         subRows: [],
       },
     ]),

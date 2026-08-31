@@ -68,6 +68,15 @@ const COLUMN_HINTS = new Map<string, string>([
       'call it, and where its notes are typed. It moves no dates.',
   ],
   [
+    'refs',
+    // The hint names what the column does **not** do, which for this one is the
+    // load-bearing half: a dot beside a row looks like a status, and nothing
+    // here is fetched — a ref is a link and nothing more (the proposal's first
+    // non-goal). Nothing about a ref reaches a date, a roll-up or a person.
+    'Where this work also exists — a Jira issue, a pull request, a page. One dot per system, ' +
+      'never one per link. Nothing is fetched and nothing here changes the plan.',
+  ],
+  [
     'depends',
     'The rows this one waits for. It starts after each named row’s first estimated step ' +
       'rather than after that row finishes, so pushing a row you depend on pushes this one too.',

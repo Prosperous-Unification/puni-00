@@ -1183,8 +1183,9 @@ test.describe('the plan on a phone, measured by a browser', () => {
    * still be untypeable on a phone; this one cannot pass unless the three boxes
    * exist.
    *
-   * `3.7` is the round trip's proof rather than `2 · 3 · 8`: the final figure is
-   * PERT over the three points — (2 + 4×3 + 8) / 6 — computed by be-01 and read
+   * The final figure is the round trip's proof rather than `2 · 3 · 8`: it is
+   * PERT over the three points — (2 + 4×3 + 8) / 6 = 3.667, charged as 4 whole
+   * days since `estimate-weights-and-rounding` — computed by be-01 and read
    * back after a reload, so a card that only redrew what React was holding
    * fails here.
    */
@@ -1243,7 +1244,10 @@ test.describe('the plan on a phone, measured by a browser', () => {
     await expect(detail.locator('[data-step-trio]')).toHaveText(
       'optimistic 2 · realistic 3 · pessimistic 8',
     );
-    await expect(detail.locator('[data-step-final]')).toHaveText('Final 3.7 days');
+    // `4` and not `3.7` since `estimate-weights-and-rounding`: 22/6 = 3.667,
+    // charged `ceil` per step. The round trip is still what this asserts — the
+    // figure is be-01's answer, not what React was holding.
+    await expect(detail.locator('[data-step-final]')).toHaveText('Final 4 days');
   });
 
   /**

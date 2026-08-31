@@ -10,6 +10,7 @@ import {
   ModalTrigger,
 } from '@/components/ui/modal';
 
+import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
 import { StepsPanel, type StepsPanelProps } from './steps-panel';
 import { TeamsPanel, type TeamsPanelProps } from './teams-panel';
@@ -20,12 +21,13 @@ import { SettingsIcon } from './toolbar-icons';
  * list shows them — the order the three toolbar buttons stood in until
  * `project-config-modal` folded them into this one surface.
  */
-export type SettingsSection = 'teams' | 'priorities' | 'steps';
+export type SettingsSection = 'teams' | 'priorities' | 'steps' | 'estimating';
 
 const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'teams', label: 'Teams' },
   { id: 'priorities', label: 'Priorities' },
   { id: 'steps', label: 'Steps' },
+  { id: 'estimating', label: 'Estimating' },
 ];
 
 const FIRST_SECTION: SettingsSection = 'teams';
@@ -87,6 +89,16 @@ export interface ProjectSettingsModalProps {
   teams: SectionOwn<TeamsPanelProps>;
   priorities: SectionOwn<PrioritiesPanelProps>;
   steps: SectionOwn<StepsPanelProps>;
+  /**
+   * The arithmetic the plan's days are computed with — the PERT coefficients
+   * and the rounding a step's figure is charged at.
+   *
+   * Here rather than on the toolbar for the reason `dep-reach-whole-item` gives
+   * about the reach: a project-wide statement about **how the plan is computed**
+   * belongs beside the teams' capacity and the priority ladder, not on a bar
+   * whose width is the scarce resource.
+   */
+  estimating: SectionOwn<EstimatingPanelProps>;
 }
 
 /**
@@ -139,6 +151,7 @@ export function ProjectSettingsModal({
   teams,
   priorities,
   steps,
+  estimating,
 }: ProjectSettingsModalProps) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState<SettingsSection>(FIRST_SECTION);
@@ -187,6 +200,7 @@ export function ProjectSettingsModal({
       teams: reporterFor('teams'),
       priorities: reporterFor('priorities'),
       steps: reporterFor('steps'),
+      estimating: reporterFor('estimating'),
     }),
     [reporterFor],
   );
@@ -393,6 +407,20 @@ export function ProjectSettingsModal({
               hidden={shown !== 'steps'}
             >
               <StepsPanel {...steps} onDirtyChange={reporters.steps} />
+            </div>
+            <div
+              role="tabpanel"
+              id={panelId('estimating')}
+              aria-labelledby={tabId('estimating')}
+              hidden={shown !== 'estimating'}
+            >
+              <EstimatingPanel
+                {...estimating}
+                onDirtyChange={reporters.estimating}
+                onDone={() => {
+                  closeFrom('estimating');
+                }}
+              />
             </div>
           </div>
         </div>

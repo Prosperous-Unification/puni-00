@@ -16,6 +16,7 @@ import {
   countMovedDates,
   isFullyEstimated,
   withoutPlacement,
+  withSnappedRollUps,
 } from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -321,6 +322,12 @@ describe('a priority ladder moves no date', () => {
         ownerId: 'owner',
         restricted: false,
         estimateMethod: 'realistic',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        // The arithmetic this capture was taken under: a step's figure reached
+        // the schedule as the fraction the method produced. See
+        // `estimate-weights-and-rounding`, which made `ceil` the default for
+        // every project and left `exact` as the arm an oracle replays on.
+        estimateRounding: 'exact',
         // The `anchor-slice` reach, for the reason the replayed plans below
         // carry it: this fixture's figures were derived before a reach existed.
         depReach: 'anchor-slice',
@@ -437,7 +444,15 @@ describe('a priority ladder moves no date', () => {
       return null;
     };
 
-    const { depReach, ...treeWithoutReach } = tree;
+    const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
+    // The weights and the rounding are lifted for `depReach`'s reason exactly —
+    // the oracle predates both fields — and asserted rather than dropped, so a
+    // replay that stopped setting them would fail here instead of being
+    // measured against an oracle for an arithmetic it was not computed by.
+    // `exact` is not the shipped default: it is what these captures were taken
+    // under, when a step's figure reached the schedule as a fraction.
+    expect(pertWeights).toEqual({ optimistic: 1, realistic: 4, pessimistic: 1 });
+    expect(estimateRounding).toBe('exact');
     // **`depReach` is lifted by `dep-reach-whole-item` (2026-08-29)**, and
     // asserted to be the reach these plans were replayed on rather than
     // dropped. The oracle predates the setting entirely, so the payload now
@@ -538,10 +553,13 @@ describe('a priority ladder moves no date', () => {
    * remove, and the ladder-against-ladder test above for the claim this file
    * makes without any oracle at all.
    */
-  const narrowedFor = (
-    plan: CapturedPlan,
-  ): ((document: Record<string, unknown>) => Record<string, unknown>) =>
-    isFullyEstimated(plan) ? (document) => document : withoutPlacement;
+  const narrowedFor =
+    (plan: CapturedPlan) =>
+    (document: Record<string, unknown>): Record<string, unknown> =>
+      // `withSnappedRollUps` on both sides for the reassociated parent totals
+      // `estimate-weights-and-rounding` introduced — see its JSDoc for the one
+      // row in this corpus it is about and why 1e-9 cannot hide a real move.
+      withSnappedRollUps(isFullyEstimated(plan) ? document : withoutPlacement(document));
 
   /** What the payload is owed: the capture, plus the two keys it predates. */
   function expected(
@@ -667,6 +685,12 @@ describe('a priority ladder moves no date', () => {
       ownerId: 'owner',
       restricted: false,
       estimateMethod: plan.estimateMethod,
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      // The arithmetic this capture was taken under: a step's figure reached
+      // the schedule as the fraction the method produced. See
+      // `estimate-weights-and-rounding`, which made `ceil` the default for
+      // every project and left `exact` as the arm an oracle replays on.
+      estimateRounding: 'exact',
       // The oracle was captured at a tip whose engine had no reach at all and
       // waited on the anchor slice, so these plans are replayed on
       // `anchor-slice`. Replaying them on the default would be measuring

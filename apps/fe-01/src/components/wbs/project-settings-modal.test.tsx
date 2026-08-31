@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PriorityBandView } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, type PriorityBandView } from '@/lib/wbs-api';
 
 import {
   isSettingsSection,
@@ -47,6 +47,7 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
   const renameStep = vi.fn(() => Promise.resolve({ id: 'step-qa', name: 'Review' }));
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
+  const setArithmetic = vi.fn(() => Promise.resolve());
   const props: ProjectSettingsModalProps = {
     projectId: PROJECT,
     trigger: 'glyph',
@@ -73,10 +74,17 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
       removeStep,
       onChanged,
     },
+    estimating: {
+      method: 'pert',
+      pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+      estimateRounding: 'ceil',
+      setArithmetic,
+      onChanged,
+    },
     ...overrides,
   };
   render(<ProjectSettingsModal {...props} />);
-  return { setCapacity, setBands, addStep, renameStep, removeStep, onChanged };
+  return { setCapacity, setBands, addStep, renameStep, removeStep, setArithmetic, onChanged };
 }
 
 const trigger = (): HTMLElement => screen.getByRole('button', { name: 'Project settings' });
@@ -103,7 +111,7 @@ const escape = (): void => {
   fireEvent.keyDown(dialog(), { key: 'Escape' });
 };
 
-describe('one modal for the project’s three settings', () => {
+describe('one modal for the project’s four settings', () => {
   itDom('opens on one control and offers every section from its tab list', () => {
     mounted();
     open();
@@ -112,7 +120,7 @@ describe('one modal for the project’s three settings', () => {
     const list = screen.getByRole('tablist');
     expect(
       [...list.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Steps']);
+    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating']);
     // The first section is showing, and it is the teams'.
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: 'Teams' })).toBeVisible();
@@ -131,15 +139,19 @@ describe('one modal for the project’s three settings', () => {
     // asserting the opposite of what `hidden` means.
     expect(document.getElementById('project-settings-panel-teams')).not.toBeVisible();
 
-    // Arrow keys select as they go — automatic activation — and wrap.
+    // Arrow keys select as they go — automatic activation — and wrap. The
+    // sections are Teams, Priorities, Steps, Estimating, so the wrap is off
+    // the **last** of the four and `End` lands on it.
     fireEvent.keyDown(tab('Priorities'), { key: 'ArrowDown' });
     expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByLabelText('New step')).toBeVisible();
     fireEvent.keyDown(tab('Steps'), { key: 'ArrowRight' });
+    expect(tab('Estimating')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Estimating'), { key: 'ArrowRight' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
-    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(tab('Steps'), { key: 'Home' });
+    expect(tab('Estimating')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Estimating'), { key: 'Home' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
   });
 

@@ -5,6 +5,7 @@ import {
   REFERENCE_SET_EDGE_FADE,
   REFERENCE_SET_LINE_HEIGHT,
   type ReferenceSetAdapter,
+  referenceSetLines,
   ReferenceSetSheet,
   ReferenceSetStrip,
 } from './reference-set-field';
@@ -72,13 +73,22 @@ describe('ReferenceSetStrip', () => {
     fireEvent.keyDown(box, { key: 'Enter' });
 
     expect(model.replace).toHaveBeenCalledTimes(1);
-    expect(box).toBeDisabled();
+    // **Read-only and busy, not disabled**, since 2026-08-31. The claim is the
+    // same one this line always made — the box refuses what is typed into it
+    // while the write travels — and the reason the spelling changed is that a
+    // `disabled` box drops the focus it holds and the panel around it never
+    // hears about it (`creatable-picker.tsx`, and `e2e/reference-cell-panel
+    // .spec.ts` in a browser, which is the only place that fault is visible).
+    expect(box).toHaveAttribute('readonly');
+    expect(box).toHaveAttribute('aria-busy', 'true');
+    expect(box).not.toBeDisabled();
     expect(box).toHaveValue('Q');
 
     await act(async () => {
       answer('refused');
       await pending;
     });
+    expect(box).not.toHaveAttribute('readonly');
     expect(box).not.toBeDisabled();
     expect(box).toHaveValue('Q');
   });
@@ -157,7 +167,8 @@ describe('ReferenceSetStrip', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove Platform team' }));
     const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
-    expect(box).toBeDisabled();
+    expect(box).toHaveAttribute('readonly');
+    expect(box).not.toBeDisabled();
 
     await act(async () => {
       answer('landed');
@@ -464,5 +475,41 @@ describe('ReferenceSetSheet', () => {
 
     const sheet = screen.getByRole('dialog', { name: 'Edit Teams' });
     expect(drawnSayings(sheet, 'Core')).toEqual(['Inherited: Core from 010']);
+  });
+});
+
+describe('referenceSetLines', () => {
+  const carried = { id: 'tag-9', name: 'Risk', fromRow: '010 Compliance' };
+
+  it('puts what the row states ahead of what it carries, and names where each came from', () => {
+    expect(referenceSetLines([{ id: 'tag-1', name: 'Ready' }], [carried], undefined)).toEqual([
+      { key: 'tag-1', text: 'Ready', stated: true },
+      { key: 'tag-9', text: '↳ Risk — from 010 Compliance', stated: false },
+    ]);
+  });
+
+  it('adds the overriding dimension’s reading only while the row states none of its own', () => {
+    // Both arms in one case on purpose: the difference between them **is** the
+    // rule, and two cases that each assert one half would both pass against a
+    // line that was drawn always or never. `inheritedLabel` describes an
+    // ancestor's set that is only in force while this row is silent (ADR 0008),
+    // so a row that states a team of its own carries none of it — and a card
+    // line saying otherwise would be a claim the cell does not make.
+    //
+    // Proof: the `own.length === 0 &&` guard dropped, and the second arm failed
+    // on `expected [ { key: 'team-1', …(2) }, …(1) ] to deeply equal [ { key:
+    // 'team-1', …(2) } ]` with `+ Object { "key": "(inherited)", "stated":
+    // false, "text": "↳ Core" }` drawn under a row that states `Platform`.
+    // Watched, 2026-08-31.
+    expect(referenceSetLines([], [], 'Core')).toEqual([
+      { key: '(inherited)', text: '↳ Core', stated: false },
+    ]);
+    expect(referenceSetLines([{ id: 'team-1', name: 'Platform' }], [], 'Core')).toEqual([
+      { key: 'team-1', text: 'Platform', stated: true },
+    ]);
+  });
+
+  it('has nothing to say about a cell that says nothing', () => {
+    expect(referenceSetLines([], [], undefined)).toEqual([]);
   });
 });

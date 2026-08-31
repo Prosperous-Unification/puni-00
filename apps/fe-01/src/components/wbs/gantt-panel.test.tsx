@@ -12,6 +12,7 @@ import type {
   TeamView,
   WorkItemView,
 } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
@@ -126,6 +127,8 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise.
   depReach: 'whole-item',
+  pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+  estimateRounding: 'ceil',
   ...parts,
 });
 
@@ -3096,6 +3099,8 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
+        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+        estimateRounding: 'ceil' as const,
         startDate,
         projectRevision: 0,
         undoable: false,
@@ -3107,6 +3112,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     listTeams: () => Promise.resolve(skew.teams ?? teams),
     listTags: () => Promise.resolve([]),
     listWorkItemTypes: () => Promise.resolve([]),
+    listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),

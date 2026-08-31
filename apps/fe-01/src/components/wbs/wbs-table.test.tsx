@@ -21,6 +21,7 @@ import type {
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
 import { hintFor, STEP_FINAL_HINT } from './column-hints';
 import { cellKey } from './editable-grid';
@@ -89,6 +90,15 @@ function fakeApi(): ProjectApi & {
   ownService: (teamId: string, serviceId: string) => void;
   /** The same write undone, for the map emptying under a ticked signal. */
   disownService: (teamId: string, serviceId: string) => void;
+  /**
+   * The ref half of {@link labelWithTag}: writes a row's links straight onto
+   * the view, minting an id per entry the way be-01's store does.
+   *
+   * A fixture rather than a patch, for `labelWithService`'s reason — a test
+   * that needs a row already wired up is arranging a screen, not driving the
+   * editor.
+   */
+  linkTo: (workItemId: string, refs: readonly { systemId: string; url: string }[]) => void;
 } {
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
@@ -109,6 +119,22 @@ function fakeApi(): ProjectApi & {
   const services: { id: string; name: string }[] = [];
   /** The global tag directory, `services`' shape — a tag is a name and nothing else. */
   const tags: { id: string; name: string }[] = [];
+  /**
+   * The external-system vocabulary, **seeded** where every other directory here
+   * starts empty — which is what be-01 does, and the difference is load-bearing:
+   * the names are exactly what `systemOfUrl` answers, so a pasted URL can type
+   * itself on a deployment nobody has configured. A fake starting empty would
+   * let a cell that never resolves a system name pass.
+   */
+  const externalSystems: { id: string; name: string }[] = [
+    { id: 'sys-jira', name: 'jira-issue' },
+    { id: 'sys-gh-pr', name: 'github-pr' },
+    { id: 'sys-gh-issue', name: 'github-issue' },
+    { id: 'sys-confluence', name: 'confluence-page' },
+    { id: 'sys-slack', name: 'slack-message' },
+  ];
+  /** Ref ids are minted by the store and never taken from a caller, as be-01's are. */
+  let nextRefId = 0;
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
   /**
@@ -272,6 +298,14 @@ function fakeApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
+    linkTo(workItemId: string, refs: readonly { systemId: string; url: string }[]) {
+      const row = rows.find((r) => r.id === workItemId);
+      if (row === undefined) throw new Error(`no work item ${workItemId}`);
+      row.externalRefs = refs.map((ref) => {
+        nextRefId += 1;
+        return { id: `ref${String(nextRefId)}`, systemId: ref.systemId, url: ref.url };
+      });
+    },
     labelWithTag(workItemId: string, tagIds: readonly string[]) {
       const row = rows.find((r) => r.id === workItemId);
       // The row's **own** set, which is all be-01 ever sends: what the row
@@ -390,6 +424,8 @@ function fakeApi(): ProjectApi & {
         // `undefined` it can never see in production — every arrow would then
         // be drawn out of the anchor slice whatever the plan was scheduled by.
         depReach,
+        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+        estimateRounding: 'ceil' as const,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
         // work item writes, and be-01 keeps the project's revision off them.
@@ -419,6 +455,7 @@ function fakeApi(): ProjectApi & {
       return Promise.resolve(tag);
     },
     listServices: () => Promise.resolve([...services]),
+    listExternalSystems: () => Promise.resolve(externalSystems.map((each) => ({ ...each }))),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
       // is not in the list" must not be able to make two `Platform`s.
@@ -557,7 +594,20 @@ function fakeApi(): ProjectApi & {
       // be-01 can never send.
       const written =
         'maxParallel' in patch && patch.maxParallel === null ? { ...patch, maxParallel: 1 } : patch;
-      if (row !== undefined) Object.assign(row, written);
+      // The refs be-01 would have written: the whole list replaced, with an id
+      // minted per entry. Taken off the patch **before** the spread, because the
+      // wire shape has no `id` and a spread would put `{systemId, url}` on the
+      // view where every reader expects an `ExternalRefView`.
+      const { externalRefs: statedRefs, ...restOfPatch } = written as Record<string, unknown> & {
+        externalRefs?: readonly { systemId: string; url: string }[];
+      };
+      if (row !== undefined) Object.assign(row, restOfPatch);
+      if (row !== undefined && statedRefs !== undefined) {
+        row.externalRefs = statedRefs.map((ref) => {
+          nextRefId += 1;
+          return { id: `ref${String(nextRefId)}`, systemId: ref.systemId, url: ref.url };
+        });
+      }
       // The dual write be-01 performs: the column and the join, in one act, and
       // the join is what this client reads. A fake that wrote only the column
       // would leave the table reading an empty set and every label test green
@@ -4137,9 +4187,11 @@ describe('step columns fold away', () => {
     //
     // The arithmetic it quoted is unchanged and is still pinned in
     // `table-frame.test.ts`: a folded step costs 96px and an unfolded one 348,
-    // so two folded need 1231px, one open 1483 and both open 1735 (1219 →
+    // so two folded need 1247px, one open 1499 and both open 1751 (1219 →
     // 1231 → 1483 → 1735 in `number-column-widen`, 93 → 105 in
-    // `COLUMN_WIDTHS`). What changed at `unfolding-may-scroll` is that the
+    // `COLUMN_WIDTHS`; each 40px larger again in `external-refs`, and each 24
+    // back on 2026-08-31 when `depends` paid for that column, 110 → 86). What
+    // changed at `unfolding-may-scroll` is that the
     // third of those is now reachable, and the frame scrolling is what pays
     // for it — `e2e/layout.spec.ts` measures that half.
     await oneRow();
@@ -4149,17 +4201,17 @@ describe('step columns fold away', () => {
 
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1735px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1751px');
 
     // Folding one leaves the other open, rather than leaving nothing open.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1483px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1499px');
 
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1231px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1247px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -8386,6 +8438,7 @@ describe('dependencies in the table — cross-review findings', () => {
     listTags: () => Promise.resolve([]),
     listWorkItemTypes: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
+    listExternalSystems: () => Promise.resolve([]),
     addTeam: () => Promise.reject(new Error('not_in_these_tests')),
     listPeople: () => Promise.resolve([]),
     addPerson: () => Promise.reject(new Error('not_in_these_tests')),
@@ -8436,6 +8489,8 @@ describe('dependencies in the table — cross-review findings', () => {
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
+        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+        estimateRounding: 'ceil' as const,
         workItems: [
           {
             id: 'w1',
@@ -9193,6 +9248,7 @@ describe('the chart under a plan being edited', () => {
       listTeams: () => Promise.resolve([]),
       listTags: () => Promise.resolve([]),
       listWorkItemTypes: () => Promise.resolve([]),
+      listExternalSystems: () => Promise.resolve([]),
       listServices: () => Promise.resolve([]),
       addTeam: () => Promise.reject(new Error('not_in_these_tests')),
       listPeople: () => Promise.resolve([]),
@@ -9237,6 +9293,8 @@ describe('the chart under a plan being edited', () => {
           priorityBands: DEFAULT_PRIORITY_BANDS,
           estimateMethod: 'pert' as const,
           depReach: 'whole-item' as const,
+          pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+          estimateRounding: 'ceil' as const,
           workItems: [
             {
               id: 'w1',
@@ -9350,7 +9408,10 @@ describe('the order of the columns', () => {
     // `#` rather than `Number` since `spreadsheet-geometry`: the glyph every
     // spreadsheet heads this column with, in a column 93px wide. The word is
     // still the heading's accessible name, which the assertion below is about.
-    expect(headers.slice(0, 4)).toEqual(['', '#', 'Name', 'Depends on']);
+    // `Links` between `#` and Name since `external-refs` — Dany's placement,
+    // and the reason the column is pinned: an unpinned one here would scroll
+    // under the Name beside it.
+    expect(headers.slice(0, 5)).toEqual(['', '#', 'Links', 'Name', 'Depends on']);
     expect(screen.getByRole('columnheader', { name: 'Number' })).toBeDefined();
     // And the schedule stays on the right, where it reads as an outcome of
     // everything to its left rather than as something to fill in.
@@ -9435,25 +9496,30 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 24, then 24+105.
-    expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
+    // Each offset is the sum of the widths in front of it — 24, then 24+105,
+    // then 129+40 since `external-refs` put the ref column between `#` and
+    // Name. Four pinned columns now, and the fourth is pinned because it had to
+    // be: an unpinned column between two pinned ones scrolls under the second.
+    expect(cells.slice(0, 4).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
       ['sticky', '24px'],
       ['sticky', '129px'],
+      ['sticky', '169px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
     // pinned Name over "Depends on" in the first place.
     // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
-    expect(cells[2]?.style.width).toBe('');
+    expect(cells[3]?.style.width).toBe('');
     expect(cells[1]?.style.width).toBe('105px');
+    expect(cells[2]?.style.width).toBe('40px');
     // And the floor that keeps it readable while the frame is scrolling.
-    expect(cells[2]?.style.minWidth).toBe('200px');
+    expect(cells[3]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
-    for (const pinned of cells.slice(0, 3)) expect(pinned.style.background).not.toBe('');
-    // "Depends on" is the fourth column now, and it scrolls away like the rest.
-    expect(cells[3]?.style.position).toBe('');
+    for (const pinned of cells.slice(0, 4)) expect(pinned.style.background).not.toBe('');
+    // "Depends on" is the fifth column now, and it scrolls away like the rest.
+    expect(cells[4]?.style.position).toBe('');
   });
 
   itDom('pins the same three columns in the heading, over everything else', async () => {
@@ -9562,9 +9628,9 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup made to declare `360` for a flexible column, this
     // failed on `expected ['24px','93px','360px'] to deeply equal
     // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
-    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '105px', '']);
+    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['24px', '105px', '40px', '']);
     for (const [at, col] of cols.entries()) {
-      expect(col.style.width === '').toBe(at === 2);
+      expect(col.style.width === '').toBe(at === 3);
     }
   });
 
@@ -9611,16 +9677,16 @@ describe('the widths the table is laid out by', () => {
     );
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 839px of fixed
-    // columns (827 → 839 in `number-column-widen`, 93 → 105 in
-    // `COLUMN_WIDTHS`) — nobody has dated a row, so `not-before` is at its
-    // narrow 56 — plus 348 for the open step, 96 for the closed one and
-    // Name's 200. Folded it would be 1231, and both open 1735 — the
-    // difference is what `unfolding-may-scroll` decided to spend the frame's
-    // scrollbar on.
-    expect(table.style.minWidth).toBe('1483px');
+    // plan has Dev unfolded and QA folded, so the floor is the 855px of fixed
+    // columns (827 → 839 → 879 in `number-column-widen` and then
+    // `external-refs`, 879 → 855 on 2026-08-31) — nobody has dated a row, so
+    // `not-before` is at its narrow 56 — plus 348 for the open step, 96 for
+    // the closed one and Name's 200. Folded it would be 1247, and both open
+    // 1751 — the difference is what `unfolding-may-scroll` decided to spend
+    // the frame's scrollbar on.
+    expect(table.style.minWidth).toBe('1499px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1231px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1247px');
   });
 
   itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
@@ -9756,6 +9822,9 @@ describe('the widths the table is laid out by', () => {
         ([
           'depends',
           'name',
+          // `refs` since `external-refs`: the ref cell's hover card is the whole
+          // list of links hanging off a 40px column.
+          'refs',
           'team',
           'tag',
           'service',
@@ -10151,13 +10220,14 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut().name).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1483
-      // this plan resolves at rest (1471 → 1483 in `number-column-widen`, 93
-      // → 105 in `COLUMN_WIDTHS`), less the 200 floor, plus the 300 override
+      // The table's own width is the declaration: the resolved sum — the 1499
+      // this plan resolves at rest (1471 → 1483 → 1523 in
+      // `number-column-widen` and then `external-refs`, and 1523 → 1499 on
+      // 2026-08-31), less the 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1583px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1583px');
+      expect(screen.getByRole('table').style.width).toBe('1599px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1599px');
     },
   );
 
@@ -10341,7 +10411,7 @@ describe('the widths this browser has dragged', () => {
       await threeRoots();
 
       expect(laidOut().number).toBe('105px');
-      expect(laidOut().depends).toBe('110px');
+      expect(laidOut().depends).toBe('86px');
       expect(laidOut().tag).toBe('240px');
     },
   );
@@ -13996,7 +14066,7 @@ describe('the project’s settings behind one control', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Project settings' });
     expect(
       [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Steps']);
+    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating']);
   });
 });
 
@@ -14076,14 +14146,14 @@ describe('a step changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldStep('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1483px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1499px');
 
     await removeStep('QA');
 
-    // One step left, folded: 839px of fixed columns (827 → 839 in
-    // `number-column-widen`, 93 → 105 in `COLUMN_WIDTHS`), 200 for Name, 96
-    // for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1135px');
+    // One step left, folded: 855px of fixed columns (827 → 839 → 879 in
+    // `number-column-widen` and then `external-refs`, 879 → 855 on 2026-08-31),
+    // 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1151px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 
@@ -15813,6 +15883,7 @@ describe('the columns a reader has hidden', () => {
   const DEFAULT_ON_SCREEN = (stepIds: readonly string[]) => [
     'drag',
     'number',
+    'refs',
     'name',
     'depends',
     'priority',
@@ -15948,6 +16019,9 @@ describe('the columns a reader has hidden', () => {
     await oneRow();
     const panel = openColumns();
     expect(offered(panel)).toEqual([
+      // First, where the column is: between `#` and Name, and on by default —
+      // a column hidden by default is a feature nobody finds (design D5).
+      { label: 'Links', checked: true },
       { label: 'Depends on', checked: true },
       { label: 'Priority', checked: true },
       { label: 'Teams', checked: false },
@@ -16024,5 +16098,343 @@ describe('the columns a reader has hidden', () => {
     name.setSelectionRange(name.value.length, name.value.length);
     fireEvent.keyDown(name, { key: 'ArrowRight' });
     expect(document.activeElement?.closest('td')?.getAttribute('data-column')).toBe('priority');
+  });
+});
+
+describe('the links column', () => {
+  /** The seeded vocabulary's ids, as `fakeApi` mints them and be-01 seeds them. */
+  const JIRA = 'sys-jira';
+  const GH_PR = 'sys-gh-pr';
+  const GH_ISSUE = 'sys-gh-issue';
+  const CONFLUENCE = 'sys-confluence';
+  const SLACK = 'sys-slack';
+
+  /** Two rows: `010` for the links, `020` deliberately with none. */
+  async function twoRows(): Promise<ReturnType<typeof fakeApi> & { first: string }> {
+    const api = fakeApi();
+    const first = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    await api.create('p1', { parentId: null, afterId: first.id, name: 'Paint' });
+    return Object.assign(api, { first: first.id });
+  }
+
+  const drawn = async (api: ProjectApi): Promise<void> => {
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  };
+
+  /** The marks one row's cell draws, by what each stands for. */
+  const marksOn = (number: string): string[] => {
+    // Scoped to the table rather than to the page: the editor is a dialog named
+    // for the same row, so a `getByLabelText` here matches two elements the
+    // moment the editor is open — which is exactly when the cases below want to
+    // read the marks the round trip left behind.
+    const cell = document.querySelector(`table [aria-label="Links for ${number}"]`);
+    if (cell === null) throw new Error(`no links cell on ${number}`);
+    return [...cell.querySelectorAll<HTMLElement>('[data-ref-mark]')].map(
+      (mark) => mark.dataset['refMark'] ?? '',
+    );
+  };
+
+  itDom('four refs to one system are one mark', async () => {
+    // Design D2, and the column's whole reason for existing: it answers *what is
+    // this wired to*, not *how many links*. Four GitHub pull requests and one
+    // Jira issue is two marks — and the fourth GitHub ref is what makes the
+    // fault visible, because one mark per ref and one mark per system agree on
+    // every row with one link each.
+    //
+    // Proof: `refMarksOf` made to return one mark per ref (`refs.map(...)`
+    // instead of the family count), this failed on `expected [ 'github',
+    // 'github', 'github', …(1) ] to deeply equal [ 'github', 'jira' ]`, and
+    // four cases in `external-ref-marks.test.ts` with it. Watched, 2026-08-31.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/2' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/3' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/4' },
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+    ]);
+    await drawn(api);
+
+    expect(marksOn('010')).toEqual(['github', 'jira']);
+  });
+
+  itDom('no refs is blank', async () => {
+    // Blank and not `—`: the Prio cell's bargain, quoted in design D2. A column
+    // of furniture down a plan nobody has wired up says less than a blank does.
+    const api = await twoRows();
+    await drawn(api);
+
+    expect(marksOn('020')).toEqual([]);
+    expect(screen.getByLabelText('Links for 020').textContent).toBe('');
+  });
+
+  itDom('collapses a fifth system into one overflow mark', async () => {
+    // The column is 40px and holds four marks. A fifth *system* takes the
+    // overflow's place rather than a fifth mark, because the one thing this
+    // column may not do is depend on its contents for its width.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+      { systemId: CONFLUENCE, url: 'https://acme.atlassian.net/wiki/x' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
+      { systemId: SLACK, url: 'https://acme.slack.com/archives/C1/p1' },
+      { systemId: 'sys-unheard-of', url: 'https://example.com/thing' },
+    ]);
+    await drawn(api);
+
+    expect(marksOn('010')).toEqual(['jira', 'confluence', 'github', 'overflow']);
+  });
+
+  itDom('the cell says what it links to, without colour', async () => {
+    // Design D3's third channel, and the one that works with no sight of the
+    // column at all: the accessible description names each system and says how
+    // many links it stands for. Read as the *description* rather than by
+    // looking at a dot, which is the point.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
+      { systemId: GH_ISSUE, url: 'https://github.com/o/r/issues/2' },
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+    ]);
+    await drawn(api);
+
+    expect(screen.getByLabelText('Links for 010')).toHaveAccessibleDescription(
+      '2 GitHub links, 1 Jira link',
+    );
+    // And nothing at all is said about a row with no links.
+    expect(screen.getByLabelText('Links for 020')).toHaveAccessibleDescription('');
+  });
+
+  itDom('two marks of one hue are told apart by fill', async () => {
+    // The pair the common colour deficiencies collapse first is one blue against
+    // a darker blue, so these two are the **same** blue and differ in fill
+    // instead — a distinction that survives being printed in grey.
+    //
+    // Proof: `FAMILY_PAINT.confluence` given `filled: true`, this failed on
+    // `expected 'oklch(0.55 0.19 255)' to be 'transparent'`. Watched,
+    // 2026-08-31.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+      { systemId: CONFLUENCE, url: 'https://acme.atlassian.net/wiki/x' },
+    ]);
+    await drawn(api);
+
+    const cell = screen.getByLabelText('Links for 010');
+    const jira = cell.querySelector<HTMLElement>('[data-ref-mark="jira"]');
+    const confluence = cell.querySelector<HTMLElement>('[data-ref-mark="confluence"]');
+    if (jira === null || confluence === null) throw new Error('both marks should be drawn');
+    // The fill first, because it is the claim — the assertion an injected
+    // "same fill" fault has to stop at.
+    expect(confluence.style.background).toBe('transparent');
+    expect(jira.style.background).toBe('oklch(0.55 0.19 255)');
+    expect(jira.style.borderStyle).toBe('');
+    // One hue, stated as an assertion rather than as a comment: if these ever
+    // stop being the same colour the fill distinction is no longer the thing
+    // being relied on and this test is about something else.
+    expect(confluence.style.borderColor).toBe('oklch(0.55 0.19 255)');
+  });
+
+  itDom('the card lists every ref and follows one', async () => {
+    // The marks say *which systems*; the card is the whole list, and it is the
+    // surface a reader clicks a link on. Three refs into **two** systems, so a
+    // card built from the marks rather than from the refs is visibly short.
+    //
+    // Proof: `ExternalRefsCard` made to list one entry per mark (the refs
+    // deduplicated by system before the map), this failed on `expected [ <a
+    // …(4)></a>, <a …(4)></a> ] to have a length of 3 but got 2`. Watched,
+    // 2026-08-31.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/2' },
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+    ]);
+    await drawn(api);
+
+    fireEvent.mouseEnter(screen.getByLabelText('Links for 010'));
+    const card = await screen.findByRole('tooltip', { name: 'Where 010 also exists' });
+    const links = [...card.querySelectorAll<HTMLAnchorElement>('a[data-refs-card-url]')];
+    expect(links).toHaveLength(3);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      'https://github.com/o/r/pull/1',
+      'https://github.com/o/r/pull/2',
+      'https://acme.atlassian.net/browse/AB-1',
+    ]);
+    // A new context, and no referrer: this plan's URL names a project, and
+    // `window.opener` is a handle on the page that opened it.
+    for (const link of links) {
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noreferrer noopener');
+    }
+  });
+
+  itDom('a non-http URL is not a link, on the card or in the editor', async () => {
+    // The fault the rule exists for, arranged the way it really arrives: the URL
+    // is written **through the store** rather than typed, because be-01 does not
+    // refuse a scheme at the write (a reader may override a derived type, so a
+    // mismatch has to stay storable) and the renderer is where `javascript:`
+    // stops.
+    //
+    // Proof: `followableHref` made to return the URL unconditionally, this
+    // failed on `expected <a data-refs-card-url="ref1" …(3)></a> to be null` —
+    // the anchor the first assertion says must not exist. Watched, 2026-08-31.
+    const api = await twoRows();
+    api.linkTo(api.first, [{ systemId: JIRA, url: 'javascript:alert(1)' }]);
+    await drawn(api);
+
+    fireEvent.mouseEnter(screen.getByLabelText('Links for 010'));
+    const card = await screen.findByRole('tooltip', { name: 'Where 010 also exists' });
+    expect(card.querySelector('a[data-refs-card-url]')).toBeNull();
+    expect(card.querySelector('span[data-refs-card-url]')?.textContent).toBe('javascript:alert(1)');
+
+    // And the same URL on the other surface, from the same guard.
+    fireEvent.click(screen.getByLabelText('Links for 010'));
+    const editor = await screen.findByRole('dialog', { name: 'Links for 010' });
+    expect(editor.querySelector('a[data-refs-editor-url]')).toBeNull();
+    expect(editor.querySelector('span[data-refs-editor-url]')?.textContent).toBe(
+      'javascript:alert(1)',
+    );
+  });
+
+  itDom('taking the cell opens the editor holding the row’s links', async () => {
+    const api = await twoRows();
+    api.linkTo(api.first, [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' }]);
+    await drawn(api);
+
+    expect(screen.queryByRole('dialog', { name: 'Links for 010' })).toBeNull();
+    fireEvent.click(screen.getByLabelText('Links for 010'));
+    const editor = await screen.findByRole('dialog', { name: 'Links for 010' });
+    expect(within(editor).getByLabelText('URL of link 1')).toHaveValue(
+      'https://acme.atlassian.net/browse/AB-1',
+    );
+    // The stored system, shown and overridable.
+    expect(within(editor).getByLabelText('System of link 1')).toHaveValue('jira-issue');
+  });
+
+  itDom('adds a ref from a pasted URL, typed by the URL and overridable', async () => {
+    const api = await twoRows();
+    const patches: unknown[] = [];
+    const watched: ProjectApi = {
+      ...api,
+      patch: async (id, patch) => {
+        patches.push({ id, patch });
+        return api.patch(id, patch);
+      },
+    };
+    await drawn(watched);
+
+    fireEvent.click(screen.getByLabelText('Links for 010'));
+    const editor = await screen.findByRole('dialog', { name: 'Links for 010' });
+    // Nothing to add until there is a URL, and nothing to add a URL no rule
+    // claims to until a system is named — the spec's "the ref SHALL NOT be
+    // stored until a system is named".
+    expect(within(editor).getByRole('button', { name: 'Add link' })).toBeDisabled();
+    fireEvent.change(within(editor).getByLabelText('Paste a URL'), {
+      target: { value: 'https://example.com/anything' },
+    });
+    expect(within(editor).getByLabelText('System of the new link')).toHaveValue('');
+    expect(within(editor).getByRole('button', { name: 'Add link' })).toBeDisabled();
+
+    // A GitHub pull request types itself, with no reader involved.
+    fireEvent.change(within(editor).getByLabelText('Paste a URL'), {
+      target: { value: 'https://github.com/o/r/pull/9' },
+    });
+    expect(within(editor).getByLabelText('System of the new link')).toHaveValue('github-pr');
+    fireEvent.click(within(editor).getByRole('button', { name: 'Add link' }));
+
+    await waitFor(() => {
+      expect(patches).toHaveLength(1);
+    });
+    expect(patches[0]).toMatchObject({
+      patch: { externalRefs: [{ systemId: GH_PR, url: 'https://github.com/o/r/pull/9' }] },
+    });
+  });
+
+  itDom('removes one ref and states the list that is left', async () => {
+    // The write is a **replacement**, so a removal is the surviving list sent
+    // whole: a patch that named only what went would leave be-01 guessing at a
+    // delta, and undo with nothing to restore.
+    //
+    // Proof: the removal's `onReplace` deleted from the Remove button's
+    // `onClick`, this failed on `expected [] to have a length of 1 but got +0`.
+    // Watched, 2026-08-31.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' },
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/1' },
+    ]);
+    const patches: { patch: unknown }[] = [];
+    const watched: ProjectApi = {
+      ...api,
+      patch: async (id, patch) => {
+        patches.push({ patch });
+        return api.patch(id, patch);
+      },
+    };
+    await drawn(watched);
+
+    fireEvent.click(screen.getByLabelText('Links for 010'));
+    const editor = await screen.findByRole('dialog', { name: 'Links for 010' });
+    fireEvent.click(within(editor).getByRole('button', { name: 'Remove link 1' }));
+
+    await waitFor(() => {
+      expect(patches).toHaveLength(1);
+    });
+    expect(patches[0]).toMatchObject({
+      patch: { externalRefs: [{ systemId: GH_PR, url: 'https://github.com/o/r/pull/1' }] },
+    });
+    // And the cell says so once the round trip has landed — the mark that is
+    // left, not the one that went.
+    await waitFor(() => {
+      expect(marksOn('010')).toEqual(['github']);
+    });
+  });
+
+  itDom('edits a stored ref’s URL and its system', async () => {
+    const api = await twoRows();
+    api.linkTo(api.first, [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-1' }]);
+    const patches: { patch: unknown }[] = [];
+    const watched: ProjectApi = {
+      ...api,
+      patch: async (id, patch) => {
+        patches.push({ patch });
+        return api.patch(id, patch);
+      },
+    };
+    await drawn(watched);
+
+    fireEvent.click(screen.getByLabelText('Links for 010'));
+    const editor = await screen.findByRole('dialog', { name: 'Links for 010' });
+    const url = within(editor).getByLabelText('URL of link 1');
+    fireEvent.change(url, { target: { value: 'https://acme.atlassian.net/browse/AB-2' } });
+    fireEvent.blur(url);
+    await waitFor(() => {
+      expect(patches).toHaveLength(1);
+    });
+    expect(patches[0]).toMatchObject({
+      patch: { externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/AB-2' }] },
+    });
+
+    // And the system, which a reader may always override — the stored value
+    // differing from what the deriver would say today is exactly what an
+    // override is (design D1).
+    fireEvent.change(within(editor).getByLabelText('System of link 1'), {
+      target: { value: 'slack-message' },
+    });
+    await waitFor(() => {
+      expect(patches).toHaveLength(2);
+    });
+    expect(patches[1]).toMatchObject({ patch: { externalRefs: [{ systemId: SLACK }] } });
+    await waitFor(() => {
+      expect(marksOn('010')).toEqual(['slack']);
+    });
   });
 });

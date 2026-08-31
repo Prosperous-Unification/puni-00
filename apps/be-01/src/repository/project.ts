@@ -1,15 +1,37 @@
 import {
   type DependencyReach,
   type EstimateMethod,
+  type EstimateRounding,
   isDependencyReach,
   isEstimateMethod,
+  isEstimateRounding,
+  PertWeights,
 } from '@wbs/domain';
+import { type } from '@wbs/validation';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from './index';
 import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
+
+/**
+ * One {@link PertWeights} as the three columns that hold it.
+ *
+ * Written once and used by both the insert and the update, so a project created
+ * with weights and a project patched to them cannot land in different columns.
+ */
+function weightColumns(weights: PertWeights): {
+  pertWeightOptimistic: number;
+  pertWeightRealistic: number;
+  pertWeightPessimistic: number;
+} {
+  return {
+    pertWeightOptimistic: weights.optimistic,
+    pertWeightRealistic: weights.realistic,
+    pertWeightPessimistic: weights.pessimistic,
+  };
+}
 
 /**
  * A stored row as a {@link Project}, checking the two columns SQLite cannot
@@ -25,35 +47,89 @@ import { project, projectAccess, step, users } from './schema';
  * unrecognised one as `whole-item` would schedule a plan by a rule nobody
  * chose and say nothing about it. The case is not hypothetical: an older colour
  * reading a value a newer release wrote arrives here mid-swap.
+ *
+ * `estimate_rounding` and the three `pert_weight_*` columns are the same
+ * refusal a third and fourth time, and the weights are checked as a **triple**
+ * rather than one column at a time: a single weight says nothing on its own,
+ * and what makes a set of them unusable is a property of all three — they must
+ * sum to a finite number above zero to divide by. `PertWeights`'s own narrow is
+ * that rule, so this boundary and the PATCH boundary refuse the same triples
+ * without either restating the arithmetic.
+ *
+ * Proof: with the two guards replaced by casts, `refuses a stored rounding it
+ * does not know` failed on `expected [Function] to throw` — a project rounding
+ * by `nearest` read back happily, and `roundDays` then charged every step by
+ * `ceil` because that is its last branch; watched 2026-08-30, with `refuses
+ * stored weights that cannot average a triple` failing beside it on the same
+ * assertion.
  */
 function toProject<
   T extends {
     estimateMethod: string;
     depReach: string;
+    estimateRounding: string;
+    pertWeightOptimistic: number;
+    pertWeightRealistic: number;
+    pertWeightPessimistic: number;
     solutionSlug: string | null;
     solutionUrl: string | null;
   },
 >(
   row: T,
-): Omit<T, 'estimateMethod' | 'depReach' | 'solutionSlug' | 'solutionUrl'> & {
+): Omit<
+  T,
+  | 'estimateMethod'
+  | 'depReach'
+  | 'estimateRounding'
+  | 'pertWeightOptimistic'
+  | 'pertWeightRealistic'
+  | 'pertWeightPessimistic'
+  | 'solutionSlug'
+  | 'solutionUrl'
+> & {
   estimateMethod: EstimateMethod;
   depReach: DependencyReach;
+  estimateRounding: EstimateRounding;
+  pertWeights: PertWeights;
   solutionRef: { slug: string; url: string } | null;
 } {
-  if (!isEstimateMethod(row.estimateMethod)) {
-    throw new Error(`unknown estimate method in the database: ${row.estimateMethod}`);
+  const {
+    estimateMethod,
+    depReach,
+    estimateRounding,
+    pertWeightOptimistic,
+    pertWeightRealistic,
+    pertWeightPessimistic,
+    solutionSlug,
+    solutionUrl,
+    ...rest
+  } = row;
+  if (!isEstimateMethod(estimateMethod)) {
+    throw new Error(`unknown estimate method in the database: ${estimateMethod}`);
   }
-  if (!isDependencyReach(row.depReach)) {
-    throw new Error(`unknown dependency reach in the database: ${row.depReach}`);
+  if (!isDependencyReach(depReach)) {
+    throw new Error(`unknown dependency reach in the database: ${depReach}`);
   }
-  if ((row.solutionSlug === null) !== (row.solutionUrl === null)) {
+  if (!isEstimateRounding(estimateRounding)) {
+    throw new Error(`unknown estimate rounding in the database: ${estimateRounding}`);
+  }
+  const weights = PertWeights({
+    optimistic: pertWeightOptimistic,
+    realistic: pertWeightRealistic,
+    pessimistic: pertWeightPessimistic,
+  });
+  if (weights instanceof type.errors) {
+    throw new Error(`unusable PERT weights in the database: ${weights.summary}`);
+  }
+  if ((solutionSlug === null) !== (solutionUrl === null)) {
     throw new Error('project has a partial solution reference');
   }
-  const { estimateMethod, depReach, solutionSlug, solutionUrl, ...rest } = row;
   return {
     ...rest,
     estimateMethod,
     depReach,
+    estimateRounding,
+    pertWeights: weights,
     solutionRef:
       solutionSlug === null || solutionUrl === null
         ? null
@@ -106,10 +182,11 @@ export class ProjectRepository implements ProjectStore {
   async create(toCreate: Project, startingSteps: readonly Step[]): Promise<Project> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      const { solutionRef, ...fields } = toCreate;
+      const { solutionRef, pertWeights, ...fields } = toCreate;
       tx.insert(project)
         .values({
           ...fields,
+          ...weightColumns(pertWeights),
           solutionSlug: solutionRef?.slug ?? null,
           solutionUrl: solutionRef?.url ?? null,
         })
@@ -179,6 +256,10 @@ export class ProjectRepository implements ProjectStore {
         restricted: project.restricted,
         estimateMethod: project.estimateMethod,
         depReach: project.depReach,
+        estimateRounding: project.estimateRounding,
+        pertWeightOptimistic: project.pertWeightOptimistic,
+        pertWeightRealistic: project.pertWeightRealistic,
+        pertWeightPessimistic: project.pertWeightPessimistic,
         startDate: project.startDate,
         solutionSlug: project.solutionSlug,
         solutionUrl: project.solutionUrl,
@@ -227,6 +308,8 @@ export class ProjectRepository implements ProjectStore {
       patch.restricted === undefined &&
       patch.estimateMethod === undefined &&
       patch.depReach === undefined &&
+      patch.pertWeights === undefined &&
+      patch.estimateRounding === undefined &&
       patch.startDate === undefined &&
       patch.solutionRef === undefined
     ) {
@@ -234,11 +317,17 @@ export class ProjectRepository implements ProjectStore {
     }
     // The bump rides in the same `SET` as the change it describes, so a patch
     // that lands without moving the revision is not a state this can reach.
-    const { solutionRef, ...fields } = patch;
+    const { solutionRef, pertWeights, ...fields } = patch;
     const rows = await this.db
       .update(project)
       .set({
         ...fields,
+        // The triple is written as a triple or not at all: a patch holding one
+        // weight would leave the other two as they were, and the divisor is
+        // their sum — half an answer is a different arithmetic rather than a
+        // partial one. `ProjectPatch` carries them as one object for that
+        // reason, and this is where it becomes three columns.
+        ...(pertWeights === undefined ? {} : weightColumns(pertWeights)),
         ...(solutionRef === undefined
           ? {}
           : {

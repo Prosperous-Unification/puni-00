@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/modal';
 
 import { CreatablePicker, type CreatablePickerProps } from './creatable-picker';
+import { HoverCard } from './hover-card';
 import type { CommitOutcome } from './live-editing';
 
 /**
@@ -173,6 +174,64 @@ export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0'
 export const REFERENCE_SET_INHERITED_CHIP_CLASS =
   'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full items-center gap-0.5 rounded border border-dashed px-1 text-xs';
 
+/** One line of {@link ReferenceSetStrip}'s hover card. */
+interface ReferenceSetLine {
+  /** Stable within one card — the React key. */
+  key: string;
+  text: string;
+  /** Whether this row wrote the member, as against carrying it from above. */
+  stated: boolean;
+}
+
+/**
+ * Everything a reference cell means, one line each, in the order the strip
+ * draws it — what the hover card says.
+ *
+ * The card exists because the rest line is **one clipped line**: a 120px column
+ * fits about two chips, the fade at its end announces that the rest was cut,
+ * and until 2026-08-31 there was no way at all to read what had been cut
+ * without clicking into the cell and opening a panel over the rows below. Dany,
+ * that day: *"cannot hover over tags cell to see the list of tags"*. The
+ * Depends-on cell has said the same thing with a {@link HoverCard} since
+ * `dep-hover-highlights`; this is the other four cells joining it.
+ *
+ * The three sources are the three things a cell can draw, and each is included
+ * on exactly the terms the cell draws it on, so the card is the cell unclipped
+ * rather than a second opinion about the row:
+ *
+ * - the members the row **states**, which are its chips;
+ * - the members it **carries** as chips beside them, which is the accumulating
+ *   dimension — tags (ADR 0008) — and which name the row they were written on,
+ *   because that is where a reader has to go to take one off;
+ * - the reading an **overriding** dimension makes while the row states none of
+ *   its own, which is the box's `↳` placeholder and is therefore drawn only
+ *   when {@link ReferenceSetAdapter.inheritedLabel} is given *and* the row is
+ *   silent. A row that states a team of its own carries none of its ancestor's,
+ *   so a line about one would be a claim the cell does not make.
+ *
+ * @param own The members this row states, already resolved to names.
+ * @param inherited The members in force from above that it does not state.
+ * @param inheritedLabel The overriding dimension's ancestor reading, in words.
+ * @returns One line per reading, or an empty array for a cell that says nothing.
+ */
+export function referenceSetLines(
+  own: readonly ReferenceSetEntry[],
+  inherited: readonly InheritedReferenceEntry[],
+  inheritedLabel: string | undefined,
+): ReferenceSetLine[] {
+  return [
+    ...own.map((entry) => ({ key: entry.id, text: entry.name, stated: true })),
+    ...inherited.map((entry) => ({
+      key: entry.id,
+      text: `↳ ${entry.name} — from ${entry.fromRow}`,
+      stated: false,
+    })),
+    ...(own.length === 0 && inheritedLabel !== undefined
+      ? [{ key: '(inherited)', text: `↳ ${inheritedLabel}`, stated: false }]
+      : []),
+  ];
+}
+
 /** Shared compact editor for directory-backed work-item reference sets. */
 export function ReferenceSetStrip({
   label,
@@ -212,6 +271,19 @@ export function ReferenceSetStrip({
    */
   const [editing, setEditing] = useState(false);
   /**
+   * Whether the pointer is on this cell — which is the same question as "is the
+   * hover card open", subject to the two conditions on it below.
+   *
+   * Local to the strip rather than routed through the table's `hoveredCell` the
+   * way the Depends-on card is, and that is the point of putting the card here:
+   * four cells across two renderers get one card from one place. The table's
+   * state exists to settle a card against a **refreshed tree** — its key is a
+   * row id, so a card open on a row that moved would follow the row away from
+   * the pointer — and this card has no such key: it is a child of the cell it
+   * describes, so a re-render moves the two together or unmounts both.
+   */
+  const [pointed, setPointed] = useState(false);
+  /**
    * Wrapping is for the chips, and only while somebody is editing them.
    *
    * At rest the cell clips (see the strip's `overflow` below) and one line is
@@ -249,6 +321,18 @@ export function ReferenceSetStrip({
    * a fix that did not work in a browser.
    */
   const wrapping = editing && own.length > 0;
+  const lines = referenceSetLines(own, inherited, adapter.inheritedLabel);
+  /**
+   * Whether the card is on screen: the pointer is here, the cell is at rest,
+   * and it has something to say.
+   *
+   * **Not while editing**, and that is a rule rather than tidiness. An edited
+   * strip is already a panel over the rows below with every chip wrapped into
+   * reach, so the card would be a second box saying the same thing over the
+   * first — and it would open from the anchor the panel has left, which is a
+   * card standing where the cell no longer is.
+   */
+  const carded = pointed && !editing && lines.length > 0;
   if (sourceIdsRef.current.join('\0') !== ownIds.join('\0')) {
     sourceIdsRef.current = ownIds;
     projectedIdsRef.current = ownIds;
@@ -304,6 +388,17 @@ export function ReferenceSetStrip({
     */
     <span
       data-reference-anchor=""
+      // The card's own mark, and the reason it is on the anchor rather than on
+      // the strip inside it: the anchor is the element that keeps the cell's
+      // line whatever the strip is doing, and it is the `position: relative`
+      // box a cell's `HoverCard` is placed against. A `mouseenter` on the strip
+      // would be lost the moment the strip left the flow.
+      onMouseEnter={() => {
+        setPointed(true);
+      }}
+      onMouseLeave={() => {
+        setPointed(false);
+      }}
       style={{
         position: 'relative',
         display: 'flex',
@@ -420,6 +515,13 @@ export function ReferenceSetStrip({
           aria-label={addLabel ?? `Add a ${adapter.kind}`}
           data-reference-add=""
           className={REFERENCE_SET_ADD_CLASS}
+          // Still `disabled` while a write travels, where the search box beside
+          // it is only `readOnly` — and the difference is not an inconsistency.
+          // The rule is that a control which can hold the focus must not be
+          // disabled under it (`creatable-picker.tsx` says why, at length); this
+          // one cannot hold the focus at all. `tabIndex={-1}` keeps the keyboard
+          // off it and the `preventDefault` below keeps the press off it, and
+          // its whole job is to hand the focus to the box.
           disabled={pending}
           onMouseDown={(event) => {
             event.preventDefault();
@@ -502,6 +604,27 @@ export function ReferenceSetStrip({
                   pressed.preventDefault();
                 }}
                 className={REFERENCE_SET_REMOVE_CLASS}
+                // **No focus handoff here, and that is measured rather than
+                // assumed.** This button is about to stop existing — the write
+                // lands, the row loses the member, React unmounts the chip —
+                // and a focused node that is removed hands the focus to
+                // `<body>` inside React's own commit, where the `onBlur` is
+                // lost exactly as it is for the `disabled` box in
+                // `creatable-picker.tsx`. That would strand the panel again.
+                //
+                // It cannot happen, because this button can never hold the
+                // focus: a press does not give it one (the `onMouseDown`
+                // above), and the keyboard cannot reach it — Shift+Tab in the
+                // box is the **grid's** move, not the browser's. Measured in
+                // Chromium, 2026-08-31, with two chips on an open Tags cell:
+                // Shift+Tab lands on `Service or team for 010` and the second
+                // on `Priority for 010`, never on a `Remove … from 010`.
+                //
+                // A handoff was written here, could not be watched failing for
+                // that reason, and was deleted rather than shipped as a guard
+                // nobody can see break — `page-nav.tsx`'s `activeOptions`, and
+                // R5's rule about it. The day this cell gets a keyboard route
+                // to its chips, the handoff comes back **with** its negative.
                 onClick={() => void remove(entry.id)}
               >
                 ×
@@ -592,6 +715,30 @@ export function ReferenceSetStrip({
           />
         </span>
       </span>
+      {/*
+        The whole set, unclipped, for a reader who has not clicked into the
+        cell — see {@link referenceSetLines}.
+
+        A card that opens from a cell, so no `anchor` and no `beside`: it is an
+        absolutely positioned child of this anchor and hangs over the rows
+        below, which is the Depends-on card's own placement. It takes no
+        pointer (`HoverCard`'s default), so the row underneath still answers a
+        click aimed at it.
+
+        The `<td>` this stands in has to be exempt from the grid's clip, or the
+        card is cut at the cell's edge — `opensAPopover` in `wbs-table.tsx`,
+        which is what `type` joined on 2026-08-31 and what the other three were
+        already in for their picker lists.
+      */}
+      {carded && (
+        <HoverCard label={label}>
+          {lines.map((line) => (
+            <div key={line.key} data-reference-card-line={line.stated ? 'stated' : 'carried'}>
+              {line.text}
+            </div>
+          ))}
+        </HoverCard>
+      )}
     </span>
   );
 }

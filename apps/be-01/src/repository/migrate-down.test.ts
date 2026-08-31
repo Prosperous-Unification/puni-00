@@ -183,6 +183,13 @@ const EXTERNAL_REF = '20260830020000_add_external_ref';
  */
 const DEP_REACH = '20260830120000_add_dep_reach';
 
+/**
+ * The estimate weights and the per-step rounding, stamped after the reach
+ * above. Additive like it, and its `down.sql` drops the four columns, so it
+ * appears in the order and in nothing else this file checks.
+ */
+const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
+
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
   return {
@@ -296,6 +303,7 @@ describe('readMigrationFolders', () => {
       WORK_ITEM_TYPE,
       EXTERNAL_REF,
       DEP_REACH,
+      WEIGHTS_AND_ROUNDING,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -400,11 +408,13 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_TYPE,
         EXTERNAL_REF,
         DEP_REACH,
+        WEIGHTS_AND_ROUNDING,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -489,6 +499,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_TYPE,
         EXTERNAL_REF,
         DEP_REACH,
+        WEIGHTS_AND_ROUNDING,
       ]);
     } finally {
       db.cleanup();
@@ -559,6 +570,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -619,10 +631,11 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      // The newest applied is `dep_reach`, so rolling back *to* it reverses
-      // nothing. Each step down names everything newer than its target, newest
-      // first — which is the half a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([]);
+      // The newest applied is the weights and rounding, so rolling back *to* it
+      // reverses nothing. Each step down names everything newer than its target,
+      // newest first — which is the half a shared stamp would silently empty.
+      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
       expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([DEP_REACH]);
       // Only the reach, because the line above already reversed it —
       // `rollbackTo` performs the rollback rather than describing it, so each

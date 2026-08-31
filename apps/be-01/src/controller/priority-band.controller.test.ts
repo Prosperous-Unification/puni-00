@@ -123,6 +123,8 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
           ownerId: who.id,
           restricted,
           estimateMethod: 'pert',
+          pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+          estimateRounding: 'ceil',
           startDate: null,
           revision: 0,
           createdAt: 1,

@@ -672,7 +672,7 @@ function controlBoxes(page: Page): Promise<{ cell: Box; control: Box }[]> {
   );
 }
 
-/** Where the three pinned columns actually sit, in px from the frame's edge. */
+/** Where the pinned columns actually sit, in px from the frame's edge. */
 function measuredLefts(page: Page, columnIds: readonly string[]): Promise<Record<string, number>> {
   return page.evaluate((ids) => {
     const frame = document.querySelector('[data-table-frame]');
@@ -1129,21 +1129,31 @@ test.describe('the table, measured by a browser', () => {
     };
 
     const seeded = await measure();
-    expect(seeded.said).toBe('· 3.7');
+    // `· 4` and not `· 3.7` since `estimate-weights-and-rounding`: PERT over
+    // `2/3/8` is 22/6 = 3.667 and the default rule charges `ceil` per step, so
+    // what the cell says is a whole number of days.
+    expect(seeded.said).toBe('· 4');
     holdsItsContents(seeded);
 
     // The widest trio this column has been asked to hold in anger: `20/24/30`,
     // typed live on dev by `wbs-e2e-planning-qa` on 2026-08-22 and quoted in
-    // `wbs-table.tsx` beside the Enter that sends it. Eight characters and a
-    // four-character figure is what the 96px budget has to survive, and it is
-    // the case the design is chosen against rather than the seed's short one.
+    // `wbs-table.tsx` beside the Enter that sends it. Eight characters is what
+    // the 96px budget has to survive, and it is the case the design is chosen
+    // against rather than the seed's short one.
+    //
+    // The figure beside it is **shorter** than it was: this read `· 24.3` until
+    // `estimate-weights-and-rounding`, and a whole-day rule makes it `· 25`.
+    // The trio is still the eight characters this cell is judged on, so the
+    // case is the same case; what changed is that the figure now costs two
+    // glyphs rather than four, which is slack this assertion gains rather than
+    // spends.
     const estimate = page.getByLabel('Dev estimate for 010');
     await estimate.fill('20/24/30');
     await estimate.blur();
-    await expect(page.locator('[data-folded-final]').first()).toHaveText('· 24.3');
+    await expect(page.locator('[data-folded-final]').first()).toHaveText('· 25');
 
     const wide = await measure();
-    expect(wide.said).toBe('· 24.3');
+    expect(wide.said).toBe('· 25');
     holdsItsContents(wide);
   });
 
@@ -1178,8 +1188,8 @@ test.describe('the table, measured by a browser', () => {
     // The round trip, not the keystroke: a parent's cell changes only once
     // be-01 has answered with the roll-up (`estimate-triple-visible`'s
     // lesson — wait on something only the answer can produce).
-    await expect(parentFigure).toHaveText('· 3.7');
-    await expect(leafFigure).toHaveText('· 3.7');
+    await expect(parentFigure).toHaveText('· 4');
+    await expect(leafFigure).toHaveText('· 4');
 
     const parentBox = await parentFigure.boundingBox();
     const leafBox = await leafFigure.boundingBox();
@@ -1238,6 +1248,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
   });
@@ -1252,6 +1263,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
   });
@@ -1297,6 +1309,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag', wider),
       number: declaredLeft('number', wider),
+      refs: declaredLeft('refs', wider),
       name: declaredLeft('name', wider),
     });
     expect(declaredLeft('name', wider) - declaredLeft('name')).toBe(40);
@@ -1328,6 +1341,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag', wider),
       number: declaredLeft('number', wider),
+      refs: declaredLeft('refs', wider),
       name: declaredLeft('name', wider),
     });
   });
@@ -1358,6 +1372,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
@@ -1422,6 +1437,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
     // And the one minimum the whole frame reads counts the override: the
@@ -1801,11 +1817,31 @@ test.describe('the table, measured by a browser', () => {
 
     // Tab out of an open menu is not trapped: the menu closes, the focus goes
     // back to the button, and the browser's own Tab carries it on from there —
-    // to the next tab stop in the DOM, which is the next row's Name.
+    // into the next row, at its first tab stop.
+    //
+    // **That stop is `Links for 020` since `external-refs`, and it used to be
+    // `Name of 020`.** The ⋯ cell is the row's last column and the ref cell is
+    // its second, so the first control Tab meets in row 020 is whatever the
+    // ref cell renders — and it renders a `<button>`, deliberately in the tab
+    // order. The alternative was `tabIndex={-1}` and a chord, and it was
+    // refused on the merits: the cell holds no input, so the button is the
+    // **only** way into it, and a cell whose one entrance is the pointer is a
+    // cell a keyboard reader cannot open at all. It also carries the row's
+    // links as an `aria-describedby` sentence, which is read where the focus
+    // lands and nowhere else. A row already spends a tab stop per control it
+    // owns — Name, the priority box, each estimate box, ⋯ — so this is the
+    // table's existing model with one more column in it, not a new tax.
+    //
+    // Both stops are asserted rather than just the new one: the claim being
+    // made is that the focus carries **into row 020 in column order**, and a
+    // single-label assertion would be satisfied by a menu that trapped Tab on
+    // a page where row 020 happened to be first.
     await page.keyboard.press('Enter');
     await expect(page.getByRole('menu')).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('menu')).toHaveCount(0);
+    expect(await label()).toBe('Links for 020');
+    await page.keyboard.press('Tab');
     expect(await label()).toBe('Name of 020');
 
     // And taking an item leaves the caret where the work carries on: in the
@@ -1937,6 +1973,7 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
     await scrollFrameTo(page, 0);
@@ -2434,12 +2471,18 @@ test.describe('the table, measured by a browser', () => {
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
+      refs: declaredLeft('refs'),
       name: declaredLeft('name'),
     });
-    // Written out as well as derived, because 129 is the number the change is
+    // Written out as well as derived, because 166 is the number the change is
     // judged by and a geometry that agreed with itself about 0 would satisfy
     // the comparison above.
-    expect(declaredLeft('name')).toBe(129);
+    //
+    // 129 until `external-refs`: it was `drag` 24 + `number` 105, and it is
+    // 24 + 105 + the 40px `refs` column now — a fourth pinned column between
+    // `#` and Name. `number` is unchanged: the column's 40px is paid by
+    // `depends`, which sits behind Name and moves no offset in front of it.
+    expect(declaredLeft('name')).toBe(169);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {

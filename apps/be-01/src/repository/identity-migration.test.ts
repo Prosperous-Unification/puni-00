@@ -16,6 +16,13 @@ const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
 const EXTERNAL_REF = '20260830020000_add_external_ref';
 const DEP_REACH = '20260830120000_add_dep_reach';
 
+/**
+ * The estimate weights and the per-step rounding, stamped after the reach
+ * above. Additive like it, and its `down.sql` drops the four columns, so it
+ * appears in the order and in nothing else this file checks.
+ */
+const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
+
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-identity-migrate-'));
   return {
@@ -29,6 +36,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    WEIGHTS_AND_ROUNDING,
     DEP_REACH,
     EXTERNAL_REF,
     WORK_ITEM_TYPE,
@@ -118,6 +126,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -171,6 +180,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        WEIGHTS_AND_ROUNDING,
         DEP_REACH,
         EXTERNAL_REF,
         WORK_ITEM_TYPE,
@@ -240,7 +250,7 @@ describe('the OIDC identity migration', () => {
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-        ).toEqual({ users: 2, projects: 2, migrations: 31 });
+        ).toEqual({ users: 2, projects: 2, migrations: 32 });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

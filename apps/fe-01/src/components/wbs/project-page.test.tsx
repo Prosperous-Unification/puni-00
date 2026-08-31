@@ -3,6 +3,7 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
 import { ProjectPage } from './project-page';
 
@@ -76,6 +77,8 @@ function fakeProjects(
         priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
+        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+        estimateRounding: 'ceil' as const,
         startDate: null,
         projectRevision: 0,
         undoable: false,
@@ -86,6 +89,7 @@ function fakeProjects(
     listTeams: () => Promise.resolve([]),
     listTags: () => Promise.resolve([]),
     listWorkItemTypes: () => Promise.resolve([]),
+    listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve([]),
     addTeam: () => Promise.reject(new Error('not_in_these_tests')),
     listPeople: () => Promise.resolve([]),

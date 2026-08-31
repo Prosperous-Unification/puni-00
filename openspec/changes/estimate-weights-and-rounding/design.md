@@ -1,6 +1,6 @@
 # design — `estimate-weights-and-rounding`
 
-Six decisions. The one that is hard to reverse — whole days, rounded per step —
+Seven decisions. The one that is hard to reverse — whole days, rounded per step —
 is `docs/adr/0011-final-days-are-whole-days-rounded-per-step.md`; its rationale
 is not repeated here.
 
@@ -66,23 +66,55 @@ section rather than onto the toolbar, whose width is the scarce resource
 The weights are a detail of a method, not a per-read choice, and a project sets
 them once.
 
-**This half is not implemented here.** The panel is mounted by
-`wbs-table.tsx`, which another session held open for the whole of this change;
-task 8 carries the exact wiring and is the only slice left. Everything below the
-wire — the columns, the arithmetic, the refusals, the payload and the client
-method — is done and tested.
+**The panel is written and tested; it is not mounted.** `EstimatingPanel` is
+`PrioritiesPanel`'s shape — drafts for the three weights saved as one triple,
+radios for the rounding that land on the click, `onDirtyChange`/`onDone` — and
+`estimating-panel.test.tsx` covers it. What is missing is the two-file wiring:
+`ProjectSettingsModal` gains a fourth section, and `wbs-table.tsx` passes it one
+block of props. This change was forbidden to edit `wbs-table.tsx` — another
+session held it open all evening — so task 8.2 is blocked rather than skipped,
+and `verify.md` carries the exact patch.
 
 ## D6 — Two boundaries validate the weights, and the domain does not
 
-The HTTP body takes three numbers with `minimum: 0`, which stops a negative
-weight; `1e999` parses to `Infinity`, passes that minimum, and is refused by
-`ProjectService.update` as `bad_pert_weights` (422) together with three zeroes,
-which have no divisor. `toProject` refuses the same values coming **out** of the
-database, where they are malformed trusted data and throw (R5), beside the two
-refusals `estimate_method` and `dep_reach` already make there.
+The HTTP body takes three numbers with `minimum: 0`. That stops a negative
+weight, and — **measured, not assumed** — it stops `1e999` too: TypeBox's number
+is a finite one, so the only non-finite value JSON can express is refused as a
+shape error rather than reaching the service. What no shape rule can say is "not
+all three zero", which has no divisor at all, so `ProjectService.update` refuses
+that as `bad_pert_weights` (422). `toProject` refuses the same triples coming
+**out** of the database, where they are malformed trusted data and throw (R5),
+beside the two refusals `estimate_method` and `dep_reach` already make there.
+
+Both halves are asserted in `project.controller.test.ts` rather than reasoned
+about, because a hand-written `>= 0` accepts `Infinity` and this codebase has
+already paid for that once (`T1 column-widths-drag`).
 
 `expectedDays` itself does **not** re-check its divisor. A throw there could
 only fire on weights both boundaries refuse, which is a check whose negative
 cannot be written on a production path — the fault class `AGENTS.md` counts
 eighteen of. The precondition is on the type instead: `PertWeights` is parsed at
 each boundary, and the JSDoc says where.
+
+## D7 — A fourth rounding, `exact`, which nobody asked for
+
+Dany named three roundings. A fourth value exists, and the reason is written
+here rather than left to be discovered: `exact` charges the figure the method
+produced, which is the arithmetic every plan in this tool had until this change.
+
+It was added while slice 4 was being tested, and by the tests. Three identity
+differentials replay captured oracles whose durations are `4.666666666666667`,
+and no rounding reproduces those — replaying them on `ceil` would have measured
+this change with a differential written about `capacity-per-project`,
+`priority-bands` and a live plan. `anchor-slice` is the same shape of answer for
+`DependencyReach`, one change earlier: the old rule stays expressible and the
+oracle replays on it.
+
+The second reason is R5's. Every guard below the schedule that exists for
+fractional days — `snapWorkdays`, `firstWorkdayOf`, `lastWorkdayOf`, and the six
+calendar tests `schedule-floor-and-drift` wrote — is reachable only by a plan
+that carries a fraction. With three roundings and no fourth, no project could
+carry one, and a shipped guard with its proofs would have become a check nothing
+can fail. That is the fault this repo counts eighteen of.
+
+And it is what a project that genuinely plans in half days keeps.

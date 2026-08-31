@@ -458,7 +458,35 @@ export function CreatablePicker({
         </button>
       )}
       <input
-        disabled={disabled || taking}
+        /*
+          **Read-only while a write is in flight, never `disabled`.**
+
+          A `disabled` box that holds the focus is a box the browser takes the
+          focus off — onto `<body>` — and it does so *inside the commit of the
+          very update that disabled it*, because the update is React's own
+          render of the take. The native `focusout` fires; React's `onBlur` for
+          it is never invoked. Measured in Chromium, 2026-08-31: a capture
+          listener on `document` records `focusout: Tags for 010 → null` while
+          the strip's own `onBlur` records nothing at all.
+
+          {@link ReferenceSetStrip} derives "is my panel open" from that
+          `onBlur`, so the lost event left an out-of-flow panel standing over
+          the rows below with **no focus anywhere to take away from it** —
+          neither a click elsewhere nor Escape could close it, because both
+          work by moving a focus that had already gone. Dany's 2026-08-31
+          report, in his words: *"i can add the tags, but i cannot focus out of
+          the adding mini window"*.
+
+          `readOnly` refuses the typing exactly as `disabled` did and keeps the
+          focus and the caret where the reader left them, which is also what
+          "take one, type the next" wants. Nothing else is weakened: every take
+          path is refused by {@link take}'s own guard, which reads this
+          component's props rather than the DOM.
+
+          R5 #14/#15's fault class, sixth time: a discrete React update inside a
+          gesture, changing what the browser does by default underneath it.
+        */
+        readOnly={disabled || taking}
         aria-busy={disabled || taking || undefined}
         aria-label={label}
         role="combobox"
@@ -502,8 +530,26 @@ export function CreatablePicker({
             return;
           }
           if (e.key === 'Escape') {
-            setTyped(null);
-            setActiveIndex(0);
+            // One press closes the list; a second one leaves the box.
+            //
+            // The first half is the cheat sheet's promise and is unchanged. The
+            // second is the way **out** of a cell whose editor is a panel: the
+            // box opens its list on focus, so "the list is closed" is a state a
+            // reader only reaches by pressing Escape, and until 2026-08-31 the
+            // next press did nothing at all. In a reference cell that panel is
+            // out of the flow and over the rows below
+            // ({@link ReferenceSetStrip}), so "nothing at all" reads as a
+            // window that will not shut — the other half of Dany's report.
+            //
+            // A blur and not a move to the next cell: leaving is not the same
+            // ask as Tab, and this component is mounted on surfaces with no
+            // grid to move within (the phone sheet, the directory page).
+            if (open) {
+              setTyped(null);
+              setActiveIndex(0);
+              return;
+            }
+            e.currentTarget.blur();
             return;
           }
           if (gridCell !== undefined && escapesAnOpenList(e)) {

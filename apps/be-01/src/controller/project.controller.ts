@@ -1,4 +1,4 @@
-import { DEPENDENCY_REACHES, ESTIMATE_METHODS } from '@wbs/domain';
+import { DEPENDENCY_REACHES, ESTIMATE_METHODS, ESTIMATE_ROUNDINGS } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
@@ -22,6 +22,22 @@ const projectPatch = t.Object({
   // the owner makes about their plan, not a scheduling parameter a client sends
   // per read — see `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
   depReach: t.Optional(t.Union(DEPENDENCY_REACHES.map((reach) => t.Literal(reach)))),
+  // The three coefficients, together or not at all: the divisor is their sum,
+  // so a request naming one of them is asking for an arithmetic it has not
+  // stated. `minimum: 0` refuses a negative weight here; what it cannot refuse
+  // is `1e999`, which JSON parses to `Infinity` and which satisfies every
+  // `>= 0` ever written — `ProjectService.update` refuses that and the all-zero
+  // triple as 422, and `PertWeights` is the one rule both boundaries ask.
+  pertWeights: t.Optional(
+    t.Object({
+      optimistic: t.Number({ minimum: 0 }),
+      realistic: t.Number({ minimum: 0 }),
+      pessimistic: t.Number({ minimum: 0 }),
+    }),
+  ),
+  // The union for `estimateMethod`'s reason: an unrecognised rounding in the
+  // column is malformed data on every later read of the project.
+  estimateRounding: t.Optional(t.Union(ESTIMATE_ROUNDINGS.map((rounding) => t.Literal(rounding)))),
   // A day, or null to take the plan back off the calendar. The pattern is the
   // shape only; `ProjectService.update` refuses a shape-valid non-day like
   // `2026-02-31`, which is a date this schema cannot express.
@@ -177,8 +193,15 @@ export function projectController(
           // 403 rather than 404 for a restricted project: the caller may read
           // it, so pretending it is absent would contradict the next GET. A
           // date that is not a day is the caller's mistake, not a missing row.
+          // 422 for both of the caller's own mistakes — a date that is not a
+          // day, and weights that cannot average a triple — and 404 for a row
+          // that is not there.
           set.status =
-            outcome.reason === 'forbidden' ? 403 : outcome.reason === 'bad_start_date' ? 422 : 404;
+            outcome.reason === 'forbidden'
+              ? 403
+              : outcome.reason === 'bad_start_date' || outcome.reason === 'bad_pert_weights'
+                ? 422
+                : 404;
           return { error: outcome.reason };
         }
         return { project: outcome.result };

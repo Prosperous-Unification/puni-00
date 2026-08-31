@@ -114,6 +114,7 @@ function silentApi(): SilentApi {
       listTeams: () => Promise.resolve([]),
       listTags: () => Promise.resolve([]),
       listWorkItemTypes: () => Promise.resolve([]),
+      listExternalSystems: () => Promise.resolve([]),
       listServices: () => Promise.resolve([]),
       addTeam: () => Promise.resolve({ id: 't', name: 'T' }),
       listPeople: () => Promise.resolve([]),

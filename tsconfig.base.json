@@ -37,6 +37,7 @@
       "@wbs/domain/label-mismatch": ["libs/domain/src/label-mismatch.ts"],
       "@wbs/domain/priority-band": ["libs/domain/src/priority-band.ts"],
       "@wbs/domain/dependency-reach": ["libs/domain/src/dependency-reach.ts"],
+      "@wbs/domain/external-system": ["libs/domain/src/external-system.ts"],
       "@wbs/gw-01": ["apps/gw-01/src/index.ts"],
       "@wbs/observability": ["libs/observability/src/index.ts"],
       "@wbs/observability/server": ["libs/observability/src/server/index.ts"],

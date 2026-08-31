@@ -37,10 +37,20 @@ const NAMES = {
   list: '- list',
   /**
    * A link whose source is far longer than its reading, which is the whole of
-   * the row-height claim below: eighty-odd characters of source, forty-odd
-   * drawn. Dany's own, from `010.1.1` on 2026-08-30.
+   * the row-height claim below. Dany's own, from `010.1.1` on 2026-08-30.
+   *
+   * **The reading was shortened on 2026-08-31, and that makes the check
+   * stronger rather than weaker.** It read `hey hey hey The San Juan Mountains
+   * are beautiful` — 47 drawn characters, which at the Name column's own width
+   * sits about 6px from wrapping, so the row-height case became a canary for
+   * every change to any *other* column's width: it went red when `depends` was
+   * left alone and the Name column lost 17px, on the same 42px this test's own
+   * negative is watched by. The claim was never about that. It is "the row is
+   * as tall as its **reading**, not its source", and the way to say it is a
+   * reading that cannot wrap beside a source that must: 7 characters drawn,
+   * 62 of source.
    */
-  link: 'hey **hey** hey [The San Juan Mountains are beautiful](https://en.wikipedia.org/wiki/San_Juan_Mountains)',
+  link: '**hey** [SJM](https://en.wikipedia.org/wiki/San_Juan_Mountains)',
 } as const;
 
 /** The four rows, in the order they are made. */
@@ -338,9 +348,7 @@ test.describe('a row is as tall as the name it shows', () => {
     // The reading is on screen before anything is measured, or a run where the
     // markdown never rendered would compare two plain rows and pass.
     const drawn = await renderedNameOf(page, '020');
-    await expect(drawn.locator('[data-name-link]')).toHaveText(
-      'The San Juan Mountains are beautiful',
-    );
+    await expect(drawn.locator('[data-name-link]')).toHaveText('SJM');
     await expect(drawn.locator('strong')).toHaveText('hey');
 
     const rowOf = (number: string) =>
@@ -369,7 +377,11 @@ test.describe('a row is as tall as the name it shows', () => {
     // Proof: `drawnBoxHeight` made to answer `null`, so the textarea measures
     // its own source again — this failed on `Expected: 26.1875 / Received: 42`,
     // the row 15.8px taller than the reading in it. Watched in Chromium,
-    // 2026-08-30.
+    // 2026-08-30, and **re-watched on 2026-08-31** on the same message after
+    // the fixture's reading was shortened: the source is two lines either way,
+    // and what changed is that the *unfaulted* row is now one line by a margin
+    // instead of by 6px. Before that it was the shipped code that drew 42, the
+    // moment any other column's width moved.
     expect(linked, 'the row is as tall as the source, not as the reading').toBeCloseTo(plain, 0);
   });
 });
