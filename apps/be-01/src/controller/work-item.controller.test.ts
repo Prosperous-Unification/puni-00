@@ -985,7 +985,7 @@ describe('work item routes', () => {
   // change ships can draw` — lived here, and its landmine is spent: C3 (#57)
   // taught `floorWordsOf` the word, and `capacity-per-project` retired the
   // `PATCH /api/teams/:id/size` it reached the floor through. Its successor is
-  // `capacity.controller.test.ts`'s `puts a capacity floor on the wire, which
+  // `capacity-body.test.ts`'s `puts a capacity floor on the wire, which
   // fe-01 has been able to draw since C3`, over the route that replaced it.
 
   it('refuses a parallelism that is not a whole number of 1 or more', async () => {

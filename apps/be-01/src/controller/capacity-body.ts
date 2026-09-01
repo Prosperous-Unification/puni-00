@@ -3,8 +3,8 @@ import { MOST_PEOPLE_AT_ONCE } from '@wbs/domain';
 /**
  * A capacity the request got wrong, carried as the code a client branches on.
  *
- * The same shape `directoryController`'s `BadSize` had — this route inherited that
- * route's whole job when `capacity-per-project` retired the global size.
+ * The same shape `directoryController`'s `BadSize` had — this parser inherited
+ * that route's whole job when `capacity-per-project` retired the global size.
  */
 export class BadCapacity extends Error {
   constructor(public readonly reason: string) {
@@ -30,9 +30,10 @@ export class BadCapacity extends Error {
  * dates with nothing on screen to say why. The ceiling is
  * {@link MOST_PEOPLE_AT_ONCE}, whose argument lives on the constant.
  *
- * Absent and `null` are **not** the same request: this route writes one field, so
- * an absent `size` is a body that says nothing at all rather than a field left
- * alone. `null` is the clear to unstated, and unstated is not a team of one.
+ * Absent and `null` are **not** the same request: the `setTeamCapacity` command
+ * this parses writes one field, so an absent `size` is a payload that says
+ * nothing at all rather than a field left alone. `null` is the clear to
+ * unstated, and unstated is not a team of one.
  *
  * Proof, both watched 2026-08-13 and injected separately because neither probe
  * can see the other's line. The integer guard deleted: `refuses a capacity that is

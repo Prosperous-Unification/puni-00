@@ -46,10 +46,9 @@ function filterFrom(query: Record<string, string | undefined>): PlanEventFilter 
  * nothing on screen is stale because somebody's edit was recorded, and a plan
  * edited all week would put a thousand rows nobody asked for into every tree read.
  *
- * Registered beside `capacityController` and `priorityBandController` for their
- * reason: it shares `projectController`'s prefix, `/:id/history` cannot be
- * shadowed by anything that route declares, and adjacency is what makes that
- * checkable at a glance.
+ * Registered after `projectController`, whose prefix it shares: `/:id/history`
+ * cannot be shadowed by anything that route declares, and adjacency is what
+ * makes that checkable at a glance.
  *
  * Open to every authenticated account, like every other read. `HistoryService`
  * owns the absent-project answer so there is one copy of the rule.

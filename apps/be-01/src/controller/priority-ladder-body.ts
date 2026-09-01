@@ -16,7 +16,7 @@ export class BadLadder extends Error {
  * The five bands a request is asking this project's ladder to become.
  *
  * **Hand-parsed rather than declared through an Elysia schema**, which is
- * `capacityController`'s reasoning and `workItemController`'s before it: the
+ * {@link capacityOf}'s reasoning and `workItemController`'s before it: the
  * refusals here have to be codes a client can branch on and print a sentence for
  * — a fourth band starting below the third is a different mistake from a
  * `Critical` that writes 30 — and Elysia strips unknown properties before a

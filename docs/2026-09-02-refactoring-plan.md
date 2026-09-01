@@ -119,7 +119,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-9  | Reconcile `step.service.ts:212` with `repository/step.ts:373` (N9): one exported predicate, one test that both call it.                                                                                                                                                                                | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
 | W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
 | W0-11 | Delete the dead code in N14 (keep the `examples` **table** — migration tests assert its round trip; drop `'examples'` from `audit.test.ts`'s `EXEMPT` once no drizzle write touches it). Drop `d3`/`@types/d3`.                                                                                        | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
-| W0-12 | Rename `capacity.controller.ts` → `capacity-body.ts`, `priority-band.controller.ts` → `priority-ladder-body.ts`; fold `middleware/validate.ts` into its one caller.                                                                                                                                    | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
+| W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                                        | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
 
 ### Wave 1 — the test infrastructure that makes every later wave verifiable in seconds (≈ 6 days)
 
@@ -439,3 +439,37 @@ The read-route case is what keeps this fixed. Deleting a derive is easy to undo 
 "one resolution per request that needs one" is the rule that fails when someone does.
 
 **Green:** `be-01` test (1263 pass, 0 fail, 92 files), lint, typecheck.
+
+## 9 · Verify — W0-12, 2026-09-02
+
+Two files named `.controller.ts` registered no route and exported only a body parser, which is
+what made D6 look closed when it had only moved. Both are renamed with their test files, and every
+reference rewritten:
+
+| Was                           | Is                        |
+| ----------------------------- | ------------------------- |
+| `capacity.controller.ts`      | `capacity-body.ts`        |
+| `priority-band.controller.ts` | `priority-ladder-body.ts` |
+
+`grep '\.controller\.ts'` now returns the route table, which is the point: an agent looking for
+where a route is registered stops finding two files that cannot register one.
+
+**Three comments deleted or corrected, all of which named things that do not exist.** `app.ts`
+carried three blocks explaining a registration order for `capacityController` and
+`priorityBandController`; two described controllers retired into command kinds, and the third —
+the only rule still true — is rewritten onto the route it is actually about. `history.controller.ts`
+repeated the same two names and now states the rule in its own terms. Inside the renamed files,
+`capacity-body.ts` said "this route writes one field" of something that is now the `setTeamCapacity`
+command's payload, and `priority-ladder-body.ts` cited `capacityController`'s reasoning by a name
+that has not existed for two releases. Every argument is preserved; only the referents are fixed.
+
+**`middleware/validate.ts` is inlined into `smoke.controller.ts`.** It exported `validateBody` and
+`HttpError` and had exactly one caller, while reading like the app's validation boundary — a seam
+no route ever took, since every route carrying domain input hand-parses for the reason
+`hand-parsed-body.ts` states. Deleting it concentrates nothing and removes a thing an agent adding
+a route will reach for and find does not fit. The deletion test passes: `smoke.controller.ts` now
+calls `parseOrThrow` and catches `ValidationError` directly, four lines shorter, and says in its own
+doc why it is the only route shaped this way.
+
+**Green:** `be-01` test (1263 pass, 0 fail), lint, typecheck. No behaviour changed; no test needed
+editing, which is itself the check that these were names rather than code.

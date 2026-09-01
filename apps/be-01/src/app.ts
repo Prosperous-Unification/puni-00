@@ -176,16 +176,8 @@ export function buildApp(opts: AppOptions) {
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))
       // After `projectController`, whose prefix it shares: Elysia matches in
-      // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
-      // anything that route declares, but keeping the two adjacent is what makes
-      // that checkable at a glance.
-      // Beside `capacityController` for its reason: it shares
-      // `projectController`'s prefix, `/:id/priority-bands` cannot be shadowed by
-      // anything that route declares, and adjacency is what makes that checkable
-      // at a glance.
-      // Beside the two above for their reason: it shares `projectController`'s
-      // prefix, `/:id/history` cannot be shadowed by anything that route
-      // declares, and adjacency is what makes that checkable at a glance.
+      // registration order, `/:id/history` cannot be shadowed by anything that
+      // route declares, and adjacency is what makes that checkable at a glance.
       .use(historyController(opts.auth, opts.history))
       .use(
         internalController({

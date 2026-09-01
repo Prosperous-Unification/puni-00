@@ -26,9 +26,9 @@ import type {
   UndoOutcome,
   WorkItemService,
 } from '../service/work-item.service';
-import { BadCapacity, capacityOf } from './capacity.controller';
+import { BadCapacity, capacityOf } from './capacity-body';
 import { PLAN_COMMANDS_BODY } from './plan-command-schema';
-import { BadLadder, ladderOf } from './priority-band.controller';
+import { BadLadder, ladderOf } from './priority-ladder-body';
 
 /**
  * These routes validate their bodies by hand rather than with an Elysia schema.
