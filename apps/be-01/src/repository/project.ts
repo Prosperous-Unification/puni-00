@@ -11,7 +11,15 @@ import { type } from '@wbs/validation';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from './index';
+import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import type {
+  Project,
+  ProjectPatch,
+  ProjectStore,
+  ProjectWithAccess,
+  Step,
+  WriteStamp,
+} from './index';
 import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
 
@@ -179,7 +187,11 @@ export class ProjectRepository implements ProjectStore {
   // synchronous, so a constraint violation would otherwise be thrown before the
   // promise this signature advertises exists — and a caller holding it with
   // `.catch()` would never see the rejection.
-  async create(toCreate: Project, startingSteps: readonly Step[]): Promise<Project> {
+  async create(
+    toCreate: Project,
+    startingSteps: readonly Step[],
+    stamp: WriteStamp,
+  ): Promise<Project> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       const { solutionRef, pertWeights, ...fields } = toCreate;
@@ -189,11 +201,12 @@ export class ProjectRepository implements ProjectStore {
           ...weightColumns(pertWeights),
           solutionSlug: solutionRef?.slug ?? null,
           solutionUrl: solutionRef?.url ?? null,
+          ...auditOnCreateBesidesCreatedAt(stamp),
         })
         .run();
       if (startingSteps.length > 0)
         tx.insert(step)
-          .values([...startingSteps])
+          .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
           .run();
     });
     return toCreate;
@@ -287,20 +300,21 @@ export class ProjectRepository implements ProjectStore {
    * Proof: bumping the project here fails `opening a project does not move its
    * revision` in `service/revision.test.ts`.
    */
-  async recordOpen(userId: string, projectId: string, at: number): Promise<void> {
+  async recordOpen(projectId: string, stamp: WriteStamp): Promise<void> {
     await this.db
       .insert(projectAccess)
-      .values({ userId, projectId, lastOpenedAt: at })
+      .values({ userId: stamp.by, projectId, lastOpenedAt: stamp.at, ...auditOnCreate(stamp) })
       // The pair is the primary key, so a second open is an update rather than
-      // a constraint violation — and `at` is taken as given rather than
-      // maxed: the caller's clock is the one that saw the open happen.
+      // a constraint violation — and the stamp's instant is taken as given
+      // rather than maxed: the clock that saw the open happen is the one that
+      // stamped the act.
       .onConflictDoUpdate({
         target: [projectAccess.userId, projectAccess.projectId],
-        set: { lastOpenedAt: sql`excluded.last_opened_at` },
+        set: { lastOpenedAt: sql`excluded.last_opened_at`, ...auditOnUpdate(stamp) },
       });
   }
 
-  async update(id: string, patch: ProjectPatch): Promise<Project | null> {
+  async update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null> {
     // An empty patch would make drizzle emit `SET` with no assignments, which
     // SQLite rejects — so a request that changes nothing reads instead.
     if (
@@ -335,6 +349,7 @@ export class ProjectRepository implements ProjectStore {
               solutionUrl: solutionRef?.url ?? null,
             }),
         revision: bumpedProject,
+        ...auditOnUpdate(stamp),
       })
       .where(eq(project.id, id))
       .returning();
@@ -353,10 +368,21 @@ export class ProjectRepository implements ProjectStore {
    * 2026-08-09.
    */
   stepsOf(projectId: string): Promise<Step[]> {
-    return this.db
-      .select()
-      .from(step)
-      .where(eq(step.projectId, projectId))
-      .orderBy(step.position, step.id);
+    return (
+      this.db
+        // Projected, unlike the project reads above it, and the difference is
+        // `toProject`: those pass every row through a mapper that names the
+        // fields, so the audit columns fall off there. This has no mapper, so a
+        // bare `select()` would put them into `Step`.
+        .select({
+          id: step.id,
+          projectId: step.projectId,
+          name: step.name,
+          position: step.position,
+        })
+        .from(step)
+        .where(eq(step.projectId, projectId))
+        .orderBy(step.position, step.id)
+    );
   }
 }

@@ -52,6 +52,45 @@ describe('down script rules', () => {
     expect(issue?.reason).toMatch(/DROP TABLE/);
   });
 
+  // The statement that looks additive and is not. SQLite refuses `ADD COLUMN
+  // ... NOT NULL` with no default against a table that already holds rows, and
+  // it refuses it on the deploy that runs it rather than here — which is why the
+  // lint has to be the thing that says no. Every table in this schema holds rows
+  // in dev and prod.
+  it('rejects a NOT NULL column added with no default', async () => {
+    const file = migration(
+      '20260101000010_not_null_add',
+      'ALTER TABLE `tag` ADD `created_by` text NOT NULL;',
+      'ALTER TABLE `tag` DROP COLUMN `created_by`;',
+    );
+    const issue = await lintMigration(file);
+    expect(issue?.reason).toMatch(/NOT NULL/);
+  });
+
+  // With a default the statement is genuinely additive: SQLite can fill the rows
+  // that are already there. This is the case `add_estimate_weights_and_rounding`
+  // ships four of, so a pattern that refused it would fail the tree it is in.
+  it('allows a NOT NULL column that carries a default', async () => {
+    const file = migration(
+      '20260101000011_not_null_default',
+      "ALTER TABLE `project` ADD `estimate_rounding` text DEFAULT 'ceil' NOT NULL;",
+      'ALTER TABLE `project` DROP COLUMN `estimate_rounding`;',
+    );
+    expect(await lintMigration(file)).toBeNull();
+  });
+
+  // And the audit columns this rule was written for: nullable, no default, so a
+  // row older than the migration keeps a null author rather than a made-up one.
+  it('allows the nullable audit columns', async () => {
+    const file = migration(
+      '20260101000012_audit_columns',
+      'ALTER TABLE `tag` ADD `created_at` integer;--> statement-breakpoint\n' +
+        'ALTER TABLE `tag` ADD `created_by` text REFERENCES `users`(`id`);',
+      'ALTER TABLE `tag` DROP COLUMN `created_by`;',
+    );
+    expect(await lintMigration(file)).toBeNull();
+  });
+
   it('allows an explicitly guarded same-name compatibility rebuild', async () => {
     const unguarded = migration(
       '20260101000004_unguarded',

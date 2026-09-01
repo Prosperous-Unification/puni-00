@@ -22,6 +22,35 @@ import type { MeasureMetric, PersonKind } from './schema';
  */
 export type { MeasureMetric, PersonKind } from './schema';
 
+/**
+ * Who is acting, and when — carried into every write that stores a record.
+ *
+ * **One object rather than two parameters** because it is one fact: an act has
+ * an actor and an instant, and a method that took them separately could be
+ * handed one without the other. It is built **once per act** in the service
+ * layer, which is the only layer holding both — `actorId` arrives from the
+ * controller, `at` from the service's injected `now()` — and every row that act
+ * writes carries the same one, so two tables touched by one act can never
+ * disagree about when it happened. `WorkItemService.record` already kept that
+ * discipline by hand for the journal and the plan event ("two `now()` calls
+ * would let one act carry two timestamps"); this makes it the type system's.
+ *
+ * The repository layer deliberately has **no clock of its own**. Every instant
+ * it stores arrived here, which is what lets a test drive time without a fake
+ * database, and what stops one act from being dated twice.
+ *
+ * ADR 0012 records why this is an argument and not ambient per-request context:
+ * an argument is found by the compiler at every call site, and `nx typecheck`
+ * runs `tsc --build --force`, so a caller that has not been given one fails the
+ * gate rather than throwing in production. It does **not** prove the columns are
+ * filled — that is `auditOnCreate` / `auditOnUpdate` and `audit.test.ts`, which
+ * reads this folder's source and fails naming any write that calls neither.
+ */
+export interface WriteStamp {
+  readonly at: number;
+  readonly by: string;
+}
+
 export interface Example {
   id: string;
   label: string;
@@ -45,7 +74,7 @@ export interface User {
 
 export interface UserStore {
   /** Returns null when the username is already taken. */
-  create(user: User): Promise<User | null>;
+  create(user: User, stamp: WriteStamp): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
 }
@@ -59,9 +88,16 @@ export interface OidcAccountIdentity {
 
 export interface OidcIdentityStore {
   /** Returns null when an existing email belongs to a different federated identity. */
+  /**
+   * `create` carries the id a first login would mint and **not** its instant:
+   * that comes off the stamp, so one act cannot date the account one way and its
+   * audit columns another. It used to be `{ id, createdAt }`, which was two
+   * sources for one value.
+   */
   resolveOidcIdentity(
     identity: OidcAccountIdentity,
-    create: { id: string; createdAt: number },
+    create: { id: string },
+    stamp: WriteStamp,
   ): Promise<User | null>;
 }
 
@@ -248,9 +284,9 @@ export interface StepStore {
    * The step lands last in the project's step order, and the written step
    * carries the place it took.
    */
-  add(step: NewStep): Promise<StepWritten>;
+  add(step: NewStep, stamp: WriteStamp): Promise<StepWritten>;
   /** The same rules as {@link StepStore.add}, and `not_found` for a step that has gone. */
-  rename(stepId: string, name: string): Promise<StepWritten>;
+  rename(stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
   /**
    * What points at the step right now — a **fast path** for the refusal, never
    * the authority for it. Between this answer and any delete, anybody may write.
@@ -275,7 +311,12 @@ export interface StepStore {
    * progress** goes the same way and is counted the same way, see
    * {@link StepUsageRows.progress}.
    */
-  remove(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoved>;
+  remove(
+    projectId: string,
+    stepId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<StepRemoved>;
 }
 
 export interface ProjectPatch {
@@ -787,18 +828,19 @@ export interface WorkItemStore {
    * siblings share a position, and the number derived in that window would be
    * wrong for whoever read it.
    */
-  insert(workItem: WorkItem, respaced: readonly Repositioned[]): Promise<void>;
+  insert(workItem: WorkItem, respaced: readonly Repositioned[], stamp: WriteStamp): Promise<void>;
   /**
    * Applies the patch and validates any `serviceTeamId` it names **in one
    * transaction** — see {@link WorkItemPatched}. A patch naming no field writes
    * nothing and answers the row it found.
    */
-  patch(id: string, patch: WorkItemPatch): Promise<WorkItemPatched>;
+  patch(id: string, patch: WorkItemPatch, stamp: WriteStamp): Promise<WorkItemPatched>;
   move(
     id: string,
     parentId: string | null,
     position: number,
     respaced: readonly Repositioned[],
+    stamp: WriteStamp,
   ): Promise<void>;
   /**
    * Writes or clears stored numbers. `null` returns a work item to deriving.
@@ -807,9 +849,9 @@ export interface WorkItemStore {
    * frozen is a project where some numbers moved and some did not, and nobody
    * reading it could tell which.
    */
-  setFrozenNumbers(updates: readonly FrozenNumber[]): Promise<void>;
+  setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp): Promise<void>;
   /** Removes `ids` and applies `promoted` together, so a promotion cannot outlive its parent. */
-  remove(ids: readonly string[], promoted: readonly Reparented[]): Promise<void>;
+  remove(ids: readonly string[], promoted: readonly Reparented[], stamp: WriteStamp): Promise<void>;
 }
 
 export interface StoredEstimate {
@@ -823,7 +865,7 @@ export interface StoredEstimate {
 export interface EstimateStore {
   listByProject(projectId: string): Promise<StoredEstimate[]>;
   /** Writes one work item's estimate for one step, replacing any earlier one. */
-  set(estimate: StoredEstimate): Promise<void>;
+  set(estimate: StoredEstimate, stamp: WriteStamp): Promise<void>;
   /**
    * Takes away one work item's estimate for one step, leaving every other
    * step on that work item and that step on every other work item alone.
@@ -832,7 +874,7 @@ export interface EstimateStore {
    * the state left, and two people emptying the same three boxes must not turn
    * the second one into a failure on screen.
    */
-  remove(workItemId: string, stepId: string): Promise<void>;
+  remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void>;
   /**
    * Moves every estimate from one work item to another.
    *
@@ -841,7 +883,7 @@ export interface EstimateStore {
    * deleted takes it back. Neither is a merge — a parent never holds estimates of
    * its own while it has children.
    */
-  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+  moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -879,7 +921,7 @@ export interface ActualStore {
   /** Every actual in the project, in step order within each work item. */
   listByProject(projectId: string): Promise<StoredActual[]>;
   /** Writes one work item's actual for one step, replacing any earlier one. */
-  set(actual: StoredActual): Promise<void>;
+  set(actual: StoredActual, stamp: WriteStamp): Promise<void>;
   /**
    * Takes away one work item's actual for one step, leaving every other step on
    * that work item and that step on every other work item alone.
@@ -888,7 +930,7 @@ export interface ActualStore {
    * {@link EstimateStore.remove}'s reason: the state asked for is the state
    * left.
    */
-  remove(workItemId: string, stepId: string): Promise<void>;
+  remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void>;
   /**
    * Moves every actual from one work item to another, exactly as
    * {@link EstimateStore.moveAll} does and at the same call sites.
@@ -898,7 +940,7 @@ export interface ActualStore {
    * be a row no reader can see and no writer can reach: invisible, not zero, and
    * back on screen if the child is ever deleted.
    */
-  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+  moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -938,7 +980,7 @@ export interface StepProgressStore {
   /** Every stated step on every work item in the project, in step order within each. */
   listByProject(projectId: string): Promise<StoredProgress[]>;
   /** States one work item's step, replacing whatever it said before. */
-  set(progress: StoredProgress): Promise<void>;
+  set(progress: StoredProgress, stamp: WriteStamp): Promise<void>;
   /**
    * Takes the statement back, leaving every other step on that work item and
    * that step on every other work item alone.
@@ -948,7 +990,7 @@ export interface StepProgressStore {
    * left. What it leaves behind is "not started", which is the absence of a row
    * and never a row saying so.
    */
-  remove(workItemId: string, stepId: string): Promise<void>;
+  remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void>;
   /**
    * Moves every statement from one work item to another, exactly as
    * {@link ActualStore.moveAll} does and at the same call sites.
@@ -958,7 +1000,7 @@ export interface StepProgressStore {
    * invisible to every reader and back on screen the day the child is deleted,
    * claiming work is finished that the plan has since moved on from.
    */
-  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+  moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -1012,7 +1054,7 @@ export interface MeasureStore {
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.
    */
-  set(measure: StoredMeasure): Promise<void>;
+  set(measure: StoredMeasure, stamp: WriteStamp): Promise<void>;
   /**
    * Takes away one work item's figure in one metric for one step, leaving every
    * other metric on that pair, every other step on that work item and that step
@@ -1023,7 +1065,12 @@ export interface MeasureStore {
    * left. What it leaves behind is nobody having said, which is the absence of a
    * row and never a stored zero.
    */
-  remove(workItemId: string, stepId: string, metric: MeasureMetric): Promise<void>;
+  remove(
+    workItemId: string,
+    stepId: string,
+    metric: MeasureMetric,
+    stamp: WriteStamp,
+  ): Promise<void>;
   /**
    * Moves every measure in every metric from one work item to another, exactly
    * as {@link ActualStore.moveAll} does and at the same call sites.
@@ -1033,7 +1080,7 @@ export interface MeasureStore {
    * be a row no reader can see and no writer can reach: invisible, not zero, and
    * back on screen if the child is ever deleted.
    */
-  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+  moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /** A finish-to-start edge as it is stored: either end may be a parent. */
@@ -1053,10 +1100,10 @@ export interface DependencyStore {
    * first: two clients drawing the same arrow at once would both see "not there"
    * and both insert.
    */
-  add(dependency: StoredDependency): Promise<void>;
-  remove(predecessorId: string, successorId: string): Promise<void>;
+  add(dependency: StoredDependency, stamp: WriteStamp): Promise<void>;
+  remove(predecessorId: string, successorId: string, stamp: WriteStamp): Promise<void>;
   /** Every edge touching a work item, so deleting the row can take them with it. */
-  removeAllFor(workItemId: string): Promise<void>;
+  removeAllFor(workItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -1358,7 +1405,12 @@ export interface CapacityStore {
    * absence of one. A stored null would be a second, and every reader would
    * then have to handle both — `schema.ts` has the argument on the column.
    */
-  set(projectId: string, serviceTeamId: string, size: number | null): Promise<CapacityWritten>;
+  set(
+    projectId: string,
+    serviceTeamId: string,
+    size: number | null,
+    stamp: WriteStamp,
+  ): Promise<CapacityWritten>;
 }
 
 /**
@@ -1400,7 +1452,11 @@ export interface PriorityBandStore {
    * where it does not hold, with a reader in another browser drawing one of them.
    * design.md D4.
    */
-  replace(projectId: string, bands: readonly PriorityBand[]): Promise<PriorityBandsWritten>;
+  replace(
+    projectId: string,
+    bands: readonly PriorityBand[],
+    stamp: WriteStamp,
+  ): Promise<PriorityBandsWritten>;
 }
 
 export interface DirectoryStore {
@@ -1410,9 +1466,9 @@ export interface DirectoryStore {
    * Adds a tag idempotently **by name**, answering the row that is there — which
    * is the earlier one when two callers added the same name at once.
    */
-  addTag(toAdd: Tag): Promise<Tag>;
+  addTag(toAdd: Tag, stamp: WriteStamp): Promise<Tag>;
   /** Renames one tag, refusing a name another tag holds. */
-  renameTag(tagId: string, name: string): Promise<TagWritten>;
+  renameTag(tagId: string, name: string, stamp: WriteStamp): Promise<TagWritten>;
   /**
    * What points at one tag right now — a fast path for the confirmation, never
    * the authority for it. {@link DirectoryStore.removeTag} decides.
@@ -1423,7 +1479,7 @@ export interface DirectoryStore {
    * unlabel anything, and otherwise deletes the tag — letting the cascade take
    * the labelling — all in one transaction, bumping every row that lost one.
    */
-  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  removeTag(tagId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
   /** Every work item type in the global directory, by name. */
   listWorkItemTypes(): Promise<WorkItemType[]>;
   /**
@@ -1432,9 +1488,9 @@ export interface DirectoryStore {
    * typed into by everybody, two people adding `Bug` at the same moment both
    * pass a check-then-insert, and only the unique index stops the second.
    */
-  addWorkItemType(toAdd: WorkItemType): Promise<WorkItemType>;
+  addWorkItemType(toAdd: WorkItemType, stamp: WriteStamp): Promise<WorkItemType>;
   /** Renames one work item type, refusing a name another type holds. */
-  renameWorkItemType(typeId: string, name: string): Promise<WorkItemTypeWritten>;
+  renameWorkItemType(typeId: string, name: string, stamp: WriteStamp): Promise<WorkItemTypeWritten>;
   /**
    * What points at one work item type right now — a fast path for the
    * confirmation, never the authority for it.
@@ -1446,7 +1502,11 @@ export interface DirectoryStore {
    * unlabel anything, and otherwise deletes the type — letting the cascade take
    * the labelling — all in one transaction, bumping every row that lost one.
    */
-  removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  removeWorkItemType(
+    typeId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<DirectoryRemoved>;
   /**
    * Every external system in the global directory, by name.
    *
@@ -1463,9 +1523,9 @@ export interface DirectoryStore {
    * Adds a service idempotently **by name**, answering the row that is there —
    * {@link DirectoryStore.addTag}'s rule and its reason.
    */
-  addService(toAdd: Service): Promise<Service>;
+  addService(toAdd: Service, stamp: WriteStamp): Promise<Service>;
   /** Renames one service, refusing a name another service holds. */
-  renameService(serviceId: string, name: string): Promise<ServiceWritten>;
+  renameService(serviceId: string, name: string, stamp: WriteStamp): Promise<ServiceWritten>;
   /**
    * What points at one service right now — a fast path for the confirmation,
    * never the authority for it. {@link DirectoryStore.removeService} decides.
@@ -1478,7 +1538,7 @@ export interface DirectoryStore {
    * `team_service`'s cascade take the ownership rows — all in one transaction,
    * bumping every row that lost its label.
    */
-  removeService(serviceId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  removeService(serviceId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
   /**
    * Every team with the services it owns — the ownership map ships **whole**,
    * on the row where it is edited (design D4).
@@ -1495,7 +1555,7 @@ export interface DirectoryStore {
    * is typed into by everybody, and two people adding `Platform` at once both
    * pass a check-then-insert.
    */
-  addTeam(team: ServiceTeam): Promise<ServiceTeam>;
+  addTeam(team: ServiceTeam, stamp: WriteStamp): Promise<ServiceTeam>;
   /**
    * Renames one team and replaces the services it owns, in **one** transaction,
    * or says why it could not.
@@ -1508,7 +1568,7 @@ export interface DirectoryStore {
    * transaction callback commits it, so a refusal decided after the name had
    * been set would answer `unknown_service` and leave the rename behind.
    */
-  patchTeam(teamId: string, patch: TeamPatch): Promise<ServiceTeamWritten>;
+  patchTeam(teamId: string, patch: TeamPatch, stamp: WriteStamp): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
   /**
    * Adds a person, or returns the one with that name, joining them to
@@ -1518,7 +1578,11 @@ export interface DirectoryStore {
    * Takes a {@link PersonInsert} rather than a {@link Person}: the kind may be
    * omitted on the way in and never is on the way out.
    */
-  addPerson(toAdd: PersonInsert, teamIds: readonly string[]): Promise<PersonAdded>;
+  addPerson(
+    toAdd: PersonInsert,
+    teamIds: readonly string[],
+    stamp: WriteStamp,
+  ): Promise<PersonAdded>;
   /**
    * Renames a person and replaces their memberships, in **one** transaction.
    *
@@ -1528,7 +1592,7 @@ export interface DirectoryStore {
    * writes nothing — the id is read in the same transaction as the writes, so
    * a team removed after some earlier check cannot slip between them.
    */
-  patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten>;
+  patchPerson(personId: string, patch: PersonPatch, stamp: WriteStamp): Promise<PersonWritten>;
   /**
    * What points at this person right now — a **fast path** for the refusal,
    * never the authority for it. Between this answer and any delete, anybody may
@@ -1548,7 +1612,7 @@ export interface DirectoryStore {
    * written after that caller's own count must refuse the removal rather than
    * be deleted by it.
    */
-  removePerson(personId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  removePerson(personId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
   /**
    * The same for a team, and it **nulls the labels itself**:
    * `work_item.service_team_id` carries a foreign key with no `ON DELETE`
@@ -1556,14 +1620,25 @@ export interface DirectoryStore {
    * refused outright by SQLite. The join rows in `work_item_team` go the other
    * way and need no statement at all — they cascade.
    */
-  removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * Stamped, unlike its four sibling removals, because this one **updates**
+   * surviving rows as well as deleting: it nulls `work_item.serviceTeamId` on
+   * every work item the team labelled. A delete has no column left to stamp; an
+   * update to a row that stays does.
+   */
+  removeTeam(teamId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
   /**
    * Sets, replaces or (with `null`) removes one work item's assignee for one
    * step, validating the person **inside the write's own transaction** — see
    * {@link AssignmentWritten}.
    */
-  assign(workItemId: string, stepId: string, personId: string | null): Promise<AssignmentWritten>;
+  assign(
+    workItemId: string,
+    stepId: string,
+    personId: string | null,
+    stamp: WriteStamp,
+  ): Promise<AssignmentWritten>;
 }
 
 /**
@@ -1692,7 +1767,7 @@ export interface SubtreeStore {
    * was written, which `work-item.test.ts` asserts against a deliberately
    * broken foreign key rather than claiming it here.
    */
-  insertSubtree(copy: SubtreeCopy): Promise<void>;
+  insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -1905,7 +1980,7 @@ export interface ProjectStore {
    * for even one request without steps would accept an estimate that had no
    * step to belong to, so the two are one transaction rather than two calls.
    */
-  create(project: Project, steps: readonly Step[]): Promise<Project>;
+  create(project: Project, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
   findById(id: string): Promise<Project | null>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
@@ -1925,13 +2000,18 @@ export interface ProjectStore {
    */
   listFor(userId: string): Promise<ProjectWithAccess[]>;
   /**
-   * Records `userId` as having opened `projectId` at `at`, replacing whatever
-   * moment was recorded before. Idempotent by the primary key rather than by
-   * asking first: two tabs opening one project at once would both see "no row"
-   * and both insert.
+   * Records the acting account as having opened `projectId` at the stamp's
+   * instant, replacing whatever moment was recorded before. Idempotent by the
+   * primary key rather than by asking first: two tabs opening one project at
+   * once would both see "no row" and both insert.
+   *
+   * The stamp carries both halves this used to take separately — it was
+   * `recordOpen(userId, projectId, at)` — because the account that opened the
+   * project is the acting user and the moment it was opened is the instant of
+   * the act. Two names for one fact is how the two drift apart.
    */
-  recordOpen(userId: string, projectId: string, at: number): Promise<void>;
+  recordOpen(projectId: string, stamp: WriteStamp): Promise<void>;
   /** Returns null when the project is gone. */
-  update(id: string, patch: ProjectPatch): Promise<Project | null>;
+  update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
 }

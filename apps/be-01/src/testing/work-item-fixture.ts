@@ -7,6 +7,7 @@ import type {
   Repositioned,
   WorkItem,
   WorkItemStore,
+  WriteStamp,
 } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -48,8 +49,13 @@ export function inMemoryWorkItems(
    * `work-item.controller.test.ts` said so out loud until this line existed.
    */
   teams?: Pick<DirectoryStore, 'listTeams' | 'listServices'>,
-): WorkItemStore {
+): WorkItemStore & { stampsSeen: WriteStamp[] } {
   const byId = new Map<string, WorkItem>();
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
   /**
    * The teams each work item is joined to, held apart from the row exactly as
    * `work_item_team` is held apart from `work_item`.
@@ -104,6 +110,7 @@ export function inMemoryWorkItems(
   }
 
   return {
+    stampsSeen,
     listByProject(projectId) {
       return Promise.resolve(
         [...byId.values()]
@@ -121,13 +128,15 @@ export function inMemoryWorkItems(
     findById(id) {
       return Promise.resolve(byId.get(id) ?? null);
     },
-    insert(workItem, respaced) {
+    insert(workItem, respaced, stamp) {
+      stampsSeen.push(stamp);
       reposition(respaced);
       byId.set(workItem.id, workItem);
       teamsOf.set(workItem.id, joinFor(workItem));
       return Promise.resolve();
     },
-    async patch(id, patch) {
+    async patch(id, patch, stamp) {
+      stampsSeen.push(stamp);
       const existing = byId.get(id);
       if (existing === undefined) return { ok: false, reason: 'not_found' };
       const wanted = patch.serviceTeamId;
@@ -231,14 +240,16 @@ export function inMemoryWorkItems(
       }
       return { ok: true, workItem: updated };
     },
-    move(id, parentId, position, respaced) {
+    move(id, parentId, position, respaced, stamp) {
+      stampsSeen.push(stamp);
       const existing = byId.get(id);
       if (existing === undefined) throw new Error(`cannot move unknown ${id}`);
       reposition(respaced);
       byId.set(id, { ...existing, parentId, position });
       return Promise.resolve();
     },
-    setFrozenNumbers(updates: readonly FrozenNumber[]) {
+    setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp) {
+      stampsSeen.push(stamp);
       for (const update of updates) {
         const existing = byId.get(update.id);
         if (existing === undefined) throw new Error(`cannot freeze unknown ${update.id}`);
@@ -246,7 +257,8 @@ export function inMemoryWorkItems(
       }
       return Promise.resolve();
     },
-    remove(ids, promoted) {
+    remove(ids, promoted, stamp) {
+      stampsSeen.push(stamp);
       // Promotions land before the deletion, and deletion runs deepest-first,
       // because that is the order the foreign keys force on the real
       // repository. A fixture free to do it in any order would let a test pass

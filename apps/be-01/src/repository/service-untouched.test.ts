@@ -46,6 +46,24 @@ function tempDb(): { path: string; cleanup: () => void } {
   };
 }
 
+/**
+ * The three columns `20260901120000_add_audit_columns` adds to every table that
+ * holds a domain record.
+ *
+ * Named here because this file's claims are about what the **service**
+ * migrations did to two tables, and that migration is newer than all of them: it
+ * adds these three to `project_team_capacity` and `person_team` like everything
+ * else, so a shape comparison that included them would be asserting something no
+ * case here is about. Each case still pins its own columns exactly, so a
+ * `service_id` appearing is caught as before.
+ */
+const AUDIT_COLUMNS = ['created_at', 'updated_at', 'created_by'];
+
+/** {@link columnsOf} without the audit columns — see {@link AUDIT_COLUMNS}. */
+function ownColumnsOf(dbPath: string, table: string): { name: string; type: string; pk: number }[] {
+  return columnsOf(dbPath, table).filter((column) => !AUDIT_COLUMNS.includes(column.name));
+}
+
 function columnsOf(dbPath: string, table: string): { name: string; type: string; pk: number }[] {
   const sqlite = openDatabase(dbPath);
   try {
@@ -105,15 +123,17 @@ describe('the pool and the membership list, across the service migrations', () =
         sqlite.close();
       }
 
-      const CAPACITY = 'SELECT * FROM project_team_capacity ORDER BY project_id, service_team_id';
+      const CAPACITY =
+        'SELECT project_id, service_team_id, size FROM project_team_capacity' +
+        ' ORDER BY project_id, service_team_id';
       const before = rowsOf(db.path, CAPACITY);
-      const shapeBefore = columnsOf(db.path, 'project_team_capacity');
+      const shapeBefore = ownColumnsOf(db.path, 'project_team_capacity');
       expect(before).toHaveLength(1);
 
       runMigrations(db.path, FOLDER);
 
       expect(rowsOf(db.path, CAPACITY)).toEqual(before);
-      expect(columnsOf(db.path, 'project_team_capacity')).toEqual(shapeBefore);
+      expect(ownColumnsOf(db.path, 'project_team_capacity')).toEqual(shapeBefore);
     } finally {
       db.cleanup();
     }
@@ -127,7 +147,7 @@ describe('the pool and the membership list, across the service migrations', () =
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      const columns = columnsOf(db.path, 'project_team_capacity');
+      const columns = ownColumnsOf(db.path, 'project_team_capacity');
 
       expect(columns.map((c) => c.name)).toEqual(['project_id', 'service_team_id', 'size']);
       expect(columns.map((c) => c.name)).not.toContain('service_id');
@@ -172,11 +192,11 @@ describe('the pool and the membership list, across the service migrations', () =
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      const before = columnsOf(db.path, 'person_team');
+      const before = ownColumnsOf(db.path, 'person_team');
       const reversed = rollbackTo(db.path, FOLDER, BEFORE_SERVICE);
       expect(reversed.length).toBeGreaterThan(0);
 
-      expect(columnsOf(db.path, 'person_team')).toEqual(before);
+      expect(ownColumnsOf(db.path, 'person_team')).toEqual(before);
       expect(before.map((c) => c.name)).toEqual(['person_id', 'service_team_id']);
       expect(before.map((c) => c.name)).not.toContain('service_id');
     } finally {

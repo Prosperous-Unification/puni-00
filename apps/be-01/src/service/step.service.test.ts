@@ -4,7 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { DirectoryStore, EstimateStore, Step, StepStore, WorkItem } from '../repository';
+import type {
+  DirectoryStore,
+  EstimateStore,
+  Step,
+  StepStore,
+  WorkItem,
+  WriteStamp,
+} from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
@@ -78,6 +85,13 @@ const newItem = (id: string, position: number, name: string): WorkItem => ({
   revision: 0,
 });
 
+/**
+ * The stamp the writes this file makes by hand carry. The account is the owner
+ * because `created_by` has an enforced foreign key to `users`, so a stamp naming
+ * nobody would answer with the key rather than the behaviour being asserted.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 const stepNamed = async (name: string): Promise<Step> => {
   const found = (await stepStore.listByProject(projectId)).find((each) => each.name === name);
   if (found === undefined) throw new Error(`no step called ${name}`);
@@ -103,8 +117,14 @@ beforeEach(async () => {
   const users = new UserRepository(db);
   ownerId = crypto.randomUUID();
   strangerId = crypto.randomUUID();
-  await users.create({ id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 });
-  await users.create({ id: strangerId, username: 'stranger', passwordHash: 'x', createdAt: 2 });
+  await users.create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: ownerId },
+  );
+  await users.create(
+    { id: strangerId, username: 'stranger', passwordHash: 'x', createdAt: 2 },
+    { at: 2, by: strangerId },
+  );
 
   const created = await new ProjectService({ projects: projectStore }).create('Shed', ownerId);
   projectId = created.project.id;
@@ -112,8 +132,8 @@ beforeEach(async () => {
   qaId = (await stepNamed('QA')).id;
 
   const workItems = new WorkItemRepository(db);
-  await workItems.insert(newItem('strip', 10, 'Strip'), []);
-  await workItems.insert(newItem('sand', 20, 'Sand'), []);
+  await workItems.insert(newItem('strip', 10, 'Strip'), [], wrote());
+  await workItems.insert(newItem('sand', 20, 'Sand'), [], wrote());
 });
 
 afterEach(() => {
@@ -157,7 +177,7 @@ describe('StepService.add', () => {
       reason: 'not_found',
     });
 
-    await projectStore.update(projectId, { restricted: true });
+    await projectStore.update(projectId, { restricted: true }, wrote());
     expect(await steps.add(projectId, strangerId, 'Design')).toEqual({
       ok: false,
       reason: 'forbidden',
@@ -220,10 +240,11 @@ function storeWith(overrides: Partial<StepStore>): StepStore {
   return {
     listByProject: (projectOf) => stepStore.listByProject(projectOf),
     findById: (stepOf) => stepStore.findById(stepOf),
-    add: (toAdd) => stepStore.add(toAdd),
-    rename: (stepOf, name) => stepStore.rename(stepOf, name),
+    add: (toAdd, stamp) => stepStore.add(toAdd, stamp),
+    rename: (stepOf, name, stamp) => stepStore.rename(stepOf, name, stamp),
     usageOf: (projectOf, stepOf) => stepStore.usageOf(projectOf, stepOf),
-    remove: (projectOf, stepOf, cascade) => stepStore.remove(projectOf, stepOf, cascade),
+    remove: (projectOf, stepOf, cascade, stamp) =>
+      stepStore.remove(projectOf, stepOf, cascade, stamp),
     ...overrides,
   };
 }
@@ -240,13 +261,13 @@ describe('StepService.remove', () => {
   });
 
   it('refuses a step that is used, counting what would go', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
-    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
+    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', qaId, ada.id);
-    await directory.assign('strip', devId, ada.id);
+    await directory.assign('strip', qaId, ada.id, wrote());
+    await directory.assign('strip', devId, ada.id, wrote());
 
     const outcome = await steps.remove(projectId, qaId, ownerId, false);
 
@@ -271,20 +292,26 @@ describe('StepService.remove', () => {
     // transaction's — are turned into the numbers somebody consents to. A count
     // that stopped at the repository would leave this step looking free: no
     // estimate, no recorded day, nobody assigned, and two figures that go.
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'token_estimate',
-      value: 8000,
-      recordedAt: 1000,
-    });
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'token_actual',
-      value: 9500,
-      recordedAt: 2000,
-    });
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'token_estimate',
+        value: 8000,
+        recordedAt: 1000,
+      },
+      wrote(),
+    );
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'token_actual',
+        value: 9500,
+        recordedAt: 2000,
+      },
+      wrote(),
+    );
 
     const outcome = await steps.remove(projectId, qaId, ownerId, false);
 
@@ -305,7 +332,7 @@ describe('StepService.remove', () => {
   });
 
   it('removes it on the second, explicit call', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     expect(await steps.remove(projectId, qaId, ownerId, false)).toMatchObject({ reason: 'in_use' });
 
     const outcome = await steps.remove(projectId, qaId, ownerId, true);
@@ -328,7 +355,7 @@ describe('StepService.remove', () => {
       steps: storeWith({
         async usageOf(watchedProject, watchedStep) {
           const counted = await stepStore.usageOf(watchedProject, watchedStep);
-          await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
+          await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
           return counted;
         },
       }),
@@ -356,7 +383,7 @@ describe('StepService.remove', () => {
         async findById(watched) {
           const found = await stepStore.findById(watched);
           if (winnerRevision === undefined) {
-            await stepStore.remove(projectId, qaId, true);
+            await stepStore.remove(projectId, qaId, true, wrote());
             winnerRevision = (await projectStore.findById(projectId))?.revision;
           }
           return found;
@@ -373,7 +400,7 @@ describe('StepService.remove', () => {
   });
 
   it('refuses a caller who may not write to the project, cascade or not', async () => {
-    await projectStore.update(projectId, { restricted: true });
+    await projectStore.update(projectId, { restricted: true }, wrote());
 
     expect(await steps.remove(projectId, qaId, strangerId, true)).toEqual({
       ok: false,
@@ -399,22 +426,22 @@ describe('a step removed between the check and the write', () => {
   function serviceWritingIntoTheGap(): WorkItemService {
     const vanishing: EstimateStore = {
       listByProject: (of) => estimates.listByProject(of),
-      remove: (workItemId, stepId) => estimates.remove(workItemId, stepId),
-      moveAll: (from, to) => estimates.moveAll(from, to),
-      async set(toSet) {
-        await stepStore.remove(projectId, qaId, true);
-        await estimates.set(toSet);
+      remove: (workItemId, stepId, stamp) => estimates.remove(workItemId, stepId, stamp),
+      moveAll: (from, to, stamp) => estimates.moveAll(from, to, stamp),
+      async set(toSet, stamp) {
+        await stepStore.remove(projectId, qaId, true, wrote());
+        await estimates.set(toSet, stamp);
       },
     };
     const vanishingToo: DirectoryStore = {
       listTeams: () => directory.listTeams(),
-      addTeam: (team) => directory.addTeam(team),
+      addTeam: (team, stamp) => directory.addTeam(team, stamp),
       listPeople: () => directory.listPeople(),
-      addPerson: (toAdd, teamIds) => directory.addPerson(toAdd, teamIds),
+      addPerson: (toAdd, teamIds, stamp) => directory.addPerson(toAdd, teamIds, stamp),
       assignmentsOf: (ids) => directory.assignmentsOf(ids),
-      async assign(workItemId, stepId, personId) {
-        await stepStore.remove(projectId, qaId, true);
-        await directory.assign(workItemId, stepId, personId);
+      async assign(workItemId, stepId, personId, stamp) {
+        await stepStore.remove(projectId, qaId, true, wrote());
+        return directory.assign(workItemId, stepId, personId, stamp);
       },
     };
     return new WorkItemService({
@@ -443,7 +470,7 @@ describe('a step removed between the check and the write', () => {
 
   it('refuses the assignee the same way', async () => {
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
 
     const outcome = await serviceWritingIntoTheGap().assign('strip', ownerId, qaId, ada.id);

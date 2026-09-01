@@ -1,6 +1,11 @@
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 
-import type { PriorityBandStore, PriorityBandsWritten, ProjectStore } from '../repository';
+import type {
+  PriorityBandStore,
+  PriorityBandsWritten,
+  ProjectStore,
+  WriteStamp,
+} from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { PriorityBandService } from '../service/priority-band.service';
 import { recordingBroadcaster } from './broadcast-fixture';
@@ -25,7 +30,7 @@ import { inMemoryProjects } from './project-fixture';
 export function inMemoryPriorityBands(
   /** What the store starts holding, as `projectId -> its five bands`. */
   seed: Readonly<Record<string, readonly PriorityBand[]>> = {},
-): PriorityBandStore {
+): PriorityBandStore & { stampsSeen: WriteStamp[] } {
   const held = new Map<string, PriorityBand[]>();
   for (const [projectId, bands] of Object.entries(seed)) {
     held.set(
@@ -33,7 +38,13 @@ export function inMemoryPriorityBands(
       bands.map((band) => ({ ...band })),
     );
   }
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
   return {
+    stampsSeen,
     listFor(projectId) {
       const own = held.get(projectId);
       // A copy either way: a caller that mutated what it was handed would be
@@ -41,7 +52,8 @@ export function inMemoryPriorityBands(
       // would edit every project at once.
       return Promise.resolve((own ?? DEFAULT_PRIORITY_BANDS).map((band) => ({ ...band })));
     },
-    replace(projectId, bands) {
+    replace(projectId, bands, stamp) {
+      stampsSeen.push(stamp);
       held.set(
         projectId,
         bands.map((band) => ({ ...band, label: band.label.trim() })),

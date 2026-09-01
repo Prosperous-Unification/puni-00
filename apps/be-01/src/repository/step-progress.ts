@@ -1,7 +1,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { StepProgressStore, StoredProgress } from './index';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { StepProgressStore, StoredProgress, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { step, stepProgress, workItem } from './schema';
 
@@ -71,21 +72,21 @@ export class StepProgressRepository implements StepProgressStore {
    * a step that has just gone from in progress to done was said to be done
    * today.
    */
-  async set(toSet: StoredProgress): Promise<void> {
+  async set(toSet: StoredProgress, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.insert(stepProgress)
-        .values(toSet)
+        .values({ ...toSet, ...auditOnCreate(stamp) })
         .onConflictDoUpdate({
           target: [stepProgress.workItemId, stepProgress.stepId],
-          set: { state: toSet.state, statedAt: toSet.statedAt },
+          set: { state: toSet.state, statedAt: toSet.statedAt, ...auditOnUpdate(stamp) },
         })
         .run();
-      bumpWorkItems(tx, [toSet.workItemId]);
+      bumpWorkItems(tx, [toSet.workItemId], stamp);
     });
   }
 
-  async remove(workItemId: string, stepId: string): Promise<void> {
+  async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
     // Both halves of the key, not the step alone: the composite primary key is
     // (work item, step), and narrowing to one of them would take that step's
     // state off every row in the database. `step-progress.test.ts` keeps a
@@ -96,7 +97,7 @@ export class StepProgressRepository implements StepProgressStore {
       tx.delete(stepProgress)
         .where(and(eq(stepProgress.workItemId, workItemId), eq(stepProgress.stepId, stepId)))
         .run();
-      bumpWorkItems(tx, [workItemId]);
+      bumpWorkItems(tx, [workItemId], stamp);
     });
   }
 
@@ -120,11 +121,11 @@ export class StepProgressRepository implements StepProgressStore {
    * moving both` in `service/revision.test.ts` fails with the child at revision
    * 2 where 1 is owed; watched 2026-08-18.
    */
-  async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
+  async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.update(stepProgress)
-        .set({ workItemId: toWorkItemId })
+        .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
         .where(eq(stepProgress.workItemId, fromWorkItemId))
         .run();
       const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
@@ -132,7 +133,7 @@ export class StepProgressRepository implements StepProgressStore {
         throw new Error('SELECT changes() answered no row after moving stated progress');
       }
       if (changed.n === 0) return;
-      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId]);
+      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
     });
   }
 }

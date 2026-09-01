@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { workItemExternalRef } from './schema';
@@ -16,12 +16,20 @@ import { WorkItemRepository } from './work-item';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+let ownerId: string;
 let repo: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
 let itemId: string;
 let childId: string;
 let db: ReturnType<typeof openDrizzle>;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const newItem = (
   id: string,
@@ -56,13 +64,11 @@ beforeEach(async () => {
   repo = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   const project: Project = {
     id: projectId,
@@ -78,12 +84,12 @@ beforeEach(async () => {
     createdAt: 1,
   };
   const steps: Step[] = [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }];
-  await new ProjectRepository(db).create(project, steps);
+  await new ProjectRepository(db).create(project, steps, wrote());
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();
-  await workItems.insert(newItem(itemId, 10, 'Strip', null), []);
-  await workItems.insert(newItem(childId, 10, 'Cladding', itemId), []);
+  await workItems.insert(newItem(itemId, 10, 'Strip', null), [], wrote());
+  await workItems.insert(newItem(childId, 10, 'Cladding', itemId), [], wrote());
 });
 
 afterEach(() => {
@@ -100,12 +106,16 @@ describe('a work item\u2019s external refs', () => {
     // of the `id` key, watched 2026-08-30 failing with `UNIQUE constraint failed`
     // on the second ref.
     return (async () => {
-      await workItems.patch(itemId, {
-        externalRefs: [
-          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
-          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/2' },
-        ],
-      });
+      await workItems.patch(
+        itemId,
+        {
+          externalRefs: [
+            { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
+            { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/2' },
+          ],
+        },
+        wrote(),
+      );
 
       const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
       expect(row?.externalRefs.map((each) => each.url)).toEqual([
@@ -164,12 +174,16 @@ describe('a work item\u2019s external refs', () => {
   it('writes ascending positions as the caller stated the list', async () => {
     // The other half of the pair above: the read orders by `position`, and this
     // is what makes `position` mean "where the caller put it".
-    await workItems.patch(itemId, {
-      externalRefs: [
-        { systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-9' },
-        { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
-      ],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [
+          { systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-9' },
+          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
+        ],
+      },
+      wrote(),
+    );
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs.map((each) => each.url)).toEqual([
@@ -181,13 +195,21 @@ describe('a work item\u2019s external refs', () => {
   it('replaces the list whole, never merging', async () => {
     // Proof: the `tx.delete(workItemExternalRef)` removed so the write is
     // additive, watched 2026-08-30 failing on the removed ref coming back.
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' }],
+      },
+      wrote(),
+    );
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs.map((each) => each.url)).toEqual([
@@ -199,35 +221,47 @@ describe('a work item\u2019s external refs', () => {
     // Deduplicated **by URL** and not by the pair: two refs into one system are
     // two links, and the only untidiness worth collapsing is the same address
     // stated twice. The schema refuses neither, so this is where it happens.
-    await workItems.patch(itemId, {
-      externalRefs: [
-        { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
-        { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
-        { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/2' },
-      ],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [
+          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
+          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/1' },
+          { systemId: GITHUB_PR, url: 'https://github.com/acme/shed/pull/2' },
+        ],
+      },
+      wrote(),
+    );
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs).toHaveLength(2);
   });
 
   it('an empty list takes every ref off', async () => {
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
-    await workItems.patch(itemId, { externalRefs: [] });
+    await workItems.patch(itemId, { externalRefs: [] }, wrote());
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs).toEqual([]);
   });
 
   it('a patch that does not name the refs leaves them alone', async () => {
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
-    await workItems.patch(itemId, { name: 'Strip the walls' });
+    await workItems.patch(itemId, { name: 'Strip the walls' }, wrote());
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs).toHaveLength(1);
@@ -238,9 +272,13 @@ describe('a work item\u2019s external refs', () => {
     // condition, watched 2026-08-30 failing on the written list coming back
     // empty — a patch that answers `ok` having written nothing. The tag line's
     // own red, a third time in that one condition.
-    const outcome = await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    const outcome = await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
     expect(outcome.ok).toBe(true);
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
@@ -254,10 +292,14 @@ describe('a work item\u2019s external refs', () => {
     //
     // Proof: the `unknown_system` check removed, watched 2026-08-30 failing with
     // `SQLiteError: FOREIGN KEY constraint failed` in place of the refusal.
-    const outcome = await workItems.patch(itemId, {
-      name: 'Renamed',
-      externalRefs: [{ systemId: 'sys-nobody-has-this', url: 'https://example.com/x' }],
-    });
+    const outcome = await workItems.patch(
+      itemId,
+      {
+        name: 'Renamed',
+        externalRefs: [{ systemId: 'sys-nobody-has-this', url: 'https://example.com/x' }],
+      },
+      wrote(),
+    );
 
     expect(outcome).toEqual({ ok: false, reason: 'unknown_system' });
     // The **whole** patch, which is the half a reader loses if the refusal lands
@@ -270,9 +312,13 @@ describe('a work item\u2019s external refs', () => {
   it('mints its own ref ids, never taking one from the caller', async () => {
     // A ref's identity is the store's. Accepting a caller's id would let a client
     // rewrite another row's ref by naming its id.
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     const minted = row?.externalRefs[0]?.id;
@@ -288,9 +334,13 @@ describe('a work item\u2019s external refs', () => {
     // Proof: the read path made to call `systemOfUrl(url)` instead of returning
     // the stored `system_id`, watched 2026-08-30 failing on `github-pr` coming
     // back where `sys-jira-issue` was written.
-    await workItems.patch(itemId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://github.com/acme/shed/pull/1' }],
-    });
+    await workItems.patch(
+      itemId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://github.com/acme/shed/pull/1' }],
+      },
+      wrote(),
+    );
 
     const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
     expect(row?.externalRefs[0]?.systemId).toBe(JIRA);
@@ -303,11 +353,15 @@ describe('a work item\u2019s external refs', () => {
     //
     // Proof: `ON DELETE CASCADE` struck from `work_item_id`, watched 2026-08-30
     // failing with `FOREIGN KEY constraint failed`.
-    await workItems.patch(childId, {
-      externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
-    });
+    await workItems.patch(
+      childId,
+      {
+        externalRefs: [{ systemId: JIRA, url: 'https://acme.atlassian.net/browse/SHED-1' }],
+      },
+      wrote(),
+    );
 
-    await workItems.remove([childId], []);
+    await workItems.remove([childId], [], wrote());
 
     expect((await workItems.listByProject(projectId)).map((each) => each.id)).toEqual([itemId]);
   });

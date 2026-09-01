@@ -1,6 +1,7 @@
 import { and, eq, inArray, max } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { auditOnCreate, auditOnUpdate } from './audit';
 import type {
   Assignment,
   NewStep,
@@ -9,6 +10,7 @@ import type {
   StepStore,
   StepUsageRows,
   StepWritten,
+  WriteStamp,
 } from './index';
 import { STEP_POSITION_STEP } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
@@ -94,15 +96,33 @@ export class StepRepository implements StepStore {
    * its name sorts` fails with `Analysis, Dev, QA`; watched 2026-08-09.
    */
   listByProject(projectId: string): Promise<Step[]> {
+    // Projected, like every read that crosses this boundary: the audit columns
+    // are recorded and not published, so a bare `select()` would put three
+    // fields nobody asked for into `Step` and from there into the payload. The
+    // declared return type checks the list is complete.
     return this.db
-      .select()
+      .select({
+        id: step.id,
+        projectId: step.projectId,
+        name: step.name,
+        position: step.position,
+      })
       .from(step)
       .where(eq(step.projectId, projectId))
       .orderBy(step.position, step.id);
   }
 
   async findById(stepId: string): Promise<Step | null> {
-    const rows = await this.db.select().from(step).where(eq(step.id, stepId)).limit(1);
+    const rows = await this.db
+      .select({
+        id: step.id,
+        projectId: step.projectId,
+        name: step.name,
+        position: step.position,
+      })
+      .from(step)
+      .where(eq(step.id, stepId))
+      .limit(1);
     return rows.at(0) ?? null;
   }
 
@@ -123,7 +143,7 @@ export class StepRepository implements StepStore {
    * moves the project’s revision` fails, 1 expected and 0 read. Both watched
    * 2026-08-08.
    */
-  async add(toAdd: NewStep): Promise<StepWritten> {
+  async add(toAdd: NewStep, stamp: WriteStamp): Promise<StepWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
@@ -136,8 +156,10 @@ export class StepRepository implements StepStore {
           ...toAdd,
           position: (last?.position ?? 0) + STEP_POSITION_STEP,
         };
-        tx.insert(step).values(written).run();
-        bumpProject(tx, toAdd.projectId);
+        tx.insert(step)
+          .values({ ...written, ...auditOnCreate(stamp) })
+          .run();
+        bumpProject(tx, toAdd.projectId, stamp);
         return { ok: true, step: written };
       });
     } catch (err) {
@@ -156,17 +178,27 @@ export class StepRepository implements StepStore {
    * `reports a step that is gone rather than pretending to rename it` fails —
    * a rename of nothing answered `ok`; watched 2026-08-08.
    */
-  async rename(stepId: string, name: string): Promise<StepWritten> {
+  async rename(stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
-        const rows = tx.update(step).set({ name }).where(eq(step.id, stepId)).returning().all();
+        const rows = tx
+          .update(step)
+          .set({ name, ...auditOnUpdate(stamp) })
+          .where(eq(step.id, stepId))
+          .returning({
+            id: step.id,
+            projectId: step.projectId,
+            name: step.name,
+            position: step.position,
+          })
+          .all();
         const renamed = rows.at(0);
         // Nothing was updated, so there is no step by that id — and nothing to
         // bump. Rolling back is not needed (the update wrote nothing), but the
         // early return keeps the bump and the write in the same branch.
         if (renamed === undefined) return { ok: false, reason: 'not_found' };
-        bumpProject(tx, renamed.projectId);
+        bumpProject(tx, renamed.projectId, stamp);
         return { ok: true, step: renamed };
       });
     } catch (err) {
@@ -223,7 +255,11 @@ export class StepRepository implements StepStore {
         assignments: [],
       };
     const assignments = await this.db
-      .select()
+      .select({
+        workItemId: assignment.workItemId,
+        stepId: assignment.stepId,
+        personId: assignment.personId,
+      })
       .from(assignment)
       .where(
         inArray(
@@ -280,7 +316,12 @@ export class StepRepository implements StepStore {
    * the API actually faces — count, somebody else's write, confirm — is
    * reproduced across two calls rather than inside one.
    */
-  async remove(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoved> {
+  async remove(
+    projectId: string,
+    stepId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<StepRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       const stepInProject = tx
@@ -381,8 +422,8 @@ export class StepRepository implements StepStore {
           ),
         ),
       ];
-      bumpWorkItems(tx, workItemIds);
-      bumpProject(tx, projectId);
+      bumpWorkItems(tx, workItemIds, stamp);
+      bumpProject(tx, projectId, stamp);
       return {
         ok: true,
         removal: {

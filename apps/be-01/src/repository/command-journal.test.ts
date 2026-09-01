@@ -7,13 +7,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CommandJournalRepository } from './command-journal';
 import { openDatabase, openDrizzle } from './db';
-import { JOURNAL_DEPTH, type NewJournalEntry, type PlanEvent, type Project } from './index';
+import {
+  JOURNAL_DEPTH,
+  type NewJournalEntry,
+  type PlanEvent,
+  type Project,
+  type WriteStamp,
+} from './index';
 import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+
+/** The stamp the setup's writes carry; `owner` is the account it creates first. */
+const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
  * The one act that writes two tables: the account's undo stack and the plan's
@@ -76,13 +85,11 @@ describe('appending a command', () => {
     sqlite = openDatabase(path);
     journal = new CommandJournalRepository(db);
     events = new PlanEventRepository(db);
-    await new UserRepository(db).create({
-      id: 'owner',
-      username: 'owner',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
-    await new ProjectRepository(db).create(project('p1'), []);
+    await new UserRepository(db).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
+    await new ProjectRepository(db).create(project('p1'), [], wrote);
   });
 
   afterEach(() => {
@@ -161,12 +168,10 @@ describe('appending a command', () => {
   it('records one project’s history whoever ran the command', async () => {
     // Per project, not per (project, account): two people editing one plan produce
     // two disjoint stacks and **one** history, which is the difference R5 asks for.
-    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
-      id: 'someone-else',
-      username: 'someone-else',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create(
+      { id: 'someone-else', username: 'someone-else', passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: 'someone-else' },
+    );
     await journal.append(entry('mine', 1_000), event('mine', 1_000));
     await journal.append(
       { ...entry('theirs', 2_000), userId: 'someone-else' },

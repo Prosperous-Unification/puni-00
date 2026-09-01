@@ -12,6 +12,7 @@ import type {
   TeamWithServices,
   TouchedProjects,
   WorkItemType,
+  WriteStamp,
 } from '../repository';
 // The constant from `schema.ts`, not from `repository/index.ts`: that module is
 // type-only on purpose, and a value re-export there would pull drizzle into
@@ -38,6 +39,8 @@ export interface DirectoryServiceOptions {
    */
   broadcast: Broadcaster;
   newId?: () => string;
+  /** The clock every {@link WriteStamp} this service builds is dated from. */
+  now?: () => number;
 }
 
 /**
@@ -127,13 +130,29 @@ function cleanName(name: string): string | null {
  *
  * Adding is idempotent by name so the "type it if it is not in the list"
  * picker cannot make two `Platform`s, and neither can two people typing it at
- * the same moment.
+ * the same moment. So an `add` that answers the row already there writes
+ * nothing, and the stamp it built goes unspent — which is the right way round:
+ * the recorded author of `Platform` is whoever first typed it, not the second
+ * person whose picker resolved to it.
+ *
+ * Every write here takes an `actorId` even though **none of them is gated by
+ * it**: the directory is open to every authenticated account, by decision above,
+ * and the actor is carried for the record rather than for permission. Who added
+ * `Platform` is exactly the question the audit columns exist to answer, and the
+ * directory is the case Dany asked for by name — see ADR 0012.
  */
 export class DirectoryService {
   private readonly newId: () => string;
+  private readonly now: () => number;
 
   constructor(private readonly opts: DirectoryServiceOptions) {
     this.newId = opts.newId ?? (() => crypto.randomUUID());
+    this.now = opts.now ?? (() => Date.now());
+  }
+
+  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
+  private stampFor(actorId: string): WriteStamp {
+    return { at: this.now(), by: actorId };
   }
 
   /** Every team **with the services it owns** — the map ships whole, design D4. */
@@ -142,14 +161,14 @@ export class DirectoryService {
   }
 
   /** Null for a name that is only whitespace — an unnamed team helps nobody find anything. */
-  async addTeam(name: string): Promise<ServiceTeam | null> {
+  async addTeam(actorId: string, name: string): Promise<ServiceTeam | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
     // No size, because a team no longer has one: a new team is unstated on
     // every plan, and how many of them are at work at once is said per project
     // afterwards. The retired column is left at its default `NULL` by the
     // insert, which is what `capacity-per-project` D4 leaves it as.
-    return this.opts.directory.addTeam({ id: this.newId(), name: clean });
+    return this.opts.directory.addTeam({ id: this.newId(), name: clean }, this.stampFor(actorId));
   }
 
   /**
@@ -170,7 +189,11 @@ export class DirectoryService {
    * exactly as it was, and would make "the map moves no date" a claim about
    * luck rather than about the code.
    */
-  async patchTeam(teamId: string, patch: TeamPatch): Promise<DirectoryOutcome<TeamWithServices>> {
+  async patchTeam(
+    teamId: string,
+    actorId: string,
+    patch: TeamPatch,
+  ): Promise<DirectoryOutcome<TeamWithServices>> {
     if (patch.name === undefined && patch.serviceIds === undefined) {
       return { ok: false, reason: 'nothing_to_change' };
     }
@@ -178,10 +201,16 @@ export class DirectoryService {
     // Before the row is read: a team called nothing would sit in every picker
     // with no way to tell it from the next one.
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.patchTeam(teamId, {
-      ...(clean === undefined ? {} : { name: clean }),
-      ...(patch.serviceIds === undefined ? {} : { serviceIds: patch.serviceIds }),
-    });
+    // One stamp for a rename and an ownership map the store writes in one
+    // transaction: they are one act, and the two halves cannot be dated apart.
+    const written = await this.opts.directory.patchTeam(
+      teamId,
+      {
+        ...(clean === undefined ? {} : { name: clean }),
+        ...(patch.serviceIds === undefined ? {} : { serviceIds: patch.serviceIds }),
+      },
+      this.stampFor(actorId),
+    );
     if (!written.ok) {
       // `clean` is defined on this branch — `taken` is the name index refusing,
       // and a patch that named no name cannot have reached it.
@@ -208,17 +237,17 @@ export class DirectoryService {
    * `size` is a retired column left at its default, while a tag has no such
    * column to leave — it never had a pool to be unstated about.
    */
-  async addTag(name: string): Promise<Tag | null> {
+  async addTag(actorId: string, name: string): Promise<Tag | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    return this.opts.directory.addTag({ id: this.newId(), name: clean });
+    return this.opts.directory.addTag({ id: this.newId(), name: clean }, this.stampFor(actorId));
   }
 
   /** Renames a tag, keeping the name unique across the deployment — `renameTeam`'s rules. */
-  async renameTag(tagId: string, name: string): Promise<DirectoryOutcome<Tag>> {
+  async renameTag(tagId: string, actorId: string, name: string): Promise<DirectoryOutcome<Tag>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameTag(tagId, clean);
+    const written = await this.opts.directory.renameTag(tagId, clean, this.stampFor(actorId));
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
@@ -238,12 +267,16 @@ export class DirectoryService {
    * inside the store's own transaction, which is why a labelling written
    * between the two refuses rather than being deleted.
    */
-  async removeTag(tagId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+  async removeTag(
+    tagId: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfTag(await this.opts.directory.usageOfTag(tagId), tagId);
       if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
-    const removed = await this.opts.directory.removeTag(tagId, cascade);
+    const removed = await this.opts.directory.removeTag(tagId, cascade, this.stampFor(actorId));
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTag(removed.usage, tagId) };
@@ -261,20 +294,31 @@ export class DirectoryService {
    * {@link addTag}'s shape, and the same absence for the same reason: a type has
    * no pool to be unstated about.
    */
-  async addWorkItemType(name: string): Promise<WorkItemType | null> {
+  async addWorkItemType(actorId: string, name: string): Promise<WorkItemType | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    return this.opts.directory.addWorkItemType({ id: this.newId(), name: clean });
+    return this.opts.directory.addWorkItemType(
+      { id: this.newId(), name: clean },
+      this.stampFor(actorId),
+    );
   }
 
   /**
    * Renames a work item type, keeping the name unique across the deployment —
    * {@link renameTag}'s rules.
    */
-  async renameWorkItemType(typeId: string, name: string): Promise<DirectoryOutcome<WorkItemType>> {
+  async renameWorkItemType(
+    typeId: string,
+    actorId: string,
+    name: string,
+  ): Promise<DirectoryOutcome<WorkItemType>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameWorkItemType(typeId, clean);
+    const written = await this.opts.directory.renameWorkItemType(
+      typeId,
+      clean,
+      this.stampFor(actorId),
+    );
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
@@ -292,7 +336,11 @@ export class DirectoryService {
    * inside the store's own transaction, which is why a labelling written between
    * the two refuses rather than being deleted.
    */
-  async removeWorkItemType(typeId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+  async removeWorkItemType(
+    typeId: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfWorkItemType(
         await this.opts.directory.usageOfWorkItemType(typeId),
@@ -300,7 +348,11 @@ export class DirectoryService {
       );
       if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
-    const removed = await this.opts.directory.removeWorkItemType(typeId, cascade);
+    const removed = await this.opts.directory.removeWorkItemType(
+      typeId,
+      cascade,
+      this.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return {
@@ -329,17 +381,28 @@ export class DirectoryService {
    * people is the team, and the two are independent dimensions (Dany,
    * 2026-08-20: _"Let service and teams be independent."_).
    */
-  async addService(name: string): Promise<Service | null> {
+  async addService(actorId: string, name: string): Promise<Service | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    return this.opts.directory.addService({ id: this.newId(), name: clean });
+    return this.opts.directory.addService(
+      { id: this.newId(), name: clean },
+      this.stampFor(actorId),
+    );
   }
 
   /** Renames a service, keeping the name unique across the deployment — {@link renameTag}'s rules. */
-  async renameService(serviceId: string, name: string): Promise<DirectoryOutcome<Service>> {
+  async renameService(
+    serviceId: string,
+    actorId: string,
+    name: string,
+  ): Promise<DirectoryOutcome<Service>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameService(serviceId, clean);
+    const written = await this.opts.directory.renameService(
+      serviceId,
+      clean,
+      this.stampFor(actorId),
+    );
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
@@ -362,7 +425,11 @@ export class DirectoryService {
    * date moves, so a client re-reads the tree and the schedule it re-reads is
    * the one it already had.
    */
-  async removeService(serviceId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+  async removeService(
+    serviceId: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfService(
         await this.opts.directory.usageOfService(serviceId),
@@ -370,7 +437,11 @@ export class DirectoryService {
       );
       if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
-    const removed = await this.opts.directory.removeService(serviceId, cascade);
+    const removed = await this.opts.directory.removeService(
+      serviceId,
+      cascade,
+      this.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return {
@@ -395,10 +466,20 @@ export class DirectoryService {
    * renamed, deleted, or given work of its own, and the default would then
    * mean whatever somebody last did to it.
    */
-  async addPerson(name: string, teamIds: readonly string[]): Promise<DirectoryOutcome<Person>> {
+  async addPerson(
+    actorId: string,
+    name: string,
+    teamIds: readonly string[],
+  ): Promise<DirectoryOutcome<Person>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.addPerson({ id: this.newId(), name: clean }, teamIds);
+    // One stamp for the person and the memberships alike: they are one create in
+    // one transaction, as the comment below says, so they are one instant too.
+    const written = await this.opts.directory.addPerson(
+      { id: this.newId(), name: clean },
+      teamIds,
+      this.stampFor(actorId),
+    );
     // The whole create, or none of it: a person made without the membership
     // that was asked for is a row somebody would have to notice was wrong.
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -425,6 +506,7 @@ export class DirectoryService {
    */
   async patchPerson(
     personId: string,
+    actorId: string,
     patch: PersonPatchInput,
   ): Promise<DirectoryOutcome<PersonWithTeams>> {
     if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
@@ -435,11 +517,15 @@ export class DirectoryService {
     }
     const clean = patch.name === undefined ? undefined : cleanName(patch.name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.patchPerson(personId, {
-      ...(clean === undefined ? {} : { name: clean }),
-      ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
-      ...(patch.kind === undefined ? {} : { kind: patch.kind }),
-    });
+    const written = await this.opts.directory.patchPerson(
+      personId,
+      {
+        ...(clean === undefined ? {} : { name: clean }),
+        ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
+        ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+      },
+      this.stampFor(actorId),
+    );
     if (!written.ok) {
       // `clean` is defined on this branch — `taken` is the name index refusing,
       // and a patch that named no name cannot have reached it.
@@ -485,7 +571,11 @@ export class DirectoryService {
    * this fast path's, `refuses a removal when an assignment lands after the
    * count` deletes the person and the assignment the caller was never shown.
    */
-  async removePerson(personId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+  async removePerson(
+    personId: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfPerson(
         await this.opts.directory.usageOfPerson(personId),
@@ -493,7 +583,11 @@ export class DirectoryService {
       );
       if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
-    const removed = await this.opts.directory.removePerson(personId, cascade);
+    const removed = await this.opts.directory.removePerson(
+      personId,
+      cascade,
+      this.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       // The transaction's own usage, not the fast path's: it is the only one
@@ -515,15 +609,28 @@ export class DirectoryService {
    * The memberships count here where a person's own do not, because they name
    * somebody else: a confirmation showing an empty impact list while two
    * people were about to be taken out of a team is a confirmation of nothing.
+   *
+   * **The only removal here that names an actor**, because it is the only one
+   * that leaves rows behind and changes them: a cascading removal nulls
+   * `work_item.serviceTeamId` on every work item the team labelled, and that is
+   * an update with a column to stamp. Its four siblings delete and nothing more,
+   * and a deleted row has no author to record — see
+   * {@link DirectoryStore.removeTeam}.
    */
-  async removeTeam(teamId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+  async removeTeam(
+    teamId: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfTeam(await this.opts.directory.usageOfTeam(teamId), teamId);
       if (seen.projects.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
-    const removed = await this.opts.directory.removeTeam(teamId, cascade);
+    // After the unconfirmed refusal, which writes nothing: the act is the
+    // removal, and a request that only reported what would be lost is not one.
+    const removed = await this.opts.directory.removeTeam(teamId, cascade, this.stampFor(actorId));
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTeam(removed.usage, teamId) };

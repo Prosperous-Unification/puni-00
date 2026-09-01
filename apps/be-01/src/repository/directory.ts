@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { auditOnCreate, auditOnUpdate } from './audit';
 import type {
   AssignmentWritten,
   DirectoryRemoved,
@@ -23,6 +24,7 @@ import type {
   TeamWithServices,
   WorkItemType,
   WorkItemTypeWritten,
+  WriteStamp,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
 import {
@@ -231,7 +233,13 @@ function usageRowsIn(
     .all();
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
-    named.length === 0 ? [] : reader.select().from(person).where(inArray(person.id, named)).all();
+    named.length === 0
+      ? []
+      : reader
+          .select({ id: person.id, name: person.name, kind: person.kind })
+          .from(person)
+          .where(inArray(person.id, named))
+          .all();
   // Read in the same transaction as the rows above, so the numbers the
   // confirmation prints are the numbers the removal is about to release. A second
   // read afterwards would answer for a deployment that had moved on.
@@ -320,8 +328,11 @@ export class DirectoryRepository implements DirectoryStore {
     return teams.map((each) => ({ ...each, serviceIds: servicesOf.get(each.id) ?? [] }));
   }
 
-  async addTeam(toAdd: ServiceTeam): Promise<ServiceTeam> {
-    await this.db.insert(serviceTeam).values(toAdd).onConflictDoNothing();
+  async addTeam(toAdd: ServiceTeam, stamp: WriteStamp): Promise<ServiceTeam> {
+    await this.db
+      .insert(serviceTeam)
+      .values({ ...toAdd, ...auditOnCreate(stamp) })
+      .onConflictDoNothing();
     // The row that is there now, which is the earlier one when two arrived at
     // once. Returning `toAdd` would hand back an id nothing holds.
     const rows = await this.db
@@ -352,8 +363,11 @@ export class DirectoryRepository implements DirectoryStore {
    * would carry whatever columns this table grows, and a tag is deliberately
    * two of them.
    */
-  async addTag(toAdd: Tag): Promise<Tag> {
-    await this.db.insert(tag).values(toAdd).onConflictDoNothing();
+  async addTag(toAdd: Tag, stamp: WriteStamp): Promise<Tag> {
+    await this.db
+      .insert(tag)
+      .values({ ...toAdd, ...auditOnCreate(stamp) })
+      .onConflictDoNothing();
     const rows = await this.db
       .select({ id: tag.id, name: tag.name })
       .from(tag)
@@ -376,8 +390,11 @@ export class DirectoryRepository implements DirectoryStore {
    * Adds a service, idempotently **by name**, and answers the row that is there
    * — {@link DirectoryRepository.addTag}'s shape and every one of its reasons.
    */
-  async addService(toAdd: Service): Promise<Service> {
-    await this.db.insert(service).values(toAdd).onConflictDoNothing();
+  async addService(toAdd: Service, stamp: WriteStamp): Promise<Service> {
+    await this.db
+      .insert(service)
+      .values({ ...toAdd, ...auditOnCreate(stamp) })
+      .onConflictDoNothing();
     const rows = await this.db
       .select({ id: service.id, name: service.name })
       .from(service)
@@ -415,7 +432,11 @@ export class DirectoryRepository implements DirectoryStore {
    * `refuses a team that is not there` answers `ok` about a row nothing holds.
    * Both watched 2026-08-09.
    */
-  async patchTeam(teamId: string, patch: TeamPatch): Promise<ServiceTeamWritten> {
+  async patchTeam(
+    teamId: string,
+    patch: TeamPatch,
+    stamp: WriteStamp,
+  ): Promise<ServiceTeamWritten> {
     await Promise.resolve();
     const wanted = patch.serviceIds === undefined ? null : [...new Set(patch.serviceIds)];
     try {
@@ -436,7 +457,10 @@ export class DirectoryRepository implements DirectoryStore {
           if (found.length !== wanted.length) return { ok: false, reason: 'unknown_service' };
         }
         if (patch.name !== undefined) {
-          tx.update(serviceTeam).set({ name: patch.name }).where(eq(serviceTeam.id, teamId)).run();
+          tx.update(serviceTeam)
+            .set({ name: patch.name, ...auditOnUpdate(stamp) })
+            .where(eq(serviceTeam.id, teamId))
+            .run();
         }
         if (wanted !== null) {
           // Whole-set semantics: the rows that were there go, whichever they
@@ -446,7 +470,7 @@ export class DirectoryRepository implements DirectoryStore {
           tx.delete(teamService).where(eq(teamService.teamId, teamId)).run();
           if (wanted.length > 0) {
             tx.insert(teamService)
-              .values(wanted.map((serviceId) => ({ teamId, serviceId })))
+              .values(wanted.map((serviceId) => ({ teamId, serviceId, ...auditOnCreate(stamp) })))
               .run();
           }
         }
@@ -488,13 +512,13 @@ export class DirectoryRepository implements DirectoryStore {
    * deliberate — a rename changes what a label is called, not which rows carry
    * it, so no journal entry is made stale by it.
    */
-  async renameTag(tagId: string, name: string): Promise<TagWritten> {
+  async renameTag(tagId: string, name: string, stamp: WriteStamp): Promise<TagWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
         const rows = tx
           .update(tag)
-          .set({ name })
+          .set({ name, ...auditOnUpdate(stamp) })
           .where(eq(tag.id, tagId))
           .returning({ id: tag.id, name: tag.name })
           .all();
@@ -517,13 +541,13 @@ export class DirectoryRepository implements DirectoryStore {
    * undo has to refuse afterwards. What tells an open plan about the new name is
    * the event the service publishes once this commits.
    */
-  async renameService(serviceId: string, name: string): Promise<ServiceWritten> {
+  async renameService(serviceId: string, name: string, stamp: WriteStamp): Promise<ServiceWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
         const rows = tx
           .update(service)
-          .set({ name })
+          .set({ name, ...auditOnUpdate(stamp) })
           .where(eq(service.id, serviceId))
           .returning({ id: service.id, name: service.name })
           .all();
@@ -538,8 +562,16 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   async listPeople(): Promise<PersonWithTeams[]> {
-    const people = await this.db.select().from(person).orderBy(asc(person.name));
-    const memberships = await this.db.select().from(personTeam);
+    // Projected, as every read that crosses this boundary is: the audit columns
+    // are recorded and not published, and a bare `select()` would put three
+    // fields nobody asked for into `Person` and from there into the payload.
+    const people = await this.db
+      .select({ id: person.id, name: person.name, kind: person.kind })
+      .from(person)
+      .orderBy(asc(person.name));
+    const memberships = await this.db
+      .select({ personId: personTeam.personId, serviceTeamId: personTeam.serviceTeamId })
+      .from(personTeam);
     const teamsOf = new Map<string, string[]>();
     for (const row of memberships) {
       teamsOf.set(row.personId, [...(teamsOf.get(row.personId) ?? []), row.serviceTeamId]);
@@ -563,7 +595,11 @@ export class DirectoryRepository implements DirectoryStore {
    * not even JSON — the raw constraint failure this replaces; watched
    * 2026-08-09.
    */
-  async addPerson(toAdd: PersonInsert, teamIds: readonly string[]): Promise<PersonAdded> {
+  async addPerson(
+    toAdd: PersonInsert,
+    teamIds: readonly string[],
+    stamp: WriteStamp,
+  ): Promise<PersonAdded> {
     await Promise.resolve();
     const wanted = [...new Set(teamIds)];
     return this.db.transaction((tx) => {
@@ -575,15 +611,28 @@ export class DirectoryRepository implements DirectoryStore {
           .all();
         if (held.length !== wanted.length) return { ok: false, reason: 'unknown_team' };
       }
-      tx.insert(person).values(toAdd).onConflictDoNothing().run();
+      tx.insert(person)
+        .values({ ...toAdd, ...auditOnCreate(stamp) })
+        .onConflictDoNothing()
+        .run();
       // The row that is there now, which is the earlier one when two arrived at
       // once. Returning `toAdd` would hand back an id nothing holds.
-      const rows = tx.select().from(person).where(eq(person.name, toAdd.name)).all();
+      const rows = tx
+        .select({ id: person.id, name: person.name, kind: person.kind })
+        .from(person)
+        .where(eq(person.name, toAdd.name))
+        .all();
       const found = rows.at(0);
       if (found === undefined) throw new Error(`person vanished after insert: ${toAdd.name}`);
       if (wanted.length > 0) {
         tx.insert(personTeam)
-          .values(wanted.map((serviceTeamId) => ({ personId: found.id, serviceTeamId })))
+          .values(
+            wanted.map((serviceTeamId) => ({
+              personId: found.id,
+              serviceTeamId,
+              ...auditOnCreate(stamp),
+            })),
+          )
           .onConflictDoNothing()
           .run();
       }
@@ -616,7 +665,11 @@ export class DirectoryRepository implements DirectoryStore {
    * holds, naming the survivor` fails with the raw `SQLITE_CONSTRAINT_UNIQUE`.
    * All watched 2026-08-09.
    */
-  async patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten> {
+  async patchPerson(
+    personId: string,
+    patch: PersonPatch,
+    stamp: WriteStamp,
+  ): Promise<PersonWritten> {
     await Promise.resolve();
     const wanted = patch.teamIds === undefined ? null : [...new Set(patch.teamIds)];
     try {
@@ -639,17 +692,33 @@ export class DirectoryRepository implements DirectoryStore {
           ...(patch.kind === undefined ? {} : { kind: patch.kind }),
         };
         if (Object.keys(columns).length > 0) {
-          tx.update(person).set(columns).where(eq(person.id, personId)).run();
+          // The stamp rides inside the guard, not outside it: this row's
+          // `updated_at` moves when this row's own columns move, and a patch
+          // that only re-drew the team map wrote nothing here to date.
+          tx.update(person)
+            .set({ ...columns, ...auditOnUpdate(stamp) })
+            .where(eq(person.id, personId))
+            .run();
         }
         if (wanted !== null) {
           tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
           if (wanted.length > 0) {
             tx.insert(personTeam)
-              .values(wanted.map((serviceTeamId) => ({ personId, serviceTeamId })))
+              .values(
+                wanted.map((serviceTeamId) => ({
+                  personId,
+                  serviceTeamId,
+                  ...auditOnCreate(stamp),
+                })),
+              )
               .run();
           }
         }
-        const rows = tx.select().from(person).where(eq(person.id, personId)).all();
+        const rows = tx
+          .select({ id: person.id, name: person.name, kind: person.kind })
+          .from(person)
+          .where(eq(person.id, personId))
+          .all();
         const patched = rows.at(0);
         if (patched === undefined) throw new Error(`person vanished mid-patch: ${personId}`);
         const teamIds = tx
@@ -717,7 +786,7 @@ export class DirectoryRepository implements DirectoryStore {
    * undo that this repo has already shipped once, for people. Watched
    * 2026-08-20.
    */
-  async removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved> {
+  async removeTag(tagId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       const labelled = tx
@@ -736,6 +805,7 @@ export class DirectoryRepository implements DirectoryStore {
       bumpWorkItems(
         tx,
         labelled.map((each) => each.id),
+        stamp,
       );
       // The `work_item_tag` rows are **not** deleted here: `tag_id` cascades,
       // which is the one place this dimension deliberately differs from
@@ -774,8 +844,11 @@ export class DirectoryRepository implements DirectoryStore {
    * there — {@link DirectoryRepository.addTag}'s shape and every one of its
    * reasons, including returning the *earlier* row when two callers raced.
    */
-  async addWorkItemType(toAdd: WorkItemType): Promise<WorkItemType> {
-    await this.db.insert(workItemType).values(toAdd).onConflictDoNothing();
+  async addWorkItemType(toAdd: WorkItemType, stamp: WriteStamp): Promise<WorkItemType> {
+    await this.db
+      .insert(workItemType)
+      .values({ ...toAdd, ...auditOnCreate(stamp) })
+      .onConflictDoNothing();
     const rows = await this.db
       .select({ id: workItemType.id, name: workItemType.name })
       .from(workItemType)
@@ -792,13 +865,17 @@ export class DirectoryRepository implements DirectoryStore {
    * not bumped, because a rename changes what a label is called and not which
    * rows carry it, so no journal entry is made stale by it.
    */
-  async renameWorkItemType(typeId: string, name: string): Promise<WorkItemTypeWritten> {
+  async renameWorkItemType(
+    typeId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<WorkItemTypeWritten> {
     await Promise.resolve();
     try {
       return this.db.transaction((tx) => {
         const rows = tx
           .update(workItemType)
-          .set({ name })
+          .set({ name, ...auditOnUpdate(stamp) })
           .where(eq(workItemType.id, typeId))
           .returning({ id: workItemType.id, name: workItemType.name })
           .all();
@@ -839,7 +916,11 @@ export class DirectoryRepository implements DirectoryStore {
    * lost a type` fails on the row coming back at the revision it had — the same
    * stale undo `removeTag` carries a proof for, watched 2026-08-30.
    */
-  async removeWorkItemType(typeId: string, cascade: boolean): Promise<DirectoryRemoved> {
+  async removeWorkItemType(
+    typeId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       const labelled = tx
@@ -858,6 +939,7 @@ export class DirectoryRepository implements DirectoryStore {
       bumpWorkItems(
         tx,
         labelled.map((each) => each.id),
+        stamp,
       );
       // The `work_item_work_item_type` rows are **not** deleted here: `type_id`
       // cascades, for `work_item_tag`'s reason unchanged — a label may be taken
@@ -907,7 +989,11 @@ export class DirectoryRepository implements DirectoryStore {
    * undo against a row whose service has changed under it. `removeTag`'s
    * argument, and the stale undo this repo has already shipped once for people.
    */
-  async removeService(serviceId: string, cascade: boolean): Promise<DirectoryRemoved> {
+  async removeService(
+    serviceId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       // Off the join since task 10.2, `removeTag`'s read exactly. The column is
@@ -930,6 +1016,7 @@ export class DirectoryRepository implements DirectoryStore {
       bumpWorkItems(
         tx,
         labelled.map((each) => each.id),
+        stamp,
       );
       const removed = tx
         .delete(service)
@@ -977,7 +1064,11 @@ export class DirectoryRepository implements DirectoryStore {
    * fails on the work item's revision — a journal entry holding the old number
    * would have undone against a directory that had changed under it.
    */
-  async removePerson(personId: string, cascade: boolean): Promise<DirectoryRemoved> {
+  async removePerson(
+    personId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       const held = tx
@@ -1002,7 +1093,7 @@ export class DirectoryRepository implements DirectoryStore {
       // reason.
       if (removed.length === 0) return { ok: false, reason: 'not_found' };
       const workItemIds = [...new Set(held.map((each) => each.workItemId))];
-      bumpWorkItems(tx, workItemIds);
+      bumpWorkItems(tx, workItemIds, stamp);
       return { ok: true, removal: { workItemIds, projectIds } };
     });
   }
@@ -1025,7 +1116,7 @@ export class DirectoryRepository implements DirectoryStore {
    * unreachable, `refuses a team removal when a membership or a label lands
    * after the count` takes both with it.
    */
-  async removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved> {
+  async removeTeam(teamId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       // Through the join, which is where a work item's teams live since
@@ -1052,7 +1143,7 @@ export class DirectoryRepository implements DirectoryStore {
         };
       }
       tx.update(workItem)
-        .set({ serviceTeamId: null, revision: bumpedWorkItem })
+        .set({ serviceTeamId: null, revision: bumpedWorkItem, ...auditOnUpdate(stamp) })
         .where(eq(workItem.serviceTeamId, teamId))
         .run();
       tx.delete(personTeam).where(eq(personTeam.serviceTeamId, teamId)).run();
@@ -1174,7 +1265,13 @@ export class DirectoryRepository implements DirectoryStore {
   ): Promise<{ workItemId: string; stepId: string; personId: string }[]> {
     if (workItemIds.length === 0) return [];
     const wanted = new Set(workItemIds);
-    const rows = await this.db.select().from(assignment);
+    const rows = await this.db
+      .select({
+        workItemId: assignment.workItemId,
+        stepId: assignment.stepId,
+        personId: assignment.personId,
+      })
+      .from(assignment);
     return rows.filter((row) => wanted.has(row.workItemId));
   }
 
@@ -1199,6 +1296,7 @@ export class DirectoryRepository implements DirectoryStore {
     workItemId: string,
     stepId: string,
     personId: string | null,
+    stamp: WriteStamp,
   ): Promise<AssignmentWritten> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
@@ -1214,16 +1312,16 @@ export class DirectoryRepository implements DirectoryStore {
           .run();
       } else {
         tx.insert(assignment)
-          .values({ workItemId, stepId, personId })
+          .values({ workItemId, stepId, personId, ...auditOnCreate(stamp) })
           // The pair is the primary key, so reassigning is an update rather
           // than a constraint violation.
           .onConflictDoUpdate({
             target: [assignment.workItemId, assignment.stepId],
-            set: { personId },
+            set: { personId, ...auditOnUpdate(stamp) },
           })
           .run();
       }
-      bumpWorkItems(tx, [workItemId]);
+      bumpWorkItems(tx, [workItemId], stamp);
       return { ok: true };
     });
   }

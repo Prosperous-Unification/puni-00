@@ -169,7 +169,10 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   }
 
   async function team(name: string): Promise<string> {
-    const added = await directoryStore.addTeam({ id: crypto.randomUUID(), name });
+    const added = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name },
+      { at: 1, by: ownerId },
+    );
     return added.id;
   }
 
@@ -316,7 +319,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     const shed = await plan('Rewire the shed');
     const roof = await plan('Reroof the barn');
     const platform = await team('Platform');
-    await capacityStore.set(roof, platform, 9);
+    await capacityStore.set(roof, platform, 9, { at: 1, by: ownerId });
     broadcast.published.length = 0;
 
     await call(shed, platform, { size: 2 });

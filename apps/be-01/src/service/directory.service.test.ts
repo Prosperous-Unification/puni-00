@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { DirectoryStore, Person, Step, WorkItem } from '../repository';
+import type { DirectoryStore, Person, Step, WorkItem, WriteStamp } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
@@ -44,6 +44,16 @@ let ownerId: string;
 let devId: string;
 let qaId: string;
 
+/**
+ * The stamp the fixture writes here carry, and the actor the service calls name.
+ *
+ * `ownerId` and not any string: `created_by` has an enforced foreign key to
+ * `users(id)`, and these stores are real ones against real SQLite. Nothing in
+ * this file asserts on the instant, so one date for all of them keeps the
+ * arrangement of each test about the rows it is really about.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 const newItem = (id: string, position: number, name: string, inProject = projectId): WorkItem => ({
   id,
   projectId: inProject,
@@ -68,7 +78,7 @@ const stepNamed = async (name: string, inProject = projectId): Promise<Step> => 
 
 /** The person a create made, or a throw — a fixture whose setup was refused is not a result. */
 const added = async (name: string, teamIds: readonly string[]): Promise<Person> => {
-  const outcome = await directory.addPerson(name, teamIds);
+  const outcome = await directory.addPerson(ownerId, name, teamIds);
   if (!outcome.ok) throw new Error(`the fixture person was refused: ${outcome.reason}`);
   return outcome.result;
 };
@@ -77,7 +87,7 @@ const added = async (name: string, teamIds: readonly string[]): Promise<Person> 
 async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
   const created = await new ProjectService({ projects }).create('Roof', ownerId);
   const workItemOf = crypto.randomUUID();
-  await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), []);
+  await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), [], wrote());
   return { projectOf: created.project.id, workItemOf };
 }
 
@@ -103,20 +113,25 @@ beforeEach(async () => {
   directory = new DirectoryService({ directory: store, broadcast });
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  // Stamped with its own id, which is how a signup is: there is no earlier
+  // account for the first one to name.
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    { at: 1, by: ownerId },
+  );
 
   const created = await new ProjectService({ projects }).create('Rollout', ownerId);
   projectId = created.project.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
 
-  await workItems.insert(newItem('design', 10, 'Design'), []);
-  await workItems.insert(newItem('build', 20, 'Build'), []);
+  await workItems.insert(newItem('design', 10, 'Design'), [], wrote());
+  await workItems.insert(newItem('build', 20, 'Build'), [], wrote());
 });
 
 afterEach(() => {
@@ -125,10 +140,10 @@ afterEach(() => {
 
 describe('DirectoryService.patchTeam', () => {
   it('renames a team, trimming what it is given', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
 
-    const outcome = await directory.patchTeam(platform.id, { name: '  Payments  ' });
+    const outcome = await directory.patchTeam(platform.id, ownerId, { name: '  Payments  ' });
 
     // An id and a name, and nothing else on the row: a team carries no size
     // since `capacity-per-project`, and this is where a rename answering with
@@ -143,10 +158,10 @@ describe('DirectoryService.patchTeam', () => {
   });
 
   it('refuses a name of whitespace alone, and writes nothing', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
 
-    expect(await directory.patchTeam(platform.id, { name: '   ' })).toEqual({
+    expect(await directory.patchTeam(platform.id, ownerId, { name: '   ' })).toEqual({
       ok: false,
       reason: 'name_required',
     });
@@ -156,14 +171,14 @@ describe('DirectoryService.patchTeam', () => {
   });
 
   it('refuses a name another team holds, naming the survivor', async () => {
-    await directory.addTeam('Platform');
-    const payments = await directory.addTeam('Payments');
+    await directory.addTeam(ownerId, 'Platform');
+    const payments = await directory.addTeam(ownerId, 'Payments');
     if (payments === null) throw new Error('the fixture team was refused');
 
     // The survivor is `Platform` — the row that already holds the name keeps
     // it, and the refusal says so rather than leaving the caller to guess which
     // of the two names is now which.
-    expect(await directory.patchTeam(payments.id, { name: 'Platform' })).toEqual({
+    expect(await directory.patchTeam(payments.id, ownerId, { name: 'Platform' })).toEqual({
       ok: false,
       reason: 'taken',
       name: 'Platform',
@@ -172,42 +187,42 @@ describe('DirectoryService.patchTeam', () => {
   });
 
   it('renaming a team to the name it already holds is not a collision', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
 
-    expect(await directory.patchTeam(platform.id, { name: 'Platform' })).toEqual({
+    expect(await directory.patchTeam(platform.id, ownerId, { name: 'Platform' })).toEqual({
       ok: true,
       result: { id: platform.id, name: 'Platform', serviceIds: [] },
     });
   });
 
   it('refuses a team that is not there', async () => {
-    expect(await directory.patchTeam(crypto.randomUUID(), { name: 'Payments' })).toEqual({
+    expect(await directory.patchTeam(crypto.randomUUID(), ownerId, { name: 'Payments' })).toEqual({
       ok: false,
       reason: 'not_found',
     });
   });
 
   it('refuses a patch naming neither a name nor services', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
 
     // `patchPerson`'s rule and its reason: nothing sends one deliberately, so a
     // 200 here would hide a client bug rather than report it.
-    expect(await directory.patchTeam(platform.id, {})).toEqual({
+    expect(await directory.patchTeam(platform.id, ownerId, {})).toEqual({
       ok: false,
       reason: 'nothing_to_change',
     });
   });
 
   it('one team owns several services, and each service reads as owned by it', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const payments = await directory.addService('Payments');
-    const auth = await directory.addService('Auth');
+    const payments = await directory.addService(ownerId, 'Payments');
+    const auth = await directory.addService(ownerId, 'Auth');
     if (payments === null || auth === null) throw new Error('a fixture service was refused');
 
-    const outcome = await directory.patchTeam(platform.id, {
+    const outcome = await directory.patchTeam(platform.id, ownerId, {
       serviceIds: [payments.id, auth.id],
     });
 
@@ -228,13 +243,13 @@ describe('DirectoryService.patchTeam', () => {
   });
 
   it('refuses a service the directory does not hold, and writes neither half', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const payments = await directory.addService('Payments');
+    const payments = await directory.addService(ownerId, 'Payments');
     if (payments === null) throw new Error('the fixture service was refused');
 
     expect(
-      await directory.patchTeam(platform.id, {
+      await directory.patchTeam(platform.id, ownerId, {
         name: 'Renamed',
         serviceIds: [payments.id, crypto.randomUUID()],
       }),
@@ -250,16 +265,16 @@ describe('DirectoryService.patchTeam', () => {
   });
 
   it('editing the ownership map announces nothing, where a rename announces', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const payments = await directory.addService('Payments');
+    const payments = await directory.addService(ownerId, 'Payments');
     if (payments === null) throw new Error('the fixture service was refused');
     // The team is on a row of a real project, so there is something to announce
     // to — without this the silence below would be silence about nothing.
-    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
     broadcast.published.length = 0;
 
-    await directory.patchTeam(platform.id, { serviceIds: [payments.id] });
+    await directory.patchTeam(platform.id, ownerId, { serviceIds: [payments.id] });
     // The map labels no work item, is not inherited and the scheduler never
     // reads it, so every open plan is still correct — an event would send them
     // all to reread a tree that is exactly as it was. Half of task 4.5's claim,
@@ -268,7 +283,7 @@ describe('DirectoryService.patchTeam', () => {
 
     // The control, so this is not a test that events never fire: the same
     // method with a name on it does announce.
-    await directory.patchTeam(platform.id, { name: 'Platform Team' });
+    await directory.patchTeam(platform.id, ownerId, { name: 'Platform Team' });
     expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
   });
 });
@@ -276,17 +291,17 @@ describe('DirectoryService.patchTeam', () => {
 describe('DirectoryService.patchPerson', () => {
   /** `Kat`, in `Platform`, assigned to `Dev` on `design`. */
   async function katInPlatform(): Promise<{ katId: string; platformId: string }> {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const kat = await added('Kat', [platform.id]);
-    await store.assign('design', devId, kat.id);
+    await store.assign('design', devId, kat.id, wrote());
     return { katId: kat.id, platformId: platform.id };
   }
 
   it('renames a person, and every assignment still holds them', async () => {
     const { katId, platformId } = await katInPlatform();
 
-    const outcome = await directory.patchPerson(katId, { name: '  Katrin  ' });
+    const outcome = await directory.patchPerson(katId, ownerId, { name: '  Katrin  ' });
 
     expect(outcome).toEqual({
       ok: true,
@@ -301,7 +316,7 @@ describe('DirectoryService.patchPerson', () => {
     const { katId } = await katInPlatform();
     const strip = await added('Strip', []);
 
-    expect(await directory.patchPerson(strip.id, { name: 'Kat' })).toEqual({
+    expect(await directory.patchPerson(strip.id, ownerId, { name: 'Kat' })).toEqual({
       ok: false,
       reason: 'taken',
       name: 'Kat',
@@ -312,11 +327,11 @@ describe('DirectoryService.patchPerson', () => {
 
   it('replaces memberships in full', async () => {
     const { katId } = await katInPlatform();
-    const payments = await directory.addTeam('Payments');
-    const support = await directory.addTeam('Support');
+    const payments = await directory.addTeam(ownerId, 'Payments');
+    const support = await directory.addTeam(ownerId, 'Support');
     if (payments === null || support === null) throw new Error('a fixture team was refused');
 
-    const outcome = await directory.patchPerson(katId, {
+    const outcome = await directory.patchPerson(katId, ownerId, {
       teamIds: [payments.id, support.id],
     });
 
@@ -329,10 +344,10 @@ describe('DirectoryService.patchPerson', () => {
 
   it('collapses the same team named twice into one membership', async () => {
     const { katId } = await katInPlatform();
-    const payments = await directory.addTeam('Payments');
+    const payments = await directory.addTeam(ownerId, 'Payments');
     if (payments === null) throw new Error('the fixture team was refused');
 
-    const outcome = await directory.patchPerson(katId, {
+    const outcome = await directory.patchPerson(katId, ownerId, {
       teamIds: [payments.id, payments.id],
     });
 
@@ -345,7 +360,7 @@ describe('DirectoryService.patchPerson', () => {
   it('leaves a person a free agent when the list is empty', async () => {
     const { katId } = await katInPlatform();
 
-    expect(await directory.patchPerson(katId, { teamIds: [] })).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, { teamIds: [] })).toEqual({
       ok: true,
       result: { id: katId, name: 'Kat', kind: 'person', teamIds: [] },
     });
@@ -358,7 +373,7 @@ describe('DirectoryService.patchPerson', () => {
     // says is not observable.
     const { katId, platformId } = await katInPlatform();
 
-    const outcome = await directory.patchPerson(katId, {
+    const outcome = await directory.patchPerson(katId, ownerId, {
       name: 'Katrin',
       teamIds: [crypto.randomUUID()],
     });
@@ -372,7 +387,7 @@ describe('DirectoryService.patchPerson', () => {
   it('refuses a patch naming neither a name, memberships, nor a kind', async () => {
     const { katId } = await katInPlatform();
 
-    expect(await directory.patchPerson(katId, {})).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, {})).toEqual({
       ok: false,
       reason: 'nothing_to_change',
     });
@@ -381,13 +396,13 @@ describe('DirectoryService.patchPerson', () => {
   it('marks a person an agent and back, leaving their memberships alone', async () => {
     const { katId, platformId } = await katInPlatform();
 
-    expect(await directory.patchPerson(katId, { kind: 'agent' })).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, { kind: 'agent' })).toEqual({
       ok: true,
       result: { id: katId, name: 'Kat', kind: 'agent', teamIds: [platformId] },
     });
     // A kind alone is a whole patch: it is not `nothing_to_change`, and the
     // memberships it did not name survive it.
-    expect(await directory.patchPerson(katId, { kind: 'person' })).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, { kind: 'person' })).toEqual({
       ok: true,
       result: { id: katId, name: 'Kat', kind: 'person', teamIds: [platformId] },
     });
@@ -396,7 +411,7 @@ describe('DirectoryService.patchPerson', () => {
   it('refuses a kind outside the set before anything is written', async () => {
     const { katId, platformId } = await katInPlatform();
 
-    expect(await directory.patchPerson(katId, { name: 'Katrin', kind: 'robot' })).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, { name: 'Katrin', kind: 'robot' })).toEqual({
       ok: false,
       reason: 'invalid_kind',
     });
@@ -410,11 +425,11 @@ describe('DirectoryService.patchPerson', () => {
   it('refuses a name of whitespace alone, and a person that is not there', async () => {
     const { katId, platformId } = await katInPlatform();
 
-    expect(await directory.patchPerson(katId, { name: '   ' })).toEqual({
+    expect(await directory.patchPerson(katId, ownerId, { name: '   ' })).toEqual({
       ok: false,
       reason: 'name_required',
     });
-    expect(await directory.patchPerson(crypto.randomUUID(), { name: 'Katrin' })).toEqual({
+    expect(await directory.patchPerson(crypto.randomUUID(), ownerId, { name: 'Katrin' })).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -429,11 +444,16 @@ describe('directory events', () => {
     const roof = await roofProject();
     const kat = await added('Kat', []);
     const unreferenced = await added('Nobody', []);
-    await store.assign('design', devId, kat.id);
-    await store.assign(roof.workItemOf, (await stepNamed('Dev', roof.projectOf)).id, kat.id);
+    await store.assign('design', devId, kat.id, wrote());
+    await store.assign(
+      roof.workItemOf,
+      (await stepNamed('Dev', roof.projectOf)).id,
+      kat.id,
+      wrote(),
+    );
     broadcast.published.length = 0;
 
-    await directory.patchPerson(kat.id, { name: 'Katrin' });
+    await directory.patchPerson(kat.id, ownerId, { name: 'Katrin' });
 
     expect([...broadcast.published].sort((a, b) => a.projectId.localeCompare(b.projectId))).toEqual(
       [
@@ -443,7 +463,7 @@ describe('directory events', () => {
     );
 
     broadcast.published.length = 0;
-    await directory.patchPerson(unreferenced.id, { name: 'Still nobody' });
+    await directory.patchPerson(unreferenced.id, ownerId, { name: 'Still nobody' });
 
     // No project references them, so there is nothing anywhere to reread.
     expect(broadcast.published).toEqual([]);
@@ -457,39 +477,44 @@ describe('directory events', () => {
     // one that has to change first.
     const roof = await roofProject();
     const kat = await added('Kat', []);
-    await store.assign('design', devId, kat.id);
-    await store.assign(roof.workItemOf, (await stepNamed('Dev', roof.projectOf)).id, kat.id);
+    await store.assign('design', devId, kat.id, wrote());
+    await store.assign(
+      roof.workItemOf,
+      (await stepNamed('Dev', roof.projectOf)).id,
+      kat.id,
+      wrote(),
+    );
     broadcast.published.length = 0;
 
-    await directory.patchPerson(kat.id, { kind: 'agent' });
+    await directory.patchPerson(kat.id, ownerId, { kind: 'agent' });
 
     expect(broadcast.published).toEqual([]);
 
     // And a rename in the same patch still announces — the silence belongs to
     // the field, not to the request.
-    await directory.patchPerson(kat.id, { name: 'Katrin', kind: 'person' });
+    await directory.patchPerson(kat.id, ownerId, { name: 'Katrin', kind: 'person' });
     expect(broadcast.published.map((each) => each.projectId).sort()).toEqual(
       [projectId, roof.projectOf].sort(),
     );
   });
 
   it('tells the projects a removed team was labelled in, and nobody else', async () => {
-    const platform = await directory.addTeam('Platform');
-    const unused = await directory.addTeam('Unused');
+    const platform = await directory.addTeam(ownerId, 'Platform');
+    const unused = await directory.addTeam(ownerId, 'Unused');
     if (platform === null || unused === null) throw new Error('a fixture team was refused');
-    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
     broadcast.published.length = 0;
 
-    await directory.patchTeam(platform.id, { name: 'Payments' });
+    await directory.patchTeam(platform.id, ownerId, { name: 'Payments' });
     expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
 
     broadcast.published.length = 0;
-    await directory.removeTeam(platform.id, true);
+    await directory.removeTeam(platform.id, ownerId, true);
     expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
 
     broadcast.published.length = 0;
-    await directory.patchTeam(unused.id, { name: 'Still unused' });
-    await directory.removeTeam(unused.id, false);
+    await directory.patchTeam(unused.id, ownerId, { name: 'Still unused' });
+    await directory.removeTeam(unused.id, ownerId, false);
     expect(broadcast.published).toEqual([]);
   });
 
@@ -515,10 +540,10 @@ describe('directory events', () => {
       },
     });
     const kat = await added('Kat', []);
-    await store.assign('design', devId, kat.id);
+    await store.assign('design', devId, kat.id, wrote());
 
-    await watching.patchPerson(kat.id, { name: 'Katrin' });
-    await watching.removePerson(kat.id, true);
+    await watching.patchPerson(kat.id, ownerId, { name: 'Katrin' });
+    await watching.removePerson(kat.id, ownerId, true);
 
     expect(namesAtPublish[0]).toEqual(['Katrin']);
     // Removed, not merely renamed: the second publish reads a directory the
@@ -538,17 +563,18 @@ describe('directory events', () => {
 function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
   return {
     listTeams: () => store.listTeams(),
-    addTeam: (team) => store.addTeam(team),
-    patchTeam: (teamId, patch) => store.patchTeam(teamId, patch),
+    addTeam: (team, stamp) => store.addTeam(team, stamp),
+    patchTeam: (teamId, patch, stamp) => store.patchTeam(teamId, patch, stamp),
     listPeople: () => store.listPeople(),
-    addPerson: (toAdd, teamIds) => store.addPerson(toAdd, teamIds),
-    patchPerson: (personId, patch) => store.patchPerson(personId, patch),
+    addPerson: (toAdd, teamIds, stamp) => store.addPerson(toAdd, teamIds, stamp),
+    patchPerson: (personId, patch, stamp) => store.patchPerson(personId, patch, stamp),
     usageOfPerson: (personId) => store.usageOfPerson(personId),
     usageOfTeam: (teamId) => store.usageOfTeam(teamId),
-    removePerson: (personId, cascade) => store.removePerson(personId, cascade),
-    removeTeam: (teamId, cascade) => store.removeTeam(teamId, cascade),
+    removePerson: (personId, cascade, stamp) => store.removePerson(personId, cascade, stamp),
+    removeTeam: (teamId, cascade, stamp) => store.removeTeam(teamId, cascade, stamp),
     assignmentsOf: (ids) => store.assignmentsOf(ids),
-    assign: (workItemId, stepId, personId) => store.assign(workItemId, stepId, personId),
+    assign: (workItemId, stepId, personId, stamp) =>
+      store.assign(workItemId, stepId, personId, stamp),
     ...overrides,
   };
 }
@@ -556,9 +582,9 @@ function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
 describe('the directory usage a removal is refused with', () => {
   it('names the project, the number and the work item an assignment holds', async () => {
     const kat = await added('Kat', []);
-    await store.assign('design', devId, kat.id);
+    await store.assign('design', devId, kat.id, wrote());
 
-    const outcome = await directory.removePerson(kat.id, false);
+    const outcome = await directory.removePerson(kat.id, ownerId, false);
 
     expect(outcome).toEqual({
       ok: false,
@@ -595,10 +621,10 @@ describe('the directory usage a removal is refused with', () => {
     const ada = await added('Ada', []);
     // Two assignments, so nobody is assumed to be doing every step now; one
     // left, so `Ada` becomes assumed. That is a move, and it is named.
-    await store.assign('design', devId, kat.id);
-    await store.assign('design', qaId, ada.id);
+    await store.assign('design', devId, kat.id, wrote());
+    await store.assign('design', qaId, ada.id, wrote());
 
-    const outcome = await directory.removePerson(kat.id, false);
+    const outcome = await directory.removePerson(kat.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([
@@ -608,13 +634,13 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('names both projects a team is labelled in', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const roof = await roofProject();
-    await workItems.patch('design', { serviceTeamId: platform.id });
-    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id }, wrote());
 
-    const outcome = await directory.removeTeam(platform.id, false);
+    const outcome = await directory.removeTeam(platform.id, ownerId, false);
 
     expect(outcome).toEqual({
       ok: false,
@@ -658,15 +684,15 @@ describe('the directory usage a removal is refused with', () => {
     // nothing to null and would otherwise not appear in this confirmation at
     // all — somebody would agree to "one row loses its label" and watch twenty
     // rows move.
-    const team = await directory.addTeam('Platform');
+    const team = await directory.addTeam(ownerId, 'Platform');
     if (team === null) throw new Error('the fixture team was refused');
-    await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, []);
-    await workItems.patch('design', { serviceTeamId: team.id });
+    await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, [], wrote());
+    await workItems.patch('design', { serviceTeamId: team.id }, wrote());
     // Stated **for this project** since `capacity-per-project`: the number the
     // confirmation prints is the number the plan the row is in was bounded by.
-    await capacity.set(projectId, team.id, 2);
+    await capacity.set(projectId, team.id, 2, wrote());
 
-    const outcome = await directory.removeTeam(team.id, false);
+    const outcome = await directory.removeTeam(team.id, ownerId, false);
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
@@ -722,15 +748,15 @@ describe('the directory usage a removal is refused with', () => {
     // `{ kind: 'capacity_released', size: 4, fromId: <its own id> }`, naming a
     // pool for a plan that stated none — `Rollout`'s four, printed on somebody
     // else's rows. Watched 2026-08-13.
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const roof = await roofProject();
-    await workItems.patch('design', { serviceTeamId: platform.id });
-    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id }, wrote());
     // Stated on `Rollout` and deliberately nowhere else.
-    await capacity.set(projectId, platform.id, 4);
+    await capacity.set(projectId, platform.id, 4, wrote());
 
-    const outcome = await directory.removeTeam(platform.id, false);
+    const outcome = await directory.removeTeam(platform.id, ownerId, false);
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
@@ -774,12 +800,12 @@ describe('the directory usage a removal is refused with', () => {
     // so its removal moves no date and there is no effect to name. Without this
     // the capacity effect would be unconditional and would claim a plan moved
     // when it did not.
-    const team = await directory.addTeam('Platform');
+    const team = await directory.addTeam(ownerId, 'Platform');
     if (team === null) throw new Error('the fixture team was refused');
-    await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, []);
-    await workItems.patch('design', { serviceTeamId: team.id });
+    await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, [], wrote());
+    await workItems.patch('design', { serviceTeamId: team.id }, wrote());
 
-    const outcome = await directory.removeTeam(team.id, false);
+    const outcome = await directory.removeTeam(team.id, ownerId, false);
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
@@ -793,17 +819,17 @@ describe('the directory usage a removal is refused with', () => {
     // than answered from anything the first call worked out. A size written
     // between the two is exactly the change a caller who confirmed against the
     // first answer would never have been shown.
-    const team = await directory.addTeam('Platform');
+    const team = await directory.addTeam(ownerId, 'Platform');
     if (team === null) throw new Error('the fixture team was refused');
-    await workItems.patch('design', { serviceTeamId: team.id });
+    await workItems.patch('design', { serviceTeamId: team.id }, wrote());
 
-    const first = await directory.removeTeam(team.id, false);
+    const first = await directory.removeTeam(team.id, ownerId, false);
     if (first.ok || first.reason !== 'in_use') throw new Error('expected an in-use refusal');
     expect(first.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_nulled' }]);
 
-    await capacity.set(projectId, team.id, 3);
+    await capacity.set(projectId, team.id, 3, wrote());
 
-    const second = await directory.removeTeam(team.id, false);
+    const second = await directory.removeTeam(team.id, ownerId, false);
     if (second.ok || second.reason !== 'in_use') throw new Error('expected an in-use refusal');
     expect(second.usage.projects[0]?.workItems[0]?.effects).toEqual([
       { kind: 'label_nulled' },
@@ -812,12 +838,12 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('refuses a team nothing but memberships points at, naming the people', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const kat = await added('Kat', [platform.id]);
     const ada = await added('Ada', [platform.id]);
 
-    const outcome = await directory.removeTeam(platform.id, false);
+    const outcome = await directory.removeTeam(platform.id, ownerId, false);
 
     // A confirmation showing an empty impact list while two memberships were
     // about to be dropped is a confirmation of nothing.
@@ -836,15 +862,17 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('removes a person on the second, explicit call, and moves what lost a row', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const kat = await added('Kat', []);
-    await directory.patchPerson(kat.id, { teamIds: [platform.id] });
-    await store.assign('design', devId, kat.id);
+    await directory.patchPerson(kat.id, ownerId, { teamIds: [platform.id] });
+    await store.assign('design', devId, kat.id, wrote());
     const before = (await workItems.findById('design'))?.revision;
 
-    expect(await directory.removePerson(kat.id, false)).toMatchObject({ reason: 'in_use' });
-    expect(await directory.removePerson(kat.id, true)).toEqual({ ok: true });
+    expect(await directory.removePerson(kat.id, ownerId, false)).toMatchObject({
+      reason: 'in_use',
+    });
+    expect(await directory.removePerson(kat.id, ownerId, true)).toEqual({ ok: true });
 
     expect(await store.listPeople()).toEqual([]);
     expect(await store.assignmentsOf(['design'])).toEqual([]);
@@ -865,13 +893,13 @@ describe('the directory usage a removal is refused with', () => {
       directory: storeWith({
         async usageOfPerson(watched) {
           const counted = await store.usageOfPerson(watched);
-          await store.assign('design', devId, kat.id);
+          await store.assign('design', devId, kat.id, wrote());
           return counted;
         },
       }),
     });
 
-    const outcome = await service.removePerson(kat.id, false);
+    const outcome = await service.removePerson(kat.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     // Named, not merely refused: the whole point of the second call is that the
@@ -892,37 +920,42 @@ describe('the directory usage a removal is refused with', () => {
     const service = new DirectoryService({
       broadcast,
       directory: storeWith({
-        async removePerson(watched, cascade) {
-          await store.assign('design', devId, kat.id);
-          return store.removePerson(watched, cascade);
+        async removePerson(watched, cascade, stamp) {
+          await store.assign('design', devId, kat.id, wrote());
+          return store.removePerson(watched, cascade, stamp);
         },
       }),
     });
 
-    expect(await service.removePerson(kat.id, true)).toEqual({ ok: true });
+    expect(await service.removePerson(kat.id, ownerId, true)).toEqual({ ok: true });
     expect(await store.assignmentsOf(['design'])).toEqual([]);
     expect(await store.listPeople()).toEqual([]);
   });
 
   it('refuses the loser of two removals of one person', async () => {
     const kat = await added('Kat', []);
-    await store.removePerson(kat.id, true);
+    await store.removePerson(kat.id, true, wrote());
 
-    expect(await directory.removePerson(kat.id, true)).toEqual({ ok: false, reason: 'not_found' });
+    expect(await directory.removePerson(kat.id, ownerId, true)).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
   });
 
   it("a cascade nulls every label and moves those work items' revisions", async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const roof = await roofProject();
     // A member as well as two labels, so the cascade has both kinds to take.
     await added('Kat', [platform.id]);
-    await workItems.patch('design', { serviceTeamId: platform.id });
-    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id }, wrote());
     const before = (await workItems.findById('design'))?.revision ?? 0;
 
-    expect(await directory.removeTeam(platform.id, false)).toMatchObject({ reason: 'in_use' });
-    expect(await directory.removeTeam(platform.id, true)).toEqual({ ok: true });
+    expect(await directory.removeTeam(platform.id, ownerId, false)).toMatchObject({
+      reason: 'in_use',
+    });
+    expect(await directory.removeTeam(platform.id, ownerId, true)).toEqual({ ok: true });
 
     expect(await store.listTeams()).toEqual([]);
     // `work_item.service_team_id` has no foreign key, so nothing but this
@@ -935,7 +968,7 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('refuses a team removal when a membership or a label lands after the count', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const kat = await added('Kat', []);
 
@@ -944,12 +977,12 @@ describe('the directory usage a removal is refused with', () => {
       directory: storeWith({
         async usageOfTeam(watched) {
           const counted = await store.usageOfTeam(watched);
-          await workItems.patch('design', { serviceTeamId: platform.id });
+          await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
           return counted;
         },
       }),
     });
-    const label = await labelled.removeTeam(platform.id, false);
+    const label = await labelled.removeTeam(platform.id, ownerId, false);
 
     if (label.ok || label.reason !== 'in_use') throw new Error('the label removal was not refused');
     expect(label.usage.projects[0]?.workItems[0]).toMatchObject({
@@ -958,18 +991,18 @@ describe('the directory usage a removal is refused with', () => {
     });
     expect((await workItems.findById('design'))?.serviceTeamId).toBe(platform.id);
 
-    await workItems.patch('design', { serviceTeamId: null });
+    await workItems.patch('design', { serviceTeamId: null }, wrote());
     const joined = new DirectoryService({
       broadcast,
       directory: storeWith({
         async usageOfTeam(watched) {
           const counted = await store.usageOfTeam(watched);
-          await store.patchPerson(kat.id, { teamIds: [platform.id] });
+          await store.patchPerson(kat.id, { teamIds: [platform.id] }, wrote());
           return counted;
         },
       }),
     });
-    const member = await joined.removeTeam(platform.id, false);
+    const member = await joined.removeTeam(platform.id, ownerId, false);
 
     if (member.ok || member.reason !== 'in_use') {
       throw new Error('the membership removal was not refused');
@@ -979,24 +1012,24 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('removes a team nothing points at, and refuses the loser of two removals', async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
 
-    expect(await directory.removeTeam(platform.id, false)).toEqual({ ok: true });
-    expect(await directory.removeTeam(platform.id, true)).toEqual({
+    expect(await directory.removeTeam(platform.id, ownerId, false)).toEqual({ ok: true });
+    expect(await directory.removeTeam(platform.id, ownerId, true)).toEqual({
       ok: false,
       reason: 'not_found',
     });
   });
 
   it("does not count a person's own memberships against them", async () => {
-    const platform = await directory.addTeam('Platform');
+    const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const kat = await added('Kat', [platform.id]);
 
     // Her membership names nobody else and goes with her, so it forces no
     // confirmation — the person is removed on the first call.
-    expect(await directory.removePerson(kat.id, false)).toEqual({ ok: true });
+    expect(await directory.removePerson(kat.id, ownerId, false)).toEqual({ ok: true });
     expect(await store.listPeople()).toEqual([]);
   });
 });
@@ -1004,7 +1037,7 @@ describe('the directory usage a removal is refused with', () => {
 describe('removing a tag: what it names, and what it cannot move', () => {
   /** A tag in the global directory, or a throw — a refused fixture is not a result. */
   const tagged = async (name: string) => {
-    const made = await directory.addTag(name);
+    const made = await directory.addTag(ownerId, name);
     if (made === null) throw new Error(`the fixture tag ${name} was refused`);
     return made;
   };
@@ -1015,15 +1048,15 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // confirmation, where an unused team with people in it does not.
     const regulatory = await tagged('regulatory');
 
-    expect(await directory.removeTag(regulatory.id, false)).toEqual({ ok: true });
+    expect(await directory.removeTag(regulatory.id, ownerId, false)).toEqual({ ok: true });
     expect(await store.listTags()).toEqual([]);
   });
 
   it('refuses an unconfirmed removal, naming the rows that would be unlabelled', async () => {
     const regulatory = await tagged('regulatory');
-    await workItems.patch('design', { tagIds: [regulatory.id] });
+    await workItems.patch('design', { tagIds: [regulatory.id] }, wrote());
 
-    const outcome = await directory.removeTag(regulatory.id, false);
+    const outcome = await directory.removeTag(regulatory.id, ownerId, false);
 
     // `label_removed` and **nothing beside it**. This assertion is the model
     // rule written as a payload: no `capacity_released` arm, no size, and no
@@ -1054,9 +1087,9 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // report nothing at all for the second of them.
     const regulatory = await tagged('regulatory');
     const techDebt = await tagged('tech-debt');
-    await workItems.patch('design', { tagIds: [regulatory.id, techDebt.id] });
+    await workItems.patch('design', { tagIds: [regulatory.id, techDebt.id] }, wrote());
 
-    const outcome = await directory.removeTag(techDebt.id, false);
+    const outcome = await directory.removeTag(techDebt.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_removed' }]);
@@ -1071,10 +1104,14 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // has stays where it was. So the confirmation names the row that carries the
     // label, and no others.
     const regulatory = await tagged('regulatory');
-    await workItems.insert({ ...newItem('cladding', 30, 'Cladding'), parentId: 'design' }, []);
-    await workItems.patch('design', { tagIds: [regulatory.id] });
+    await workItems.insert(
+      { ...newItem('cladding', 30, 'Cladding'), parentId: 'design' },
+      [],
+      wrote(),
+    );
+    await workItems.patch('design', { tagIds: [regulatory.id] }, wrote());
 
-    const outcome = await directory.removeTag(regulatory.id, false);
+    const outcome = await directory.removeTag(regulatory.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     expect(outcome.usage.projects[0]?.workItems.map((each) => each.id)).toEqual(['design']);
@@ -1087,10 +1124,10 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // whose labelling had changed under it, which is the stale-undo failure this
     // repo has already shipped once for people.
     const regulatory = await tagged('regulatory');
-    await workItems.patch('design', { tagIds: [regulatory.id] });
+    await workItems.patch('design', { tagIds: [regulatory.id] }, wrote());
     const before = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
 
-    expect(await directory.removeTag(regulatory.id, true)).toEqual({ ok: true });
+    expect(await directory.removeTag(regulatory.id, ownerId, true)).toEqual({ ok: true });
 
     const after = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
     expect(after?.tagIds).toEqual([]);
@@ -1102,7 +1139,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     await tagged('regulatory');
     const techDebt = await tagged('tech-debt');
 
-    const outcome = await directory.renameTag(techDebt.id, 'regulatory');
+    const outcome = await directory.renameTag(techDebt.id, ownerId, 'regulatory');
 
     expect(outcome).toEqual({ ok: false, reason: 'taken', name: 'regulatory' });
     expect((await store.listTags()).map((each) => each.name)).toEqual(['regulatory', 'tech-debt']);
@@ -1123,7 +1160,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
 describe('removing a service: what it names, what it takes, and what it cannot move', () => {
   /** A service in the global directory, or a throw — a refused fixture is not a result. */
   const serviceNamed = async (name: string) => {
-    const made = await directory.addService(name);
+    const made = await directory.addService(ownerId, name);
     if (made === null) throw new Error(`the fixture service ${name} was refused`);
     return made;
   };
@@ -1135,10 +1172,14 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     // label keeps every date it has and holds no join row of its own, so there
     // is nothing to confirm.
     const payments = await serviceNamed('Payments');
-    await workItems.insert({ ...newItem('cladding', 30, 'Cladding'), parentId: 'design' }, []);
-    await workItems.patch('design', { serviceIds: [payments.id] });
+    await workItems.insert(
+      { ...newItem('cladding', 30, 'Cladding'), parentId: 'design' },
+      [],
+      wrote(),
+    );
+    await workItems.patch('design', { serviceIds: [payments.id] }, wrote());
 
-    const outcome = await directory.removeService(payments.id, false);
+    const outcome = await directory.removeService(payments.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     expect(outcome.usage.projects[0]?.workItems.map((each) => each.id)).toEqual(['design']);
@@ -1155,10 +1196,10 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     // with the mechanism: a set member is removed where a column was nulled, and
     // `directoryUsageOfService` reports `label_removed` for the same reason.
     const payments = await serviceNamed('Payments');
-    await workItems.patch('design', { serviceIds: [payments.id] });
+    await workItems.patch('design', { serviceIds: [payments.id] }, wrote());
     const before = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
 
-    expect(await directory.removeService(payments.id, true)).toEqual({ ok: true });
+    expect(await directory.removeService(payments.id, ownerId, true)).toEqual({ ok: true });
 
     const after = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
     expect(after?.serviceIds).toEqual([]);
@@ -1176,11 +1217,11 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     // The row is written straight to the table because the write path for it is
     // task 4.3; what is under test here is the removal, not the map's editor.
     const payments = await serviceNamed('Payments');
-    const platform = await store.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const platform = await store.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
     db.insert(teamService).values({ teamId: platform.id, serviceId: payments.id }).run();
-    await workItems.patch('design', { serviceIds: [payments.id] });
+    await workItems.patch('design', { serviceIds: [payments.id] }, wrote());
 
-    const refused = await directory.removeService(payments.id, false);
+    const refused = await directory.removeService(payments.id, ownerId, false);
 
     if (refused.ok || refused.reason !== 'in_use') throw new Error('the removal was not refused');
     // One work item, one effect, and nothing about Platform anywhere in it.
@@ -1202,7 +1243,7 @@ describe('removing a service: what it names, what it takes, and what it cannot m
       members: [],
     });
 
-    expect(await directory.removeService(payments.id, true)).toEqual({ ok: true });
+    expect(await directory.removeService(payments.id, ownerId, true)).toEqual({ ok: true });
     // The team survives its ownership claim; only the claim goes.
     expect(db.select().from(teamService).all()).toEqual([]);
     expect((await store.listTeams()).map((each) => each.name)).toEqual(['Platform']);
@@ -1212,7 +1253,7 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     await serviceNamed('Payments');
     const auth = await serviceNamed('Auth');
 
-    expect(await directory.renameService(auth.id, 'Payments')).toEqual({
+    expect(await directory.renameService(auth.id, ownerId, 'Payments')).toEqual({
       ok: false,
       reason: 'taken',
       name: 'Payments',
@@ -1225,10 +1266,10 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     // announced is the set of plans that named the service when it happened.
     // `capacity_changed` is never among them: no date moves.
     const payments = await serviceNamed('Payments');
-    await workItems.patch('design', { serviceIds: [payments.id] });
+    await workItems.patch('design', { serviceIds: [payments.id] }, wrote());
     broadcast.published.length = 0;
 
-    await directory.renameService(payments.id, 'Billing');
+    await directory.renameService(payments.id, ownerId, 'Billing');
 
     expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
   });

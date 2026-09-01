@@ -10,6 +10,7 @@ import type {
   ProjectStore,
   StepProgressStore,
   WorkItemStore,
+  WriteStamp,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -28,6 +29,13 @@ import { poolsFor, WorkItemService, type WorkItemServiceOptions } from './work-i
 
 const OWNER = 'owner-account';
 const STRANGER = 'stranger-account';
+
+/**
+ * The stamp the arrangements here write with. Every store below is an in-memory
+ * one, so `created_by`'s foreign key is not in play; the owner is named because
+ * these arrangements are the owner's, not because anything checks.
+ */
+const WROTE: WriteStamp = { at: 1, by: OWNER };
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
@@ -98,22 +106,24 @@ beforeEach(async () => {
     createdAt: 1,
   };
   stepId = crypto.randomUUID();
-  await projects.create(project, [
-    { id: stepId, projectId: project.id, name: 'Dev', position: 10 },
-  ]);
+  await projects.create(
+    project,
+    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    WROTE,
+  );
   projectId = project.id;
   // The people these tests assign. They have to be in the directory because
   // production reads the person inside the assignment's own transaction and
   // refuses one it does not hold — a fixture that let an unknown id through
   // would be laxer than the schema it stands for.
   for (const name of ['ada', 'grace', 'kat', 'ada-of-platform']) {
-    await personAdded(directory.addPerson({ id: name, name }, []));
+    await personAdded(directory.addPerson({ id: name, name }, [], WROTE));
   }
   // The same for the teams these tests label with: `patch` reads the team
   // inside the update's own transaction, because `work_item.service_team_id`
   // has no foreign key to do it.
   for (const name of ['team-billing', 'team-sparks']) {
-    await directory.addTeam({ id: name, name });
+    await directory.addTeam({ id: name, name }, WROTE);
   }
 });
 
@@ -168,6 +178,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         revision: 0,
       },
       [],
+      WROTE,
     );
   }
 }
@@ -277,7 +288,7 @@ describe('creating work items', () => {
   });
 
   it('refuses a stranger on a restricted project', async () => {
-    await projects.update(projectId, { restricted: true });
+    await projects.update(projectId, { restricted: true }, WROTE);
 
     const outcome = await service.create(projectId, STRANGER, {
       parentId: null,
@@ -462,8 +473,8 @@ describe('dependencies', () => {
     // dates in it.
     const a = await add('Strip');
     const b = await add('Sand');
-    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b });
-    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a });
+    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b }, WROTE);
+    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a }, WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -501,12 +512,15 @@ describe('dependencies', () => {
 
   it('does not report a predecessor that is not in the project', async () => {
     const a = await add('Strip');
-    await dependencies.add({
-      id: 'stray',
-      projectId,
-      predecessorId: crypto.randomUUID(),
-      successorId: a,
-    });
+    await dependencies.add(
+      {
+        id: 'stray',
+        projectId,
+        predecessorId: crypto.randomUUID(),
+        successorId: a,
+      },
+      WROTE,
+    );
 
     const tree = await service.tree(projectId);
 
@@ -554,10 +568,14 @@ describe('the plan waits for the people in it', () => {
     };
     const dev = crypto.randomUUID();
     const qa = crypto.randomUUID();
-    await projects.create(project, [
-      { id: dev, projectId: project.id, name: 'Dev', position: 10 },
-      { id: qa, projectId: project.id, name: 'QA', position: 20 },
-    ]);
+    await projects.create(
+      project,
+      [
+        { id: dev, projectId: project.id, name: 'Dev', position: 10 },
+        { id: qa, projectId: project.id, name: 'QA', position: 20 },
+      ],
+      WROTE,
+    );
     return { projectId: project.id, dev, qa };
   }
 
@@ -566,8 +584,8 @@ describe('the plan waits for the people in it', () => {
     const second = await add('Sand');
     await service.setEstimate(first, OWNER, stepId, flat(3));
     await service.setEstimate(second, OWNER, stepId, flat(2));
-    await directory.assign(first, stepId, 'ada');
-    await directory.assign(second, stepId, 'ada');
+    await directory.assign(first, stepId, 'ada', WROTE);
+    await directory.assign(second, stepId, 'ada', WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -590,8 +608,8 @@ describe('the plan waits for the people in it', () => {
     const second = await add('Sand');
     await service.setEstimate(first, OWNER, stepId, flat(3));
     await service.setEstimate(second, OWNER, stepId, flat(2));
-    await directory.assign(first, stepId, 'ada');
-    await directory.assign(second, stepId, 'ada');
+    await directory.assign(first, stepId, 'ada', WROTE);
+    await directory.assign(second, stepId, 'ada', WROTE);
 
     const before = await service.tree(projectId);
     expect(before?.workItems.find((w) => w.id === first)?.schedule.earliestStart).toBe(0);
@@ -628,8 +646,8 @@ describe('the plan waits for the people in it', () => {
     const other = await add('Sand');
     await service.setEstimate(inside, OWNER, stepId, flat(3));
     await service.setEstimate(other, OWNER, stepId, flat(2));
-    await directory.assign(inside, stepId, 'ada');
-    await directory.assign(other, stepId, 'ada');
+    await directory.assign(inside, stepId, 'ada', WROTE);
+    await directory.assign(other, stepId, 'ada', WROTE);
 
     // `Step` reads first, so `Wire` already takes `ada` — a priority on `other`
     // is what makes the second half of this say anything at all.
@@ -654,8 +672,8 @@ describe('the plan waits for the people in it', () => {
     const second = await add('Sand');
     await service.setEstimate(first, OWNER, stepId, flat(2));
     await service.setEstimate(second, OWNER, stepId, flat(3));
-    await directory.assign(first, stepId, 'ada');
-    await directory.assign(second, stepId, 'grace');
+    await directory.assign(first, stepId, 'ada', WROTE);
+    await directory.assign(second, stepId, 'grace', WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -681,8 +699,8 @@ describe('the plan waits for the people in it', () => {
     await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
     await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
     await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
-    await directory.assign(covered.result.id, two.dev, 'ada');
-    await directory.assign(next.result.id, two.dev, 'ada');
+    await directory.assign(covered.result.id, two.dev, 'ada', WROTE);
+    await directory.assign(next.result.id, two.dev, 'ada', WROTE);
 
     const tree = await service.tree(two.projectId);
 
@@ -731,9 +749,9 @@ describe('the plan waits for the people in it', () => {
     await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
     await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
     await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
-    await directory.assign(covered.result.id, two.dev, 'ada');
-    await directory.assign(covered.result.id, two.qa, 'grace');
-    await directory.assign(next.result.id, two.dev, 'ada');
+    await directory.assign(covered.result.id, two.dev, 'ada', WROTE);
+    await directory.assign(covered.result.id, two.qa, 'grace', WROTE);
+    await directory.assign(next.result.id, two.dev, 'ada', WROTE);
 
     const tree = await service.tree(two.projectId);
 
@@ -756,10 +774,10 @@ describe('the plan waits for the people in it', () => {
     // would be one more confident lie beside the banner saying so.
     const a = await add('Strip');
     const b = await add('Sand');
-    await directory.assign(a, stepId, 'ada');
-    await directory.assign(b, stepId, 'ada');
-    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b });
-    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a });
+    await directory.assign(a, stepId, 'ada', WROTE);
+    await directory.assign(b, stepId, 'ada', WROTE);
+    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b }, WROTE);
+    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a }, WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -784,11 +802,11 @@ describe('who is doing the work', () => {
     // row, so nobody is recorded against work they were never given.
     const id = await add('Strip');
     const qaStepId = crypto.randomUUID();
-    await directory.assign(id, stepId, 'ada');
+    await directory.assign(id, stepId, 'ada', WROTE);
     let row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
     expect(row?.doesEveryStep).toBe('ada');
 
-    await directory.assign(id, qaStepId, 'grace');
+    await directory.assign(id, qaStepId, 'grace', WROTE);
 
     row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
     expect(row?.assignees).toEqual({ [stepId]: 'ada', [qaStepId]: 'grace' });
@@ -813,7 +831,7 @@ describe('who is doing the work', () => {
     // A picker rendered before somebody was removed. Out of date, not broken:
     // a typed 4xx rather than the foreign key the write used to reach.
     const id = await add('Strip');
-    await directory.removePerson('ada', true);
+    await directory.removePerson('ada', true, WROTE);
 
     const outcome = await service.assign(id, OWNER, stepId, 'ada');
 
@@ -824,7 +842,7 @@ describe('who is doing the work', () => {
   it('refuses a label naming a team the directory has lost, leaving the old one', async () => {
     const id = await add('Strip');
     await service.patch(id, OWNER, { serviceTeamId: 'team-sparks' });
-    await directory.removeTeam('team-billing', true);
+    await directory.removeTeam('team-billing', true, WROTE);
 
     const outcome = await service.patch(id, OWNER, { serviceTeamId: 'team-billing' });
 
@@ -1042,7 +1060,7 @@ describe('the calendar', () => {
     await twoDaysOf(first);
     await twoDaysOf(second);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
     const tree = await service.tree(projectId);
     const strip = tree?.workItems.find((w) => w.id === first);
@@ -1057,7 +1075,7 @@ describe('the calendar', () => {
   it('pushes an item later when it may not start before a date', async () => {
     const id = await add('Strip');
     await twoDaysOf(id);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
     await service.patch(id, OWNER, { startNoEarlierThan: '2026-08-12' });
 
     const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
@@ -1078,7 +1096,7 @@ describe('the calendar', () => {
     });
     await twoDaysOf(second);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
     // Day 1 is the Friday: earlier than where the predecessor leaves it.
     await service.patch(second, OWNER, { startNoEarlierThan: '2026-08-07' });
 
@@ -1091,19 +1109,25 @@ describe('the calendar', () => {
   it('reports no dates when the schedule itself failed', async () => {
     const first = await add('Strip');
     const second = await add('Sand');
-    await projects.update(projectId, { startDate: THURSDAY });
-    await dependencies.add({
-      id: 'a',
-      projectId,
-      predecessorId: first,
-      successorId: second,
-    });
-    await dependencies.add({
-      id: 'b',
-      projectId,
-      predecessorId: second,
-      successorId: first,
-    });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await dependencies.add(
+      {
+        id: 'a',
+        projectId,
+        predecessorId: first,
+        successorId: second,
+      },
+      WROTE,
+    );
+    await dependencies.add(
+      {
+        id: 'b',
+        projectId,
+        predecessorId: second,
+        successorId: first,
+      },
+      WROTE,
+    );
 
     const tree = await service.tree(projectId);
 
@@ -1125,7 +1149,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   // guards are `snapWorkdays`' and they are still live; this is the arm that
   // reaches them (`estimate-weights-and-rounding`).
   beforeEach(async () => {
-    await projects.update(projectId, { estimateRounding: 'exact' });
+    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
   });
 
   /** A flat trio, so the duration in these tests is the number written. */
@@ -1143,7 +1167,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('starts a plan whose start date is a Saturday on the Monday', async () => {
     const id = await add('Pour');
     await flatDaysOf(id, 1);
-    await projects.update(projectId, { startDate: SATURDAY });
+    await projects.update(projectId, { startDate: SATURDAY }, WROTE);
 
     expect(await datesFor(id)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-10' });
   });
@@ -1151,7 +1175,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('carries a span across two weekends without counting them', async () => {
     const id = await add('Rewire');
     await flatDaysOf(id, 12);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
     // Twelve working days from the Thursday: two of week one, five each of the
     // next two weeks — landing on that third Friday, fifteen calendar days on.
@@ -1161,7 +1185,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('keeps a half-day task inside its single day', async () => {
     const id = await add('Chase');
     await flatDaysOf(id, 0.5);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
     expect(await datesFor(id)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-06' });
   });
@@ -1175,7 +1199,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(first, 2.5);
     await flatDaysOf(second, 2.5);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
     expect(await datesFor(first)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-10' });
     // The pair finish at exactly 5.0, so the fraction never reaches the dates.
@@ -1209,7 +1233,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(partGate, 0);
     await service.addDependency(wholeGate, OWNER, wholeRunner);
     await service.addDependency(partGate, OWNER, partRunner);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
     // Three whole days from the Thursday end on the Monday; the gate stands on
     // the Tuesday after them, both ends.
@@ -1223,14 +1247,14 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('moves the dates and the printed figure together when the method changes', async () => {
     const id = await add('Strip');
     await service.setEstimate(id, OWNER, stepId, { optimistic: 2, realistic: 3, pessimistic: 10 });
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
 
-    await projects.update(projectId, { estimateMethod: 'optimistic' });
+    await projects.update(projectId, { estimateMethod: 'optimistic' }, WROTE);
     const hopeful = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
     expect(hopeful?.finalTotal).toBe(2);
     expect(hopeful?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
 
-    await projects.update(projectId, { estimateMethod: 'pessimistic' });
+    await projects.update(projectId, { estimateMethod: 'pessimistic' }, WROTE);
     const braced = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
     expect(braced?.finalTotal).toBe(10);
     expect(braced?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-19' });
@@ -1249,7 +1273,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const parent = await add('Step');
     const kid = await add('Wire', parent);
     await flatDaysOf(kid, 2);
-    await projects.update(projectId, { startDate: THURSDAY });
+    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
     await service.patch(parent, OWNER, { startNoEarlierThan: '2026-08-12' });
 
     expect((await datesFor(kid))?.startsOn).toBe('2026-08-12');
@@ -1280,7 +1304,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
       previous = id;
       last = id;
     }
-    await projects.update(projectId, { startDate: '2026-08-10' });
+    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
 
     expect((await datesFor(last))?.endsOn).toBe('2026-08-28');
   });
@@ -1312,7 +1336,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const after = await add('Snag');
     await flatDaysOf(after, 1);
     await service.addDependency(after, OWNER, last);
-    await projects.update(projectId, { startDate: '2026-08-10' });
+    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
 
     // The chain end starts within working day 11 and finishes on day 15 —
     // Tuesday the 25th to Friday the 28th, not Monday the 31st.
@@ -1345,7 +1369,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const after = await add('Snag');
     await flatDaysOf(after, 1);
     await service.addDependency(after, OWNER, last);
-    await projects.update(projectId, { startDate: '2026-08-10' });
+    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
 
     // The chain end runs inside working day 8 — Thursday the 20th, both ends.
     expect(await datesFor(last)).toEqual({ startsOn: '2026-08-20', endsOn: '2026-08-20' });
@@ -1364,7 +1388,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(first, 14.9);
     await flatDaysOf(second, 1);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: '2026-08-10' });
+    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
 
     expect(await datesFor(first)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-28' });
     expect(await datesFor(second)).toEqual({ startsOn: '2026-08-28', endsOn: '2026-08-31' });
@@ -1403,6 +1427,7 @@ describe('the project’s dependency reach', () => {
         { id: dev, projectId: id, name: 'Dev', position: 10 },
         { id: qa, projectId: id, name: 'QA', position: 20 },
       ],
+      WROTE,
     );
     const made = async (name: string) => {
       const outcome = await service.create(id, OWNER, { parentId: null, afterId: null, name });
@@ -1414,7 +1439,7 @@ describe('the project’s dependency reach', () => {
     await service.setEstimate(a, OWNER, dev, flat(3));
     await service.setEstimate(a, OWNER, qa, flat(2));
     await service.setEstimate(b, OWNER, dev, flat(1));
-    await dependencies.add({ projectId: id, predecessorId: a, successorId: b });
+    await dependencies.add({ projectId: id, predecessorId: a, successorId: b }, WROTE);
     return { id, a, b };
   }
 
@@ -1465,7 +1490,7 @@ describe('the project’s estimate method', () => {
       realistic: 3,
       pessimistic: 10,
     });
-    await projects.update(projectId, { estimateMethod: method });
+    await projects.update(projectId, { estimateMethod: method }, WROTE);
     const tree = await service.tree(projectId);
     const row = tree?.workItems.find((w) => w.id === id);
     return { tree, row };
@@ -1537,6 +1562,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
         { id: devId, projectId: id, name: 'Dev', position: 10 },
         { id: qaId, projectId: id, name: 'QA', position: 20 },
       ],
+      WROTE,
     );
     return { id, devId, qaId };
   }
@@ -1698,7 +1724,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
     await service.setEstimate(outcome.result.id, OWNER, devId, half);
     await service.setEstimate(outcome.result.id, OWNER, qaId, half);
-    await projects.update(id, { startDate: '2026-08-06' });
+    await projects.update(id, { startDate: '2026-08-06' }, WROTE);
 
     const row = await rowOf(id, outcome.result.id);
 
@@ -1749,6 +1775,7 @@ describe('capacity, as the adapter resolves it', () => {
         revision: 0,
       },
       [],
+      WROTE,
     );
     return id;
   }
@@ -1780,8 +1807,8 @@ describe('capacity, as the adapter resolves it', () => {
     // The two is stated **for this project** since `capacity-per-project`. The
     // team is added unsized on purpose: a global size is read by nothing, and
     // seeding one here would let this pass against a build that still read it.
-    await directory.addTeam({ id: 'team-small', name: 'Small' });
-    await capacity.set(projectId, 'team-small', 2);
+    await directory.addTeam({ id: 'team-small', name: 'Small' }, WROTE);
+    await capacity.set(projectId, 'team-small', 2, WROTE);
     const strip = await leaf('Strip', 4, 'team-small');
     await service.setEstimate(strip, OWNER, stepId, flat(4));
 
@@ -1791,10 +1818,10 @@ describe('capacity, as the adapter resolves it', () => {
   });
 
   it('reports the non-first team that bound a joint-capacity slice', async () => {
-    await directory.addTeam({ id: 'team-alpha', name: 'Alpha' });
-    await directory.addTeam({ id: 'team-beta', name: 'Beta' });
-    await capacity.set(projectId, 'team-alpha', 1);
-    await capacity.set(projectId, 'team-beta', 1);
+    await directory.addTeam({ id: 'team-alpha', name: 'Alpha' }, WROTE);
+    await directory.addTeam({ id: 'team-beta', name: 'Beta' }, WROTE);
+    await capacity.set(projectId, 'team-alpha', 1, WROTE);
+    await capacity.set(projectId, 'team-beta', 1, WROTE);
     const betaBlocker = await leaf('Beta blocker', 1, 'team-beta');
     const jointlyBound = await leaf('Jointly bound', 1, 'team-alpha');
 
@@ -1830,7 +1857,7 @@ describe('capacity, as the adapter resolves it', () => {
     // 2026-08-12.
     const strip = await leaf('Strip', 3);
     await service.setEstimate(strip, OWNER, stepId, flat(6));
-    await directory.assign(strip, stepId, 'kat');
+    await directory.assign(strip, stepId, 'kat', WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -1847,8 +1874,8 @@ describe('capacity, as the adapter resolves it', () => {
     // it, and the pool those leaves spend is that team's. Nothing is copied
     // down — the rows are read back to prove the label is still only on the
     // parent.
-    await directory.addTeam({ id: 'team-one', name: 'One' });
-    await capacity.set(projectId, 'team-one', 1);
+    await directory.addTeam({ id: 'team-one', name: 'One' }, WROTE);
+    await capacity.set(projectId, 'team-one', 1, WROTE);
     const step = await leaf('Step', 1, 'team-one');
     const first = await leaf('First', 1, null, step);
     const second = await leaf('Second', 1, null, step);
@@ -1915,8 +1942,8 @@ describe('the slices the schedule placed, on the wire', () => {
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, flat(3));
     await service.setEstimate(sand, OWNER, stepId, flat(2));
-    await directory.assign(strip, stepId, 'kat');
-    await directory.assign(sand, stepId, 'kat');
+    await directory.assign(strip, stepId, 'kat', WROTE);
+    await directory.assign(sand, stepId, 'kat', WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -1953,7 +1980,7 @@ describe('the slices the schedule placed, on the wire', () => {
     // (`estimate-weights-and-rounding`): the claim is about the **payload**
     // never rounding the engine's own numbers, which is exactly as load-bearing
     // for a project that plans in fractions as it was for every project before.
-    await projects.update(projectId, { estimateRounding: 'exact' });
+    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, {
@@ -1962,8 +1989,8 @@ describe('the slices the schedule placed, on the wire', () => {
       pessimistic: 5,
     });
     await service.setEstimate(sand, OWNER, stepId, flat(2));
-    await directory.assign(strip, stepId, 'kat');
-    await directory.assign(sand, stepId, 'kat');
+    await directory.assign(strip, stepId, 'kat', WROTE);
+    await directory.assign(sand, stepId, 'kat', WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -1977,8 +2004,8 @@ describe('the slices the schedule placed, on the wire', () => {
   it('carries no slices at all when the plan could not be scheduled', async () => {
     const strip = await add('Strip');
     const sand = await add('Sand');
-    await dependencies.add({ id: 'x', projectId, predecessorId: strip, successorId: sand });
-    await dependencies.add({ id: 'y', projectId, predecessorId: sand, successorId: strip });
+    await dependencies.add({ id: 'x', projectId, predecessorId: strip, successorId: sand }, WROTE);
+    await dependencies.add({ id: 'y', projectId, predecessorId: sand, successorId: strip }, WROTE);
 
     const tree = await service.tree(projectId);
 
@@ -2014,6 +2041,7 @@ describe('the slices the schedule placed, on the wire', () => {
         { id: devId, projectId: id, name: 'Dev', position: 10 },
         { id: qaId, projectId: id, name: 'QA', position: 20 },
       ],
+      WROTE,
     );
     const created = await service.create(id, OWNER, {
       parentId: null,
@@ -2025,16 +2053,18 @@ describe('the slices the schedule placed, on the wire', () => {
     await service.setEstimate(hull, OWNER, devId, flat(3));
     await service.setEstimate(hull, OWNER, qaId, flat(2));
     const kat = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Kat' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Kat' }, [], WROTE),
     );
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], WROTE),
     );
     // Somebody in the directory that nobody on this plan is: the payload names
     // who is on the plan, not who could be.
-    await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Unbooked' }, []));
-    await directory.assign(hull, devId, kat.id);
-    await directory.assign(hull, qaId, ada.id);
+    await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Unbooked' }, [], WROTE),
+    );
+    await directory.assign(hull, devId, kat.id, WROTE);
+    await directory.assign(hull, qaId, ada.id, WROTE);
     return { id, devId, qaId };
   }
 
@@ -2143,7 +2173,7 @@ describe('the slices the schedule placed, on the wire', () => {
     // `exact` for the reason above: the row's `finalDays` in this test is the
     // fraction the engine ran the slice for, and the claim is that the two are
     // one number.
-    await projects.update(projectId, { estimateRounding: 'exact' });
+    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, stepId, flat(3));
 
@@ -2225,7 +2255,7 @@ describe('what a not-before reason does not do', () => {
     // below would hold for a reason that has nothing to do with this change.
     // That vacuity was real: the first version of this case ran on the default
     // project (`startDate: null`) and passed under its own injected fault.
-    await projects.update(projectId, { startDate: '2026-08-06' });
+    await projects.update(projectId, { startDate: '2026-08-06' }, WROTE);
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, {

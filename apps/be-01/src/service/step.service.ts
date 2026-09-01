@@ -1,4 +1,4 @@
-import type { ProjectStore, Step, StepStore, StepUsageRows } from '../repository';
+import type { ProjectStore, Step, StepStore, StepUsageRows, WriteStamp } from '../repository';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { canEdit } from './project.service';
@@ -14,6 +14,8 @@ export interface StepServiceOptions {
    */
   broadcast: Broadcaster;
   newId?: () => string;
+  /** The clock every {@link WriteStamp} this service builds is dated from. */
+  now?: () => number;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -120,9 +122,16 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
  */
 export class StepService {
   private readonly newId: () => string;
+  private readonly now: () => number;
 
   constructor(private readonly opts: StepServiceOptions) {
     this.newId = opts.newId ?? (() => crypto.randomUUID());
+    this.now = opts.now ?? (() => Date.now());
+  }
+
+  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
+  private stampFor(actorId: string): WriteStamp {
+    return { at: this.now(), by: actorId };
   }
 
   async add(projectId: string, actorId: string, name: string): Promise<StepOutcome> {
@@ -134,7 +143,10 @@ export class StepService {
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
 
-    const written = await this.opts.steps.add({ id: this.newId(), projectId, name: clean });
+    const written = await this.opts.steps.add(
+      { id: this.newId(), projectId, name: clean },
+      this.stampFor(actorId),
+    );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
     return { ok: true, result: written.step };
@@ -151,7 +163,7 @@ export class StepService {
     const gate = await this.gate(projectId, stepId, actorId);
     if (!gate.ok) return gate;
 
-    const written = await this.opts.steps.rename(stepId, clean);
+    const written = await this.opts.steps.rename(stepId, clean, this.stampFor(actorId));
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, result: written.step };
@@ -201,7 +213,12 @@ export class StepService {
         return { ok: false, reason: 'in_use', inUse: seen };
       }
     }
-    const removed = await this.opts.steps.remove(projectId, stepId, cascade);
+    const removed = await this.opts.steps.remove(
+      projectId,
+      stepId,
+      cascade,
+      this.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       // The transaction's own count, not the fast path's: it is the only one

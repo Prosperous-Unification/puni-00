@@ -51,9 +51,11 @@ async function newProject(name: string): Promise<string> {
   };
   // Seeded with the step the estimates below name. The service refuses a step
   // the project does not hold, and production's foreign key refuses it harder.
-  await projects.create(project, [
-    { id: 'step-dev', projectId: project.id, name: 'Dev', position: 10 },
-  ]);
+  await projects.create(
+    project,
+    [{ id: 'step-dev', projectId: project.id, name: 'Dev', position: 10 }],
+    { at: 1, by: OWNER },
+  );
   return project.id;
 }
 

@@ -112,7 +112,15 @@ export function bootBe01(opts: BootOptions): RunningBe {
 
   const ensureLocalIdentity = (): void => {
     if (opts.localIdentity !== undefined) {
-      new UserRepository(db).ensureLocalIdentity(opts.localIdentity);
+      // The one write in the tree whose author is the row it writes: the fixed
+      // local-mode account brings itself into existence, so it is its own
+      // `created_by`. `Date.now()` here rather than an injected clock because
+      // boot is not a service and has none — the rule the stamp exists for is
+      // that the *repository* reads no clock, and this is the caller.
+      new UserRepository(db).ensureLocalIdentity(opts.localIdentity, {
+        at: Date.now(),
+        by: opts.localIdentity.id,
+      });
     }
   };
 

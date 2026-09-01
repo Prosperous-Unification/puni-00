@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Step, WorkItem } from '../repository';
+import type { Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -67,6 +67,13 @@ const dev = (): string => {
 
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 
+/**
+ * The stamp the direct-to-repository writes below carry. Nothing here is a claim
+ * about the instant or the actor; the account has to be the seeded owner because
+ * `created_by` references `users(id)` and this file is against real SQLite.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-revision-'));
   path = join(dir, 'test.db');
@@ -83,12 +90,15 @@ beforeEach(async () => {
   const directory = new DirectoryRepository(db);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    wrote(),
+  );
 
   projects = new ProjectService({ projects: projectStore });
   stepService = new StepService({
@@ -234,10 +244,16 @@ describe('what a work item write moves', () => {
     const cable = await root('Cable', strip);
     const survey = await root('Survey', cable);
 
-    await workItemStore.move(survey, null, 15, [
-      { id: strip, position: 10 },
-      { id: cable, position: 30 },
-    ]);
+    await workItemStore.move(
+      survey,
+      null,
+      15,
+      [
+        { id: strip, position: 10 },
+        { id: cable, position: 30 },
+      ],
+      wrote(),
+    );
 
     expect(await revisionOf(survey)).toBe(1);
     expect(await revisionOf(strip)).toBe(0);
@@ -263,10 +279,14 @@ describe('what a work item write moves', () => {
       maxParallel: 1,
       revision: 0,
     };
-    await workItemStore.insert(inserted, [
-      { id: strip, position: 10 },
-      { id: cable, position: 30 },
-    ]);
+    await workItemStore.insert(
+      inserted,
+      [
+        { id: strip, position: 10 },
+        { id: cable, position: 30 },
+      ],
+      wrote(),
+    );
 
     expect(await revisionOf(inserted.id)).toBe(0);
     expect(await revisionOf(strip)).toBe(0);
@@ -354,14 +374,17 @@ describe('what an estimate moves', () => {
     const first = new EstimateRepository(openDrizzle(path));
     const second = new EstimateRepository(openDrizzle(path));
 
-    await first.set({ workItemId: strip, stepId: dev(), ...DAYS });
-    await second.set({
-      workItemId: strip,
-      stepId: dev(),
-      optimistic: 2,
-      realistic: 4,
-      pessimistic: 6,
-    });
+    await first.set({ workItemId: strip, stepId: dev(), ...DAYS }, wrote());
+    await second.set(
+      {
+        workItemId: strip,
+        stepId: dev(),
+        optimistic: 2,
+        realistic: 4,
+        pessimistic: 6,
+      },
+      wrote(),
+    );
 
     expect(await revisionOf(strip)).toBe(2);
   });
@@ -387,6 +410,7 @@ describe('what an assignment moves', () => {
       new DirectoryRepository(openDrizzle(path)).addPerson(
         { id: crypto.randomUUID(), name: 'Ada' },
         [],
+        wrote(),
       ),
     );
 

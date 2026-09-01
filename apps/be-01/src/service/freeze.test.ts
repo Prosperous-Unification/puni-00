@@ -51,7 +51,7 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  await projects.create(project, []);
+  await projects.create(project, [], { at: 1, by: OWNER });
   projectId = project.id;
 });
 

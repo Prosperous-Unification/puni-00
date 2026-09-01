@@ -1,6 +1,6 @@
 import type { PriorityBand } from '@wbs/domain';
 
-import type { PriorityBandStore, ProjectStore } from '../repository';
+import type { PriorityBandStore, ProjectStore, WriteStamp } from '../repository';
 import type { Broadcaster } from './broadcast';
 import { canEdit } from './project.service';
 
@@ -8,6 +8,8 @@ export interface PriorityBandServiceOptions {
   projects: ProjectStore;
   bands: PriorityBandStore;
   broadcast: Broadcaster;
+  /** The clock every {@link WriteStamp} this service builds is dated from. */
+  now?: () => number;
 }
 
 /** Why a ladder write did not happen. */
@@ -37,7 +39,16 @@ export type PriorityBandOutcome =
  * item whose revision an undo entry could hang on.
  */
 export class PriorityBandService {
-  constructor(private readonly opts: PriorityBandServiceOptions) {}
+  private readonly now: () => number;
+
+  constructor(private readonly opts: PriorityBandServiceOptions) {
+    this.now = opts.now ?? (() => Date.now());
+  }
+
+  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
+  private stampFor(actorId: string): WriteStamp {
+    return { at: this.now(), by: actorId };
+  }
 
   listFor(projectId: string): Promise<PriorityBand[]> {
     return this.opts.bands.listFor(projectId);
@@ -62,7 +73,10 @@ export class PriorityBandService {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const written = await this.opts.bands.replace(projectId, bands);
+    // One stamp for a replacement the store makes as one transaction: every rung
+    // it writes is the same act, so no two rungs of one ladder can disagree
+    // about when they were named.
+    const written = await this.opts.bands.replace(projectId, bands, this.stampFor(actorId));
     // The store read the project inside its own transaction, so this is the
     // project having gone between the read above and that write. `not_found`
     // either way.

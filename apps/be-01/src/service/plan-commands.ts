@@ -490,7 +490,7 @@ export class PlanCommandRunner {
           break;
         case 'createTeam': {
           if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
-          const team = await directory.addTeam(command.name);
+          const team = await directory.addTeam(actorId, command.name);
           if (team === null) refuse('name_required');
           results.push(entity(mint(command.ref, team.id), team));
           break;
@@ -500,7 +500,11 @@ export class PlanCommandRunner {
             entity(
               plain(),
               reasonOf(
-                await directory.patchTeam(required(command.teamId, command.teamRef), command.patch),
+                await directory.patchTeam(
+                  required(command.teamId, command.teamRef),
+                  actorId,
+                  command.patch,
+                ),
               ),
             ),
           );
@@ -510,6 +514,7 @@ export class PlanCommandRunner {
             done(
               await directory.removeTeam(
                 required(command.teamId, command.teamRef),
+                actorId,
                 command.cascade ?? false,
               ),
             ),
@@ -518,7 +523,11 @@ export class PlanCommandRunner {
         case 'createPerson': {
           if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
           const person = reasonOf(
-            await directory.addPerson(command.name, ids(command.teamIds, command.teamRefs)),
+            await directory.addPerson(
+              actorId,
+              command.name,
+              ids(command.teamIds, command.teamRefs),
+            ),
           );
           results.push(entity(mint(command.ref, person.id), person));
           break;
@@ -530,6 +539,7 @@ export class PlanCommandRunner {
               reasonOf(
                 await directory.patchPerson(
                   required(command.personId, command.personRef),
+                  actorId,
                   command.patch,
                 ),
               ),
@@ -541,6 +551,7 @@ export class PlanCommandRunner {
             done(
               await directory.removePerson(
                 required(command.personId, command.personRef),
+                actorId,
                 command.cascade ?? false,
               ),
             ),
@@ -548,7 +559,7 @@ export class PlanCommandRunner {
           break;
         case 'createTag': {
           if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
-          const tag = await directory.addTag(command.name);
+          const tag = await directory.addTag(actorId, command.name);
           if (tag === null) refuse('name_required');
           results.push(entity(mint(command.ref, tag.id), tag));
           break;
@@ -558,7 +569,11 @@ export class PlanCommandRunner {
             entity(
               plain(),
               reasonOf(
-                await directory.renameTag(required(command.tagId, command.tagRef), command.name),
+                await directory.renameTag(
+                  required(command.tagId, command.tagRef),
+                  actorId,
+                  command.name,
+                ),
               ),
             ),
           );
@@ -568,6 +583,7 @@ export class PlanCommandRunner {
             done(
               await directory.removeTag(
                 required(command.tagId, command.tagRef),
+                actorId,
                 command.cascade ?? false,
               ),
             ),
@@ -578,7 +594,7 @@ export class PlanCommandRunner {
         // batch naming one ref twice cannot mint two rows under one name.
         case 'createWorkItemType': {
           if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
-          const workItemType = await directory.addWorkItemType(command.name);
+          const workItemType = await directory.addWorkItemType(actorId, command.name);
           if (workItemType === null) refuse('name_required');
           results.push(entity(mint(command.ref, workItemType.id), workItemType));
           break;
@@ -590,6 +606,7 @@ export class PlanCommandRunner {
               reasonOf(
                 await directory.renameWorkItemType(
                   required(command.typeId, command.typeRef),
+                  actorId,
                   command.name,
                 ),
               ),
@@ -601,6 +618,7 @@ export class PlanCommandRunner {
             done(
               await directory.removeWorkItemType(
                 required(command.typeId, command.typeRef),
+                actorId,
                 command.cascade ?? false,
               ),
             ),
@@ -608,7 +626,7 @@ export class PlanCommandRunner {
           break;
         case 'createService': {
           if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
-          const service = await directory.addService(command.name);
+          const service = await directory.addService(actorId, command.name);
           if (service === null) refuse('name_required');
           results.push(entity(mint(command.ref, service.id), service));
           break;
@@ -620,6 +638,7 @@ export class PlanCommandRunner {
               reasonOf(
                 await directory.renameService(
                   required(command.serviceId, command.serviceRef),
+                  actorId,
                   command.name,
                 ),
               ),
@@ -631,6 +650,7 @@ export class PlanCommandRunner {
             done(
               await directory.removeService(
                 required(command.serviceId, command.serviceRef),
+                actorId,
                 command.cascade ?? false,
               ),
             ),

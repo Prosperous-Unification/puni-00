@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
@@ -16,6 +16,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
+let ownerId: string;
 let repo: StepMeasureRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
@@ -23,6 +24,15 @@ let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row. Not to be read as a
+ * measure's `recordedAt` — that is the moment the figure is about, and this is
+ * when the row was written.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const insertItem = async (id: string, position: number, name: string): Promise<void> => {
   const item: WorkItem = {
@@ -40,7 +50,7 @@ const insertItem = async (id: string, position: number, name: string): Promise<v
     maxParallel: 1,
     revision: 0,
   };
-  await workItems.insert(item, []);
+  await workItems.insert(item, [], wrote());
 };
 
 const revisionOf = async (id: string): Promise<number> => {
@@ -58,13 +68,11 @@ beforeEach(async () => {
   repo = new StepMeasureRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   // Ids chosen so that sorting them disagrees with step order, exactly as
   // `actual.test.ts` does: `Dev` runs first and sorts last, so a read that fell
@@ -87,7 +95,7 @@ beforeEach(async () => {
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps);
+  await new ProjectRepository(db).create(project, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -106,21 +114,27 @@ describe('StepMeasureRepository', () => {
     // stamp moves with it — the column says when *this* number was typed, so a
     // figure corrected today reading as recorded last week is the one thing it
     // must not do.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 12_000,
-      recordedAt: 1_000,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 12_000,
+        recordedAt: 1_000,
+      },
+      wrote(),
+    );
 
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 48_500,
-      recordedAt: 2_000,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 48_500,
+        recordedAt: 2_000,
+      },
+      wrote(),
+    );
 
     expect(await repo.listByProject(projectId)).toEqual([
       {
@@ -138,28 +152,37 @@ describe('StepMeasureRepository', () => {
     // under the two-column key `estimate` and `actual` use — and it is exactly
     // what a two-column key would destroy: an hours figure silently overwritten
     // by a token correction on the same pair.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_estimate',
-      value: 40_000,
-      recordedAt: 1,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 2.5,
-      recordedAt: 2,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_estimate',
+        value: 40_000,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 2.5,
+        recordedAt: 2,
+      },
+      wrote(),
+    );
 
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_estimate',
-      value: 90_000,
-      recordedAt: 3,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_estimate',
+        value: 90_000,
+        recordedAt: 3,
+      },
+      wrote(),
+    );
 
     const held = await repo.listByProject(projectId);
     expect(held).toHaveLength(2);
@@ -184,36 +207,48 @@ describe('StepMeasureRepository', () => {
     // survivor. With one work item a delete narrowed to the step alone passes;
     // with one metric a delete narrowed to the pair passes. The two-survivor
     // trap `actual.test.ts` records, plus the third the discriminator adds.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 1,
-      recordedAt: 1,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 2,
-      recordedAt: 2,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      metric: 'token_actual',
-      value: 3,
-      recordedAt: 3,
-    });
-    await repo.set({
-      workItemId: sandId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 4,
-      recordedAt: 4,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 1,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 2,
+        recordedAt: 2,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        metric: 'token_actual',
+        value: 3,
+        recordedAt: 3,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: sandId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 4,
+        recordedAt: 4,
+      },
+      wrote(),
+    );
 
-    await repo.remove(stripId, devId, 'token_actual');
+    await repo.remove(stripId, devId, 'token_actual', wrote());
 
     const left = await repo.listByProject(projectId);
     expect(left).toHaveLength(3);
@@ -244,16 +279,19 @@ describe('StepMeasureRepository', () => {
   });
 
   it('removing a figure nobody recorded takes nothing away and does not throw', async () => {
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      metric: 'hours_actual',
-      value: 2,
-      recordedAt: 2,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        metric: 'hours_actual',
+        value: 2,
+        recordedAt: 2,
+      },
+      wrote(),
+    );
 
-    await repo.remove(stripId, devId, 'token_estimate');
-    await repo.remove(stripId, devId, 'token_estimate');
+    await repo.remove(stripId, devId, 'token_estimate', wrote());
+    await repo.remove(stripId, devId, 'token_estimate', wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       {
@@ -271,13 +309,16 @@ describe('StepMeasureRepository', () => {
     // than only argued in `schema.ts`: 0 is a person saying this cost nothing
     // and it is stored; "nobody has said" is no row at all. A repository that
     // treated 0 as nothing to write would make the two the same sentence.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 0,
-      recordedAt: 5,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 0,
+        recordedAt: 5,
+      },
+      wrote(),
+    );
 
     expect(await repo.listByProject(projectId)).toEqual([
       {
@@ -295,27 +336,36 @@ describe('StepMeasureRepository', () => {
     // total order. The step half is the roll-up's — floating-point addition is
     // not associative, so the order decides a parent's last bit — and the metric
     // half is what keeps two reads of an unchanged pair from disagreeing.
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      metric: 'token_actual',
-      value: 4,
-      recordedAt: 1,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_estimate',
-      value: 1,
-      recordedAt: 2,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 3,
-      recordedAt: 3,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        metric: 'token_actual',
+        value: 4,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_estimate',
+        value: 1,
+        recordedAt: 2,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 3,
+        recordedAt: 3,
+      },
+      wrote(),
+    );
 
     const held = await repo.listByProject(projectId);
 
@@ -332,12 +382,12 @@ describe('StepMeasureRepository', () => {
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
-    await new UserRepository(db).create({
-      id: owner,
-      username: 'other',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    // The other plan is the other owner's, so its rows are attributed to them.
+    const wroteElsewhere: WriteStamp = { at: 1, by: owner };
+    await new UserRepository(db).create(
+      { id: owner, username: 'other', passwordHash: 'x', createdAt: 1 },
+      wroteElsewhere,
+    );
     await new ProjectRepository(db).create(
       {
         id: otherProject,
@@ -352,6 +402,7 @@ describe('StepMeasureRepository', () => {
         createdAt: 1,
       },
       [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
+      wroteElsewhere,
     );
     await new WorkItemRepository(db).insert(
       {
@@ -370,21 +421,28 @@ describe('StepMeasureRepository', () => {
         revision: 0,
       },
       [],
+      wroteElsewhere,
     );
-    await repo.set({
-      workItemId: otherItem,
-      stepId: otherStep,
-      metric: 'token_actual',
-      value: 9,
-      recordedAt: 1,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 1,
-      recordedAt: 1,
-    });
+    await repo.set(
+      {
+        workItemId: otherItem,
+        stepId: otherStep,
+        metric: 'token_actual',
+        value: 9,
+        recordedAt: 1,
+      },
+      wroteElsewhere,
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 1,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
 
     expect(await repo.listByProject(projectId)).toEqual([
       {
@@ -404,15 +462,18 @@ describe('StepMeasureRepository', () => {
     // recorded in between.
     const before = await revisionOf(stripId);
 
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_estimate',
-      value: 3,
-      recordedAt: 1,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_estimate',
+        value: 3,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
     const written = await revisionOf(stripId);
-    await repo.remove(stripId, devId, 'token_estimate');
+    await repo.remove(stripId, devId, 'token_estimate', wrote());
     const removed = await revisionOf(stripId);
 
     expect(written).toBe(before + 1);
@@ -425,23 +486,29 @@ describe('StepMeasureRepository', () => {
     // because a leaf that gained a child holds figures in no unit; and the
     // silence is what every other create runs, since almost no plan holds
     // measures at all.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 2,
-      recordedAt: 7,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 8,
-      recordedAt: 9,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 2,
+        recordedAt: 7,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 8,
+        recordedAt: 9,
+      },
+      wrote(),
+    );
     const sandBefore = await revisionOf(sandId);
 
-    await repo.moveAll(stripId, sandId);
+    await repo.moveAll(stripId, sandId, wrote());
 
     const moved = await repo.listByProject(projectId);
     expect(moved).toHaveLength(2);
@@ -450,7 +517,7 @@ describe('StepMeasureRepository', () => {
     expect(await revisionOf(sandId)).toBe(sandBefore + 1);
 
     const quiet = await revisionOf(stripId);
-    await repo.moveAll(stripId, sandId);
+    await repo.moveAll(stripId, sandId, wrote());
     expect(await revisionOf(stripId)).toBe(quiet);
   });
 
@@ -458,13 +525,16 @@ describe('StepMeasureRepository', () => {
     // `step_measure.work_item_id` cascades, and it is the blue/green window this
     // is for: the outgoing release knows nothing about this table and its plain
     // `DELETE FROM work_item` must not hit a constraint it cannot see.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 4,
-      recordedAt: 1,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 4,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
 
     const db = openDatabase(path);
     try {
@@ -483,13 +553,16 @@ describe('StepMeasureRepository', () => {
     // `StepRepository.remove` is the caller that will say so explicitly (task
     // 6.3); this is the constraint underneath it, asserted so that a later
     // migration cannot add a cascade without a red test.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      metric: 'token_actual',
-      value: 4,
-      recordedAt: 1,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 4,
+        recordedAt: 1,
+      },
+      wrote(),
+    );
 
     const db = openDatabase(path);
     try {

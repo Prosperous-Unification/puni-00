@@ -59,7 +59,7 @@ describe('one plan’s history, over HTTP', () => {
       revision: 0,
       createdAt: 1,
     };
-    await projects.create(project, []);
+    await projects.create(project, [], { at: 1, by: project.ownerId });
     const events = inMemoryPlanEvents([
       event('set', { createdAt: 1_000 }),
       event('cleared', { kind: 'clear_estimate', createdAt: 2_000 }),

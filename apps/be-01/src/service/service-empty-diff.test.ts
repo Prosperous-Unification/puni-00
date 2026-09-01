@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Step } from '../repository';
+import type { Step, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -82,6 +82,13 @@ let steps: Step[];
 
 const DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
+/**
+ * The stamp the direct-to-repository writes below carry. The account has to be
+ * the seeded owner because `created_by` references `users(id)` and this file is
+ * against real SQLite; neither field is anything this file asserts on.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 const dev = (): string => {
   const found = steps.at(0);
   if (found === undefined) throw new Error('the project was created without its starting steps');
@@ -119,12 +126,15 @@ beforeEach(async () => {
   capacityStore = new CapacityRepository(db);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    wrote(),
+  );
 
   projects = new ProjectService({ projects: projectStore });
   workItems = new WorkItemService({
@@ -170,22 +180,28 @@ describe('a service and the ownership map decide no date, on a plan where a labe
     serviceId: string;
     otherServiceId: string;
   }> {
-    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const payments = await directoryStore.addService({
-      id: crypto.randomUUID(),
-      name: 'Payments',
-    });
-    const auth = await directoryStore.addService({ id: crypto.randomUUID(), name: 'Auth' });
+    const platform = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Platform' },
+      wrote(),
+    );
+    const payments = await directoryStore.addService(
+      { id: crypto.randomUUID(), name: 'Payments' },
+      wrote(),
+    );
+    const auth = await directoryStore.addService(
+      { id: crypto.randomUUID(), name: 'Auth' },
+      wrote(),
+    );
     // The team owns what it is building, so the plan starts in the state the
     // signal calls *matched*. Every edit below moves it out of that state and
     // back, which is the map being exercised rather than merely present.
-    await directoryStore.patchTeam(platform.id, { serviceIds: [payments.id] });
+    await directoryStore.patchTeam(platform.id, { serviceIds: [payments.id] }, wrote());
     const strip = await root('Strip the roof');
     const cable = await root('Cable it', strip);
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     await workItems.setEstimate(cable, ownerId, dev(), DAYS);
     // One at a time, which is what makes the team label decide a date.
-    await capacityStore.set(projectId, platform.id, 1);
+    await capacityStore.set(projectId, platform.id, 1, wrote());
     await workItems.patch(strip, ownerId, {
       serviceTeamId: platform.id,
       serviceIds: [payments.id],
@@ -253,7 +269,7 @@ describe('a service and the ownership map decide no date, on a plan where a labe
 
     const before = await datesNow();
 
-    const removed = await directoryStore.removeService(serviceId, true);
+    const removed = await directoryStore.removeService(serviceId, true, wrote());
     expect(removed.ok).toBe(true);
 
     // The cascade really emptied the rows — off the join table, which is where
@@ -290,13 +306,13 @@ describe('a service and the ownership map decide no date, on a plan where a labe
 
     const before = await datesNow();
 
-    await directoryStore.patchTeam(teamId, { serviceIds: [otherServiceId] });
+    await directoryStore.patchTeam(teamId, { serviceIds: [otherServiceId] }, wrote());
     expect(await datesNow()).toEqual(before);
 
-    await directoryStore.patchTeam(teamId, { serviceIds: [serviceId, otherServiceId] });
+    await directoryStore.patchTeam(teamId, { serviceIds: [serviceId, otherServiceId] }, wrote());
     expect(await datesNow()).toEqual(before);
 
-    await directoryStore.patchTeam(teamId, { serviceIds: [] });
+    await directoryStore.patchTeam(teamId, { serviceIds: [] }, wrote());
     expect(await datesNow()).toEqual(before);
   });
 

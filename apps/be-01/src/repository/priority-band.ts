@@ -2,7 +2,8 @@ import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { asc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { PriorityBandStore, PriorityBandsWritten } from './index';
+import { auditOnCreate } from './audit';
+import type { PriorityBandStore, PriorityBandsWritten, WriteStamp } from './index';
 import { project, projectPriorityBand } from './schema';
 
 /**
@@ -92,7 +93,11 @@ export class PriorityBandRepository implements PriorityBandStore {
    * project_priority_band.rank` — five rows written over five that were never
    * taken away. Watched 2026-08-14.
    */
-  async replace(projectId: string, bands: readonly PriorityBand[]): Promise<PriorityBandsWritten> {
+  async replace(
+    projectId: string,
+    bands: readonly PriorityBand[],
+    stamp: WriteStamp,
+  ): Promise<PriorityBandsWritten> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       const held = tx
@@ -110,6 +115,9 @@ export class PriorityBandRepository implements PriorityBandStore {
             startsAt: band.startsAt,
             label: band.label.trim(),
             defaultValue: band.defaultValue,
+            // Every rung is created here, never updated: the ladder is deleted
+            // whole and written whole, which is what the delete above is for.
+            ...auditOnCreate(stamp),
           })),
         )
         .run();

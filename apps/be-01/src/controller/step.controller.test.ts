@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import type { WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
@@ -52,10 +53,21 @@ let progressStore: StepProgressRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projects: ProjectRepository;
+let seededBy: string;
 
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 
-beforeEach(() => {
+/**
+ * The stamp the rows this file seeds straight into the repositories carry.
+ *
+ * The account exists only so they have one: `created_by` references `users(id)`
+ * and this file is against real SQLite, while the plans below belong to accounts
+ * `register` makes through the route and hands back nothing but a token. Nothing
+ * here asserts on either field.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: seededBy });
+
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-http-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
@@ -69,6 +81,12 @@ beforeEach(() => {
   progressStore = new StepProgressRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
+
+  seededBy = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: seededBy, username: 'the-fixture', passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: seededBy },
+  );
 
   app = buildApp({
     directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
@@ -349,12 +367,12 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
   it('refuses with 409 and the counts, then removes on the cascade', async () => {
     const token = await register('owner');
     const project = await newProject(token);
-    await workItems.insert(item(project.id, 'strip', 10), []);
-    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS });
+    await workItems.insert(item(project.id, 'strip', 10), [], wrote());
+    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', project.qaId, ada.id);
+    await directory.assign('strip', project.qaId, ada.id, wrote());
 
     const refused = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
       method: 'DELETE',
@@ -472,7 +490,7 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
     const project = await newProject(token);
     const strip = await newWorkItem(project.id, token, 'Strip');
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
     await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, { method: 'DELETE' });
 
@@ -526,8 +544,8 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
   it('takes the cascade only when it is asked for by name', async () => {
     const token = await register('owner');
     const project = await newProject(token);
-    await workItems.insert(item(project.id, 'strip', 10), []);
-    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS });
+    await workItems.insert(item(project.id, 'strip', 10), [], wrote());
+    await estimates.set({ workItemId: 'strip', stepId: project.qaId, ...DAYS }, wrote());
 
     // Anything other than `true` is not a confirmation. A truthy-looking value
     // taken as consent is how a step goes with its estimates on a request

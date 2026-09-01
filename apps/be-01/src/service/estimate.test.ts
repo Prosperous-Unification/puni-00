@@ -75,10 +75,14 @@ beforeEach(async () => {
   };
   // The two steps these cases estimate against. A project that held neither
   // would refuse every write here, as production's foreign key does.
-  await projects.create(project, [
-    { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
-    { id: QA, projectId: project.id, name: 'QA', position: 20 },
-  ]);
+  await projects.create(
+    project,
+    [
+      { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
+      { id: QA, projectId: project.id, name: 'QA', position: 20 },
+    ],
+    { at: 1, by: OWNER },
+  );
   projectId = project.id;
 });
 
@@ -236,7 +240,7 @@ describe('clearing estimates', () => {
   it('refuses a stranger on a restricted project, and clears nothing', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
-    await projects.update(projectId, { restricted: true });
+    await projects.update(projectId, { restricted: true }, { at: 1, by: OWNER });
 
     const outcome = await service.clearEstimate(strip, 'not-the-owner', DEV);
 

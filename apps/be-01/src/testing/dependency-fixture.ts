@@ -1,15 +1,23 @@
-import type { DependencyStore, StoredDependency } from '../repository';
+import type { DependencyStore, StoredDependency, WriteStamp } from '../repository';
 
 /** The dependency table in an array, for tests whose subject is not SQLite. */
 export function inMemoryDependencies(seed: readonly StoredDependency[] = []): DependencyStore & {
   readonly rows: StoredDependency[];
+  stampsSeen: WriteStamp[];
 } {
   const rows: StoredDependency[] = [...seed];
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
   return {
     rows,
+    stampsSeen,
     listByProject: (projectId) =>
       Promise.resolve(rows.filter((row) => row.projectId === projectId)),
-    add(toAdd) {
+    add(toAdd, stamp) {
+      stampsSeen.push(stamp);
       // The real one leans on the unique pair; this mirrors it, because a test
       // that could hold the same edge twice would not be modelling the database.
       const already = rows.some(
@@ -18,14 +26,16 @@ export function inMemoryDependencies(seed: readonly StoredDependency[] = []): De
       if (!already) rows.push(toAdd);
       return Promise.resolve();
     },
-    remove(predecessorId, successorId) {
+    remove(predecessorId, successorId, stamp) {
+      stampsSeen.push(stamp);
       const index = rows.findIndex(
         (row) => row.predecessorId === predecessorId && row.successorId === successorId,
       );
       if (index >= 0) rows.splice(index, 1);
       return Promise.resolve();
     },
-    removeAllFor(workItemId) {
+    removeAllFor(workItemId, stamp) {
+      stampsSeen.push(stamp);
       const kept = rows.filter(
         (row) => row.predecessorId !== workItemId && row.successorId !== workItemId,
       );

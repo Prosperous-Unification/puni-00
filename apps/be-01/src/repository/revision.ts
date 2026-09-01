@@ -1,6 +1,8 @@
 import { eq, inArray, type SQL, sql } from 'drizzle-orm';
 
+import { auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
+import type { WriteStamp } from './index';
 import { project, workItem } from './schema';
 
 /**
@@ -61,18 +63,34 @@ export function bumpedWorkItemOnReparent(parentId: string | null): SQL {
  * An empty list is a no-op rather than an error: `removeAllFor` on a work item
  * nothing depends on genuinely has nothing to bump, and drizzle would otherwise
  * emit `IN ()`, which SQLite refuses.
+ *
+ * **Stamped, and that is a claim worth defending.** This statement writes the
+ * work item's `revision` column, so by the rule the whole folder keeps —
+ * `updated_at` records what was written — it moves the row's update clock even
+ * though the thing the reader edited was an estimate in another table. That is
+ * the answer a reader wants from "when did this work item last change": a plan
+ * whose figures moved yesterday did change yesterday. `audit.test.ts` found this
+ * statement unstamped and is what will notice if it stops being.
  */
-export function bumpWorkItems(writer: RevisionWriter, ids: readonly string[]): void {
+export function bumpWorkItems(
+  writer: RevisionWriter,
+  ids: readonly string[],
+  stamp: WriteStamp,
+): void {
   const distinct = [...new Set(ids)];
   if (distinct.length === 0) return;
   writer
     .update(workItem)
-    .set({ revision: bumpedWorkItem })
+    .set({ revision: bumpedWorkItem, ...auditOnUpdate(stamp) })
     .where(inArray(workItem.id, distinct))
     .run();
 }
 
 /** The same, for one project — its own fields and its steps. */
-export function bumpProject(writer: RevisionWriter, id: string): void {
-  writer.update(project).set({ revision: bumpedProject }).where(eq(project.id, id)).run();
+export function bumpProject(writer: RevisionWriter, id: string, stamp: WriteStamp): void {
+  writer
+    .update(project)
+    .set({ revision: bumpedProject, ...auditOnUpdate(stamp) })
+    .where(eq(project.id, id))
+    .run();
 }

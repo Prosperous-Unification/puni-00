@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { personAdded } from '../testing/directory-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -16,12 +16,20 @@ import { WorkItemRepository } from './work-item';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+let ownerId: string;
 let repo: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
 let stepId: string;
 let otherStepId: string;
 let itemId: string;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-directory-'));
@@ -31,13 +39,11 @@ beforeEach(async () => {
   repo = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   stepId = crypto.randomUUID();
   otherStepId = crypto.randomUUID();
@@ -57,7 +63,7 @@ beforeEach(async () => {
     { id: stepId, projectId, name: 'Dev', position: 10 },
     { id: otherStepId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps);
+  await new ProjectRepository(db).create(project, steps, wrote());
   itemId = crypto.randomUUID();
   const item: WorkItem = {
     id: itemId,
@@ -74,7 +80,7 @@ beforeEach(async () => {
     maxParallel: 1,
     revision: 0,
   };
-  await workItems.insert(item, []);
+  await workItems.insert(item, [], wrote());
 });
 
 afterEach(() => {
@@ -85,8 +91,8 @@ describe('DirectoryRepository', () => {
   it('adds a team, and adding the same name again gives back the same row', async () => {
     // The picker types a name when the list does not have it, so this is the
     // ordinary path rather than a race nobody hits.
-    const first = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const again = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const first = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
+    const again = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
 
     expect(again.id).toBe(first.id);
     expect((await repo.listTeams()).map((t) => t.name)).toEqual(['Platform']);
@@ -98,12 +104,12 @@ describe('DirectoryRepository', () => {
     // half of the same removal, and the two are deliberately separate claims:
     // an ownership row about a service that no longer exists is not an effect
     // on any plan (spec), so it goes silently, while the work item stays.
-    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const payments = await repo.addService({ id: crypto.randomUUID(), name: 'Payments' });
-    const auth = await repo.addService({ id: crypto.randomUUID(), name: 'Auth' });
-    await repo.patchTeam(platform.id, { serviceIds: [payments.id, auth.id] });
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
+    const payments = await repo.addService({ id: crypto.randomUUID(), name: 'Payments' }, wrote());
+    const auth = await repo.addService({ id: crypto.randomUUID(), name: 'Auth' }, wrote());
+    await repo.patchTeam(platform.id, { serviceIds: [payments.id, auth.id] }, wrote());
 
-    const removed = await repo.removeService(payments.id, true);
+    const removed = await repo.removeService(payments.id, true, wrote());
     expect(removed.ok).toBe(true);
 
     // `Auth` survives on the same team: the cascade takes the rows naming the
@@ -114,15 +120,17 @@ describe('DirectoryRepository', () => {
   });
 
   it('deduplicates the owned set rather than letting the primary key throw', async () => {
-    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const payments = await repo.addService({ id: crypto.randomUUID(), name: 'Payments' });
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
+    const payments = await repo.addService({ id: crypto.randomUUID(), name: 'Payments' }, wrote());
 
     // A client naming the same service twice means exactly what it says. Left
     // to the pair primary key it would be a 500 for a well-formed request —
     // `patchPerson`'s reasoning, one dimension over.
-    const written = await repo.patchTeam(platform.id, {
-      serviceIds: [payments.id, payments.id],
-    });
+    const written = await repo.patchTeam(
+      platform.id,
+      { serviceIds: [payments.id, payments.id] },
+      wrote(),
+    );
 
     expect(written).toEqual({
       ok: true,
@@ -132,12 +140,14 @@ describe('DirectoryRepository', () => {
   });
 
   it('keeps a person in several teams at once', async () => {
-    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const billing = await repo.addTeam({ id: crypto.randomUUID(), name: 'Billing' });
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
+    const billing = await repo.addTeam({ id: crypto.randomUUID(), name: 'Billing' }, wrote());
     const ada = await personAdded(
-      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id]),
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id], wrote()),
     );
-    await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [billing.id]));
+    await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [billing.id], wrote()),
+    );
 
     const people = await repo.listPeople();
 
@@ -147,7 +157,7 @@ describe('DirectoryRepository', () => {
   });
 
   it('leaves a person with no team a free agent, not a member of anything', async () => {
-    await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));
+    await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, [], wrote()));
 
     // The empty array, not a magic team id: a real "Free agents" row could be
     // renamed, deleted or given work of its own.
@@ -158,9 +168,11 @@ describe('DirectoryRepository', () => {
     // The two halves of `PersonInsert`'s asymmetry, in one case because they are
     // one claim: the kind may be omitted going in, and never comes back absent.
     const bot = await personAdded(
-      repo.addPerson({ id: crypto.randomUUID(), name: 'Claire', kind: 'agent' }, []),
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Claire', kind: 'agent' }, [], wrote()),
     );
-    const human = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
+    const human = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
+    );
 
     expect(bot.kind).toBe('agent');
     expect(human.kind).toBe('person');
@@ -177,12 +189,12 @@ describe('DirectoryRepository', () => {
   });
 
   it('writes a name and a kind in one update, and a kind alone in one too', async () => {
-    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
     const ada = await personAdded(
-      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id]),
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id], wrote()),
     );
 
-    const both = await repo.patchPerson(ada.id, { name: 'Ada L', kind: 'agent' });
+    const both = await repo.patchPerson(ada.id, { name: 'Ada L', kind: 'agent' }, wrote());
 
     expect(both).toEqual({
       ok: true,
@@ -193,7 +205,7 @@ describe('DirectoryRepository', () => {
     // A patch naming only the kind still writes: the store must not read an
     // absent `name` as "nothing to do" — deciding that is the service's job,
     // and here it would silently drop the only field the caller sent.
-    const kindOnly = await repo.patchPerson(ada.id, { kind: 'person' });
+    const kindOnly = await repo.patchPerson(ada.id, { kind: 'person' }, wrote());
 
     expect(kindOnly).toEqual({
       ok: true,
@@ -203,11 +215,15 @@ describe('DirectoryRepository', () => {
   });
 
   it('holds one assignee per step, replacing rather than adding', async () => {
-    const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
-    const grace = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));
+    const ada = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
+    );
+    const grace = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, [], wrote()),
+    );
 
-    await repo.assign(itemId, stepId, ada.id);
-    await repo.assign(itemId, stepId, grace.id);
+    await repo.assign(itemId, stepId, ada.id, wrote());
+    await repo.assign(itemId, stepId, grace.id, wrote());
 
     expect(await repo.assignmentsOf([itemId])).toEqual([
       { workItemId: itemId, stepId, personId: grace.id },
@@ -219,7 +235,9 @@ describe('DirectoryRepository', () => {
     // survivor to prove it. The first attempt at this test had one work item,
     // so narrowing the delete to the step alone — which would clear that step
     // on every work item in the database — passed it.
-    const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
+    const ada = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
+    );
     const otherItemId = crypto.randomUUID();
     await workItems.insert(
       {
@@ -238,12 +256,13 @@ describe('DirectoryRepository', () => {
         revision: 0,
       },
       [],
+      wrote(),
     );
-    await repo.assign(itemId, stepId, ada.id);
-    await repo.assign(itemId, otherStepId, ada.id);
-    await repo.assign(otherItemId, stepId, ada.id);
+    await repo.assign(itemId, stepId, ada.id, wrote());
+    await repo.assign(itemId, otherStepId, ada.id, wrote());
+    await repo.assign(otherItemId, stepId, ada.id, wrote());
 
-    await repo.assign(itemId, stepId, null);
+    await repo.assign(itemId, stepId, null, wrote());
 
     const left = await repo.assignmentsOf([itemId, otherItemId]);
     expect(left).toHaveLength(2);
@@ -259,7 +278,7 @@ describe('DirectoryRepository', () => {
     // holding a picker rendered a moment too early is out of date, not broken.
     const gone = crypto.randomUUID();
 
-    expect(await repo.assign(itemId, stepId, gone)).toEqual({
+    expect(await repo.assign(itemId, stepId, gone, wrote())).toEqual({
       ok: false,
       reason: 'unknown_person',
     });
@@ -267,14 +286,14 @@ describe('DirectoryRepository', () => {
   });
 
   it('refuses a label naming a team that has been removed', async () => {
-    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    await workItems.patch(itemId, { serviceTeamId: platform.id });
-    await repo.removeTeam(platform.id, true);
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' }, wrote());
+    await workItems.patch(itemId, { serviceTeamId: platform.id }, wrote());
+    await repo.removeTeam(platform.id, true, wrote());
 
     // `work_item.service_team_id` has no foreign key, so nothing under this
     // would refuse the write: without the read in the update's own transaction
     // the row simply carries an id the directory does not hold.
-    expect(await workItems.patch(itemId, { serviceTeamId: platform.id })).toEqual({
+    expect(await workItems.patch(itemId, { serviceTeamId: platform.id }, wrote())).toEqual({
       ok: false,
       reason: 'unknown_team',
     });
