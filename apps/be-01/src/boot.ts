@@ -117,6 +117,16 @@ export function bootBe01(opts: BootOptions): RunningBe {
       // `created_by`. `Date.now()` here rather than an injected clock because
       // boot is not a service and has none — the rule the stamp exists for is
       // that the *repository* reads no clock, and this is the caller.
+      //
+      // **This has to finish before the first write, and it does.** Every audit
+      // column's `created_by` references `users(id)` with foreign keys on, so a
+      // write attributed to this identity before its row exists is a
+      // `FOREIGN KEY constraint failed` rather than a quiet null. Nothing here
+      // refuses requests in the meantime — `migrationsApplied` gates `/health`
+      // alone — and the window is closed one layer out instead: `/health`
+      // answers 503 `migrating` until the line below, and both things that send
+      // the first request wait for a 200 first. Playwright's `webServer` does,
+      // and so does the deploy poller before it routes traffic to green.
       new UserRepository(db).ensureLocalIdentity(opts.localIdentity, {
         at: Date.now(),
         by: opts.localIdentity.id,
