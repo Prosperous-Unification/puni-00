@@ -92,7 +92,7 @@ describe('project events reach the sockets that asked for them', () => {
     await settle();
 
     const res = await push(subscription, {
-      type: 'work_items_changed',
+      type: 'tree_replaced',
       workItems: [{ id: 'w1', number: '010', name: 'Strip' }],
     });
 

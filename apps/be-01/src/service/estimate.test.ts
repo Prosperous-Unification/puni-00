@@ -118,7 +118,7 @@ async function shown(): Promise<Map<string, Record<string, Days>>> {
  */
 function namesIn(event: ProjectEvent | undefined): string[] {
   if (event === undefined) throw new Error('nothing was published');
-  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+  if (event.type !== 'tree_replaced') {
     throw new Error(`a ${event.type} event carries no work items`);
   }
   return event.workItems.map((each) => each.name);
@@ -256,9 +256,9 @@ describe('clearing estimates', () => {
   });
 
   it('tells the project’s subscribers, with the ancestors whose totals moved', async () => {
-    // The same narrow announce `setEstimate` sends. Without it a peer's table
-    // keeps showing a figure be-01 no longer holds until something else
-    // happens to refresh it.
+    // The same announce `setEstimate` sends. Without it a peer's table keeps
+    // showing a figure be-01 no longer holds until something else happens to
+    // refresh it. The ancestors ride along because the event is the whole plan.
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
     await service.setEstimate(sockets, OWNER, DEV, days(1, 2, 3));
@@ -268,7 +268,7 @@ describe('clearing estimates', () => {
 
     const last = broadcast.published.at(-1);
     expect(last?.projectId).toBe(projectId);
-    expect(last?.event.type).toBe('work_items_changed');
-    expect(namesIn(last?.event)).toEqual(['Sockets', 'Strip']);
+    expect(last?.event.type).toBe('tree_replaced');
+    expect(namesIn(last?.event)).toEqual(['Strip', 'Sockets']);
   });
 });

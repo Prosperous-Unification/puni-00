@@ -50,7 +50,6 @@ import { isForeignKeyViolation } from '../repository/constraint';
 import { MEASURE_METRICS } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
-import { withAncestors } from './broadcast';
 import {
   type CompensatingCommand,
   quoteName,
@@ -1783,7 +1782,7 @@ export class WorkItemService {
     const written = await this.opts.workItems.patch(id, patch, stamp);
     if (!written.ok) return { ok: false, reason: written.reason };
     const updated = written.workItem;
-    await this.announceWorkItem(updated.projectId, id);
+    await this.announceTree(updated.projectId);
     // A patch naming no field wrote nothing — the store returns the row it
     // found — so there is nothing to reverse. Journalling it would put an
     // entry on the stack whose undo is visibly a no-op.
@@ -1835,7 +1834,7 @@ export class WorkItemService {
     );
     if (assigned === null) return { ok: false, reason: 'unknown_step' };
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2531,7 +2530,7 @@ export class WorkItemService {
       this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2580,7 +2579,7 @@ export class WorkItemService {
     // act begins at the write, not at the recording of it.
     const stamp = this.stampFor(actorId);
     await this.opts.estimates.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Clearing a trio that was not there changed nothing — the call is
     // idempotent by design — so there is nothing to put back.
     if (before !== null) {
@@ -2642,7 +2641,7 @@ export class WorkItemService {
       this.opts.actuals.set({ workItemId: id, stepId, days, recordedAt: stamp.at }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2682,7 +2681,7 @@ export class WorkItemService {
     const before = await this.storedActual(workItem.projectId, id, stepId);
     const stamp = this.stampFor(actorId);
     await this.opts.actuals.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stored, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` makes, and the reason a plan does not gain
     // a history row every time somebody empties an empty box.
@@ -2756,7 +2755,7 @@ export class WorkItemService {
       ),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2805,7 +2804,7 @@ export class WorkItemService {
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
     const stamp = this.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stored in this metric, so nothing changed and there is
     // nothing to put back — `clearActual`'s skip, per metric.
     if (before !== null) {
@@ -2872,7 +2871,7 @@ export class WorkItemService {
       this.opts.progress.set({ workItemId: id, stepId, state, statedAt: stamp.at }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2915,7 +2914,7 @@ export class WorkItemService {
     const before = await this.storedProgress(workItem.projectId, id, stepId);
     const stamp = this.stampFor(actorId);
     await this.opts.progress.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stated, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` and `clearActual` make, and the reason a
     // plan does not gain a history row every time somebody clears an empty box.
@@ -3938,20 +3937,6 @@ export class WorkItemService {
     await this.opts.broadcast.publish(projectId, {
       type: 'tree_replaced',
       workItems: tree.workItems,
-    });
-  }
-
-  /** Sends one work item and its ancestors, whose roll-ups its change moved. */
-  private async announceWorkItem(projectId: string, id: string): Promise<void> {
-    if (this.collector !== null) {
-      this.collector.dirty = true;
-      return;
-    }
-    const tree = await this.tree(projectId);
-    if (tree === null) return;
-    await this.opts.broadcast.publish(projectId, {
-      type: 'work_items_changed',
-      workItems: withAncestors(tree.workItems, id),
     });
   }
 

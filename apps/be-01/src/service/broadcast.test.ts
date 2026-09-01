@@ -99,7 +99,7 @@ const latest = () => broadcast.published.at(-1);
  */
 function namesIn(event: ProjectEvent | undefined): string[] {
   if (event === undefined) throw new Error('nothing was published');
-  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+  if (event.type !== 'tree_replaced') {
     throw new Error(`a ${event.type} event carries no work items`);
   }
   return event.workItems.map((each) => each.name);
@@ -123,7 +123,12 @@ describe('what a project subscriber receives', () => {
     expect(latest()?.event.type).toBe('tree_replaced');
   });
 
-  it('sends a narrow patch when an estimate changes, with the ancestors it moved', async () => {
+  // A cell edit used to send the edited row and its ancestors. It cannot any
+  // more: every write arrives in a batch, the batch announces once after it
+  // commits, and there is no single row to name. What these two hold is that a
+  // figure edit and a name edit each still reach subscribers, carrying the
+  // whole plan and therefore the ancestors whose totals moved with it.
+  it('sends the whole tree when an estimate changes, ancestors included', async () => {
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
     const boxes = await add('Back boxes', sockets);
@@ -136,19 +141,17 @@ describe('what a project subscriber receives', () => {
     });
 
     const event = latest()?.event;
-    expect(event?.type).toBe('work_items_changed');
-    // The edited work item and the two above it, whose totals just changed —
-    // and nothing else, which is the whole point of the narrow shape.
-    expect(namesIn(event)).toEqual(['Back boxes', 'Sockets', 'Strip']);
+    expect(event?.type).toBe('tree_replaced');
+    expect(namesIn(event)).toEqual(['Strip', 'Sockets', 'Back boxes']);
   });
 
-  it('sends a narrow patch when a name changes', async () => {
+  it('sends the whole tree when a name changes', async () => {
     const strip = await add('Strip');
     broadcast.published.length = 0;
 
     await service.patch(strip, OWNER, { name: 'Strip the old wiring' });
 
-    expect(latest()?.event.type).toBe('work_items_changed');
+    expect(latest()?.event.type).toBe('tree_replaced');
     expect(namesIn(latest()?.event)).toEqual(['Strip the old wiring']);
   });
 

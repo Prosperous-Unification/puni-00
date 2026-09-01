@@ -114,7 +114,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                                       | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
 | W0-5  | Close the three column leaks (N3): `toProject` names its fields; `work-item.ts:547` and `directory.ts:127` take column lists; promote `WORK_ITEM_COLUMNS`/`USER_COLUMNS` beside their tables; a source-reading test in `audit.test.ts`'s shape fails on a bare `select()`/`returning()` in the folder. | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
 | W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                              | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
-| W0-7  | Delete the unreachable one-item broadcast path (N5): fourteen `announceWorkItem` calls → `markDirty()`; delete `withAncestors`, `work_items_changed`; rewrite `broadcast.ts:7–13`.                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
+| W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
 | W0-8  | `parseOrThrow` never prints a value (N7): an options argument naming paths only; a negative asserting no env value appears in a boot-failure message.                                                                                                                                                  | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
 | W0-9  | Reconcile `step.service.ts:212` with `repository/step.ts:373` (N9): one exported predicate, one test that both call it.                                                                                                                                                                                | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
 | W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
@@ -473,3 +473,45 @@ doc why it is the only route shaped this way.
 
 **Green:** `be-01` test (1263 pass, 0 fail), lint, typecheck. No behaviour changed; no test needed
 editing, which is itself the check that these were names rather than code.
+
+## 10 · Verify — W0-7, 2026-09-02
+
+**The unreachability, established before anything was deleted.** `announceWorkItem` and
+`announceTree` both return early when a collector is installed, so the narrow event ships only on a
+direct, uncollected call. Every production path is collected:
+
+- The ten mutators that call it (`patch`, `rename`, the four `setX`, the four `clearX`) are reached
+  from exactly one non-test place, `plan-commands.ts`, in the `applyAll` at `:309–422`.
+- `applyAll` runs inside `workItems.collect(...)` at `plan-commands.ts:138`.
+- The other entry, undo and redo, runs inside `workItems.collect(step)` at `:190` — `walk`, which is
+  what the two undo routes call.
+
+So the publish branch could not be reached, and `withAncestors` computed a full schedule to keep one
+ancestor chain from it that was then thrown away.
+
+**The deletion test is the suite.** Deleting the branch and pointing the ten call sites at
+`announceTree` left `be-01` at **1260 pass, 3 fail** — and all three failures assert the shape
+production never sends:
+
+```
+(fail) clearing estimates > tells the project's subscribers, with the ancestors whose totals moved
+(fail) what a project subscriber receives > sends a narrow patch when an estimate changes, …
+(fail) what a project subscriber receives > sends a narrow patch when a name changes
+```
+
+They are rewritten rather than deleted, because their intent is right and only their claim was
+stale: a figure edit and a name edit must still reach subscribers. They now assert the whole tree
+arrives, ancestors included, which is what a peer actually receives. Four more files used
+`work_items_changed` as an arbitrary sample payload and take `tree_replaced` instead; the two
+variants carry identical fields, so those substitutions are exact.
+
+**`broadcast.ts:7–13`'s rationale is rewritten from what is true now.** It argued at length for two
+shapes because "a cell edit touches one work item and its ancestors' totals, and that is a small
+patch worth computing". The command bus retired that: a write arrives in a batch, the batch
+announces once after it commits, and a batch is any set of rows at all — so there is no per-row
+change left to describe. The comment now says that, and says the narrow shape survived unreachable
+for two releases, so the next reader does not restore it.
+
+**Green:** `be-01` 1263 pass, `gw-01` 59 pass, `fe-01` 2046 pass across 66 files; lint and typecheck
+on all three; `format:check --all`. fe-01 is in the list on purpose — it is the consumer of these
+events, and a shape it still expected would have failed there rather than in be-01.

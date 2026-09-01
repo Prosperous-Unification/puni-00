@@ -8,7 +8,7 @@ import { type PushClient, PushFailed } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
 
-const EVENT: ProjectEvent = { type: 'work_items_changed', workItems: [] };
+const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
 
 /** A push client that records what it was handed, or refuses everything. */
 function fakePush(mode: 'accepts' | 'refuses' = 'accepts') {
