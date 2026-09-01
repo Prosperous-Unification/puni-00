@@ -386,7 +386,7 @@ function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
       cellWidth: Math.round(cellBox.width),
       cellHeight: Math.round(cellBox.height),
       clipped: cell.scrollWidth > cell.clientWidth,
-      title: drawn.getAttribute('data-hint'),
+      title: drawn.getAttribute('data-fact'),
       hasExpander: cell.querySelector('button') !== null,
       hasLock: cell.querySelector('[aria-label="Number is frozen"]') !== null,
     };
@@ -468,7 +468,7 @@ function visibleNumberIn(page: Page, number: string): Promise<VisibleNumber> {
       if (range.getBoundingClientRect().right > clipRight + 0.5) break;
       shown = end;
     }
-    return { visible: wanted.slice(0, shown), title: drawn.getAttribute('data-hint') };
+    return { visible: wanted.slice(0, shown), title: drawn.getAttribute('data-fact') };
   }, number);
 }
 
@@ -2501,7 +2501,7 @@ test.describe('the table, measured by a browser', () => {
       return numbers.map((number) => {
         const nameBox = document.querySelector(`[aria-label="Name of ${number}"]`);
         const numberSpan =
-          nameBox?.closest('tr')?.querySelector<HTMLElement>(`span[data-hint="${number}"]`) ?? null;
+          nameBox?.closest('tr')?.querySelector<HTMLElement>(`span[data-fact="${number}"]`) ?? null;
         const nameCell = nameBox?.closest('td') ?? null;
         if (!(nameBox instanceof HTMLElement) || numberSpan === null || nameCell === null) {
           throw new Error(`no indent-carrying cells on screen for ${number}`);

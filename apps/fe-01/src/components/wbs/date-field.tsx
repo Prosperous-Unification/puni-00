@@ -1,13 +1,13 @@
 import { type ComponentProps, useEffect, useRef } from 'react';
 
-import { type Hintable } from '@/components/wbs/hint';
+import { type Factable, type Hintable } from '@/components/wbs/hint';
 
 type PassedThrough = Omit<
   ComponentProps<'input'>,
   'type' | 'value' | 'defaultValue' | 'onChange' | 'onBlur'
 >;
 
-export interface DateFieldProps extends PassedThrough, Hintable {
+export interface DateFieldProps extends PassedThrough, Hintable, Factable {
   /** The day the server holds, as `YYYY-MM-DD`, or `''` for no day at all. */
   value: string;
   /**

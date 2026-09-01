@@ -897,7 +897,7 @@ describe('the plan on a phone', () => {
     expect(onCard?.textContent).toBe('1 Jun → 3 Jun');
     // And the full days are still a hover away, the same bargain the table's
     // cells make.
-    expect(onCard?.getAttribute('data-hint')).toBe(`${DATED_PLAN.startsOn} → ${DATED_PLAN.endsOn}`);
+    expect(onCard?.getAttribute('data-fact')).toBe(`${DATED_PLAN.startsOn} → ${DATED_PLAN.endsOn}`);
 
     resizeTo(LAPTOP);
 
@@ -917,7 +917,7 @@ describe('the plan on a phone', () => {
     expect(onCard?.textContent).toBe('0 → 0');
     // Nothing fuller to say, so nothing said: a `title` repeating the cell is
     // noise a screen reader has to read out.
-    expect(onCard?.getAttribute('data-hint')).toBe(null);
+    expect(onCard?.getAttribute('data-fact')).toBe(null);
 
     resizeTo(LAPTOP);
 
@@ -1467,7 +1467,7 @@ describe('what a card says about capacity', () => {
     expect(cards[0]?.textContent).toBe('Billing');
     expect(cards[1]?.textContent).toBe('↳ Billing');
     expect(cards[1]?.getAttribute('data-inherited')).toBe('true');
-    expect(cards[1]?.getAttribute('data-hint')).toContain('inherited from');
+    expect(cards[1]?.getAttribute('data-fact')).toContain('inherited from');
   });
 
   itDom('draws no team line at all where nothing above carries a label', async () => {
@@ -1510,7 +1510,7 @@ describe('what a card says about capacity', () => {
     expect(cards[0]?.textContent).toBe('Payments');
     expect(cards[1]?.textContent).toBe('↳ Payments');
     expect(cards[1]?.getAttribute('data-inherited')).toBe('true');
-    expect(cards[1]?.getAttribute('data-hint')).toContain('inherited from');
+    expect(cards[1]?.getAttribute('data-fact')).toContain('inherited from');
   });
 
   itDom('draws no service line at all where nothing above delivers anything', async () => {
@@ -1545,7 +1545,7 @@ describe('what a card says about capacity', () => {
     const child = cards[1];
     expect(child.querySelector('[data-card-tags]')?.textContent).toBe('Ready');
     expect(child.querySelector('[data-card-tags-inherited]')?.textContent).toBe('↳ Risk');
-    expect(child.getAttribute('data-hint')).toBe(
+    expect(child.getAttribute('data-fact')).toBe(
       // `(unnamed)` because the fixture creates rows with no name at all —
       // the tree's own words for a row nobody has titled, which is what the
       // card would show a reader too.
@@ -1654,10 +1654,13 @@ describe('what a card says about capacity', () => {
       // still pass on the tooltip.
       await aMismatchedPlan();
 
-      for (const each of mismatchesOnCard()) expect(each.getAttribute('data-hint')).toBeNull();
-      expect(
-        document.querySelector('[data-card-mismatches]')?.getAttribute('data-hint'),
-      ).toBeNull();
+      // Either attribute, since `tool-hints-wait`: a copy of the sentence left in
+      // a `data-fact` would let the visible text be deleted and this still pass,
+      // which is exactly what the `title` version of this check was about.
+      const surfaceOn = (node: Element | null | undefined): string | null =>
+        node?.getAttribute('data-hint') ?? node?.getAttribute('data-fact') ?? null;
+      for (const each of mismatchesOnCard()) expect(surfaceOn(each)).toBeNull();
+      expect(surfaceOn(document.querySelector('[data-card-mismatches]'))).toBeNull();
       // The glyph is decoration now that the sentence beside it is the accessible
       // name; a screen reader announcing the triangle first would read it out.
       expect(mismatchesOnCard()[0]?.querySelector('[aria-hidden]')?.textContent).toBe('△');
@@ -1721,7 +1724,7 @@ describe('what a card says about capacity', () => {
     const chip = document.querySelector<HTMLElement>('[data-card-priority]');
     expect(chip?.textContent).toBe('Critical 5');
     expect(chip?.getAttribute('data-priority-rank')).toBe('0');
-    expect(chip?.getAttribute('data-hint')).toBe('Critical — priority 5');
+    expect(chip?.getAttribute('data-fact')).toBe('Critical — priority 5');
     // A colour, and the plan's own — the same `priorityBandStyleOf` the table's
     // cell and the chart's cap read.
     expect(chip?.style.color).not.toBe('');
@@ -1824,7 +1827,7 @@ describe('what a card says about the schedule', () => {
 
     expect(slackOnCard()?.textContent).toBe('2.5d slack');
     expect(slackOnCard()?.getAttribute('data-critical')).toBeNull();
-    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
+    expect(slackOnCard()?.getAttribute('data-fact')).toBe(
       'This work item can slip 2.5 workdays before the plan finishes later.',
     );
   });
@@ -1834,7 +1837,7 @@ describe('what a card says about the schedule', () => {
       rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
     });
 
-    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
+    expect(slackOnCard()?.getAttribute('data-fact')).toBe(
       'This work item can slip 1 workday before the plan finishes later.',
     );
   });
@@ -1849,7 +1852,7 @@ describe('what a card says about the schedule', () => {
 
     expect(slackOnCard()?.textContent).toBe('critical');
     expect(slackOnCard()?.getAttribute('data-critical')).toBe('true');
-    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
+    expect(slackOnCard()?.getAttribute('data-fact')).toBe(
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
@@ -2202,7 +2205,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
       expect(items[2]).toHaveAttribute(
-        'data-hint',
+        'data-fact',
         'Frozen — unfreeze this row before deleting it',
       );
 
@@ -2408,7 +2411,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
-    expect(items[2]).toHaveAttribute('data-hint', 'Frozen — unfreeze this row before deleting it');
+    expect(items[2]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
     expect(items[2]).toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -2971,7 +2974,7 @@ describe('setting a card’s earliest start', () => {
 
     const field = dateFields()[0];
     expect(field.hasAttribute('disabled')).toBe(true);
-    expect(field.getAttribute('data-hint')).toBe(
+    expect(field.getAttribute('data-fact')).toBe(
       'Set the project start date first — without one there are no dates to constrain.',
     );
 

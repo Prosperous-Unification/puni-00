@@ -574,6 +574,23 @@ face folds away — a folded step's three points and assignee, a depends chip's 
 on enter with no delay, one at a time; the Name cell's hover preview is one.
 _Avoid_: tooltip, title attribute, hint
 
+**Project fact**:
+Words a mark carries that say something about **this project** — who a tag was inherited
+from, how many days a row can slip, where a link goes. Shown the moment the pointer
+arrives, because the reader came to the plan to learn it.
+_Avoid_: data hint, content tooltip, instant hint
+
+**Tool hint**:
+Words a control carries that say what **the control** does — a toolbar button, a column
+heading, a resize handle. Shown only after the pointer has rested on it, because a reader
+who already knows the button does not need telling every time they cross it.
+_Avoid_: UI tooltip, chrome hint, slow hint
+
+**Wait ring**:
+The mark drawn beside the cursor while a tool hint is waiting to open, and the only sign
+that one exists. It is not a control and it never appears for a project fact.
+_Avoid_: spinner, loader, progress indicator, countdown
+
 **Actions menu**:
 The list of things one work item can be asked to do — duplicate it, delete it, unfreeze
 its number — behind a single button on its row. One is open at a time, and it owns the

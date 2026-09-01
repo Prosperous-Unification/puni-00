@@ -388,7 +388,7 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
 
     // The tooltip is the whole sentence in its own source, so a label the
     // column truncated can still be read as it was typed.
-    expect(shipped?.getAttribute('data-hint')).toBe('010 - Ship *now*');
+    expect(shipped?.getAttribute('data-fact')).toBe('010 - Ship *now*');
   });
 });
 
@@ -3242,16 +3242,25 @@ function columnDay(columnId: string, at: number): string {
   // The `Start` cell carries its sentence on the `<td>` itself as
   // `data-start-said` — since `start-date-hover-card` it has no tooltip
   // attribute at all, because a native one cannot be instant and raced the
-  // cell's own card over the same pixels. The `End` cell carries its hint on
-  // the `[data-finish]` span inside, in `data-hint`: since
+  // cell's own card over the same pixels. The `End` cell carries its words on
+  // the `[data-finish]` span inside, in `data-fact`: since
   // `hints-are-the-page-s-own` no control in this app carries a `title` it
-  // means as a hint. Read the Start attribute, then this cell's hint, then a
-  // child's.
+  // means as a hint, and since `tool-hints-wait` a day this row finishes on is
+  // a project fact rather than a tool hint. Read the Start attribute, then this
+  // cell's own words of either kind, then a child's.
+  const said = (node: Element): string | null =>
+    node.getAttribute('data-fact') ?? node.getAttribute('data-hint');
   const day =
     cell.getAttribute('data-start-said') ??
-    cell.getAttribute('data-hint') ??
-    cell.querySelector('[data-hint]')?.getAttribute('data-hint');
-  if (day === undefined || day === null) {
+    said(cell) ??
+    (() => {
+      const inside = cell.querySelector('[data-fact],[data-hint]');
+      return inside === null ? null : said(inside);
+    })();
+  // `null` alone: `said` answers `string | null` and `data-start-said` is read
+  // through `??`, so there is no `undefined` arm left for the day to arrive on
+  // — the pair that was here before the two attributes were folded into `said`.
+  if (day === null) {
     throw new Error(`the ${columnId} cell at row ${String(at)} is not showing a date at all`);
   }
   // The End column says two things in one attribute — the day, and what its
@@ -4524,7 +4533,9 @@ describe('the axis says its date, at the chart’s own speed', () => {
       });
       expect(linesOf(screen.getByRole('tooltip'))).toEqual(['Mon 17 Aug 2026', 'Workday 5']);
       // One hint, and it is the card: the native title is gone.
-      expect(cellAt(7).getAttribute('data-hint')).toBeNull();
+      // Either attribute: a second surface over this cell could now be written
+      // as a fact, and naming only the hint would let that one past.
+      expect(cellAt(7).getAttribute('data-hint') ?? cellAt(7).getAttribute('data-fact')).toBeNull();
     } finally {
       vi.useRealTimers();
     }

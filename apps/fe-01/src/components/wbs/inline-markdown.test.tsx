@@ -171,7 +171,7 @@ describe('a link in a name', () => {
     const link = drawn.querySelector('a');
     expect(link?.textContent).toBe('the plan');
     expect(link?.getAttribute('href')).toBe('http://x.test/');
-    expect(link?.getAttribute('data-hint')).toBe('http://x.test/');
+    expect(link?.getAttribute('data-fact')).toBe('http://x.test/');
     // Out of the grid's tab order, which is a matrix of cells: a link somebody
     // typed into a name is not one of them.
     expect(link?.getAttribute('tabindex')).toBe('-1');

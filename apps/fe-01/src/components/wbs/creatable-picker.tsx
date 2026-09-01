@@ -223,6 +223,12 @@ export interface CreatablePickerProps {
    */
   'data-hint'?: string;
   /**
+   * The same, for words about the reader's own project rather than about the
+   * box — an inherited team and the row it came from. Drawn at once; a
+   * `data-hint` waits. See {@link FACT_ATTRIBUTE}.
+   */
+  'data-fact'?: string;
+  /**
    * The cell this box edits, on a surface that is **not** a keyboard grid.
    *
    * Beside {@link gridCell} rather than inside it, and the pair below is why:
@@ -334,6 +340,7 @@ export function CreatablePicker({
   clearVisibleWhileFocused,
   placeholder,
   'data-hint': hint,
+  'data-fact': fact,
   dataCell,
   gridCell,
 }: CreatablePickerProps) {
@@ -505,6 +512,7 @@ export function CreatablePicker({
         aria-autocomplete="list"
         placeholder={placeholder}
         data-hint={hint}
+        data-fact={fact}
         data-cell={gridCell?.dataCell ?? dataCell}
         // A layout the grid does not touch: the attribute is what the table
         // finds this box by, and it adds nothing to the flex row it sits in.

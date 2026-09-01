@@ -361,7 +361,7 @@ export function ProjectSettingsModal({
                 >
                   {section.label}
                   {dirtySections.includes(section.id) && (
-                    <span aria-hidden="true" data-hint="Has an unsaved edit">
+                    <span aria-hidden="true" data-fact="Has an unsaved edit">
                       {' '}
                       •
                     </span>

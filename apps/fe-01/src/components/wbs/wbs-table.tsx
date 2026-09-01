@@ -1787,7 +1787,7 @@ function MismatchMark({
       // The `title` is the pointer's copy of the same sentence. Both, not one:
       // `aria-label` is not shown to a sighted reader and `title` is not read
       // to a screen reader off a `span`.
-      {...(carded ? {} : { 'data-hint': note })}
+      {...(carded ? {} : { 'data-fact': note })}
       style={{
         color: 'var(--muted-foreground)',
         cursor: 'help',
@@ -2256,7 +2256,9 @@ function FilterFacets({
     return (
       <label
         className={`flex min-h-6 items-center gap-1.5 ${off ? 'text-muted-foreground' : ''}`}
-        data-hint={off ? why : what}
+        // `why` is a refusal about this project — nothing in it is askable — so
+        // it opens at once; `what` says what ticking the box does, and waits.
+        {...(off ? { 'data-fact': why } : { 'data-hint': what })}
       >
         <input
           type="checkbox"
@@ -2570,11 +2572,12 @@ function SavedViews({
             size="sm"
             type="button"
             disabled={!canSave}
-            data-hint={
-              filtering
-                ? 'Save the Find box and the ticked filters under this name'
-                : 'Nothing is filtered — there is no view to name'
-            }
+            // What the button does while there is something to save, and why it
+            // is off while there is not — the second is about the plan in front
+            // of the reader, so it does not wait.
+            {...(filtering
+              ? { 'data-hint': 'Save the Find box and the ticked filters under this name' }
+              : { 'data-fact': 'Nothing is filtered — there is no view to name' })}
             onClick={() => {
               onSave(name.trim());
               setName('');
@@ -2597,7 +2600,7 @@ function SavedViews({
                   <button
                     type="button"
                     className="min-h-7 flex-1 truncate text-left text-xs underline-offset-2 hover:underline"
-                    data-hint={words.length > 0 ? words.join('; ') : view.name}
+                    data-fact={words.length > 0 ? words.join('; ') : view.name}
                     onClick={() => {
                       onApply(view);
                     }}
@@ -7140,9 +7143,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 tabIndex={-1}
                 aria-disabled={frozen}
                 aria-label={`Reorder ${row.original.number}`}
-                data-hint={
-                  frozen ? 'Frozen — unfreeze this row before moving it' : 'Drag to move this row'
-                }
+                // The refusal is about this row and opens at once; what the grip
+                // is for is the tool, and waits.
+                {...(frozen
+                  ? { 'data-fact': 'Frozen — unfreeze this row before moving it' }
+                  : { 'data-hint': 'Drag to move this row' })}
                 style={{ cursor: frozen ? 'not-allowed' : 'grab' }}
                 onDragStart={() => {
                   live.current.setDragging(row.original.id);
@@ -7179,7 +7184,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // column's declared width is what the cap protects, and the share
               // it withholds past `DEEPEST_INDENT` is carried by the Name cell
               // beside it.
-              data-hint={row.original.number}
+              data-fact={row.original.number}
               style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
             >
               {/*
@@ -8372,7 +8377,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 placeholder={
                   inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
                 }
-                data-hint={
+                data-fact={
                   inherited.state === 'inherited'
                     ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
                     : undefined
@@ -8428,7 +8433,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 addLabel={`Add a tag to ${row.original.number}`}
                 removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
                 placeholder={own.length > 0 || tagging.inherited.length > 0 ? 'add' : 'search'}
-                data-hint={
+                data-fact={
                   tagging.inherited.length === 0
                     ? undefined
                     : tagging.inherited
@@ -8528,7 +8533,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ? `↳ ${inherited.names.join(', ')}`
                         : 'search'
                   }
-                  data-hint={
+                  data-fact={
                     own.length === 0 && inherited.state === 'inherited'
                       ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no service of its own.`
                       : undefined
@@ -8696,11 +8701,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 : own > 1
                   ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
                   : 'How many people may work on this item at once. Blank means one at a time.';
+            // The first three branches say something about **this row** — it
+            // holds no work, everybody on it is named, or its number is being
+            // applied — and the last says what the column is for. Only the last
+            // is a tool hint, and it is the only one reached with no children
+            // and no second person, so the two faces of the cell agree by
+            // construction rather than by two authors remembering to.
+            const whyIsAboutThisRow = hasChildren || own > 1;
             if (hasChildren) {
               return (
                 <span
                   data-in-parallel={row.original.id}
-                  data-hint={why}
+                  {...(whyIsAboutThisRow ? { 'data-fact': why } : { 'data-hint': why })}
                   className="text-muted-foreground block text-right"
                 >
                   {own > 1 ? String(own) : ''}
@@ -8713,7 +8725,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 cellKey={cellKey(row.original.id, 'in-parallel')}
                 data-in-parallel={row.original.id}
                 inputMode="numeric"
-                data-hint={why}
+                {...(whyIsAboutThisRow ? { 'data-fact': why } : { 'data-hint': why })}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -9395,7 +9407,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             // the one path with no keypad on it.
                             inputMode="decimal"
                             aria-invalid={wrong}
-                            data-hint={problem?.message}
+                            data-fact={problem?.message}
                             onKeyDown={(e) => {
                               // Enter saves, the folded cell's rule in the face
                               // an estimator opens to argue about one number.
@@ -9522,7 +9534,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           {assumed !== null && (
                             <span
                               data-assumed={step.id}
-                              data-hint="Only one person is assigned, so they are assumed to do this step too"
+                              data-fact="Only one person is assigned, so they are assumed to do this step too"
                               style={{
                                 color: 'var(--muted-foreground)',
                                 marginLeft: 4,
@@ -9764,7 +9776,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // cannot work out for themselves; what it is *for* is the
                     // part only a planner can say. A cell 84px wide has one
                     // `title` and both belong in it.
-                    data-hint={
+                    data-fact={
                       noCalendar
                         ? 'Set the project start date first — without one there are no dates to constrain.'
                         : [
@@ -9882,7 +9894,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               .filter((part) => part !== null)
               .join(' — ');
             return (
-              <span data-finish data-hint={said === '' ? undefined : said}>
+              <span data-finish data-fact={said === '' ? undefined : said}>
                 {finish.text}
                 {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
               </span>
@@ -9903,7 +9915,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               return (
                 <span
                   data-float
-                  data-hint="No schedule could be worked out, so there is no slack to show."
+                  data-fact="No schedule could be worked out, so there is no slack to show."
                 >
                   —
                 </span>
@@ -9914,7 +9926,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 <span
                   data-float
                   data-critical="true"
-                  data-hint="On the critical path: any delay here moves the whole plan’s finish."
+                  data-fact="On the critical path: any delay here moves the whole plan’s finish."
                 >
                   critical
                 </span>
@@ -9924,7 +9936,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             return (
               <span
                 data-float
-                data-hint={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
+                data-fact={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
               >
                 {days}
               </span>
@@ -10724,11 +10736,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         disabled={filtering}
         aria-label="Collapse all"
-        data-hint={
-          filtering
-            ? 'Clear the filter first — a filter opens whatever it has to.'
-            : 'Close every branch'
-        }
+        // The refusal is about the filter the reader has on right now, so it
+        // does not wait; what the button does when it is live is the tool.
+        {...(filtering
+          ? { 'data-fact': 'Clear the filter first — a filter opens whatever it has to.' }
+          : { 'data-hint': 'Close every branch' })}
         onClick={() => {
           setExpanded({});
         }}
@@ -10741,11 +10753,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         disabled={filtering}
         aria-label="Expand all"
-        data-hint={
-          filtering
-            ? 'Clear the filter first — a filter opens whatever it has to.'
-            : 'Open every branch'
-        }
+        {...(filtering
+          ? { 'data-fact': 'Clear the filter first — a filter opens whatever it has to.' }
+          : { 'data-hint': 'Open every branch' })}
         onClick={() => {
           setExpanded(true);
         }}
@@ -10981,7 +10991,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // puts it in the cell that estimates the next gap. See
           // {@link TAKES_THE_FOCUS}.
           {...{ [TAKES_THE_FOCUS]: '' }}
-          data-hint={describeGaps(gaps)}
+          data-fact={describeGaps(gaps)}
           onClick={walkToNextGap}
         >
           {gaps.leaves.length} unestimated

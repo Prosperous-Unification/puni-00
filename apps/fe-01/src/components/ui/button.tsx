@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ButtonHTMLAttributes, forwardRef } from 'react';
 
-import { type Hintable } from '@/components/wbs/hint';
+import { type Factable, type Hintable } from '@/components/wbs/hint';
 import { cn } from '@/lib/utils';
 
 /**
@@ -58,7 +58,11 @@ export type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['var
 export type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
 
 export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants>, Hintable {}
+  extends
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants>,
+    Hintable,
+    Factable {}
 
 /**
  * A chrome button.

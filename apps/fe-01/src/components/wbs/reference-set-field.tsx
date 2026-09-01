@@ -90,6 +90,8 @@ export interface ReferenceSetStripProps {
   removeLabel?: (entry: ReferenceSetEntry) => string;
   placeholder?: string;
   'data-hint'?: string;
+  /** The project fact this box carries, drawn at once where a hint would wait. */
+  'data-fact'?: string;
 }
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
@@ -242,6 +244,7 @@ export function ReferenceSetStrip({
   removeLabel,
   placeholder,
   'data-hint': hint,
+  'data-fact': fact,
 }: ReferenceSetStripProps) {
   const root = useRef<HTMLSpanElement>(null);
   const ownIds = unique(adapter.ownIds);
@@ -663,7 +666,7 @@ export function ReferenceSetStrip({
             <span
               key={entry.id}
               data-reference-inherited-chip={entry.id}
-              data-hint={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
+              data-fact={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
               className={REFERENCE_SET_INHERITED_CHIP_CLASS}
             >
               <span className="truncate">↳ {entry.name}</span>
@@ -720,6 +723,7 @@ export function ReferenceSetStrip({
             disabled={pending}
             placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
             data-hint={hint}
+            data-fact={fact}
             dataCell={dataCell}
             gridCell={gridCell}
           />

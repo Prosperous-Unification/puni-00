@@ -25,7 +25,11 @@ export interface MenuAction {
    * had nothing on screen to tell them why it had left — the same fault the
    * drag handle's `aria-disabled` was written for, in a menu.
    *
-   * Rendered as the item's `title` and read out as its `aria-disabled`, and
+   * Rendered as the item's `data-fact` and read out as its `aria-disabled`, and
+   * `data-fact` rather than `data-hint` because it is about **this row** rather
+   * than about what the item does — so it opens the moment the pointer arrives
+   * instead of waiting three seconds. {@link FACT_ATTRIBUTE} carries the split.
+   *
    * {@link MenuControl} refuses `run` while it is set. A reason and a refusal
    * from one field, because two fields is how an item comes to explain itself
    * and act anyway.
@@ -240,8 +244,8 @@ export function MenuControl({
     if (busy) return;
     // The same shape, for the reason this item is on screen at all: it is here
     // to say why it cannot be taken, so taking it is the one thing it must not
-    // do. The menu stays open, because the sentence is in the item's `title`
-    // and closing the menu would take it away.
+    // do. The menu stays open, because the sentence is in the item's
+    // `data-fact` and closing the menu would take it away.
     // Proof: this line removed, `keeps Delete on a frozen row, refused and
     // saying why` failed on `expected [ { id: 'w1', …(16) }, …(1) ] to have a
     // length of 3 but got 2` — the row deleted by the item that says it cannot
@@ -319,7 +323,7 @@ export function MenuControl({
               // a refused item on the roving tab stop, which is the only way
               // its reason gets read out.
               aria-disabled={busy || action.refusedBecause !== undefined}
-              data-hint={action.refusedBecause}
+              data-fact={action.refusedBecause}
               style={
                 action.refusedBecause === undefined
                   ? ITEM

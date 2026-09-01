@@ -652,7 +652,7 @@ function CardTeamField({
         // The sheet's own name, said on the control that opens it: `Billing`
         // alone names the value, not what tapping does.
         aria-label={`Service or team for ${row.number}`}
-        data-hint={inheritedNote}
+        data-fact={inheritedNote}
         // `TAP`, like every other control this file draws. It was missing
         // when the sheet landed and the card measured **21px** in CI — and
         // the reason it was missable is worth keeping: the 44px floor in
@@ -672,7 +672,7 @@ function CardTeamField({
           <span
             data-card-team
             {...(team.state === 'inherited' ? { 'data-inherited': 'true' } : {})}
-            data-hint={inheritedNote}
+            data-fact={inheritedNote}
           >
             {team.state === 'unresolved'
               ? 'a team this plan has not loaded'
@@ -704,7 +704,7 @@ function CardTeamField({
         // its own `Inherited:` line, and a placeholder repeating it is the
         // same claim twice on a surface that already had room for the first.
         placeholder="search or add"
-        data-hint={inheritedNote}
+        data-fact={inheritedNote}
       />
     </>
   );
@@ -753,7 +753,7 @@ function CardServiceField({
           setOpen(true);
         }}
         aria-label={`Services for ${row.number}${names.length > 0 ? `: ${names.join(', ')}` : ''}`}
-        data-hint={title}
+        data-fact={title}
         className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
       >
         {names.length === 0 ? (
@@ -762,7 +762,7 @@ function CardServiceField({
           <span
             data-card-service=""
             {...(inherited ? { 'data-inherited': 'true' } : {})}
-            data-hint={title}
+            data-fact={title}
           >
             {inherited ? `↳ ${names.join(', ')}` : names.join(', ')}
           </span>
@@ -788,7 +788,7 @@ function CardServiceField({
         // The team sheet's reason, one dimension over: the `Inherited:` line
         // above the strip is this surface's single reading of inheritance.
         placeholder="search or add"
-        data-hint={title}
+        data-fact={title}
       />
     </>
   );
@@ -848,13 +848,13 @@ function CardTagsField({
           setOpen(true);
         }}
         aria-label={`Tags for ${row.number}${inForce.length > 0 ? `: ${inForce.join(', ')}` : ''}`}
-        data-hint={title}
+        data-fact={title}
         className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-left underline decoration-dotted underline-offset-2`}
       >
         {inForce.length === 0 && <span className="opacity-70">tag…</span>}
         {label.own.length > 0 && <span data-card-tags="">{label.own.join(', ')}</span>}
         {label.inherited.length > 0 && (
-          <span data-card-tags-inherited="" data-inherited="true" data-hint={title}>
+          <span data-card-tags-inherited="" data-inherited="true" data-fact={title}>
             ↳ {label.inherited.map((each) => each.name).join(', ')}
           </span>
         )}
@@ -877,7 +877,7 @@ function CardTagsField({
         addLabel={`Add a tag to ${row.number}`}
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
         placeholder="search or add"
-        data-hint={title}
+        data-fact={title}
       />
     </>
   );
@@ -975,7 +975,7 @@ function CardNotBeforeField({
           // The table cell's own label, so one plan read on two faces answers
           // to one name — a screen reader and a test both find this by it.
           aria-label={`Earliest start for ${row.number}`}
-          data-hint={title}
+          data-fact={title}
           // `TAP` and `inline-flex items-center`, the repair chunk 3 measured at
           // 21px: the 44px floor in `styles.css` is scoped to
           // `[data-modal-surface]` and `[data-account-menu]`, a card is neither,
@@ -987,7 +987,7 @@ function CardNotBeforeField({
             // attribute is the constraint. What is drawn is the invitation.
             <span className="opacity-70">not before…</span>
           ) : (
-            <span data-card-not-before data-hint={title}>
+            <span data-card-not-before data-fact={title}>
               not before {shortIsoDate(day, new Date())}
             </span>
           )}
@@ -1356,11 +1356,17 @@ function CardPriorityField({
           // The table cell's own accessible name, so one plan read on two faces
           // answers to one name.
           aria-label={`Priority for ${row.number}`}
-          data-hint={
-            paint === null
-              ? 'How important this work is: 1 upward, smaller first. Nobody has said yet.'
-              : `${paint.words}. Smaller is more important; it decides who gets a shared person first.`
-          }
+          // The table cell's own split, kept in step with it: no band and the
+          // words are what the field is for, a tool hint that waits; a band and
+          // they are this row's rank, a fact drawn at once.
+          {...(paint === null
+            ? {
+                'data-hint':
+                  'How important this work is: 1 upward, smaller first. Nobody has said yet.',
+              }
+            : {
+                'data-fact': `${paint.words}. Smaller is more important; it decides who gets a shared person first.`,
+              })}
           // `TAP` from the first line, which is chunk 3's 21px lesson applied
           // rather than re-learned: the 44px floor in `styles.css` is scoped to
           // `[data-modal-surface]` and `[data-account-menu]`, and a card is
@@ -1377,7 +1383,7 @@ function CardPriorityField({
             <span
               data-card-priority={row.id}
               data-priority-rank={paint.rank}
-              data-hint={paint.words}
+              data-fact={paint.words}
               className="rounded-full px-2 py-0.5 text-xs font-semibold"
               style={{ color: paint.ink, background: paint.tint }}
             >
@@ -2202,7 +2208,7 @@ export function PlanCards({
                         }
                         aria-autocomplete="list"
                         aria-invalid={problem !== null}
-                        data-hint={problem ?? undefined}
+                        data-fact={problem ?? undefined}
                         placeholder="o/r/p"
                         // `inputMode` rather than `type="number"`: the value is
                         // `2/3/8` as often as it is `4`, and a number field
@@ -2270,7 +2276,7 @@ export function PlanCards({
                       <span
                         data-card-assignee={step.id}
                         {...(assignee.assumed ? { 'data-assumed': step.id } : {})}
-                        data-hint={
+                        data-fact={
                           assignee.assumed
                             ? `${assignee.name} — only one person is assigned, so they are assumed to do this step too`
                             : assignee.name
@@ -2354,7 +2360,7 @@ export function PlanCards({
                 not the surface that gets to re-argue it.
               */}
               <CardNotBeforeField row={row} hasCalendar={hasCalendar} setNotBefore={setNotBefore} />
-              <span data-card-span data-hint={cardSpanTitle(span)}>
+              <span data-card-span data-fact={cardSpanTitle(span)}>
                 {span.start.text} → {span.finish.text}
               </span>
               {/*
@@ -2366,7 +2372,7 @@ export function PlanCards({
               <span
                 data-card-slack
                 {...(slack.critical ? { 'data-critical': 'true' } : {})}
-                data-hint={slack.hint}
+                data-fact={slack.hint}
               >
                 {slack.text}
               </span>
