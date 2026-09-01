@@ -3488,6 +3488,18 @@ test.describe('the chart downloaded as a standalone .svg', () => {
     await expect(named).toHaveValue(longName);
     await openTheChart(page);
 
+    // Block on the **chart** carrying the name rather than on the box holding
+    // it. `toHaveValue` above reads an uncontrolled box, which holds what was
+    // typed from the keystroke onwards and is therefore satisfied by its first
+    // sample — before the blur's write has reached be-01 — while the chart's
+    // labels are drawn from the *fetched* plan. Under the whole gate's load the
+    // download then held the previous name and this failed on `the downloaded
+    // file draws no “Hull, frames, plating and the whole of the forward
+    // compartment, welded and surveyed”`, once in 274 cases, 2026-09-01; alone
+    // it passed in 2.4s. Same shape as `hover-cards.spec.ts`'s seed blocking on
+    // the persisted estimate (TASK-50, hover-card-estimate-race).
+    await expect(page.locator('[data-gantt-label]').filter({ hasText: longName })).toHaveCount(1);
+
     const saving = page.waitForEvent('download');
     await page.locator('[data-gantt-svg-download]').click();
     const saved = await saving;

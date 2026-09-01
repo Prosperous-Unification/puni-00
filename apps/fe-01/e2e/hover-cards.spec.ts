@@ -1287,3 +1287,79 @@ test.describe('the pointer moves a row by the same ink on both steps of the stri
     });
   }
 });
+
+/**
+ * The remembered table hover, when the plan stops drawing the row it names.
+ *
+ * Dany reported this as "moving the pointer from the table to the chart lights
+ * the table's row and not the chart's", and read it as a race — the two faces
+ * disagreeing when the trip is made fast. Sixteen gestures in Chromium never
+ * reproduced it that way, and the seam's event order was measured as
+ * out-then-over every time, so there is no race to catch. The state machine
+ * had a plainer fault: `tablePointedRow` is cleared by exactly one thing, a
+ * `pointerleave` on that same `<tr>`, and it sat on the **left of a `??`** in
+ * front of the chart's own live reading. A row can stop being drawn with the
+ * pointer sitting still on it, no browser fires a departure at a node it is
+ * unmounting, and the remembered row then outranked the pointer for as long as
+ * it stayed put — so the chart drew a band for a row it no longer holds, which
+ * is no band at all.
+ *
+ * **A browser is the oracle for the premise, and jsdom cannot be.** That
+ * Chromium really leaves the id behind — no synthesized departure on unmount,
+ * and no arrival anywhere else while the mouse does not move — is a claim about
+ * a browser's event model, and it is the load-bearing half: the derivation
+ * fault is invisible without it. `wbs-table.test.tsx`'s 'forgets a pointed row
+ * that is no longer drawn' makes the derivation half in jsdom, where it is
+ * exact and fast; this makes the half jsdom cannot see, and R5 #14/#15/#18 are
+ * three earlier bills for guessing at it.
+ */
+test.describe('a pointed row the plan stops drawing', () => {
+  /** Opens the chart and waits until it has drawn the plan's rows. */
+  const openTheChart = async (page: Page, rows: number): Promise<void> => {
+    await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+    await expect(page.locator('[data-gantt-chart]')).toBeVisible();
+    await expect(page.locator('[data-gantt-label]')).toHaveCount(rows);
+  };
+
+  test('stops outranking the bar the pointer has moved to', async ({ page }) => {
+    await openTheChart(page, 2);
+
+    const bands = page.locator('[data-gantt-row-lit]');
+    const litRows = page.locator('tbody tr[data-row-lit]');
+
+    // The pointer on the **last** row, and the chart answering for it. Asserted
+    // rather than assumed: with no band here the gesture below would be
+    // measuring the absence of a light that was never lit — R5's own "assert in
+    // the window the fault lives in", one file over.
+    await rowOf(page, '020').hover();
+    await expect(bands).toHaveCount(1);
+
+    // The search narrows that row away with the pointer sitting still on it.
+    // `fill` focuses the box and types into it without moving the mouse, and
+    // 020 is the last row, so nothing slides under the pointer to send an
+    // arrival either. Nothing tells the table the pointer has left 020.
+    await page.getByLabel('Find').fill('Survey');
+    await expect(page.locator('[data-gantt-label]')).toHaveCount(1);
+
+    // The pointer now arrives on the one bar left. That is the reading being
+    // made, and the chart has to light the row it belongs to.
+    await page.locator('[data-gantt-bar][aria-label^="010 - "]').first().hover();
+
+    // Proof: `pointedAt` dropped back to a bare `tablePointedRow ??
+    // pointedFromChart` in `wbs-table.tsx`, nothing else changed, and this
+    // failed on `the chart drew no band for the bar under the pointer ·
+    // expect(locator).toHaveCount(expected) failed · Expected: 1 · Received:
+    // 0` — the chart dark under the pointer, the remembered row winning.
+    // Watched in Chromium 2026-09-01, which is also the measurement that the
+    // browser leaves the id behind at all.
+    await expect(bands, 'the chart drew no band for the bar under the pointer').toHaveCount(1);
+    await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '0');
+
+    // And the other half of what Dany saw: the table's row lights from the
+    // chart's reading either way, so the table looked right while the chart
+    // looked dead. This half passes with the fault in — it is here to say which
+    // of the two faces the fault was on.
+    await expect(litRows).toHaveCount(1);
+    await expect(litRows.first().getByLabel('Name of 010')).toHaveCount(1);
+  });
+});
