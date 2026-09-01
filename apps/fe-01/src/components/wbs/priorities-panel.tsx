@@ -255,7 +255,7 @@ export function PrioritiesPanel({
                 // The range a start amounts to, recomputed as the boxes change.
                 // A band is stored as a start and read as a range, and this is
                 // the only place the reader is shown the second.
-                data-hint={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
+                data-fact={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
               >
                 {bandRangeWords(drafts, at)}
               </span>

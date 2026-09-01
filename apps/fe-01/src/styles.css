@@ -1278,6 +1278,43 @@
   [data-grid] tbody tr[data-drop='below'] td {
     box-shadow: inset 0 -2px 0 var(--ring);
   }
+
+  /*
+   * The wait ring's fill — the arc that closes while a tool hint waits.
+   *
+   * A CSS animation rather than per-frame React state, for the reason written
+   * on `WaitRing` in `hint.tsx`: the ring is drawn on every control in the app
+   * and a layer re-rendering sixty times a second under the pointer is a cost
+   * charged everywhere. The duration is the *remaining* wait and comes from the
+   * component as an inline `animation-duration`, so the two constants that
+   * decide it live in one file and this rule holds neither.
+   *
+   * `forwards`, so the arc stays closed for the frame between the fill ending
+   * and the card replacing it. Without it the ring snaps back to empty first.
+   */
+  .wait-ring-fill {
+    animation-name: wait-ring-fill;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes wait-ring-fill {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /*
+   * A reader who has asked for less motion still gets the ring — it is the only
+   * sign a hint is coming — but as a still half-arc rather than a sweep. The
+   * animation is what is refused, not the mark.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .wait-ring-fill {
+      animation: none;
+      stroke-dashoffset: 50%;
+    }
+  }
 }
 
 /*

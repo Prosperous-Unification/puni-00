@@ -167,11 +167,19 @@ export function PriorityCell({
         // number is what nearly every keystroke in this box is and a phone
         // keyboard has a letters key.
         inputMode="numeric"
-        data-hint={
-          paint === null
-            ? 'How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said.'
-            : `${paint.words}. Smaller is more important; it decides who gets a shared person first.`
-        }
+        // Which attribute is decided per render, because the two branches are
+        // about different things: with no band the words are what this column is
+        // *for* and wait like any other tool hint, and with one they are this
+        // row's own rank and open at once — `FACT_ATTRIBUTE` in `hint.tsx` names
+        // the split, and `CardPriorityField` carries the same pair on the card.
+        {...(paint === null
+          ? {
+              'data-hint':
+                'How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said.',
+            }
+          : {
+              'data-fact': `${paint.words}. Smaller is more important; it decides who gets a shared person first.`,
+            })}
         style={{
           width: '100%',
           boxSizing: 'border-box',

@@ -2965,7 +2965,7 @@ function GanttChart({
                   // Sanding', …(2) ]`, and `takes the plan to a row when its label
                   // is clicked` on the button no longer being findable by its
                   // number. Watched, 2026-08-09.
-                  data-hint={rowWords(label.number, label.name)}
+                  data-fact={rowWords(label.number, label.name)}
                   // The house indent, so the chart's outline is the plan's outline
                   // — `hierarchyIndentFor`, the uncapped half of the pair: this
                   // rail has no declared column width to protect, so a depth-6

@@ -409,7 +409,7 @@ describe('the reference strip on one rest line', () => {
     expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Remove Platform team' })).toBeInTheDocument();
     expect(
-      document.querySelector('[data-reference-inherited-chip="team-9"]')?.getAttribute('data-hint'),
+      document.querySelector('[data-reference-inherited-chip="team-9"]')?.getAttribute('data-fact'),
     ).toBe('Core — inherited from 010 Hull. Remove it there.');
   });
 

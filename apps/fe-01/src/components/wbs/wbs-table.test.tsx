@@ -1086,7 +1086,7 @@ describe('the WBS table', () => {
       if (stale.test(text)) said.push(`text: ${text}`);
     }
     for (const element of document.body.querySelectorAll('[title], [aria-label], [placeholder]')) {
-      for (const attribute of ['data-hint', 'aria-label', 'placeholder']) {
+      for (const attribute of ['data-hint', 'data-fact', 'aria-label', 'placeholder']) {
         const value = element.getAttribute(attribute);
         if (value !== null && stale.test(value)) said.push(`${attribute}="${value}"`);
       }
@@ -1701,7 +1701,7 @@ describe('the row actions menu', () => {
 
     const remove = screen.getByRole('menuitem', { name: 'Delete' });
     expect(remove.getAttribute('aria-disabled')).toBe('true');
-    expect(remove.getAttribute('data-hint')).toBe('Frozen — unfreeze this row before deleting it');
+    expect(remove.getAttribute('data-fact')).toBe('Frozen — unfreeze this row before deleting it');
     expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
 
@@ -1914,7 +1914,7 @@ describe('teams and assignees', () => {
     // And it is the row's **own** team, not one it is told it inherits: the
     // two arms of `effectiveTeamLabelOf` read different things, and only the
     // second one leaves a title on the cell.
-    expect(box.getAttribute('data-hint')).toBeNull();
+    expect(box.getAttribute('data-fact')).toBeNull();
   });
 
   itDom('adds a team by typing a name the list does not have', async () => {
@@ -2158,7 +2158,7 @@ describe('the plan on a calendar', () => {
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
     ).toBe('2026-08-06 — Starts with the project');
     expect(rowFor('010').querySelector('[data-finish]')?.textContent).toContain('6 Aug');
-    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('data-hint')).toContain(
+    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('data-fact')).toContain(
       '2026-08-06',
     );
     expect(api.rows.length).toBe(1);
@@ -2212,8 +2212,11 @@ describe('the plan on a calendar', () => {
       // **No `title` anywhere in this cell.** If one came back it would race the
       // card over the same pixels — the folded step cell's own note, a fortnight
       // earlier — and this is the case that reddens.
-      expect(cell?.getAttribute('data-hint')).toBeNull();
-      expect(rowFor('010').querySelector('[data-start]')?.getAttribute('data-hint')).toBeNull();
+      // Both attributes, not just the hint: since `tool-hints-wait` a second
+      // surface over these pixels could be written as either, and a check that
+      // names one of the two narrows while the fault it guards widens.
+      expect(saidBy(cell)).toBeNull();
+      expect(saidBy(rowFor('010').querySelector('[data-start]'))).toBeNull();
       // The sentence is still there at rest for the oracles that read it: see
       // `startCellProps`.
       expect(cell?.getAttribute('data-start-said')).toBe('Starts with the project');
@@ -2291,7 +2294,7 @@ describe('the plan on a calendar', () => {
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
     const day = cell?.querySelector<HTMLElement>('[data-start]');
-    expect(cell?.getAttribute('data-hint')).toBeNull();
+    expect(saidBy(cell)).toBeNull();
     expect(cell?.getAttribute('tabindex')).toBeNull();
     expect(cell?.style.cursor).toBe('');
     expect(day?.style.textDecoration).toBe('');
@@ -2370,7 +2373,7 @@ describe('the plan on a calendar', () => {
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
 
     expect(cell.disabled).toBe(true);
-    expect(cell.getAttribute('data-hint') ?? '').toContain('project start date');
+    expect(cell.getAttribute('data-fact') ?? '').toContain('project start date');
     // And the columns say which of the two they are showing.
     // And the column says which of the two it is showing — in its `title`,
     // because the heading itself is one word wide now.
@@ -2687,13 +2690,13 @@ describe('the plan on a calendar', () => {
 
     await waitFor(() => {
       const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
-      expect(cell.getAttribute('data-hint') ?? '').toBe(
+      expect(cell.getAttribute('data-fact') ?? '').toBe(
         '2026-09-12. This work item may not start before this day. Its dependencies can still push it later. Why: waiting on client sign-off',
       );
     });
     // And a row nobody has explained says exactly what it said before.
     expect(
-      screen.getByLabelText<HTMLInputElement>('Earliest start for 020').getAttribute('data-hint') ??
+      screen.getByLabelText<HTMLInputElement>('Earliest start for 020').getAttribute('data-fact') ??
         '',
     ).toBe(
       'This work item may not start before this day. Its dependencies can still push it later.',
@@ -2972,8 +2975,8 @@ describe('the priority cell', () => {
     expect(critical).not.toBe(lowest);
     // And the name is in the hover text, because a colour alone is a fact only a
     // reader who already knows the ladder can read.
-    expect(priorityCell('010').getAttribute('data-hint') ?? '').toContain('Critical — priority 5');
-    expect(priorityCell('020').getAttribute('data-hint') ?? '').toContain('Lowest — priority 90');
+    expect(priorityCell('010').getAttribute('data-fact') ?? '').toContain('Critical — priority 5');
+    expect(priorityCell('020').getAttribute('data-fact') ?? '').toContain('Lowest — priority 90');
   });
 
   itDom('leaves an unprioritised cell the table’s own ink and offers no band', async () => {
@@ -3048,7 +3051,7 @@ describe('the priority cell', () => {
     expect(patched).toEqual([{ priority: 50 }]);
     // And it round-trips: the number that was stored resolves back to the band
     // whose name was typed.
-    expect(priorityCell('010').getAttribute('data-hint') ?? '').toContain('Medium — priority 50');
+    expect(priorityCell('010').getAttribute('data-fact') ?? '').toContain('Medium — priority 50');
   });
 
   itDom('still refuses a word that is no band’s name, rather than clearing the row', async () => {
@@ -3314,7 +3317,7 @@ describe('the In-parallel cell', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText('People at once for 010')).toBeNull();
     });
-    const printed = hinted(/holds no work of its own/);
+    const printed = facted(/holds no work of its own/);
     expect(printed.textContent).toBe('3');
   });
 
@@ -3328,7 +3331,7 @@ describe('the In-parallel cell', () => {
     await waitFor(() => {
       expect(parallelCell('010').value).toBe('3');
     });
-    expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain('effort is compressed');
+    expect(parallelCell('010').getAttribute('data-fact') ?? '').toContain('effort is compressed');
 
     // The assignee box lives in the unfolded step, which is where somebody
     // names a person on the work.
@@ -3339,7 +3342,7 @@ describe('the In-parallel cell', () => {
     fireEvent.keyDown(picker, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain(
+      expect(parallelCell('010').getAttribute('data-fact') ?? '').toContain(
         'one at a time whatever this says',
       );
     });
@@ -3366,7 +3369,7 @@ describe('the In-parallel cell', () => {
       await waitFor(() => {
         expect(parallelCell('010').value).toBe('3');
       });
-      expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain('effort is compressed');
+      expect(parallelCell('010').getAttribute('data-fact') ?? '').toContain('effort is compressed');
 
       unfoldStep('Dev');
       const dev = await screen.findByLabelText('Dev assignee for 010');
@@ -3393,7 +3396,7 @@ describe('the In-parallel cell', () => {
       // named and neither slice free to run more than one at once. Watched
       // 2026-08-14.
       await waitFor(() => {
-        expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain(
+        expect(parallelCell('010').getAttribute('data-fact') ?? '').toContain(
           'one at a time whatever this says',
         );
       });
@@ -3445,7 +3448,7 @@ describe('the earliest-start cell', () => {
     expect(editorsOnScreen()).toEqual([]);
     // And the whole day is a hover away, the same bargain Start and End make.
     expect(
-      screen.getByLabelText('Earliest start for 010').getAttribute('data-hint') ?? '',
+      screen.getByLabelText('Earliest start for 010').getAttribute('data-fact') ?? '',
     ).toContain('2026-06-01');
   });
 
@@ -3483,7 +3486,7 @@ describe('the earliest-start cell', () => {
 
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
     expect(cell.disabled).toBe(true);
-    expect(cell.getAttribute('data-hint') ?? '').toContain('project start date');
+    expect(cell.getAttribute('data-fact') ?? '').toContain('project start date');
 
     fireEvent.keyDown(cell, { key: 'Enter' });
     fireEvent.mouseDown(cell);
@@ -4346,7 +4349,7 @@ describe('step columns fold away', () => {
     // hints over one cell is the bug this line used to be.
     const final = rowFor('010').querySelector('[data-final="step-dev"]');
     expect(final?.textContent).toContain('!');
-    expect(final?.getAttribute('data-hint')).toBeNull();
+    expect(saidBy(final)).toBeNull();
     fireEvent.mouseEnter(final as HTMLElement);
     expect(screen.getByRole('tooltip').textContent).toContain('not saved');
   });
@@ -4814,7 +4817,7 @@ describe('assigning from a folded step’s cell with @', () => {
     });
 
     const shown = rowFor('010').querySelector('[data-folded-assignee="step-dev"]');
-    expect(shown?.getAttribute('data-hint')).toBeNull();
+    expect(saidBy(shown)).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Unfold Dev estimates' }).getAttribute('data-hint'),
     ).toContain('show the three points');
@@ -5497,7 +5500,7 @@ describe('estimates are never edited for you', () => {
 
     expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
     expect(estimateCell('010', 'pessimistic')).toHaveAttribute('aria-invalid', 'true');
-    expect(estimateCell('010', 'realistic').getAttribute('data-hint') ?? '').toContain('not saved');
+    expect(estimateCell('010', 'realistic').getAttribute('data-fact') ?? '').toContain('not saved');
     // The box holding a real number is not the mistake.
     expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'false');
   });
@@ -5621,7 +5624,7 @@ describe('estimates are never edited for you', () => {
     });
     expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'true');
     expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
-    expect(estimateCell('010', 'realistic').getAttribute('data-hint') ?? '').toContain('not saved');
+    expect(estimateCell('010', 'realistic').getAttribute('data-fact') ?? '').toContain('not saved');
     expect(estimateCell('010', 'pessimistic').value).toBe('10');
   });
 
@@ -5745,19 +5748,36 @@ const typeIntoNotBefore = (number: string, day: string): void => {
 };
 
 /**
- * The one control whose hint matches `words`.
+ * Whatever a mark would open a card with, of **either** kind, or null for one
+ * that has nothing to say.
  *
- * `getByTitle`'s replacement, and it has one: this app draws its own hints and
- * carries them in `data-hint` rather than in a `title` — see `HintLayer`, and
- * `hints-are-the-page-s-own` for why a browser tooltip is not one.
+ * For the cases that assert a cell draws no *second* surface over its own
+ * pixels — the Start cell, the folded step's figure and assignee, the depends
+ * count and its Add button. Since `tool-hints-wait` such a surface could be
+ * written as a hint or as a fact, so a check naming one of the two narrows
+ * while the fault it guards widens: the words could come back in the other
+ * attribute and every one of those cases would still be green.
  */
-const hinted = (words: RegExp): HTMLElement => {
-  const found = [...document.querySelectorAll<HTMLElement>('[data-hint]')].filter((node) =>
-    words.test(node.getAttribute('data-hint') ?? ''),
+const saidBy = (node: Element | null | undefined): string | null =>
+  node?.getAttribute('data-hint') ?? node?.getAttribute('data-fact') ?? null;
+
+/**
+ * The one mark whose **project fact** matches `words`.
+ *
+ * `getByTitle`'s replacement, and it has one: this app draws its own cards and
+ * carries their words in an attribute rather than in a `title` — see
+ * `HintLayer`, and `hints-are-the-page-s-own` for why a browser tooltip is not
+ * one. `data-fact` and not `data-hint` because the words this is asked for are
+ * about the reader's own row: since `tool-hints-wait` the two attributes are
+ * separate, and searching the wrong one finds nothing at all. A `hinted`
+ * sibling over `data-hint` belongs here the day a case wants one.
+ */
+const facted = (words: RegExp): HTMLElement => {
+  const found = [...document.querySelectorAll<HTMLElement>('[data-fact]')].filter((node) =>
+    words.test(node.getAttribute('data-fact') ?? ''),
   );
-  if (found.length === 0) throw new Error(`nothing is hinted ${String(words)}`);
-  if (found.length > 1)
-    throw new Error(`${String(found.length)} things are hinted ${String(words)}`);
+  if (found.length === 0) throw new Error(`nothing states ${String(words)}`);
+  if (found.length > 1) throw new Error(`${String(found.length)} things state ${String(words)}`);
   return found[0];
 };
 
@@ -5878,7 +5898,7 @@ describe('dragging a row', () => {
 
     // The handle stays, and says why it will not help.
     const handle = screen.getByLabelText('Reorder 030');
-    expect(handle.getAttribute('data-hint')).toContain('unfreeze');
+    expect(handle.getAttribute('data-fact')).toContain('unfreeze');
     expect(handle.getAttribute('aria-disabled')).toBe('true');
 
     withHeight(rowFor('010'), 0, 40);
@@ -5953,7 +5973,7 @@ describe('the drag handle as assistive technology meets it', () => {
     const handle = screen.getByLabelText('Reorder 020');
 
     expect(handle.getAttribute('aria-disabled')).toBe('true');
-    expect(handle.getAttribute('data-hint')).toBe('Frozen — unfreeze this row before moving it');
+    expect(handle.getAttribute('data-fact')).toBe('Frozen — unfreeze this row before moving it');
   });
 });
 
@@ -7571,7 +7591,7 @@ describe('dependencies in the table', () => {
 
     const count = dependsCountOf('050');
     expect(count?.getAttribute('aria-hidden')).toBe('true');
-    expect(count?.getAttribute('data-hint')).toBeNull();
+    expect(saidBy(count)).toBeNull();
   });
 
   /**
@@ -7806,7 +7826,7 @@ describe('dependencies in the table', () => {
     // invalid for this assertion` — no `title` on the cell at all, this plan
     // having no start date and so no day to put in it either. Watched,
     // 2026-08-09.
-    expect(row?.querySelector('[data-finish]')?.getAttribute('data-hint')).toContain(
+    expect(row?.querySelector('[data-finish]')?.getAttribute('data-fact')).toContain(
       'No estimate yet',
     );
   });
@@ -8130,7 +8150,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
 
     const add = addButtonOf('030');
-    expect(add.getAttribute('data-hint')).toBeNull();
+    expect(saidBy(add)).toBeNull();
     expect(add.getAttribute('aria-label')).toBe('Make 030 wait for something');
   });
 });
@@ -8674,7 +8694,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-fact')).toBe(
       'This work item can slip 2 workdays before the plan finishes later.',
     );
   });
@@ -8686,7 +8706,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-fact')).toBe(
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
@@ -8702,7 +8722,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-fact')).toBe(
       'No schedule could be worked out, so there is no slack to show.',
     );
   });
@@ -9826,7 +9846,7 @@ describe('the widths the table is laid out by', () => {
     await threeRoots();
 
     expect(
-      rowFor('020').querySelector('[data-number]')?.parentElement?.getAttribute('data-hint') ?? '',
+      rowFor('020').querySelector('[data-number]')?.parentElement?.getAttribute('data-fact') ?? '',
     ).toBe('020');
   });
 
@@ -10172,7 +10192,7 @@ describe('the outline past the Number cap', () => {
     }
 
     const indents = (number: string): { number: string; name: string } => {
-      const numberSpan = document.querySelector<HTMLElement>(`span[data-hint="${number}"]`);
+      const numberSpan = document.querySelector<HTMLElement>(`span[data-fact="${number}"]`);
       // The cell's own span, which is the `<td>`'s only child — not the
       // textarea's nearest one. Since `markdown-work-item-names` the box sits
       // inside a positioned wrapper of its own, so that the rendered reading of
@@ -11076,7 +11096,7 @@ describe('what the plan is still missing', () => {
     await estimate('020', 'Dev');
 
     expect(theBadge().textContent).toBe('2 unestimated');
-    expect(theBadge().getAttribute('data-hint')).toBe('1 missing Dev, 2 missing QA');
+    expect(theBadge().getAttribute('data-fact')).toBe('1 missing Dev, 2 missing QA');
     // A native button, so Enter and Space activate it without this table
     // binding a key. jsdom does not perform that activation, so it is the
     // element itself that is asserted here.
@@ -14936,7 +14956,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // Mouse readers get the same sentence, and it is the only place a hint
       // fits at this panel width.
       expect(owner.closest('label')).toHaveAttribute(
-        'data-hint',
+        'data-fact',
         expect.stringMatching(/No team owns/),
       );
     },
@@ -15003,7 +15023,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       'Built by a non-owner: Billing does not own Checkout.' +
       ' Nothing is blocked — the plan is recording this, not refusing it.';
     const mark = rowFor('010').querySelector('[data-mismatch="service"]');
-    expect(mark?.getAttribute('data-hint')).toBe(said);
+    expect(mark?.getAttribute('data-fact')).toBe(said);
     // The same sentence to a reader with no pointer. `role="img"` and a label
     // rather than a `title` alone, which reaches a mouse only.
     expect(mark?.getAttribute('aria-label')).toBe(said);
@@ -15033,7 +15053,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
 
     const said = rowFor('010')
       .querySelector('[data-mismatch="service"]')
-      ?.getAttribute('data-hint');
+      ?.getAttribute('data-fact');
     expect(said).toContain('Billing does not own Ledger and Search.');
     // Said out loud, because it is half the claim: the owned service is not in
     // the sentence, so a reader is sent to the two that need looking at.
@@ -15058,7 +15078,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     // one hint is its card, and a tooltip raced it over the same pixels
     // (2026-08-09). So the sentence moves to the card rather than being
     // dropped, and both halves of that are asserted.
-    expect(mark?.getAttribute('data-hint')).toBeNull();
+    expect(mark?.getAttribute('data-fact')).toBeNull();
     fireEvent.mouseEnter(final as HTMLElement);
     expect(screen.getByRole('tooltip').textContent).toContain('Ada is not in Billing');
     // The team is inherited down the branch and the assignee is not, so the
@@ -15080,7 +15100,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     // A `title` here, where the folded cell has none: this column has no card
     // to fight, so the pointer gets the sentence the way the service cell's
     // does.
-    expect(mark?.getAttribute('data-hint')).toContain('Ada is not in Billing');
+    expect(mark?.getAttribute('data-fact')).toContain('Ada is not in Billing');
   });
 
   itDom(
@@ -15129,12 +15149,12 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
         if (owner === null) {
           // Nothing else owns this hover, so the mark carries the sentence
           // itself — and carries the **same** one, not a shorter cousin of it.
-          expect(mark.getAttribute('data-hint')).toBe(note);
+          expect(mark.getAttribute('data-fact')).toBe(note);
           continue;
         }
         // A card owns the hover. Both halves: no `title` to race it, and the
         // sentence really is on the card the same hover opens.
-        expect(mark.getAttribute('data-hint')).toBeNull();
+        expect(mark.getAttribute('data-fact')).toBeNull();
         fireEvent.mouseEnter(owner);
         expect(screen.getByRole('tooltip').textContent).toContain(note);
         fireEvent.mouseLeave(owner);
@@ -15867,7 +15887,7 @@ describe('the tag cell', () => {
     const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
     expect(
       [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) =>
-        chip.getAttribute('data-hint'),
+        chip.getAttribute('data-fact'),
       ),
     ).toEqual([
       'Risk — inherited from 010 - Strip the walls. Remove it there.',
@@ -15927,7 +15947,7 @@ describe('the service cell', () => {
     expect(child).toHaveAttribute('placeholder', '↳ Checkout');
     // A marker that cannot say where it came from is a mystery, not a signal.
     expect(child).toHaveAttribute(
-      'data-hint',
+      'data-fact',
       expect.stringMatching(/Checkout — inherited from 010 - Strip the walls/),
     );
   });

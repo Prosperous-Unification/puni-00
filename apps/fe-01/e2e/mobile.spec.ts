@@ -687,7 +687,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
       .getByRole('button', { name: 'Earliest start for 010' })
       .locator('[data-card-not-before]');
     await expect(saved).toContainText('not before 15 Jul');
-    await expect(saved).toHaveAttribute('data-hint', new RegExp(`Why: ${reason}`));
+    await expect(saved).toHaveAttribute('data-fact', new RegExp(`Why: ${reason}`));
   });
 
   /**

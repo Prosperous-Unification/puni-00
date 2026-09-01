@@ -122,7 +122,7 @@ async function setPriority(page: Page, number: string, priority: number): Promis
   await expect(
     cell,
     `the ${String(priority)} chip on ${number} never took its band's paint`,
-  ).toHaveAttribute('data-hint', new RegExp(`priority ${String(priority)}\\.`));
+  ).toHaveAttribute('data-fact', new RegExp(`priority ${String(priority)}\\.`));
 }
 
 /** The one button in the header that opens the account menu — `dark-mode.spec.ts`' locator. */

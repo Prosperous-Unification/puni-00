@@ -762,7 +762,7 @@ test.describe('390x844 reference sheets', () => {
         const chips = dialog.locator('[data-reference-inherited-chip]');
         await expect(chips).toHaveCount(3);
         await expect(chips.first()).toContainText('↳ ');
-        await expect(chips.first()).toHaveAttribute('data-hint', /inherited from 010 /);
+        await expect(chips.first()).toHaveAttribute('data-fact', /inherited from 010 /);
       } else {
         await expect(dialog.locator('[data-reference-inherited]')).toContainText('from 010');
       }

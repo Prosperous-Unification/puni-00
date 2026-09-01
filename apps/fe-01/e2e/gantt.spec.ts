@@ -3171,7 +3171,9 @@ test.describe('the pointed row, across both faces', () => {
 
     await expect(page.locator('[data-gantt-label-lit]')).toHaveCount(1);
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
-    await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('data-hint', /^010\.2 - /);
+    // `data-fact` since `tool-hints-wait`: a row's number and name are words
+    // about the plan, so the label says them at once rather than after a wait.
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('data-fact', /^010\.2 - /);
 
     // And the row the pointer is on does **not** light itself: `tr:hover` is
     // already tinting it, and `data-row-lit` on every hovered row makes

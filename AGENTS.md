@@ -414,6 +414,50 @@ self-reference drizzle asks for, which breaks the cycle; proved by a throwaway p
 `typeof tag.$inferSelect` accepts all three. **A silently-widened type is a check that cannot fail,
 and the gate that would have caught this one does not read the files that noticed.**
 
+Four on 2026-09-01 in `tool-hints-wait`, and **none shipped** — but two of them are new
+shapes and the browser one is the most reusable thing in this list.
+
+**Playwright's `toHaveCount(0)` is a _retrying_ assertion, so it is not a way to say
+"nothing here right now".** The new hint layer must draw no wait ring inside its first
+400ms, and `await expect(ring).toHaveCount(0)` two hundred milliseconds in was watched
+**passing** with `RING_QUIET_MS` set to 0: the assertion polls for thirty seconds and is
+satisfied the moment the count reaches zero, which for a ring is the moment the card
+replaces it, three seconds later. The fault was then caught two assertions further down by
+a card that had also gone wrong, which reads in the report as a completely different bug.
+Every silence in `e2e/hints.spec.ts` is now `expect(await locator.count()).toBe(0)` — read
+once, at the instant it is about — and the same fault failed on `Expected: 0 · Received: 1`
+at the line it belongs to. **An auto-waiting matcher cannot assert an absence that is only
+temporary.**
+
+**A locator that says "the first mark of this kind" is not about any particular mark.** The
+case that a project fact opens within 400ms found its subject with `page.locator('td
+[data-fact]').first()`, and passed with the fault it exists for — the row number turned back
+into a `data-hint` — because a row carries several facts and the locator simply moved on to
+the next one. Pinned to `td span[data-fact="010"]`, the same fault failed at the locator
+itself: `element(s) not found`.
+
+The other two are old shapes wearing this change's clothes. An advance computed from the
+constant it asserts against (`waitOut(RING_QUIET_MS - 250)`) went **negative** under the
+injected fault and failed the run on `Negative ticks are not supported` rather than on the
+assertion — a failure that says nothing about the behaviour; the advances are literals now.
+And a ring read at the **end** of the wait rather than during it could not fail either way,
+because the opening clears the ring on its way past — `estimate-triple-visible`'s "assert in
+the window the fault lives in", again. Two `Proof:` comments in this change were also written
+from what the fault looked like it should do and were **wrong** in both cases; both were
+rewritten from the output.
+
+And one on 2026-09-01 that is not a vacuous check but the reason this list keeps growing: **the
+whole gate was green over a feature that did not work.** With the wait shipped, adding a work item
+killed every toolbar hint for the rest of the visit — the write hands the keyboard to the new row's
+Name box a few milliseconds later, that `focusin` names a `<textarea>` with no hint of its own, and
+the layer's focus path answered by cancelling everything, the pointer's three-second wait included.
+The pointer has not moved, so nothing ever restarts it. 2020 jsdom tests and 276 browser tests
+passed through it, twenty of them written that hour and every one of them about a page **at rest**;
+the fault lives only in the second after a write. It was found by taking a screenshot and looking at
+it. And the first theory for it — a scroll from the settling table — was **wrong**: the document's
+own event log had no scroll in it at all. Instrument before you believe a mechanism, and look at the
+thing you built.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

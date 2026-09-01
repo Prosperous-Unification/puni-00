@@ -111,6 +111,8 @@ contract: `docs/runbook-prod-deploy.md`.**
   **browser** talks to: 1800 puts fe-01 on 6000 (`ERR_UNSAFE_PORT`); 1900 is good.
 - **A whole-workspace run is not the sum of per-project runs.** Six import-sort errors reached
   `main` on 2026-08-30 green in every per-project run. Gate before merging.
+- **Playwright's `toHaveCount(0)` retries** — it passes the moment the count reaches zero, however
+  late, so a _temporary_ absence needs `expect(await l.count()).toBe(0)` instead.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — mode at birth, never chmod after (`configure.sh` does not; see findings).
 - `--platform linux/amd64` is pinned **on the Dagger publish path**, which is the only supported one.
@@ -120,13 +122,12 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
 
-1. Rollback unimplemented. `--version` is _refused_ rather than ignored, so deploying an older
-   commit means checking it out and rebuilding.
+1. Rollback unimplemented — `--version` is _refused_, so an older commit means a rebuild.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 
-Findings 3–5 closed. Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes
-on any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run. Checks that cannot fail: **twenty-one** (R5).
+Findings 3–5 closed. Lower priority: fe/smoke health takes any non-empty body; the WS ping passes on
+any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints. Checks that cannot fail: **21** (R5).
 
 ## More
 
@@ -143,7 +144,6 @@ on any first message _containing_ `"pong"`; drain reads a malformed metrics body
 | `apps/mcp-01/README.md`                                                 | the MCP server: 20 tools derived from that document, two of them the batch writes                 |
 | `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path                                                     |
 | `docs/2026-08-30-agent-loop-audit.md`                                   | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens |
-| `openspec/changes/scaffold-tech-setup/`                                 | original scaffold — **stale**, spec above wins                                                    |
 
 Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state
 what was/wasn't verified; never print a secret value. Explicit return types are house style,
