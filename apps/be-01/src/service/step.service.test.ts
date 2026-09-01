@@ -331,6 +331,59 @@ describe('StepService.remove', () => {
     expect(broadcast.published).toEqual([]);
   });
 
+  it.each([
+    [
+      'recorded days',
+      async () =>
+        actuals.set({ workItemId: 'strip', stepId: qaId, days: 2, recordedAt: 1000 }, wrote()),
+    ],
+    [
+      'progress',
+      async () =>
+        progressStore.set(
+          { workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 },
+          wrote(),
+        ),
+    ],
+  ])(
+    'refuses a step holding only %s at the gate, before a transaction opens',
+    async (_what, hold) => {
+      // **Two moments, one rule.** The gate refuses so a reader is asked to
+      // confirm; the transaction refuses again because the gate's answer can be
+      // stale by the time the deletes would run. The gate used to ask
+      // `estimates > 0 || assignments > 0`, so a step holding only recorded days,
+      // only progress, or only measures walked past it and was refused one layer
+      // down instead.
+      //
+      // The outcome is identical either way — which is why the drift was
+      // invisible for as long as it was, and why this asserts on the *store call*
+      // rather than the answer. `carries the figures that are not days into the
+      // refusal it shows a person` above passes with the gate broken.
+      //
+      // Two proofs, because the assertions break on different faults and
+      // neither sees the other's. With the `actuals` term dropped from
+      // `stepIsInUse`, the outcome assertion failed on `toMatchObject ·
+      // - "ok": false · + "ok": true` — both callers ask that function now, so
+      // the step is deleted outright. With the gate's condition put back to
+      // `seen.estimates > 0 || seen.assignments > 0`, the count failed on
+      // `Expected: 0 · Received: 1` for both cases: the answer was right and a
+      // transaction opened to produce it. Both watched 2026-09-02.
+      await hold();
+      let transactionsOpened = 0;
+      const removeThroughStore = stepStore.remove.bind(stepStore);
+      stepStore.remove = (...args: Parameters<StepStore['remove']>) => {
+        transactionsOpened += 1;
+        return removeThroughStore(...args);
+      };
+
+      const outcome = await steps.remove(projectId, qaId, ownerId, false);
+
+      expect(outcome).toMatchObject({ ok: false, reason: 'in_use' });
+      expect(transactionsOpened).toBe(0);
+      expect(await stepStore.findById(qaId)).not.toBeNull();
+    },
+  );
+
   it('removes it on the second, explicit call', async () => {
     await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     expect(await steps.remove(projectId, qaId, ownerId, false)).toMatchObject({ reason: 'in_use' });

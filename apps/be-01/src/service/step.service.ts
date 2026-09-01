@@ -1,4 +1,9 @@
 import type { ProjectStore, Step, StepStore, StepUsageRows, WriteStamp } from '../repository';
+// Imported from the module that owns the rule rather than through the barrel:
+// the transaction in that file is the other caller, and the two must not drift
+// again. `event-log.ts` and `migrate-down.ts` already keep their own exports
+// beside their implementation.
+import { stepIsInUse } from '../repository/step';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { canEdit } from './project.service';
@@ -209,7 +214,7 @@ export class StepService {
 
     if (!cascade) {
       const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
-      if (seen.estimates > 0 || seen.assignments > 0) {
+      if (stepIsInUse(seen)) {
         return { ok: false, reason: 'in_use', inUse: seen };
       }
     }

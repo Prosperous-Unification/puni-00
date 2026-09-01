@@ -116,7 +116,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                              | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
 | W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
 | W0-8  | `parseOrThrow` never prints a value (N7): an options argument naming paths only; a negative asserting no env value appears in a boot-failure message.                                                                                                                                                  | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
-| W0-9  | Reconcile `step.service.ts:212` with `repository/step.ts:373` (N9): one exported predicate, one test that both call it.                                                                                                                                                                                | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
+| W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                                      | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
 | W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
 | W0-11 | Delete the dead code in N14 (keep the `examples` **table** — migration tests assert its round trip; drop `'examples'` from `audit.test.ts`'s `EXEMPT` once no drizzle write touches it). Drop `d3`/`@types/d3`.                                                                                        | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
 | W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                                        | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
@@ -515,3 +515,34 @@ for two releases, so the next reader does not restore it.
 **Green:** `be-01` 1263 pass, `gw-01` 59 pass, `fe-01` 2046 pass across 66 files; lint and typecheck
 on all three; `format:check --all`. fe-01 is in the list on purpose — it is the consumer of these
 events, and a shape it still expected would have failed there rather than in be-01.
+
+## 11 · Verify — W0-9, 2026-09-02
+
+The rule is `stepIsInUse(held)` in `repository/step.ts`, beside the transaction that is
+authoritative for it. Both callers ask it: the removal transaction, and `StepService.remove`'s gate,
+which had been written as `estimates > 0 || assignments > 0` and so let a step holding only recorded
+days, only progress, or only measures walk past.
+
+**The obvious check for this could not fail, and the existing suite proves it.**
+`carries the figures that are not days into the refusal it shows a person` sets two measures and
+asserts the refusal — and it passes with the gate broken, because the transaction refuses one layer
+down and returns its own usage. The _outcome is identical either way_. That is why the drift
+survived, and it is why a test asserting the answer would have been a check that cannot fail.
+
+What actually differs is whether a transaction opens at all, which is the gate's whole purpose: a
+reader is asked to confirm before one does. The new cases count store calls, and each assertion was
+injected separately because neither sees the other's fault:
+
+| Injected fault                                                  | Which assertion fired | Observed                                       |
+| --------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
+| `actuals` term dropped from `stepIsInUse`                       | the outcome           | `toMatchObject · - "ok": false · + "ok": true` |
+| gate put back to `seen.estimates > 0 \|\| seen.assignments > 0` | the store-call count  | `Expected: 0 · Received: 1`, both cases        |
+
+The first failure is louder than the drift was: now that both callers share the function, a missing
+term deletes the step rather than merely letting it past the gate. That is the collapse working — a
+rule with one home cannot be half-wrong any more.
+
+The service imports `stepIsInUse` from `../repository/step` rather than through the barrel, which is
+the direction W4-1 is heading and the shape `event-log.ts` and `migrate-down.ts` already use.
+
+**Green:** `be-01` 1265 pass, 0 fail (two new cases), lint, typecheck.
