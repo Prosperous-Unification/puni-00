@@ -25,6 +25,27 @@ const FORBIDDEN: { label: string; pattern: RegExp }[] = [
   { label: 'DROP COLUMN', pattern: /\bDROP COLUMN\b/ },
   { label: 'ALTER TABLE ... RENAME COLUMN', pattern: /\bALTER TABLE\b.*\bRENAME COLUMN\b/ },
   { label: 'TRUNCATE', pattern: /\bTRUNCATE\b/ },
+  // A column added `NOT NULL` with no default is the one additive-looking
+  // statement SQLite refuses outright, and it refuses it at **runtime**, against
+  // a populated table, on the deploy that runs it — every table in this schema is
+  // populated in dev and prod, so this is a migration that passes every check in
+  // the tree and then takes the release down. `DEFAULT` earns the exception
+  // because SQLite can then fill the existing rows, so the statement is genuinely
+  // additive; the tempting shortcut it does not earn is stamping an audit column
+  // with a made-up author (R5: never convert an unknown into a default).
+  //
+  // The lookahead is bounded to the statement because statements are matched one
+  // at a time here — a `DEFAULT` in the next `ALTER` cannot excuse this one.
+  //
+  // Proof: this entry deleted, `rejects a NOT NULL column added with no default`
+  // failed on `Received value must be a string: undefined` — the lint returned no
+  // issue at all for `ALTER TABLE tag ADD created_by text NOT NULL`. Watched
+  // 2026-09-01, with the two positive cases beside it staying green, so the
+  // pattern is refusing the statement rather than refusing `NOT NULL`.
+  {
+    label: 'ADD COLUMN ... NOT NULL with no DEFAULT',
+    pattern: /\bADD (?:COLUMN )?(?![^;]*\bDEFAULT\b)[^;]*\bNOT NULL\b/,
+  },
 ];
 
 /**

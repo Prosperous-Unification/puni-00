@@ -1,7 +1,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { ActualStore, StoredActual } from './index';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { ActualStore, StoredActual, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { actual, step, workItem } from './schema';
 
@@ -70,21 +71,21 @@ export class ActualRepository implements ActualStore {
    * from the row being overwritten: the column says when this number was typed,
    * and a corrected figure was typed today.
    */
-  async set(toSet: StoredActual): Promise<void> {
+  async set(toSet: StoredActual, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.insert(actual)
-        .values(toSet)
+        .values({ ...toSet, ...auditOnCreate(stamp) })
         .onConflictDoUpdate({
           target: [actual.workItemId, actual.stepId],
-          set: { days: toSet.days, recordedAt: toSet.recordedAt },
+          set: { days: toSet.days, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
         })
         .run();
-      bumpWorkItems(tx, [toSet.workItemId]);
+      bumpWorkItems(tx, [toSet.workItemId], stamp);
     });
   }
 
-  async remove(workItemId: string, stepId: string): Promise<void> {
+  async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
     // Both halves of the key, not the step alone: the composite primary key is
     // (work item, step), and narrowing to one of them would clear that step
     // across the whole database. `actual.test.ts` keeps a survivor for each half
@@ -94,7 +95,7 @@ export class ActualRepository implements ActualStore {
       tx.delete(actual)
         .where(and(eq(actual.workItemId, workItemId), eq(actual.stepId, stepId)))
         .run();
-      bumpWorkItems(tx, [workItemId]);
+      bumpWorkItems(tx, [workItemId], stamp);
     });
   }
 
@@ -120,11 +121,11 @@ export class ActualRepository implements ActualStore {
    * 2 where 1 is owed — a work item reporting two writes for one create;
    * watched 2026-08-17.
    */
-  async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
+  async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.update(actual)
-        .set({ workItemId: toWorkItemId })
+        .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
         .where(eq(actual.workItemId, fromWorkItemId))
         .run();
       const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
@@ -132,7 +133,7 @@ export class ActualRepository implements ActualStore {
         throw new Error('SELECT changes() answered no row after moving actuals');
       }
       if (changed.n === 0) return;
-      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId]);
+      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
     });
   }
 }

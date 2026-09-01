@@ -2,6 +2,7 @@ import { isOrphanedNotBeforeReason } from '@wbs/domain';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { auditOnCreate, auditOnUpdate } from './audit';
 import type {
   ExternalRef,
   FrozenNumber,
@@ -14,6 +15,7 @@ import type {
   WorkItemPatch,
   WorkItemPatched,
   WorkItemStore,
+  WriteStamp,
 } from './index';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
 import {
@@ -80,6 +82,35 @@ function joinRowsFor(
 }
 
 /**
+ * The columns a {@link WorkItem} is, named once because both reads here want
+ * exactly them.
+ *
+ * Spelled out rather than left to `select()`, which is the convention this folder
+ * already keeps for a retired column (see `directory.ts`'s `listTeams`): a bare
+ * select reads every column drizzle knows about, and since the audit columns are
+ * **recorded, not published**, that would put `created_at`, `updated_at` and
+ * `created_by` into `LabelledWorkItem` — which `listByProject` spreads straight
+ * into its answer — and from there into the plan payload. The declared return
+ * types check the list is complete.
+ */
+const WORK_ITEM_COLUMNS = {
+  id: workItem.id,
+  projectId: workItem.projectId,
+  parentId: workItem.parentId,
+  position: workItem.position,
+  name: workItem.name,
+  notes: workItem.notes,
+  frozenNumber: workItem.frozenNumber,
+  startNoEarlierThan: workItem.startNoEarlierThan,
+  startNoEarlierThanReason: workItem.startNoEarlierThanReason,
+  priority: workItem.priority,
+  serviceTeamId: workItem.serviceTeamId,
+  serviceId: workItem.serviceId,
+  maxParallel: workItem.maxParallel,
+  revision: workItem.revision,
+};
+
+/**
  * Every method that writes more than one row does so in one transaction.
  *
  * The reason is the derived number: two siblings sharing a position, or a child
@@ -119,7 +150,10 @@ export class WorkItemRepository implements WorkItemStore {
    * `EffectiveServices.serviceIds` all document.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
-    const rows = await this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
+    const rows = await this.db
+      .select(WORK_ITEM_COLUMNS)
+      .from(workItem)
+      .where(eq(workItem.projectId, projectId));
     const joined = await this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)
@@ -202,7 +236,11 @@ export class WorkItemRepository implements WorkItemStore {
   }
 
   async findById(id: string): Promise<WorkItem | null> {
-    const rows = await this.db.select().from(workItem).where(eq(workItem.id, id)).limit(1);
+    const rows = await this.db
+      .select(WORK_ITEM_COLUMNS)
+      .from(workItem)
+      .where(eq(workItem.id, id))
+      .limit(1);
     return rows[0] ?? null;
   }
 
@@ -216,18 +254,34 @@ export class WorkItemRepository implements WorkItemStore {
    * row's first instant, which is the one thing {@link joinRowsFor} exists to
    * prevent.
    */
-  async insert(toInsert: WorkItem, respaced: readonly Repositioned[]): Promise<void> {
+  async insert(
+    toInsert: WorkItem,
+    respaced: readonly Repositioned[],
+    stamp: WriteStamp,
+  ): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       for (const moved of respaced) {
+        // A respaced sibling is stamped even though it is deliberately **not**
+        // bumped — see {@link bumpedWorkItemOnReparent} for the other half. The
+        // two answer different questions: `revision` is a precondition other
+        // clients hold, so moving it for a shift nobody asked about would defeat
+        // their edits, while `updated_at` is a record of what was written and
+        // this row's `position` column was written. A row whose column changed
+        // and whose `updated_at` did not is a row the audit trail lies about.
         tx.update(workItem)
-          .set({ position: moved.position })
+          .set({ position: moved.position, ...auditOnUpdate(stamp) })
           .where(eq(workItem.id, moved.id))
           .run();
       }
-      tx.insert(workItem).values(toInsert).run();
+      tx.insert(workItem)
+        .values({ ...toInsert, ...auditOnCreate(stamp) })
+        .run();
       const joined = joinRowsFor([toInsert]);
-      if (joined.length > 0) tx.insert(workItemTeam).values(joined).run();
+      if (joined.length > 0)
+        tx.insert(workItemTeam)
+          .values(joined.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+          .run();
     });
   }
 
@@ -251,7 +305,7 @@ export class WorkItemRepository implements WorkItemStore {
    * that has been removed` fails — the work item came back carrying the dead
    * id, which is the dangle this exists to prevent; watched 2026-08-09.
    */
-  async patch(id: string, patch: WorkItemPatch): Promise<WorkItemPatched> {
+  async patch(id: string, patch: WorkItemPatch, stamp: WriteStamp): Promise<WorkItemPatched> {
     if (
       patch.name === undefined &&
       patch.notes === undefined &&
@@ -487,6 +541,7 @@ export class WorkItemRepository implements WorkItemStore {
             ? {}
             : { serviceTeamId: normalizedTeams.at(0) ?? null }),
           revision: bumpedWorkItem,
+          ...auditOnUpdate(stamp),
         })
         .where(eq(workItem.id, id))
         .returning()
@@ -510,13 +565,21 @@ export class WorkItemRepository implements WorkItemStore {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (normalizedTeams.length > 0) {
           tx.insert(workItemTeam)
-            .values(normalizedTeams.map((teamId) => ({ workItemId: id, teamId })))
+            .values(
+              normalizedTeams.map((teamId) => ({
+                workItemId: id,
+                teamId,
+                ...auditOnCreate(stamp),
+              })),
+            )
             .run();
         }
       } else if (wanted !== undefined) {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (wanted !== null)
-          tx.insert(workItemTeam).values({ workItemId: id, teamId: wanted }).run();
+          tx.insert(workItemTeam)
+            .values({ workItemId: id, teamId: wanted, ...auditOnCreate(stamp) })
+            .run();
       }
       // The tag set, in the same transaction and only when the patch names the
       // dimension at all — an edit to the name must not empty the tags.
@@ -535,7 +598,7 @@ export class WorkItemRepository implements WorkItemStore {
         const distinct = [...new Set(wantedTags)];
         if (distinct.length > 0) {
           tx.insert(workItemTag)
-            .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .values(distinct.map((tagId) => ({ workItemId: id, tagId, ...auditOnCreate(stamp) })))
             .run();
         }
       }
@@ -554,7 +617,7 @@ export class WorkItemRepository implements WorkItemStore {
         const distinct = [...new Set(wantedTypes)];
         if (distinct.length > 0) {
           tx.insert(workItemWorkItemType)
-            .values(distinct.map((typeId) => ({ workItemId: id, typeId })))
+            .values(distinct.map((typeId) => ({ workItemId: id, typeId, ...auditOnCreate(stamp) })))
             .run();
         }
       }
@@ -585,6 +648,7 @@ export class WorkItemRepository implements WorkItemStore {
                 systemId: each.systemId,
                 url: each.url,
                 position: at,
+                ...auditOnCreate(stamp),
               })),
             )
             .run();
@@ -606,7 +670,13 @@ export class WorkItemRepository implements WorkItemStore {
         const distinct = [...new Set(wantedServices)];
         if (distinct.length > 0) {
           tx.insert(workItemService)
-            .values(distinct.map((serviceId) => ({ workItemId: id, serviceId })))
+            .values(
+              distinct.map((serviceId) => ({
+                workItemId: id,
+                serviceId,
+                ...auditOnCreate(stamp),
+              })),
+            )
             .run();
         }
       }
@@ -619,29 +689,34 @@ export class WorkItemRepository implements WorkItemStore {
     parentId: string | null,
     position: number,
     respaced: readonly Repositioned[],
+    stamp: WriteStamp,
   ): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       for (const moved of respaced) {
         tx.update(workItem)
-          .set({ position: moved.position })
+          .set({ position: moved.position, ...auditOnUpdate(stamp) })
           .where(eq(workItem.id, moved.id))
           .run();
       }
       tx.update(workItem)
-        .set({ parentId, position, revision: bumpedWorkItem })
+        .set({ parentId, position, revision: bumpedWorkItem, ...auditOnUpdate(stamp) })
         .where(eq(workItem.id, id))
         .run();
     });
   }
 
-  async setFrozenNumbers(updates: readonly FrozenNumber[]): Promise<void> {
+  async setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     if (updates.length === 0) return;
     this.db.transaction((tx) => {
       for (const update of updates) {
         tx.update(workItem)
-          .set({ frozenNumber: update.frozenNumber, revision: bumpedWorkItem })
+          .set({
+            frozenNumber: update.frozenNumber,
+            revision: bumpedWorkItem,
+            ...auditOnUpdate(stamp),
+          })
           .where(eq(workItem.id, update.id))
           .run();
       }
@@ -658,7 +733,11 @@ export class WorkItemRepository implements WorkItemStore {
    * leaves before the parents they hang from. Estimates go first for the same
    * reason — they reference the work items about to disappear.
    */
-  async remove(ids: readonly string[], promoted: readonly Reparented[]): Promise<void> {
+  async remove(
+    ids: readonly string[],
+    promoted: readonly Reparented[],
+    stamp: WriteStamp,
+  ): Promise<void> {
     await Promise.resolve();
     if (ids.length === 0) return;
     const deepestFirst = [...ids].reverse();
@@ -672,6 +751,7 @@ export class WorkItemRepository implements WorkItemStore {
             parentId: child.parentId,
             position: child.position,
             revision: bumpedWorkItemOnReparent(child.parentId),
+            ...auditOnUpdate(stamp),
           })
           .where(eq(workItem.id, child.id))
           .run();
@@ -723,12 +803,12 @@ export class SubtreeRepository implements SubtreeStore {
    * would throw before the promise this signature advertises exists, and a
    * caller holding it with `.catch()` would never see the rejection.
    */
-  async insertSubtree(copy: SubtreeCopy): Promise<void> {
+  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       for (const moved of copy.respaced) {
         tx.update(workItem)
-          .set({ position: moved.position })
+          .set({ position: moved.position, ...auditOnUpdate(stamp) })
           .where(eq(workItem.id, moved.id))
           .run();
       }
@@ -738,7 +818,9 @@ export class SubtreeRepository implements SubtreeStore {
       for (const row of copy.rows) {
         const stored = { ...row };
         Reflect.deleteProperty(stored, 'teamIds');
-        tx.insert(workItem).values(stored).run();
+        tx.insert(workItem)
+          .values({ ...stored, ...auditOnCreate(stamp) })
+          .run();
       }
       // The teams the copied rows carry, in the same transaction as the rows.
       // A duplicated branch draws from the pools the original drew from, and a
@@ -751,7 +833,10 @@ export class SubtreeRepository implements SubtreeStore {
       // writes` failed on `Expected - 4 / Received + 0` — the copy landed with
       // no team at all — 15 pass / 1 fail; watched 2026-08-14.
       const joined = joinRowsFor(copy.rows);
-      if (joined.length > 0) tx.insert(workItemTeam).values(joined).run();
+      if (joined.length > 0)
+        tx.insert(workItemTeam)
+          .values(joined.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+          .run();
       // After the rows, because these point at them. A restored parent's
       // children come home here, and a row that gained a parent gained a
       // stored field of its own — see {@link bumpedWorkItemOnReparent} for why
@@ -762,13 +847,14 @@ export class SubtreeRepository implements SubtreeStore {
             parentId: child.parentId,
             position: child.position,
             revision: bumpedWorkItemOnReparent(child.parentId),
+            ...auditOnUpdate(stamp),
           })
           .where(eq(workItem.id, child.id))
           .run();
       }
       if (copy.estimates.length > 0)
         tx.insert(estimate)
-          .values([...copy.estimates])
+          .values(copy.estimates.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       // Beside the estimates and written the same way. Empty for a duplication
       // — a copy is work nobody has done — and non-empty for the restore an
@@ -776,7 +862,7 @@ export class SubtreeRepository implements SubtreeStore {
       // with the rows. See {@link SubtreeCopy.actuals}.
       if (copy.actuals.length > 0)
         tx.insert(actual)
-          .values([...copy.actuals])
+          .values(copy.actuals.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       // Beside the actuals and for the same two reasons: empty for a
       // duplication, because a copy is work nobody has done *or spoken about*,
@@ -785,7 +871,7 @@ export class SubtreeRepository implements SubtreeStore {
       // {@link SubtreeCopy.progress}.
       if (copy.progress.length > 0)
         tx.insert(stepProgress)
-          .values([...copy.progress])
+          .values(copy.progress.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       // Beside the two above, and the one write here whose emptiness is not a
       // whole-collection decision: a duplication fills this with the original's
@@ -795,18 +881,18 @@ export class SubtreeRepository implements SubtreeStore {
       // {@link SubtreeCopy.measures}.
       if (copy.measures.length > 0)
         tx.insert(stepMeasure)
-          .values([...copy.measures])
+          .values(copy.measures.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       if (copy.assignments.length > 0)
         tx.insert(assignment)
-          .values([...copy.assignments])
+          .values(copy.assignments.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       // Plain inserts, never `onConflictDoNothing`: every id here was generated
       // for this copy, so a conflict is an id collision and swallowing it would
       // hide the one thing that must never be quiet.
       if (copy.dependencies.length > 0)
         tx.insert(dependency)
-          .values([...copy.dependencies])
+          .values(copy.dependencies.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
           .run();
       // Last, and in the same transaction as the rows that make it correct: a
       // restored leaf and the parent still holding that leaf's figures would
@@ -854,12 +940,16 @@ export class SubtreeRepository implements SubtreeStore {
           )
           .run();
       }
-      bumpWorkItems(tx, [
-        ...copy.removedEstimates.map((taken) => taken.workItemId),
-        ...copy.removedActuals.map((taken) => taken.workItemId),
-        ...copy.removedProgress.map((taken) => taken.workItemId),
-        ...copy.removedMeasures.map((taken) => taken.workItemId),
-      ]);
+      bumpWorkItems(
+        tx,
+        [
+          ...copy.removedEstimates.map((taken) => taken.workItemId),
+          ...copy.removedActuals.map((taken) => taken.workItemId),
+          ...copy.removedProgress.map((taken) => taken.workItemId),
+          ...copy.removedMeasures.map((taken) => taken.workItemId),
+        ],
+        stamp,
+      );
     });
   }
 }

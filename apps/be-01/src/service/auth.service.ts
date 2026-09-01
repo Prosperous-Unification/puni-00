@@ -7,7 +7,7 @@ import {
 } from '@wbs/auth';
 import { jwtVerify, SignJWT } from 'jose';
 
-import type { OidcIdentityStore, User, UserStore } from '../repository';
+import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../repository';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
@@ -69,18 +69,30 @@ export class AuthService {
       opts.verifyPassword ?? ((password, hash) => Bun.password.verify(password, hash));
   }
 
+  /**
+   * The one stamp an act carries — see {@link WriteStamp}; built once per act.
+   *
+   * Both of this service's acts create the account they are the act of, so the
+   * `actorId` they pass is the id they are about to mint: the account is its own
+   * author. Every other service is handed an actor by its controller.
+   */
+  private stampFor(actorId: string): WriteStamp {
+    return { at: this.now(), by: actorId };
+  }
+
   async register(username: string, password: string): Promise<RegisterOutcome> {
     if (!USERNAME.test(username) || password.length < MIN_PASSWORD) {
       return { ok: false, reason: 'invalid' };
     }
     if (password.length > MAX_PASSWORD) return { ok: false, reason: 'invalid' };
-    const user: User = {
-      id: this.newId(),
-      username,
-      passwordHash: await Bun.password.hash(password),
-      createdAt: this.now(),
-    };
-    const created = await this.opts.users.create(user);
+    const passwordHash = await Bun.password.hash(password);
+    // The act begins here, after every refusal and after the hash: argon2id
+    // takes long enough that a stamp taken before it would date the row from
+    // when the request arrived rather than from when the row was made.
+    const id = this.newId();
+    const stamp = this.stampFor(id);
+    const user: User = { id, username, passwordHash, createdAt: stamp.at };
+    const created = await this.opts.users.create(user, stamp);
     if (created === null) return { ok: false, reason: 'taken' };
     return { ok: true, result: await this.issue(created) };
   }
@@ -134,14 +146,24 @@ export class AuthService {
     return null;
   }
 
+  /**
+   * The account behind one verified OIDC token, minting it on a first login.
+   *
+   * The stamp is built for the id this login *would* mint, because that is the
+   * only actor the act can name: on the branch that writes a new row the row is
+   * its own author, and on the branch that links an existing password account
+   * the store deliberately moves only `updatedAt` — see
+   * {@link OidcIdentityStore.resolveOidcIdentity}. Most calls here resolve an
+   * account that already exists and write nothing at all, so the id and the
+   * stamp are both spent only on the branch that does write.
+   */
   async resolveOidcIdentity(identity: OidcIdentity): Promise<User | null> {
     if (this.opts.identities === undefined) {
       throw new Error('OIDC identity store is not configured');
     }
-    return this.opts.identities.resolveOidcIdentity(identity, {
-      id: this.newId(),
-      createdAt: this.now(),
-    });
+    const id = this.newId();
+    const stamp = this.stampFor(id);
+    return this.opts.identities.resolveOidcIdentity(identity, { id }, stamp);
   }
 
   private async issue(user: User): Promise<AuthResult> {

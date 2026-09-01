@@ -1,4 +1,11 @@
-import type { ProjectStore, Step, StepRemoved, StepStore, StepUsageRows } from '../repository';
+import type {
+  ProjectStore,
+  Step,
+  StepRemoved,
+  StepStore,
+  StepUsageRows,
+  WriteStamp,
+} from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from './broadcast-fixture';
@@ -23,10 +30,17 @@ import { inMemoryProjects } from './project-fixture';
  */
 export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
   readonly rows: Step[];
+  stampsSeen: WriteStamp[];
 } {
   const rows: Step[] = [...seed];
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
   return {
     rows,
+    stampsSeen,
     listByProject(projectId) {
       // Sorted, because production is: without the `ORDER BY` SQLite answers
       // this from the name index, and a fixture that happened to return
@@ -41,7 +55,8 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
     findById(stepId) {
       return Promise.resolve(rows.find((each) => each.id === stepId) ?? null);
     },
-    add(toAdd) {
+    add(toAdd, stamp) {
+      stampsSeen.push(stamp);
       const held = rows.filter((each) => each.projectId === toAdd.projectId);
       if (held.some((each) => each.name === toAdd.name)) {
         return Promise.resolve({ ok: false, reason: 'taken' });
@@ -53,7 +68,8 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
       rows.push(written);
       return Promise.resolve({ ok: true, step: written });
     },
-    rename(stepId, name) {
+    rename(stepId, name, stamp) {
+      stampsSeen.push(stamp);
       const found = rows.find((each) => each.id === stepId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const taken = rows.some(
@@ -75,12 +91,15 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
         assignments: [],
       });
     },
-    remove(projectId, stepId): Promise<StepRemoved> {
+    remove(projectId, stepId, cascade, stamp): Promise<StepRemoved> {
+      stampsSeen.push(stamp);
       const found = rows.findIndex((each) => each.id === stepId && each.projectId === projectId);
       // The one thing this can model of the real removal: a step that is not
       // this project's, or is already gone, is `not_found` and writes nothing.
       // The refusal-when-used branch is unreachable here because nothing can
-      // point at a step in an array with no estimates in it.
+      // point at a step in an array with no estimates in it — which is also why
+      // `cascade` is named and never read: there is nothing pointing at the step
+      // for it to decide about.
       if (found < 0) return Promise.resolve({ ok: false, reason: 'not_found' });
       rows.splice(found, 1);
       return Promise.resolve({

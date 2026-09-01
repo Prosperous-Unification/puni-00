@@ -130,6 +130,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
           createdAt: 1,
         },
         [],
+        { at: 1, by: who.id },
       );
     }
     // The three projects were created by **this** release, so none of them is

@@ -14,6 +14,7 @@ import type { Step } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
+import type { Drizzle } from '../repository/db';
 import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
@@ -22,6 +23,7 @@ import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { ProjectRepository } from '../repository/project';
+import { person, personTeam, service, serviceTeam, tag, workItemType } from '../repository/schema';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
@@ -45,6 +47,8 @@ import { WriteLock } from './write-lock';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+/** The raw handle, for the claims that are about a column rather than a row. */
+let db: Drizzle;
 let runner: PlanCommandRunner;
 let runnerOptions: PlanCommandRunnerOptions;
 let serviceOptions: WorkItemServiceOptions;
@@ -71,7 +75,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-batch-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
+  db = openDrizzle(path);
   projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
@@ -84,12 +88,17 @@ beforeEach(async () => {
   const broadcast = recordingBroadcaster();
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  // The account stamps itself, which is what a signup does — and `created_by`
+  // references `users(id)`, so nothing else could satisfy it for the first row.
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    { at: 1, by: ownerId },
+  );
 
   serviceOptions = {
     workItems: workItemStore,
@@ -355,6 +364,52 @@ describe('a command batch', () => {
     ).toEqual({ ok: false, at: 1, kind: 'createWorkItem', reason: 'project_required' });
     // All or none here too: the tag went with the refusal.
     expect(await directoryStore.listTags()).toHaveLength(0);
+  });
+
+  // Dany's item 6, and the narrow case of the audit columns: creating a tag, a
+  // work item type, a service, a team or a person must record **who** created
+  // it. The directory is where that is load-bearing rather than nice — a
+  // directory entity is created outside the plan's own history, so
+  // `command_journal` and `plan_event` hold nothing about it and the row's
+  // `created_by` is the only place the answer exists.
+  //
+  // Through `runDirectory` rather than against the repository, because the actor
+  // is resolved at the controller and threaded down: a repository-level test
+  // would prove the column can hold a value and not that the acting account
+  // reaches it.
+  //
+  // Proof: `DirectoryService.addTag` changed to stamp `this.stampFor('system')`
+  // instead of the actor — watched failing on `SQLiteError: FOREIGN KEY
+  // constraint failed`, which is a blunter refusal than the assertion below and
+  // worth knowing about: `created_by` references `users(id)`, so a row cannot be
+  // attributed to something that is not an account at all. A fault that named a
+  // *different real* account would reach the assertion instead. 2026-09-01.
+  it('records the creator of every directory entity a batch makes', async () => {
+    const outcome = await runner.runDirectory(ownerId, [
+      { kind: 'createTeam', ref: 'platform', name: 'Platform' },
+      { kind: 'createTag', name: 'wiring' },
+      { kind: 'createService', name: 'billing' },
+      { kind: 'createWorkItemType', name: 'spike' },
+      { kind: 'createPerson', ref: 'kat', name: 'Kat', teamRefs: ['platform'] },
+    ]);
+    if (!outcome.ok) throw new Error(outcome.reason);
+
+    const authorOf = async (
+      rows: Promise<{ createdBy: string | null }[]>,
+    ): Promise<string | null> => {
+      const found = (await rows).at(0);
+      if (found === undefined) throw new Error('the batch wrote no row to read an author off');
+      return found.createdBy;
+    };
+
+    expect(await authorOf(db.select().from(serviceTeam))).toBe(ownerId);
+    expect(await authorOf(db.select().from(tag))).toBe(ownerId);
+    expect(await authorOf(db.select().from(service))).toBe(ownerId);
+    expect(await authorOf(db.select().from(workItemType))).toBe(ownerId);
+    expect(await authorOf(db.select().from(person))).toBe(ownerId);
+    // The membership the person arrived with is its own row, and it was created
+    // by the same act.
+    expect(await authorOf(db.select().from(personTeam))).toBe(ownerId);
   });
 
   it('lets go of the write lock before the broadcast leaves', async () => {

@@ -1,7 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { EstimateStore, StoredEstimate } from './index';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { EstimateStore, StoredEstimate, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { estimate, step, workItem } from './schema';
 
@@ -70,25 +71,26 @@ export class EstimateRepository implements EstimateStore {
     );
   }
 
-  async set(toSet: StoredEstimate): Promise<void> {
+  async set(toSet: StoredEstimate, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.insert(estimate)
-        .values(toSet)
+        .values({ ...toSet, ...auditOnCreate(stamp) })
         .onConflictDoUpdate({
           target: [estimate.workItemId, estimate.stepId],
           set: {
             optimistic: toSet.optimistic,
             realistic: toSet.realistic,
             pessimistic: toSet.pessimistic,
+            ...auditOnUpdate(stamp),
           },
         })
         .run();
-      bumpWorkItems(tx, [toSet.workItemId]);
+      bumpWorkItems(tx, [toSet.workItemId], stamp);
     });
   }
 
-  async remove(workItemId: string, stepId: string): Promise<void> {
+  async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
     // Both halves of the key, not the step alone: the composite primary key is
     // (work item, step), and narrowing to one of them would clear that step
     // across the whole database. `estimate.test.ts` keeps a survivor for each
@@ -102,7 +104,7 @@ export class EstimateRepository implements EstimateStore {
       tx.delete(estimate)
         .where(and(eq(estimate.workItemId, workItemId), eq(estimate.stepId, stepId)))
         .run();
-      bumpWorkItems(tx, [workItemId]);
+      bumpWorkItems(tx, [workItemId], stamp);
     });
   }
 
@@ -113,14 +115,14 @@ export class EstimateRepository implements EstimateStore {
    * Proof: bumped for `to` alone, `hands the estimate down to a first child,
    * moving both` fails on the parent's revision; watched 2026-08-07.
    */
-  async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
+  async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.update(estimate)
-        .set({ workItemId: toWorkItemId })
+        .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
         .where(eq(estimate.workItemId, fromWorkItemId))
         .run();
-      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId]);
+      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
     });
   }
 }

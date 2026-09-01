@@ -4,7 +4,8 @@ import { normalizeEmail, type OidcIdentity } from '@wbs/auth';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { User, UserStore } from './index';
+import { auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import type { User, UserStore, WriteStamp } from './index';
 import { users } from './schema';
 
 /**
@@ -13,14 +14,53 @@ import { users } from './schema';
  * alternative — checking for an existing row first — is a race: two
  * registrations of the same username both see it free.
  */
+/**
+ * The columns a {@link User} is, named once because seven reads in this file want
+ * exactly them.
+ *
+ * Spelled out rather than left to `select()`, and every read that crosses this
+ * class's boundary uses it: the audit columns are **recorded, not published**, so
+ * a bare select would hand `updated_at` and `created_by` to every caller of
+ * `findById` and into the HTTP payload behind it. It also keeps
+ * `resolveOidcIdentity` to one shape — that method returns a stored row on one
+ * path and a constructed object on another, and without this the two differed by
+ * three fields.
+ *
+ * The declared return types are what check the list is complete: drop a column
+ * and `tsc` refuses the assignment to `User`.
+ */
+const USER_COLUMNS = {
+  id: users.id,
+  username: users.username,
+  passwordHash: users.passwordHash,
+  email: users.email,
+  idpIssuer: users.idpIssuer,
+  idpSub: users.idpSub,
+  createdAt: users.createdAt,
+};
+
 export class UserRepository implements UserStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
-  /** Makes the fixed local-mode identity a real owner before any project write can use it. */
-  ensureLocalIdentity(identity: Pick<User, 'id' | 'username'>): void {
-    const byId = this.db.select().from(users).where(eq(users.id, identity.id)).limit(1).all().at(0);
+  /**
+   * Makes the fixed local-mode identity a real owner before any project write
+   * can use it.
+   *
+   * Takes its own stamp rather than reading a clock here, which is the rule the
+   * whole folder keeps: every instant the repository stores arrived in a
+   * {@link WriteStamp}. The account creates itself, so `by` is its own id — the
+   * one row in the schema whose author is the row.
+   */
+  ensureLocalIdentity(identity: Pick<User, 'id' | 'username'>, stamp: WriteStamp): void {
+    const byId = this.db
+      .select(USER_COLUMNS)
+      .from(users)
+      .where(eq(users.id, identity.id))
+      .limit(1)
+      .all()
+      .at(0);
     const byUsername = this.db
-      .select()
+      .select(USER_COLUMNS)
       .from(users)
       .where(eq(users.username, identity.username))
       .limit(1)
@@ -35,7 +75,8 @@ export class UserRepository implements UserStore {
           email: null,
           idpIssuer: null,
           idpSub: null,
-          createdAt: Date.now(),
+          createdAt: stamp.at,
+          ...auditOnCreateBesidesCreatedAt(stamp),
         })
         .run();
       return;
@@ -45,9 +86,9 @@ export class UserRepository implements UserStore {
     }
   }
 
-  async create(user: User): Promise<User | null> {
+  async create(user: User, stamp: WriteStamp): Promise<User | null> {
     try {
-      await this.db.insert(users).values(user);
+      await this.db.insert(users).values({ ...user, ...auditOnCreateBesidesCreatedAt(stamp) });
       return user;
     } catch (err) {
       if (
@@ -61,12 +102,16 @@ export class UserRepository implements UserStore {
   }
 
   async findByUsername(username: string): Promise<User | null> {
-    const rows = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    const rows = await this.db
+      .select(USER_COLUMNS)
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
     return rows[0] ?? null;
   }
 
   async findById(id: string): Promise<User | null> {
-    const rows = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    const rows = await this.db.select(USER_COLUMNS).from(users).where(eq(users.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -78,12 +123,13 @@ export class UserRepository implements UserStore {
    */
   resolveOidcIdentity(
     identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
-    create: { id: string; createdAt: number },
+    create: { id: string },
+    stamp: WriteStamp,
   ): Promise<User | null> {
     return Promise.resolve(
       this.db.transaction((tx) => {
         const subject = tx
-          .select()
+          .select(USER_COLUMNS)
           .from(users)
           .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
           .limit(1)
@@ -95,7 +141,7 @@ export class UserRepository implements UserStore {
         const trustedEmail = identity.emailVerified ? normalizedEmail : null;
         if (trustedEmail !== null) {
           const emailOwner = tx
-            .select()
+            .select(USER_COLUMNS)
             .from(users)
             .where(sql`lower(${users.email}) = ${trustedEmail}`)
             .limit(1)
@@ -103,7 +149,7 @@ export class UserRepository implements UserStore {
           if ((emailOwner.at(0) ?? null) !== null) return null;
 
           const legacy = tx
-            .select()
+            .select(USER_COLUMNS)
             .from(users)
             .where(sql`lower(${users.username}) = ${trustedEmail}`)
             .limit(1)
@@ -120,9 +166,15 @@ export class UserRepository implements UserStore {
                 email: trustedEmail,
                 idpIssuer: identity.issuer,
                 idpSub: identity.subject,
+                // Only the update clock moves: this row's author is whoever
+                // registered the password account, and a first OIDC login
+                // linking to it is not that act. The stamp's `by` names the id
+                // this login would have minted, which is deliberately not
+                // written anywhere here.
+                ...auditOnUpdate(stamp),
               })
               .where(eq(users.id, candidate.id))
-              .returning()
+              .returning(USER_COLUMNS)
               .all();
             return linked[0] ?? null;
           }
@@ -136,9 +188,11 @@ export class UserRepository implements UserStore {
           email: trustedEmail,
           idpIssuer: identity.issuer,
           idpSub: identity.subject,
-          createdAt: create.createdAt,
+          createdAt: stamp.at,
         };
-        tx.insert(users).values(created).run();
+        tx.insert(users)
+          .values({ ...created, ...auditOnCreateBesidesCreatedAt(stamp) })
+          .run();
         return created;
       }),
     );

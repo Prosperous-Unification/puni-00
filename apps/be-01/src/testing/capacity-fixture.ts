@@ -1,4 +1,10 @@
-import type { CapacityStore, CapacityWritten, ProjectStore, TeamCapacity } from '../repository';
+import type {
+  CapacityStore,
+  CapacityWritten,
+  ProjectStore,
+  TeamCapacity,
+  WriteStamp,
+} from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { CapacityService } from '../service/capacity.service';
 import { recordingBroadcaster } from './broadcast-fixture';
@@ -30,13 +36,19 @@ export function inMemoryCapacity(
    * the setup at the mercy of the thing under test.
    */
   seed: Readonly<Record<string, Readonly<Record<string, number>>>> = {},
-): CapacityStore {
+): CapacityStore & { stampsSeen: WriteStamp[] } {
   const held = new Map<string, Map<string, number>>();
   for (const [projectId, teams] of Object.entries(seed)) {
     held.set(projectId, new Map(Object.entries(teams)));
   }
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
 
   return {
+    stampsSeen,
     slotsFor(projectId) {
       // A copy, not the stored Map: the engine's adapter is handed this and a
       // caller that mutated it would be editing the store from the read side.
@@ -54,7 +66,8 @@ export function inMemoryCapacity(
       }));
       return Promise.resolve(listed);
     },
-    set(projectId, serviceTeamId, size) {
+    set(projectId, serviceTeamId, size, stamp) {
+      stampsSeen.push(stamp);
       const forProject = held.get(projectId) ?? new Map<string, number>();
       if (size === null) forProject.delete(serviceTeamId);
       else forProject.set(serviceTeamId, size);

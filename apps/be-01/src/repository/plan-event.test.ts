@@ -6,13 +6,16 @@ import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { PlanEvent, Project } from './index';
+import type { PlanEvent, Project, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+
+/** The stamp the setup's writes carry; `owner` is the account it creates first. */
+const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
  * The plan's history against real SQLite: what a reader gets, in what order, and
@@ -84,15 +87,13 @@ describe('the plan’s history, against a real database', () => {
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
     events = new PlanEventRepository(db);
-    await new UserRepository(db).create({
-      id: 'owner',
-      username: 'owner',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(db).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
     const projects = new ProjectRepository(db);
-    await projects.create(project('p1', 'Rewire the shed'), []);
-    await projects.create(project('p2', 'Reroof the barn'), []);
+    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
+    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
   });
 
   afterEach(() => {

@@ -9,7 +9,7 @@ import { openDatabase, openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
-import type { SubtreeCopy, WorkItem } from './index';
+import type { SubtreeCopy, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
@@ -20,6 +20,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let dbPath: string;
+let ownerId: string;
 let repo: WorkItemRepository;
 let subtrees: SubtreeRepository;
 let estimates: EstimateRepository;
@@ -29,6 +30,13 @@ let directory: DirectoryRepository;
 let projectId: string;
 let stepId: string;
 let personId: string;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-'));
@@ -42,13 +50,11 @@ beforeEach(async () => {
   dependencies = new DependencyRepository(db);
   directory = new DirectoryRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   stepId = crypto.randomUUID();
   await new ProjectRepository(db).create(
@@ -65,9 +71,11 @@ beforeEach(async () => {
       createdAt: 1,
     },
     [{ id: stepId, projectId, name: 'Dev', position: 10 }],
+    wrote(),
   );
-  personId = (await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [])))
-    .id;
+  personId = (
+    await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()))
+  ).id;
 });
 
 afterEach(() => {
@@ -98,7 +106,7 @@ const byPosition = (items: WorkItem[]) =>
 
 /** A team in the global directory, since a join row has to point at a real one. */
 async function team(name: string): Promise<string> {
-  return (await directory.addTeam({ id: crypto.randomUUID(), name })).id;
+  return (await directory.addTeam({ id: crypto.randomUUID(), name }, wrote())).id;
 }
 
 /**
@@ -187,7 +195,7 @@ describe('the services on the row', () => {
     // Ordered by service id and asserted sorted for `teamIds`' reason: two reads
     // of an unchanged plan must answer the same array (D6).
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const payments = service('Payments');
     const billing = service('Billing');
     labelServices(strip.id, [payments, billing]);
@@ -201,7 +209,7 @@ describe('the services on the row', () => {
     // Empty is _unstated_, one spelling, exactly as the empty team set is. The
     // reading that turns it into an inherited service is `effectiveServicesOf`'s
     // and is deliberately not stored here.
-    await repo.insert(row(null, 10, 'Strip'), []);
+    await repo.insert(row(null, 10, 'Strip'), [], wrote());
 
     expect((await repo.listByProject(projectId)).at(0)?.serviceIds).toEqual([]);
   });
@@ -213,7 +221,7 @@ describe('the services on the row', () => {
     // services either. The second service is what makes this case say more than
     // the column's version of it could.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const payments = service('Payments');
     const billing = service('Billing');
     labelServices(strip.id, [payments, billing]);
@@ -237,7 +245,7 @@ describe('the team set beside the column', () => {
     // array — design.md D6. Written straight into the join because the write
     // path states one team until R2-4, and the read is the thing under test.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
     const design = await team('Design');
     joinTeam(strip.id, design);
@@ -251,7 +259,7 @@ describe('the team set beside the column', () => {
   it('leaves a work item nobody labelled with an empty set rather than a null', async () => {
     // _Unstated_ has one spelling on this side too: the empty set inherits, and
     // there is no second state meaning "deliberately no team".
-    await repo.insert(row(null, 10, 'Strip'), []);
+    await repo.insert(row(null, 10, 'Strip'), [], wrote());
 
     expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([]);
   });
@@ -262,10 +270,10 @@ describe('the team set beside the column', () => {
     // write that moved only one of them would put a label on screen that the
     // scheduler cannot see, or the reverse.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
 
-    const written = await repo.patch(strip.id, { serviceTeamId: backend });
+    const written = await repo.patch(strip.id, { serviceTeamId: backend }, wrote());
 
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.serviceTeamId : null).toBe(backend);
@@ -275,11 +283,11 @@ describe('the team set beside the column', () => {
 
   it('empties the join when the label is taken off', async () => {
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
-    await repo.patch(strip.id, { serviceTeamId: backend });
+    await repo.patch(strip.id, { serviceTeamId: backend }, wrote());
 
-    await repo.patch(strip.id, { serviceTeamId: null });
+    await repo.patch(strip.id, { serviceTeamId: null }, wrote());
 
     expect(joinedTeams()).toEqual([]);
     const read = await repo.listByProject(projectId);
@@ -292,12 +300,16 @@ describe('the team set beside the column', () => {
     // equal sets expose different legacy ids, while omitting the second join
     // silently loses one scheduling pool.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
     const design = await team('Design');
     const sorted = [backend, design].sort((a, b) => (a < b ? -1 : 1));
 
-    const written = await repo.patch(strip.id, { teamIds: [sorted[1], sorted[0], sorted[1]] });
+    const written = await repo.patch(
+      strip.id,
+      { teamIds: [sorted[1], sorted[0], sorted[1]] },
+      wrote(),
+    );
 
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.serviceTeamId : null).toBe(sorted[0]);
@@ -309,15 +321,16 @@ describe('the team set beside the column', () => {
     // Break caught: validation outside the transaction, or after the scalar
     // update, allows the rename/revision half of a mixed patch to land.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
-    await repo.patch(strip.id, { serviceTeamId: backend });
+    await repo.patch(strip.id, { serviceTeamId: backend }, wrote());
     const before = await repo.findById(strip.id);
 
-    const written = await repo.patch(strip.id, {
-      name: 'Strip the walls',
-      teamIds: [backend, crypto.randomUUID()],
-    });
+    const written = await repo.patch(
+      strip.id,
+      { name: 'Strip the walls', teamIds: [backend, crypto.randomUUID()] },
+      wrote(),
+    );
 
     expect(written.ok).toBe(false);
     expect(written.ok ? null : written.reason).toBe('unknown_team');
@@ -329,12 +342,12 @@ describe('the team set beside the column', () => {
     // Break caught: merging the later request with stored memberships retains
     // a sibling the second client explicitly replaced.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
     const design = await team('Design');
 
-    await repo.patch(strip.id, { teamIds: [backend, design] });
-    await repo.patch(strip.id, { teamIds: [design] });
+    await repo.patch(strip.id, { teamIds: [backend, design] }, wrote());
+    await repo.patch(strip.id, { teamIds: [design] }, wrote());
 
     expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: design }]);
     expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([design]);
@@ -345,12 +358,14 @@ describe('the team set beside the column', () => {
     // about it. One patch or two makes no difference — the rule is about the row
     // as it stands, not about how it got there.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
-    await repo.patch(strip.id, { startNoEarlierThan: '2026-09-12' });
+    await repo.insert(strip, [], wrote());
+    await repo.patch(strip.id, { startNoEarlierThan: '2026-09-12' }, wrote());
 
-    const written = await repo.patch(strip.id, {
-      startNoEarlierThanReason: 'waiting on client sign-off',
-    });
+    const written = await repo.patch(
+      strip.id,
+      { startNoEarlierThanReason: 'waiting on client sign-off' },
+      wrote(),
+    );
 
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.startNoEarlierThanReason : null).toBe(
@@ -367,11 +382,13 @@ describe('the team set beside the column', () => {
     // the not-before is the *binding* floor — and nothing clears them, which is
     // the `blocked`-with-no-date shape this feature exists instead of.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
-    const written = await repo.patch(strip.id, {
-      startNoEarlierThanReason: 'waiting on client sign-off',
-    });
+    const written = await repo.patch(
+      strip.id,
+      { startNoEarlierThanReason: 'waiting on client sign-off' },
+      wrote(),
+    );
 
     expect(written.ok).toBe(false);
     expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
@@ -391,13 +408,14 @@ describe('the team set beside the column', () => {
     // Refused rather than cascaded: clearing the date does not delete somebody's
     // sentence on their behalf.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
-    await repo.patch(strip.id, {
-      startNoEarlierThan: '2026-09-12',
-      startNoEarlierThanReason: 'waiting on client sign-off',
-    });
+    await repo.insert(strip, [], wrote());
+    await repo.patch(
+      strip.id,
+      { startNoEarlierThan: '2026-09-12', startNoEarlierThanReason: 'waiting on client sign-off' },
+      wrote(),
+    );
 
-    const written = await repo.patch(strip.id, { startNoEarlierThan: null });
+    const written = await repo.patch(strip.id, { startNoEarlierThan: null }, wrote());
 
     expect(written.ok).toBe(false);
     expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
@@ -408,16 +426,18 @@ describe('the team set beside the column', () => {
 
   it('takes the date and the words off together', async () => {
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
-    await repo.patch(strip.id, {
-      startNoEarlierThan: '2026-09-12',
-      startNoEarlierThanReason: 'waiting on client sign-off',
-    });
+    await repo.insert(strip, [], wrote());
+    await repo.patch(
+      strip.id,
+      { startNoEarlierThan: '2026-09-12', startNoEarlierThanReason: 'waiting on client sign-off' },
+      wrote(),
+    );
 
-    const written = await repo.patch(strip.id, {
-      startNoEarlierThan: null,
-      startNoEarlierThanReason: null,
-    });
+    const written = await repo.patch(
+      strip.id,
+      { startNoEarlierThan: null, startNoEarlierThanReason: null },
+      wrote(),
+    );
 
     expect(written.ok).toBe(true);
     const read = await repo.listByProject(projectId);
@@ -432,9 +452,9 @@ describe('the team set beside the column', () => {
     // whole of this change's compatibility claim, made against the store rather
     // than assumed from the shape of the `if`.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
-    const written = await repo.patch(strip.id, { name: 'Strip the walls' });
+    const written = await repo.patch(strip.id, { name: 'Strip the walls' }, wrote());
 
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.name : null).toBe('Strip the walls');
@@ -444,11 +464,11 @@ describe('the team set beside the column', () => {
     // A rename must not empty the set. The join is replaced only where the
     // patch states it, exactly as the column is written only where it does.
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const backend = await team('Backend');
-    await repo.patch(strip.id, { serviceTeamId: backend });
+    await repo.patch(strip.id, { serviceTeamId: backend }, wrote());
 
-    await repo.patch(strip.id, { name: 'Strip the walls' });
+    await repo.patch(strip.id, { name: 'Strip the walls' }, wrote());
 
     expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: backend }]);
   });
@@ -459,7 +479,7 @@ describe('the team set beside the column', () => {
     const backend = await team('Backend');
     const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
 
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
     expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([backend]);
   });
@@ -471,25 +491,28 @@ describe('the team set beside the column', () => {
     // column would put the rows back unpooled and move dates nobody edited.
     const backend = await team('Backend');
     const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
     const copiedRoot = { ...row(null, 20, 'Strip (copy)'), serviceTeamId: backend };
     const copiedLeaf = { ...row(copiedRoot.id, 10, 'Sockets'), serviceTeamId: null };
 
-    await subtrees.insertSubtree({
-      rows: [copiedRoot, copiedLeaf],
-      respaced: [],
-      reparented: [],
-      estimates: [],
-      actuals: [],
-      progress: [],
-      measures: [],
-      assignments: [],
-      dependencies: [],
-      removedEstimates: [],
-      removedActuals: [],
-      removedProgress: [],
-      removedMeasures: [],
-    });
+    await subtrees.insertSubtree(
+      {
+        rows: [copiedRoot, copiedLeaf],
+        respaced: [],
+        reparented: [],
+        estimates: [],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [],
+        dependencies: [],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      },
+      wrote(),
+    );
 
     expect(joinedTeams()).toEqual(
       [
@@ -510,21 +533,24 @@ describe('the team set beside the column', () => {
       teamIds: [design, backend],
     };
 
-    await subtrees.insertSubtree({
-      rows: [copiedRoot],
-      respaced: [],
-      reparented: [],
-      estimates: [],
-      actuals: [],
-      progress: [],
-      measures: [],
-      assignments: [],
-      dependencies: [],
-      removedEstimates: [],
-      removedActuals: [],
-      removedProgress: [],
-      removedMeasures: [],
-    });
+    await subtrees.insertSubtree(
+      {
+        rows: [copiedRoot],
+        respaced: [],
+        reparented: [],
+        estimates: [],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [],
+        dependencies: [],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      },
+      wrote(),
+    );
 
     expect(joinedTeams()).toEqual(
       [backend, design].sort().map((teamId) => ({ workItemId: copiedRoot.id, teamId })),
@@ -537,9 +563,9 @@ describe('the team set beside the column', () => {
     // above, from the column the journal carries.
     const backend = await team('Backend');
     const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
-    await repo.remove([strip.id], []);
+    await repo.remove([strip.id], [], wrote());
 
     expect(joinedTeams()).toEqual([]);
   });
@@ -548,7 +574,7 @@ describe('the team set beside the column', () => {
 describe('WorkItemRepository', () => {
   it('inserts and reads back a project’s work items', async () => {
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
     expect(byPosition(await repo.listByProject(projectId))).toEqual(['Strip']);
   });
@@ -556,14 +582,18 @@ describe('WorkItemRepository', () => {
   it('applies respacing in the same write as the insertion', async () => {
     const strip = row(null, 10, 'Strip');
     const cable = row(null, 11, 'Cable');
-    await repo.insert(strip, []);
-    await repo.insert(cable, []);
+    await repo.insert(strip, [], wrote());
+    await repo.insert(cable, [], wrote());
 
     const survey = row(null, 20, 'Survey');
-    await repo.insert(survey, [
-      { id: strip.id, position: 10 },
-      { id: cable.id, position: 30 },
-    ]);
+    await repo.insert(
+      survey,
+      [
+        { id: strip.id, position: 10 },
+        { id: cable.id, position: 30 },
+      ],
+      wrote(),
+    );
 
     expect(byPosition(await repo.listByProject(projectId))).toEqual(['Strip', 'Survey', 'Cable']);
   });
@@ -571,10 +601,10 @@ describe('WorkItemRepository', () => {
   it('re-parents on move', async () => {
     const strip = row(null, 10, 'Strip');
     const cable = row(null, 20, 'Cable');
-    await repo.insert(strip, []);
-    await repo.insert(cable, []);
+    await repo.insert(strip, [], wrote());
+    await repo.insert(cable, [], wrote());
 
-    await repo.move(cable.id, strip.id, 10, []);
+    await repo.move(cable.id, strip.id, 10, [], wrote());
 
     const moved = await repo.findById(cable.id);
     expect(moved?.parentId).toBe(strip.id);
@@ -587,10 +617,10 @@ describe('WorkItemRepository', () => {
     const strip = row(null, 10, 'Strip');
     const sockets = row(strip.id, 10, 'Sockets');
     const boxes = row(sockets.id, 10, 'Back boxes');
-    for (const item of [strip, sockets, boxes]) await repo.insert(item, []);
+    for (const item of [strip, sockets, boxes]) await repo.insert(item, [], wrote());
 
     // Ancestors-first, as `subtreeOf` produces them.
-    await repo.remove([strip.id, sockets.id, boxes.id], []);
+    await repo.remove([strip.id, sockets.id, boxes.id], [], wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([]);
   });
@@ -598,28 +628,31 @@ describe('WorkItemRepository', () => {
   it('places the copy after the original, respacing the group in the same write', async () => {
     const strip = row(null, 10, 'Strip');
     const cable = row(null, 11, 'Cable');
-    await repo.insert(strip, []);
-    await repo.insert(cable, []);
+    await repo.insert(strip, [], wrote());
+    await repo.insert(cable, [], wrote());
 
     const copy = row(null, 20, 'Strip (copy)');
-    await subtrees.insertSubtree({
-      rows: [copy],
-      respaced: [
-        { id: strip.id, position: 10 },
-        { id: cable.id, position: 30 },
-      ],
-      reparented: [],
-      estimates: [],
-      actuals: [],
-      progress: [],
-      measures: [],
-      assignments: [],
-      dependencies: [],
-      removedEstimates: [],
-      removedActuals: [],
-      removedProgress: [],
-      removedMeasures: [],
-    });
+    await subtrees.insertSubtree(
+      {
+        rows: [copy],
+        respaced: [
+          { id: strip.id, position: 10 },
+          { id: cable.id, position: 30 },
+        ],
+        reparented: [],
+        estimates: [],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [],
+        dependencies: [],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      },
+      wrote(),
+    );
 
     expect(byPosition(await repo.listByProject(projectId))).toEqual([
       'Strip',
@@ -632,35 +665,38 @@ describe('WorkItemRepository', () => {
     const strip = row(null, 10, 'Strip');
     const sockets = row(strip.id, 10, 'Sockets');
     const switches = row(strip.id, 20, 'Switches');
-    for (const item of [strip, sockets, switches]) await repo.insert(item, []);
+    for (const item of [strip, sockets, switches]) await repo.insert(item, [], wrote());
 
     const copiedRoot = row(null, 20, 'Strip (copy)');
     const copiedFirst = { ...row(copiedRoot.id, 10, 'Sockets') };
     const copiedSecond = { ...row(copiedRoot.id, 20, 'Switches') };
-    await subtrees.insertSubtree({
-      rows: [copiedRoot, copiedFirst, copiedSecond],
-      respaced: [],
-      reparented: [],
-      estimates: [
-        { workItemId: copiedFirst.id, stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
-      ],
-      actuals: [],
-      progress: [],
-      measures: [],
-      assignments: [{ workItemId: copiedSecond.id, stepId, personId }],
-      dependencies: [
-        {
-          id: crypto.randomUUID(),
-          projectId,
-          predecessorId: copiedFirst.id,
-          successorId: copiedSecond.id,
-        },
-      ],
-      removedEstimates: [],
-      removedActuals: [],
-      removedProgress: [],
-      removedMeasures: [],
-    });
+    await subtrees.insertSubtree(
+      {
+        rows: [copiedRoot, copiedFirst, copiedSecond],
+        respaced: [],
+        reparented: [],
+        estimates: [
+          { workItemId: copiedFirst.id, stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        ],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [{ workItemId: copiedSecond.id, stepId, personId }],
+        dependencies: [
+          {
+            id: crypto.randomUUID(),
+            projectId,
+            predecessorId: copiedFirst.id,
+            successorId: copiedSecond.id,
+          },
+        ],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      },
+      wrote(),
+    );
 
     expect(byPosition(await repo.listByProject(projectId))).toHaveLength(6);
     expect(await estimates.listByProject(projectId)).toContainEqual({
@@ -704,37 +740,46 @@ describe('WorkItemRepository', () => {
    */
   it('takes off only the metric a restore names, and leaves the pair’s other figure', async () => {
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
-    await measures.set({
-      workItemId: strip.id,
-      stepId,
-      metric: 'token_estimate',
-      value: 1000,
-      recordedAt: 111,
-    });
-    await measures.set({
-      workItemId: strip.id,
-      stepId,
-      metric: 'hours_actual',
-      value: 3,
-      recordedAt: 222,
-    });
+    await repo.insert(strip, [], wrote());
+    await measures.set(
+      {
+        workItemId: strip.id,
+        stepId,
+        metric: 'token_estimate',
+        value: 1000,
+        recordedAt: 111,
+      },
+      wrote(),
+    );
+    await measures.set(
+      {
+        workItemId: strip.id,
+        stepId,
+        metric: 'hours_actual',
+        value: 3,
+        recordedAt: 222,
+      },
+      wrote(),
+    );
 
-    await subtrees.insertSubtree({
-      rows: [],
-      respaced: [],
-      reparented: [],
-      estimates: [],
-      actuals: [],
-      progress: [],
-      measures: [],
-      assignments: [],
-      dependencies: [],
-      removedEstimates: [],
-      removedActuals: [],
-      removedProgress: [],
-      removedMeasures: [{ workItemId: strip.id, stepId, metric: 'token_estimate' }],
-    });
+    await subtrees.insertSubtree(
+      {
+        rows: [],
+        respaced: [],
+        reparented: [],
+        estimates: [],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [],
+        dependencies: [],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [{ workItemId: strip.id, stepId, metric: 'token_estimate' }],
+      },
+      wrote(),
+    );
 
     // The hours survive with the stamp they were written under: a delete by the
     // pair leaves this list empty, and one that rewrote the survivor would be a
@@ -757,7 +802,7 @@ describe('WorkItemRepository', () => {
    */
   it('inserts nothing when the last write in the copy violates a foreign key', async () => {
     const strip = row(null, 10, 'Strip');
-    await repo.insert(strip, []);
+    await repo.insert(strip, [], wrote());
 
     const copiedRoot = row(null, 20, 'Strip (copy)');
     const copiedChild = row(copiedRoot.id, 10, 'Sockets');
@@ -791,7 +836,7 @@ describe('WorkItemRepository', () => {
     // cannot run against a write that has not finished failing yet.
     let refused: unknown = null;
     try {
-      await subtrees.insertSubtree(copy);
+      await subtrees.insertSubtree(copy, wrote());
     } catch (thrown) {
       refused = thrown;
     }
@@ -806,10 +851,10 @@ describe('WorkItemRepository', () => {
   it('promotes children before deleting the parent they point at', async () => {
     const strip = row(null, 10, 'Strip');
     const sockets = row(strip.id, 10, 'Sockets');
-    await repo.insert(strip, []);
-    await repo.insert(sockets, []);
+    await repo.insert(strip, [], wrote());
+    await repo.insert(sockets, [], wrote());
 
-    await repo.remove([strip.id], [{ id: sockets.id, parentId: null, position: 10 }]);
+    await repo.remove([strip.id], [{ id: sockets.id, parentId: null, position: 10 }], wrote());
 
     const remaining = await repo.listByProject(projectId);
     expect(remaining).toHaveLength(1);

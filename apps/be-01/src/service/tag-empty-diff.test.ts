@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Step } from '../repository';
+import type { Step, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
@@ -59,6 +59,13 @@ let steps: Step[];
 
 const DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
+/**
+ * The stamp the direct-to-repository writes below carry. The account has to be
+ * the seeded owner because `created_by` references `users(id)` and this file is
+ * against real SQLite; neither field is anything this file asserts on.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 const dev = (): string => {
   const found = steps.at(0);
   if (found === undefined) throw new Error('the project was created without its starting steps');
@@ -96,12 +103,15 @@ beforeEach(async () => {
   capacityStore = new CapacityRepository(db);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    wrote(),
+  );
 
   projects = new ProjectService({ projects: projectStore });
   workItems = new WorkItemService({
@@ -140,17 +150,20 @@ describe('a tag decides no date, on a plan where a label does', () => {
    * can hide.
    */
   async function pooledPlan(): Promise<{ strip: string; cable: string; tagId: string }> {
-    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
-    const regulatory = await directoryStore.addTag({
-      id: crypto.randomUUID(),
-      name: 'regulatory',
-    });
+    const platform = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Platform' },
+      wrote(),
+    );
+    const regulatory = await directoryStore.addTag(
+      { id: crypto.randomUUID(), name: 'regulatory' },
+      wrote(),
+    );
     const strip = await root('Strip the roof');
     const cable = await root('Cable it', strip);
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     await workItems.setEstimate(cable, ownerId, dev(), DAYS);
     // One at a time, which is what makes the label decide a date.
-    await capacityStore.set(projectId, platform.id, 1);
+    await capacityStore.set(projectId, platform.id, 1, wrote());
     await workItems.patch(strip, ownerId, { serviceTeamId: platform.id, tagIds: [regulatory.id] });
     await workItems.patch(cable, ownerId, { serviceTeamId: platform.id, tagIds: [regulatory.id] });
     return { strip, cable, tagId: regulatory.id };
@@ -194,7 +207,7 @@ describe('a tag decides no date, on a plan where a label does', () => {
       (await workItemStore.listByProject(projectId)).some((row) => row.tagIds.length > 0),
     ).toBe(true);
 
-    const removed = await directoryStore.removeTag(tagId, true);
+    const removed = await directoryStore.removeTag(tagId, true, wrote());
     expect(removed.ok).toBe(true);
 
     expect(
@@ -208,7 +221,10 @@ describe('a tag decides no date, on a plan where a label does', () => {
     // writes, and a write that touched anything the engine reads would show up
     // here rather than in the delete.
     const { strip, cable } = await pooledPlan();
-    const techDebt = await directoryStore.addTag({ id: crypto.randomUUID(), name: 'tech-debt' });
+    const techDebt = await directoryStore.addTag(
+      { id: crypto.randomUUID(), name: 'tech-debt' },
+      wrote(),
+    );
 
     const before = await datesNow();
 

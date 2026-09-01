@@ -148,15 +148,18 @@ describe('OIDC browser routes', () => {
 
   it('issues the hardened browser cookie for a password account in OIDC mode', async () => {
     const f = fixture();
-    await f.users.create({
-      id: 'password-user',
-      username: 'claire-qa',
-      passwordHash: await Bun.password.hash('correct-horse-2026'),
-      email: null,
-      idpIssuer: null,
-      idpSub: null,
-      createdAt: now,
-    });
+    await f.users.create(
+      {
+        id: 'password-user',
+        username: 'claire-qa',
+        passwordHash: await Bun.password.hash('correct-horse-2026'),
+        email: null,
+        idpIssuer: null,
+        idpSub: null,
+        createdAt: now,
+      },
+      { at: now, by: 'password-user' },
+    );
 
     const login = await f.app.handle(
       new Request('https://dev.wbs.test/api/auth/login', {
@@ -275,15 +278,18 @@ describe('OIDC browser routes', () => {
 
   it('locks a normalized username after five failures even when IPs change', async () => {
     const f = fixture();
-    await f.users.create({
-      id: 'password-user',
-      username: 'claire-qa',
-      passwordHash: await Bun.password.hash('correct-horse-2026'),
-      email: null,
-      idpIssuer: null,
-      idpSub: null,
-      createdAt: now,
-    });
+    await f.users.create(
+      {
+        id: 'password-user',
+        username: 'claire-qa',
+        passwordHash: await Bun.password.hash('correct-horse-2026'),
+        email: null,
+        idpIssuer: null,
+        idpSub: null,
+        createdAt: now,
+      },
+      { at: now, by: 'password-user' },
+    );
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       const failed = await f.app.handle(
@@ -318,15 +324,18 @@ describe('OIDC browser routes', () => {
 
   it('locks a client IP after five unknown usernames without revealing which exist', async () => {
     const f = fixture();
-    await f.users.create({
-      id: 'password-user',
-      username: 'claire-qa',
-      passwordHash: await Bun.password.hash('correct-horse-2026'),
-      email: null,
-      idpIssuer: null,
-      idpSub: null,
-      createdAt: now,
-    });
+    await f.users.create(
+      {
+        id: 'password-user',
+        username: 'claire-qa',
+        passwordHash: await Bun.password.hash('correct-horse-2026'),
+        email: null,
+        idpIssuer: null,
+        idpSub: null,
+        createdAt: now,
+      },
+      { at: now, by: 'password-user' },
+    );
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       const failed = await f.app.handle(
@@ -520,12 +529,15 @@ describe('OIDC browser routes', () => {
 
   it('links the verified first-login identity before establishing the browser session', async () => {
     const f = fixture();
-    await f.users.create({
-      id: 'legacy',
-      username: 'dany@puni.show',
-      passwordHash: 'local-hash',
-      createdAt: 1,
-    });
+    await f.users.create(
+      {
+        id: 'legacy',
+        username: 'dany@puni.show',
+        passwordHash: 'local-hash',
+        createdAt: 1,
+      },
+      { at: 1, by: 'legacy' },
+    );
     f.transactions.save({
       browserBinding: 'binding-1',
       nonce: 'nonce-1',

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
@@ -36,6 +36,12 @@ import { WorkItemService } from './work-item.service';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 /** The tip before this change: the schema every existing plan is on when the migration runs. */
 const PRE_BANDS = '20260813120000_add_project_team_capacity';
+/**
+ * The stamp every replayed write carries. The oracle was captured before a write
+ * recorded who made it, so the project's own owner stands in for the actor and
+ * the instant is fixed — these replays are claims about the ladder, not either.
+ */
+const STAMP: WriteStamp = { at: 1, by: 'owner' };
 
 interface CapturedRow {
   id: string;
@@ -314,7 +320,7 @@ describe('a priority ladder moves no date', () => {
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });
-    await directory.addPerson({ id: 'ada', name: 'Ada' }, []);
+    await directory.addPerson({ id: 'ada', name: 'Ada' }, [], STAMP);
     await projects.create(
       {
         id: 'contended',
@@ -336,6 +342,7 @@ describe('a priority ladder moves no date', () => {
         createdAt: 1,
       },
       [{ id: 'dev', projectId: 'contended', name: 'Dev', position: STEP_POSITION_STEP }],
+      STAMP,
     );
     for (const [id, position, priority] of [
       ['a', 10, first],
@@ -358,17 +365,21 @@ describe('a priority ladder moves no date', () => {
           revision: 0,
         },
         [],
+        STAMP,
       );
-      await estimates.set({
-        workItemId: id,
-        stepId: 'dev',
-        optimistic: 3,
-        realistic: 3,
-        pessimistic: 3,
-      });
+      await estimates.set(
+        {
+          workItemId: id,
+          stepId: 'dev',
+          optimistic: 3,
+          realistic: 3,
+          pessimistic: 3,
+        },
+        STAMP,
+      );
       // One person on both, which is what makes the two compete: a person's next
       // slice is only ever placed after their previous one is final.
-      await directory.assign(id, 'dev', 'ada');
+      await directory.assign(id, 'dev', 'ada', STAMP);
     }
     const tree = await service.tree('contended');
     if (tree === null) throw new Error('the contended plan vanished on replay');
@@ -676,8 +687,9 @@ describe('a priority ladder moves no date', () => {
       broadcast: recordingBroadcaster(),
     });
 
-    for (const team of oracle.teams) await directory.addTeam({ id: team.id, name: team.name });
-    for (const who of oracle.people) await directory.addPerson({ ...who }, []);
+    for (const team of oracle.teams)
+      await directory.addTeam({ id: team.id, name: team.name }, STAMP);
+    for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
     const project: Project = {
       id: plan.projectId,
@@ -707,7 +719,7 @@ describe('a priority ladder moves no date', () => {
       name: `Step ${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await projects.create(project, steps);
+    await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {
       const stored: WorkItem = {
         id: row.id,
@@ -723,16 +735,16 @@ describe('a priority ladder moves no date', () => {
         serviceTeamId: row.serviceTeamId,
         revision: 0,
       };
-      await workItems.insert(stored, []);
+      await workItems.insert(stored, [], STAMP);
     }
     // After the rows, so an estimate is never written against a work item that is
     // not there yet — the fixture mirrors the foreign key.
     for (const row of plan.rows) {
       for (const [stepId, days] of Object.entries(row.estimates)) {
-        await estimates.set({ workItemId: row.id, stepId, ...days });
+        await estimates.set({ workItemId: row.id, stepId, ...days }, STAMP);
       }
       for (const [stepId, personId] of Object.entries(row.assignees)) {
-        await directory.assign(row.id, stepId, personId);
+        await directory.assign(row.id, stepId, personId, STAMP);
       }
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {
@@ -741,7 +753,7 @@ describe('a priority ladder moves no date', () => {
           predecessorId,
           successorId: row.id,
         };
-        await dependencies.add(edge);
+        await dependencies.add(edge, STAMP);
       }
     }
 

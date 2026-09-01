@@ -1,19 +1,28 @@
-import type { MeasureStore, StoredMeasure, WorkItemStore } from '../repository';
+import type { MeasureStore, StoredMeasure, WorkItemStore, WriteStamp } from '../repository';
 
 /**
  * A MeasureStore backed by an array, keyed as the composite primary key is —
  * the pair **and the metric**, which is the one line that differs from
  * `inMemoryActuals` and the whole point of the table.
  */
-export function inMemoryMeasures(workItems: WorkItemStore): MeasureStore {
+export function inMemoryMeasures(
+  workItems: WorkItemStore,
+): MeasureStore & { stampsSeen: WriteStamp[] } {
   let rows: StoredMeasure[] = [];
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
 
   return {
+    stampsSeen,
     async listByProject(projectId) {
       const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
       return rows.filter((row) => ids.has(row.workItemId));
     },
-    set(toSet) {
+    set(toSet, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.filter(
         (row) =>
           !(
@@ -25,13 +34,15 @@ export function inMemoryMeasures(workItems: WorkItemStore): MeasureStore {
       rows.push(toSet);
       return Promise.resolve();
     },
-    remove(workItemId, stepId, metric) {
+    remove(workItemId, stepId, metric, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.filter(
         (row) => !(row.workItemId === workItemId && row.stepId === stepId && row.metric === metric),
       );
       return Promise.resolve();
     },
-    moveAll(fromWorkItemId, toWorkItemId) {
+    moveAll(fromWorkItemId, toWorkItemId, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.map((row) =>
         row.workItemId === fromWorkItemId ? { ...row, workItemId: toWorkItemId } : row,
       );

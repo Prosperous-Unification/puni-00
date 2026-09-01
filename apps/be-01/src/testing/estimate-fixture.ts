@@ -1,26 +1,37 @@
-import type { EstimateStore, StoredEstimate, WorkItemStore } from '../repository';
+import type { EstimateStore, StoredEstimate, WorkItemStore, WriteStamp } from '../repository';
 
 /** An EstimateStore backed by an array, keyed as the composite primary key is. */
-export function inMemoryEstimates(workItems: WorkItemStore): EstimateStore {
+export function inMemoryEstimates(
+  workItems: WorkItemStore,
+): EstimateStore & { stampsSeen: WriteStamp[] } {
   let rows: StoredEstimate[] = [];
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
 
   return {
+    stampsSeen,
     async listByProject(projectId) {
       const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
       return rows.filter((row) => ids.has(row.workItemId));
     },
-    set(toSet) {
+    set(toSet, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.filter(
         (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
       );
       rows.push(toSet);
       return Promise.resolve();
     },
-    remove(workItemId, stepId) {
+    remove(workItemId, stepId, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.filter((row) => !(row.workItemId === workItemId && row.stepId === stepId));
       return Promise.resolve();
     },
-    moveAll(fromWorkItemId, toWorkItemId) {
+    moveAll(fromWorkItemId, toWorkItemId, stamp) {
+      stampsSeen.push(stamp);
       rows = rows.map((row) =>
         row.workItemId === fromWorkItemId ? { ...row, workItemId: toWorkItemId } : row,
       );

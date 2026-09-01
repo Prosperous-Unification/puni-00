@@ -41,12 +41,15 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
   ownerId: string;
 }> {
   const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  await new UserRepository(db).create(
+    {
+      id: ownerId,
+      username: 'owner',
+      passwordHash: 'x',
+      createdAt: 1,
+    },
+    { at: 1, by: ownerId },
+  );
   const projectId = crypto.randomUUID();
   const project = await new ProjectRepository(db).create(
     {
@@ -62,6 +65,7 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
       createdAt: 1,
     },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
+    { at: 1, by: ownerId },
   );
   return { projectId: project.id, ownerId };
 }

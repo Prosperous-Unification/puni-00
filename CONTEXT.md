@@ -824,6 +824,24 @@ collapses into an overflow mark. Told apart by fill as well as by hue, and named
 reader who sees neither.
 _Avoid_: dot, badge, icon, chip
 
+**Write stamp**:
+Who is acting and the instant they are acting, carried together into every write. Built
+once per act in the service layer, which is the only layer holding both, and passed to
+the store as one argument. One act carries one stamp however many tables it touches, so
+two rows written by one act never disagree about when it happened.
+_Avoid_: audit context, metadata, timestamps, actor (alone)
+
+**Audit columns**:
+The three columns every stored record carries: `created_at`, `updated_at` and
+`created_by`. On a row nobody has changed since making it, the first two are equal.
+_Avoid_: bookkeeping columns, tracking fields
+
+**Unattributed row**:
+A row written before the audit columns existed, whose `created_by` is null. Not a row
+with a missing value to be filled in later — its author is unknowable rather than
+unknown, which is why nothing substitutes for it.
+_Avoid_: orphan row, legacy row, anonymous row
+
 ### Deployment
 
 **Environment**:

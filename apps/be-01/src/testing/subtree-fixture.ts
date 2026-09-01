@@ -7,6 +7,7 @@ import type {
   StepProgressStore,
   SubtreeStore,
   WorkItemStore,
+  WriteStamp,
 } from '../repository';
 
 /**
@@ -31,39 +32,54 @@ export function inMemorySubtrees(stores: {
   measures: MeasureStore;
   dependencies: DependencyStore;
   directory: DirectoryStore;
-}): SubtreeStore {
+}): SubtreeStore & { stampsSeen: WriteStamp[] } {
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   *
+   * One entry per copy, not per row: the stamp the stores below are handed is
+   * this one, so the rows it produced are counted in their own lists.
+   */
+  const stampsSeen: WriteStamp[] = [];
   return {
-    async insertSubtree(copy) {
+    stampsSeen,
+    async insertSubtree(copy, stamp) {
+      stampsSeen.push(stamp);
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
       // takes it — one call applies both, as the one transaction does.
       for (const [index, row] of copy.rows.entries()) {
-        await stores.workItems.insert(row, index === 0 ? copy.respaced : []);
+        await stores.workItems.insert(row, index === 0 ? copy.respaced : [], stamp);
       }
       // After the rows, because the real transaction has no choice: these point
       // at rows that must already exist. `move` is what the in-memory work item
       // store offers for a reparent, and it applies exactly the same fields.
       for (const child of copy.reparented) {
-        await stores.workItems.move(child.id, child.parentId, child.position, []);
+        await stores.workItems.move(child.id, child.parentId, child.position, [], stamp);
       }
-      for (const estimate of copy.estimates) await stores.estimates.set(estimate);
-      for (const recorded of copy.actuals) await stores.actuals.set(recorded);
-      for (const said of copy.progress) await stores.progress.set(said);
-      for (const measured of copy.measures) await stores.measures.set(measured);
+      for (const estimate of copy.estimates) await stores.estimates.set(estimate, stamp);
+      for (const recorded of copy.actuals) await stores.actuals.set(recorded, stamp);
+      for (const said of copy.progress) await stores.progress.set(said, stamp);
+      for (const measured of copy.measures) await stores.measures.set(measured, stamp);
       for (const assigned of copy.assignments) {
-        await stores.directory.assign(assigned.workItemId, assigned.stepId, assigned.personId);
+        await stores.directory.assign(
+          assigned.workItemId,
+          assigned.stepId,
+          assigned.personId,
+          stamp,
+        );
       }
-      for (const edge of copy.dependencies) await stores.dependencies.add(edge);
+      for (const edge of copy.dependencies) await stores.dependencies.add(edge, stamp);
       for (const taken of copy.removedEstimates) {
-        await stores.estimates.remove(taken.workItemId, taken.stepId);
+        await stores.estimates.remove(taken.workItemId, taken.stepId, stamp);
       }
       for (const taken of copy.removedActuals) {
-        await stores.actuals.remove(taken.workItemId, taken.stepId);
+        await stores.actuals.remove(taken.workItemId, taken.stepId, stamp);
       }
       for (const taken of copy.removedProgress) {
-        await stores.progress.remove(taken.workItemId, taken.stepId);
+        await stores.progress.remove(taken.workItemId, taken.stepId, stamp);
       }
       for (const taken of copy.removedMeasures) {
-        await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric);
+        await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
     },
   };

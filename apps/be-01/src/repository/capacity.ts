@@ -1,7 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { CapacityStore, CapacityWritten, TeamCapacity } from './index';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { CapacityStore, CapacityWritten, TeamCapacity, WriteStamp } from './index';
 import { project, projectTeamCapacity, serviceTeam } from './schema';
 
 /**
@@ -105,6 +106,7 @@ export class CapacityRepository implements CapacityStore {
     projectId: string,
     serviceTeamId: string,
     size: number | null,
+    stamp: WriteStamp,
   ): Promise<CapacityWritten> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
@@ -140,10 +142,10 @@ export class CapacityRepository implements CapacityStore {
       // primary key stops the second from becoming a second answer to one
       // question.
       tx.insert(projectTeamCapacity)
-        .values({ projectId, serviceTeamId, size })
+        .values({ projectId, serviceTeamId, size, ...auditOnCreate(stamp) })
         .onConflictDoUpdate({
           target: [projectTeamCapacity.projectId, projectTeamCapacity.serviceTeamId],
-          set: { size },
+          set: { size, ...auditOnUpdate(stamp) },
         })
         .run();
       return { ok: true };

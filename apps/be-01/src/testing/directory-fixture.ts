@@ -9,6 +9,7 @@ import type {
   ServiceTeam,
   Tag,
   WorkItemType,
+  WriteStamp,
 } from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
@@ -33,7 +34,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
  * names are unique, adding an existing name returns the existing row, and one
  * work item holds at most one assignee per step.
  */
-export function inMemoryDirectory(): DirectoryStore {
+export function inMemoryDirectory(): DirectoryStore & { stampsSeen: WriteStamp[] } {
   const teams = new Map<string, ServiceTeam>();
   const tags = new Map<string, Tag>();
   const services = new Map<string, Service>();
@@ -44,8 +45,14 @@ export function inMemoryDirectory(): DirectoryStore {
   const owned = new Map<string, Set<string>>();
   const assignments = new Map<string, Assignment>();
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
 
   return {
+    stampsSeen,
     listTeams: () =>
       Promise.resolve(
         [...teams.values()]
@@ -58,13 +65,15 @@ export function inMemoryDirectory(): DirectoryStore {
     // dimension has no cascade here and cannot: an in-memory store models no
     // foreign keys, which is exactly why the tag write path's own tests run
     // against real SQLite instead of this.
-    addTag(toAdd) {
+    addTag(toAdd, stamp) {
+      stampsSeen.push(stamp);
       const already = [...tags.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       tags.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameTag(tagId, name) {
+    renameTag(tagId, name, stamp) {
+      stampsSeen.push(stamp);
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled, for `renameTeam`'s reason: a fixture that
@@ -103,7 +112,8 @@ export function inMemoryDirectory(): DirectoryStore {
         { id: 'sys-confluence-page', name: 'confluence-page' },
         { id: 'sys-slack-message', name: 'slack-message' },
       ]),
-    removeTag(tagId) {
+    removeTag(tagId, cascade, stamp) {
+      stampsSeen.push(stamp);
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       tags.delete(tagId);
@@ -114,13 +124,15 @@ export function inMemoryDirectory(): DirectoryStore {
     // `addTag`'s shape and its caveat: idempotent by name as the repository is at
     // its unique index, with no cascade, because an in-memory store models no
     // foreign keys. The type write path's own tests run against real SQLite.
-    addWorkItemType(toAdd) {
+    addWorkItemType(toAdd, stamp) {
+      stampsSeen.push(stamp);
       const already = [...workItemTypes.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       workItemTypes.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameWorkItemType(typeId, name) {
+    renameWorkItemType(typeId, name, stamp) {
+      stampsSeen.push(stamp);
       const found = workItemTypes.get(typeId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled, for `renameTag`'s reason: a fixture that let
@@ -146,7 +158,8 @@ export function inMemoryDirectory(): DirectoryStore {
         members: [],
         capacityOf: new Map<string, number>(),
       }),
-    removeWorkItemType(typeId) {
+    removeWorkItemType(typeId, cascade, stamp) {
+      stampsSeen.push(stamp);
       const found = workItemTypes.get(typeId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       workItemTypes.delete(typeId);
@@ -156,13 +169,15 @@ export function inMemoryDirectory(): DirectoryStore {
       Promise.resolve([...services.values()].sort((a, b) => a.name.localeCompare(b.name))),
     // Idempotent by name, as the repository is at its unique index — `addTag`'s
     // rule and its reason.
-    addService(toAdd) {
+    addService(toAdd, stamp) {
+      stampsSeen.push(stamp);
       const already = [...services.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       services.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameService(serviceId, name) {
+    renameService(serviceId, name, stamp) {
+      stampsSeen.push(stamp);
       const found = services.get(serviceId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const held = [...services.values()].some(
@@ -179,18 +194,21 @@ export function inMemoryDirectory(): DirectoryStore {
     // Every behavioural claim about removing a service is asserted against real
     // SQLite in `service/directory.service.test.ts`.
     usageOfService: () => Promise.resolve(NOTHING_POINTS_AT_IT),
-    removeService(serviceId) {
+    removeService(serviceId, cascade, stamp) {
+      stampsSeen.push(stamp);
       if (!services.has(serviceId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       services.delete(serviceId);
       return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
     },
-    addTeam(team) {
+    addTeam(team, stamp) {
+      stampsSeen.push(stamp);
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);
       teams.set(team.id, team);
       return Promise.resolve(team);
     },
-    patchTeam(teamId, patch) {
+    patchTeam(teamId, patch, stamp) {
+      stampsSeen.push(stamp);
       const found = teams.get(teamId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled: a fixture that let two `Platform`s exist
@@ -231,7 +249,8 @@ export function inMemoryDirectory(): DirectoryStore {
             }),
           ),
       ),
-    addPerson(toAdd, teamIds) {
+    addPerson(toAdd, teamIds, stamp) {
+      stampsSeen.push(stamp);
       // The teams are checked before anything is written, as production checks
       // them inside the create's own transaction: `person_team` has a foreign
       // key, so a fixture that wrote a dead membership would be laxer than the
@@ -252,7 +271,8 @@ export function inMemoryDirectory(): DirectoryStore {
       }
       return Promise.resolve({ ok: true, person: kept });
     },
-    patchPerson(personId, patch) {
+    patchPerson(personId, patch, stamp) {
+      stampsSeen.push(stamp);
       const found = people.get(personId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const wanted = patch.teamIds === undefined ? null : [...new Set(patch.teamIds)];
@@ -290,14 +310,17 @@ export function inMemoryDirectory(): DirectoryStore {
     // answering them would be a second implementation of the rule under test,
     // so every behavioural claim about a removal is asserted against real
     // SQLite in `service/directory.service.test.ts`, the same call
-    // `step-fixture.ts` makes for the same reason.
+    // `step-fixture.ts` makes for the same reason. That is also why every
+    // removal here names `cascade` and never reads it: with no usage to find,
+    // there is nothing for it to decide about.
     usageOfPerson: () => Promise.resolve(NOTHING_POINTS_AT_IT),
     usageOfTeam: (teamId) =>
       Promise.resolve({
         ...NOTHING_POINTS_AT_IT,
         members: [...people.values()].filter((each) => memberships.get(each.id)?.has(teamId)),
       }),
-    removePerson(personId) {
+    removePerson(personId, cascade, stamp) {
+      stampsSeen.push(stamp);
       if (!people.has(personId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       const held = [...assignments.values()].filter((each) => each.personId === personId);
       for (const each of held) assignments.delete(key(each.workItemId, each.stepId));
@@ -308,7 +331,8 @@ export function inMemoryDirectory(): DirectoryStore {
         removal: { workItemIds: held.map((each) => each.workItemId), projectIds: [] },
       });
     },
-    removeTeam(teamId) {
+    removeTeam(teamId, cascade, stamp) {
+      stampsSeen.push(stamp);
       if (!teams.has(teamId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       for (const held of memberships.values()) held.delete(teamId);
       teams.delete(teamId);
@@ -318,7 +342,8 @@ export function inMemoryDirectory(): DirectoryStore {
       const wanted = new Set(workItemIds);
       return Promise.resolve([...assignments.values()].filter((a) => wanted.has(a.workItemId)));
     },
-    assign(workItemId, stepId, personId) {
+    assign(workItemId, stepId, personId, stamp) {
+      stampsSeen.push(stamp);
       // The person is checked here because production checks it inside the
       // write's own transaction: a fixture that wrote an assignment naming
       // nobody would let a caller's `unknown_person` branch pass untested.

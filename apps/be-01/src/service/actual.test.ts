@@ -99,10 +99,14 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  await projects.create(project, [
-    { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
-    { id: QA, projectId: project.id, name: 'QA', position: 20 },
-  ]);
+  await projects.create(
+    project,
+    [
+      { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
+      { id: QA, projectId: project.id, name: 'QA', position: 20 },
+    ],
+    { at: 1, by: OWNER },
+  );
   projectId = project.id;
 });
 
@@ -383,7 +387,7 @@ describe('what recording days does not do', () => {
     // nothing below it reads this table. The model has no completion state, so
     // it could not tell "took 8 days, finished" from "8 days so far" even if it
     // wanted to — see design.md D3.
-    await projects.update(projectId, { startDate: '2026-09-01' });
+    await projects.update(projectId, { startDate: '2026-09-01' }, { at: 1, by: OWNER });
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, DEV, days(2, 2, 2));

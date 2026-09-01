@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { Drizzle } from './db';
 import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
+import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -17,8 +18,16 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let dir: string;
 let db: Drizzle;
 let repo: DependencyRepository;
+let ownerId: string;
 let projectId: string;
 let workItems: WorkItemRepository;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-dependency-'));
@@ -28,13 +37,11 @@ beforeEach(async () => {
   repo = new DependencyRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   await new ProjectRepository(db).create(
     {
@@ -50,6 +57,7 @@ beforeEach(async () => {
       createdAt: 1,
     },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
+    wrote(),
   );
 });
 
@@ -76,6 +84,7 @@ async function addWorkItem(name: string): Promise<string> {
       revision: 0,
     },
     [],
+    wrote(),
   );
   return id;
 }
@@ -92,7 +101,7 @@ describe('DependencyRepository', () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
 
-    await repo.add(edge(a, b));
+    await repo.add(edge(a, b), wrote());
 
     expect(await repo.listByProject(projectId)).toMatchObject([
       { predecessorId: a, successorId: b },
@@ -105,8 +114,8 @@ describe('DependencyRepository', () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
 
-    await repo.add(edge(a, b));
-    await repo.add(edge(a, b));
+    await repo.add(edge(a, b), wrote());
+    await repo.add(edge(a, b), wrote());
 
     expect(await repo.listByProject(projectId)).toHaveLength(1);
   });
@@ -117,8 +126,8 @@ describe('DependencyRepository', () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
 
-    await repo.add(edge(a, b));
-    await repo.add(edge(b, a));
+    await repo.add(edge(a, b), wrote());
+    await repo.add(edge(b, a), wrote());
 
     expect(await repo.listByProject(projectId)).toHaveLength(2);
   });
@@ -127,10 +136,10 @@ describe('DependencyRepository', () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
     const c = await addWorkItem('Paint');
-    await repo.add(edge(a, b));
-    await repo.add(edge(b, c));
+    await repo.add(edge(a, b), wrote());
+    await repo.add(edge(b, c), wrote());
 
-    await repo.remove(a, b);
+    await repo.remove(a, b, wrote());
 
     expect(await repo.listByProject(projectId)).toMatchObject([
       { predecessorId: b, successorId: c },
@@ -141,10 +150,10 @@ describe('DependencyRepository', () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
     const c = await addWorkItem('Paint');
-    await repo.add(edge(a, b));
-    await repo.add(edge(b, c));
+    await repo.add(edge(a, b), wrote());
+    await repo.add(edge(b, c), wrote());
 
-    await repo.removeAllFor(b);
+    await repo.removeAllFor(b, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([]);
   });
@@ -154,7 +163,7 @@ describe('DependencyRepository', () => {
     // declared — `db.ts` asserts the pragma, and this is what that buys.
     const a = await addWorkItem('Strip');
 
-    expect(repo.add(edge(a, crypto.randomUUID()))).rejects.toThrow(/FOREIGN KEY/i);
+    expect(repo.add(edge(a, crypto.randomUUID()), wrote())).rejects.toThrow(/FOREIGN KEY/i);
   });
 });
 
@@ -167,10 +176,10 @@ describe('a work item deleted by a release that knows nothing about edges', () =
     // safe to apply while the old release is still serving.
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
-    await repo.add(edge(a, b));
+    await repo.add(edge(a, b), wrote());
 
     // Exactly what the old release runs: no edge cleanup first.
-    await new WorkItemRepository(db).remove([a], []);
+    await new WorkItemRepository(db).remove([a], [], wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([]);
   });

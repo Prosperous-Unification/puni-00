@@ -399,6 +399,21 @@ the reference clause plus a live write through it, watched failing on `Expected 
 "REFERENCES \"step\""` with the whole-run decision put back. **A check written from the spec's own
 words can still be blind to the fault the spec is about — run everything, not the new test.**
 
+One more on 2026-09-01 in `audit-columns`, and it is the first where the thing that could not fail
+was a **type**. The 76 new audit columns were added to `schema.ts` by spreading a shared
+`auditColumns()` into 26 tables — drizzle's own idiom for shared columns — and one of those tables
+is `users`, which is the table the helper's `created_by` points **at**. So `users` needed the
+helper's return type and the helper's return type needed `users`; TypeScript resolved the cycle by
+inferring the spread as contributing **nothing**, in silence. Every row type in the schema lost all
+three columns: `db.select().from(tag)` came back typed `{ id, name }`. Nothing caught it — the
+migration created the columns, drizzle wrote and read them correctly at runtime, `nx typecheck`
+passed, and the new behaviour tests passed while asserting `row.createdBy` on a property TypeScript
+believed did not exist. What found it was the **LSP**, on the test file, because the test project is
+out of the typecheck gate. Fixed by writing `users`' own two columns inline with the annotated
+self-reference drizzle asks for, which breaks the cycle; proved by a throwaway probe asserting
+`typeof tag.$inferSelect` accepts all three. **A silently-widened type is a check that cannot fail,
+and the gate that would have caught this one does not read the files that noticed.**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

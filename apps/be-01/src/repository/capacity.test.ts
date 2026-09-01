@@ -8,12 +8,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { CapacityRepository } from './capacity';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
-import type { Project } from './index';
+import type { Project, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+
+/** The stamp every write here carries; `owner` is the account the setup creates first. */
+const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
  * The one thing this file exists to pin: `slotsFor` answers **one project's own
@@ -52,22 +55,20 @@ describe('a project’s capacity for a team', () => {
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
     capacity = new CapacityRepository(db);
-    await new UserRepository(db).create({
-      id: 'owner',
-      username: 'owner',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(db).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
     const projects = new ProjectRepository(db);
-    await projects.create(project('p1', 'Rewire the shed'), []);
-    await projects.create(project('p2', 'Reroof the barn'), []);
+    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
+    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
     const directory = new DirectoryRepository(db);
     // Both created unsized, because a global size is read by nothing now — and a
     // fixture that seeded one would be handing the fallback a way to look right.
     // `addTeam` has no size to give them any more; the one test below that needs
     // a number in that column writes it as SQL, on purpose.
-    await directory.addTeam({ id: 't-platform', name: 'Platform' });
-    await directory.addTeam({ id: 't-backend', name: 'Backend' });
+    await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
+    await directory.addTeam({ id: 't-backend', name: 'Backend' }, wrote);
   });
 
   afterEach(() => {
@@ -82,9 +83,9 @@ describe('a project’s capacity for a team', () => {
     // tests went red, this one on `p2`'s map: `"t-platform" => 5` became
     // `"t-platform" => 2, "t-backend" => 9`, so the project that asked for five
     // was handed the *other* project's two numbers. Watched 2026-08-13.
-    await capacity.set('p1', 't-platform', 2);
-    await capacity.set('p1', 't-backend', 9);
-    await capacity.set('p2', 't-platform', 5);
+    await capacity.set('p1', 't-platform', 2, wrote);
+    await capacity.set('p1', 't-backend', 9, wrote);
+    await capacity.set('p2', 't-platform', 5, wrote);
 
     expect(await capacity.slotsFor('p1')).toEqual(
       new Map([
@@ -117,7 +118,7 @@ describe('a project’s capacity for a team', () => {
     // and the one is this: `expect(received).toBe(expected) / Expected: false /
     // Received: true`, on a team `p1` never stated. Watched 2026-08-13.
     sqlite.run("UPDATE service_team SET size = 7 WHERE id = 't-platform'");
-    await capacity.set('p1', 't-backend', 3);
+    await capacity.set('p1', 't-backend', 3, wrote);
 
     const slots = await capacity.slotsFor('p1');
 
@@ -136,7 +137,7 @@ describe('a project’s capacity for a team', () => {
     // unconstrained, which is what unstated means. A `null` in the map would be
     // a value every caller had to test for, and a `0` would be a pool of no
     // slots — a plan of `Infinity` dates.
-    await capacity.set('p1', 't-platform', 3);
+    await capacity.set('p1', 't-platform', 3, wrote);
 
     const slots = await capacity.slotsFor('p1');
 
@@ -153,16 +154,16 @@ describe('a project’s capacity for a team', () => {
     // The primary key on the pair, through the write: two numbers for one pair
     // would be two answers to one question, and the reader would get whichever
     // the query planner handed back first.
-    await capacity.set('p1', 't-platform', 2);
-    await capacity.set('p1', 't-platform', 7);
+    await capacity.set('p1', 't-platform', 2, wrote);
+    await capacity.set('p1', 't-platform', 7, wrote);
 
     expect(await capacity.listFor('p1')).toEqual([{ serviceTeamId: 't-platform', size: 7 }]);
   });
 
   it('clears to unstated by deleting the row, not by storing a null', async () => {
-    await capacity.set('p1', 't-platform', 2);
+    await capacity.set('p1', 't-platform', 2, wrote);
 
-    expect(await capacity.set('p1', 't-platform', null)).toEqual({ ok: true });
+    expect(await capacity.set('p1', 't-platform', null, wrote)).toEqual({ ok: true });
 
     expect(await capacity.listFor('p1')).toEqual([]);
     // Read off the table itself: the claim is about the absence of a row, and a
@@ -176,7 +177,7 @@ describe('a project’s capacity for a team', () => {
   it('clearing what was never stated changes nothing and is not an error', async () => {
     // Idempotent by shape rather than by asking: a client that clears a box
     // twice, or clears one that was already empty, has not made a mistake.
-    expect(await capacity.set('p1', 't-platform', null)).toEqual({ ok: true });
+    expect(await capacity.set('p1', 't-platform', null, wrote)).toEqual({ ok: true });
     expect(await capacity.listFor('p1')).toEqual([]);
   });
 
@@ -189,17 +190,17 @@ describe('a project’s capacity for a team', () => {
     // guard, and this failed with an uncaught `SQLiteError: FOREIGN KEY
     // constraint failed` out of the insert — the unknown a caller cannot be
     // answered with, where a modeled `not_found` was owed. Watched 2026-08-13.
-    expect(await capacity.set('nope', 't-platform', 3)).toEqual({
+    expect(await capacity.set('nope', 't-platform', 3, wrote)).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await capacity.set('p1', 'nope', 3)).toEqual({ ok: false, reason: 'not_found' });
+    expect(await capacity.set('p1', 'nope', 3, wrote)).toEqual({ ok: false, reason: 'not_found' });
     expect(await capacity.listFor('p1')).toEqual([]);
   });
 
   it('lists in team-id order, so the payload does not reshuffle between reads', async () => {
-    await capacity.set('p1', 't-platform', 2);
-    await capacity.set('p1', 't-backend', 4);
+    await capacity.set('p1', 't-platform', 2, wrote);
+    await capacity.set('p1', 't-backend', 4, wrote);
 
     expect(await capacity.listFor('p1')).toEqual([
       { serviceTeamId: 't-backend', size: 4 },
@@ -211,8 +212,8 @@ describe('a project’s capacity for a team', () => {
     // The cascades, asserted by using them rather than by reading the schema —
     // and they are the ones that keep the outgoing release's own `DELETE`s
     // working mid-swap against a table it knows nothing about.
-    await capacity.set('p1', 't-platform', 2);
-    await capacity.set('p2', 't-platform', 2);
+    await capacity.set('p1', 't-platform', 2, wrote);
+    await capacity.set('p2', 't-platform', 2, wrote);
 
     sqlite.run("DELETE FROM project WHERE id = 'p1'");
     expect(await capacity.listFor('p1')).toEqual([]);

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -36,6 +36,12 @@ import { WorkItemService } from './work-item.service';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 /** The pre-C5 tip: `main@050fd45`'s schema, and the state the migration runs against. */
 const PRE_C5 = '20260812100001_add_max_parallel';
+/**
+ * The stamp every replayed write carries. The oracle was captured before a write
+ * recorded who made it, so the plan's own owner stands in for the actor and the
+ * instant is fixed — nothing here is a claim about either.
+ */
+const STAMP: WriteStamp = { at: 1, by: 'owner' };
 
 interface CapturedRow {
   id: string;
@@ -548,8 +554,9 @@ describe('every plan schedules identically across the migration', () => {
     // the oracle rather than carried in here — a fixture that spread it would
     // be handing a build that still fell back to the global column the numbers
     // that make the fallback look right. The type refuses that spread now.
-    for (const team of oracle.teams) await directory.addTeam({ id: team.id, name: team.name });
-    for (const who of oracle.people) await directory.addPerson({ ...who }, []);
+    for (const team of oracle.teams)
+      await directory.addTeam({ id: team.id, name: team.name }, STAMP);
+    for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
     const project: Project = {
       id: plan.projectId,
@@ -575,7 +582,7 @@ describe('every plan schedules identically across the migration', () => {
       name: `Step ${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await projects.create(project, steps);
+    await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {
       const stored: WorkItem = {
         id: row.id,
@@ -591,16 +598,16 @@ describe('every plan schedules identically across the migration', () => {
         serviceTeamId: row.serviceTeamId,
         revision: 0,
       };
-      await workItems.insert(stored, []);
+      await workItems.insert(stored, [], STAMP);
     }
     // After the rows, so an estimate is never written against a work item that is
     // not there yet — the fixture mirrors the foreign key.
     for (const row of plan.rows) {
       for (const [stepId, days] of Object.entries(row.estimates)) {
-        await estimates.set({ workItemId: row.id, stepId, ...days });
+        await estimates.set({ workItemId: row.id, stepId, ...days }, STAMP);
       }
       for (const [stepId, personId] of Object.entries(row.assignees)) {
-        await directory.assign(row.id, stepId, personId);
+        await directory.assign(row.id, stepId, personId, STAMP);
       }
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {
@@ -609,7 +616,7 @@ describe('every plan schedules identically across the migration', () => {
           predecessorId,
           successorId: row.id,
         };
-        await dependencies.add(edge);
+        await dependencies.add(edge, STAMP);
       }
     }
 

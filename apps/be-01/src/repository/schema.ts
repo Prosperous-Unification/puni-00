@@ -11,6 +11,49 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+/**
+ * The audit columns every stored record carries: when it was made, when it last
+ * changed, and who made it. ADR 0012 is the decision; the acting user reaches
+ * the write as a {@link WriteStamp} argument rather than as ambient context.
+ *
+ * A **function** and not a shared object, which is drizzle's own idiom for
+ * this: a column builder is consumed by the table it is given to, so one
+ * instance spread into twenty-four tables is one column twenty-four tables
+ * believe they own. Called per table, each gets its own.
+ *
+ * **Nullable, and permanently so.** Forward migrations stay additive — blue and
+ * green share one SQLite file across a swap — so these arrived on populated
+ * tables with no default, and a default would have recorded an author who did
+ * not write the row (R5: never convert an unknown into a default). A row older
+ * than the migration has no author, `created_by` is null there, and the type
+ * says so rather than inventing one. There is no later migration that tightens
+ * them: the author of a row written before this existed is unknowable, not
+ * unknown-for-now.
+ *
+ * Five tables carry none of this, and each for its own reason. `event_log`,
+ * `command_journal` and `plan_event` record an **act** rather than a record —
+ * they already hold the acting user and the instant, and nothing ever updates
+ * them, so a `created_by` beside their `user_id` would be two columns for one
+ * fact. `event_sequencer` is one counter row. `examples` is scaffold.
+ */
+const auditColumns = () => ({
+  createdAt: integer('created_at'),
+  ...auditColumnsBesidesCreatedAt(),
+});
+
+/**
+ * {@link auditColumns} for the two tables that already dated themselves.
+ *
+ * `users` and `project` have carried a `NOT NULL` `created_at` since they were
+ * written, and it stays theirs: letting {@link auditColumns} supply a nullable
+ * one in its place would weaken a column the database enforces, and make every
+ * reader of a project's age handle a null that cannot occur.
+ */
+const auditColumnsBesidesCreatedAt = () => ({
+  updatedAt: integer('updated_at'),
+  createdBy: text('created_by').references(() => users.id),
+});
+
 export const examples = sqliteTable('examples', {
   id: text('id').primaryKey(),
   label: text('label').notNull(),
@@ -35,6 +78,17 @@ export const users = sqliteTable(
     idpIssuer: text('idp_issuer'),
     idpSub: text('idp_sub'),
     createdAt: integer('created_at').notNull(),
+    // Written out rather than spread from `auditColumnsBesidesCreatedAt`, and
+    // the reason is a type cycle rather than a preference: this table is the one
+    // the helper's `created_by` points **at**, so a `users` that spread the
+    // helper would need the helper's return type to know `users`. TypeScript
+    // gives up on that and infers the spread as contributing nothing — every
+    // table's row type silently lost all three columns, `db.select().from(tag)`
+    // came back typed `{ id, name }`, and only the tests reading those columns
+    // noticed. The self-reference is annotated for the same reason drizzle asks
+    // for it: a column whose type mentions its own table cannot be inferred.
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by').references((): AnySQLiteColumn => users.id),
   },
   (t) => [
     uniqueIndex('users_username').on(t.username),
@@ -160,6 +214,7 @@ export const project = sqliteTable(
      */
     revision: integer('revision').notNull().default(0),
     createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
   },
   (t) => [uniqueIndex('project_solution_slug').on(t.solutionSlug)],
 );
@@ -188,6 +243,7 @@ export const projectAccess = sqliteTable(
       .notNull()
       .references(() => project.id),
     lastOpenedAt: integer('last_opened_at').notNull(),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.projectId] })],
 );
@@ -414,6 +470,7 @@ export const workItem = sqliteTable(
      * they are separate changes.
      */
     revision: integer('revision').notNull().default(0),
+    ...auditColumns(),
   },
   (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
 );
@@ -461,6 +518,7 @@ export const step = sqliteTable(
      * step.position`; watched 2026-08-09.
      */
     position: integer('position').notNull().default(0),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('step_project_name').on(t.projectId, t.name)],
 );
@@ -490,6 +548,7 @@ export const estimate = sqliteTable(
     optimistic: real('optimistic').notNull(),
     realistic: real('realistic').notNull(),
     pessimistic: real('pessimistic').notNull(),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
@@ -558,6 +617,7 @@ export const actual = sqliteTable(
       .references(() => step.id),
     days: real('days').notNull(),
     recordedAt: integer('recorded_at').notNull(),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
@@ -631,6 +691,7 @@ export const stepProgress = sqliteTable(
       .references(() => step.id),
     state: text('state', { enum: ['in_progress', 'done'] }).notNull(),
     statedAt: integer('stated_at').notNull(),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId] }),
@@ -739,6 +800,7 @@ export const stepMeasure = sqliteTable(
     metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
@@ -796,6 +858,7 @@ export const serviceTeam = sqliteTable(
      * {@link projectTeamCapacity.size}, per project.
      */
     size: integer('size'),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('service_team_name').on(t.name)],
 );
@@ -837,6 +900,7 @@ export const workItemTeam = sqliteTable(
     teamId: text('team_id')
       .notNull()
       .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.teamId] }),
@@ -880,6 +944,7 @@ export const tag = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('tag_name').on(t.name)],
 );
@@ -934,6 +999,7 @@ export const workItemTag = sqliteTable(
     tagId: text('tag_id')
       .notNull()
       .references(() => tag.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.tagId] }),
@@ -973,6 +1039,7 @@ export const workItemType = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('work_item_type_name').on(t.name)],
 );
@@ -994,6 +1061,7 @@ export const externalSystem = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('external_system_name').on(t.name)],
 );
@@ -1037,6 +1105,7 @@ export const workItemWorkItemType = sqliteTable(
     typeId: text('type_id')
       .notNull()
       .references(() => workItemType.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.workItemId, t.typeId] }), index('wiwit_by_type').on(t.typeId)],
 );
@@ -1083,6 +1152,7 @@ export const workItemExternalRef = sqliteTable(
       .references(() => externalSystem.id, { onDelete: 'cascade' }),
     url: text('url').notNull(),
     position: integer('position').notNull(),
+    ...auditColumns(),
   },
   (t) => [
     index('wier_by_work_item').on(t.workItemId, t.position),
@@ -1133,6 +1203,7 @@ export const service = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    ...auditColumns(),
   },
   (t) => [uniqueIndex('service_name').on(t.name)],
 );
@@ -1181,6 +1252,7 @@ export const teamService = sqliteTable(
     serviceId: text('service_id')
       .notNull()
       .references(() => service.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.teamId, t.serviceId] }),
@@ -1250,6 +1322,7 @@ export const workItemService = sqliteTable(
     serviceId: text('service_id')
       .notNull()
       .references(() => service.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.serviceId] }),
@@ -1310,6 +1383,7 @@ export const projectTeamCapacity = sqliteTable(
      * which is the only place a number can enter.
      */
     size: integer('size').notNull(),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.serviceTeamId] })],
 );
@@ -1358,6 +1432,7 @@ export const projectPriorityBand = sqliteTable(
     label: text('label').notNull(),
     /** What choosing this band by name writes into a work item's priority. */
     defaultValue: integer('default_value').notNull(),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.rank] })],
 );
@@ -1422,6 +1497,7 @@ export const person = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     kind: text('kind', { enum: PERSON_KINDS }).notNull().default('person'),
+    ...auditColumns(),
   },
   (t) => [
     uniqueIndex('person_name').on(t.name),
@@ -1449,6 +1525,7 @@ export const personTeam = sqliteTable(
     serviceTeamId: text('service_team_id')
       .notNull()
       .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.personId, t.serviceTeamId] })],
 );
@@ -1480,6 +1557,7 @@ export const assignment = sqliteTable(
     personId: text('person_id')
       .notNull()
       .references(() => person.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
 );
@@ -1532,6 +1610,7 @@ export const dependency = sqliteTable(
     successorId: text('successor_id')
       .notNull()
       .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+    ...auditColumns(),
   },
   (t) => [
     index('dependency_project').on(t.projectId),

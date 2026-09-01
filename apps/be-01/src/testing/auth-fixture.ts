@@ -1,6 +1,6 @@
 import type { OidcIdentityOptions, TokenVerifier } from '@wbs/auth';
 
-import type { OidcIdentityStore, User, UserStore } from '../repository';
+import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../repository';
 import { AuthService } from '../service/auth.service';
 
 /**
@@ -9,10 +9,17 @@ import { AuthService } from '../service/auth.service';
  * SQLite index does — a fixture that accepts duplicate usernames would let a
  * registration test pass against behaviour production does not have.
  */
-export function inMemoryUsers(): UserStore & OidcIdentityStore {
+export function inMemoryUsers(): UserStore & OidcIdentityStore & { stampsSeen: WriteStamp[] } {
   const byId = new Map<string, User>();
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
   return {
-    create(user) {
+    stampsSeen,
+    create(user, stamp) {
+      stampsSeen.push(stamp);
       for (const existing of byId.values()) {
         if (existing.username === user.username) return Promise.resolve(null);
       }
@@ -28,7 +35,8 @@ export function inMemoryUsers(): UserStore & OidcIdentityStore {
     findById(id) {
       return Promise.resolve(byId.get(id) ?? null);
     },
-    resolveOidcIdentity(identity, create) {
+    resolveOidcIdentity(identity, create, stamp) {
+      stampsSeen.push(stamp);
       for (const user of byId.values()) {
         if (user.idpIssuer === identity.issuer && user.idpSub === identity.subject) {
           return Promise.resolve(user);
@@ -56,6 +64,9 @@ export function inMemoryUsers(): UserStore & OidcIdentityStore {
       const local = identity.email?.split('@', 1)[0]?.toLowerCase() ?? 'oidc';
       const user: User = {
         ...create,
+        // The account's own date comes off the stamp, as the real store's does:
+        // `create` carries the id a first login would mint and nothing else.
+        createdAt: stamp.at,
         username: `${local}-test`,
         passwordHash: null,
         email,

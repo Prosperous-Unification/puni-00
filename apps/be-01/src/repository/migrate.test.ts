@@ -195,12 +195,20 @@ const DEP_REACH = '20260830120000_add_dep_reach';
 const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 
 /**
- * The newest, and the only migration that renames rather than adds: `role` ->
- * `step`, with the columns and indexes that carry the word. It heads every
- * descending reversal list below, because it is the first thing any rollback
- * reverses.
+ * The only migration that renames rather than adds: `role` -> `step`, with the
+ * columns and indexes that carry the word.
  */
 const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
+
+/**
+ * The newest, and the audit columns: `created_at`, `updated_at` and
+ * `created_by` on the 26 tables that hold a domain record. Additive forward and
+ * dropped whole by its own `down.sql`, so it appears in the order and in nothing
+ * else this file checks — except that it now **heads** every descending reversal
+ * list below, because the newest migration is the first thing any rollback
+ * reverses.
+ */
+const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
 // file runs against whichever schema the `runMigrations` or `rollbackTo` above
@@ -304,6 +312,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -632,6 +641,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -860,7 +870,9 @@ describe('the per-project capacity migration', () => {
             " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
         );
         sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
-        sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 3)");
+        sqlite.run(
+          "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p', 't1', 3)",
+        );
         // The outgoing release's own removal, which knows nothing about this
         // table: without the cascade it answers 500 for the length of the swap.
         sqlite.run("DELETE FROM service_team WHERE id = 't1'");
@@ -893,13 +905,19 @@ describe('the per-project capacity migration', () => {
             " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
         );
         sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
-        sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 3)");
+        sqlite.run(
+          "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p', 't1', 3)",
+        );
         expect(() => {
-          sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 5)");
+          sqlite.run(
+            "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p', 't1', 5)",
+          );
         }).toThrow();
         // And a null size is refused, because unstated is the absence of a row.
         expect(() => {
-          sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', NULL)");
+          sqlite.run(
+            "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p', 't1', NULL)",
+          );
         }).toThrow();
       } finally {
         sqlite.close();
@@ -933,7 +951,9 @@ describe('the work item team migration', () => {
       // Written the way the release before this one writes it: capacity is a
       // fact about one project since C5, and this is the row this migration
       // must leave exactly where it found it.
-      before.run("INSERT INTO project_team_capacity VALUES ('p1', 't-backend', 2)");
+      before.run(
+        "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p1', 't-backend', 2)",
+      );
       before.run("INSERT INTO person (id, name) VALUES ('per1', 'kat')");
       before.run(
         "INSERT INTO person_team (person_id, service_team_id) VALUES ('per1', 't-backend')",
@@ -1092,6 +1112,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -1327,6 +1348,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -1616,6 +1638,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -1841,6 +1864,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -2111,6 +2135,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -2363,6 +2388,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -2462,7 +2488,11 @@ describe('the tag migration', () => {
           .query<{ name: string }, []>("SELECT name FROM pragma_table_info('tag')")
           .all()
           .map((c) => c.name);
-        expect(columns).toEqual(['id', 'name']);
+        // The three audit columns are `20260901120000_add_audit_columns`', and
+        // the equality is kept exact rather than loosened to `toContain`: what
+        // this case is about is the columns that are **not** here, so the list
+        // has to be closed for the two assertions below to mean anything.
+        expect(columns).toEqual(['id', 'name', 'created_at', 'updated_at', 'created_by']);
         // No project column: a tag means the same thing on every plan, which is
         // what makes the directory one screen and the filter one vocabulary.
         expect(columns).not.toContain('project_id');
@@ -2602,6 +2632,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -2734,7 +2765,10 @@ describe('the service migration', () => {
           .query<{ name: string }, []>("SELECT name FROM pragma_table_info('service')")
           .all()
           .map((c) => c.name);
-        expect(columns).toEqual(['id', 'name']);
+        // The three are `20260901120000_add_audit_columns`', and the equality
+        // stays exact for the tag case's reason: this is a claim about the
+        // columns that are **not** here.
+        expect(columns).toEqual(['id', 'name', 'created_at', 'updated_at', 'created_by']);
         // No project column: `Payments` means `Payments` on every plan, which is
         // what makes the directory one screen and an export column comparable
         // across plans.
@@ -2948,6 +2982,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -3087,6 +3122,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      AUDIT_COLUMNS,
       RENAME_ROLE_TO_STEP,
       WEIGHTS_AND_ROUNDING,
       DEP_REACH,
@@ -3237,6 +3273,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -3521,6 +3558,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -3607,6 +3645,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      AUDIT_COLUMNS,
       RENAME_ROLE_TO_STEP,
       WEIGHTS_AND_ROUNDING,
       DEP_REACH,
@@ -3828,6 +3867,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,

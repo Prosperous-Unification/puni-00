@@ -1,7 +1,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { MeasureStore, StoredMeasure } from './index';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import type { MeasureStore, StoredMeasure, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { type MeasureMetric, step, stepMeasure, workItem } from './schema';
 
@@ -87,21 +88,26 @@ export class StepMeasureRepository implements MeasureStore {
    * column says when this number was typed, and a corrected figure was typed
    * today.
    */
-  async set(toSet: StoredMeasure): Promise<void> {
+  async set(toSet: StoredMeasure, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.insert(stepMeasure)
-        .values(toSet)
+        .values({ ...toSet, ...auditOnCreate(stamp) })
         .onConflictDoUpdate({
           target: [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
-          set: { value: toSet.value, recordedAt: toSet.recordedAt },
+          set: { value: toSet.value, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
         })
         .run();
-      bumpWorkItems(tx, [toSet.workItemId]);
+      bumpWorkItems(tx, [toSet.workItemId], stamp);
     });
   }
 
-  async remove(workItemId: string, stepId: string, metric: MeasureMetric): Promise<void> {
+  async remove(
+    workItemId: string,
+    stepId: string,
+    metric: MeasureMetric,
+    stamp: WriteStamp,
+  ): Promise<void> {
     // All three parts of the key, not one or two: the primary key is (work
     // item, step, metric). Narrowing to the step would clear it across the whole
     // database, and narrowing to the pair would take the hours away with the
@@ -119,7 +125,7 @@ export class StepMeasureRepository implements MeasureStore {
           ),
         )
         .run();
-      bumpWorkItems(tx, [workItemId]);
+      bumpWorkItems(tx, [workItemId], stamp);
     });
   }
 
@@ -140,11 +146,11 @@ export class StepMeasureRepository implements MeasureStore {
    * transaction just did, so a row written by somebody else a moment earlier is
    * inside the `UPDATE` and inside the count.
    */
-  async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
+  async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.update(stepMeasure)
-        .set({ workItemId: toWorkItemId })
+        .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
         .where(eq(stepMeasure.workItemId, fromWorkItemId))
         .run();
       const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
@@ -152,7 +158,7 @@ export class StepMeasureRepository implements MeasureStore {
         throw new Error('SELECT changes() answered no row after moving measures');
       }
       if (changed.n === 0) return;
-      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId]);
+      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
     });
   }
 }

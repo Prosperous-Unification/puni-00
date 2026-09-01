@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -16,6 +16,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
+let ownerId: string;
 let repo: ActualRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
@@ -23,6 +24,15 @@ let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row. Not to be read as an
+ * actual's `recordedAt` — that is the day somebody says the work took, and this
+ * is when the row was written.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const insertItem = async (id: string, position: number, name: string): Promise<void> => {
   const item: WorkItem = {
@@ -40,7 +50,7 @@ const insertItem = async (id: string, position: number, name: string): Promise<v
     maxParallel: 1,
     revision: 0,
   };
-  await workItems.insert(item, []);
+  await workItems.insert(item, [], wrote());
 };
 
 const revisionOf = async (id: string): Promise<number> => {
@@ -58,13 +68,11 @@ beforeEach(async () => {
   repo = new ActualRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   // Ids chosen so that sorting them disagrees with step order, exactly as
   // `estimate.test.ts` does: `Dev` runs first and sorts last, so a read that
@@ -87,7 +95,7 @@ beforeEach(async () => {
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps);
+  await new ProjectRepository(db).create(project, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -106,9 +114,9 @@ describe('ActualRepository', () => {
     // moves with it — the column says when *this* number was typed, so a figure
     // corrected today reading as recorded last week is the one thing it must
     // not do.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 3, recordedAt: 1_000 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 3, recordedAt: 1_000 }, wrote());
 
-    await repo.set({ workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 }, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 },
@@ -120,11 +128,11 @@ describe('ActualRepository', () => {
     // survivor. With one work item, a delete narrowed to the step alone —
     // which would clear that step on every work item in the database — passes.
     // The same trap `estimate.test.ts` and `directory.test.ts` record.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 });
-    await repo.set({ workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 });
-    await repo.set({ workItemId: sandId, stepId: devId, days: 3, recordedAt: 3 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 }, wrote());
+    await repo.set({ workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 }, wrote());
+    await repo.set({ workItemId: sandId, stepId: devId, days: 3, recordedAt: 3 }, wrote());
 
-    await repo.remove(stripId, devId);
+    await repo.remove(stripId, devId, wrote());
 
     const left = await repo.listByProject(projectId);
     expect(left).toHaveLength(2);
@@ -135,10 +143,10 @@ describe('ActualRepository', () => {
   });
 
   it('removing days that were never recorded takes nothing away and does not throw', async () => {
-    await repo.set({ workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 });
+    await repo.set({ workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 }, wrote());
 
-    await repo.remove(stripId, devId);
-    await repo.remove(stripId, devId);
+    await repo.remove(stripId, devId, wrote());
+    await repo.remove(stripId, devId, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 },
@@ -150,7 +158,7 @@ describe('ActualRepository', () => {
     // than only argued in `schema.ts`: 0 is a person saying the work took no
     // days and it is stored; "nobody has said" is no row at all. A repository
     // that treated 0 as nothing to write would make the two the same sentence.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 }, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 },
@@ -163,8 +171,8 @@ describe('ActualRepository', () => {
     // bit with the terms in a different order — and for the reader's: the
     // actuals must line up with the estimates beside them, which come back in
     // this same order.
-    await repo.set({ workItemId: stripId, stepId: qaId, days: 4, recordedAt: 1 });
-    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 2 });
+    await repo.set({ workItemId: stripId, stepId: qaId, days: 4, recordedAt: 1 }, wrote());
+    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 2 }, wrote());
 
     const held = await repo.listByProject(projectId);
 
@@ -177,12 +185,12 @@ describe('ActualRepository', () => {
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
-    await new UserRepository(db).create({
-      id: owner,
-      username: 'other',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    // The other plan is the other owner's, so its rows are attributed to them.
+    const wroteElsewhere: WriteStamp = { at: 1, by: owner };
+    await new UserRepository(db).create(
+      { id: owner, username: 'other', passwordHash: 'x', createdAt: 1 },
+      wroteElsewhere,
+    );
     await new ProjectRepository(db).create(
       {
         id: otherProject,
@@ -197,6 +205,7 @@ describe('ActualRepository', () => {
         createdAt: 1,
       },
       [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
+      wroteElsewhere,
     );
     await new WorkItemRepository(db).insert(
       {
@@ -215,9 +224,13 @@ describe('ActualRepository', () => {
         revision: 0,
       },
       [],
+      wroteElsewhere,
     );
-    await repo.set({ workItemId: otherItem, stepId: otherStep, days: 9, recordedAt: 1 });
-    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 });
+    await repo.set(
+      { workItemId: otherItem, stepId: otherStep, days: 9, recordedAt: 1 },
+      wroteElsewhere,
+    );
+    await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 }, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 },
@@ -231,9 +244,9 @@ describe('ActualRepository', () => {
     // somebody recorded in between.
     const before = await revisionOf(stripId);
 
-    await repo.set({ workItemId: stripId, stepId: devId, days: 3, recordedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 3, recordedAt: 1 }, wrote());
     const written = await revisionOf(stripId);
-    await repo.remove(stripId, devId);
+    await repo.remove(stripId, devId, wrote());
     const removed = await revisionOf(stripId);
 
     expect(written).toBe(before + 1);
@@ -245,10 +258,10 @@ describe('ActualRepository', () => {
     // ends. The move is what a leaf gaining its first child runs, beside the
     // estimates'; the silence is what every other create runs, and almost every
     // plan has no actuals at all.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 2, recordedAt: 7 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 2, recordedAt: 7 }, wrote());
     const sandBefore = await revisionOf(sandId);
 
-    await repo.moveAll(stripId, sandId);
+    await repo.moveAll(stripId, sandId, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: sandId, stepId: devId, days: 2, recordedAt: 7 },
@@ -256,7 +269,7 @@ describe('ActualRepository', () => {
     expect(await revisionOf(sandId)).toBe(sandBefore + 1);
 
     const quiet = await revisionOf(stripId);
-    await repo.moveAll(stripId, sandId);
+    await repo.moveAll(stripId, sandId, wrote());
     expect(await revisionOf(stripId)).toBe(quiet);
   });
 
@@ -264,7 +277,7 @@ describe('ActualRepository', () => {
     // `actual.work_item_id` cascades, and it is the blue/green window this is
     // for: the outgoing release knows nothing about this table and its plain
     // `DELETE FROM work_item` must not hit a constraint it cannot see.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 4, recordedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 4, recordedAt: 1 }, wrote());
 
     const db = openDatabase(path);
     try {
@@ -283,7 +296,7 @@ describe('ActualRepository', () => {
     // `StepRepository.remove` is the caller that says so explicitly; this is the
     // constraint underneath it, asserted so that a later migration cannot add a
     // cascade without a red test.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 4, recordedAt: 1 });
+    await repo.set({ workItemId: stripId, stepId: devId, days: 4, recordedAt: 1 }, wrote());
 
     const db = openDatabase(path);
     try {

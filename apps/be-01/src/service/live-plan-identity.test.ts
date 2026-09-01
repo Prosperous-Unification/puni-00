@@ -1,7 +1,7 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem } from '../repository';
+import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -66,6 +66,12 @@ const plan = captured as unknown as CapturedPlan;
 
 const PROJECT_ID = 'live-project';
 const capturedRows = plan.workItems;
+/**
+ * The stamp every replayed write carries. The capture predates a write recording
+ * who made it, so the project's own owner stands in for the actor and the instant
+ * is fixed — the replay is a claim about the engine, not about either.
+ */
+const STAMP: WriteStamp = { at: 1, by: 'owner' };
 
 /** Every step the captured estimates name, in the order the rows print them. */
 function stepsInPlan(): string[] {
@@ -141,7 +147,7 @@ async function replay(extraSteps: readonly string[]) {
     name: `Step ${String(place)}`,
     position: (place + 1) * STEP_POSITION_STEP,
   }));
-  await projects.create(project, steps);
+  await projects.create(project, steps, STAMP);
 
   for (const row of capturedRows) {
     const stored: WorkItem = {
@@ -161,7 +167,7 @@ async function replay(extraSteps: readonly string[]) {
       serviceTeamId: row.serviceTeamId,
       revision: row.revision,
     };
-    await workItems.insert(stored, []);
+    await workItems.insert(stored, [], STAMP);
   }
   // After the rows, so an estimate is never written against a work item that is
   // not there yet — the fixture mirrors the foreign key.
@@ -169,7 +175,7 @@ async function replay(extraSteps: readonly string[]) {
     const children = capturedRows.some((each) => each.parentId === row.id);
     if (children) continue;
     for (const [stepId, days] of Object.entries(row.estimates)) {
-      await estimates.set({ workItemId: row.id, stepId, ...days });
+      await estimates.set({ workItemId: row.id, stepId, ...days }, STAMP);
     }
   }
   for (const row of capturedRows) {
@@ -180,7 +186,7 @@ async function replay(extraSteps: readonly string[]) {
         predecessorId,
         successorId: row.id,
       };
-      await dependencies.add(edge);
+      await dependencies.add(edge, STAMP);
     }
   }
 

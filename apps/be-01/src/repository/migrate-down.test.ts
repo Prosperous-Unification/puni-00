@@ -1,4 +1,12 @@
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -191,13 +199,20 @@ const DEP_REACH = '20260830120000_add_dep_reach';
 const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 
 /**
- * The newest, and the only migration on disk that renames rather than adds:
- * `role` -> `step` with the columns and indexes that carry the word. It is the
- * one whose rollback is a **total** inverse — nothing is created, dropped or
- * defaulted — which is why `the step rename rolls back to the schema it found`
- * below compares the whole schema and every row rather than counting tables.
+ * The only migration on disk that renames rather than adds: `role` -> `step`
+ * with the columns and indexes that carry the word. It is the one whose rollback
+ * is a **total** inverse — nothing is created, dropped or defaulted — which is
+ * why `the step rename rolls back to the schema it found` below compares the
+ * whole schema and every row rather than counting tables.
  */
 const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
+
+/**
+ * The newest: the audit columns, on the 26 tables that hold a domain record.
+ * Additive forward and dropped whole on the way back, so it heads the folder
+ * order and every descending reversal list below.
+ */
+const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -332,11 +347,25 @@ function seedEveryRenamedTable(dbPath: string): void {
   }
 }
 
-/** The migration folder with one migration pruned out of it. */
-function folderWithout(pruned: string): { path: string; cleanup: () => void } {
+/**
+ * The migration folder as it stood **before** one migration — that folder and
+ * every folder older than it, and nothing newer.
+ *
+ * This used to prune the named migration alone, which was the same thing only
+ * while the named one was the newest on disk. `20260901120000_add_audit_columns`
+ * ended that: it says `ALTER TABLE step ADD …`, so it cannot run against a
+ * database where `20260831120000_rename_role_to_step` never renamed `role` —
+ * `DrizzleError: Failed to run the query 'ALTER TABLE step ADD created_at
+ * integer;'`, watched 2026-09-01. A migration is entitled to depend on every
+ * migration older than it, so "all except one" is not a schema that ever
+ * existed; "everything up to one" is.
+ */
+function folderBefore(oldest: string): { path: string; cleanup: () => void } {
   const copy = mkdtempSync(join(tmpdir(), 'wbs-pre-rename-'));
   cpSync(FOLDER, copy, { recursive: true });
-  rmSync(join(copy, pruned), { recursive: true, force: true });
+  for (const folder of readdirSync(copy)) {
+    if (folder >= oldest) rmSync(join(copy, folder), { recursive: true, force: true });
+  }
   return {
     path: copy,
     cleanup: () => {
@@ -450,6 +479,7 @@ describe('readMigrationFolders', () => {
       DEP_REACH,
       WEIGHTS_AND_ROUNDING,
       RENAME_ROLE_TO_STEP,
+      AUDIT_COLUMNS,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -556,11 +586,13 @@ describe('rollbackTo, against a real database', () => {
         DEP_REACH,
         WEIGHTS_AND_ROUNDING,
         RENAME_ROLE_TO_STEP,
+        AUDIT_COLUMNS,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -649,6 +681,7 @@ describe('rollbackTo, against a real database', () => {
         DEP_REACH,
         WEIGHTS_AND_ROUNDING,
         RENAME_ROLE_TO_STEP,
+        AUDIT_COLUMNS,
       ]);
     } finally {
       db.cleanup();
@@ -719,6 +752,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
         DEP_REACH,
@@ -789,7 +823,8 @@ describe('rollbackTo, against a real database', () => {
       // The newest applied is the role -> step rename, so rolling back *to* it
       // reverses nothing. Each step down names everything newer than its target,
       // newest first — which is the half a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
       expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([DEP_REACH]);
@@ -828,7 +863,7 @@ describe('rollbackTo, against a real database', () => {
    */
   it('the step rename rolls back to the schema it found', () => {
     const db = tempDb();
-    const preRename = folderWithout(RENAME_ROLE_TO_STEP);
+    const preRename = folderBefore(RENAME_ROLE_TO_STEP);
     try {
       runMigrations(db.path, preRename.path);
       seedEveryRenamedTable(db.path);
@@ -849,7 +884,12 @@ describe('rollbackTo, against a real database', () => {
       expect(appliedNames(db.path)).toContain(RENAME_ROLE_TO_STEP);
       expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_project_name');
 
-      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
+      // Descending — newest reversed first — so the audit columns come off
+      // before the rename they were written against.
+      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        AUDIT_COLUMNS,
+        RENAME_ROLE_TO_STEP,
+      ]);
 
       // Schema first: this is the assertion the missing-rename fault moves, and
       // the two below it are the ones that cannot see it.

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -16,11 +16,19 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let repo: EstimateRepository;
+let ownerId: string;
 let projectId: string;
 let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
+
+/**
+ * The stamp every write here carries. The account is the project's owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const insertItem = async (
   workItems: WorkItemRepository,
@@ -43,7 +51,7 @@ const insertItem = async (
     maxParallel: 1,
     revision: 0,
   };
-  await workItems.insert(item, []);
+  await workItems.insert(item, [], wrote());
 };
 
 beforeEach(async () => {
@@ -54,13 +62,11 @@ beforeEach(async () => {
   repo = new EstimateRepository(db);
   const workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
   projectId = crypto.randomUUID();
   // Ids chosen so that sorting them disagrees with step order: `Dev` runs first
   // and sorts last. Random UUIDs would agree by luck about half the time, and a
@@ -83,7 +89,7 @@ beforeEach(async () => {
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps);
+  await new ProjectRepository(db).create(project, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -101,29 +107,38 @@ describe('EstimateRepository', () => {
     // survivor. With one work item, a delete narrowed to the step alone —
     // which would clear that step on every work item in the database — passes.
     // The same trap `directory.test.ts` records for `assign(…, null)`.
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      optimistic: 1,
-      realistic: 2,
-      pessimistic: 3,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      optimistic: 4,
-      realistic: 5,
-      pessimistic: 6,
-    });
-    await repo.set({
-      workItemId: sandId,
-      stepId: devId,
-      optimistic: 7,
-      realistic: 8,
-      pessimistic: 9,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        optimistic: 4,
+        realistic: 5,
+        pessimistic: 6,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: sandId,
+        stepId: devId,
+        optimistic: 7,
+        realistic: 8,
+        pessimistic: 9,
+      },
+      wrote(),
+    );
 
-    await repo.remove(stripId, devId);
+    await repo.remove(stripId, devId, wrote());
 
     const left = await repo.listByProject(projectId);
     expect(left).toHaveLength(2);
@@ -149,16 +164,19 @@ describe('EstimateRepository', () => {
     // Clearing twice is the ordinary path: a person empties three boxes, the
     // tree refreshes, and they empty them again. The state asked for is the
     // state left, so the second call is a success rather than a 404.
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      optimistic: 4,
-      realistic: 5,
-      pessimistic: 6,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        optimistic: 4,
+        realistic: 5,
+        pessimistic: 6,
+      },
+      wrote(),
+    );
 
-    await repo.remove(stripId, devId);
-    await repo.remove(stripId, devId);
+    await repo.remove(stripId, devId, wrote());
+    await repo.remove(stripId, devId, wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, stepId: qaId, optimistic: 4, realistic: 5, pessimistic: 6 },
@@ -172,20 +190,26 @@ describe('EstimateRepository', () => {
     // through `Math.ceil`, so that bit is a day on the screen. `Dev` runs first
     // here and its id sorts last, so a read falling back to the primary key
     // would hand back `QA` first.
-    await repo.set({
-      workItemId: stripId,
-      stepId: qaId,
-      optimistic: 4,
-      realistic: 5,
-      pessimistic: 6,
-    });
-    await repo.set({
-      workItemId: stripId,
-      stepId: devId,
-      optimistic: 1,
-      realistic: 2,
-      pessimistic: 3,
-    });
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: qaId,
+        optimistic: 4,
+        realistic: 5,
+        pessimistic: 6,
+      },
+      wrote(),
+    );
+    await repo.set(
+      {
+        workItemId: stripId,
+        stepId: devId,
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      },
+      wrote(),
+    );
 
     const held = await repo.listByProject(projectId);
 

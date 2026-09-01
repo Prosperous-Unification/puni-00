@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { JournalEntry, LabelledWorkItem, Step, WorkItem } from '../repository';
+import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -70,6 +70,13 @@ const dev = (): string => {
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 const OTHER_DAYS = { optimistic: 4, realistic: 5, pessimistic: 6 };
 
+/**
+ * The stamp the fixtures here write with. The owner, because `created_by` has an
+ * enforced foreign key to `users`: a stamp naming nobody would answer with the
+ * key rather than with the undo behaviour every case below is about.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-undo-'));
   path = join(dir, 'test.db');
@@ -88,11 +95,17 @@ beforeEach(async () => {
 
   const users = new UserRepository(db);
   ownerId = crypto.randomUUID();
-  await users.create({ id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 });
+  await users.create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: ownerId },
+  );
   // Somebody else on the same plan. The project is not restricted, so they may
   // edit it — which is the only reason any of the staleness cases below exist.
   strangerId = crypto.randomUUID();
-  await users.create({ id: strangerId, username: 'stranger', passwordHash: 'x', createdAt: 2 });
+  await users.create(
+    { id: strangerId, username: 'stranger', passwordHash: 'x', createdAt: 2 },
+    { at: 2, by: strangerId },
+  );
 
   projects = new ProjectService({ projects: projectStore });
   workItems = new WorkItemService({
@@ -557,9 +570,18 @@ describe('undoing each kind of change', () => {
   it('restores every team membership through delete undo and redo', async () => {
     const strip = await root('Strip');
     const sockets = await child(strip, 'Sockets');
-    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
-    const design = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Design' });
-    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const backend = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Backend' },
+      wrote(),
+    );
+    const design = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Design' },
+      wrote(),
+    );
+    const platform = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Platform' },
+      wrote(),
+    );
     const stripTeams = [backend.id, design.id].sort();
     const socketTeams = [design.id, platform.id].sort();
     await workItems.patch(strip, ownerId, { teamIds: [...stripTeams].reverse() });
@@ -582,7 +604,10 @@ describe('undoing each kind of change', () => {
 
   it('restores a legacy singleton delete journal that has no teamIds', async () => {
     const strip = await root('Strip');
-    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
+    const backend = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Backend' },
+      wrote(),
+    );
     await workItems.patch(strip, ownerId, { serviceTeamId: backend.id });
     expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
 
@@ -879,8 +904,14 @@ describe('undoing each kind of change', () => {
 
   it('restores every team membership when a duplicate is redone', async () => {
     const strip = await root('Strip');
-    const backend = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Backend' });
-    const design = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Design' });
+    const backend = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Backend' },
+      wrote(),
+    );
+    const design = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Design' },
+      wrote(),
+    );
     const expected = [backend.id, design.id].sort();
     await workItems.patch(strip, ownerId, { teamIds: [...expected].reverse() });
 
@@ -905,7 +936,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
     const alice = await person('Alice');
     await workItems.assign(strip, ownerId, dev(), alice);
     expect(expectDone(await undone())).toBe('assign “Strip”');
-    await directoryStore.removePerson(alice, true);
+    await directoryStore.removePerson(alice, true, wrote());
 
     const outcome = await workItems.redo(projectId, ownerId);
 
@@ -917,10 +948,13 @@ describe('a replay never resurrects a directory row that has gone', () => {
 
   it('refuses an undo that would put back a label whose team has gone', async () => {
     const strip = await root('Strip');
-    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    const platform = await directoryStore.addTeam(
+      { id: crypto.randomUUID(), name: 'Platform' },
+      wrote(),
+    );
     await workItems.patch(strip, ownerId, { serviceTeamId: platform.id });
     await workItems.patch(strip, ownerId, { serviceTeamId: null });
-    await directoryStore.removeTeam(platform.id, true);
+    await directoryStore.removeTeam(platform.id, true, wrote());
 
     // `work_item.service_team_id` has no foreign key, so the undo would not
     // fail — it would quietly write the dead id back and leave it there.
@@ -1056,6 +1090,8 @@ describe('an undo refuses when what it touched has moved', () => {
         revision: 0,
       },
       [],
+      // Somebody else's row, which is the whole reason the undo must refuse it.
+      { at: 1, by: strangerId },
     );
 
     const detail = expectStale(await undone());
@@ -1352,7 +1388,9 @@ async function allEntries(): Promise<{ seq: number; kind: string }[]> {
 
 /** A person in the global directory, for the assignment cases. */
 async function person(name: string): Promise<string> {
-  const added = await personAdded(directoryStore.addPerson({ id: crypto.randomUUID(), name }, []));
+  const added = await personAdded(
+    directoryStore.addPerson({ id: crypto.randomUUID(), name }, [], wrote()),
+  );
   return added.id;
 }
 
@@ -1401,7 +1439,7 @@ describe('what an undo leaves in the plan’s history', () => {
 
 describe('a team set is undone whole, which a scalar habit would not do', () => {
   async function teamNamed(name: string): Promise<string> {
-    return (await directoryStore.addTeam({ id: crypto.randomUUID(), name })).id;
+    return (await directoryStore.addTeam({ id: crypto.randomUUID(), name }, wrote())).id;
   }
 
   async function teamsOn(id: string): Promise<readonly string[]> {
@@ -1431,7 +1469,7 @@ describe('a team set is undone whole, which a scalar habit would not do', () => 
 describe('a tag set is undone whole, which a scalar habit would not do', () => {
   /** A tag in the global directory, or a throw — a refused fixture is not a result. */
   async function tagNamed(name: string): Promise<string> {
-    const made = await directoryStore.addTag({ id: crypto.randomUUID(), name });
+    const made = await directoryStore.addTag({ id: crypto.randomUUID(), name }, wrote());
     return made.id;
   }
 
@@ -1443,7 +1481,7 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
   }
 
   async function typeNamed(name: string): Promise<string> {
-    const made = await directoryStore.addWorkItemType({ id: crypto.randomUUID(), name });
+    const made = await directoryStore.addWorkItemType({ id: crypto.randomUUID(), name }, wrote());
     return made.id;
   }
 
@@ -1859,12 +1897,15 @@ describe('a tag decides no date, asserted rather than claimed', () => {
     await workItems.setEstimate(cable, ownerId, dev(), OTHER_DAYS);
     await workItems.addDependency(cable, ownerId, strip);
 
-    const regulatory = await directoryStore.addTag({ id: crypto.randomUUID(), name: 'regulatory' });
+    const regulatory = await directoryStore.addTag(
+      { id: crypto.randomUUID(), name: 'regulatory' },
+      wrote(),
+    );
     await workItems.patch(strip, ownerId, { tagIds: [regulatory.id] });
 
     const before = await workItems.tree(projectId);
 
-    const removed = await directoryStore.removeTag(regulatory.id, true);
+    const removed = await directoryStore.removeTag(regulatory.id, true, wrote());
     expect(removed.ok).toBe(true);
 
     const after = await workItems.tree(projectId);

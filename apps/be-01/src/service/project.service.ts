@@ -1,7 +1,14 @@
 import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
+import type {
+  Project,
+  ProjectPatch,
+  ProjectStore,
+  ProjectWithAccess,
+  Step,
+  WriteStamp,
+} from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 
 /**
@@ -48,7 +55,16 @@ export class ProjectService {
     this.newId = opts.newId ?? (() => crypto.randomUUID());
   }
 
+  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
+  private stampFor(actorId: string): WriteStamp {
+    return { at: this.now(), by: actorId };
+  }
+
   async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
+    // Built before the row, because the row's own `createdAt` is this act's
+    // instant: the project and the starting steps arriving in one transaction
+    // are one beginning, and they are dated from one reading of the clock.
+    const stamp = this.stampFor(ownerId);
     const project: Project = {
       id: this.newId(),
       name,
@@ -78,7 +94,7 @@ export class ProjectService {
       // in the same transaction, so they are part of that beginning rather
       // than a first change to it.
       revision: 0,
-      createdAt: this.now(),
+      createdAt: stamp.at,
     };
     // Positions written here rather than left to the store: `create` takes the
     // seed as it is, and `STARTING_STEPS` is already an order — Dev is done
@@ -89,7 +105,7 @@ export class ProjectService {
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await this.opts.projects.create(project, steps);
+    await this.opts.projects.create(project, steps, stamp);
     return { project, steps };
   }
 
@@ -120,7 +136,10 @@ export class ProjectService {
     // leave a row pointing at nothing, and the foreign key would refuse it in
     // production while the fixture happily accepted it.
     if (project === null) return false;
-    await this.opts.projects.recordOpen(actorId, id, this.now());
+    // The stamp is the whole of what this write says: who opened the project and
+    // when, which is what {@link ProjectStore.recordOpen} used to take as two
+    // arguments of its own.
+    await this.opts.projects.recordOpen(id, this.stampFor(actorId));
     return true;
   }
 
@@ -165,7 +184,7 @@ export class ProjectService {
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const updated = await this.opts.projects.update(id, patch);
+    const updated = await this.opts.projects.update(id, patch, this.stampFor(actorId));
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };

@@ -1,7 +1,8 @@
 import { and, eq, or } from 'drizzle-orm';
 
+import { auditOnCreate } from './audit';
 import type { Drizzle } from './db';
-import type { DependencyStore, StoredDependency } from './index';
+import type { DependencyStore, StoredDependency, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { dependency } from './schema';
 
@@ -18,7 +19,20 @@ export class DependencyRepository implements DependencyStore {
   constructor(private readonly db: Drizzle) {}
 
   async listByProject(projectId: string): Promise<StoredDependency[]> {
-    return this.db.select().from(dependency).where(eq(dependency.projectId, projectId));
+    // Projected rather than `select()`, and every read that crosses this
+    // boundary is: the audit columns are recorded, not published, so a bare
+    // select would put three fields nobody asked for into the store's answer and
+    // from there into the HTTP payload. The declared return type is what checks
+    // the list is complete — drop a column and `tsc` says so.
+    return this.db
+      .select({
+        id: dependency.id,
+        projectId: dependency.projectId,
+        predecessorId: dependency.predecessorId,
+        successorId: dependency.successorId,
+      })
+      .from(dependency)
+      .where(eq(dependency.projectId, projectId));
   }
 
   /**
@@ -33,15 +47,22 @@ export class DependencyRepository implements DependencyStore {
    * insert did means reading what the insert did, and a spurious bump costs a
    * retry where a missing one costs a lost edit.
    */
-  async add(toAdd: StoredDependency): Promise<void> {
+  async add(toAdd: StoredDependency, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
-      tx.insert(dependency).values(toAdd).onConflictDoNothing().run();
-      bumpWorkItems(tx, [toAdd.predecessorId, toAdd.successorId]);
+      // `onConflictDoNothing`, so an edge that is already there keeps the stamp
+      // of the act that first drew it. Re-adding a dependency is not a change to
+      // it, and the audit columns say who drew the edge rather than who last
+      // asked for it.
+      tx.insert(dependency)
+        .values({ ...toAdd, ...auditOnCreate(stamp) })
+        .onConflictDoNothing()
+        .run();
+      bumpWorkItems(tx, [toAdd.predecessorId, toAdd.successorId], stamp);
     });
   }
 
-  async remove(predecessorId: string, successorId: string): Promise<void> {
+  async remove(predecessorId: string, successorId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
       tx.delete(dependency)
@@ -49,7 +70,7 @@ export class DependencyRepository implements DependencyStore {
           and(eq(dependency.predecessorId, predecessorId), eq(dependency.successorId, successorId)),
         )
         .run();
-      bumpWorkItems(tx, [predecessorId, successorId]);
+      bumpWorkItems(tx, [predecessorId, successorId], stamp);
     });
   }
 
@@ -66,7 +87,7 @@ export class DependencyRepository implements DependencyStore {
    * deleting `workItemId`, so bumping it would move a counter onto a row about
    * to stop existing.
    */
-  async removeAllFor(workItemId: string): Promise<void> {
+  async removeAllFor(workItemId: string, stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     const touchesIt = or(
       eq(dependency.predecessorId, workItemId),
@@ -84,6 +105,7 @@ export class DependencyRepository implements DependencyStore {
         losing
           .flatMap((edge) => [edge.predecessorId, edge.successorId])
           .filter((id) => id !== workItemId),
+        stamp,
       );
     });
   }

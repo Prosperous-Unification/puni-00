@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Step } from './index';
+import type { Project, Step, WriteStamp } from './index';
 import { STEP_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
@@ -18,6 +18,13 @@ let dir: string;
 let repo: ProjectRepository;
 let ownerId: string;
 
+/**
+ * The stamp every write here carries unless the case is about who wrote it. The
+ * account is `ownerId`, which the `created_by` foreign key requires to exist;
+ * its own signup carries it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-project-'));
   const path = join(dir, 'test.db');
@@ -25,12 +32,10 @@ beforeEach(async () => {
   const db = openDrizzle(path);
   repo = new ProjectRepository(db);
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
 });
 
 afterEach(() => {
@@ -97,9 +102,10 @@ describe('ProjectRepository', () => {
 
   it('rolls the solution reference back and forward without losing a project', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260901120000_add_audit_columns',
       '20260831120000_rename_role_to_step',
       '20260830130000_add_estimate_weights_and_rounding',
       '20260830120000_add_dep_reach',
@@ -129,24 +135,28 @@ describe('ProjectRepository', () => {
   it('refuses one solution slug naming two projects', async () => {
     const shed = project('Rewire the shed', 100);
     const fence = project('Paint the fence', 200);
-    await repo.create(shed, steps(shed.id, 'Dev'));
-    await repo.create(fence, steps(fence.id, 'Dev'));
-    await repo.update(shed.id, {
-      solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/site-refresh' },
-    });
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(fence, steps(fence.id, 'Dev'), wrote());
+    await repo.update(
+      shed.id,
+      { solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/site-refresh' } },
+      wrote(),
+    );
 
     expect(
       await rejection(
-        repo.update(fence.id, {
-          solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/other' },
-        }),
+        repo.update(
+          fence.id,
+          { solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/other' } },
+          wrote(),
+        ),
       ),
     ).toMatch(/UNIQUE/);
   });
 
   it('writes a project and its starting steps together', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev', 'QA'));
+    await repo.create(shed, steps(shed.id, 'Dev', 'QA'), wrote());
 
     expect(await repo.findById(shed.id)).toMatchObject({
       name: 'Rewire the shed',
@@ -161,40 +171,42 @@ describe('ProjectRepository', () => {
   it('lists projects newest first, whoever owns them', async () => {
     const older = project('Older', 100);
     const newer = project('Newer', 200);
-    await repo.create(older, steps(older.id, 'Dev'));
-    await repo.create(newer, steps(newer.id, 'Dev'));
+    await repo.create(older, steps(older.id, 'Dev'), wrote());
+    await repo.create(newer, steps(newer.id, 'Dev'), wrote());
 
     expect((await repo.list()).map((p) => p.name)).toEqual(['Newer', 'Older']);
   });
 
   it('patches name and restricted, leaving the rest alone', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
-    const updated = await repo.update(shed.id, { restricted: true });
+    const updated = await repo.update(shed.id, { restricted: true }, wrote());
 
     expect(updated).toMatchObject({ name: 'Rewire the shed', restricted: true, ownerId });
   });
 
   it('returns null when patching a project that is not there', async () => {
-    expect(await repo.update(crypto.randomUUID(), { name: 'Ghost' })).toBeNull();
+    expect(await repo.update(crypto.randomUUID(), { name: 'Ghost' }, wrote())).toBeNull();
   });
 
   it('refuses two steps with one name in one project', async () => {
     // The uniqueness lives in the schema rather than the service because two
     // concurrent step additions both pass a check-then-insert.
     const shed = project('Rewire the shed', 100);
-    expect(await rejection(repo.create(shed, steps(shed.id, 'Dev', 'Dev')))).toMatch(/UNIQUE/);
+    expect(await rejection(repo.create(shed, steps(shed.id, 'Dev', 'Dev'), wrote()))).toMatch(
+      /UNIQUE/,
+    );
   });
 
   it('lists per account: opened first by recency, then never-opened by creation', async () => {
     const a = project('A', 100);
     const b = project('B', 200);
     const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'));
+    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
 
-    await repo.recordOpen(ownerId, a.id, 1000);
-    await repo.recordOpen(ownerId, b.id, 2000);
+    await repo.recordOpen(a.id, { at: 1000, by: ownerId });
+    await repo.recordOpen(b.id, { at: 2000, by: ownerId });
 
     const listed = await repo.listFor(ownerId);
     expect(listed.map((p) => p.name)).toEqual(['B', 'A', 'C']);
@@ -203,18 +215,16 @@ describe('ProjectRepository', () => {
 
   it('gives another account its own order', async () => {
     const other = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
-      id: other,
-      username: 'other',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create(
+      { id: other, username: 'other', passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: other },
+    );
     const a = project('A', 100);
     const b = project('B', 200);
     const c = project('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'));
-    await repo.recordOpen(ownerId, a.id, 1000);
-    await repo.recordOpen(other, c.id, 500);
+    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
+    await repo.recordOpen(a.id, { at: 1000, by: ownerId });
+    await repo.recordOpen(c.id, { at: 500, by: other });
 
     expect((await repo.listFor(other)).map((p) => p.name)).toEqual(['C', 'B', 'A']);
     expect((await repo.listFor(ownerId)).map((p) => p.name)).toEqual(['A', 'C', 'B']);
@@ -225,16 +235,17 @@ describe('ProjectRepository', () => {
     // pass with one account in the database and be wrong for every list that
     // holds somebody else's project — which is the whole reason for the field.
     const strip = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
-      id: strip,
-      username: 'strip',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create(
+      { id: strip, username: 'strip', passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: strip },
+    );
     const shed = project('Rewire the shed', 100);
     const fence: Project = { ...project('Paint the fence', 200), ownerId: strip };
-    for (const p of [shed, fence]) await repo.create(p, steps(p.id, 'Dev'));
-    await repo.recordOpen(ownerId, shed.id, 1000);
+    // Each project's row is authored by the account that owns it, which is what
+    // makes `ownerName` a claim about two accounts rather than about the caller.
+    for (const p of [shed, fence])
+      await repo.create(p, steps(p.id, 'Dev'), { at: 1, by: p.ownerId });
+    await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
 
     const listed = await repo.listFor(ownerId);
 
@@ -250,19 +261,19 @@ describe('ProjectRepository', () => {
 
   it('keeps one record per pair, holding the later moment', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
-    await repo.recordOpen(ownerId, shed.id, 1000);
-    await repo.recordOpen(ownerId, shed.id, 3000);
+    await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
+    await repo.recordOpen(shed.id, { at: 3000, by: ownerId });
 
     expect((await repo.listFor(ownerId)).map((p) => p.lastOpenedAt)).toEqual([3000]);
   });
 
   it('patches the estimate method', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
-    const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' });
+    const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' }, wrote());
 
     expect(updated).toMatchObject({ estimateMethod: 'pessimistic', name: 'Rewire the shed' });
     expect(await repo.findById(shed.id)).toMatchObject({ estimateMethod: 'pessimistic' });
@@ -274,7 +285,7 @@ describe('ProjectRepository', () => {
     // Written past the repository on purpose: this is the case where the
     // *stored* value is wrong, which no amount of request validation prevents.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE project SET estimate_method = 'median' WHERE id = '${shed.id}'`);
@@ -287,9 +298,9 @@ describe('ProjectRepository', () => {
 
   it('patches the dependency reach', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
-    const updated = await repo.update(shed.id, { depReach: 'anchor-slice' });
+    const updated = await repo.update(shed.id, { depReach: 'anchor-slice' }, wrote());
 
     expect(updated).toMatchObject({ depReach: 'anchor-slice', name: 'Rewire the shed' });
     expect(await repo.findById(shed.id)).toMatchObject({ depReach: 'anchor-slice' });
@@ -312,7 +323,7 @@ describe('ProjectRepository', () => {
     // `Received: "(resolved without throwing)"` — the project came back read,
     // silently, under a rule nobody chose. Watched 2026-08-29.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE project SET dep_reach = 'first-role' WHERE id = '${shed.id}'`);
@@ -329,7 +340,7 @@ describe('ProjectRepository', () => {
     // earlier — which is what makes `ceil` a change to every stored plan and
     // 1/4/1 a change to none.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(await repo.findById(shed.id)).toMatchObject({
       pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
@@ -339,12 +350,14 @@ describe('ProjectRepository', () => {
 
   it('patches the weights and the rounding, and moves the revision for each', async () => {
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
-    const weighted = await repo.update(shed.id, {
-      pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
-    });
-    const rounded = await repo.update(shed.id, { estimateRounding: 'floor' });
+    const weighted = await repo.update(
+      shed.id,
+      { pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 } },
+      wrote(),
+    );
+    const rounded = await repo.update(shed.id, { estimateRounding: 'floor' }, wrote());
 
     expect(weighted).toMatchObject({
       pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
@@ -374,7 +387,7 @@ describe('ProjectRepository', () => {
     // rounding/`, `Received: "(resolved without throwing)"`. Watched
     // 2026-08-30.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE project SET estimate_rounding = 'nearest' WHERE id = '${shed.id}'`);
@@ -396,7 +409,7 @@ describe('ProjectRepository', () => {
     // weights/`, `Received: "(resolved without throwing)"` — the project read
     // back happily and `tree` then answered `NaN` days. Watched 2026-08-30.
     const shed = project('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'));
+    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(
@@ -416,7 +429,7 @@ describe('ProjectRepository', () => {
     // 1 against 51.
     for (let made = 0; made < 50; made += 1) {
       const p = project(`Project ${String(made)}`, 100 + made);
-      await repo.create(p, steps(p.id, 'Dev'));
+      await repo.create(p, steps(p.id, 'Dev'), wrote());
     }
     const statements: string[] = [];
     const counted = new ProjectRepository(
@@ -442,7 +455,7 @@ describe('ProjectRepository', () => {
     // connection, this connection is opened, used and closed here, and the
     // repository's own connection never has it off.
     const kept = project('Rewire the shed', 100);
-    await repo.create(kept, steps(kept.id, 'Dev'));
+    await repo.create(kept, steps(kept.id, 'Dev'), wrote());
     const orphan = project('Orphan', 200);
     const db = openDatabase(join(dir, 'test.db'));
     try {
@@ -464,6 +477,11 @@ describe('ProjectRepository', () => {
     // Proof that foreign keys are enforced rather than merely declared: this
     // insert parses fine and is rejected only because the pragma is on.
     const orphan: Project = { ...project('Orphan', 100), ownerId: crypto.randomUUID() };
-    expect(await rejection(repo.create(orphan, steps(orphan.id, 'Dev')))).toMatch(/FOREIGN KEY/);
+    // Stamped by an account that does exist, so `owner_id` is the only reference
+    // left dangling — a stamp naming nobody would satisfy the match through
+    // `created_by` instead, and the case would stop being about the owner.
+    expect(await rejection(repo.create(orphan, steps(orphan.id, 'Dev'), wrote()))).toMatch(
+      /FOREIGN KEY/,
+    );
   });
 });

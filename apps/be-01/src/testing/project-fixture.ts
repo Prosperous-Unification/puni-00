@@ -1,4 +1,11 @@
-import type { Project, ProjectStore, ProjectWithAccess, Step, UserStore } from '../repository';
+import type {
+  Project,
+  ProjectStore,
+  ProjectWithAccess,
+  Step,
+  UserStore,
+  WriteStamp,
+} from '../repository';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
 
@@ -18,14 +25,23 @@ import { inMemoryUsers } from './auth-fixture';
  * production's behaviour for an owner id naming no account and not an accident
  * to work around.
  */
-export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectStore {
+export function inMemoryProjects(
+  owners: UserStore = inMemoryUsers(),
+): ProjectStore & { stampsSeen: WriteStamp[] } {
   const projects = new Map<string, Project>();
   const steps = new Map<string, Step[]>();
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   const opened = new Map<string, number>();
+  /**
+   * Every stamp this store was handed, in call order, so a service test can
+   * assert who wrote and when without a database to read audit columns from.
+   */
+  const stampsSeen: WriteStamp[] = [];
 
   return {
-    create(project, starting) {
+    stampsSeen,
+    create(project, starting, stamp) {
+      stampsSeen.push(stamp);
       const names = new Set(starting.map((r) => r.name));
       if (names.size !== starting.length) {
         return Promise.reject(new Error(`duplicate step name in ${project.id}`));
@@ -74,11 +90,15 @@ export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectSt
         return b.createdAt - a.createdAt;
       });
     },
-    recordOpen(userId, projectId, at) {
-      opened.set(`${userId}::${projectId}`, at);
+    recordOpen(projectId, stamp) {
+      stampsSeen.push(stamp);
+      // Both halves of the key come off the stamp: the account that opened the
+      // project is the acting user, and the instant it opened is the act's.
+      opened.set(`${stamp.by}::${projectId}`, stamp.at);
       return Promise.resolve();
     },
-    update(id, patch) {
+    update(id, patch, stamp) {
+      stampsSeen.push(stamp);
       const existing = projects.get(id);
       if (existing === undefined) return Promise.resolve(null);
       const updated: Project = {

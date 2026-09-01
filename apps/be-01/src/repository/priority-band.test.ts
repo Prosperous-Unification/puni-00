@@ -7,13 +7,16 @@ import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import type { Project } from './index';
+import type { Project, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+
+/** The stamp every write here carries; `owner` is the account the setup creates first. */
+const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /** A ladder that is nothing like the default one, so "read it back" cannot pass by accident. */
 const RECUT: readonly PriorityBand[] = [
@@ -60,19 +63,17 @@ describe('a project’s priority ladder', () => {
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
     bands = new PriorityBandRepository(db);
-    await new UserRepository(db).create({
-      id: 'owner',
-      username: 'owner',
-      passwordHash: 'x',
-      createdAt: 1,
-    });
+    await new UserRepository(db).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
     const projects = new ProjectRepository(db);
     // Created **through the repository**, which is the release under test — so
     // neither project is seeded by the migration and both are in the state every
     // project made after the deploy is in. That is the state the read's default
     // arm exists for, and a fixture that hand-seeded rows would hide it.
-    await projects.create(project('p1', 'Rewire the shed'), []);
-    await projects.create(project('p2', 'Reroof the barn'), []);
+    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
+    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
   });
 
   afterEach(() => {
@@ -107,7 +108,7 @@ describe('a project’s priority ladder', () => {
     // on `Expected: "Blocker" / Received: "Critical"`. A project that had re-cut
     // its ladder handed back the five it replaced. 4 pass, 3 fail; watched
     // 2026-08-14.
-    expect(await bands.replace('p1', RECUT)).toEqual({ ok: true });
+    expect(await bands.replace('p1', RECUT, wrote)).toEqual({ ok: true });
 
     expect(await bands.listFor('p1')).toEqual([...RECUT]);
     // And the other project is untouched, which is the whole of "per project":
@@ -116,7 +117,7 @@ describe('a project’s priority ladder', () => {
   });
 
   it('answers in rank order, whatever order the rows come back in', async () => {
-    await bands.replace('p1', RECUT);
+    await bands.replace('p1', RECUT, wrote);
     // The rows written out of order behind the store's back, which is the one
     // way to tell an `ORDER BY` from a query planner that happens to agree with
     // it. Rank 0 is the most important rung on every face, and a list in
@@ -145,8 +146,8 @@ describe('a project’s priority ladder', () => {
     // struck, and this failed with `UNIQUE constraint failed:
     // project_priority_band.project_id, project_priority_band.rank` — five rows
     // written over five that were never taken away. Watched 2026-08-14.
-    await bands.replace('p1', RECUT);
-    await bands.replace('p1', DEFAULT_PRIORITY_BANDS);
+    await bands.replace('p1', RECUT, wrote);
+    await bands.replace('p1', DEFAULT_PRIORITY_BANDS, wrote);
 
     expect(await bands.listFor('p1')).toEqual([...DEFAULT_PRIORITY_BANDS]);
     expect(
@@ -160,7 +161,7 @@ describe('a project’s priority ladder', () => {
   });
 
   it('trims a name on the way in, so two spellings of one word are one', async () => {
-    await bands.replace('p1', [{ ...RECUT[0], label: '  Blocker  ' }, ...RECUT.slice(1)]);
+    await bands.replace('p1', [{ ...RECUT[0], label: '  Blocker  ' }, ...RECUT.slice(1)], wrote);
     expect((await bands.listFor('p1')).at(0)?.label).toBe('Blocker');
   });
 
@@ -170,7 +171,7 @@ describe('a project’s priority ladder', () => {
     // FOREIGN KEY constraint failed` where a modeled `not_found` was owed — an
     // unknown at the service boundary rather than the 404 a caller can act on.
     // Watched 2026-08-14.
-    expect(await bands.replace('nobody-holds-this', RECUT)).toEqual({
+    expect(await bands.replace('nobody-holds-this', RECUT, wrote)).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -186,7 +187,7 @@ describe('a project’s priority ladder', () => {
     // `ON DELETE CASCADE` off the migration, `lets the outgoing release keep
     // writing projects against the migrated schema` in `migrate.test.ts` fails on
     // `FOREIGN KEY constraint failed`. Watched 2026-08-14.
-    await bands.replace('p1', RECUT);
+    await bands.replace('p1', RECUT, wrote);
     sqlite.run('DELETE FROM project WHERE id = ?', ['p1']);
 
     expect(

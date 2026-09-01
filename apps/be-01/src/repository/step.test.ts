@@ -9,7 +9,7 @@ import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
-import type { Project, Step, WorkItem } from './index';
+import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepRepository } from './step';
@@ -29,6 +29,7 @@ import { WorkItemRepository } from './work-item';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+let ownerId: string;
 let steps: StepRepository;
 let projects: ProjectRepository;
 let estimates: EstimateRepository;
@@ -41,6 +42,13 @@ let projectId: string;
 let otherProjectId: string;
 let devId: string;
 let qaId: string;
+
+/**
+ * The stamp every write here carries. The account is the projects' owner, which
+ * the `created_by` foreign key requires to exist; the owner's own signup carries
+ * it too, because a new account authors its own row.
+ */
+const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const newProject = (ownerId: string, name: string): Project => ({
   id: crypto.randomUUID(),
@@ -99,13 +107,11 @@ beforeEach(async () => {
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
-  const ownerId = crypto.randomUUID();
-  await new UserRepository(db).create({
-    id: ownerId,
-    username: 'owner',
-    passwordHash: 'x',
-    createdAt: 1,
-  });
+  ownerId = crypto.randomUUID();
+  await new UserRepository(db).create(
+    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+    wrote(),
+  );
 
   const project = newProject(ownerId, 'Rewire the shed');
   projectId = project.id;
@@ -115,17 +121,19 @@ beforeEach(async () => {
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await projects.create(project, starting);
+  await projects.create(project, starting, wrote());
 
   const other = newProject(ownerId, 'Re-tile the roof');
   otherProjectId = other.id;
-  await projects.create(other, [
-    { id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10 },
-  ]);
+  await projects.create(
+    other,
+    [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10 }],
+    wrote(),
+  );
 
-  await workItems.insert(newItem('strip', 10, 'Strip'), []);
-  await workItems.insert(newItem('sand', 20, 'Sand'), []);
-  await workItems.insert(newItem('paint', 30, 'Paint'), []);
+  await workItems.insert(newItem('strip', 10, 'Strip'), [], wrote());
+  await workItems.insert(newItem('sand', 20, 'Sand'), [], wrote());
+  await workItems.insert(newItem('paint', 30, 'Paint'), [], wrote());
 });
 
 afterEach(() => {
@@ -244,7 +252,7 @@ describe('StepRepository', () => {
   it('adds a step and moves the project’s revision', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.add({ id: 'design', projectId, name: 'Design' });
+    const written = await steps.add({ id: 'design', projectId, name: 'Design' }, wrote());
 
     expect(written).toEqual({
       ok: true,
@@ -260,7 +268,7 @@ describe('StepRepository', () => {
     // `WHERE project_id = ?` from `step_project_name`, so without an ORDER BY
     // these come back `Analysis, Dev, QA` — and step order is what a work
     // item's slices run in.
-    await steps.add({ id: 'analysis', projectId, name: 'Analysis' });
+    await steps.add({ id: 'analysis', projectId, name: 'Analysis' }, wrote());
 
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
 
@@ -268,7 +276,7 @@ describe('StepRepository', () => {
   });
 
   it('reads the same order through the project, which is where the schedule asks', async () => {
-    await steps.add({ id: 'analysis-2', projectId, name: 'Analysis' });
+    await steps.add({ id: 'analysis-2', projectId, name: 'Analysis' }, wrote());
 
     const names = (await projects.stepsOf(projectId)).map((each) => each.name);
 
@@ -276,14 +284,17 @@ describe('StepRepository', () => {
   });
 
   it('refuses a name the project already holds, and leaves the steps as they were', async () => {
-    const written = await steps.add({ id: 'second-qa', projectId, name: 'QA' });
+    const written = await steps.add({ id: 'second-qa', projectId, name: 'QA' }, wrote());
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
     expect(await steps.listByProject(projectId)).toHaveLength(2);
   });
 
   it('accepts in one project a name another project holds', async () => {
-    const written = await steps.add({ id: 'other-qa', projectId: otherProjectId, name: 'QA' });
+    const written = await steps.add(
+      { id: 'other-qa', projectId: otherProjectId, name: 'QA' },
+      wrote(),
+    );
 
     expect(written.ok).toBe(true);
     const names = (await steps.listByProject(otherProjectId)).map((each) => each.name);
@@ -294,7 +305,7 @@ describe('StepRepository', () => {
   it('renames a step and moves the project’s revision', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.rename(qaId, 'Review');
+    const written = await steps.rename(qaId, 'Review', wrote());
 
     expect(written).toEqual({
       ok: true,
@@ -306,7 +317,7 @@ describe('StepRepository', () => {
   it('refuses a rename onto a name already in use, leaving both alone', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.rename(qaId, 'Dev');
+    const written = await steps.rename(qaId, 'Dev', wrote());
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
     const names = (await steps.listByProject(projectId)).map((each) => each.name).sort();
@@ -317,7 +328,7 @@ describe('StepRepository', () => {
   });
 
   it('reports a step that is gone rather than pretending to rename it', async () => {
-    expect(await steps.rename('never-existed', 'Design')).toEqual({
+    expect(await steps.rename('never-existed', 'Design', wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -329,14 +340,14 @@ describe('StepRepository', () => {
   });
 
   it('counts the step’s estimates and hands back every assignment in the project', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
-    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS });
-    await estimates.set({ workItemId: 'sand', stepId: devId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
+    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS }, wrote());
+    await estimates.set({ workItemId: 'sand', stepId: devId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', devId, ada.id);
-    await directory.assign('strip', qaId, ada.id);
+    await directory.assign('strip', devId, ada.id, wrote());
+    await directory.assign('strip', qaId, ada.id, wrote());
 
     const usage = await steps.usageOf(projectId, qaId);
 
@@ -352,16 +363,16 @@ describe('StepRepository', () => {
   });
 
   it('removes the step’s estimates, its assignments and its row, and nothing else’s', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
-    await estimates.set({ workItemId: 'strip', stepId: devId, ...DAYS });
-    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
+    await estimates.set({ workItemId: 'strip', stepId: devId, ...DAYS }, wrote());
+    await estimates.set({ workItemId: 'sand', stepId: qaId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', qaId, ada.id);
-    await directory.assign('strip', devId, ada.id);
+    await directory.assign('strip', qaId, ada.id, wrote());
+    await directory.assign('strip', devId, ada.id, wrote());
 
-    const removed = await steps.remove(projectId, qaId, true);
+    const removed = await steps.remove(projectId, qaId, true, wrote());
 
     if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
     expect(removed.removal.estimates).toBe(2);
@@ -381,17 +392,17 @@ describe('StepRepository', () => {
   });
 
   it('moves the project and every work item that lost something, and nothing else', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('sand', qaId, ada.id);
+    await directory.assign('sand', qaId, ada.id, wrote());
     const projectBefore = await revisionOf(projectId);
     const stripBefore = await workItemRevisionOf('strip');
     const sandBefore = await workItemRevisionOf('sand');
     const paintBefore = await workItemRevisionOf('paint');
 
-    await steps.remove(projectId, qaId, true);
+    await steps.remove(projectId, qaId, true, wrote());
 
     expect(await revisionOf(projectId)).toBe(projectBefore + 1);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
@@ -402,14 +413,14 @@ describe('StepRepository', () => {
   });
 
   it('refuses an unconfirmed removal and deletes nothing, reporting what it read', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', qaId, ada.id);
+    await directory.assign('strip', qaId, ada.id, wrote());
     const before = await revisionOf(projectId);
 
-    const refused = await steps.remove(projectId, qaId, false);
+    const refused = await steps.remove(projectId, qaId, false, wrote());
 
     expect(refused).toEqual({
       ok: false,
@@ -434,10 +445,10 @@ describe('StepRepository', () => {
   });
 
   it('reports a step that is already gone, moving nothing', async () => {
-    await steps.remove(projectId, qaId, true);
+    await steps.remove(projectId, qaId, true, wrote());
     const after = await revisionOf(projectId);
 
-    const second = await steps.remove(projectId, qaId, true);
+    const second = await steps.remove(projectId, qaId, true, wrote());
 
     expect(second).toEqual({ ok: false, reason: 'not_found' });
     // The loser of two removals writes nothing at all, the project's revision
@@ -450,7 +461,7 @@ describe('StepRepository', () => {
     if (theirs === undefined) throw new Error('the other project was created without steps');
     const before = await revisionOf(projectId);
 
-    const refused = await steps.remove(projectId, theirs.id, true);
+    const refused = await steps.remove(projectId, theirs.id, true, wrote());
 
     expect(refused).toEqual({ ok: false, reason: 'not_found' });
     expect(await steps.findById(theirs.id)).toEqual(theirs);
@@ -458,7 +469,7 @@ describe('StepRepository', () => {
   });
 
   it('deletes an estimate written between the count and the confirmed removal', async () => {
-    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', stepId: qaId, ...DAYS }, wrote());
     const counted = await steps.usageOf(projectId, qaId);
     expect(counted.estimates).toBe(1);
 
@@ -468,10 +479,10 @@ describe('StepRepository', () => {
     // this is deleted with the rest rather than left pointing at a step that
     // has gone — which is a foreign key error, a 500, and a project nobody can
     // read afterwards.
-    await estimates.set({ workItemId: 'paint', stepId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'paint', stepId: qaId, ...DAYS }, wrote());
     const paintBefore = await workItemRevisionOf('paint');
 
-    const removed = await steps.remove(projectId, qaId, true);
+    const removed = await steps.remove(projectId, qaId, true, wrote());
 
     if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
     expect(removed.removal.estimates).toBe(2);
@@ -486,11 +497,11 @@ describe('StepRepository', () => {
     // those two would sail through and take the record of somebody's week with
     // it. `actual.step_id` has no cascade precisely so this cannot happen
     // quietly.
-    await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 });
+    await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 }, wrote());
     const before = await revisionOf(projectId);
 
     const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false);
+    const refused = await steps.remove(projectId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -521,11 +532,14 @@ describe('StepRepository', () => {
     // Proof: `spoken.length > 0` dropped from the `in_use` condition, and this
     // fails with the removal proceeding against a step whose only usage is the
     // statement that its work is done; watched 2026-08-18.
-    await progress.set({ workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 });
+    await progress.set(
+      { workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 },
+      wrote(),
+    );
     const before = await revisionOf(projectId);
 
     const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false);
+    const refused = await steps.remove(projectId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -553,11 +567,17 @@ describe('StepRepository', () => {
     // Proof: `tx.delete(stepProgress)` struck from `StepRepository.remove`, and
     // this fails with `SQLITE_CONSTRAINT_FOREIGNKEY` thrown out of the
     // transaction; watched 2026-08-18.
-    await progress.set({ workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 });
-    await progress.set({ workItemId: 'sand', stepId: devId, state: 'in_progress', statedAt: 1000 });
+    await progress.set(
+      { workItemId: 'strip', stepId: qaId, state: 'done', statedAt: 1000 },
+      wrote(),
+    );
+    await progress.set(
+      { workItemId: 'sand', stepId: devId, state: 'in_progress', statedAt: 1000 },
+      wrote(),
+    );
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true);
+    const removed = await steps.remove(projectId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
@@ -590,24 +610,30 @@ describe('StepRepository', () => {
     // "1 figure" for two statements made on two different days in two different
     // units, and a person consenting to that number would be consenting to less
     // than goes.
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'token_actual',
-      value: 12_000,
-      recordedAt: 1000,
-    });
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'hours_actual',
-      value: 3,
-      recordedAt: 2000,
-    });
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'token_actual',
+        value: 12_000,
+        recordedAt: 1000,
+      },
+      wrote(),
+    );
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'hours_actual',
+        value: 3,
+        recordedAt: 2000,
+      },
+      wrote(),
+    );
     const before = await revisionOf(projectId);
 
     const counted = await steps.usageOf(projectId, qaId);
-    const refused = await steps.remove(projectId, qaId, false);
+    const refused = await steps.remove(projectId, qaId, false, wrote());
 
     expect(counted).toEqual({
       estimates: 0,
@@ -635,30 +661,39 @@ describe('StepRepository', () => {
     // Two work items, so `workItemIds` is a set of the items that lost a row
     // rather than a count of rows: `strip` holds two of this step's figures and
     // appears once.
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'token_estimate',
-      value: 8000,
-      recordedAt: 1000,
-    });
-    await measures.set({
-      workItemId: 'strip',
-      stepId: qaId,
-      metric: 'token_actual',
-      value: 9500,
-      recordedAt: 1000,
-    });
-    await measures.set({
-      workItemId: 'sand',
-      stepId: devId,
-      metric: 'hours_actual',
-      value: 2,
-      recordedAt: 1000,
-    });
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'token_estimate',
+        value: 8000,
+        recordedAt: 1000,
+      },
+      wrote(),
+    );
+    await measures.set(
+      {
+        workItemId: 'strip',
+        stepId: qaId,
+        metric: 'token_actual',
+        value: 9500,
+        recordedAt: 1000,
+      },
+      wrote(),
+    );
+    await measures.set(
+      {
+        workItemId: 'sand',
+        stepId: devId,
+        metric: 'hours_actual',
+        value: 2,
+        recordedAt: 1000,
+      },
+      wrote(),
+    );
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true);
+    const removed = await steps.remove(projectId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
@@ -684,11 +719,11 @@ describe('StepRepository', () => {
     // The other half, and the one the missing cascade forces: without an
     // explicit delete here the step row cannot go at all — SQLite refuses it —
     // so this is what turns a 500 into a removal that says what it took.
-    await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 });
-    await actuals.set({ workItemId: 'sand', stepId: devId, days: 2, recordedAt: 1000 });
+    await actuals.set({ workItemId: 'strip', stepId: qaId, days: 8, recordedAt: 1000 }, wrote());
+    await actuals.set({ workItemId: 'sand', stepId: devId, days: 2, recordedAt: 1000 }, wrote());
     const stripBefore = await workItemRevisionOf('strip');
 
-    const removed = await steps.remove(projectId, qaId, true);
+    const removed = await steps.remove(projectId, qaId, true, wrote());
 
     expect(removed).toEqual({
       ok: true,
