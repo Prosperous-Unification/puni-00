@@ -2500,8 +2500,15 @@ test.describe('the table, measured by a browser', () => {
     const outline = await page.evaluate((numbers) => {
       return numbers.map((number) => {
         const nameBox = document.querySelector(`[aria-label="Name of ${number}"]`);
+        // Found through `data-number`, which every row's Number cell carries,
+        // and **not** through `data-fact`: since `hint-press-cancels` that cell
+        // holds words only where the column clips them, so a
+        // `span[data-fact="030"]` oracle finds nothing for the shallow rows
+        // this outline walks. Watched failing on `Error: no indent-carrying
+        // cells on screen for 030`.
         const numberSpan =
-          nameBox?.closest('tr')?.querySelector<HTMLElement>(`span[data-fact="${number}"]`) ?? null;
+          nameBox?.closest('tr')?.querySelector<HTMLElement>('[data-number]')?.parentElement ??
+          null;
         const nameCell = nameBox?.closest('td') ?? null;
         if (!(nameBox instanceof HTMLElement) || numberSpan === null || nameCell === null) {
           throw new Error(`no indent-carrying cells on screen for ${number}`);

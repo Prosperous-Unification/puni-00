@@ -885,6 +885,55 @@ describe('the WBS table', () => {
     });
   });
 
+  itDom('gives the number cell words only when the number does not fit', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    const numberCellOf = (number: string): Element => {
+      const cell = rowFor(number).querySelector('td[data-column="number"] > span');
+      if (cell === null) throw new Error(`no number cell for ${number}`);
+      return cell;
+    };
+
+    // Dany, 2026-09-01: "also remove tooltips from # cells; why it needed?" —
+    // and for `010` the card said `010`, which is what the cell already shows.
+    // The words exist for the number the column **clips**, so a number that
+    // fits carries none.
+    //
+    // Proof: the `NUMBER_ENVELOPE` length guard removed — the attribute spread
+    // unconditionally — watched failing on `expected '010' to be null`.
+    expect(numberCellOf('010').getAttribute('data-fact')).toBeNull();
+
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    typeName('010.1', 'Sockets');
+    pressNewItem('010.1');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+    });
+    pressTab('010.2');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    });
+
+    // Three levels is one past `NUMBER_ENVELOPE`, which the column's width is
+    // picked against — so this is the number `CELL`'s `overflow: hidden` clips,
+    // and the card is the only way to read it whole.
+    expect(numberCellOf('010.1.1').getAttribute('data-fact')).toBe('010.1.1');
+    // And the level that still fits stays silent, which is what says the guard
+    // is about the envelope rather than about depth.
+    expect(numberCellOf('010.1').getAttribute('data-fact')).toBeNull();
+  });
+
   /**
    * A planner typing out a backlog clicks faster than the round trip, and every
    * click has to become a row.
@@ -7690,6 +7739,41 @@ describe('dependencies in the table', () => {
     expect(description?.textContent).toBe('Waiting for 010 - Strip, 020 - Sand, 030 - Paint');
   });
 
+  itDom('closes the deps picker on a second press of its add button', async () => {
+    await fiveRoots();
+
+    // Dany, 2026-09-01: "can you make it so that clicking second time on plus
+    // sign for tags/deps on/teams/services hides the add UI". This cell has its
+    // own `+` and its own picker state rather than a `CreatablePicker`, so it
+    // answers the same question in its own words: `picker` is exactly "this
+    // cell's picker, or null while it is closed".
+    const add = screen.getByRole('button', { name: 'Make 050 wait for something' });
+    const box = screen.getByLabelText('Add a dependency to 050');
+
+    // **The listbox and not `getAllByRole('option')`.** Written that way first,
+    // both halves of this case passed with the toggle absent: the page carries
+    // seven `<option>` elements of its own — `outline`, `step`, `assignee`,
+    // `PERT` and the three points — inside the toolbar's `<select>`s, so "some
+    // options exist" is true of a page where this cell has never been touched.
+    // Measured, not reasoned: the probe printed
+    // `optionText= outline|step|assignee|PERT|optimistic|realistic|pessimistic`.
+    const listOpen = (): number => document.querySelectorAll('ul[role="listbox"]').length;
+
+    fireEvent.click(add);
+    // Asserted rather than assumed: with nothing open the press below would be
+    // measuring a list that was never there.
+    expect(document.activeElement).toBe(box);
+    expect(listOpen()).toBe(1);
+
+    // Proof: the `picker !== null` branch removed from the button's `onClick`,
+    // watched failing on `expected <input …(10)></input> not to be <input
+    // …(10)></input>` — the second press re-focusing a box that already held
+    // the focus, which is no press at all.
+    fireEvent.click(add);
+    expect(document.activeElement).not.toBe(box);
+    expect(listOpen()).toBe(0);
+  });
+
   itDom('opens no card over a row that waits for nothing', async () => {
     // The empty cell is a box and no chips; a card holding an empty list is a
     // box over the row below saying nothing.
@@ -9251,7 +9335,7 @@ describe('the pointed row', () => {
     expect(litBands()).toEqual([]);
   });
 
-  itDom('lights the chart from a table row, and not the row itself', async () => {
+  itDom('lights the chart from a table row, and the row itself', async () => {
     await planWithTheChartOpen();
 
     fireEvent(trOf('030'), pointerEvent('mouse', 'pointerover'));
@@ -9260,10 +9344,69 @@ describe('the pointed row', () => {
     expect(litBands()).toEqual(['2']);
     expect(labelOf('030').getAttribute('data-gantt-label-lit')).toBe('true');
 
-    // And the row does **not** light itself. `tr:hover` is already tinting it,
-    // and `data-row-lit` here makes the banded-hover rule unmatchable — four of
-    // `e2e/hover-cards.spec.ts`'s assertions failed on exactly that, 2026-08-14.
+    // **And the row lights itself**, which is this attribute's whole job now.
+    // It used to be left to `tr:hover`, deliberately, so the alternating band
+    // would keep showing through — `data-row-lit` here makes the banded-hover
+    // rule unmatchable, and four of `e2e/hover-cards.spec.ts`'s assertions
+    // failed on exactly that in 2026-08-14. Dany, 2026-09-01, having watched
+    // it: "highlighted row is colored independently of which odd or even row
+    // this is". The stripe deciding the colour is the defect; one ink is the
+    // contract, and making that rule unmatchable is how it is kept.
+    //
+    // Proof: `data-row-lit` put back to `pointedFromChart`, watched failing on
+    // `expected [] to deeply equal [ '030' ]`.
+    expect(litRows()).toEqual(['030']);
+  });
+
+  /** The chart's own hit surface for one row's whole line. */
+  const lineOf = (rowIndex: number): Element => {
+    const found = document.querySelector(`[data-gantt-row-line="${String(rowIndex)}"]`);
+    if (found === null) throw new Error(`no row line for ${String(rowIndex)}`);
+    return found;
+  };
+
+  itDom('points a row from its own line, with no bar under the pointer', async () => {
+    await planWithTheChartOpen();
+
+    // Dany, 2026-09-01: "when i hover over gantt chart rows they must also be
+    // highlighted, not only when i hover over the item on gantt chart". The
+    // chart pointed a row from a **bar** or a **row label** and from nothing
+    // else, so the plot area — most of a row's width, and all of it on a row
+    // nobody has estimated — was dead. Measured in Chromium before this
+    // change: the pointer on a row's line past the end of its bar left every
+    // face dark.
+    //
+    // Proof: the row lines removed from the chart, watched failing on `no row
+    // line for 1` at the locator — the fault takes the surface out of this
+    // test's reach rather than making it answer wrongly, which is the right
+    // place for it.
+    fireEvent(lineOf(1), pointerEvent('mouse', 'pointerover'));
+
+    expect(litRows()).toEqual(['020']);
+    expect(litBands()).toEqual(['1']);
+    expect(labelOf('020').getAttribute('data-gantt-label-lit')).toBe('true');
+  });
+
+  itDom('clears when the pointer leaves the chart', async () => {
+    await planWithTheChartOpen();
+
+    fireEvent(lineOf(2), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['030']);
+
+    // **The chart's edge is what says "no row", and the row lines say nothing
+    // about it.** A caret or a dependency link is drawn over the line on its
+    // own row, so a departure from the line is routinely a mark on the same
+    // row; clearing there would blink the light off under the thing the reader
+    // is looking straight at. Leaving the drawing is the departure.
+    //
+    // Proof: the SVG root's `onPointerLeave` removed, watched failing on
+    // `expected [ '030' ] to deeply equal []`.
+    const chart = document.querySelector('[data-gantt-chart]');
+    if (chart === null) throw new Error('the chart is not drawn');
+    fireEvent(chart, pointerEvent('mouse', 'pointerout'));
+
     expect(litRows()).toEqual([]);
+    expect(litBands()).toEqual([]);
   });
 
   itDom('points one row at a time', async () => {
@@ -9834,20 +9977,29 @@ describe('the widths the table is laid out by', () => {
     expect(screen.getByRole('table').style.minWidth).toBe('1247px');
   });
 
-  itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
+  itDom('says nothing in a number cell that is showing the whole number', async () => {
     // The Number column is sized to a stated envelope — eleven characters at
     // the deepest indent — because there is no longest work item number to
     // size it to. A number past that envelope is clipped rather than allowed to
     // widen a column every row in the table would then move with, so the whole
-    // of it lives in the cell's `title`. `e2e/layout.spec.ts` is what watches
-    // the clipping; jsdom lays nothing out and can only watch the `title`.
-    // Proof: the `title` removed from the Number cell's span, this failed on
-    // `expected '' to be '020'`. Watched, 2026-08-09.
+    // of it lives in the cell's `data-fact` and the card is the only way to
+    // read it. `e2e/layout.spec.ts` is what watches the clipping; jsdom lays
+    // nothing out.
+    //
+    // **A root's number is not that case**, and until `hint-press-cancels` this
+    // cell carried its own number whatever the number was — a card that said
+    // `020` over a cell showing `020`, on every row a cursor crossed. Dany,
+    // 2026-09-01: "also remove tooltips from # cells; why it needed?"
+    //
+    // The other half of the rule — a number past the envelope still carries the
+    // whole of it — is `gives the number cell words only when the number does
+    // not fit`, which has to nest rows to make one and so lives with the tests
+    // that type a breakdown.
     await threeRoots();
 
     expect(
-      rowFor('020').querySelector('[data-number]')?.parentElement?.getAttribute('data-fact') ?? '',
-    ).toBe('020');
+      rowFor('020').querySelector('[data-number]')?.parentElement?.getAttribute('data-fact'),
+    ).toBeNull();
   });
 
   itDom('declares exactly the widths the resolved layout holds for this state', async () => {
@@ -10192,7 +10344,11 @@ describe('the outline past the Number cap', () => {
     }
 
     const indents = (number: string): { number: string; name: string } => {
-      const numberSpan = document.querySelector<HTMLElement>(`span[data-fact="${number}"]`);
+      // Found through `data-number`, which every row carries, and **not**
+      // through `data-fact`: since `hint-press-cancels` the number cell holds
+      // words only where the column clips them, so a `span[data-fact="010"]`
+      // oracle would find nothing for the shallow rows this walks.
+      const numberSpan = rowFor(number).querySelector('[data-number]')?.parentElement ?? null;
       // The cell's own span, which is the `<td>`'s only child — not the
       // textarea's nearest one. Since `markdown-work-item-names` the box sits
       // inside a positioned wrapper of its own, so that the rendered reading of

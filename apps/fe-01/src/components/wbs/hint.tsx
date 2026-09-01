@@ -57,11 +57,17 @@ export const FACT_ATTRIBUTE = 'data-fact';
 /**
  * How long a pointer rests on a control before its tool hint is drawn.
  *
- * Three seconds, which is Dany's own number and is long on purpose: the reader
+ * Two seconds, which is Dany's own number and is long on purpose: the reader
  * this change is for already knows what the button does and is trying to get
  * past it. A project fact waits none of it.
+ *
+ * It was three. Dany, 2026-09-01, having watched the shipped ring: _"change
+ * 3000 to 2000, leave 400ms quiet"_. {@link RING_QUIET_MS} is deliberately not
+ * scaled with it — the quiet is about a cursor **crossing** a control, which is
+ * as fast as it ever was, so the whole of the second that came off is taken
+ * from the ring's own sweep.
  */
-export const TOOL_HINT_WAIT_MS = 3000;
+export const TOOL_HINT_WAIT_MS = 2000;
 
 /**
  * How much of that wait passes before the {@link WaitRing} is drawn at all.
@@ -129,7 +135,7 @@ const RING_STROKE = 2;
  * The mark drawn beside the cursor while a tool hint is waiting to open.
  *
  * The only sign that a control has anything to say, now that saying it takes
- * three seconds — and it is the reason the wait is discoverable rather than a
+ * two seconds — and it is the reason the wait is discoverable rather than a
  * feature nobody finds. Not a control: no focus, no pointer events, no place in
  * any keyboard grid, and `role="presentation"` so a screen reader ignores it
  * outright. Anybody on a keyboard gets the card itself, at once.
@@ -287,6 +293,25 @@ export function HintLayer(): React.JSX.Element {
      * attended a no-op instead of a restarted wait.
      */
     let attending: HTMLElement | null = null;
+    /**
+     * Where the cursor was when it last pressed, or null once it has moved.
+     *
+     * The quiet a press buys has to survive the page redrawing underneath a
+     * cursor that has not moved, and that is not a rare case — it is what every
+     * control that opens a dialog does. Measured in Chromium: pressing
+     * `Keyboard shortcuts` and closing its dialog fires `pointerover DIV
+     * mark=none` and then `pointerover svg mark=BUTTON`, both at
+     * `834.47998046875,65` — the press's own coordinates, because the pointer
+     * is exactly where it was and only the elements under it changed. Read as
+     * departures, those two restart the wait and the card arrives two seconds
+     * after the dialog closes, over a button the reader has just used.
+     *
+     * So the departure that ends a press's quiet is the **cursor** moving, not
+     * the mark under it changing. Compared exactly rather than within a
+     * tolerance: the churn events re-report the same double, and "the cursor
+     * did not move" is the claim being made.
+     */
+    let pressedAt: { x: number; y: number } | null = null;
     let opening: ReturnType<typeof setTimeout> | null = null;
     let ringing: ReturnType<typeof setTimeout> | null = null;
 
@@ -344,8 +369,56 @@ export function HintLayer(): React.JSX.Element {
       }, TOOL_HINT_WAIT_MS);
     };
 
+    /**
+     * A press on the mark being attended, which ends its wait and draws nothing.
+     *
+     * Dany, 2026-09-01: _"if user clicks and interacts with the element, no need
+     * to show the tooltip; only show tooltip after prolonged hover without
+     * clicks"_. The wait reads a resting pointer as a reader who does not know
+     * what the control does; a reader who has pressed it has answered that
+     * themselves, and the card would arrive two seconds later over whatever
+     * the press just did.
+     *
+     * **`pointerdown` and not `click`.** Chromium focuses a `<button>` on
+     * mousedown, so the press's own `focusin` reaches {@link focused} before a
+     * click listener would ever run — and that path opens with no wait at all.
+     * Cancelling on the press is what puts this ahead of the focus rather than
+     * behind it.
+     *
+     * **`stopWaiting()` and not `clear()`**, which is the difference between
+     * ending a wait and closing a card. A {@link FACT_ATTRIBUTE} mark has no
+     * wait to end and its card is already open — the words are about the
+     * reader's own plan, and pressing an inherited tag does not make where it
+     * came from less worth reading.
+     *
+     * **It marks the cursor, not the mark.** `attending` is left exactly as it
+     * was, so a `pointerover` from a child of this mark is still an early
+     * return in {@link pointed} and the press's own `focusin` is still one in
+     * {@link focused}, both on the same node identity. What is recorded is
+     * {@link pressedAt} — where the cursor stood — and only so that the redraw
+     * a press causes is not read as the reader moving. Move the cursor and the
+     * quiet is over: there is no mark to un-mark, and the next rest waits its
+     * full two seconds.
+     */
+    const pressed = (event: PointerEvent): void => {
+      if (attending === null) return;
+      if (!(event.target instanceof Node)) return;
+      if (!attending.contains(event.target)) return;
+      pressedAt = { x: event.clientX, y: event.clientY };
+      stopWaiting();
+    };
+
     const pointed = (event: PointerEvent): void => {
       if (event.pointerType !== 'mouse') return;
+      if (pressedAt !== null) {
+        // The cursor is where it was left: whatever this event says is under it
+        // now, the reader has not moved and the press still stands. Returning
+        // rather than clearing, because there is nothing open to close — the
+        // press ended the wait — and clearing would drop the very identity the
+        // rest of this layer reads.
+        if (event.clientX === pressedAt.x && event.clientY === pressedAt.y) return;
+        pressedAt = null;
+      }
       const at = hintAt(event.target);
       if (at === null) {
         clear();
@@ -358,6 +431,9 @@ export function HintLayer(): React.JSX.Element {
       attend(at, { left: event.clientX, top: event.clientY });
     };
     const left = (): void => {
+      // The pointer leaving the window is a departure nothing has to be
+      // measured against, so it ends a press's quiet outright.
+      pressedAt = null;
       clear();
     };
     /**
@@ -370,7 +446,7 @@ export function HintLayer(): React.JSX.Element {
      *
      * That distinction matters because cancelling a wait kills the hint
      * outright: the pointer has not moved, so no further `pointerover` will
-     * ever restart it, and three seconds is a long window for something on the
+     * ever restart it, and two seconds is a long window for something on the
      * page to move. It is reasoning rather than a sighting — the bug that sent
      * me looking here turned out to be `focused`'s, and no scroll was in the
      * log at all — but the behaviour is asserted either way, in
@@ -419,6 +495,7 @@ export function HintLayer(): React.JSX.Element {
     };
 
     document.addEventListener('pointerover', pointed);
+    document.addEventListener('pointerdown', pressed);
     document.addEventListener('pointerleave', left);
     document.addEventListener('focusin', focused);
     document.addEventListener('focusout', blurred);
@@ -430,6 +507,7 @@ export function HintLayer(): React.JSX.Element {
     window.addEventListener('resize', settled);
     return () => {
       document.removeEventListener('pointerover', pointed);
+      document.removeEventListener('pointerdown', pressed);
       document.removeEventListener('pointerleave', left);
       document.removeEventListener('focusin', focused);
       document.removeEventListener('focusout', blurred);

@@ -247,9 +247,17 @@
      light one — because a mix toward `--ring` from below rises and from above
      falls. The percentages are the same on purpose and must stay so:
      `--card-dep-lit` is `--grid-dep-lit`'s answer on the other surface, not a
-     second decision about how strong the emphasis is. */
-  --grid-dep-lit: color-mix(in oklab, var(--ring) 12%, var(--background));
-  --card-dep-lit: color-mix(in oklab, var(--ring) 12%, var(--popover));
+     second decision about how strong the emphasis is.
+
+     **20% and not the 12% it shipped at**, since `pointed-row-one-ink`. The
+     light used to be the destination of an unbanded row only; now every pointed
+     row lands on it, and a banded row starts 2.5% of the way there — so at 12%
+     the pointer moved a banded row 4.92 in luminance against an unbanded row's
+     9-and-change, measured in Chromium, and the highlight the reader is meant
+     to track read as half a highlight on every other line. The dose is what
+     moved, not the decision: both surfaces take the same one, as above. */
+  --grid-dep-lit: color-mix(in oklab, var(--ring) 20%, var(--background));
+  --card-dep-lit: color-mix(in oklab, var(--ring) 20%, var(--popover));
 }
 
 /*
@@ -665,13 +673,18 @@
    * behaves differently on alternate stripes is the defect class this whole
    * change exists to remove.
    *
-   * `data-row-lit` walked into it a second time, in `linked-row-hover`, and the
-   * *reason* is worth stating because the obvious one is wrong. A pointed row
-   * written from a **bar** cannot collide here at all: `:hover` needs the
-   * pointer on the `<tr>`, and pointing from the chart leaves it unmatched, so
-   * this rule never competes. The collision is the pointer resting on an
-   * **even-striped table row**, which lights it and hovers it at once — and
-   * then this heavier selector paints `--grid-band-hover` over the row light.
+   * `data-row-lit` walked into it a second time, in `linked-row-hover`, and
+   * since `pointed-row-one-ink` it is the **whole mechanism** rather than a
+   * guard. A row the pointer rests on here carries `data-row-lit` now, so this
+   * rule declines to match it and the row light below is what paints it —
+   * which is how a pointed row is one colour whatever stripe it stands on.
+   * Dany, 2026-09-01: _"highlighted row is colored independently of which odd
+   * or even row this is"_.
+   *
+   * Read the other way, that is the fault this rule was written against: three
+   * `:not()`s to stop the light displacing the band's hover, and the thing they
+   * were protecting turned out to be the defect. The band still says which row
+   * is which **at rest**; it has no say in what a pointed row looks like.
    *
    * Watched, and watched wrong first: with the negative written from a bar it
    * passed with `data-row-lit` out of this chain — a check that could not fail.

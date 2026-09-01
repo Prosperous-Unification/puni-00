@@ -537,6 +537,33 @@ export function ReferenceSetStrip({
           // `picker-reopens-on-click`.
           onClick={() => {
             const box = root.current?.querySelector<HTMLInputElement>('input');
+            /*
+              **A toggle, and the question it asks is about the list.**
+
+              Dany, 2026-09-01: _"can you make it so that clicking second time
+              on plus sign for tags/deps on/teams/services hides the add UI"_.
+              The `+` opened the picker and had no other state, so a second
+              press was a no-op a reader cannot tell from a dead control — and
+              the way out was Escape or a click somewhere else, neither of which
+              is where the hand already is.
+
+              `aria-expanded` and **not** `editing`, and not
+              `document.activeElement`. Both of those are "the focus is in this
+              cell", which is true in the state `picker-reopens-on-click` was
+              written for: the moment after a value is taken, the box still
+              holds the focus and the list is closed, and the `+` has to open it
+              again from exactly there. A toggle reading the focus would close
+              the cell in the one state that change exists to fix.
+
+              `blur()` rather than closing the list on its own: the blur is what
+              the cell's own `focusout` reads to leave `editing`, so this is the
+              same close Escape and a click outside already make, and it
+              discards exactly what they discard.
+            */
+            if (box?.getAttribute('aria-expanded') === 'true') {
+              box.blur();
+              return;
+            }
             box?.focus();
             box?.click();
           }}

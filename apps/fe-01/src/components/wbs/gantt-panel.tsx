@@ -3114,6 +3114,20 @@ function GanttChart({
                 width={placed.horizon * dayPx + 2 * CHART_PAD_PX}
                 height={rowCount * ROW_PX}
                 style={{ display: 'block' }}
+                // What ends the chart's pointing: leaving the chart. The row
+                // lines below deliberately do not clear on their own departure,
+                // because a caret or a dependency link on the same row is not a
+                // departure from the row — so the one place that can say "the
+                // pointer is no longer on any row of this chart" is the edge of
+                // the drawing itself.
+                //
+                // Proof: this handler removed, `clears when the pointer leaves
+                // the chart` watched failing on `expected [ '030' ] to deeply
+                // equal []`.
+                onPointerLeave={(pointer) => {
+                  if (pointer.pointerType !== 'mouse') return;
+                  onPointRow(null, 'pointer');
+                }}
               >
                 {/*
                 The weekends, as columns. Drawn first and so **under** the row
@@ -3256,6 +3270,70 @@ function GanttChart({
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
+
+                {/*
+                Every row's own line, as a hit surface and nothing else.
+
+                Dany, 2026-09-01: _"when i hover over gantt chart rows they must
+                also be highlighted, not only when i hover over the item on
+                gantt chart"_. The chart pointed a row from a {@link
+                data-gantt-bar} or a row label and from nothing else, so the
+                plot area — most of a row's width, and the whole of it on a row
+                nobody has estimated — pointed nothing at all. Measured in
+                Chromium before this change: the pointer on a row's line past
+                the end of its bar left the label rail, the band and the table
+                row all dark.
+
+                **Here in the order, and the position is the whole design.**
+                After the weekend columns, the bands, today's tint and the
+                gridlines — none of which is `pointer-events: none`, so a
+                surface under them would be dead in stripes — and before the
+                dependency links, the carets and the bars, which keep their own
+                hover by standing on top of this.
+
+                The full viewBox width rather than the horizon: the chart is
+                padded either side and a reader crossing that pad is still on
+                this row.
+
+                **No `onPointerOut`.** Leaving this rect for a caret or a
+                dependency link on the *same* row is not leaving the row, and
+                clearing there would blink the light off under a mark the reader
+                is looking straight at. What ends a chart's pointing is leaving
+                the chart, which the SVG's own `onPointerLeave` says.
+              */}
+                {chart.labels.map((label) => (
+                  <rect
+                    key={`${label.id}-line`}
+                    data-gantt-row-line={label.rowIndex}
+                    x={-pad}
+                    y={label.rowIndex}
+                    width={placed.horizon + 2 * pad}
+                    height={1}
+                    fill="none"
+                    // **`fill` and not `all`, and the difference is three rows
+                    // wide.** `pointer-events: all` is the fill region *and the
+                    // stroke region*, and stroke width is inherited in user
+                    // units — one unit here is a whole row — so every line
+                    // hit-tested over its neighbours while its own
+                    // `getBoundingClientRect` went on reporting one row. Asked
+                    // in Chromium at a point squarely inside row 0,
+                    // `elementsFromPoint` answered
+                    // `rect[data-gantt-row-line=1] > rect[data-gantt-row-line=0]`
+                    // and the chart lit the wrong row.
+                    //
+                    // `fill` is the interior and only the interior, whatever the
+                    // `fill` property is painted with — which is why the rect can
+                    // stay unpainted and still be the row's own surface.
+                    pointerEvents="fill"
+                    onPointerOver={(pointer) => {
+                      // The touch seam every mark on this chart carries: a tap
+                      // synthesizes a whole mouse sequence, and a light set from
+                      // one has no departure behind it to clear it.
+                      if (pointer.pointerType !== 'mouse') return;
+                      pointRow(label.rowIndex, 'pointer');
+                    }}
+                  />
+                ))}
 
                 {/*
                 A summary row's span, drawn as the **ghost of a bar**: the same
@@ -3612,7 +3690,16 @@ function GanttChart({
                       }, HOVER_OPEN_MS);
                     }}
                     onPointerOut={(pointer) => {
-                      if (pointer.pointerType === 'mouse') onPointRow(null, 'pointer');
+                      // **The card, and not the light.** Leaving a bar used to
+                      // clear the pointed row here, which was right while a bar
+                      // was one of only two things on this chart that could
+                      // point one. Since `pointed-row-one-ink` the row's own
+                      // line points it, so leaving a bar is usually landing on
+                      // the same row — and clearing here blinked the light off
+                      // under the caret or the dependency link the reader had
+                      // moved onto, then straight back on. What clears the
+                      // light is leaving the drawing, which the SVG root says.
+                      //
                       // A touch leaves the mark before its synthesized click.
                       // In full screen that click owns the surface: first tap
                       // opens it, and a second tap on the same bar navigates.

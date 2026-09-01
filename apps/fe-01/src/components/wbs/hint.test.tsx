@@ -79,6 +79,25 @@ const dragCursorTo = (at: { x: number; y: number }): void => {
   fireEvent(document, event);
 };
 
+/**
+ * A press on a mark, which is what ends a wait.
+ *
+ * `pointerdown` and not `click`: the layer cancels on the press because
+ * Chromium focuses a `<button>` on mousedown, so a cancel that waited for the
+ * click would run after the `focusin` the press already caused. Built by hand
+ * for the same reason {@link pointAt} is — jsdom has no `PointerEvent`.
+ */
+const pressAt = (node: HTMLElement, at = { x: 100, y: 200 }): void => {
+  const event = new Event('pointerdown', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+  // The coordinates are the whole of how the layer tells a departure from the
+  // page redrawing under a cursor that has not moved, so an init jsdom drops is
+  // a press the quiet cannot be measured from.
+  Object.defineProperty(event, 'clientX', { value: at.x });
+  Object.defineProperty(event, 'clientY', { value: at.y });
+  fireEvent(node, event);
+};
+
 /** Runs the clock forward inside `act`, so what the timer sets is on screen after it. */
 const waitOut = (ms: number): void => {
   act(() => {
@@ -120,7 +139,7 @@ describe('a project fact is drawn the moment the pointer arrives', () => {
       // Measured 100ms past the quiet and **not** at the end of the wait, which
       // is the window the fault lives in: `stopWaiting` clears the ring on its
       // way to opening the card, so a fact that had wrongly taken the tool path
-      // would be indistinguishable from a correct one three seconds later. Read
+      // would be indistinguishable from a correct one two seconds later. Read
       // there, this assertion could not fail — watched passing with the ring
       // started for a fact.
       waitOut(RING_QUIET_MS + 100);
@@ -177,7 +196,7 @@ describe('a tool hint waits, so a cursor crossing the toolbar is not interrupted
       // hint the way it does for a fact. Watched failing on `expected <div
       // role="tooltip" id="hint-card">Undo your last change to this
       // plan</div> to be null`, the card present a millisecond short of the
-      // three seconds it is meant to take.
+      // wait it is meant to take.
       expect(screen.queryByRole('tooltip')).toBeNull();
 
       waitOut(1);
@@ -265,7 +284,7 @@ describe('a tool hint waits, so a cursor crossing the toolbar is not interrupted
 
       // The ring is read inside its own window and the card at the end of the
       // wait, because the two are only ever on screen at different moments: a
-      // ring read three seconds in has been cleared by the opening whether the
+      // ring read at the end of the wait has been cleared by the opening whether the
       // fault is there or not.
       waitOut(RING_QUIET_MS + 100);
       expect(ring()).toBeNull();
@@ -544,6 +563,155 @@ describe('the keyboard is answered at once, and a click is not the keyboard', ()
   });
 });
 
+describe('a press says the reader already knows what the control does', () => {
+  itDom('ends the wait it interrupted', () => {
+    vi.useFakeTimers();
+    try {
+      const { hinted } = aPageWithAHint();
+
+      // Dany, 2026-09-01: "if user clicks and interacts with the element, no
+      // need to show the tooltip; only show tooltip after prolonged hover
+      // without clicks". A reader who has pressed the control has answered the
+      // question the wait was asking.
+      pointAt(hinted);
+      waitOut(RING_QUIET_MS + 100);
+      expect(ring()).not.toBeNull();
+
+      pressAt(hinted);
+
+      // The ring goes with the wait, in the same breath.
+      expect(ring()).toBeNull();
+
+      // And the whole of the rest of the wait passes with nothing drawn — the
+      // press cancelled the timer rather than deferring it.
+      //
+      // Proof: the `pointerdown` listener removed, watched failing on
+      // `expected SVGSVGElement{ …(2), …(2) } to be null` — the ring still
+      // beside the cursor in the moment after the press, one assertion before
+      // the card it would have opened.
+      waitOut(TOOL_HINT_WAIT_MS);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+      expect(ring()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('is not undone by the focus the press itself causes', () => {
+    vi.useFakeTimers();
+    try {
+      const { hinted } = aPageWithAHint();
+
+      // Chromium focuses a `<button>` on mousedown, so a real press is a
+      // `pointerdown` and a `focusin` on the same mark, in that order. The
+      // focus path opens with no wait at all, so this sequence is the one that
+      // would invert the feature.
+      //
+      // **No new guard was written for this**, and the check is here to say so:
+      // `focused` already returns on `at.node === attending`, and a marker
+      // consulted beside that identity would be a check that cannot fail.
+      pointAt(hinted);
+      waitOut(RING_QUIET_MS + 100);
+      pressAt(hinted);
+      fireEvent.focusIn(hinted);
+
+      expect(screen.queryByRole('tooltip')).toBeNull();
+
+      waitOut(TOOL_HINT_WAIT_MS);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('leaves a fact’s card alone, because a fact never waited', () => {
+    vi.useFakeTimers();
+    try {
+      const { facted } = aPageWithAFact();
+
+      pointAt(facted);
+      expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+      // The words are about the reader’s own plan — who a tag was inherited
+      // from — and pressing the mark does not make them less worth reading.
+      // The press path ends a *wait*, and this mark has none.
+      //
+      // Proof: the press path’s `stopWaiting()` replaced by `clear()`, watched
+      // failing on `expected null not to be null`. The same injection also
+      // fails `is not undone by the focus the press itself causes`, and that is
+      // the more interesting half: `clear()` nulls `attending`, so the
+      // `focusin` the press causes no longer matches the identity guard and
+      // opens the card at once. Ending a wait and closing a card are not the
+      // same act.
+      pressAt(facted);
+
+      expect(screen.queryByRole('tooltip')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('is not restarted by the page redrawing under a cursor that has not moved', () => {
+    vi.useFakeTimers();
+    try {
+      const { hinted, bare } = aPageWithAHint();
+
+      pointAt(hinted);
+      pressAt(hinted);
+
+      /*
+        **The case that made this rule.** Measured in Chromium: pressing
+        `Keyboard shortcuts` and closing the dialog it opens fires
+        `pointerover DIV mark=none` and then `pointerover svg mark=BUTTON`,
+        both at the press's own `834.47998046875,65` — the cursor is exactly
+        where it was, and only the elements under it changed. Read as a
+        departure and a return, those two restart the wait, and the card
+        arrives two seconds after the dialog closes over a button the reader
+        has just used.
+
+        Proof: the `pressedAt` coordinate comparison removed from `pointed`,
+        watched failing on `expected <div role="tooltip" …(2)></div> to be
+        null` — the card up a whole wait after a press the reader never moved
+        away from.
+      */
+      pointAt(bare);
+      pointAt(hinted);
+      waitOut(TOOL_HINT_WAIT_MS);
+
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('waits again once the pointer has left and come back', () => {
+    vi.useFakeTimers();
+    try {
+      const { hinted, bare } = aPageWithAHint();
+
+      pointAt(hinted);
+      pressAt(hinted);
+      waitOut(TOOL_HINT_WAIT_MS);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+
+      // **The quiet is a cancelled timer, not a control marked silent.** This
+      // slice adds no guard at all — it is the absence of any `pressed` state
+      // that makes the return work — and this case is what stops a later change
+      // adding one without noticing that this is the contract.
+      // **At a different point**, which is what a departure is. Left at the
+      // press's own coordinates these two are the dialog case below, and this
+      // assertion would be about the wrong rule entirely.
+      pointAt(bare, { at: { x: 400, y: 400 } });
+      pointAt(hinted, { at: { x: 100, y: 200 } });
+      waitOut(TOOL_HINT_WAIT_MS);
+
+      expect(screen.getByRole('tooltip').textContent).toBe('Undo your last change to this plan');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('a mark with nothing to say draws nothing', () => {
   itDom('closes when the pointer moves to something with nothing to say', () => {
     const { facted, bare } = aPageWithAFact();
@@ -580,7 +748,7 @@ describe('a mark with nothing to say draws nothing', () => {
       //
       // Proof: the `words === ''` half of the guard deleted, watched failing on
       // `expected SVGSVGElement{ …(2), …(2) } to be null` — a control with
-      // nothing to say ringing for three seconds before the empty card. The
+      // nothing to say ringing for the whole wait before the empty card. The
       // fact case below failed in the same run, on `expected <div
       // role="tooltip" …(2)></div> to be null`.
       pointAt(screen.getByRole('button', { name: 'Reset layout' }));

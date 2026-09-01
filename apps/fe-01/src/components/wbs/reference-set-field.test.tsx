@@ -260,6 +260,81 @@ function searchOf(within: ParentNode = document): HTMLElement {
   return found;
 }
 
+describe('the add button closes what it opened', () => {
+  /*
+    Dany, 2026-09-01: "can you make it so that clicking second time on plus sign
+    for tags/deps on/teams/services hides the add UI". The `+` opened the picker
+    and had no other state, so a second press was a no-op the reader cannot tell
+    from a dead control — and the way out was a click somewhere else or Escape,
+    neither of which is where the hand already is.
+  */
+
+  itDom('closes the list on a second press', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={adapter()} />);
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
+    const add = screen.getByRole('button', { name: 'Add a team' });
+
+    fireEvent.click(add);
+    // Asserted rather than assumed: with nothing open the press below would be
+    // measuring a list that was never there.
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+
+    // Proof: the `aria-expanded` branch removed from the button's `onClick`,
+    // watched failing on `expected 'true' to be 'false'`.
+    fireEvent.click(add);
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  /*
+    **This one has no negative of its own, and says so.** Removing the toggle
+    branch leaves it green — the `+` opens on every press, which is what it
+    asserts. The fault it exists for is the opposite one: a toggle that latches
+    closed, or a `blur()` the cell never recovers from. Injecting *that* means
+    writing the broken toggle, which is not a line anybody would delete by
+    accident, so what this case really buys is the round trip being closed at
+    all. Written down rather than dressed up as a proof it does not have.
+  */
+  itDom('opens it again on the press after that', () => {
+    render(<ReferenceSetStrip label="Teams" adapter={adapter()} />);
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
+    const add = screen.getByRole('button', { name: 'Add a team' });
+
+    fireEvent.click(add);
+    fireEvent.click(add);
+    fireEvent.click(add);
+
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  itDom('still opens the press after a value is taken', async () => {
+    const model = adapter();
+    render(<ReferenceSetStrip label="Teams" adapter={model} />);
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
+    const add = screen.getByRole('button', { name: 'Add a team' });
+
+    fireEvent.focus(box);
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(model.replace).toHaveBeenCalled();
+    });
+
+    // **The state `picker-reopens-on-click` exists for**: the take leaves the
+    // focus on the box and closes the list, so "the focus is in this cell" is
+    // true and "the list is open" is not. A toggle written against the focus
+    // would close the cell here, which is the opposite of what that change
+    // fixed — and is why the predicate is `aria-expanded`.
+    await waitFor(() => {
+      expect(box.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    fireEvent.click(add);
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+  });
+});
+
 describe('the reference strip on one rest line', () => {
   const crowded = () => adapter({ ownIds: ['team-1', 'team-2', 'team-3'] });
 

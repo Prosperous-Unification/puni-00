@@ -316,21 +316,48 @@ test.describe('the deps cell offers an always-visible add button', () => {
     await expect(page.getByLabel('Add a dependency to 010')).toBeFocused();
   });
 
-  test('keeps a half-typed search when the add button is pressed', async ({ page }) => {
-    // The press must not move the focus. Without the `preventDefault` on it the
-    // button takes the focus, the box blurs, and this cell's blur closes the
-    // picker and drops what was typed into it — a control that means "search"
-    // eating the search. jsdom can only see the cancel; this sees the effect.
+  test('closes the picker when the add button is pressed a second time', async ({ page }) => {
+    /*
+      **This case reversed in `add-button-toggles`.** It used to assert that a
+      press of the `+` with a search half-typed kept the list, the value and the
+      focus — written against the fault where the button takes the focus, the
+      box blurs, and the blur drops what was typed: a control that means
+      "search" eating the search.
+
+      Dany, 2026-09-01: _"can you make it so that clicking second time on plus
+      sign for tags/deps on/teams/services hides the add UI"_. A `+` that
+      toggles closes here, and closing discards the half-typed search exactly as
+      Escape and a click outside always have. That is the cost of the toggle and
+      it is deliberate: one rule the reader can predict, rather than a `+` that
+      closes an untouched list and keeps a typed one.
+
+      What has **not** changed is the seam the old case was really about: the
+      press still must not move the focus onto the button. The close below comes
+      from the handler's own `blur()`, not from the button stealing the focus —
+      asserted directly at the end.
+    */
     const box = page.getByLabel('Add a dependency to 010');
+    const add = page.getByRole('button', { name: 'Make 010 wait for something' });
     await box.click();
     await box.fill('03');
     await expect(page.getByRole('listbox')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+    await add.click();
 
-    await expect(box).toHaveValue('03');
-    await expect(box).toBeFocused();
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expect(box).not.toBeFocused();
+    // The button never holds the keyboard, on the press that opens or the one
+    // that closes. A real browser is the oracle: a press moving the focus is a
+    // **default action** and jsdom performs none, which is what the
+    // `preventDefault` on `mousedown` is written against.
+    //
+    // Proof: that `preventDefault` removed.
+    await expect(add).not.toBeFocused();
+
+    // And a third press opens it again, from a cell at rest.
+    await add.click();
     await expect(page.getByRole('listbox')).toBeVisible();
+    await expect(box).toBeFocused();
   });
 
   /**
