@@ -39,12 +39,63 @@ import {
   ROW_PX,
   rowWords,
 } from './gantt-panel';
+import type * as InitialsModule from './initials';
 import { initialsOf } from './initials';
+import { createPointedRows, type PointedRows } from './pointed-row-store';
+import type * as ShortDateModule from './short-date';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+/**
+ * A {@link PointedRows} already answering `rowId` — the chart's pointer, which
+ * needs no shown-row guard. What every render here hands the panel in place of
+ * the resolved string the prop used to be.
+ */
+const pointedAtRow = (rowId: string | null): PointedRows => {
+  const pointed = createPointedRows();
+  pointed.pointChart(rowId, 'pointer');
+  return pointed;
+};
+
+/**
+ * How many times a bar has computed its assignee's initials — one
+ * {@link initialsOf} call per assigned bar render ({@link barLabelFor}), so a
+ * change that re-renders the marks moves this and one that only moves the
+ * light does not. The render-isolation probe's oracle; call-through, so every
+ * other test sees the real module.
+ */
+const initialsCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./initials', async (importOriginal) => {
+  const real = await importOriginal<typeof InitialsModule>();
+  return {
+    ...real,
+    initialsOf: (personName: string) => {
+      initialsCalls.count += 1;
+      return real.initialsOf(personName);
+    },
+  };
+});
+
+/**
+ * The same oracle for the SVG's own bars: {@link shortIsoDate} runs inside
+ * every bar's `aria-label` (via `barFacts` → `spanWords`) on a plan with a
+ * start date, so it moves when the `<svg>` marks re-render and the HTML words
+ * do not. Call-through, like the counter above.
+ */
+const shortDateCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./short-date', async (importOriginal) => {
+  const real = await importOriginal<typeof ShortDateModule>();
+  return {
+    ...real,
+    shortIsoDate: (...args: Parameters<typeof real.shortIsoDate>) => {
+      shortDateCalls.count += 1;
+      return real.shortIsoDate(...args);
+    },
+  };
+});
 
 /** A shown row: a leaf over these workdays, unless `extras` says otherwise. */
 const rowAt = (
@@ -371,7 +422,7 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -403,7 +454,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -470,7 +521,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -510,7 +561,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -545,7 +596,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -618,7 +669,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -658,7 +709,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -706,7 +757,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -775,7 +826,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -825,7 +876,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -898,7 +949,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -949,7 +1000,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -981,7 +1032,7 @@ describe('the chart is drawn in calendar days', () => {
           heightPx={null}
           onPickRow={() => undefined}
           onPointRow={() => undefined}
-          pointedRow={null}
+          pointed={pointedAtRow(null)}
         />,
       );
 
@@ -1034,7 +1085,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1081,7 +1132,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1113,7 +1164,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1151,7 +1202,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1193,7 +1244,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1224,7 +1275,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1266,7 +1317,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1305,7 +1356,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1339,7 +1390,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1373,7 +1424,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1395,7 +1446,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1422,7 +1473,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1466,7 +1517,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1513,7 +1564,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1556,7 +1607,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1605,7 +1656,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1640,7 +1691,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1669,7 +1720,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     askForTheDetail();
@@ -1727,7 +1778,7 @@ describe('the chart is drawn in calendar days', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -1823,7 +1874,7 @@ describe('the marks that had to be seen', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
   };
@@ -1957,7 +2008,7 @@ describe('the marks that had to be seen', () => {
           heightPx={null}
           onPickRow={() => undefined}
           onPointRow={() => undefined}
-          pointedRow={null}
+          pointed={pointedAtRow(null)}
         />,
       );
 
@@ -2020,7 +2071,7 @@ describe('the marks that had to be seen', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2132,7 +2183,7 @@ describe('the marks that had to be seen', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     // `askForTheDetail`, not `askForTheArrows`: this test arrived with #47
@@ -2278,7 +2329,7 @@ describe('the canvas holds every mark it draws', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     // The routes are the whole fixture, and no route is drawn until they are
@@ -2314,7 +2365,7 @@ describe('the canvas holds every mark it draws', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2354,7 +2405,7 @@ describe('the canvas holds every mark it draws', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     askForTheDetail('[data-assumed]');
@@ -2410,7 +2461,7 @@ describe('the canvas holds every mark it draws', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2480,7 +2531,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2536,7 +2587,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2562,7 +2613,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2579,7 +2630,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2624,7 +2675,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const label = labelOn('strip-dev');
@@ -2648,7 +2699,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     // An unassigned bar used to write nothing at all — sixty grey bars with no
@@ -2675,7 +2726,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2748,7 +2799,7 @@ describe('the words on the bars are HTML over the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2774,7 +2825,7 @@ describe('the axis is a calendar', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -2862,7 +2913,7 @@ describe('the axis is a calendar', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -3387,7 +3438,7 @@ describe('the label rail indents past the Number cap', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -3799,7 +3850,7 @@ describe('the caption follows the scroll', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -3908,7 +3959,7 @@ describe('the detail switch', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -4122,7 +4173,7 @@ describe('a bar is named and operable without a mouse', () => {
         heightPx={null}
         onPickRow={picked}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
   };
@@ -4210,7 +4261,7 @@ describe('one surface at a time, and it goes when its facts do', () => {
       heightPx={null}
       onPickRow={() => undefined}
       onPointRow={() => undefined}
-      pointedRow={null}
+      pointed={pointedAtRow(null)}
     />
   );
 
@@ -4505,7 +4556,7 @@ describe('the axis says its date, at the chart’s own speed', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -4655,7 +4706,7 @@ describe('the dates a bar says are printed by shortIsoDate and nothing else', ()
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -4787,7 +4838,7 @@ describe('the height the panel is drawn at', () => {
         roomPx={roomPx}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const panel = document.querySelector('[data-gantt-panel]');
@@ -4877,7 +4928,7 @@ describe('the pointed row', () => {
       heightPx={null}
       onPickRow={() => undefined}
       onPointRow={onPointRow}
-      pointedRow={pointedRow}
+      pointed={pointedAtRow(pointedRow)}
     />
   );
 
@@ -5038,6 +5089,60 @@ describe('the pointed row', () => {
     expect(litLabels()).toEqual(['seal']);
     expect(litBands()).toEqual(['2']);
   });
+
+  itDom('pointing a row re-renders no Gantt mark', () => {
+    const pointed = createPointedRows();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { number: '010', name: 'Strip' }),
+            rowAt('sand', 3, 5, { number: '020', name: 'Sand' }),
+          ],
+          // Assigned bars, so every bar render computes initials — the probe's
+          // oracle has to be on the marks' own render path, or it could not
+          // fail (R5). The render assertion below is what proves it is.
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 3, 5, { personId: 'kat' }),
+          ],
+          personNames: new Map([['kat', 'Kat Holmes']]),
+        })}
+        startDate={MONDAY}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />,
+    );
+    // Both oracles proven to be on the marks' render path before anything is
+    // asserted about their silence — a counter nothing increments could only
+    // ever pass (R5).
+    expect(initialsCalls.count).toBeGreaterThan(0);
+    expect(shortDateCalls.count).toBeGreaterThan(0);
+
+    // Two pointings, asserted where they land, so a delta of zero cannot mean
+    // "the chart ignored the store".
+    act(() => {
+      pointed.pointChart('strip', 'pointer');
+    });
+    expect(litBands()).toEqual(['0']);
+
+    const beforeWords = initialsCalls.count;
+    const beforeMarks = shortDateCalls.count;
+    act(() => {
+      pointed.pointChart('sand', 'pointer');
+    });
+    expect(litBands()).toEqual(['1']);
+    expect(litLabels()).toEqual(['sand']);
+
+    // The words on the bars did not re-render for a light that moved…
+    expect(initialsCalls.count - beforeWords).toBe(0);
+    // …and neither did the svg's own marks.
+    expect(shortDateCalls.count - beforeMarks).toBe(0);
+  });
 });
 
 describe('downloading the chart as a standalone .svg', () => {
@@ -5130,7 +5235,7 @@ describe('downloading the chart as a standalone .svg', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const button = document.querySelector('[data-gantt-svg-download]');
@@ -5161,7 +5266,7 @@ describe('downloading the chart as a standalone .svg', () => {
         dayPx={4}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const { blobs } = captureDownloads();
@@ -5207,7 +5312,7 @@ describe('downloading the chart as a standalone .svg', () => {
         dayPx={4}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const { blobs } = captureDownloads();
@@ -5273,7 +5378,7 @@ describe('downloading the chart as a standalone .svg', () => {
           dayPx={4}
           onPickRow={() => undefined}
           onPointRow={() => undefined}
-          pointedRow={null}
+          pointed={pointedAtRow(null)}
         />,
       );
       const { blobs } = captureDownloads();
@@ -5324,7 +5429,7 @@ describe('downloading the chart as a standalone .svg', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const { blobs, names } = captureDownloads();
@@ -5395,7 +5500,7 @@ describe('downloading the chart as a standalone .svg', () => {
           heightPx={null}
           onPickRow={() => undefined}
           onPointRow={() => undefined}
-          pointedRow={null}
+          pointed={pointedAtRow(null)}
         />,
       );
       const { blobs } = captureDownloads();
@@ -5448,7 +5553,7 @@ describe('the waits the filter left undrawn', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5482,7 +5587,7 @@ describe('the waits the filter left undrawn', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5500,7 +5605,7 @@ describe('the waits the filter left undrawn', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5519,7 +5624,7 @@ describe('the waits the filter left undrawn', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5549,7 +5654,7 @@ describe('today is marked on the chart', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5713,7 +5818,7 @@ describe('the day scale', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5745,7 +5850,7 @@ describe('the day scale', () => {
         dayPx={4}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5793,7 +5898,7 @@ describe('the day scale', () => {
         onPickDayPx={(rung) => picked.push(rung)}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5831,7 +5936,7 @@ describe('the day scale', () => {
         dayPx={4}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     const canvasWidth = (): string | null =>
@@ -5856,7 +5961,7 @@ describe('the day scale', () => {
         labelsShown={false}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 
@@ -5893,7 +5998,7 @@ describe('the day scale', () => {
         labelsShown={false}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     expect(controls()).toHaveLength(4);
@@ -5911,7 +6016,7 @@ describe('the day scale', () => {
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
     expect(controls()).toHaveLength(4);
@@ -5936,7 +6041,7 @@ describe('the day scale', () => {
         onPickLabelsShown={(shown) => picked.push(shown)}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
-        pointedRow={null}
+        pointed={pointedAtRow(null)}
       />,
     );
 

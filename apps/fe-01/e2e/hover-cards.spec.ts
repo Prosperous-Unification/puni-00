@@ -1360,9 +1360,11 @@ test.describe('a pointed row the plan stops drawing', () => {
     // made, and the chart has to light the row it belongs to.
     await page.locator('[data-gantt-bar][aria-label^="010 - "]').first().hover();
 
-    // Proof: `pointedAt` dropped back to a bare `tablePointedRow ??
-    // pointedFromChart` in `wbs-table.tsx`, nothing else changed, and this
-    // failed on `the chart drew no band for the bar under the pointer ·
+    // Proof: the shown-row guard dropped to a bare fallthrough — today that
+    // is `resolve`'s `tableShown` taken straight from `tablePointed` in
+    // `pointed-row-store.ts`; on 2026-09-01 it was `pointedAt` in
+    // `wbs-table.tsx` — and this failed on
+    // `the chart drew no band for the bar under the pointer ·
     // expect(locator).toHaveCount(expected) failed · Expected: 1 · Received:
     // 0` — the chart dark under the pointer, the remembered row winning.
     // Watched in Chromium 2026-09-01, which is also the measurement that the
@@ -1468,6 +1470,36 @@ test.describe('a Gantt row’s own line', () => {
     await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '1');
 
     const litRows = page.locator('tbody tr[data-row-lit]');
+    await expect(litRows).toHaveCount(1);
+    await expect(litRows.first().getByLabel('Name of 020')).toHaveCount(1);
+  });
+
+  test('crossing from a table row to another row’s line moves every light with it', async ({
+    page,
+  }) => {
+    await openTheChart(page, 2);
+
+    // The pointer rests on the first table row and both faces light for it —
+    // asserted, so the crossing below is measured from a lit start rather than
+    // from nothing (assert in the window the fault lives in).
+    await rowOf(page, '010').hover();
+    const bands = page.locator('[data-gantt-row-lit]');
+    const litRows = page.locator('tbody tr[data-row-lit]');
+    await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '0');
+    await expect(litRows.first().getByLabel('Name of 010')).toHaveCount(1);
+
+    // Straight onto the **other** row's line on the chart — the seam Dany
+    // reported as out of sync (2026-09-01). The departure from the `<tr>` and
+    // the arrival on the line are two events on two faces, and every light —
+    // band, label, table row — has to end up on the row now under the pointer.
+    const chartBox = await boxOf(page.locator('[data-gantt-chart]'), 'the chart');
+    await restOnLine(page, 1, chartBox.x + chartBox.width / 2);
+
+    await expect(bands).toHaveCount(1);
+    await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '1');
+    const litLabels = page.locator('[data-gantt-label-lit]');
+    await expect(litLabels).toHaveCount(1);
+    await expect(litLabels.first()).toHaveText(/020/);
     await expect(litRows).toHaveCount(1);
     await expect(litRows.first().getByLabel('Name of 020')).toHaveCount(1);
   });
