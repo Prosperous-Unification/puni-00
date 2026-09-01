@@ -40,6 +40,9 @@ import { InlineMarkdown } from './inline-markdown';
 import { priorityBandStyleOf } from './priority-band-style';
 import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor } from './table-frame';
+import { nameWords, numberWords, rowWords } from './work-item-words';
+
+export { rowWords } from './work-item-words';
 
 /**
  * How wide one workday may be drawn, in CSS pixels — the rungs a reader picks
@@ -1463,32 +1466,6 @@ export function barFacts(
     bar.waitsFor.length === 0 ? null : `after ${bar.waitsFor.join(', ')}`,
   ].filter((line): line is string => line !== null);
 }
-
-/**
- * A row named the way the plan names it: its number, then its name.
- *
- * The number is what a person says out loud about a row — it is what the
- * Depends on chips carry, what the toasts name and what the keyboard's labels
- * are written from — and a chart label of names alone made the two drawings of
- * one plan read as two plans. An unnamed row still has a number, which is the
- * whole of why the empty name has words of its own here.
- */
-export const rowWords = (number: string, name: string): string =>
-  `${numberWords(number)}${nameWords(name)}`;
-
-/**
- * The half of {@link rowWords} that is the plan's own numbering, and the half
- * that is the name — split because the label **draws** the second half through
- * `InlineMarkdown` and still **says** the whole of it in its `title`.
- *
- * Two halves of one sentence rather than two spellings of it: the tooltip and
- * the button are built from the same two functions, so a change to either
- * reaches both.
- */
-const numberWords = (number: string): string => `${number} - `;
-
-/** A row's name as the chart says it, which is words even when the name is empty. */
-const nameWords = (name: string): string => (name === '' ? '(unnamed)' : name);
 
 /**
  * What a not-before caret says on hover: the date the row cannot start before.
@@ -2988,7 +2965,7 @@ function GanttChart({
                   // Sanding', …(2) ]`, and `takes the plan to a row when its label
                   // is clicked` on the button no longer being findable by its
                   // number. Watched, 2026-08-09.
-                  title={rowWords(label.number, label.name)}
+                  data-hint={rowWords(label.number, label.name)}
                   // The house indent, so the chart's outline is the plan's outline
                   // — `hierarchyIndentFor`, the uncapped half of the pair: this
                   // rail has no declared column width to protect, so a depth-6
@@ -3962,7 +3939,7 @@ function GanttChart({
           type="button"
           data-gantt-labels-toggle
           aria-pressed={labelsShown}
-          title={
+          data-hint={
             labelsShown
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
@@ -3997,7 +3974,7 @@ function GanttChart({
           type="button"
           data-gantt-detail-toggle
           aria-pressed={detailShown}
-          title={
+          data-hint={
             detailShown
               ? 'Hide the arrows, the parent bars and the unestimated slices'
               : 'Show the arrows, the parent bars and the unestimated slices'
@@ -4051,7 +4028,7 @@ function GanttChart({
         <select
           data-gantt-day-scale
           aria-label="Day scale — how wide one day is drawn"
-          title={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
+          data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
           className="border-border hover:bg-accent ml-1 rounded border bg-transparent px-1 normal-case"
           value={dayPx}
           onChange={(pick) => {
@@ -4097,7 +4074,7 @@ function GanttChart({
           type="button"
           data-gantt-fullscreen-toggle
           aria-pressed={fullScreen}
-          title={
+          data-hint={
             fullScreen
               ? 'Leave full screen and put the chart back under the plan (Escape)'
               : 'Draw the chart on the whole screen — the page padding is about 47px of it'
@@ -4113,7 +4090,7 @@ function GanttChart({
           type="button"
           data-gantt-svg-download
           aria-label="Download this chart as a standalone SVG"
-          title="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+          data-hint="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
           className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
           onClick={downloadGanttSvg}
         >

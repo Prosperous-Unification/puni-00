@@ -1086,7 +1086,7 @@ describe('the WBS table', () => {
       if (stale.test(text)) said.push(`text: ${text}`);
     }
     for (const element of document.body.querySelectorAll('[title], [aria-label], [placeholder]')) {
-      for (const attribute of ['title', 'aria-label', 'placeholder']) {
+      for (const attribute of ['data-hint', 'aria-label', 'placeholder']) {
         const value = element.getAttribute(attribute);
         if (value !== null && stale.test(value)) said.push(`${attribute}="${value}"`);
       }
@@ -1701,7 +1701,7 @@ describe('the row actions menu', () => {
 
     const remove = screen.getByRole('menuitem', { name: 'Delete' });
     expect(remove.getAttribute('aria-disabled')).toBe('true');
-    expect(remove.getAttribute('title')).toBe('Frozen — unfreeze this row before deleting it');
+    expect(remove.getAttribute('data-hint')).toBe('Frozen — unfreeze this row before deleting it');
     expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
 
@@ -1914,7 +1914,7 @@ describe('teams and assignees', () => {
     // And it is the row's **own** team, not one it is told it inherits: the
     // two arms of `effectiveTeamLabelOf` read different things, and only the
     // second one leaves a title on the cell.
-    expect(box.getAttribute('title')).toBeNull();
+    expect(box.getAttribute('data-hint')).toBeNull();
   });
 
   itDom('adds a team by typing a name the list does not have', async () => {
@@ -2158,7 +2158,7 @@ describe('the plan on a calendar', () => {
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
     ).toBe('2026-08-06 — Starts with the project');
     expect(rowFor('010').querySelector('[data-finish]')?.textContent).toContain('6 Aug');
-    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('title')).toContain(
+    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('data-hint')).toContain(
       '2026-08-06',
     );
     expect(api.rows.length).toBe(1);
@@ -2212,8 +2212,8 @@ describe('the plan on a calendar', () => {
       // **No `title` anywhere in this cell.** If one came back it would race the
       // card over the same pixels — the folded step cell's own note, a fortnight
       // earlier — and this is the case that reddens.
-      expect(cell?.getAttribute('title')).toBeNull();
-      expect(rowFor('010').querySelector('[data-start]')?.getAttribute('title')).toBeNull();
+      expect(cell?.getAttribute('data-hint')).toBeNull();
+      expect(rowFor('010').querySelector('[data-start]')?.getAttribute('data-hint')).toBeNull();
       // The sentence is still there at rest for the oracles that read it: see
       // `startCellProps`.
       expect(cell?.getAttribute('data-start-said')).toBe('Starts with the project');
@@ -2237,12 +2237,12 @@ describe('the plan on a calendar', () => {
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
     if (cell === null) throw new Error('the row has no Start cell');
-    expect(screen.queryByRole('tooltip', { name: 'Start of 010' })).toBeNull();
+    expect(screen.queryByRole('tooltip', { name: /^Start of 010 - / })).toBeNull();
 
     // Proof: `onMouseEnter` deleted from `startCellProps`, watched failing here
-    // on `Unable to find role="tooltip" and name "Start of 010"`.
+    // on `Unable to find role="tooltip" and name /^Start of 010 - /`.
     fireEvent.mouseEnter(cell);
-    const card = await screen.findByRole('tooltip', { name: 'Start of 010' });
+    const card = await screen.findByRole('tooltip', { name: /^Start of 010 - / });
     expect(card).toHaveTextContent('Starts with the project');
     // The description the cell points at while the card is open — the keyboard's
     // half of the same fact, and what a `title` used to do for free.
@@ -2259,7 +2259,7 @@ describe('the plan on a calendar', () => {
 
     fireEvent.mouseLeave(cell);
     await waitFor(() => {
-      expect(screen.queryByRole('tooltip', { name: 'Start of 010' })).toBeNull();
+      expect(screen.queryByRole('tooltip', { name: /^Start of 010 - / })).toBeNull();
     });
 
     // And the keyboard path, which is the reason `onFocus` sits beside
@@ -2267,11 +2267,11 @@ describe('the plan on a calendar', () => {
     // anybody who does not use one.
     //
     // Proof: `onFocus` deleted, watched failing on the same `Unable to find
-    // role="tooltip" and name "Start of 010"` — reached only after the hover
+    // role="tooltip" and name /^Start of 010 - /` — reached only after the hover
     // half above it had passed, which is why the two gestures are asserted
     // apart rather than as one "the card opens".
     fireEvent.focus(cell);
-    expect(await screen.findByRole('tooltip', { name: 'Start of 010' })).toBeVisible();
+    expect(await screen.findByRole('tooltip', { name: /^Start of 010 - / })).toBeVisible();
   });
 
   itDom('does not mark a Start cell that has no explanation', async () => {
@@ -2291,7 +2291,7 @@ describe('the plan on a calendar', () => {
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
     const day = cell?.querySelector<HTMLElement>('[data-start]');
-    expect(cell?.getAttribute('title')).toBeNull();
+    expect(cell?.getAttribute('data-hint')).toBeNull();
     expect(cell?.getAttribute('tabindex')).toBeNull();
     expect(cell?.style.cursor).toBe('');
     expect(day?.style.textDecoration).toBe('');
@@ -2370,7 +2370,7 @@ describe('the plan on a calendar', () => {
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
 
     expect(cell.disabled).toBe(true);
-    expect(cell.title).toContain('project start date');
+    expect(cell.getAttribute('data-hint') ?? '').toContain('project start date');
     // And the columns say which of the two they are showing.
     // And the column says which of the two it is showing — in its `title`,
     // because the heading itself is one word wide now.
@@ -2408,7 +2408,7 @@ describe('the plan on a calendar', () => {
     expect(headers.length).toBeGreaterThan(5);
     for (const th of headers) {
       const columnId = th.getAttribute('data-column') ?? '';
-      expect(th.getAttribute('title')).toBe(hintFor(columnId, { hasProjectStartDate: false }));
+      expect(th.getAttribute('data-hint')).toBe(hintFor(columnId, { hasProjectStartDate: false }));
     }
   });
 
@@ -2687,12 +2687,15 @@ describe('the plan on a calendar', () => {
 
     await waitFor(() => {
       const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
-      expect(cell.title).toBe(
+      expect(cell.getAttribute('data-hint') ?? '').toBe(
         '2026-09-12. This work item may not start before this day. Its dependencies can still push it later. Why: waiting on client sign-off',
       );
     });
     // And a row nobody has explained says exactly what it said before.
-    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 020').title).toBe(
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Earliest start for 020').getAttribute('data-hint') ??
+        '',
+    ).toBe(
       'This work item may not start before this day. Its dependencies can still push it later.',
     );
   });
@@ -2969,8 +2972,8 @@ describe('the priority cell', () => {
     expect(critical).not.toBe(lowest);
     // And the name is in the hover text, because a colour alone is a fact only a
     // reader who already knows the ladder can read.
-    expect(priorityCell('010').title).toContain('Critical — priority 5');
-    expect(priorityCell('020').title).toContain('Lowest — priority 90');
+    expect(priorityCell('010').getAttribute('data-hint') ?? '').toContain('Critical — priority 5');
+    expect(priorityCell('020').getAttribute('data-hint') ?? '').toContain('Lowest — priority 90');
   });
 
   itDom('leaves an unprioritised cell the table’s own ink and offers no band', async () => {
@@ -2979,7 +2982,9 @@ describe('the priority cell', () => {
     await twoRows();
 
     expect(priorityCell('010').style.color).toBe('');
-    expect(priorityCell('010').title).toContain('Blank means nobody has said');
+    expect(priorityCell('010').getAttribute('data-hint') ?? '').toContain(
+      'Blank means nobody has said',
+    );
   });
 
   itDom('opens the five bands on a click, and taking one writes the number it says', async () => {
@@ -3043,7 +3048,7 @@ describe('the priority cell', () => {
     expect(patched).toEqual([{ priority: 50 }]);
     // And it round-trips: the number that was stored resolves back to the band
     // whose name was typed.
-    expect(priorityCell('010').title).toContain('Medium — priority 50');
+    expect(priorityCell('010').getAttribute('data-hint') ?? '').toContain('Medium — priority 50');
   });
 
   itDom('still refuses a word that is no band’s name, rather than clearing the row', async () => {
@@ -3309,7 +3314,7 @@ describe('the In-parallel cell', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText('People at once for 010')).toBeNull();
     });
-    const printed = screen.getByTitle(/holds no work of its own/);
+    const printed = hinted(/holds no work of its own/);
     expect(printed.textContent).toBe('3');
   });
 
@@ -3323,7 +3328,7 @@ describe('the In-parallel cell', () => {
     await waitFor(() => {
       expect(parallelCell('010').value).toBe('3');
     });
-    expect(parallelCell('010').title).toContain('effort is compressed');
+    expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain('effort is compressed');
 
     // The assignee box lives in the unfolded step, which is where somebody
     // names a person on the work.
@@ -3334,7 +3339,9 @@ describe('the In-parallel cell', () => {
     fireEvent.keyDown(picker, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(parallelCell('010').title).toContain('one at a time whatever this says');
+      expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain(
+        'one at a time whatever this says',
+      );
     });
     // Still 3 on screen: it is what is stored, and it is what comes back the
     // day the assignment goes.
@@ -3359,7 +3366,7 @@ describe('the In-parallel cell', () => {
       await waitFor(() => {
         expect(parallelCell('010').value).toBe('3');
       });
-      expect(parallelCell('010').title).toContain('effort is compressed');
+      expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain('effort is compressed');
 
       unfoldStep('Dev');
       const dev = await screen.findByLabelText('Dev assignee for 010');
@@ -3386,7 +3393,9 @@ describe('the In-parallel cell', () => {
       // named and neither slice free to run more than one at once. Watched
       // 2026-08-14.
       await waitFor(() => {
-        expect(parallelCell('010').title).toContain('one at a time whatever this says');
+        expect(parallelCell('010').getAttribute('data-hint') ?? '').toContain(
+          'one at a time whatever this says',
+        );
       });
       expect(parallelCell('010').value).toBe('3');
     },
@@ -3435,7 +3444,9 @@ describe('the earliest-start cell', () => {
 
     expect(editorsOnScreen()).toEqual([]);
     // And the whole day is a hover away, the same bargain Start and End make.
-    expect(screen.getByLabelText('Earliest start for 010').title).toContain('2026-06-01');
+    expect(
+      screen.getByLabelText('Earliest start for 010').getAttribute('data-hint') ?? '',
+    ).toContain('2026-06-01');
   });
 
   itDom('reads as an em-dash where the row sets no day', async () => {
@@ -3472,7 +3483,7 @@ describe('the earliest-start cell', () => {
 
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
     expect(cell.disabled).toBe(true);
-    expect(cell.title).toContain('project start date');
+    expect(cell.getAttribute('data-hint') ?? '').toContain('project start date');
 
     fireEvent.keyDown(cell, { key: 'Enter' });
     fireEvent.mouseDown(cell);
@@ -4282,19 +4293,21 @@ describe('step columns fold away', () => {
     await oneRow();
 
     const folded = screen.getByRole('button', { name: 'Unfold Dev estimates' });
-    expect(folded.title).toContain('Click to show the three points');
-    expect(folded.title).toContain('the table may scroll sideways');
-    expect(folded.title).not.toContain('any other step folds');
-    expect(folded.title).not.toContain('assignee');
+    expect(folded.getAttribute('data-hint') ?? '').toContain('Click to show the three points');
+    expect(folded.getAttribute('data-hint') ?? '').toContain('the table may scroll sideways');
+    expect(folded.getAttribute('data-hint') ?? '').not.toContain('any other step folds');
+    expect(folded.getAttribute('data-hint') ?? '').not.toContain('assignee');
     // And it opens with the column's own sentence, because this button covers
     // most of its `<th>`: a reader resting on it would otherwise be the one
     // reader in the table who learns nothing about the column under the cursor.
-    expect(folded.title.startsWith(STEP_FINAL_HINT)).toBe(true);
+    expect((folded.getAttribute('data-hint') ?? '').startsWith(STEP_FINAL_HINT)).toBe(true);
 
     unfoldStep('Dev');
     const open = screen.getByRole('button', { name: 'Fold Dev estimates' });
-    expect(open.title).toContain('Click to fold the three points back into the figure');
-    expect(open.title).not.toContain('assignee');
+    expect(open.getAttribute('data-hint') ?? '').toContain(
+      'Click to fold the three points back into the figure',
+    );
+    expect(open.getAttribute('data-hint') ?? '').not.toContain('assignee');
   });
 
   itDom('keeps a typed estimate draft across a fold and back', async () => {
@@ -4333,7 +4346,7 @@ describe('step columns fold away', () => {
     // hints over one cell is the bug this line used to be.
     const final = rowFor('010').querySelector('[data-final="step-dev"]');
     expect(final?.textContent).toContain('!');
-    expect(final?.getAttribute('title')).toBeNull();
+    expect(final?.getAttribute('data-hint')).toBeNull();
     fireEvent.mouseEnter(final as HTMLElement);
     expect(screen.getByRole('tooltip').textContent).toContain('not saved');
   });
@@ -4801,9 +4814,9 @@ describe('assigning from a folded step’s cell with @', () => {
     });
 
     const shown = rowFor('010').querySelector('[data-folded-assignee="step-dev"]');
-    expect(shown?.getAttribute('title')).toBeNull();
+    expect(shown?.getAttribute('data-hint')).toBeNull();
     expect(
-      screen.getByRole('button', { name: 'Unfold Dev estimates' }).getAttribute('title'),
+      screen.getByRole('button', { name: 'Unfold Dev estimates' }).getAttribute('data-hint'),
     ).toContain('show the three points');
   });
 
@@ -5484,7 +5497,7 @@ describe('estimates are never edited for you', () => {
 
     expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
     expect(estimateCell('010', 'pessimistic')).toHaveAttribute('aria-invalid', 'true');
-    expect(estimateCell('010', 'realistic').title).toContain('not saved');
+    expect(estimateCell('010', 'realistic').getAttribute('data-hint') ?? '').toContain('not saved');
     // The box holding a real number is not the mistake.
     expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'false');
   });
@@ -5608,7 +5621,7 @@ describe('estimates are never edited for you', () => {
     });
     expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'true');
     expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
-    expect(estimateCell('010', 'realistic').title).toContain('not saved');
+    expect(estimateCell('010', 'realistic').getAttribute('data-hint') ?? '').toContain('not saved');
     expect(estimateCell('010', 'pessimistic').value).toBe('10');
   });
 
@@ -5670,7 +5683,7 @@ describe('estimates are never edited for you', () => {
 const headerTitled = (text: string): string => {
   const header = screen.getAllByRole('columnheader').find((th) => th.textContent.trim() === text);
   if (header === undefined) throw new Error(`no column heading reads ${text}`);
-  const hint = header.getAttribute('title');
+  const hint = header.getAttribute('data-hint');
   if (hint === null) throw new Error(`the ${text} heading says nothing about itself`);
   return hint;
 };
@@ -5729,6 +5742,23 @@ const typeIntoNotBefore = (number: string, day: string): void => {
   const editor = openNotBefore(number);
   fireEvent.change(editor, { target: { value: day } });
   fireEvent.blur(editor);
+};
+
+/**
+ * The one control whose hint matches `words`.
+ *
+ * `getByTitle`'s replacement, and it has one: this app draws its own hints and
+ * carries them in `data-hint` rather than in a `title` — see `HintLayer`, and
+ * `hints-are-the-page-s-own` for why a browser tooltip is not one.
+ */
+const hinted = (words: RegExp): HTMLElement => {
+  const found = [...document.querySelectorAll<HTMLElement>('[data-hint]')].filter((node) =>
+    words.test(node.getAttribute('data-hint') ?? ''),
+  );
+  if (found.length === 0) throw new Error(`nothing is hinted ${String(words)}`);
+  if (found.length > 1)
+    throw new Error(`${String(found.length)} things are hinted ${String(words)}`);
+  return found[0];
 };
 
 /** The `<tr>` whose number cell reads `number`. */
@@ -5848,7 +5878,7 @@ describe('dragging a row', () => {
 
     // The handle stays, and says why it will not help.
     const handle = screen.getByLabelText('Reorder 030');
-    expect(handle.getAttribute('title')).toContain('unfreeze');
+    expect(handle.getAttribute('data-hint')).toContain('unfreeze');
     expect(handle.getAttribute('aria-disabled')).toBe('true');
 
     withHeight(rowFor('010'), 0, 40);
@@ -5909,7 +5939,7 @@ describe('the drag handle as assistive technology meets it', () => {
 
     expect(handle.getAttribute('role')).toBe('button');
     expect(handle.getAttribute('tabindex')).toBe('-1');
-    expect(handle.getAttribute('title')).toBe('Drag to move this row');
+    expect(handle.getAttribute('data-hint')).toBe('Drag to move this row');
     expect(handle).toHaveProperty('draggable', true);
   });
 
@@ -5923,7 +5953,7 @@ describe('the drag handle as assistive technology meets it', () => {
     const handle = screen.getByLabelText('Reorder 020');
 
     expect(handle.getAttribute('aria-disabled')).toBe('true');
-    expect(handle.getAttribute('title')).toBe('Frozen — unfreeze this row before moving it');
+    expect(handle.getAttribute('data-hint')).toBe('Frozen — unfreeze this row before moving it');
   });
 });
 
@@ -7527,14 +7557,21 @@ describe('dependencies in the table', () => {
 
   itDom('keeps the count off the line a reader is already told in full', async () => {
     // The cell's sr-only line names every dependency; a count spoken beside it
-    // is a third voice saying less. The pointer, which has no such line, gets
-    // the same fact as a `title`.
+    // is a third voice saying less.
+    //
+    // **And the pointer gets nothing here either**, which is what
+    // `hints-are-the-page-s-own` changed: the count used to carry the same fact
+    // as a `title`, and this cell draws its **own** card over these pixels
+    // listing every row it waits for by name. A hint card beside that one is
+    // two surfaces on one hover — watched in Chromium as `no card opened on the
+    // depends cell · Expected: 1 · Received: 2`, in three of
+    // `e2e/hover-cards.spec.ts`'s cases at once.
     await fiveRoots();
     for (const predecessor of ['010', '020', '030', '040']) await waitFor050(predecessor);
 
     const count = dependsCountOf('050');
     expect(count?.getAttribute('aria-hidden')).toBe('true');
-    expect(count?.getAttribute('title')).toBe('Waits for 4 rows');
+    expect(count?.getAttribute('data-hint')).toBeNull();
   });
 
   /**
@@ -7769,7 +7806,9 @@ describe('dependencies in the table', () => {
     // invalid for this assertion` — no `title` on the cell at all, this plan
     // having no start date and so no day to put in it either. Watched,
     // 2026-08-09.
-    expect(row?.querySelector('[data-finish]')?.getAttribute('title')).toContain('No estimate yet');
+    expect(row?.querySelector('[data-finish]')?.getAttribute('data-hint')).toContain(
+      'No estimate yet',
+    );
   });
 
   /**
@@ -8091,7 +8130,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
 
     const add = addButtonOf('030');
-    expect(add.getAttribute('title')).toBeNull();
+    expect(add.getAttribute('data-hint')).toBeNull();
     expect(add.getAttribute('aria-label')).toBe('Make 030 wait for something');
   });
 });
@@ -8635,7 +8674,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
       'This work item can slip 2 workdays before the plan finishes later.',
     );
   });
@@ -8647,7 +8686,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
@@ -8663,7 +8702,7 @@ describe('dependencies in the table — cross-review findings', () => {
     const row = screen
       .getAllByRole('row')
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
-    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+    expect(row?.querySelector('[data-float]')?.getAttribute('data-hint')).toBe(
       'No schedule could be worked out, so there is no slack to show.',
     );
   });
@@ -9755,7 +9794,9 @@ describe('the widths the table is laid out by', () => {
     // `expected '' to be '020'`. Watched, 2026-08-09.
     await threeRoots();
 
-    expect(rowFor('020').querySelector('[data-number]')?.parentElement?.title).toBe('020');
+    expect(
+      rowFor('020').querySelector('[data-number]')?.parentElement?.getAttribute('data-hint') ?? '',
+    ).toBe('020');
   });
 
   itDom('declares exactly the widths the resolved layout holds for this state', async () => {
@@ -10100,7 +10141,7 @@ describe('the outline past the Number cap', () => {
     }
 
     const indents = (number: string): { number: string; name: string } => {
-      const numberSpan = document.querySelector<HTMLElement>(`span[title="${number}"]`);
+      const numberSpan = document.querySelector<HTMLElement>(`span[data-hint="${number}"]`);
       // The cell's own span, which is the `<td>`'s only child — not the
       // textarea's nearest one. Since `markdown-work-item-names` the box sits
       // inside a positioned wrapper of its own, so that the rendered reading of
@@ -11004,7 +11045,7 @@ describe('what the plan is still missing', () => {
     await estimate('020', 'Dev');
 
     expect(theBadge().textContent).toBe('2 unestimated');
-    expect(theBadge().getAttribute('title')).toBe('1 missing Dev, 2 missing QA');
+    expect(theBadge().getAttribute('data-hint')).toBe('1 missing Dev, 2 missing QA');
     // A native button, so Enter and Space activate it without this table
     // binding a key. jsdom does not perform that activation, so it is the
     // element itself that is asserted here.
@@ -11838,8 +11879,8 @@ describe('the plan toolbar’s controls', () => {
     expect(collapse.querySelector('svg')).not.toBeNull();
     expect(expand.querySelector('svg')).not.toBeNull();
     // The hover words stay, which is the sighted reader's half of the name.
-    expect(collapse.getAttribute('title')).toBe('Close every branch');
-    expect(expand.getAttribute('title')).toBe('Open every branch');
+    expect(collapse.getAttribute('data-hint')).toBe('Close every branch');
+    expect(expand.getAttribute('data-hint')).toBe('Open every branch');
     // Two shapes, not one rotated: a plan-wide control and a row's `▾`/`▸` must
     // not be the same drawing with two meanings.
     expect(collapse.querySelector('svg')?.innerHTML).not.toBe(
@@ -11989,8 +12030,8 @@ describe('sharing the plan', () => {
     const redo = screen.getByRole('button', { name: 'Redo' });
     expect(undo.textContent).toBe('↶');
     expect(redo.textContent).toBe('↷');
-    expect(undo.getAttribute('title')).toContain('Ctrl/⌘ + Z');
-    expect(redo.getAttribute('title')).toContain('Ctrl/⌘ + Shift + Z');
+    expect(undo.getAttribute('data-hint')).toContain('Ctrl/⌘ + Z');
+    expect(redo.getAttribute('data-hint')).toContain('Ctrl/⌘ + Shift + Z');
   });
 
   itDom('copies the whole plan, header first, and says it did', async () => {
@@ -12406,9 +12447,9 @@ describe('the keyboard cheat sheet', () => {
     click('Keyboard shortcuts');
 
     expect(openSheet()).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Keyboard shortcuts' }).title).toBe(
-      'Keyboard shortcuts (?)',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Keyboard shortcuts' }).getAttribute('data-hint') ?? '',
+    ).toBe('Keyboard shortcuts (?)');
   });
 });
 
@@ -12984,7 +13025,12 @@ describe('the command chords', () => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
     expect(api.rows.map((row) => row.name)).toEqual(['Strip', 'Paint']);
-    expect(toastTexts()).toContain('Deleted 020 — Cmd+Z restores');
+    // The toast names the work item the way the plan does — its number **and**
+    // its name (`work-items-named-by-number-and-name`) — so the number and the
+    // join are asserted and the fixture's own name is left to the fixture.
+    expect(toastTexts()).toContainEqual(
+      expect.stringMatching(/^Deleted 020 - .+ — Cmd\+Z restores$/),
+    );
     // The row that took its place, as the actions menu's delete does it.
     expect(document.activeElement).toBe(nameOf('020'));
     expect(armedRow()).toBeNull();
@@ -13159,7 +13205,12 @@ describe('the command chords', () => {
     armDelete(cell);
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('Deleted 020 — Cmd+Z restores');
+      // The toast names the work item the way the plan does — its number **and**
+      // its name (`work-items-named-by-number-and-name`) — so the number and the
+      // join are asserted and the fixture's own name is left to the fixture.
+      expect(toastTexts()).toContainEqual(
+        expect.stringMatching(/^Deleted 020 - .+ — Cmd\+Z restores$/),
+      );
     });
     expect(toastTexts()).not.toContain(armSays('020'));
     expect(api.rows).toHaveLength(2);
@@ -13264,7 +13315,9 @@ describe('the command chords', () => {
     armDelete(nameOf('020'));
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('020 is frozen — unfreeze it first');
+      expect(toastTexts()).toContainEqual(
+        expect.stringMatching(/^020 - .+ is frozen — unfreeze it first$/),
+      );
     });
     expect(armedRow()).toBeNull();
   });
@@ -14852,7 +14905,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // Mouse readers get the same sentence, and it is the only place a hint
       // fits at this panel width.
       expect(owner.closest('label')).toHaveAttribute(
-        'title',
+        'data-hint',
         expect.stringMatching(/No team owns/),
       );
     },
@@ -14919,7 +14972,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       'Built by a non-owner: Billing does not own Checkout.' +
       ' Nothing is blocked — the plan is recording this, not refusing it.';
     const mark = rowFor('010').querySelector('[data-mismatch="service"]');
-    expect(mark?.getAttribute('title')).toBe(said);
+    expect(mark?.getAttribute('data-hint')).toBe(said);
     // The same sentence to a reader with no pointer. `role="img"` and a label
     // rather than a `title` alone, which reaches a mouse only.
     expect(mark?.getAttribute('aria-label')).toBe(said);
@@ -14947,7 +15000,9 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     api.ownService(api.billing, api.checkout);
     await shown(api);
 
-    const said = rowFor('010').querySelector('[data-mismatch="service"]')?.getAttribute('title');
+    const said = rowFor('010')
+      .querySelector('[data-mismatch="service"]')
+      ?.getAttribute('data-hint');
     expect(said).toContain('Billing does not own Ledger and Search.');
     // Said out loud, because it is half the claim: the owned service is not in
     // the sentence, so a reader is sent to the two that need looking at.
@@ -14972,7 +15027,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     // one hint is its card, and a tooltip raced it over the same pixels
     // (2026-08-09). So the sentence moves to the card rather than being
     // dropped, and both halves of that are asserted.
-    expect(mark?.getAttribute('title')).toBeNull();
+    expect(mark?.getAttribute('data-hint')).toBeNull();
     fireEvent.mouseEnter(final as HTMLElement);
     expect(screen.getByRole('tooltip').textContent).toContain('Ada is not in Billing');
     // The team is inherited down the branch and the assignee is not, so the
@@ -14994,7 +15049,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     // A `title` here, where the folded cell has none: this column has no card
     // to fight, so the pointer gets the sentence the way the service cell's
     // does.
-    expect(mark?.getAttribute('title')).toContain('Ada is not in Billing');
+    expect(mark?.getAttribute('data-hint')).toContain('Ada is not in Billing');
   });
 
   itDom(
@@ -15043,12 +15098,12 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
         if (owner === null) {
           // Nothing else owns this hover, so the mark carries the sentence
           // itself — and carries the **same** one, not a shorter cousin of it.
-          expect(mark.getAttribute('title')).toBe(note);
+          expect(mark.getAttribute('data-hint')).toBe(note);
           continue;
         }
         // A card owns the hover. Both halves: no `title` to race it, and the
         // sentence really is on the card the same hover opens.
-        expect(mark.getAttribute('title')).toBeNull();
+        expect(mark.getAttribute('data-hint')).toBeNull();
         fireEvent.mouseEnter(owner);
         expect(screen.getByRole('tooltip').textContent).toContain(note);
         fireEvent.mouseLeave(owner);
@@ -15781,11 +15836,11 @@ describe('the tag cell', () => {
     const cell = screen.getByLabelText('Tags for 010.1').closest<HTMLElement>(TAG_CELL)!;
     expect(
       [...cell.querySelectorAll('[data-reference-inherited-chip]')].map((chip) =>
-        chip.getAttribute('title'),
+        chip.getAttribute('data-hint'),
       ),
     ).toEqual([
-      'Risk — inherited from 010 Strip the walls. Remove it there.',
-      'Review — inherited from 010 Strip the walls. Remove it there.',
+      'Risk — inherited from 010 - Strip the walls. Remove it there.',
+      'Review — inherited from 010 - Strip the walls. Remove it there.',
     ]);
   });
 });
@@ -15841,8 +15896,8 @@ describe('the service cell', () => {
     expect(child).toHaveAttribute('placeholder', '↳ Checkout');
     // A marker that cannot say where it came from is a mystery, not a signal.
     expect(child).toHaveAttribute(
-      'title',
-      expect.stringMatching(/Checkout — inherited from 010 Strip the walls/),
+      'data-hint',
+      expect.stringMatching(/Checkout — inherited from 010 - Strip the walls/),
     );
   });
 

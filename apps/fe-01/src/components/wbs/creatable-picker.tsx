@@ -221,7 +221,7 @@ export interface CreatablePickerProps {
    * names the one it inherits — which is a claim a reader is owed the source
    * of.
    */
-  title?: string;
+  'data-hint'?: string;
   /**
    * The cell this box edits, on a surface that is **not** a keyboard grid.
    *
@@ -333,7 +333,7 @@ export function CreatablePicker({
   onClear,
   clearVisibleWhileFocused,
   placeholder,
-  title,
+  'data-hint': hint,
   dataCell,
   gridCell,
 }: CreatablePickerProps) {
@@ -504,7 +504,7 @@ export function CreatablePicker({
         aria-activedescendant={open ? pickerOptionId(listId, active) : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
-        title={title}
+        data-hint={hint}
         data-cell={gridCell?.dataCell ?? dataCell}
         // A layout the grid does not touch: the attribute is what the table
         // finds this box by, and it adds nothing to the flex row it sits in.
@@ -669,7 +669,7 @@ export function CreatablePicker({
           type="button"
           aria-label={`Clear ${label}`}
           data-clear-button
-          title="Clear"
+          data-hint="Clear"
           onClick={onClear}
           style={{ marginLeft: 2, flex: 'none' }}
         >

@@ -1,8 +1,9 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
+import { type Hintable } from '@/components/wbs/hint';
 import { cn } from '@/lib/utils';
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement>;
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, Hintable {}
 
 /**
  * A chrome text box.

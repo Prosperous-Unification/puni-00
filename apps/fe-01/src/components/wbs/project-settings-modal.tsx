@@ -303,7 +303,7 @@ export function ProjectSettingsModal({
           size={trigger === 'glyph' ? 'square' : 'sm'}
           type="button"
           aria-label="Project settings"
-          title="Teams, priorities and steps of this project"
+          data-hint="Teams, priorities and steps of this project"
         >
           <SettingsIcon />
           {trigger === 'labelled' && <span>Project settings</span>}
@@ -361,7 +361,7 @@ export function ProjectSettingsModal({
                 >
                   {section.label}
                   {dirtySections.includes(section.id) && (
-                    <span aria-hidden="true" title="Has an unsaved edit">
+                    <span aria-hidden="true" data-hint="Has an unsaved edit">
                       {' '}
                       •
                     </span>

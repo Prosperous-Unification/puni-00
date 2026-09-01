@@ -197,6 +197,7 @@ import {
   NO_FILTER,
 } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
+import { rowWords } from './work-item-words';
 
 export interface WbsTableProps {
   projectId: string;
@@ -1498,7 +1499,7 @@ function ColumnResizeHandle({
       role="separator"
       aria-orientation="vertical"
       aria-label={`Resize ${heading}`}
-      title={`Drag to resize ${heading}`}
+      data-hint={`Drag to resize ${heading}`}
       onPointerDown={(event) => {
         // The browser's own answer to a press and a drag across a heading is a
         // text selection, and there is nothing in this strip to select.
@@ -1611,7 +1612,7 @@ function GanttHeightHandle({
       role="separator"
       aria-orientation="horizontal"
       aria-label="Resize the Gantt chart"
-      title="Drag to resize the Gantt chart"
+      data-hint="Drag to resize the Gantt chart"
       onPointerDown={(event) => {
         // The browser's own answer to a press and a drag across the page is a
         // text selection, and there is nothing in this strip to select.
@@ -1786,7 +1787,7 @@ function MismatchMark({
       // The `title` is the pointer's copy of the same sentence. Both, not one:
       // `aria-label` is not shown to a sighted reader and `title` is not read
       // to a screen reader off a `span`.
-      {...(carded ? {} : { title: note })}
+      {...(carded ? {} : { 'data-hint': note })}
       style={{
         color: 'var(--muted-foreground)',
         cursor: 'help',
@@ -2255,7 +2256,7 @@ function FilterFacets({
     return (
       <label
         className={`flex min-h-6 items-center gap-1.5 ${off ? 'text-muted-foreground' : ''}`}
-        title={off ? why : what}
+        data-hint={off ? why : what}
       >
         <input
           type="checkbox"
@@ -2279,7 +2280,7 @@ function FilterFacets({
     <details ref={useClosedByPointerOutside()} data-facets className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
-        title="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
+        data-hint="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
       >
         Filters{chosen > 0 ? ` (${String(chosen)})` : ''}
       </summary>
@@ -2389,7 +2390,7 @@ function FilterFacets({
             variant="outline"
             size="sm"
             type="button"
-            title="Untick every filter. The Find box is left as it is."
+            data-hint="Untick every filter. The Find box is left as it is."
             onClick={() => {
               setFacets(NO_FACETS);
             }}
@@ -2476,7 +2477,7 @@ function ColumnsControl({
     <details ref={useClosedByPointerOutside()} data-columns className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
-        title="Choose which columns are on the table. Number, Name and the row's controls always are."
+        data-hint="Choose which columns are on the table. Number, Name and the row's controls always are."
       >
         Columns
       </summary>
@@ -2546,7 +2547,7 @@ function SavedViews({
     <details ref={useClosedByPointerOutside()} data-saved-views className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
-        title="Name the current filter, or pick one already named"
+        data-hint="Name the current filter, or pick one already named"
       >
         Views{views.length > 0 ? ` (${String(views.length)})` : ''}
       </summary>
@@ -2569,7 +2570,7 @@ function SavedViews({
             size="sm"
             type="button"
             disabled={!canSave}
-            title={
+            data-hint={
               filtering
                 ? 'Save the Find box and the ticked filters under this name'
                 : 'Nothing is filtered — there is no view to name'
@@ -2596,7 +2597,7 @@ function SavedViews({
                   <button
                     type="button"
                     className="min-h-7 flex-1 truncate text-left text-xs underline-offset-2 hover:underline"
-                    title={words.length > 0 ? words.join('; ') : view.name}
+                    data-hint={words.length > 0 ? words.join('; ') : view.name}
                     onClick={() => {
                       onApply(view);
                     }}
@@ -2608,7 +2609,7 @@ function SavedViews({
                     size="square"
                     type="button"
                     aria-label={`Delete view ${view.name}`}
-                    title="Forget this view. What it narrows to is untouched."
+                    data-hint="Forget this view. What it narrows to is untouched."
                     onClick={() => {
                       onDelete(view.id);
                     }}
@@ -4068,9 +4069,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * words the Depends on chips carry. An unnamed row keeps the number it does
    * have, which is why the empty name has words rather than a trailing space.
    */
-  const namedInTheTree = new Map(
-    flat.map((row) => [row.id, `${row.number} ${row.name === '' ? '(unnamed)' : row.name}`]),
-  );
+  const namedInTheTree = new Map(flat.map((row) => [row.id, rowWords(row.number, row.name)]));
 
   /**
    * The service team a work item is labelled with, resolved against the
@@ -5698,7 +5697,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // refusal too, so a held chord on a frozen row is one sentence.
       if (repeat) return;
       if (row.frozenNumber !== null) {
-        pushToast({ kind: 'error', text: `${row.number} is frozen — unfreeze it first` });
+        pushToast({
+          kind: 'error',
+          text: `${rowWords(row.number, row.name)} is frozen — unfreeze it first`,
+        });
         disarmDelete();
         return;
       }
@@ -5708,7 +5710,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           if (outcome !== 'landed') return;
           // The way back, in the sentence that says it happened: this is the
           // one chord in the table that takes work away.
-          pushToast({ kind: 'info', text: `Deleted ${row.number} — Cmd+Z restores` });
+          pushToast({
+            kind: 'info',
+            text: `Deleted ${rowWords(row.number, row.name)} — Cmd+Z restores`,
+          });
         });
         return;
       }
@@ -7135,7 +7140,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 tabIndex={-1}
                 aria-disabled={frozen}
                 aria-label={`Reorder ${row.original.number}`}
-                title={
+                data-hint={
                   frozen ? 'Frozen — unfreeze this row before moving it' : 'Drag to move this row'
                 }
                 style={{ cursor: frozen ? 'not-allowed' : 'grab' }}
@@ -7174,7 +7179,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // column's declared width is what the cap protects, and the share
               // it withholds past `DEEPEST_INDENT` is carried by the Name cell
               // beside it.
-              title={row.original.number}
+              data-hint={row.original.number}
               style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
             >
               {/*
@@ -7839,16 +7844,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   the cell already tells a reader `Waiting for 010 - Strip, …`
                   in full through {@link waitsForId}, so a count spoken beside
                   it would be a third voice in one cell saying less than the
-                  second. The `title` is for the pointer, which has no such
-                  line — and a `title` on a non-interactive span is not the
-                  "control answering to two names" the add button refuses,
-                  since this span has no accessible name to contradict.
+                  second.
+
+                  **And no `data-hint` either**, which `hints-are-the-page-s-own`
+                  took off it: this cell draws its own card on hover, listing
+                  every row it waits for by name, and a hint card opening over
+                  the same pixels to say `Waits for 2 rows` is the second
+                  surface the Start cell's own comment refuses. The card is this
+                  cell's one hint. Watched: with the hint back on, three of
+                  `e2e/hover-cards.spec.ts`'s cases failed on `no card opened on
+                  the depends cell · Expected: 1 · Received: 2`.
                 */}
                   {waitingFor.length > 1 && (
                     <span
                       data-dep-count={row.original.id}
                       aria-hidden="true"
-                      title={`Waits for ${String(waitingFor.length)} rows`}
                       style={{ flexShrink: 0 }}
                     >
                       {waitingFor.length}
@@ -7861,7 +7871,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       data-reference-chip={id}
                       className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
                       aria-label={`Stop ${row.original.number} waiting for ${number}`}
-                      title="Remove this dependency"
+                      // No hint here for the count's reason above: the cell's
+                      // own card owns this hover, and the ✕ already answers to
+                      // `Stop 020 waiting for 010`.
                       // Out of the tab order while the strip is clipped: a
                       // clipped chip is a native button a sequential Tab could
                       // still reach, invisible, and the browser may scroll the
@@ -7994,7 +8006,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     aria-autocomplete="list"
                     aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
                     placeholder="search, or 010, 020"
-                    title="Type to search by number or name, or a list of numbers separated by commas or spaces"
+                    // No hint on this box, for the count chip's reason above:
+                    // the Depends on cell draws its own card over these pixels,
+                    // and a second surface saying how to type into the box is
+                    // the race `start-date-hover-card` removed rather than one
+                    // to reintroduce. The placeholder beside it —
+                    // `search, or 010, 020` — is the same instruction, on
+                    // screen, with nothing to open. Watched with the hint back
+                    // on: `no card opened on the depends cell · Expected: 1 ·
+                    // Received: 2`, the second card reading `Type to search by
+                    // number or name, or a l…`.
                     // `minWidth: 0` is what lets the box shrink behind the chips
                     // on the strip's one rested line: a flex item's automatic
                     // minimum would hold an `<input>` at its intrinsic width and
@@ -8351,7 +8372,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 placeholder={
                   inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
                 }
-                title={
+                data-hint={
                   inherited.state === 'inherited'
                     ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
                     : undefined
@@ -8407,7 +8428,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 addLabel={`Add a tag to ${row.original.number}`}
                 removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
                 placeholder={own.length > 0 || tagging.inherited.length > 0 ? 'add' : 'search'}
-                title={
+                data-hint={
                   tagging.inherited.length === 0
                     ? undefined
                     : tagging.inherited
@@ -8507,7 +8528,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ? `↳ ${inherited.names.join(', ')}`
                         : 'search'
                   }
-                  title={
+                  data-hint={
                     own.length === 0 && inherited.state === 'inherited'
                       ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no service of its own.`
                       : undefined
@@ -8679,7 +8700,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               return (
                 <span
                   data-in-parallel={row.original.id}
-                  title={why}
+                  data-hint={why}
                   className="text-muted-foreground block text-right"
                 >
                   {own > 1 ? String(own) : ''}
@@ -8692,7 +8713,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 cellKey={cellKey(row.original.id, 'in-parallel')}
                 data-in-parallel={row.original.id}
                 inputMode="numeric"
-                title={why}
+                data-hint={why}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -8755,7 +8776,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // button covers most of its `<th>`, so a title naming only the
                   // fold would be the one heading in the table where hovering
                   // teaches nothing about the column (`column-hints.ts`).
-                  title={`${STEP_FINAL_HINT} ${
+                  data-hint={`${STEP_FINAL_HINT} ${
                     unfolded
                       ? 'Click to fold the three points back into the figure.'
                       : 'Click to show the three points; the table may scroll sideways.'
@@ -9374,7 +9395,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             // the one path with no keypad on it.
                             inputMode="decimal"
                             aria-invalid={wrong}
-                            title={problem?.message}
+                            data-hint={problem?.message}
                             onKeyDown={(e) => {
                               // Enter saves, the folded cell's rule in the face
                               // an estimator opens to argue about one number.
@@ -9501,7 +9522,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           {assumed !== null && (
                             <span
                               data-assumed={step.id}
-                              title="Only one person is assigned, so they are assumed to do this step too"
+                              data-hint="Only one person is assigned, so they are assumed to do this step too"
                               style={{
                                 color: 'var(--muted-foreground)',
                                 marginLeft: 4,
@@ -9613,7 +9634,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       aria-label={`Earliest start for ${row.original.number}`}
                       data-not-before={row.original.id}
                       data-cell={cellKey(row.original.id, 'not-before')}
-                      title="This work item may not start before this day. Its dependencies can still push it later."
+                      data-hint="This work item may not start before this day. Its dependencies can still push it later."
                       onKeyDown={(e) => {
                         // Enter closes the editor, and it is this cell's job now
                         // rather than `onExit`'s: `onExit` reports a blur as well
@@ -9682,7 +9703,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       aria-label={`Why ${row.original.number} may not start earlier`}
                       data-not-before-reason={row.original.id}
                       placeholder="Why? (optional)"
-                      title="Words about the date beside this, in your own words — a date with no words is still a date. Clearing the date clears these too."
+                      data-hint="Words about the date beside this, in your own words — a date with no words is still a date. Clearing the date clears these too."
                       // No `maxLength`, deliberately. be-01 bounds this at 200
                       // (`LONGEST_NOT_BEFORE_REASON`) and refuses a longer one,
                       // and a box that quietly stopped taking characters would be
@@ -9743,7 +9764,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // cannot work out for themselves; what it is *for* is the
                     // part only a planner can say. A cell 84px wide has one
                     // `title` and both belong in it.
-                    title={
+                    data-hint={
                       noCalendar
                         ? 'Set the project start date first — without one there are no dates to constrain.'
                         : [
@@ -9841,7 +9862,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 {carded && (
                   <HoverCard
                     id={startCardId(row.original.id)}
-                    label={`Start of ${row.original.number}`}
+                    label={`Start of ${rowWords(row.original.number, row.original.name)}`}
                   >
                     {said}
                   </HoverCard>
@@ -9861,7 +9882,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               .filter((part) => part !== null)
               .join(' — ');
             return (
-              <span data-finish title={said === '' ? undefined : said}>
+              <span data-finish data-hint={said === '' ? undefined : said}>
                 {finish.text}
                 {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
               </span>
@@ -9882,7 +9903,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               return (
                 <span
                   data-float
-                  title="No schedule could be worked out, so there is no slack to show."
+                  data-hint="No schedule could be worked out, so there is no slack to show."
                 >
                   —
                 </span>
@@ -9893,7 +9914,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 <span
                   data-float
                   data-critical="true"
-                  title="On the critical path: any delay here moves the whole plan’s finish."
+                  data-hint="On the critical path: any delay here moves the whole plan’s finish."
                 >
                   critical
                 </span>
@@ -9903,7 +9924,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             return (
               <span
                 data-float
-                title={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
+                data-hint={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
               >
                 {days}
               </span>
@@ -10590,7 +10611,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       */}
       <MenuControl
         name="Freeze #"
-        title="Freeze the numbering as it stands, or release every frozen row"
+        data-hint="Freeze the numbering as it stands, or release every frozen row"
         align="left"
         open={freezeMenuOpen}
         onOpen={() => {
@@ -10666,7 +10687,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         disabled={filtering}
         aria-label="Collapse all"
-        title={
+        data-hint={
           filtering
             ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Close every branch'
@@ -10683,7 +10704,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         disabled={filtering}
         aria-label="Expand all"
-        title={
+        data-hint={
           filtering
             ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Open every branch'
@@ -10708,7 +10729,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         aria-pressed={ganttOpen}
-        title="Draw the schedule under the plan"
+        data-hint="Draw the schedule under the plan"
         onClick={() => {
           setGanttOpen((open) => !open);
         }}
@@ -10807,7 +10828,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         aria-label="Find"
         placeholder="Find…"
         size={14}
-        title="Show work items whose name contains this, with the rows above and below them"
+        data-hint="Show work items whose name contains this, with the rows above and below them"
         value={query}
         onChange={(e) => {
           setQuery(e.currentTarget.value);
@@ -10923,7 +10944,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // puts it in the cell that estimates the next gap. See
           // {@link TAKES_THE_FOCUS}.
           {...{ [TAKES_THE_FOCUS]: '' }}
-          title={describeGaps(gaps)}
+          data-hint={describeGaps(gaps)}
           onClick={walkToNextGap}
         >
           {gaps.leaves.length} unestimated
@@ -10947,7 +10968,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         disabled={busy || !stack.undoable}
         {...busyAffordance(busy)}
         aria-label="Undo"
-        title="Undo your last change to this plan (Ctrl/⌘ + Z)"
+        data-hint="Undo your last change to this plan (Ctrl/⌘ + Z)"
         onClick={() => {
           void stepStack('undo');
         }}
@@ -10961,7 +10982,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         disabled={busy || !stack.redoable}
         {...busyAffordance(busy)}
         aria-label="Redo"
-        title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
+        data-hint="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
         onClick={() => {
           void stepStack('redo');
         }}
@@ -10978,7 +10999,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (?)"
+        data-hint="Keyboard shortcuts (?)"
         // The third control that aims the caret itself: the cheat sheet takes
         // the focus onto its own panel as it mounts, and Radix's restore
         // arrives after it. See {@link TAKES_THE_FOCUS}.
@@ -11022,7 +11043,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       <details ref={useClosedByPointerOutside()} data-export className="relative">
         <summary
           className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
-          title="Copy or download the plan — as a Markdown table, a Mermaid gantt, a CSV, or what is on screen"
+          data-hint="Copy or download the plan — as a Markdown table, a Mermaid gantt, a CSV, or what is on screen"
         >
           Export
         </summary>
@@ -11034,7 +11055,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             variant="outline"
             size="sm"
             type="button"
-            title="Copy the whole plan as a Markdown table, with a header saying how to read it"
+            data-hint="Copy the whole plan as a Markdown table, with a header saying how to read it"
             onClick={copyAsMarkdown}
           >
             Copy as Markdown
@@ -11043,7 +11064,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             variant="outline"
             size="sm"
             type="button"
-            title="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
+            data-hint="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
             onClick={copyAsMermaid}
           >
             Copy as Mermaid
@@ -11052,7 +11073,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             variant="outline"
             size="sm"
             type="button"
-            title="Download the whole plan as a CSV, with a header saying how to read it"
+            data-hint="Download the whole plan as a CSV, with a header saying how to read it"
             onClick={downloadCsv}
           >
             Download CSV
@@ -11061,7 +11082,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             variant="outline"
             size="sm"
             type="button"
-            title="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
+            data-hint="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
             onClick={downloadMermaidDocument}
           >
             Download as Markdown
@@ -11084,7 +11105,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             size="sm"
             type="button"
             data-export-chart-svg
-            title="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+            data-hint="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
             onClick={downloadChartSvg}
           >
             Download chart as SVG
@@ -11101,7 +11122,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             variant="outline"
             size="sm"
             type="button"
-            title="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
+            data-hint="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
             onClick={downloadOnScreen}
           >
             Download what’s on screen
@@ -11133,7 +11154,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // No `aria-label`: the `<label>` wrapping it already names it,
               // which is where it parts from `Final estimate` below — that one
               // reads `Plan with` on screen and needs the name spelling out.
-              title="What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"
+              data-hint="What the two Mermaid exports group their bars into — the plan's outline, the step a bar is estimated under, or whoever is on it"
               value={mermaidSectionMode}
               onChange={(e) => {
                 const asked = e.target.value;
@@ -11315,7 +11336,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     variant="outline"
                     size="sm"
                     type="button"
-                    title="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
+                    data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
                     onClick={resetGanttSettings}
                   >
                     Reset layout
@@ -11365,7 +11386,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               variant="outline"
               size="sm"
               type="button"
-              title="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
+              data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
               onClick={resetLayout}
             >
               Reset layout
@@ -11699,7 +11720,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // resize handle — describe a *control*, not a column,
                         // and the fold button opens with this same sentence so
                         // that hovering it still teaches the column.
-                        title={hintFor(header.column.id, hintState)}
+                        data-hint={hintFor(header.column.id, hintState)}
                         style={{
                           ...CELL,
                           ...STICKY_HEADER_CELL,

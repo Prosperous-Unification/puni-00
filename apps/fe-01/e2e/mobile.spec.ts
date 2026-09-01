@@ -383,7 +383,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // pointer events` — and an Escape between the two did not put the sheet away
     // either, watched at `f9781b0`. A surface reached before anything covers it
     // needs no dismissal to be right.
-    await page.getByTitle('This account').click();
+    await page.locator('[data-hint="This account"]').click();
     await expect(page.getByRole('menu', { name: `Signed in as ${username}` })).toBeVisible();
     expect
       .soft(await shortTargetsIn(page, '[data-account-menu]'), 'in the account menu')
@@ -402,7 +402,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
       root.scrollWidth,
       'the grown controls made the page scroll sideways',
     ).toBeLessThanOrEqual(root.clientWidth);
-    await page.getByTitle('This account').click();
+    await page.locator('[data-hint="This account"]').click();
 
     // The sheet, with `Filters` expanded — the state the sweep measured, and the
     // one holding the 13px controls. A `<summary>` is not the `<button>` that
@@ -687,7 +687,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
       .getByRole('button', { name: 'Earliest start for 010' })
       .locator('[data-card-not-before]');
     await expect(saved).toContainText('not before 15 Jul');
-    await expect(saved).toHaveAttribute('title', new RegExp(`Why: ${reason}`));
+    await expect(saved).toHaveAttribute('data-hint', new RegExp(`Why: ${reason}`));
   });
 
   /**
@@ -1390,7 +1390,7 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
 
     const done = page.getByRole('button', { name: 'Done' });
     const close = page.getByRole('button', { name: 'Close' });
-    const account = page.getByTitle('This account');
+    const account = page.locator('[data-hint="This account"]');
 
     for (const width of [1400, 768]) {
       await page.setViewportSize({ width, height: 900 });

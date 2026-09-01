@@ -185,7 +185,7 @@ export function ExternalRefsModal({
                   <span
                     data-refs-editor-url={ref.id}
                     className="text-muted-foreground shrink-0 text-xs"
-                    title="Only http and https links can be followed"
+                    data-hint="Only http and https links can be followed"
                   >
                     {ref.url}
                   </span>

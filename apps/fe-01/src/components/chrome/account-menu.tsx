@@ -202,7 +202,7 @@ export function AccountMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="This account"
+        data-hint="This account"
         className="max-w-40"
         onClick={() => {
           // Computed beside the setter rather than inside it: a state updater

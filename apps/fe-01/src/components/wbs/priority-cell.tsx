@@ -167,7 +167,7 @@ export function PriorityCell({
         // number is what nearly every keystroke in this box is and a phone
         // keyboard has a letters key.
         inputMode="numeric"
-        title={
+        data-hint={
           paint === null
             ? 'How important this work is: 1 upward, smaller first. Type a number or a band’s name. Blank means nobody has said.'
             : `${paint.words}. Smaller is more important; it decides who gets a shared person first.`

@@ -716,7 +716,7 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
               // one-row header is a smaller thing with the same accessible
               // name, and `aria-label` is what makes those two facts one.
               aria-label="Rename"
-              title="Rename this project"
+              data-hint="Rename this project"
               onClick={() => {
                 setRename({
                   projectId: selectedProject.id,
@@ -752,7 +752,7 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
         size="square"
         type="button"
         aria-label="New project"
-        title="Start a new project"
+        data-hint="Start a new project"
         onClick={create}
       >
         +
