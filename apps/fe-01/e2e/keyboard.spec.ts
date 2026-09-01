@@ -415,7 +415,7 @@ test.describe('the command chords, in a browser', () => {
 
     await page.keyboard.press('Control+d');
 
-    await expect(page.getByText('Deleted 020 — Cmd+Z restores')).toBeVisible();
+    await expect(page.getByText(/^Deleted 020 - .+ — Cmd\+Z restores$/)).toBeVisible();
     expect(await numbersOnScreen(page)).toEqual(['010', '020']);
     // The row that took its place holds the name the deleted one did not.
     await expect(page.getByLabel('Name of 020')).not.toHaveValue('Sand the frames');
@@ -453,7 +453,7 @@ test.describe('the command chords, in a browser', () => {
     await page.keyboard.up('d');
     await page.keyboard.up('Control');
 
-    await expect(page.getByText('Deleted 020 — Cmd+Z restores')).toBeVisible();
+    await expect(page.getByText(/^Deleted 020 - .+ — Cmd\+Z restores$/)).toBeVisible();
     expect(await numbersOnScreen(page)).toEqual(['010', '020']);
     // Counted once, not `expect(locator).toHaveCount(0)`: that assertion
     // retries for ten seconds, and an arm takes itself off after three — so

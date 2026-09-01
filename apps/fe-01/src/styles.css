@@ -1157,12 +1157,23 @@
    * one: a quiet tag rather than a word in the column's own type. The cell is
    * 56px, so it is sized to fit one — see `wbs-table.tsx` for why the text is a
    * single word.
+   *
+   * **Neutral, and that is the point of it** (`quiet-critical-slack`,
+   * 2026-08-31). This was `--destructive` ink on a `--destructive` tint until
+   * Dany read a plan of dependent work and found a column of red tags: in a
+   * chain of three rows all three are critical, so the palette's red was
+   * marking the ordinary case and the two things it actually means — this will
+   * destroy something, this value was refused — had lost the only ink that says
+   * them. The ink is the column's own `--muted-foreground`, so the tag reads as
+   * quietly as the figures beside it; the ground is a tint of that same grey, so
+   * it is still a tag rather than a word read down the column as a number.
+   * Measured in both palettes by `e2e/slack-cell.spec.ts`.
    */
   [data-grid] [data-float][data-critical] {
     display: inline-block;
     border-radius: var(--radius-sm);
-    background: color-mix(in oklab, var(--destructive) 12%, var(--background));
-    color: var(--destructive);
+    background: color-mix(in oklab, var(--muted-foreground) 16%, var(--background));
+    color: var(--muted-foreground);
     padding: 0 4px;
     font-size: 10px;
     font-weight: 600;

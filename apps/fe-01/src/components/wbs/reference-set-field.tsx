@@ -89,7 +89,7 @@ export interface ReferenceSetStripProps {
   addLabel?: string;
   removeLabel?: (entry: ReferenceSetEntry) => string;
   placeholder?: string;
-  title?: string;
+  'data-hint'?: string;
 }
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
@@ -241,7 +241,7 @@ export function ReferenceSetStrip({
   addLabel,
   removeLabel,
   placeholder,
-  title,
+  'data-hint': hint,
 }: ReferenceSetStripProps) {
   const root = useRef<HTMLSpanElement>(null);
   const ownIds = unique(adapter.ownIds);
@@ -526,7 +526,17 @@ export function ReferenceSetStrip({
           onMouseDown={(event) => {
             event.preventDefault();
           }}
-          onClick={() => root.current?.querySelector<HTMLInputElement>('input')?.focus()}
+          // Focus **and then** click. `focus()` alone was a dead press on a box
+          // that already holds the focus — which is every press of this `+`
+          // straight after adding a value, because a take leaves the focus where
+          // it was — and the box's own `onClick` is what opens the list in that
+          // state. `creatable-picker.tsx`'s input says the whole of
+          // `picker-reopens-on-click`.
+          onClick={() => {
+            const box = root.current?.querySelector<HTMLInputElement>('input');
+            box?.focus();
+            box?.click();
+          }}
         >
           +
         </button>
@@ -653,7 +663,7 @@ export function ReferenceSetStrip({
             <span
               key={entry.id}
               data-reference-inherited-chip={entry.id}
-              title={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
+              data-hint={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
               className={REFERENCE_SET_INHERITED_CHIP_CLASS}
             >
               <span className="truncate">↳ {entry.name}</span>
@@ -709,7 +719,7 @@ export function ReferenceSetStrip({
             closeWhen={(outcome) => outcome === 'landed'}
             disabled={pending}
             placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
-            title={title}
+            data-hint={hint}
             dataCell={dataCell}
             gridCell={gridCell}
           />

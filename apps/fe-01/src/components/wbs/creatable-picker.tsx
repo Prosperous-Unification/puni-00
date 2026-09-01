@@ -221,7 +221,7 @@ export interface CreatablePickerProps {
    * names the one it inherits — which is a claim a reader is owed the source
    * of.
    */
-  title?: string;
+  'data-hint'?: string;
   /**
    * The cell this box edits, on a surface that is **not** a keyboard grid.
    *
@@ -333,7 +333,7 @@ export function CreatablePicker({
   onClear,
   clearVisibleWhileFocused,
   placeholder,
-  title,
+  'data-hint': hint,
   dataCell,
   gridCell,
 }: CreatablePickerProps) {
@@ -449,8 +449,16 @@ export function CreatablePicker({
           onMouseDown={(pressed) => {
             pressed.preventDefault();
           }}
+          // Focus **and then** click, because either alone is a dead press in
+          // one of the two states this button has to work in: `focus()` is a
+          // no-op on a box that already holds the focus, and the box's own
+          // `onClick` is what opens the list in that case. See the box's
+          // `onClick` below for the whole of `picker-reopens-on-click`.
           onClick={(pressed) => {
-            pressed.currentTarget.parentElement?.querySelector<HTMLInputElement>('input')?.focus();
+            const box =
+              pressed.currentTarget.parentElement?.querySelector<HTMLInputElement>('input');
+            box?.focus();
+            box?.click();
           }}
           style={{ flexShrink: 0, marginRight: 2 }}
         >
@@ -496,13 +504,47 @@ export function CreatablePicker({
         aria-activedescendant={open ? pickerOptionId(listId, active) : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
-        title={title}
+        data-hint={hint}
         data-cell={gridCell?.dataCell ?? dataCell}
         // A layout the grid does not touch: the attribute is what the table
         // finds this box by, and it adds nothing to the flex row it sits in.
         style={{ font: 'inherit', flex: 1, minWidth: 0, width: 'auto' }}
         value={typed ?? restingValue ?? chosen?.name ?? ''}
         onFocus={() => {
+          setTyped('');
+          setActiveIndex(0);
+        }}
+        /*
+          **The list also opens on a click, and that is `picker-reopens-on-click`.**
+
+          Dany, 2026-08-31: _"after adding `tag1` the UI invites another tag, but
+          clicking the small add field shows no dropdown of existing tags"_. Three
+          facts meet to produce it, and each is correct on its own:
+
+          - the list opens from `onFocus`,
+          - a take closes it (`setTyped(null)`, immediately or once `closeWhen`
+            is satisfied),
+          - and a take does **not** move the focus — deliberately, because the
+            list's own `mousedown` calls `preventDefault` precisely so the box
+            keeps it.
+
+          So after adding a value the box is focused with no list under it, and a
+          click on a node that already holds the focus fires no focus event.
+          There was no gesture left that could reopen it: the reader had to leave
+          the cell and come back. Measured in Chromium — `clicking the focused
+          add field offered nothing · Expected: 2 · Received: 0`.
+
+          Guarded on `typed === null`, which is what makes this safe for the
+          **other** thing a click in this box is: putting the caret somewhere in a
+          half-typed search. `typed` is null only while the list is closed, so a
+          click inside an open picker changes nothing at all, and no draft is ever
+          written over. That is also why this is a click and not a `mousedown` —
+          `priority-cell.tsx` and `e2e/keyboard.spec.ts` between them say what a
+          discrete update inside a `mousedown` dispatch does to the focus the
+          browser is about to move.
+        */
+        onClick={() => {
+          if (typed !== null) return;
           setTyped('');
           setActiveIndex(0);
         }}
@@ -627,7 +669,7 @@ export function CreatablePicker({
           type="button"
           aria-label={`Clear ${label}`}
           data-clear-button
-          title="Clear"
+          data-hint="Clear"
           onClick={onClear}
           style={{ marginLeft: 2, flex: 'none' }}
         >

@@ -313,19 +313,29 @@ async function seedPlan(
 
   // The day be-01 says this row starts, typed back in as the day it may not
   // start before: the caret and the bar's left edge on the same workday.
-  // From the cell's `title`, not its text: the columns print `14 Aug` since `T2
-  // compact-columns` and carry the whole `YYYY-MM-DD` in the attribute.
+  // From the cell's `data-start-said`, not its text: the columns print `14 Aug`
+  // since `T2 compact-columns` and carry the whole `YYYY-MM-DD` in the attribute.
   //
-  // **The first of two facts**, since `row-start-floor`: the `title` reads
+  // **The attribute, not a `title`**, since `start-date-hover-card`
+  // (2026-08-31): the Start cell shows this sentence in the page's own hover
+  // card and has no native tooltip left to read. Reading the `title` here is
+  // what **43** of this gate's 270 cases failed on when that change was first
+  // run whole — the fixture threw before it had built a plan, and the failures
+  // landed in files that have nothing to do with the Start column. A fixture
+  // that reads a presentational attribute is a gate-wide dependency on it.
+  //
+  // **The first of two facts**, since `row-start-floor`: the sentence reads
   // `2026-08-14 — Waits for a dependency’s first estimated step`, the `End`
   // cell's own shape. This helper wants the day alone, and the guard below is
   // kept rather than loosened to a prefix match — it is what turned that change
   // into 26 named failures instead of a fixture quietly holding the wrong row
   // at the wrong date.
-  const title = await rowOf(page, '010.2').locator('[data-column="start"]').getAttribute('title');
-  const startsOn = title?.split(' — ')[0] ?? null;
+  const said = await rowOf(page, '010.2')
+    .locator('[data-column="start"]')
+    .getAttribute('data-start-said');
+  const startsOn = said?.split(' — ')[0] ?? null;
   if (startsOn === null || !/^\d{4}-\d{2}-\d{2}$/.test(startsOn)) {
-    throw new Error(`010.2's Start cell reads ${String(title)}, which has no date to hold it at`);
+    throw new Error(`010.2's Start cell reads ${String(said)}, which has no date to hold it at`);
   }
   await setDate(page, 'Earliest start for 010.2', startsOn);
 
@@ -3161,7 +3171,7 @@ test.describe('the pointed row, across both faces', () => {
 
     await expect(page.locator('[data-gantt-label-lit]')).toHaveCount(1);
     await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
-    await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('title', /^010\.2 - /);
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('data-hint', /^010\.2 - /);
 
     // And the row the pointer is on does **not** light itself: `tr:hover` is
     // already tinting it, and `data-row-lit` on every hovered row makes

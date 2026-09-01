@@ -245,3 +245,57 @@ describe('the creatable picker’s active option', () => {
     expect(takeLine()).toBe(options()[0]);
   });
 });
+
+describe('reopening a picker that never lost the focus', () => {
+  /**
+   * The mechanism behind `picker-reopens-on-click`, in the component all four
+   * reference cells and both card faces share.
+   *
+   * The **gesture** is a browser's — a click on a node that already holds the
+   * focus fires no focus event, and jsdom will happily dispatch a click and a
+   * focus in either order — so it is measured in
+   * `e2e/reference-cells.spec.ts`. What is measured here is the rule that fixes
+   * it, and the one thing that rule must not do: overwrite a search somebody
+   * is part-way through typing.
+   */
+  itDom('opens the list again when the closed box is clicked', () => {
+    const { box } = picker();
+    // Focus, then Escape, which is the shape a take leaves behind: the list
+    // closed with the box still holding the keyboard. Escape rather than a real
+    // take because `closeWhen` and the round trip are the caller's business and
+    // the state they arrive at is this one.
+    fireEvent.focus(box);
+    expect(options()).toHaveLength(ENTRIES.length);
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+
+    // Proof: the box's `onClick` deleted, watched failing here on `Unable to
+    // find an accessible element with the role "option"` — `options()` is
+    // `getAllByRole`, which throws rather than answering an empty list, so the
+    // red says "no list at all" and not "a shorter list". The browser case for
+    // the same line fails on `clicking the focused add field offered nothing ·
+    // Expected: 2 · Received: 0`.
+    fireEvent.click(box);
+    expect(options()).toHaveLength(ENTRIES.length);
+  });
+
+  itDom('leaves a half-typed search alone when the open box is clicked', () => {
+    const { box } = picker();
+    openAs(box, 'qa');
+    const offered = options().map((option) => option.textContent);
+    expect(offered).toHaveLength(3);
+
+    // A click to put the caret somewhere in what has been typed. The reopen
+    // rule must not read this as "open the list": it would reset `typed` to
+    // `''`, widen the list back to the whole directory, and throw away the
+    // search — with the box still showing `qa`, because the value it displays
+    // is `typed ?? …`.
+    //
+    // Proof: the `if (typed !== null) return;` guard deleted, watched failing
+    // here on `expected [ 'Platform', …(2) ] to deeply equal [ 'QA infra', 'Add
+    // “qa”', …(1) ]` — the whole directory back and the search gone.
+    fireEvent.click(box);
+    expect(options().map((option) => option.textContent)).toEqual(offered);
+    expect(box.value).toBe('qa');
+  });
+});

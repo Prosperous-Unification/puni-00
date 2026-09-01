@@ -137,7 +137,7 @@ function LinkInGrid({ href, children }: LinkProps) {
     <a
       data-name-link
       href={href}
-      title={href}
+      data-hint={href}
       style={LINK_INK}
       target="_blank"
       rel="noreferrer noopener"
@@ -198,7 +198,7 @@ export function LinkFollowable({ href, children }: LinkProps) {
     <a
       data-name-link
       href={href}
-      title={href}
+      data-hint={href}
       style={LINK_INK}
       target="_blank"
       rel="noreferrer noopener"

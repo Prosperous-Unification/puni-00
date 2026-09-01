@@ -8,6 +8,8 @@ import {
   useState,
 } from 'react';
 
+import { type Hintable } from '@/components/wbs/hint';
+
 import type { CellElement } from './editable-grid';
 import { LiveField, type SendEdit } from './live-editing';
 import { splitNameCell } from './name-notes';
@@ -46,7 +48,7 @@ function drawnBoxHeight(node: HTMLTextAreaElement): number | null {
   return drawn.scrollHeight;
 }
 
-export interface CellInputProps extends PassedThrough {
+export interface CellInputProps extends PassedThrough, Hintable {
   /**
    * Which cell of the grid this is — `rowId::columnId`, the same string every
    * other part of the keyboard finds a cell by.

@@ -35,10 +35,14 @@ import {
   type TagLabel,
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
+import { initialsOf } from './initials';
 import { InlineMarkdown } from './inline-markdown';
 import { priorityBandStyleOf } from './priority-band-style';
 import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor } from './table-frame';
+import { nameWords, numberWords, rowWords } from './work-item-words';
+
+export { rowWords } from './work-item-words';
 
 /**
  * How wide one workday may be drawn, in CSS pixels — the rungs a reader picks
@@ -911,44 +915,44 @@ export function todayOffset(axis: readonly AxisDay[], today: IsoDate): number | 
 }
 
 /**
- * Somebody's initials: the first letter of their first and last names.
+ * What a bar writes on itself: the assignee's **short name**, or nothing.
  *
- * What a bar too narrow for a name gets. Two letters at most, because a third
- * costs as much room again and says almost nothing.
- */
-export function initialsOf(personName: string): string {
-  const words = personName.split(/\s+/).filter((word) => word !== '');
-  const first = words.at(0);
-  if (first === undefined) return '';
-  // The last word only when there is one: `Anna` is `A`, and `Anna Adams` is
-  // `AA` — repeating the first letter for a one-word name would be a wrong
-  // answer rather than a short one.
-  const last = words.length > 1 ? (words.at(-1) ?? '') : '';
-  return (first.slice(0, 1) + last.slice(0, 1)).toUpperCase();
-}
-
-/**
- * What a bar writes on itself: the person's name, their initials, or nothing.
+ * Two answers and not three, since `gantt-short-assignee` (Dany, 2026-08-31 —
+ * _"the Gantt must always use the assignee's short name"_). This measured the
+ * bar and wrote the whole name where it fitted, so one person read two ways on
+ * one chart — `vadym kucherenko` on a ten-day bar and `VK` on a one-day bar —
+ * and a reader scanning a column of bars for one person had no fixed mark to
+ * scan for. The width a bar happens to have is not a fact about who is on it.
  *
- * The three answers are one measurement — how many pixels the bar is, which is
- * its **drawn** span through {@link DAY_PX} — so the threshold is not a second
- * constant to keep in step with the drawing. A bar with nobody on it writes
- * nothing: its colour already says so.
+ * The short name is {@link initialsOf}'s, which is the folded step cell's, so a
+ * bar and the cell beside it name the same person identically. Nothing is lost
+ * that the bar's own hover card does not say in full.
+ *
+ * The one measurement left is the refusal: a bar without room for the short name
+ * writes no assignee, because a label box over a 5px bar is a stray outline and
+ * a swallowed click rather than words. A bar with nobody on it writes nothing
+ * either — its colour already says so.
  *
  * Null rather than an empty string, so a caller cannot render a label that is
  * there and blank.
+ *
+ * @param personName The assignee's name as the directory holds it, or null.
+ * @param drawnSpan The bar's drawn span in calendar cells, weekends included.
+ * @param dayPx How wide one cell is drawn.
+ * @returns One or two characters, or null where nobody is on it or nothing fits.
  */
 export function barLabelFor(
   personName: string | null,
   drawnSpan: number,
   dayPx: number,
 ): string | null {
+  // Before {@link initialsOf}, which **throws** on a name with no non-space
+  // character in it rather than answering with a blank badge (its own R5 note).
+  // The chart's deleted copy returned `''` and this guard is what replaces it.
   if (personName === null || personName.trim() === '') return null;
   const room = drawnSpan * dayPx - 2 * LABEL_PAD_PX;
-  if (room >= personName.length * LABEL_CHAR_PX) return personName;
-  const initials = initialsOf(personName);
-  if (initials !== '' && room >= initials.length * LABEL_CHAR_PX) return initials;
-  return null;
+  const short = initialsOf(personName);
+  return room >= short.length * LABEL_CHAR_PX ? short : null;
 }
 
 /**
@@ -1018,10 +1022,14 @@ export function barText(
  *
  * The `?` is the point and is never dropped for the name: this bar's width is
  * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
- * `Kat` and nothing else is a bar claiming two days of Kat's time. So the
- * candidates are tried longest-first and the bare `?` is the last of them —
+ * `KA` and nothing else is a bar claiming two days of Kat's time. So the two
+ * candidates are tried longer-first and the bare `?` is the second of them —
  * which at two workdays always fits, and is what a bar drawn narrower than that
  * would fall back to.
+ *
+ * **Two candidates and not three, since `gantt-short-assignee`.** The middle one
+ * was the full name, and {@link barLabelFor} says why it is gone: one person is
+ * one mark whatever a bar's width is.
  *
  * Null rather than an empty string, for {@link barLabelFor}'s reason: a caller
  * cannot render a label that is there and blank.
@@ -1039,7 +1047,9 @@ export function assumedLabelFor(
 ): string | null {
   const room = drawnSpan * dayPx - 2 * LABEL_PAD_PX;
   const who = personName === null ? '' : personName.trim();
-  const candidates = who === '' ? ['?'] : [`${who} · ?`, `${initialsOf(who)} · ?`, '?'];
+  // The trim above is what makes {@link initialsOf} safe to call: it throws on a
+  // name with no non-space character rather than answering with a blank badge.
+  const candidates = who === '' ? ['?'] : [`${initialsOf(who)} · ?`, '?'];
   return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
 }
 
@@ -1456,32 +1466,6 @@ export function barFacts(
     bar.waitsFor.length === 0 ? null : `after ${bar.waitsFor.join(', ')}`,
   ].filter((line): line is string => line !== null);
 }
-
-/**
- * A row named the way the plan names it: its number, then its name.
- *
- * The number is what a person says out loud about a row — it is what the
- * Depends on chips carry, what the toasts name and what the keyboard's labels
- * are written from — and a chart label of names alone made the two drawings of
- * one plan read as two plans. An unnamed row still has a number, which is the
- * whole of why the empty name has words of its own here.
- */
-export const rowWords = (number: string, name: string): string =>
-  `${numberWords(number)}${nameWords(name)}`;
-
-/**
- * The half of {@link rowWords} that is the plan's own numbering, and the half
- * that is the name — split because the label **draws** the second half through
- * `InlineMarkdown` and still **says** the whole of it in its `title`.
- *
- * Two halves of one sentence rather than two spellings of it: the tooltip and
- * the button are built from the same two functions, so a change to either
- * reaches both.
- */
-const numberWords = (number: string): string => `${number} - `;
-
-/** A row's name as the chart says it, which is words even when the name is empty. */
-const nameWords = (name: string): string => (name === '' ? '(unnamed)' : name);
 
 /**
  * What a not-before caret says on hover: the date the row cannot start before.
@@ -2981,7 +2965,7 @@ function GanttChart({
                   // Sanding', …(2) ]`, and `takes the plan to a row when its label
                   // is clicked` on the button no longer being findable by its
                   // number. Watched, 2026-08-09.
-                  title={rowWords(label.number, label.name)}
+                  data-hint={rowWords(label.number, label.name)}
                   // The house indent, so the chart's outline is the plan's outline
                   // — `hierarchyIndentFor`, the uncapped half of the pair: this
                   // rail has no declared column width to protect, so a depth-6
@@ -3955,7 +3939,7 @@ function GanttChart({
           type="button"
           data-gantt-labels-toggle
           aria-pressed={labelsShown}
-          title={
+          data-hint={
             labelsShown
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
@@ -3990,7 +3974,7 @@ function GanttChart({
           type="button"
           data-gantt-detail-toggle
           aria-pressed={detailShown}
-          title={
+          data-hint={
             detailShown
               ? 'Hide the arrows, the parent bars and the unestimated slices'
               : 'Show the arrows, the parent bars and the unestimated slices'
@@ -4044,7 +4028,7 @@ function GanttChart({
         <select
           data-gantt-day-scale
           aria-label="Day scale — how wide one day is drawn"
-          title={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
+          data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
           className="border-border hover:bg-accent ml-1 rounded border bg-transparent px-1 normal-case"
           value={dayPx}
           onChange={(pick) => {
@@ -4090,7 +4074,7 @@ function GanttChart({
           type="button"
           data-gantt-fullscreen-toggle
           aria-pressed={fullScreen}
-          title={
+          data-hint={
             fullScreen
               ? 'Leave full screen and put the chart back under the plan (Escape)'
               : 'Draw the chart on the whole screen — the page padding is about 47px of it'
@@ -4106,7 +4090,7 @@ function GanttChart({
           type="button"
           data-gantt-svg-download
           aria-label="Download this chart as a standalone SVG"
-          title="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+          data-hint="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
           className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
           onClick={downloadGanttSvg}
         >

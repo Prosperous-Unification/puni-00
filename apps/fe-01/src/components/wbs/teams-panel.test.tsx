@@ -359,8 +359,10 @@ describe('stating how many of a team are at work at once on this plan', () => {
     stubbed();
 
     expect(screen.getByText(/another plan sharing a team is not affected/i)).toBeTruthy();
-    expect(boxFor('Platform').title).toContain('This plan does not limit');
-    expect(boxFor('Backend').title).toContain('on this plan');
+    expect(boxFor('Platform').getAttribute('data-hint') ?? '').toContain(
+      'This plan does not limit',
+    );
+    expect(boxFor('Backend').getAttribute('data-hint') ?? '').toContain('on this plan');
   });
 });
 

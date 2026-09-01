@@ -5,6 +5,7 @@ import { AuthForm } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { PresencePanel } from '@/components/presence/presence-panel';
+import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
 
@@ -127,6 +128,14 @@ function AppContent() {
      * clipping it would put rows below the fold with no way to reach them.
      */
     <div className="bg-background text-foreground flex h-full flex-col font-sans">
+      {/*
+       * Every hint in this app, in one card. Mounted here rather than per page
+       * because it is driven by an attribute and not by a prop: any control
+       * anywhere under this element that carries `data-hint` is hinted, and
+       * there is exactly one card and one listener for all of them. See
+       * {@link HintLayer} for why that is what makes it stale-proof.
+       */}
+      <HintLayer />
       {/*
        * The router is mounted **here**, inside the branch the gate already
        * chose, and never around it. That is what makes a signed-out

@@ -233,7 +233,7 @@ export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardChea
             size="square"
             type="button"
             aria-label="Close the keyboard shortcuts"
-            title="Close (Escape)"
+            data-hint="Close (Escape)"
             onClick={onClose}
             className="ml-auto"
           >

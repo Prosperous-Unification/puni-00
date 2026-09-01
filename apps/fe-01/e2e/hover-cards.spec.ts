@@ -160,6 +160,98 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
     ).toBe(false);
   });
 
+  test('opens the Start cell’s sentence in the same breath, and carries no title', async ({
+    page,
+  }) => {
+    // Dany, 2026-08-31: hovering the Start date must give an **instant**
+    // tooltip, and not the native one. Both halves are asserted, and both need
+    // a browser: the timing, because a native `title` is the browser's own
+    // ~1s delay in the platform's own chrome, and the absence, because a
+    // `title` left in place would race this card over the same pixels — the
+    // folded step cell's own note, a fortnight earlier.
+    const cell = page
+      .locator('tbody tr')
+      .filter({ has: page.getByLabel('Name of 010') })
+      .locator('td[data-column="start"]');
+
+    // No `title` anywhere in the cell. `getAttribute` and not a hover: a
+    // tooltip the browser draws is not in the DOM to be found, so the only
+    // observable form of "not the native one" is the attribute's absence.
+    //
+    // Proof: `title: said` put back on `startCellProps`' returned props,
+    // watched failing here on `expect(received).toBeNull() · Received:
+    // "Starts with the project"`.
+    expect(await cell.getAttribute('title')).toBeNull();
+    expect(await cell.locator('[title]').count()).toBe(0);
+    // The sentence is still in the DOM at rest, for the oracles that read the
+    // day back out of the table — `e2e/gantt.spec.ts`' own fixture among them.
+    expect(await cell.getAttribute('data-start-said')).toBe('Starts with the project');
+
+    await cell.hover();
+
+    // One read, no retry, for this file's own reason: `toBeVisible` would wait
+    // up to ten seconds for a card that opens on a timer, and a card that opens
+    // on a timer is the thing Dany asked this not to be.
+    //
+    // Proof: `onMouseEnter` deleted from `startCellProps`, watched failing on
+    // `no card in the frame the mouse arrived on the Start cell · expected 0 to
+    // be 1`.
+    expect(await cardsOpen(page), 'no card in the frame the mouse arrived on the Start cell').toBe(
+      1,
+    );
+    expect(await cardText(page)).toContain('Starts with the project');
+  });
+
+  test('paints the Start cell’s card past the edge of a 52px column', async ({ page }) => {
+    // `start` joined `POPOVER_COLUMNS` for this change, and the Types column on
+    // 2026-08-31 is what says the claim needs a browser: a `<td>` that keeps
+    // `overflow: clip` cuts the card at the cell edge, a clipped box still
+    // reports its full geometry, and jsdom lays nothing out at all. So the
+    // question asked is whether anything is **painted** outside the cell, which
+    // is a screenshot of that strip with the card open against the same strip
+    // with it closed — `paints the card past the bottom of a 96px cell`'s method,
+    // and its reasons.
+    const cell = page
+      .locator('tbody tr')
+      .filter({ has: page.getByLabel('Name of 010') })
+      .locator('td[data-column="start"]');
+
+    await cell.hover();
+    expect(await cardsOpen(page)).toBe(1);
+
+    const card = await boxOf(page.locator('[role="tooltip"]').first(), 'the Start card');
+    const cellBox = await boxOf(cell, 'the Start cell');
+    // The precondition, and R5 tally #16 is why it is here: a card of no size,
+    // or one that never reached past its cell, would make the strip below it
+    // empty and the comparison meaningless.
+    expect(card.width, 'the card has no width').toBeGreaterThan(0);
+    expect(card.height, 'the card has no height').toBeGreaterThan(0);
+    expect(
+      Math.round(card.y + card.height - (cellBox.y + cellBox.height)),
+      'the card does not reach past the bottom of its cell',
+    ).toBeGreaterThan(8);
+
+    const strip = {
+      x: Math.round(card.x + 4),
+      y: Math.round(cellBox.y + cellBox.height + 2),
+      width: Math.round(Math.min(card.width - 8, 120)),
+      height: 8,
+    };
+    const painted = await page.screenshot({ clip: strip });
+
+    await page.mouse.move(0, 0);
+    await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+    const bare = await page.screenshot({ clip: strip });
+
+    // Proof: `'start'` removed from `POPOVER_COLUMNS`, watched failing on `the
+    // strip below the Start cell looks the same with the card open · expected
+    // true to be false`.
+    expect(
+      painted.toString('base64') === bare.toString('base64'),
+      'the strip below the Start cell looks the same with the card open',
+    ).toBe(false);
+  });
+
   test('lets a click through to the row underneath it', async ({ page }) => {
     // The fault this rule was written for: a card hanging over the row below
     // eats a click aimed at that row. `pointer-events: none` is the fix, and a

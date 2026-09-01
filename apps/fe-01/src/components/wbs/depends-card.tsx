@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { HoverCard } from './hover-card';
+import { rowWords } from './work-item-words';
 
 /** One work item another waits for, as the chips have it. */
 export interface DependsEntry {
@@ -18,7 +19,7 @@ export interface DependsEntry {
  * copy for readers with no pointer, and a card and a description that disagreed
  * about one row's dependencies would be worse than either.
  */
-export const dependsLine = (entry: DependsEntry): string => `${entry.number} - ${entry.name}`;
+export const dependsLine = (entry: DependsEntry): string => rowWords(entry.number, entry.name);
 
 /** The four edges used by the state-only pointer bridge. */
 export interface PointerRect {

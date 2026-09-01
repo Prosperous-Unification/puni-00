@@ -343,7 +343,7 @@ test('the card names the row an inherited tag was written on', async ({ page }) 
   // Reference 010", + "Review", + "Risk" }`. Watched in Chromium, 2026-08-31.
   expect(
     new Set(await card.locator('[data-reference-card-line="carried"]').allTextContents()),
-  ).toEqual(new Set(seeded.tags.slice(1).map((tag) => `↳ ${tag.name} — from 010 Reference 010`)));
+  ).toEqual(new Set(seeded.tags.slice(1).map((tag) => `↳ ${tag.name} — from 010 - Reference 010`)));
 });
 
 test('the card keeps out of the way of the open editor', async ({ page }) => {

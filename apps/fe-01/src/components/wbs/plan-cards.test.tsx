@@ -897,7 +897,7 @@ describe('the plan on a phone', () => {
     expect(onCard?.textContent).toBe('1 Jun → 3 Jun');
     // And the full days are still a hover away, the same bargain the table's
     // cells make.
-    expect(onCard?.getAttribute('title')).toBe(`${DATED_PLAN.startsOn} → ${DATED_PLAN.endsOn}`);
+    expect(onCard?.getAttribute('data-hint')).toBe(`${DATED_PLAN.startsOn} → ${DATED_PLAN.endsOn}`);
 
     resizeTo(LAPTOP);
 
@@ -917,7 +917,7 @@ describe('the plan on a phone', () => {
     expect(onCard?.textContent).toBe('0 → 0');
     // Nothing fuller to say, so nothing said: a `title` repeating the cell is
     // noise a screen reader has to read out.
-    expect(onCard?.getAttribute('title')).toBe(null);
+    expect(onCard?.getAttribute('data-hint')).toBe(null);
 
     resizeTo(LAPTOP);
 
@@ -1467,7 +1467,7 @@ describe('what a card says about capacity', () => {
     expect(cards[0]?.textContent).toBe('Billing');
     expect(cards[1]?.textContent).toBe('↳ Billing');
     expect(cards[1]?.getAttribute('data-inherited')).toBe('true');
-    expect(cards[1]?.getAttribute('title')).toContain('inherited from');
+    expect(cards[1]?.getAttribute('data-hint')).toContain('inherited from');
   });
 
   itDom('draws no team line at all where nothing above carries a label', async () => {
@@ -1510,7 +1510,7 @@ describe('what a card says about capacity', () => {
     expect(cards[0]?.textContent).toBe('Payments');
     expect(cards[1]?.textContent).toBe('↳ Payments');
     expect(cards[1]?.getAttribute('data-inherited')).toBe('true');
-    expect(cards[1]?.getAttribute('title')).toContain('inherited from');
+    expect(cards[1]?.getAttribute('data-hint')).toContain('inherited from');
   });
 
   itDom('draws no service line at all where nothing above delivers anything', async () => {
@@ -1545,11 +1545,11 @@ describe('what a card says about capacity', () => {
     const child = cards[1];
     expect(child.querySelector('[data-card-tags]')?.textContent).toBe('Ready');
     expect(child.querySelector('[data-card-tags-inherited]')?.textContent).toBe('↳ Risk');
-    expect(child.getAttribute('title')).toBe(
+    expect(child.getAttribute('data-hint')).toBe(
       // `(unnamed)` because the fixture creates rows with no name at all —
       // the tree's own words for a row nobody has titled, which is what the
       // card would show a reader too.
-      'Risk — inherited from 010 (unnamed). Remove it there.',
+      'Risk — inherited from 010 - (unnamed). Remove it there.',
     );
     // Every word in force is in the name the control answers to, because a
     // reader navigating by voice or by label gets no chips at all. The number
@@ -1654,8 +1654,10 @@ describe('what a card says about capacity', () => {
       // still pass on the tooltip.
       await aMismatchedPlan();
 
-      for (const each of mismatchesOnCard()) expect(each.getAttribute('title')).toBeNull();
-      expect(document.querySelector('[data-card-mismatches]')?.getAttribute('title')).toBeNull();
+      for (const each of mismatchesOnCard()) expect(each.getAttribute('data-hint')).toBeNull();
+      expect(
+        document.querySelector('[data-card-mismatches]')?.getAttribute('data-hint'),
+      ).toBeNull();
       // The glyph is decoration now that the sentence beside it is the accessible
       // name; a screen reader announcing the triangle first would read it out.
       expect(mismatchesOnCard()[0]?.querySelector('[aria-hidden]')?.textContent).toBe('△');
@@ -1719,7 +1721,7 @@ describe('what a card says about capacity', () => {
     const chip = document.querySelector<HTMLElement>('[data-card-priority]');
     expect(chip?.textContent).toBe('Critical 5');
     expect(chip?.getAttribute('data-priority-rank')).toBe('0');
-    expect(chip?.getAttribute('title')).toBe('Critical — priority 5');
+    expect(chip?.getAttribute('data-hint')).toBe('Critical — priority 5');
     // A colour, and the plan's own — the same `priorityBandStyleOf` the table's
     // cell and the chart's cap read.
     expect(chip?.style.color).not.toBe('');
@@ -1822,7 +1824,7 @@ describe('what a card says about the schedule', () => {
 
     expect(slackOnCard()?.textContent).toBe('2.5d slack');
     expect(slackOnCard()?.getAttribute('data-critical')).toBeNull();
-    expect(slackOnCard()?.getAttribute('title')).toBe(
+    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
       'This work item can slip 2.5 workdays before the plan finishes later.',
     );
   });
@@ -1832,7 +1834,7 @@ describe('what a card says about the schedule', () => {
       rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
     });
 
-    expect(slackOnCard()?.getAttribute('title')).toBe(
+    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
       'This work item can slip 1 workday before the plan finishes later.',
     );
   });
@@ -1847,7 +1849,7 @@ describe('what a card says about the schedule', () => {
 
     expect(slackOnCard()?.textContent).toBe('critical');
     expect(slackOnCard()?.getAttribute('data-critical')).toBe('true');
-    expect(slackOnCard()?.getAttribute('title')).toBe(
+    expect(slackOnCard()?.getAttribute('data-hint')).toBe(
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
@@ -2022,7 +2024,12 @@ describe('the trio behind a step’s figure, on a card', () => {
 describe('typing a trio on a card, where the keypad has no slash', () => {
   const openTheTrioSheet = async (stepName: string, number: string): Promise<HTMLElement> => {
     fireEvent.click(screen.getByRole('button', { name: `${stepName} o, r and p for ${number}` }));
-    return screen.findByRole('dialog', { name: `${stepName} estimate for ${number}` });
+    return screen.findByRole('dialog', {
+      // A work item is named by its number **and** its name now
+      // (`work-items-named-by-number-and-name`), so the heading is matched by
+      // its opening rather than as a whole — the fixture's names are its own.
+      name: new RegExp(`^${stepName} estimate for ${number} - `),
+    });
   };
 
   /**
@@ -2194,7 +2201,10 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
-      expect(items[2]).toHaveAttribute('title', 'Frozen — unfreeze this row before deleting it');
+      expect(items[2]).toHaveAttribute(
+        'data-hint',
+        'Frozen — unfreeze this row before deleting it',
+      );
 
       // The refusal refuses on the real handler, not only on the stub the
       // isolated suite hands it.
@@ -2398,7 +2408,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
-    expect(items[2]).toHaveAttribute('title', 'Frozen — unfreeze this row before deleting it');
+    expect(items[2]).toHaveAttribute('data-hint', 'Frozen — unfreeze this row before deleting it');
     expect(items[2]).toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -2868,7 +2878,7 @@ describe('setting a card’s earliest start', () => {
 
   const openTheDateSheet = async (): Promise<HTMLElement> => {
     fireEvent.click(dateFields()[0]);
-    return screen.findByRole('dialog', { name: 'Earliest start for 010' });
+    return screen.findByRole('dialog', { name: /^Earliest start for 010 - / });
   };
 
   itDom('opens a sheet over the same cell the table’s Not before box edits', async () => {
@@ -2961,12 +2971,12 @@ describe('setting a card’s earliest start', () => {
 
     const field = dateFields()[0];
     expect(field.hasAttribute('disabled')).toBe(true);
-    expect(field.getAttribute('title')).toBe(
+    expect(field.getAttribute('data-hint')).toBe(
       'Set the project start date first — without one there are no dates to constrain.',
     );
 
     fireEvent.click(field);
-    expect(screen.queryByRole('dialog', { name: 'Earliest start for 010' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: /^Earliest start for 010 - / })).toBeNull();
   });
 
   itDom('seeds the boxes from the row again on the second open', async () => {
@@ -2985,7 +2995,7 @@ describe('setting a card’s earliest start', () => {
     );
     fireEvent.keyDown(sheet, { key: 'Escape' });
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Earliest start for 010' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: /^Earliest start for 010 - / })).toBeNull();
     });
 
     await openTheDateSheet();
@@ -3026,7 +3036,7 @@ describe('setting a card’s priority', () => {
 
   const openTheSheet = async (): Promise<HTMLElement> => {
     fireEvent.click(priorityFields()[0]);
-    return screen.findByRole('dialog', { name: 'Priority for 010' });
+    return screen.findByRole('dialog', { name: /^Priority for 010 - / });
   };
 
   itDom('opens a sheet over the same cell the table’s Prio box edits', async () => {
@@ -3064,7 +3074,7 @@ describe('setting a card’s priority', () => {
         expect(chipOnCard()?.textContent).toBe('High 30');
       });
       await waitFor(() => {
-        expect(screen.queryByRole('dialog', { name: 'Priority for 010' })).toBeNull();
+        expect(screen.queryByRole('dialog', { name: /^Priority for 010 - / })).toBeNull();
       });
     },
   );
@@ -3091,7 +3101,7 @@ describe('setting a card’s priority', () => {
       expect(chipOnCard()?.textContent).toBe('Medium 42');
     });
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Priority for 010' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: /^Priority for 010 - / })).toBeNull();
     });
   });
 
@@ -3109,7 +3119,7 @@ describe('setting a card’s priority', () => {
       expect(api.patched.slice(before)).toEqual([{ id: api.rows[0]?.id, priority: 30 }]);
     });
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Priority for 010' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: /^Priority for 010 - / })).toBeNull();
     });
   });
 
@@ -3170,7 +3180,7 @@ describe('setting a card’s priority', () => {
       expect(chipOnCard()).toBeNull();
     });
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Priority for 010' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: /^Priority for 010 - / })).toBeNull();
     });
   });
 
@@ -3188,7 +3198,7 @@ describe('setting a card’s priority', () => {
     });
     fireEvent.keyDown(sheet, { key: 'Escape' });
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Priority for 010' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: /^Priority for 010 - / })).toBeNull();
     });
 
     await openTheSheet();
@@ -3230,7 +3240,7 @@ describe('setting what a card waits for', () => {
    */
   const openTheSheetOn = async (number: string): Promise<HTMLElement> => {
     fireEvent.click(screen.getByRole('button', { name: `Depends on for ${number}` }));
-    return screen.findByRole('dialog', { name: `Depends on for ${number}` });
+    return screen.findByRole('dialog', { name: new RegExp(`^Depends on for ${number} - `) });
   };
 
   itDom('opens a sheet over the same cell the table’s Depends box edits', async () => {
@@ -3285,7 +3295,7 @@ describe('setting what a card waits for', () => {
       ]);
     });
     // Still the same sheet, never re-opened.
-    expect(screen.getByRole('dialog', { name: 'Depends on for 030' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /^Depends on for 030 - / })).toBeInTheDocument();
   });
 
   itDom('takes a wait off again with a control a finger can hit', async () => {

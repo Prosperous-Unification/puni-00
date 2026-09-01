@@ -32,7 +32,6 @@ import {
   GanttPanel,
   ganttRoomInColumn,
   ganttSvgFileName,
-  initialsOf,
   isDayPx,
   isoToday,
   LABEL_COLUMN_PX,
@@ -40,6 +39,7 @@ import {
   ROW_PX,
   rowWords,
 } from './gantt-panel';
+import { initialsOf } from './initials';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -388,7 +388,7 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
 
     // The tooltip is the whole sentence in its own source, so a label the
     // column truncated can still be read as it was typed.
-    expect(shipped?.getAttribute('title')).toBe('010 - Ship *now*');
+    expect(shipped?.getAttribute('data-hint')).toBe('010 - Ship *now*');
   });
 });
 
@@ -2497,7 +2497,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // The band is in the number because the SVG under this span begins one band
     // left of day 0 (see {@link CHART_PAD_PX}); dropping it here puts every
     // name 12px left of the bar it belongs to.
-    expect(label?.textContent).toBe('Kat · strip - strip');
+    expect(label?.textContent).toBe('KA · strip - strip');
     expect(label?.style.left).toBe(`${String(7 * DAY_PX + CHART_PAD_PX)}px`);
     expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
     // Second row, and the same inset the rect above it has: the words sit on
@@ -2566,7 +2566,7 @@ describe('the words on the bars are HTML over the chart', () => {
       />,
     );
 
-    expect(labelOn('strip-dev')?.textContent).toBe('Kat · strip - strip');
+    expect(labelOn('strip-dev')?.textContent).toBe('KA · strip - strip');
   });
 
   itDom('writes nothing at all on a bar too narrow to hold a letter', () => {
@@ -2592,7 +2592,7 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(labelOn('strip-dev')).toBeNull();
     // The wide bar on the row above still has its words, so this is a threshold
     // and not a switch that turned every label off.
-    expect(labelOn('trim-dev')?.textContent).toBe('Ravi · trim - trim');
+    expect(labelOn('trim-dev')?.textContent).toBe('RA · trim - trim');
   });
 
   itDom('writes the row’s own words after the assignee, and alone when nobody fits', () => {
@@ -2628,7 +2628,7 @@ describe('the words on the bars are HTML over the chart', () => {
       />,
     );
     const label = labelOn('strip-dev');
-    expect(label?.textContent).toBe('Kat · strip - strip');
+    expect(label?.textContent).toBe('KA · strip - strip');
     // Cropped by the box, in a size that sits inside the bar: the ellipsis
     // classes and the smaller font are what make the full string honest.
     expect(label?.classList.contains('text-ellipsis')).toBe(true);
@@ -2687,21 +2687,55 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(labelOn('slice-0')?.style.color).toBe('rgb(255, 255, 255)');
   });
 
-  itDom('shortens a name to initials before it clips, and never mid-word', () => {
-    // The three answers of one measurement, taken directly: 4 workdays is
-    // 112px and holds `Kat Bloom`; 1 workday is 28 and holds `KB`; a fifth of
-    // one holds nothing.
-    expect(barLabelFor('Kat Bloom', 4, DAY_PX)).toBe('Kat Bloom');
+  itDom('names its assignee by their short name at every width a bar can be', () => {
+    // **One person, one mark** (`gantt-short-assignee`). A four-workday bar is
+    // 112px and would hold `Kat Bloom` whole; it writes `KB` all the same,
+    // because the width a bar happens to have is not a fact about who is on it.
+    //
+    // Proof: `barLabelFor` given its old first candidate back — `room >=
+    // personName.length * LABEL_CHAR_PX ? personName : short` — watched failing
+    // on `expected 'Kat Bloom' to be 'KB'` here, and on `expected 'Kat · strip -
+    // strip' to be 'KA · strip - strip'` in the four rendered cases: 6 failed |
+    // 281 passed. The narrow bar and both refusals below stayed green, which is
+    // the shape of the fault — it is invisible on every bar too narrow to hold a
+    // whole name.
+    expect(barLabelFor('Kat Bloom', 4, DAY_PX)).toBe('KB');
     expect(barLabelFor('Kat Bloom', 1, DAY_PX)).toBe('KB');
+    // A fifth of a workday holds nothing: a label box over a 5px bar is a stray
+    // outline, not words.
     expect(barLabelFor('Kat Bloom', 0.2, DAY_PX)).toBeNull();
     expect(barLabelFor(null, 4, DAY_PX)).toBeNull();
+    // Spaces are not a name. The guard is what stands in front of `initialsOf`,
+    // which **throws** rather than answering with a blank badge — so this case
+    // is the one that says the guard is still there.
+    //
+    // Proof: `personName.trim() === ''` deleted from the guard, watched failing
+    // on `an assignee with no name cannot be initialled` — `1 failed | 159
+    // passed`, this case alone, the throw arriving out of `initialsOf`. A
+    // `toBeNull()` against a function that answered `''` could never have seen
+    // it; the throw is what makes the guard load-bearing.
+    expect(barLabelFor('   ', 4, DAY_PX)).toBeNull();
   });
 
-  itDom('takes initials from the first and last names, and never doubles one', () => {
-    expect(initialsOf('Kat Bloom')).toBe('KB');
-    expect(initialsOf('Kat van der Bloom')).toBe('KB');
-    expect(initialsOf('Kat')).toBe('K');
-    expect(initialsOf('  ')).toBe('');
+  itDom('names a person the way the table names them, from one function', () => {
+    // The chart had an `initialsOf` of its own, and it disagreed: a one-word
+    // name got its **first letter** here (`vadym` → `V`) and its first two in
+    // `initials.ts` (`vadym` → `VA`). Usernames on this app are single words, so
+    // the two answered differently for nearly every person it has, and a bar and
+    // the folded step cell beside it named one person two ways.
+    //
+    // Asserted against `initials.ts` directly rather than against a literal:
+    // a literal here is a second copy of the rule, which is the fault.
+    //
+    // Proof: the chart's own copy restored and `barLabelFor` pointed back at it,
+    // watched failing on `expected 'V' to be 'VA'` here and on `expected 'K ·
+    // strip - strip' to be 'KA · strip - strip'` in the four rendered cases —
+    // 5 failed. The case above cannot see this one on its own: `Kat Bloom`
+    // initials to `KB` under both rules, which is exactly why the two functions
+    // disagreed without anything ever going red.
+    for (const name of ['vadym', 'Kat Bloom', 'Kat van der Bloom', 'K']) {
+      expect(barLabelFor(name, 4, DAY_PX)).toBe(initialsOf(name));
+    }
   });
 
   itDom('leaves the label out of the way of the click that takes the plan to a row', () => {
@@ -3205,11 +3239,18 @@ function columnText(columnId: string, at: number): string {
 function columnDay(columnId: string, at: number): string {
   const cell = [...document.querySelectorAll(`td[data-column="${columnId}"]`)].at(at);
   if (cell === undefined) throw new Error(`the table has no ${columnId} cell at row ${String(at)}`);
-  // The `Start` cell carries its `title` on the `<td>` itself (the whole cell
-  // is the target since `wbs-waiting-sentence-hover-target`); the `End` cell
-  // still carries it on the `[data-finish]` span inside. Read the cell first,
-  // then fall back to its child.
-  const day = cell.getAttribute('title') ?? cell.querySelector('[title]')?.getAttribute('title');
+  // The `Start` cell carries its sentence on the `<td>` itself as
+  // `data-start-said` — since `start-date-hover-card` it has no tooltip
+  // attribute at all, because a native one cannot be instant and raced the
+  // cell's own card over the same pixels. The `End` cell carries its hint on
+  // the `[data-finish]` span inside, in `data-hint`: since
+  // `hints-are-the-page-s-own` no control in this app carries a `title` it
+  // means as a hint. Read the Start attribute, then this cell's hint, then a
+  // child's.
+  const day =
+    cell.getAttribute('data-start-said') ??
+    cell.getAttribute('data-hint') ??
+    cell.querySelector('[data-hint]')?.getAttribute('data-hint');
   if (day === undefined || day === null) {
     throw new Error(`the ${columnId} cell at row ${String(at)} is not showing a date at all`);
   }
@@ -4034,10 +4075,10 @@ describe('a bar names what its row waits for, from the whole tree', () => {
 
     // Proof: `namedInTheTree` built from `shownRows` instead of `flat` — this
     // test failed on `expected [ '020 - Rigging', 'Dev · Unassigned', …(5) ] to
-    // include 'after 011 Sanding'`, the bar reading `after work that is not
+    // include 'after 011 - Sanding'`, the bar reading `after work that is not
     // shown` about a row the plan holds and the reader has merely closed. The
     // search test below failed on the same edit; both watched, 2026-08-09.
-    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 Sanding');
+    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 - Sanding');
   });
 
   itDom('names a predecessor a search narrowed away', async () => {
@@ -4047,7 +4088,7 @@ describe('a bar names what its row waits for, from the whole tree', () => {
 
     // The second half of the same fault, and it has its own test because a
     // collapse and a search narrow the plan by two different mechanisms.
-    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 Sanding');
+    expect(linesOf(surfaceOn('rigging::step-dev'))).toContain('after 011 - Sanding');
   });
 });
 
@@ -4483,7 +4524,7 @@ describe('the axis says its date, at the chart’s own speed', () => {
       });
       expect(linesOf(screen.getByRole('tooltip'))).toEqual(['Mon 17 Aug 2026', 'Workday 5']);
       // One hint, and it is the card: the native title is gone.
-      expect(cellAt(7).getAttribute('title')).toBeNull();
+      expect(cellAt(7).getAttribute('data-hint')).toBeNull();
     } finally {
       vi.useRealTimers();
     }

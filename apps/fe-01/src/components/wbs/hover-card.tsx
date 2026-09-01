@@ -27,6 +27,16 @@ const ANCHOR_GAP_PX = 6;
 const CARD_MAX_WIDTH_PX = 420;
 
 /**
+ * How narrow a card explaining a cell may be, in CSS pixels.
+ *
+ * A floor rather than a fit, because these cards hold sentences: a card sized
+ * to `Waits for 010` and then given `This work item may not start before this
+ * day…` on the next row would be two different shapes in one column. A hint —
+ * {@link HoverCardProps.compact} — is exempt, and is the width of its words.
+ */
+const CARD_MIN_WIDTH_PX = 260;
+
+/**
  * Where an anchored card is drawn: under its mark, flipped above it when there
  * is no room, and clamped so its **own** rectangle stays inside the viewport.
  *
@@ -159,6 +169,18 @@ export interface HoverCardProps {
    * anyway would suggest something reads it.
    */
   id?: string;
+  /**
+   * Whether this card is a **hint** rather than an explanation of a cell.
+   *
+   * One number's worth of difference and it is a real one: an explanatory card
+   * is at least {@link CARD_MIN_WIDTH_PX} wide so a sentence about a cell does
+   * not come out one word per line, and a hint on a 24px toolbar button drawn
+   * to that floor is a 260px slab under a button that says "Undo". A hint takes
+   * the width of its own words instead.
+   *
+   * {@link HintLayer} is the only caller, and passes it always.
+   */
+  compact?: boolean;
   /**
    * Whether this card scrolls its own content, and so has to take the wheel.
    *
@@ -295,6 +317,7 @@ export function HoverCard({
   label,
   id,
   scrolls = false,
+  compact = false,
   anchor,
   beside,
   children,
@@ -455,7 +478,7 @@ export function HoverCard({
         // before it existed. Watched 2026-08-11.
         boxSizing: 'border-box',
         zIndex: 20,
-        minWidth: 260,
+        minWidth: compact ? undefined : CARD_MIN_WIDTH_PX,
         background: 'var(--popover)',
         color: 'var(--popover-foreground)',
         border: '1px solid var(--border)',

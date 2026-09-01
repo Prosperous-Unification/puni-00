@@ -333,7 +333,7 @@ export function TeamsPanel({
         <ul className="flex flex-col gap-3">
           {teams.map((team) => (
             <li key={team.id} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate" title={team.name}>
+              <span className="min-w-0 flex-1 truncate" data-hint={team.name}>
                 {team.name}
               </span>
               <span className="text-muted-foreground shrink-0 text-sm">
@@ -344,7 +344,7 @@ export function TeamsPanel({
                 aria-label={`How many of ${team.name} at once`}
                 inputMode="numeric"
                 placeholder="—"
-                title={
+                data-hint={
                   team.stated === null
                     ? `This plan does not limit how many of ${team.name} work at once. Type a number to limit it.`
                     : `At most ${String(team.stated)} of ${team.name} are at work at once on this plan.`

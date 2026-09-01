@@ -39,8 +39,13 @@ export interface MenuControlProps {
    * for both, because they are one control.
    */
   name: string;
-  /** The trigger's hover text, which is not its name: `Row actions` on a ⋯. */
-  title: string;
+  /**
+   * The trigger's hint, which is not its name: `Row actions` on a ⋯.
+   *
+   * `data-hint` and not `title`, because a `title` is the browser's tooltip and
+   * this app draws its own — see {@link HintLayer}.
+   */
+  'data-hint': string;
   /** What the trigger shows — a glyph, a word, an icon. */
   children: ReactNode;
   actions: readonly MenuAction[];
@@ -148,7 +153,7 @@ const ITEM: CSSProperties = {
  */
 export function MenuControl({
   name,
-  title,
+  'data-hint': hint,
   children,
   actions,
   open,
@@ -260,7 +265,7 @@ export function MenuControl({
         aria-label={name}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={title}
+        data-hint={hint}
         onClick={() => {
           if (open) {
             onClose();
@@ -314,7 +319,7 @@ export function MenuControl({
               // a refused item on the roving tab stop, which is the only way
               // its reason gets read out.
               aria-disabled={busy || action.refusedBecause !== undefined}
-              title={action.refusedBecause}
+              data-hint={action.refusedBecause}
               style={
                 action.refusedBecause === undefined
                   ? ITEM
@@ -425,7 +430,7 @@ export function ActionsMenu({
   return (
     <MenuControl
       name={`Actions for ${number}`}
-      title="Row actions"
+      data-hint="Row actions"
       actions={actions}
       open={open}
       onOpen={onOpen}
