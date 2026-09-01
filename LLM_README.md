@@ -144,7 +144,7 @@ any first message _containing_ `"pong"`; drain reads a malformed metrics body as
 | `apps/mcp-01/README.md`                                                 | the MCP server: 20 tools derived from that document, two of them the batch writes                 |
 | `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path                                                     |
 | `docs/2026-08-30-agent-loop-audit.md`                                   | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens |
+| `docs/2026-09-02-refactoring-plan.md`                                   | before any refactor — five waves, file-by-file ledgers, which `typecheck` targets compile nothing |
 
-Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state
-what was/wasn't verified; never print a secret value. Explicit return types are house style,
-**not** lint-enforced — plenty of existing code infers them.
+Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state what
+was/wasn't verified; never print a secret value. Explicit return types are house style, **not** lint-enforced.
