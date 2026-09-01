@@ -115,7 +115,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-5  | Close the three column leaks (N3): `toProject` names its fields; `work-item.ts:547` and `directory.ts:127` take column lists; promote `WORK_ITEM_COLUMNS`/`USER_COLUMNS` beside their tables; a source-reading test in `audit.test.ts`'s shape fails on a bare `select()`/`returning()` in the folder. | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
 | W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                              | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
 | W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
-| W0-8  | `parseOrThrow` never prints a value (N7): an options argument naming paths only; a negative asserting no env value appears in a boot-failure message.                                                                                                                                                  | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
+| W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                                       | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
 | W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                                      | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
 | W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
 | W0-11 | Delete the dead code in N14 (keep the `examples` **table** — migration tests assert its round trip; drop `'examples'` from `audit.test.ts`'s `EXEMPT` once no drizzle write touches it). Drop `d3`/`@types/d3`.                                                                                        | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
@@ -546,3 +546,48 @@ The service imports `stepIsInUse` from `../repository/step` rather than through 
 the direction W4-1 is heading and the shape `event-log.ts` and `migrate-down.ts` already use.
 
 **Green:** `be-01` 1265 pass, 0 fail (two new cases), lint, typecheck.
+
+## 12 · Verify — W0-8, 2026-09-02
+
+**The leak was bigger than N7 said.** `defineConfig` hands `process.env` — the whole environment —
+to `parseOrThrow`, whose message opened with `JSON.stringify(input)`. So one mistyped `LOG_LEVEL`
+printed every secret be-01 or gw-01 holds. Both declare `INTERNAL_AUTH_SECRET` and
+`JWT_SIGNING_KEY_CURRENT` in the same schema as that literal union.
+
+**Stripping the echo is not enough, and this was measured rather than assumed.** ArkType's summary
+is safe for a type mismatch and quotes what it got for a literal union or a regex:
+
+| Constraint                      | Summary                                       |
+| ------------------------------- | --------------------------------------------- |
+| `PORT: 'number'` given a string | `PORT must be a number (was a string)` — safe |
+| `MODE: "'dev'\|'prod'"`         | `MODE must be "dev" or "prod" (was "sekrit")` |
+| a regex                         | `TOKEN must be matched by … (was "sekrit")`   |
+
+And no field of an ArkType error is reliably safe but the path: `actual` is the value, and for a
+literal union `expected` carries the whole message including it. The `cause` carries `data` too.
+
+So there are two functions, and the split is the interface:
+
+- **`parseOrThrow`** — for a caller's own data (HTTP bodies, wire frames). Keeps the summary,
+  drops the input echo. A body was being repeated back into the log in full; now it is not.
+- **`parseSecretsOrThrow`** — names the failing paths, nothing else, and passes no `cause`. It
+  trades the reason for a guarantee, which is the right trade when the value _is_ the secret: the
+  schema sits next to the caller and says what each key must be.
+
+`defineConfig` uses the second. Watched failing twice, against a schema in the shape be-01 and
+gw-01 actually declare:
+
+| Injected fault                                      | Observed                                                                  |
+| --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `defineConfig` back on `parseOrThrow` with the echo | `Expected to not contain: "s3cret-signing-key-that-must-never-be-logged"` |
+| the echo stripped, summary kept                     | `Expected to not contain: "verbose"`                                      |
+
+The second injection is the one that matters: it is the fault a half-fix leaves behind, and the
+case that catches it is a literal union because that is what a mistyped `LOG_LEVEL` is. The test
+serialises the thrown error as well as its message, so a value surviving in `cause` fails too.
+
+`apps/mcp-01/src/config.ts` refused `defineConfig` in writing over exactly this hazard. Its comment
+is rewritten: the hazard is closed at the source, and what remains is its own narrower reason.
+
+**Green:** `validation`, `config`, `be-01`, `gw-01`, `mcp-01`, `realtime`, `scripts` — test, lint,
+typecheck.

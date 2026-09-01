@@ -41,11 +41,18 @@ const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
 /**
  * Reads the MCP variables and nothing else.
  *
- * The narrow read is the point: `defineConfig` hands its whole env source to
- * `parseOrThrow`, which puts `JSON.stringify(input)` in the thrown message. For
- * be-01 and gw-01 that prints their env on a boot failure; for a process whose
- * env is one account's token and one basic-auth password, it would print the
- * credentials. So the message here names variables and never values.
+ * The narrow read is the point, and the reason has changed. It was that
+ * `defineConfig` handed its whole env source to `parseOrThrow`, which put
+ * `JSON.stringify(input)` in the thrown message — so a boot failure printed the
+ * env, and for a process whose env is one account's token and one basic-auth
+ * password it printed the credentials. `defineConfig` goes through
+ * `parseSecretsOrThrow` now and names variables only, so that hazard is closed
+ * at the source.
+ *
+ * What remains is this file's own reason to stay narrow: it reads the MCP
+ * variables and nothing else, so a variable belonging to another tier cannot
+ * reach an MCP refusal at all. The message here names variables and never
+ * values, which is the same rule one layer up.
  */
 export const loadConfig = (env: Record<string, string | undefined> = process.env): McpConfig => {
   const mode = mcpAuthModeOf(env);
