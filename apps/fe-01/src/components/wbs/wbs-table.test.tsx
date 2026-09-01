@@ -28,6 +28,7 @@ import { cellKey } from './editable-grid';
 import { DAY_PX } from './gantt-panel';
 import { initialsOf } from './initials';
 import { refusedDraftFor } from './live-editing';
+import type * as TableFrameModule from './table-frame';
 import {
   DATE_EDITOR_WIDTH,
   DEEPEST_INDENT,
@@ -46,6 +47,31 @@ const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+/**
+ * How many `<td>`/`<th>` renders the table has performed, counted through
+ * {@link flexibleCellStyle} — every body cell and heading computes its flexible
+ * width exactly once per render (wbs-table.tsx's `<td>`/`<th>` style spreads),
+ * so the count divided by the column count is "how many rows rendered".
+ *
+ * The pointed-row probes read this to assert render isolation: pointing a row
+ * must re-render the rows whose light changed and nothing else. jsdom can see
+ * nothing else that distinguishes "memo held" from "memo silently vacuous" —
+ * React reuses the DOM nodes either way.
+ *
+ * The mock is call-through: every other test sees the real module unchanged.
+ */
+const cellStyleCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./table-frame', async (importOriginal) => {
+  const real = await importOriginal<typeof TableFrameModule>();
+  return {
+    ...real,
+    flexibleCellStyle: (...args: Parameters<typeof real.flexibleCellStyle>) => {
+      cellStyleCalls.count += 1;
+      return real.flexibleCellStyle(...args);
+    },
+  };
+});
 
 /**
  * A plan where no row sets an earliest start, which is what every plan built
@@ -9420,6 +9446,31 @@ describe('the pointed row', () => {
     fireEvent(barOf('030'), pointerEvent('mouse', 'pointerover'));
     expect(litRows()).toEqual(['030']);
     expect(litBands()).toEqual(['2']);
+  });
+
+  itDom('pointing a row from the chart re-renders no unrelated row', async () => {
+    await planWithTheChartOpen();
+    // Three more rows, so "every row rendered" and "only the two lights" are
+    // far enough apart that no off-by-one commit can blur them: six rows plus
+    // the heading row make the faulted reading 7 and the isolated one 3.
+    for (const number of ['040', '050', '060']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+
+    fireEvent(barOf('010'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['010']);
+
+    const columnCount = document.querySelectorAll('thead th').length;
+    const before = cellStyleCalls.count;
+    fireEvent(barOf('020'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['020']);
+
+    // Row-equivalents rendered by moving the light: the heading row plus the
+    // row unlit plus the row lit. Anything above four means rows whose light
+    // never changed rendered again.
+    const rendered = (cellStyleCalls.count - before) / columnCount;
+    expect(rendered).toBeLessThanOrEqual(4);
   });
 
   itDom('is pointed by a bar’s focus, and the pointer outranks it', async () => {

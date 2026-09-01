@@ -25,6 +25,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -149,6 +150,7 @@ import {
 } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
+import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { PriorityCell, priorityTyped } from './priority-cell';
 import { ProjectSettingsModal } from './project-settings-modal';
 import {
@@ -2630,6 +2632,124 @@ function SavedViews({
   );
 }
 
+/** What {@link PlanRow} needs beyond the cells it is handed. */
+interface PlanRowProps {
+  rowId: string;
+  frozen: boolean;
+  /**
+   * Lit because some hovered Depends on cell names this row. The tint itself
+   * lands on the cells through the `--cell-bg` join (`styles.css`), never on
+   * the `<tr>`, for `data-armed`'s reason: a pinned cell paints its own opaque
+   * background and would cover a colour set here.
+   */
+  depLit: boolean;
+  /**
+   * The armed row, said on the row rather than only in the toast: a sentence
+   * in the corner of the screen is not where somebody looks to find out which
+   * row a second Ctrl+D will take.
+   */
+  armed: boolean;
+  /** The drop marker the last `dragover` worked out for this row, if any. */
+  drop: DropZone | undefined;
+  /** Where the row light is read from, and where the pointer's readings go. */
+  pointed: PointedRows;
+  onDragOver: ComponentProps<'tr'>['onDragOver'];
+  onDragLeave: ComponentProps<'tr'>['onDragLeave'];
+  onDrop: ComponentProps<'tr'>['onDrop'];
+  /** The `<td>`s, rendered by {@link WbsTable} — see the shell's own JSDoc. */
+  children: ReactNode;
+}
+
+/**
+ * One plan row's `<tr>` shell: the row-level attributes, the pointer's
+ * enter and leave, and the **row light** from its own subscription.
+ *
+ * A component of its own so the light can move without the table rendering.
+ * {@link WbsTable}'s cells read their live state through its `live` ref and
+ * rely on every parent render reaching every cell, so the pointed row must not
+ * be that component's state — held there it cost a render of all ~500 cells
+ * and the whole chart per row the pointer crossed (75–120ms each, measured in
+ * Chromium, `pointed-row-render-cost`). The shell subscribes to
+ * {@link PointedRows} for the one boolean it draws; when only that changes,
+ * React re-renders this `<tr>` and **bails on the unchanged cell elements**
+ * handed in as `children`, so moving the light renders two shells and not one
+ * cell. The cells stay the parent's render exactly so their `live` contract is
+ * untouched — this is deliberately not `memo`, which would have to enumerate
+ * everything a cell reads and would go silently stale on the first miss.
+ *
+ * `data-row-lit` says this is the **pointed row**, whichever face pointed it:
+ * a bar or a row's line on the chart, a bar's focus, or the pointer resting on
+ * this row here. Writing it on the hovered row itself makes
+ * `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable — deliberately,
+ * since `pointed-row-one-ink`: one ink for the row you are asking about, and
+ * the alternating stripe left to say only which row is which at rest (Dany,
+ * 2026-09-01: "highlighted row is colored independently of which odd or even
+ * row this is"). A **second attribute** beside `data-dep-lit` rather than a
+ * reuse of it: the two share the tint and not the meaning, and `data-dep-lit`
+ * is read by tests and by a reader as "some Depends on cell waits for this
+ * row", which a bar's hover would make untrue.
+ *
+ * Enter and leave, not over and out: a pointer moving from one `<td>` of this
+ * row to the next fires `pointerout` on the first, and reading that as a
+ * departure would clear the light halfway across the row it is meant to be
+ * on. React synthesizes these two from over/out and decides "left" from where
+ * the pointer went, which is the question being asked.
+ *
+ * Proof of the address: the store's writes routed back through a `WbsTable`
+ * `useState`, and `pointing a row from the chart re-renders no unrelated row`
+ * failed on `expected 7 to be less than or equal to 4` — every row's cells
+ * rendered for a light that touched two. Watched 2026-09-01.
+ */
+function PlanRow({
+  rowId,
+  frozen,
+  depLit,
+  armed,
+  drop,
+  pointed,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  children,
+}: PlanRowProps) {
+  const lit = useSyncExternalStore(pointed.subscribe, () => pointed.pointedAt() === rowId);
+  return (
+    <tr
+      // The row's identity, on the row — the handle the browser proofs find a
+      // dependency's `<tr>` by (precedent: `data-armed`, `data-drop`), and the
+      // shell's own subscription key. Nothing else in the app reads it.
+      data-row-id={rowId}
+      data-frozen={frozen ? 'true' : 'false'}
+      data-dep-lit={depLit ? 'true' : undefined}
+      data-row-lit={lit ? 'true' : undefined}
+      data-armed={armed ? 'true' : undefined}
+      data-drop={drop}
+      onPointerEnter={(pointer) => {
+        // **The touch seam.** Chromium synthesizes a whole mouse sequence from
+        // a tap, so a row lit on a mouse event lights on every tap as well —
+        // and a tap has no departure behind it, so the light would then be
+        // stuck on whatever was touched last. The bar's own `onPointerOver`
+        // carries this guard for the same reason.
+        if (pointer.pointerType !== 'mouse') return;
+        pointed.pointTable(rowId);
+      }}
+      onPointerLeave={(pointer) => {
+        if (pointer.pointerType !== 'mouse') return;
+        // The store clears this only if the row is still the pointed one: a
+        // departure from a row the pointer has already left — the order the
+        // events arrive in when it moves straight to the next row — must not
+        // clear the light the arrival just set. See {@link PointedRows}.
+        pointed.leaveTable(rowId);
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {children}
+    </tr>
+  );
+}
+
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
@@ -3188,52 +3308,43 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [depFocus, setDepFocus] = useState<{ rowId: string; pillId: string | null } | null>(null);
   /**
-   * The **pointed row**, in three states — one per place the answer can come
-   * from — and the rule that each face lights the **other** face's.
+   * The **pointed row** — three readings, one per place the answer can come
+   * from — and the rule that each face lights the other face's.
    *
    * The plan is drawn twice and until these the two drawings said nothing about
    * each other: which of sixty rows a bar was *for* was a question a reader
    * answered by counting rows in a 176px label column. `linked-scroll` fixed
    * the coarse half — the two faces start on the same row — and this is the
-   * per-row half.
+   * per-row half. Both faces light from the one resolved answer: the `<tr>`
+   * carries it as `data-row-lit` ({@link PlanRow}), the chart as its label
+   * light and band.
    *
-   * **Why three and not one.** `tablePointedRow` is the pointer on a row here;
-   * the two `chart*` fields are the Gantt panel's reports. They stay apart
-   * because the light has to go to the face the pointer is *not* on:
+   * The readings are read on each `<tr>` and by the panel through their own
+   * subscriptions, and **never** inside `columns`: that memo depends on
+   * `steps` and `unfoldedSteps` and nothing else, and a dep added here would
+   * hand every cell a new component type on the first hover and remount the
+   * lot, taking the focus and any half-typed value with it (LLM_README
+   * landmine #1).
    *
-   * - The `<tr>` lights from {@link pointedFromChart} alone. A row the pointer
-   *   is already resting on is a row `tr:hover` is already tinting, and a
-   *   second tint there both says nothing new and **breaks** the banded-hover
-   *   contract: `data-row-lit` on every hovered row makes
-   *   `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable, and the
-   *   stripe stops moving under the pointer at all. Watched — four of
-   *   `e2e/hover-cards.spec.ts`'s assertions failed on it, 2026-08-14.
-   * - The panel lights from {@link pointedAt}, which is either face's answer,
-   *   because the chart has no hover of its own on the row it is asked about.
+   * A store rather than three `useState`s since `pointed-row-render-cost`, and
+   * the address is the whole point: the cells read their live state through
+   * {@link live} and rely on every render of this component reaching every
+   * cell, so a pointed row held here re-rendered all ~500 of them and the
+   * whole chart per row the pointer crossed — 75–120ms each, measured. The
+   * store renders only its subscribers: the two `<tr>` shells whose light
+   * moved ({@link PlanRow}) and the chart shell. The three readings, their
+   * precedence and the shown-row guard live in {@link createPointedRows}.
    *
-   * The chart's pointer and focus are two fields for {@link depHover} /
-   * {@link depFocus}'s reason: they come and go independently, so one field
-   * would have a bar's blur clearing a light the pointer is holding. The
-   * pointer wins while both are live, because the pointer is where the eyes
-   * are. Bars are controls (`role="button"`, `tabIndex={0}`), so the focus half
-   * is what a reader who never touches a mouse gets — the argument
-   * `dep-hover-highlights` shipped `depFocus` on.
-   *
-   * All three are read on the `<tr>` and passed to the panel, and **never**
-   * inside `columns`: that memo depends on `steps` and `unfoldedSteps` and
-   * nothing else, and a dep added here would hand every cell a new component
-   * type on the first hover and remount the lot, taking the focus and any
-   * half-typed value with it (LLM_README landmine #1).
-   *
-   * Proof: `chartPointedRow` added to the `columns` memo's dependency list, and
-   * `points a row without remounting the cells under a half-typed name` failed
-   * on `expected <textarea …(5)></textarea> to be <textarea …(5)></textarea>` —
-   * the same-labelled box a different node, the cell remounted under the
-   * typist. Watched 2026-08-14.
+   * Proof of the landmine: `chartPointedRow` added to the `columns` memo's
+   * dependency list, and `points a row without remounting the cells under a
+   * half-typed name` failed on `expected <textarea …(5)></textarea> to be
+   * <textarea …(5)></textarea>` — the same-labelled box a different node, the
+   * cell remounted under the typist. Watched 2026-08-14. Proof of the
+   * address: the store's writes routed back through a `useState` here, and
+   * `pointing a row from the chart re-renders no unrelated row` failed on
+   * `expected 7 to be less than or equal to 4`. Watched 2026-09-01.
    */
-  const [tablePointedRow, setTablePointedRow] = useState<string | null>(null);
-  const [chartPointedRow, setChartPointedRow] = useState<string | null>(null);
-  const [chartFocusedRow, setChartFocusedRow] = useState<string | null>(null);
+  const [pointedRows] = useState(createPointedRows);
   /**
    * The `@` mention open in a folded step's cell: whose cell, and what has been
    * typed after the `@`.
@@ -10172,64 +10283,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   })();
 
   /**
-   * The row the **chart** says the pointer or a bar's focus is on, which is the
-   * only thing the table's own rows light from.
-   *
-   * The pointer's reading wins over a focused bar's, for the reason `depLit`'s
-   * own `depHover ?? depFocus` does: the pointer is where the eyes are.
+   * Keeps the store's shown-row guard current: the resolution must drop a
+   * remembered table hover the moment its row is no longer drawn, and only
+   * this component knows what is drawn. Pushed after every commit — the store
+   * tells nobody unless the resolved row actually changes, so the per-render
+   * push is silent while nothing relevant moved. The guard itself, its
+   * precedence and its proofs live in {@link createPointedRows}; the browser's
+   * half (that Chromium really does leave the id behind under a stationary
+   * pointer) is `e2e/hover-cards.spec.ts`'s 'a row narrowed away under the
+   * pointer stops outranking the chart'.
    */
-  const pointedFromChart: string | null = chartPointedRow ?? chartFocusedRow;
+  useEffect(() => {
+    pointedRows.setShownRows(new Set(shownRows.map((row) => row.original.id)));
+  }, [pointedRows, shownRows]);
+
   /**
-   * The table's remembered hover, **dropped once the row it names is no longer
-   * drawn** — which is what makes {@link pointedAt}'s `??` safe.
-   *
-   * {@link tablePointedRow} is cleared by one thing only: a `pointerleave` on
-   * that same `<tr>`. A row can stop being drawn with the pointer sitting still
-   * on it — a search narrows it away, a collapse folds it into its parent, a
-   * peer deletes it — and no browser fires a departure at a node it is
-   * unmounting, so nothing moved and nothing cleared. The id then names a row
-   * that is not on screen, for as long as the pointer stays put.
-   *
-   * That was harmless while the id was only ever *compared* against the rows
-   * being drawn. It stopped being harmless the moment it sat on the **left of a
-   * `??`**: a remembered row nobody can see outranked the live reading of a
-   * pointer that had moved to the chart, and the chart drew a band for a row it
-   * no longer holds — which is no band at all. Dany reported it as "the table's
-   * row lights and the chart's does not", 2026-08-31.
-   *
-   * The chart's own two fields need no such guard, and the asymmetry is the
-   * point rather than an oversight: {@link pointedFromChart} is only ever read
-   * as "does this equal the row being drawn", so a stale reading there lights
-   * nothing and suppresses nothing. Only the left side of a `??` can outrank a
-   * live answer, so only the left side is guarded. A guard on the other two
-   * would be a check with no fault to catch — see R5.
-   *
-   * This is {@link depLit}'s `includes` rule wearing a second hat: make the
-   * derivation total over remembered state rather than dependent on every
-   * writer being right. A `pillId` the cell no longer names lights nothing, and
-   * a pointed row the table no longer draws yields to the pointer's live answer.
-   *
-   * Proof: dropped back to a bare `tablePointedRow ?? pointedFromChart` and
-   * `forgets a pointed row that is no longer drawn, and lights the bar under
-   * the pointer` failed on `expected [] to deeply equal [ '0' ]` — the chart
-   * dark under the pointer. Watched 2026-09-01, with the browser's half of it
-   * (that Chromium really does leave the id behind) in
-   * `e2e/hover-cards.spec.ts`.
+   * The Gantt panel's report line into the store — stable so the chart's
+   * memoized marks, which carry it on every bar, never churn on a render of
+   * this component.
    */
-  const tablePointedShown: string | null =
-    tablePointedRow !== null && shownRows.some((row) => row.original.id === tablePointedRow)
-      ? tablePointedRow
-      : null;
-  /**
-   * The one work item the **panel** lights, from either face.
-   *
-   * The table's own hover comes first: while the pointer is on a row here, that
-   * row is what the reader is asking about, and a bar that still held the
-   * keyboard focus from earlier is not. "While the pointer is on a row here" is
-   * what {@link tablePointedShown} makes true of the left-hand side, and the
-   * whole reason that state exists.
-   */
-  const pointedAt: string | null = tablePointedShown ?? pointedFromChart;
+  const pointChartRow = useCallback(
+    (rowId: string | null, from: 'pointer' | 'focus') => {
+      pointedRows.pointChart(rowId, from);
+    },
+    [pointedRows],
+  );
 
   /**
    * What one row's Depends on `<td>` does with a pointer arriving and leaving.
@@ -11847,85 +11925,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               </thead>
               <tbody>
                 {shownRows.map((row) => (
-                  <tr
+                  <PlanRow
                     key={row.id}
-                    // The row's identity, on the row — the handle the browser
-                    // proofs find a dependency's `<tr>` by (precedent:
-                    // `data-armed`, `data-drop`). Nothing in the app reads it.
-                    data-row-id={row.original.id}
-                    data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
-                    // Lit because some hovered Depends on cell names this row.
-                    // The tint itself lands on the cells through the
-                    // `--cell-bg` join (`styles.css`), never on the `<tr>`,
-                    // for `data-armed`'s reason: a pinned cell paints its own
-                    // opaque background and would cover a colour set here.
-                    data-dep-lit={depLit.has(row.original.id) ? 'true' : undefined}
-                    // Lit because this is the **pointed row**, whichever face
-                    // pointed it: a bar or a row's line on the chart, a bar's
-                    // focus, or the pointer resting on this row here. From
-                    // `pointedAt` and never `pointedFromChart`.
-                    //
-                    // **That is a reversal, and the thing it reverses was a
-                    // deliberate rule.** `linked-row-hover` wrote this from the
-                    // chart alone so the alternating band would keep showing
-                    // through: writing it on every hovered row makes
-                    // `tr:not([data-row-lit])…:nth-child(even):hover`
-                    // unmatchable and stops the stripe moving under the pointer
-                    // at all, which is how four of `e2e/hover-cards.spec.ts`'s
-                    // assertions failed in 2026-08-14. Dany, 2026-09-01, having
-                    // watched the shipped table: _"highlighted row is colored
-                    // independently of which odd or even row this is"_. So the
-                    // unmatchable rule is now the **mechanism** rather than the
-                    // bug — one ink for the row you are asking about, and the
-                    // stripe left to say only which row is which at rest.
-                    //
-                    // A **second attribute** beside `data-dep-lit` rather than a
-                    // reuse of it: the two share the tint and not the meaning,
-                    // and `data-dep-lit` is read by tests and by a reader as
-                    // "some Depends on cell waits for this row", which a bar's
-                    // hover would make untrue. The tint lands on the cells
-                    // through `--cell-bg` for the reason above.
-                    data-row-lit={pointedAt === row.original.id ? 'true' : undefined}
-                    // Enter and leave, not over and out: a pointer moving from
-                    // one `<td>` of this row to the next fires `pointerout` on
-                    // the first, and reading that as a departure would clear
-                    // the light halfway across the row it is meant to be on.
-                    // React synthesizes these two from over/out and decides
-                    // "left" from where the pointer went, which is the question
-                    // being asked.
-                    onPointerEnter={(pointer) => {
-                      // **The touch seam.** Chromium synthesizes a whole mouse
-                      // sequence from a tap, so a row lit on a mouse event
-                      // lights on every tap as well — and a tap has no
-                      // departure behind it, so the light would then be stuck
-                      // on whatever was touched last. The bar's own
-                      // `onPointerOver` carries this guard for the same reason.
-                      if (pointer.pointerType !== 'mouse') return;
-                      setTablePointedRow(row.original.id);
-                    }}
-                    onPointerLeave={(pointer) => {
-                      if (pointer.pointerType !== 'mouse') return;
-                      // Cleared only if this row is still the pointed one. A
-                      // departure from a row the pointer has already left —
-                      // which is the order the events arrive in when it moves
-                      // straight to the next row — would otherwise clear the
-                      // light the arrival had just set.
-                      setTablePointedRow((pointed) =>
-                        pointed === row.original.id ? null : pointed,
-                      );
-                    }}
-                    // The armed row, said on the row rather than only in the
-                    // toast: a sentence in the corner of the screen is not where
-                    // somebody looks to find out which row a second Ctrl+D will
-                    // take. The tint itself is on the cells below, because a
-                    // pinned cell carries its own opaque background and would
-                    // paint straight over a colour set here.
-                    data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
-                    data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-                    // The handlers sit on the row rather than in a column definition:
-                    // `flexRender` renders each `cell` as a component *type*, so a
-                    // definition that changed with the drag would remount every cell
-                    // in the table on every pointer move.
+                    rowId={row.original.id}
+                    frozen={row.original.frozenNumber !== null}
+                    depLit={depLit.has(row.original.id)}
+                    armed={armedDelete?.rowId === row.original.id}
+                    drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                    pointed={pointedRows}
+                    // The drag handlers sit on the row rather than in a column
+                    // definition: `flexRender` renders each `cell` as a
+                    // component *type*, so a definition that changed with the
+                    // drag would remount every cell in the table on every
+                    // pointer move. Built here rather than in {@link PlanRow}
+                    // because they read this component's drag state, which the
+                    // shell has no business subscribing to.
                     onDragOver={(event) => {
                       if (dragging === null) return;
                       // Without this the browser refuses the drop outright.
@@ -12010,7 +12024,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
-                  </tr>
+                  </PlanRow>
                 ))}
               </tbody>
             </table>
@@ -12095,15 +12109,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               rememberGanttLabels(projectId, shown);
             }}
             onPickRow={goToRow}
-            // The panel reports which row the pointer or a bar's focus is on,
-            // and is handed back the answer both faces light. The two halves go
-            // to their own state for {@link pointedRow}'s reason: a bar's blur
-            // must not clear a light the pointer is holding.
-            onPointRow={(rowId, from) => {
-              if (from === 'pointer') setChartPointedRow(rowId);
-              else setChartFocusedRow(rowId);
-            }}
-            pointedRow={pointedAt}
+            // The panel reports which row the pointer or a bar's focus is
+            // on, straight into the store it also lights from — no state of
+            // this component moves, which is what keeps a pointed row from
+            // re-rendering the plan. The store keeps the two readings apart
+            // ({@link PointedRows}): a bar's blur must not clear a light the
+            // pointer is holding.
+            onPointRow={pointChartRow}
+            pointed={pointedRows}
             // The panel lends the toolbar its own `.svg` downloader while it is
             // mounted, and takes it back when it is not: the file is a clone of
             // the live drawing, so only the panel can make one.

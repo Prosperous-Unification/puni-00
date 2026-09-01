@@ -10,7 +10,7 @@ import {
   wholeDaysCovering,
 } from '@wbs/domain/workday';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { PriorityBandView } from '@/lib/wbs-api';
@@ -37,6 +37,7 @@ import {
 import { type AnchorRect, HoverCard } from './hover-card';
 import { initialsOf } from './initials';
 import { InlineMarkdown } from './inline-markdown';
+import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
 import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor } from './table-frame';
@@ -1994,7 +1995,7 @@ export function GanttPanel({
   onPickLabelsShown = () => undefined,
   onPickRow,
   onPointRow,
-  pointedRow,
+  pointed,
   registerSvgDownload = () => undefined,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
@@ -2024,7 +2025,7 @@ export function GanttPanel({
       onPickLabelsShown={onPickLabelsShown}
       onPickRow={onPickRow}
       onPointRow={onPointRow}
-      pointedRow={pointedRow}
+      pointed={pointed}
       registerSvgDownload={registerSvgDownload}
     />
   );
@@ -2130,16 +2131,18 @@ interface GanttProps {
    */
   onPointRow: (rowId: string | null, from: 'pointer' | 'focus') => void;
   /**
-   * The pointed row as the caller has resolved it, which this panel lights on
-   * its row label and as a band across its row.
+   * Where the pointed row is read from — the panel subscribes and lights the
+   * row's label and a band across its row, without its caller rendering.
    *
-   * Passed back in rather than kept here: the pointer may be on the **table**,
-   * and a panel that lit only what it was hovered on itself would answer half
-   * the question. Never resolved against the rows drawn here — an id this
-   * drawing does not hold simply lights nothing, which is what a row filtered
-   * out of the plan should do.
+   * A subscription rather than a resolved `string | null` prop since
+   * `pointed-row-render-cost`, and the shape is the point: the pointer may be
+   * on the **table**, and a prop would make every pointed change a render of
+   * the component that owns the table's ~500 cells. The store's answer is
+   * never resolved against the rows drawn here — an id this drawing does not
+   * hold simply lights nothing, which is what a row filtered out of the plan
+   * should do.
    */
-  pointedRow: string | null;
+  pointed: PointedRows;
   /**
    * Hands the host this chart's own `.svg` downloader, and takes it back with
    * `null` when there is no chart to download.
@@ -2191,7 +2194,7 @@ function GanttChart({
   onPickLabelsShown,
   onPickRow,
   onPointRow,
-  pointedRow,
+  pointed,
   registerSvgDownload,
 }: Omit<
   GanttProps,
@@ -2241,6 +2244,12 @@ function GanttChart({
    * the scrollport's own width, which is where a cue with nothing measured
    * belongs.
    */
+  /**
+   * The pointed row, from the store's own subscription: a pointed change
+   * re-renders this chart shell and nothing above it. The label rail and the
+   * band below are the only readers.
+   */
+  const pointedRow = useSyncExternalStore(pointed.subscribe, pointed.pointedAt);
   const [chartSpanPx, setChartSpanPx] = useState<number | null>(null);
   /**
    * Reads both facts off one laid-out scroll box.
@@ -2499,7 +2508,9 @@ function GanttChart({
   // is looking at.
   useEffect(() => cancelOpening, [cancelOpening]);
 
-  const chart = layOutGantt(plan);
+  // Memoized against the one read it is a pure layout of, so a pointed-row
+  // render of this shell re-draws no geometry (`pointed-row-render-cost`).
+  const chart = useMemo(() => layOutGantt(plan), [plan]);
   /**
    * The sentence about the waits this chart could not draw, or null where it
    * drew every one — {@link droppedLinkWords}, whose count comes from the three
@@ -2521,7 +2532,12 @@ function GanttChart({
   // height rather than one the browser divides by.
   const rowCount = Math.max(1, chart.labels.length);
   /** The reader's own today, which is the year {@link shortIsoDate} omits. */
-  const today = new Date();
+  // Stable for as long as it names the same calendar day: the marks read it
+  // (bar sentences, today's column), and a `new Date()` per render would churn
+  // their memo below every time this shell renders for a pointed row.
+  const todayIso = isoToday(new Date());
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- todayIso is the day the Date is rebuilt for; the Date itself is the dependency's product, not its input.
+  const today = useMemo(() => new Date(), [todayIso]);
   /**
    * The chart resolved into the unit it is drawn in, and the axis over it.
    *
@@ -2530,7 +2546,10 @@ function GanttChart({
    * workday numbers stand as they are, no scale is built and nothing is asked
    * for a date. That is a state this panel is in, not a path it falls through.
    */
-  const placed = startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate);
+  const placed = useMemo(
+    () => (startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate)),
+    [chart, startDate],
+  );
   /**
    * The bars that are drawn: every placed bar with the detail asked for, and
    * the slices somebody costed alone without it.
@@ -2561,7 +2580,10 @@ function GanttChart({
    * `the detail switch was pressed and nothing arrived at [data-assumed]`, and
    * three on `expected +0 to be 1` / `expected undefined to be 'true'`.
    */
-  const drawnBars = detailShown ? placed.bars : placed.bars.filter(({ bar }) => bar.estimated);
+  const drawnBars = useMemo(
+    () => (detailShown ? placed.bars : placed.bars.filter(({ bar }) => bar.estimated)),
+    [detailShown, placed],
+  );
   /**
    * The bar the open surface belongs to, or null when there is no surface, or
    * no such bar, or that bar is not being drawn.
@@ -2613,20 +2635,28 @@ function GanttChart({
    * detail switch`'s own case on `expected 2 to be 1` for the link count at
    * rest. Watched 2026-08-11, and again on this branch 2026-08-12.
    */
-  const drawnLinks = placed.personLinks.filter(
-    (link) =>
-      drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-      drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+  const drawnLinks = useMemo(
+    () =>
+      placed.personLinks.filter(
+        (link) =>
+          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
+          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+      ),
+    [drawnBars, placed],
   );
   /**
    * The pool waits whose both ends are on the chart — {@link drawnLinks}' rule,
    * one mark along and for the same reason: a line onto a bar that is not drawn
    * runs to a point on an empty row.
    */
-  const drawnPoolWaits = placed.capacityLinks.filter(
-    (link) =>
-      drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-      drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+  const drawnPoolWaits = useMemo(
+    () =>
+      placed.capacityLinks.filter(
+        (link) =>
+          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
+          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+      ),
+    [drawnBars, placed],
   );
   /**
    * The not-before carets that have something to stand over.
@@ -2656,13 +2686,20 @@ function GanttChart({
    * switch leaving the empty rows' carets off — the same two, on `expected
    * <path …(3)><title></title></path>` not to be null and `expected 2 to be 3`.
    */
-  const drawnFlags = detailShown
-    ? placed.notBeforeFlags
-    : placed.notBeforeFlags.filter((flag) =>
-        drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
-      );
-  const axis =
-    startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon);
+  const drawnFlags = useMemo(
+    () =>
+      detailShown
+        ? placed.notBeforeFlags
+        : placed.notBeforeFlags.filter((flag) =>
+            drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
+          ),
+    [detailShown, drawnBars, placed],
+  );
+  const axis = useMemo(
+    () =>
+      startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon),
+    [placed, startDate],
+  );
   /**
    * The column today stands in, or null when today is not on this chart.
    *
@@ -2683,7 +2720,10 @@ function GanttChart({
   // them. See there for why the canvas is wider than the horizon.
   const pad = CHART_PAD_PX / dayPx;
   const chartWidth = days * dayPx + 2 * CHART_PAD_PX;
-  const rowIdAt = (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id;
+  const rowIdAt = useCallback(
+    (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id,
+    [chart],
+  );
   /**
    * Reports the row at `rowIndex` as the pointed one.
    *
@@ -2696,10 +2736,13 @@ function GanttChart({
    * the click handlers give — so nothing is reported rather than a null, which
    * would clear a light some other mark had just set.
    */
-  const pointRow = (rowIndex: number, from: 'pointer' | 'focus'): void => {
-    const rowId = rowIdAt(rowIndex);
-    if (rowId !== undefined) onPointRow(rowId, from);
-  };
+  const pointRow = useCallback(
+    (rowIndex: number, from: 'pointer' | 'focus'): void => {
+      const rowId = rowIdAt(rowIndex);
+      if (rowId !== undefined) onPointRow(rowId, from);
+    },
+    [onPointRow, rowIdAt],
+  );
   /**
    * The first cell at least partly visible right of the sticky labels. The
    * labels overlay the scroll content's left edge, so the first chart pixel on
@@ -2800,6 +2843,770 @@ function GanttChart({
       registerSvgDownload(null);
     };
   }, [registerSvgDownload]);
+
+  /**
+   * The chart's marks that stand **under** the row light: the weekend columns
+   * and the alternating row bands. One memo per side of the pointed band so
+   * the paint order is exactly the child order it always was, and a pointed
+   * change — which renders this shell through its subscription — reuses both
+   * sides untouched. The band itself stays live between them: it is the one
+   * mark that reads the pointed row.
+   */
+  const marksUnderLight = useMemo(
+    () => (
+      <>
+        {/*
+                The weekends, as columns. Drawn first and so **under** the row
+                bands and every mark: this is the change's whole point on
+                screen, and it is a column of the chart rather than a seam
+                between two days. A plan with no start date has none — there is
+                no calendar to have a Saturday on.
+              */}
+        {axis
+          .filter((day) => day.weekend)
+          .map((day) => (
+            <rect
+              key={`${String(day.offset)}-weekend`}
+              data-gantt-weekend={day.offset}
+              x={day.offset}
+              y={0}
+              width={1}
+              height={rowCount}
+              className="fill-muted-foreground/10"
+            />
+          ))}
+
+        {/*
+                A band behind every other row, so an eye tracking one row across
+                a chart wider than the window does not land a row out. Over the
+                weekend columns and under everything else, in the user space's
+                own units — a row is 1.
+              */}
+        {chart.labels
+          .filter((label) => label.rowIndex % 2 === 1)
+          .map((label) => (
+            <rect
+              key={`${label.id}-band`}
+              data-gantt-band={label.rowIndex}
+              x={0}
+              y={label.rowIndex}
+              width={days}
+              height={1}
+              className="fill-muted/40"
+            />
+          ))}
+      </>
+    ),
+    [axis, chart, days, rowCount],
+  );
+  /**
+   * Every mark **over** the row light: today's column and edge, the gridlines,
+   * the row lines, the brackets and ticks, the dependency and hand-off lines,
+   * the not-before carets and the bars. See {@link marksUnderLight} for the
+   * split; nothing here may read the pointed row, which is what the
+   * render-isolation probe holds up.
+   *
+   * Proof: `pointedRow` added to this memo's dependencies — the marks made to
+   * read the pointed row — and `pointing a row re-renders no Gantt mark`
+   * failed on `expected 4 to be +0` at the marks' own counter. Watched
+   * 2026-09-01.
+   */
+  const marksOverLight = useMemo(
+    () => (
+      <>
+        {/*
+                Today's column, tinted, under the gridlines and over the row
+                bands — the reading a weekend column gets, because it is the
+                same kind of fact: a property of the calendar rather than of any
+                row. A **column and not a hairline**: the axis cell is a whole
+                day wide, a 1px rule at its left edge would say "this instant"
+                when what is known is "this day", and at the widest rung a tinted
+                column is easier to find while scrolling than a line the width
+                of a gridline. The line down its leading edge is what makes the
+                boundary between done and not-yet legible when a bar covers the
+                tint.
+
+                Absent entirely when today is not on the chart — see
+                {@link todayOffset}. There is deliberately no "today is off to
+                the right" affordance at the margin: it would be a second thing
+                to explain, and the caption above the labels already names the
+                month on screen.
+              */}
+        {todayAt !== null && (
+          <rect
+            data-gantt-today={todayAt}
+            x={todayAt}
+            y={0}
+            width={1}
+            height={rowCount}
+            className="fill-sky-500/15"
+          >
+            <title>Today</title>
+          </rect>
+        )}
+
+        {axis.map((day) => (
+          <line
+            key={day.offset}
+            x1={day.offset}
+            y1={0}
+            x2={day.offset}
+            y2={rowCount}
+            data-gantt-gridline={day.offset}
+            // The week boundary heavier: a Monday on a calendar, and every
+            // fifth workday on an axis that holds no weekends to count
+            // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
+            className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+
+        {/*
+                The leading edge of today, over the gridlines and under every
+                mark: it says where the past stops, and a bar drawn across it is
+                work that started before today and is not finished — which is
+                the sentence a reader is looking for and the reason a bar must
+                stay on top of this rather than under it.
+
+                `non-scaling-stroke` for the gridlines' reason: the user space is
+                one unit per day and a stroke in it would be a day wide.
+              */}
+        {todayAt !== null && (
+          <line
+            x1={todayAt}
+            y1={0}
+            x2={todayAt}
+            y2={rowCount}
+            data-gantt-today-edge={todayAt}
+            className="stroke-sky-500"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+
+        {/*
+                Every row's own line, as a hit surface and nothing else.
+
+                Dany, 2026-09-01: _"when i hover over gantt chart rows they must
+                also be highlighted, not only when i hover over the item on
+                gantt chart"_. The chart pointed a row from a {@link
+                data-gantt-bar} or a row label and from nothing else, so the
+                plot area — most of a row's width, and the whole of it on a row
+                nobody has estimated — pointed nothing at all. Measured in
+                Chromium before this change: the pointer on a row's line past
+                the end of its bar left the label rail, the band and the table
+                row all dark.
+
+                **Here in the order, and the position is the whole design.**
+                After the weekend columns, the bands, today's tint and the
+                gridlines — none of which is `pointer-events: none`, so a
+                surface under them would be dead in stripes — and before the
+                dependency links, the carets and the bars, which keep their own
+                hover by standing on top of this.
+
+                The full viewBox width rather than the horizon: the chart is
+                padded either side and a reader crossing that pad is still on
+                this row.
+
+                **No `onPointerOut`.** Leaving this rect for a caret or a
+                dependency link on the *same* row is not leaving the row, and
+                clearing there would blink the light off under a mark the reader
+                is looking straight at. What ends a chart's pointing is leaving
+                the chart, which the SVG's own `onPointerLeave` says.
+              */}
+        {chart.labels.map((label) => (
+          <rect
+            key={`${label.id}-line`}
+            data-gantt-row-line={label.rowIndex}
+            x={-pad}
+            y={label.rowIndex}
+            width={placed.horizon + 2 * pad}
+            height={1}
+            fill="none"
+            // **`fill` and not `all`, and the difference is three rows
+            // wide.** `pointer-events: all` is the fill region *and the
+            // stroke region*, and stroke width is inherited in user
+            // units — one unit here is a whole row — so every line
+            // hit-tested over its neighbours while its own
+            // `getBoundingClientRect` went on reporting one row. Asked
+            // in Chromium at a point squarely inside row 0,
+            // `elementsFromPoint` answered
+            // `rect[data-gantt-row-line=1] > rect[data-gantt-row-line=0]`
+            // and the chart lit the wrong row.
+            //
+            // `fill` is the interior and only the interior, whatever the
+            // `fill` property is painted with — which is why the rect can
+            // stay unpainted and still be the row's own surface.
+            pointerEvents="fill"
+            onPointerOver={(pointer) => {
+              // The touch seam every mark on this chart carries: a tap
+              // synthesizes a whole mouse sequence, and a light set from
+              // one has no departure behind it to clear it.
+              if (pointer.pointerType !== 'mouse') return;
+              pointRow(label.rowIndex, 'pointer');
+            }}
+          />
+        ))}
+
+        {/*
+                A summary row's span, drawn as the **ghost of a bar**: the same
+                rounded shape a leaf gets, in the page's own ink at low opacity
+                and unstroked, so it reads as the projection of the rows
+                beneath it rather than as work of its own. It used to be a 2px
+                bracket with dropped legs, which read as a scratch (Dany,
+                2026-08-09). The span is still the projection be-01 computed —
+                `from`/`to` are the bracket readings `placeGantt` already
+                makes, never a sum of children — and the hook keeps the
+                bracket's name so the browser gate goes on measuring the same
+                fact.
+
+                **Behind the switch**, which is the whole of `declutter-one-button`
+                here: the ghost restates a span its children's own bars already
+                draw, and on a plan of sixty rows the restatement is most of the
+                ink — so at rest a parent's row draws nothing at all. The row
+                itself stays either way: `chart.labels` holds it, the label rail
+                names it, and the chart's row `N` stands beside the plan's row
+                `N`, which is what the browser gate measures.
+
+                `placed.brackets` is computed in both states and feeds the
+                horizon in `gantt-geometry.ts`, so the switch moves no
+                coordinate of anything.
+
+                Proof of the paint: the class made `fill-foreground` whole — a
+                parent drawn as solid ink. `draws a parent as the ghost of a
+                bar` alone failed, on `expected 'fill-foreground' to contain
+                'fill-foreground/15'`. Watched 2026-08-09.
+
+                Proof of the gate, both directions, `6 failed | 85 passed` each
+                way and watched 2026-08-12. `detailShown &&` dropped from both
+                blocks and the mark came back at rest: `leaves a zero-projection
+                parent's row empty until the detail is asked for` on `expected
+                <line …(7)></line> to have a length of +0 but got 1`, `draws no
+                mark of its own on a parent's row until the detail is asked for`
+                on the same for the `<rect>`, and four counts in `the detail
+                switch` on `expected 1 to be +0`. Replaced by `false &&`, and the
+                switch drew nothing: `puts the bar, the caret, the tick, the axis
+                cell and the label on day 7` on `nothing on the chart at
+                [data-gantt-bracket="hull"]`, three on
+                {@link askForTheDetail}'s own throw, and two on `expected +0 to
+                be 1`.
+
+                Proof that the row stays: the tempting next step — a row that
+                draws nothing left off the chart — injected as `rowCount` and
+                the label rail taken from the rows something is drawn on.
+                `7 failed | 85 passed`, `draws no mark of its own on a parent's
+                row` and `leaves a zero-projection parent's row empty…` on
+                `expected …(2) to have a length of 3 but got 2`, and five of
+                `the chart mirrors the plan`'s cases with them on lists missing
+                `010 - Hull`. Watched 2026-08-11.
+              */}
+        {detailShown &&
+          placed.brackets
+            .filter((bracket) => bracket.to > bracket.from)
+            .map((bracket) => (
+              <rect
+                key={bracket.rowId}
+                data-gantt-bracket={bracket.rowId}
+                x={bracket.from}
+                width={bracket.to - bracket.from}
+                y={bracket.rowIndex + BAR_INSET}
+                height={BAR_HEIGHT}
+                rx={BAR_RADIUS_PX / dayPx}
+                ry={BAR_RADIUS_PX / ROW_PX}
+                className="fill-foreground/15"
+              />
+            ))}
+
+        {/*
+                A parent whose projection has no days — every child unestimated
+                — is a modeled state, not a missing row, and a zero-width rect
+                is no mark at all. The same answer the leaves give a zero-day
+                slice: a tick where the branch stands. The bracket path this
+                mark replaced stayed visible at zero span through its stroke,
+                so the tick is what keeps that true of the ghost.
+
+                Behind the same switch as the rect above, for the same reason
+                and by the same `detailShown` — the two are one mark with two
+                shapes, and a state where a branch of no days drew a tick while
+                a branch of some days drew nothing would be a chart nobody
+                designed.
+
+                Proof: this block deleted, so a zero-span parent drew the
+                zero-width rect above. `still marks a parent whose projection
+                has no days` alone failed, `1 failed | 52 passed`, on the mark
+                not being there. Watched 2026-08-09.
+              */}
+        {detailShown &&
+          placed.brackets
+            .filter((bracket) => bracket.to <= bracket.from)
+            .map((bracket) => (
+              <line
+                key={bracket.rowId}
+                data-gantt-bracket={bracket.rowId}
+                x1={bracket.from}
+                y1={bracket.rowIndex + BAR_INSET}
+                x2={bracket.from}
+                y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
+                className="stroke-foreground/40"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+
+        {/*
+                A stored dependency: an elbow that always arrives horizontally at
+                the successor's left edge, and a filled head on the end of it.
+                See {@link arrowRoute} — the head is a path rather than a
+                `<marker>`, and the route jogs when the two bars touch.
+              */}
+        {/*
+                Behind the switch as a whole: the elbow and the head are two
+                paths of one mark, and hiding one alone leaves a floating
+                triangle pointing at nothing.
+
+                Proof: the `detailShown &&` moved onto the elbow alone. `opens
+                with none of the three families, and draws all of them when
+                asked` alone failed, `1 failed | 90 passed`, on `expected 1 to
+                be +0` for the head count at rest. Watched 2026-08-09 as
+                `arrowsShown`, and again 2026-08-12 over this gate.
+              */}
+        {detailShown &&
+          placed.arrows.map((arrow) => {
+            const route = arrowRoute(arrow, drawnBars, dayPx);
+            const id = `${arrow.predecessorId}->${arrow.successorId}`;
+            return (
+              <g key={id}>
+                <path
+                  data-gantt-arrow={id}
+                  d={route.elbow}
+                  className="stroke-foreground fill-none [stroke-width:1.5]"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/*
+                      No `vector-effect` and no stroke: the head is filled, so
+                      nothing about it is a stroke width to hold steady.
+                    */}
+                <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
+              </g>
+            );
+          })}
+
+        {/*
+              Drawn unlike a dependency, because it is not one: nobody wrote this
+              down. It is where one person's queue put a slice behind another.
+            */}
+        {drawnLinks.map((link) => (
+          <path
+            key={`${link.fromSliceId}->${link.toSliceId}`}
+            data-gantt-person-link={`${link.fromSliceId}->${link.toSliceId}`}
+            d={
+              `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+              `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+            }
+            // The person's own colour, so the line and the two bars it
+            // joins read as one queue rather than as a third kind of edge.
+            stroke={link.personColor}
+            className="fill-none [stroke-dasharray:4_3]"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+
+        {/*
+                Where a team had nobody spare: the slice whose finish freed the
+                slots, to the slice that was waiting for them. One line per
+                wait, drawn from be-01's display referent — the hover sentence
+                is what says "and N others", because a fan of lines onto one
+                start is unreadable.
+
+                A longer dash and one colour for every team, so it cannot be
+                read as somebody's hand-off — see {@link CAPACITY_LINK_COLOR}.
+              */}
+        {drawnPoolWaits.map((link) => (
+          <path
+            key={`${link.fromSliceId}~>${link.toSliceId}`}
+            data-gantt-capacity-link={`${link.fromSliceId}->${link.toSliceId}`}
+            d={
+              `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+              `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+            }
+            stroke={CAPACITY_LINK_COLOR}
+            className="fill-none [stroke-dasharray:8_4]"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+
+        {/*
+                Where a row's own start date holds it: a caret in the clear band
+                above the bar, pointing at the day. Above and not on, because on
+                is where it was and where nothing could see it — see
+                {@link NOT_BEFORE_LENGTH_PX}. The `<title>` names the date,
+                which is the one thing the mark's position cannot say. From
+                {@link drawnFlags}: a row with no bar has nothing to stand over.
+              */}
+        {drawnFlags.map((flag) => (
+          <path
+            key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
+            data-gantt-not-before={flag.rowIndex}
+            d={
+              `M ${String(flag.x)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
+              `L ${String(flag.x + NOT_BEFORE_LENGTH_PX / dayPx)} ` +
+              `${String(flag.rowIndex + BAR_INSET / 2)} ` +
+              `L ${String(flag.x)} ` +
+              `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
+            }
+            className="fill-foreground"
+          >
+            {/*
+                    The **workday**, not the coordinate: the caret stands where
+                    the calendar puts it and says the date the row was held at,
+                    and `x` is a position on a canvas rather than an index into
+                    the working days.
+                  */}
+            <title>{notBeforeWords(startDate, flag.workday)}</title>
+          </path>
+        ))}
+
+        {drawnBars.map(({ bar, x, width }) => (
+          <rect
+            key={bar.sliceId}
+            data-gantt-bar={bar.sliceId}
+            // The engine's own **workday** numbers, and the geometry
+            // beside them is the calendar's: the two are allowed to
+            // disagree, and the difference between them is exactly what a
+            // test reads to say the conversion happened. A bar at workday
+            // 5 on a Monday-start plan carries `data-start="5"` and stands
+            // at `x="7"`.
+            data-start={bar.start}
+            data-finish={bar.finish}
+            // The last workday this bar is still on, which is the axis cell
+            // its right edge stops inside rather than the one it stops at.
+            // See {@link lastWorkdayOf} — it is the one number about a bar
+            // that cannot be read off `x` and `width` without repeating the
+            // nudge, and the browser gate has to know it to say which label
+            // the edge should line up with.
+            data-last-day={lastWorkdayOf(bar.start, bar.finish)}
+            {...(bar.critical ? { 'data-critical': 'true' } : {})}
+            // The bar whose width is an assumption, findable as such. The
+            // styling below is what a reader sees; this is what the
+            // browser gate selects on, and it has to tell a drawn span
+            // from a measured one before it measures anything. Only ever
+            // in the document with the detail switch on.
+            //
+            // Proof: this hook dropped. `7 failed | 84 passed` —
+            // four on {@link askForTheDetail}'s own throw, `the detail
+            // switch was pressed and nothing arrived at [data-assumed]`,
+            // and three on `expected null to be 'true'` /
+            // `expected +0 to be 1`. Watched 2026-08-12.
+            {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
+            x={x}
+            // The **drawn** span in calendar days — the end reading of
+            // the drawn finish less the start reading of the start, so a
+            // bar working through a weekend is drawn across it and one
+            // stopping on the Friday stops at the Saturday. Never a span
+            // from the engine's `finish`: an unestimated slice finishes
+            // where it starts, and that width is no bar at all.
+            width={width}
+            y={bar.rowIndex + BAR_INSET}
+            height={BAR_HEIGHT}
+            rx={BAR_RADIUS_PX / dayPx}
+            ry={BAR_RADIUS_PX / ROW_PX}
+            // Who is on it — an unestimated slice included, at 35% through
+            // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+            // honest about the length and cost the reader the assignee;
+            // now it keeps the person and says "guessed" in how it is
+            // painted rather than by having no paint.
+            fill={bar.personColor}
+            // The critical path is the **outline**, because the fill is
+            // already saying who. A ring in the foreground colour rather
+            // than the destructive one: `#d62728` is the fourth person's
+            // colour, and a red ring on a red bar is no ring at all.
+            stroke={bar.critical ? undefined : bar.personColor}
+            className={barClasses(bar.critical, bar.estimated)}
+            vectorEffect="non-scaling-stroke"
+            // A control, because it is one: it takes the keyboard, it has
+            // a name, and Enter and Space act on it. The step is what
+            // makes the `aria-label` below a name a screen reader reads —
+            // a bare `<rect>` is presentational whatever it is labelled.
+            role="button"
+            tabIndex={0}
+            // **The bar's only accessible name**, and the reason it is
+            // here rather than in the `<title>` this change took off the
+            // bars: two tooltips on one mark is a bug, and the browser's
+            // is the one nothing can place or style. The same facts the
+            // surface shows, from the same derivation.
+            aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
+            onPointerDown={(pointer) => {
+              pressedWithTouch.current = pointer.pointerType === 'touch';
+            }}
+            // The three ends a touch has that are not a click, all of
+            // them through {@link endTouchPress}: the release, the
+            // cancellation a scroll or a system gesture takes the touch
+            // away with, and the capture release that follows either.
+            onPointerUp={endTouchPress}
+            onPointerCancel={endTouchPress}
+            onLostPointerCapture={endTouchPress}
+            onClick={(click) => {
+              const rowId = rowIdAt(bar.rowIndex);
+              // A bar with no row is not a state this can be in — the bar
+              // was placed on that row by {@link layOutGantt} — so there is
+              // nothing to do about it but leave the click alone.
+              const touchPress = pressedWithTouch.current;
+              pressedWithTouch.current = false;
+              if (fullScreen && touchPress) {
+                cancelOpening();
+                if (open?.sliceId !== bar.sliceId) {
+                  showSurface(bar.sliceId, click.currentTarget);
+                  return;
+                }
+                dismiss();
+                // A deliberate second tap navigates to the row, so focus
+                // belongs on its name cell after leaving full screen, not
+                // back inside the layer or on the Full trigger.
+                leavingToRow.current = true;
+                setFullScreen(false);
+              }
+              if (rowId !== undefined) onPickRow(rowId);
+            }}
+            onKeyDown={(key) => {
+              if (key.key !== 'Enter' && key.key !== ' ') return;
+              // Before anything else: Space's own default is to scroll
+              // the panel, and a reader who asked to go to a row and got
+              // the chart scrolled out from under them is R5 #14's fault
+              // wearing another hat. jsdom performs no default action, so
+              // this line is guarded in a browser (`e2e/gantt.spec.ts`).
+              key.preventDefault();
+              const rowId = rowIdAt(bar.rowIndex);
+              if (rowId !== undefined) onPickRow(rowId);
+            }}
+            onPointerOver={(pointer) => {
+              // **The touch seam.** Chromium synthesizes a whole mouse
+              // sequence from a tap — `mouseover` included — so a surface
+              // opened on a mouse event opens on every tap as well, over
+              // the row the tap was taking the reader to. The pointer
+              // events are the only ones that say which they came from.
+              if (pointer.pointerType !== 'mouse') return;
+              // Before the timer and never inside it: the pointed row is
+              // a tint, which is cheap to paint and cheap to be wrong
+              // about for a moment, while the surface is a card that
+              // covers the chart. So the light is immediate and the card
+              // still waits out {@link HOVER_OPEN_MS} — a pointer
+              // crossing eight bars lights eight rows in turn, which
+              // reads as a trail, and opens no cards at all.
+              pointRow(bar.rowIndex, 'pointer');
+              const mark = pointer.currentTarget;
+              cancelOpening();
+              opening.current = setTimeout(() => {
+                showSurface(bar.sliceId, mark);
+              }, HOVER_OPEN_MS);
+            }}
+            onPointerOut={(pointer) => {
+              // **The card, and not the light.** Leaving a bar used to
+              // clear the pointed row here, which was right while a bar
+              // was one of only two things on this chart that could
+              // point one. Since `pointed-row-one-ink` the row's own
+              // line points it, so leaving a bar is usually landing on
+              // the same row — and clearing here blinked the light off
+              // under the caret or the dependency link the reader had
+              // moved onto, then straight back on. What clears the
+              // light is leaving the drawing, which the SVG root says.
+              //
+              // A touch leaves the mark before its synthesized click.
+              // In full screen that click owns the surface: first tap
+              // opens it, and a second tap on the same bar navigates.
+              if (fullScreen && pointer.pointerType === 'touch') return;
+              dismiss();
+            }}
+            // No delay on the keyboard: focus is deliberate, and there is
+            // no crossing of the chart to protect a reader from.
+            onFocus={(focus) => {
+              // A touch focuses before its click. Let that click decide
+              // between opening the facts and deliberate navigation;
+              // keyboard focus keeps the immediate surface below.
+              if (fullScreen && pressedWithTouch.current) return;
+              pointRow(bar.rowIndex, 'focus');
+              cancelOpening();
+              showSurface(bar.sliceId, focus.currentTarget);
+            }}
+            onBlur={() => {
+              onPointRow(null, 'focus');
+              dismiss();
+            }}
+          />
+        ))}
+
+        {/*
+              The band, as a cap at the bar's left edge — the third channel, and
+              the only one this mark had spare. Its colour is
+              `priorityBandStyleOf`'s and nothing here decides it: the same
+              function paints the Prio cell's digits, the cards' chip and names
+              the export's column, which is what keeps "different priorities look
+              different" one rule rather than four that agree today.
+
+              Nothing at all for a work item nobody has prioritised, which is the
+              bargain every face makes with an unranked row — and the reason this
+              is a separate element rather than a property of the rect: an absent
+              cap is an absent node, not a transparent one.
+
+              After the bars in document order so it paints over the rounded
+              corner, and `pointer-events: none` so it is not a second target in
+              front of the control the bar is. The bar keeps the hover, the focus
+              and the accessible name; this is paint.
+            */}
+        {drawnBars.flatMap(({ bar, x, width }) => {
+          const paint = priorityBandStyleOf(plan.priorityBands, bar.priority);
+          if (paint === null) return [];
+          return [
+            <rect
+              key={`${bar.sliceId}-band`}
+              data-priority-cap={bar.sliceId}
+              data-priority-rank={paint.rank}
+              x={x}
+              y={bar.rowIndex + BAR_INSET}
+              width={Math.min(PRIORITY_CAP_PX / dayPx, width)}
+              height={BAR_HEIGHT}
+              fill={paint.ink}
+              pointerEvents="none"
+            />,
+          ];
+        })}
+
+        {/*
+              A slice **estimated** at no days is a real answer — somebody
+              costed this work at nothing — and a zero-width rect draws nothing
+              at all, so the tick is where it starts and the row does not read as
+              empty. Drawn from {@link drawnBars} like the rects above, so the
+              slice that has no bar has no tick either.
+
+              `drawnSpan` and not `duration`, which is what keeps the tick the
+              zero-day estimate's alone: an unestimated slice's drawn span is
+              {@link ASSUMED_SLICE_WORKDAYS}, so with the detail on it
+              draws its own bar here and never a tick, and with the detail off it
+              is not in {@link drawnBars} to draw either. Nobody estimating a
+              slice is not the same answer as somebody estimating it at zero
+              (`expectedDays({0,0,0})` is 0, and
+              `libs/domain/src/estimate.test.ts` says so).
+            */}
+        {drawnBars
+          .filter(({ bar }) => bar.drawnSpan === 0)
+          .map(({ bar, x }) => (
+            <line
+              key={`${bar.sliceId}-tick`}
+              x1={x}
+              y1={bar.rowIndex + BAR_INSET}
+              x2={x}
+              y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
+              data-gantt-tick={bar.sliceId}
+              stroke={bar.critical ? undefined : bar.personColor}
+              className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+      </>
+    ),
+    [
+      axis,
+      cancelOpening,
+      chart,
+      dayPx,
+      detailShown,
+      dismiss,
+      drawnBars,
+      drawnFlags,
+      drawnLinks,
+      drawnPoolWaits,
+      endTouchPress,
+      onPickRow,
+      pad,
+      placed,
+      plan,
+      fullScreen,
+      onPointRow,
+      open?.sliceId,
+      pointRow,
+      rowCount,
+      rowIdAt,
+      startDate,
+      today,
+      todayAt,
+    ],
+  );
+  /**
+   * The words on the bars, in HTML over the SVG — marks like the rest, split
+   * out with them: {@link initialsOf} runs once per assigned bar here, which
+   * is exactly what the render-isolation probe counts.
+   *
+   * Proof: `pointedRow` added to this memo's dependencies, and `pointing a
+   * row re-renders no Gantt mark` failed on `expected 2 to be +0` at the
+   * words' counter. Watched 2026-09-01.
+   */
+  const barWords = useMemo(
+    () => (
+      <>
+        {/*
+              Who is on each bar, written **in HTML over the SVG** and never in
+              it: the user space is non-uniformly scaled and would stretch every
+              glyph (design §1). The position is the same arithmetic the axis
+              above makes — the engine's workday through {@link DAY_PX} — which
+              is what lets a browser check that this span and the rect under it
+              start at the same pixel.
+
+              `pointer-events-none` so the label is not a hole in the bar: the
+              click that takes the plan to a row belongs to the rect underneath,
+              and a span on top would swallow it in its middle.
+            */}
+        {drawnBars.map(({ bar, x, width }) => {
+          // An unestimated bar writes the `?` its width is a guess about —
+          // see {@link assumedLabelFor} — and an estimated one writes who is
+          // on it. The room is the **drawn** width, weekend cells included:
+          // a bar stretched over a Saturday has those pixels to write in.
+          // The row's own words follow either answer and are cropped by
+          // the box, not the string — see {@link barText}.
+          // Nobody named and a team on the row: the bar says whose people
+          // are on it and how many — see {@link poolLabelFor}. Never over a
+          // name: one label, and the person is the more specific fact.
+          const who = bar.estimated
+            ? bar.personName === null
+              ? poolLabelFor(bar.team, bar.width, width, dayPx)
+              : barLabelFor(bar.personName, width, dayPx)
+            : assumedLabelFor(bar.personName, width, dayPx);
+          const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width, dayPx);
+          if (shown === null) return null;
+          return (
+            <span
+              key={`${bar.sliceId}-label`}
+              data-gantt-bar-label={bar.sliceId}
+              aria-hidden="true"
+              className={
+                bar.estimated
+                  ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                  : // The page's own ink on an assumed bar: `inkOn` picks a
+                    // colour to be read on a **solid** fill, and this one is
+                    // 35% of that colour over whatever the page is.
+                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+              }
+              style={{
+                // Dark ink on the three light entries of the palette and
+                // white on the other seven, never one white for all ten.
+                // See {@link inkOn}.
+                ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
+                // Over the SVG, which now begins one band left of the
+                // schedule: the label's pixel is the bar's pixel only with
+                // the same band added. See {@link CHART_PAD_PX}.
+                left: x * dayPx + CHART_PAD_PX,
+                top: (bar.rowIndex + BAR_INSET) * ROW_PX,
+                width: width * dayPx,
+                height: BAR_HEIGHT * ROW_PX,
+                lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
+                paddingLeft: LABEL_PAD_PX,
+                paddingRight: LABEL_PAD_PX,
+              }}
+            >
+              {shown}
+            </span>
+          );
+        })}
+      </>
+    ),
+    [dayPx, drawnBars],
+  );
 
   const chartAndItsControls = (
     <>
@@ -3129,46 +3936,7 @@ function GanttChart({
                   onPointRow(null, 'pointer');
                 }}
               >
-                {/*
-                The weekends, as columns. Drawn first and so **under** the row
-                bands and every mark: this is the change's whole point on
-                screen, and it is a column of the chart rather than a seam
-                between two days. A plan with no start date has none — there is
-                no calendar to have a Saturday on.
-              */}
-                {axis
-                  .filter((day) => day.weekend)
-                  .map((day) => (
-                    <rect
-                      key={`${String(day.offset)}-weekend`}
-                      data-gantt-weekend={day.offset}
-                      x={day.offset}
-                      y={0}
-                      width={1}
-                      height={rowCount}
-                      className="fill-muted-foreground/10"
-                    />
-                  ))}
-
-                {/*
-                A band behind every other row, so an eye tracking one row across
-                a chart wider than the window does not land a row out. Over the
-                weekend columns and under everything else, in the user space's
-                own units — a row is 1.
-              */}
-                {chart.labels
-                  .filter((label) => label.rowIndex % 2 === 1)
-                  .map((label) => (
-                    <rect
-                      key={`${label.id}-band`}
-                      data-gantt-band={label.rowIndex}
-                      x={0}
-                      y={label.rowIndex}
-                      width={days}
-                      height={1}
-                      className="fill-muted/40"
-                    />
-                  ))}
+                {marksUnderLight}
 
                 {/*
                 The **pointed row**, as a band across the whole chart.
@@ -3202,665 +3970,10 @@ function GanttChart({
                     />
                   ))}
 
-                {/*
-                Today's column, tinted, under the gridlines and over the row
-                bands — the reading a weekend column gets, because it is the
-                same kind of fact: a property of the calendar rather than of any
-                row. A **column and not a hairline**: the axis cell is a whole
-                day wide, a 1px rule at its left edge would say "this instant"
-                when what is known is "this day", and at the widest rung a tinted
-                column is easier to find while scrolling than a line the width
-                of a gridline. The line down its leading edge is what makes the
-                boundary between done and not-yet legible when a bar covers the
-                tint.
-
-                Absent entirely when today is not on the chart — see
-                {@link todayOffset}. There is deliberately no "today is off to
-                the right" affordance at the margin: it would be a second thing
-                to explain, and the caption above the labels already names the
-                month on screen.
-              */}
-                {todayAt !== null && (
-                  <rect
-                    data-gantt-today={todayAt}
-                    x={todayAt}
-                    y={0}
-                    width={1}
-                    height={rowCount}
-                    className="fill-sky-500/15"
-                  >
-                    <title>Today</title>
-                  </rect>
-                )}
-
-                {axis.map((day) => (
-                  <line
-                    key={day.offset}
-                    x1={day.offset}
-                    y1={0}
-                    x2={day.offset}
-                    y2={rowCount}
-                    data-gantt-gridline={day.offset}
-                    // The week boundary heavier: a Monday on a calendar, and every
-                    // fifth workday on an axis that holds no weekends to count
-                    // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
-                    className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-
-                {/*
-                The leading edge of today, over the gridlines and under every
-                mark: it says where the past stops, and a bar drawn across it is
-                work that started before today and is not finished — which is
-                the sentence a reader is looking for and the reason a bar must
-                stay on top of this rather than under it.
-
-                `non-scaling-stroke` for the gridlines' reason: the user space is
-                one unit per day and a stroke in it would be a day wide.
-              */}
-                {todayAt !== null && (
-                  <line
-                    x1={todayAt}
-                    y1={0}
-                    x2={todayAt}
-                    y2={rowCount}
-                    data-gantt-today-edge={todayAt}
-                    className="stroke-sky-500"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-
-                {/*
-                Every row's own line, as a hit surface and nothing else.
-
-                Dany, 2026-09-01: _"when i hover over gantt chart rows they must
-                also be highlighted, not only when i hover over the item on
-                gantt chart"_. The chart pointed a row from a {@link
-                data-gantt-bar} or a row label and from nothing else, so the
-                plot area — most of a row's width, and the whole of it on a row
-                nobody has estimated — pointed nothing at all. Measured in
-                Chromium before this change: the pointer on a row's line past
-                the end of its bar left the label rail, the band and the table
-                row all dark.
-
-                **Here in the order, and the position is the whole design.**
-                After the weekend columns, the bands, today's tint and the
-                gridlines — none of which is `pointer-events: none`, so a
-                surface under them would be dead in stripes — and before the
-                dependency links, the carets and the bars, which keep their own
-                hover by standing on top of this.
-
-                The full viewBox width rather than the horizon: the chart is
-                padded either side and a reader crossing that pad is still on
-                this row.
-
-                **No `onPointerOut`.** Leaving this rect for a caret or a
-                dependency link on the *same* row is not leaving the row, and
-                clearing there would blink the light off under a mark the reader
-                is looking straight at. What ends a chart's pointing is leaving
-                the chart, which the SVG's own `onPointerLeave` says.
-              */}
-                {chart.labels.map((label) => (
-                  <rect
-                    key={`${label.id}-line`}
-                    data-gantt-row-line={label.rowIndex}
-                    x={-pad}
-                    y={label.rowIndex}
-                    width={placed.horizon + 2 * pad}
-                    height={1}
-                    fill="none"
-                    // **`fill` and not `all`, and the difference is three rows
-                    // wide.** `pointer-events: all` is the fill region *and the
-                    // stroke region*, and stroke width is inherited in user
-                    // units — one unit here is a whole row — so every line
-                    // hit-tested over its neighbours while its own
-                    // `getBoundingClientRect` went on reporting one row. Asked
-                    // in Chromium at a point squarely inside row 0,
-                    // `elementsFromPoint` answered
-                    // `rect[data-gantt-row-line=1] > rect[data-gantt-row-line=0]`
-                    // and the chart lit the wrong row.
-                    //
-                    // `fill` is the interior and only the interior, whatever the
-                    // `fill` property is painted with — which is why the rect can
-                    // stay unpainted and still be the row's own surface.
-                    pointerEvents="fill"
-                    onPointerOver={(pointer) => {
-                      // The touch seam every mark on this chart carries: a tap
-                      // synthesizes a whole mouse sequence, and a light set from
-                      // one has no departure behind it to clear it.
-                      if (pointer.pointerType !== 'mouse') return;
-                      pointRow(label.rowIndex, 'pointer');
-                    }}
-                  />
-                ))}
-
-                {/*
-                A summary row's span, drawn as the **ghost of a bar**: the same
-                rounded shape a leaf gets, in the page's own ink at low opacity
-                and unstroked, so it reads as the projection of the rows
-                beneath it rather than as work of its own. It used to be a 2px
-                bracket with dropped legs, which read as a scratch (Dany,
-                2026-08-09). The span is still the projection be-01 computed —
-                `from`/`to` are the bracket readings `placeGantt` already
-                makes, never a sum of children — and the hook keeps the
-                bracket's name so the browser gate goes on measuring the same
-                fact.
-
-                **Behind the switch**, which is the whole of `declutter-one-button`
-                here: the ghost restates a span its children's own bars already
-                draw, and on a plan of sixty rows the restatement is most of the
-                ink — so at rest a parent's row draws nothing at all. The row
-                itself stays either way: `chart.labels` holds it, the label rail
-                names it, and the chart's row `N` stands beside the plan's row
-                `N`, which is what the browser gate measures.
-
-                `placed.brackets` is computed in both states and feeds the
-                horizon in `gantt-geometry.ts`, so the switch moves no
-                coordinate of anything.
-
-                Proof of the paint: the class made `fill-foreground` whole — a
-                parent drawn as solid ink. `draws a parent as the ghost of a
-                bar` alone failed, on `expected 'fill-foreground' to contain
-                'fill-foreground/15'`. Watched 2026-08-09.
-
-                Proof of the gate, both directions, `6 failed | 85 passed` each
-                way and watched 2026-08-12. `detailShown &&` dropped from both
-                blocks and the mark came back at rest: `leaves a zero-projection
-                parent's row empty until the detail is asked for` on `expected
-                <line …(7)></line> to have a length of +0 but got 1`, `draws no
-                mark of its own on a parent's row until the detail is asked for`
-                on the same for the `<rect>`, and four counts in `the detail
-                switch` on `expected 1 to be +0`. Replaced by `false &&`, and the
-                switch drew nothing: `puts the bar, the caret, the tick, the axis
-                cell and the label on day 7` on `nothing on the chart at
-                [data-gantt-bracket="hull"]`, three on
-                {@link askForTheDetail}'s own throw, and two on `expected +0 to
-                be 1`.
-
-                Proof that the row stays: the tempting next step — a row that
-                draws nothing left off the chart — injected as `rowCount` and
-                the label rail taken from the rows something is drawn on.
-                `7 failed | 85 passed`, `draws no mark of its own on a parent's
-                row` and `leaves a zero-projection parent's row empty…` on
-                `expected …(2) to have a length of 3 but got 2`, and five of
-                `the chart mirrors the plan`'s cases with them on lists missing
-                `010 - Hull`. Watched 2026-08-11.
-              */}
-                {detailShown &&
-                  placed.brackets
-                    .filter((bracket) => bracket.to > bracket.from)
-                    .map((bracket) => (
-                      <rect
-                        key={bracket.rowId}
-                        data-gantt-bracket={bracket.rowId}
-                        x={bracket.from}
-                        width={bracket.to - bracket.from}
-                        y={bracket.rowIndex + BAR_INSET}
-                        height={BAR_HEIGHT}
-                        rx={BAR_RADIUS_PX / dayPx}
-                        ry={BAR_RADIUS_PX / ROW_PX}
-                        className="fill-foreground/15"
-                      />
-                    ))}
-
-                {/*
-                A parent whose projection has no days — every child unestimated
-                — is a modeled state, not a missing row, and a zero-width rect
-                is no mark at all. The same answer the leaves give a zero-day
-                slice: a tick where the branch stands. The bracket path this
-                mark replaced stayed visible at zero span through its stroke,
-                so the tick is what keeps that true of the ghost.
-
-                Behind the same switch as the rect above, for the same reason
-                and by the same `detailShown` — the two are one mark with two
-                shapes, and a state where a branch of no days drew a tick while
-                a branch of some days drew nothing would be a chart nobody
-                designed.
-
-                Proof: this block deleted, so a zero-span parent drew the
-                zero-width rect above. `still marks a parent whose projection
-                has no days` alone failed, `1 failed | 52 passed`, on the mark
-                not being there. Watched 2026-08-09.
-              */}
-                {detailShown &&
-                  placed.brackets
-                    .filter((bracket) => bracket.to <= bracket.from)
-                    .map((bracket) => (
-                      <line
-                        key={bracket.rowId}
-                        data-gantt-bracket={bracket.rowId}
-                        x1={bracket.from}
-                        y1={bracket.rowIndex + BAR_INSET}
-                        x2={bracket.from}
-                        y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
-                        className="stroke-foreground/40"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    ))}
-
-                {/*
-                A stored dependency: an elbow that always arrives horizontally at
-                the successor's left edge, and a filled head on the end of it.
-                See {@link arrowRoute} — the head is a path rather than a
-                `<marker>`, and the route jogs when the two bars touch.
-              */}
-                {/*
-                Behind the switch as a whole: the elbow and the head are two
-                paths of one mark, and hiding one alone leaves a floating
-                triangle pointing at nothing.
-
-                Proof: the `detailShown &&` moved onto the elbow alone. `opens
-                with none of the three families, and draws all of them when
-                asked` alone failed, `1 failed | 90 passed`, on `expected 1 to
-                be +0` for the head count at rest. Watched 2026-08-09 as
-                `arrowsShown`, and again 2026-08-12 over this gate.
-              */}
-                {detailShown &&
-                  placed.arrows.map((arrow) => {
-                    const route = arrowRoute(arrow, drawnBars, dayPx);
-                    const id = `${arrow.predecessorId}->${arrow.successorId}`;
-                    return (
-                      <g key={id}>
-                        <path
-                          data-gantt-arrow={id}
-                          d={route.elbow}
-                          className="stroke-foreground fill-none [stroke-width:1.5]"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                        {/*
-                      No `vector-effect` and no stroke: the head is filled, so
-                      nothing about it is a stroke width to hold steady.
-                    */}
-                        <path
-                          data-gantt-arrow-head={id}
-                          d={route.head}
-                          className="fill-foreground"
-                        />
-                      </g>
-                    );
-                  })}
-
-                {/*
-              Drawn unlike a dependency, because it is not one: nobody wrote this
-              down. It is where one person's queue put a slice behind another.
-            */}
-                {drawnLinks.map((link) => (
-                  <path
-                    key={`${link.fromSliceId}->${link.toSliceId}`}
-                    data-gantt-person-link={`${link.fromSliceId}->${link.toSliceId}`}
-                    d={
-                      `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
-                      `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
-                    }
-                    // The person's own colour, so the line and the two bars it
-                    // joins read as one queue rather than as a third kind of edge.
-                    stroke={link.personColor}
-                    className="fill-none [stroke-dasharray:4_3]"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-
-                {/*
-                Where a team had nobody spare: the slice whose finish freed the
-                slots, to the slice that was waiting for them. One line per
-                wait, drawn from be-01's display referent — the hover sentence
-                is what says "and N others", because a fan of lines onto one
-                start is unreadable.
-
-                A longer dash and one colour for every team, so it cannot be
-                read as somebody's hand-off — see {@link CAPACITY_LINK_COLOR}.
-              */}
-                {drawnPoolWaits.map((link) => (
-                  <path
-                    key={`${link.fromSliceId}~>${link.toSliceId}`}
-                    data-gantt-capacity-link={`${link.fromSliceId}->${link.toSliceId}`}
-                    d={
-                      `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
-                      `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
-                    }
-                    stroke={CAPACITY_LINK_COLOR}
-                    className="fill-none [stroke-dasharray:8_4]"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-
-                {/*
-                Where a row's own start date holds it: a caret in the clear band
-                above the bar, pointing at the day. Above and not on, because on
-                is where it was and where nothing could see it — see
-                {@link NOT_BEFORE_LENGTH_PX}. The `<title>` names the date,
-                which is the one thing the mark's position cannot say. From
-                {@link drawnFlags}: a row with no bar has nothing to stand over.
-              */}
-                {drawnFlags.map((flag) => (
-                  <path
-                    key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
-                    data-gantt-not-before={flag.rowIndex}
-                    d={
-                      `M ${String(flag.x)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
-                      `L ${String(flag.x + NOT_BEFORE_LENGTH_PX / dayPx)} ` +
-                      `${String(flag.rowIndex + BAR_INSET / 2)} ` +
-                      `L ${String(flag.x)} ` +
-                      `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
-                    }
-                    className="fill-foreground"
-                  >
-                    {/*
-                    The **workday**, not the coordinate: the caret stands where
-                    the calendar puts it and says the date the row was held at,
-                    and `x` is a position on a canvas rather than an index into
-                    the working days.
-                  */}
-                    <title>{notBeforeWords(startDate, flag.workday)}</title>
-                  </path>
-                ))}
-
-                {drawnBars.map(({ bar, x, width }) => (
-                  <rect
-                    key={bar.sliceId}
-                    data-gantt-bar={bar.sliceId}
-                    // The engine's own **workday** numbers, and the geometry
-                    // beside them is the calendar's: the two are allowed to
-                    // disagree, and the difference between them is exactly what a
-                    // test reads to say the conversion happened. A bar at workday
-                    // 5 on a Monday-start plan carries `data-start="5"` and stands
-                    // at `x="7"`.
-                    data-start={bar.start}
-                    data-finish={bar.finish}
-                    // The last workday this bar is still on, which is the axis cell
-                    // its right edge stops inside rather than the one it stops at.
-                    // See {@link lastWorkdayOf} — it is the one number about a bar
-                    // that cannot be read off `x` and `width` without repeating the
-                    // nudge, and the browser gate has to know it to say which label
-                    // the edge should line up with.
-                    data-last-day={lastWorkdayOf(bar.start, bar.finish)}
-                    {...(bar.critical ? { 'data-critical': 'true' } : {})}
-                    // The bar whose width is an assumption, findable as such. The
-                    // styling below is what a reader sees; this is what the
-                    // browser gate selects on, and it has to tell a drawn span
-                    // from a measured one before it measures anything. Only ever
-                    // in the document with the detail switch on.
-                    //
-                    // Proof: this hook dropped. `7 failed | 84 passed` —
-                    // four on {@link askForTheDetail}'s own throw, `the detail
-                    // switch was pressed and nothing arrived at [data-assumed]`,
-                    // and three on `expected null to be 'true'` /
-                    // `expected +0 to be 1`. Watched 2026-08-12.
-                    {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
-                    x={x}
-                    // The **drawn** span in calendar days — the end reading of
-                    // the drawn finish less the start reading of the start, so a
-                    // bar working through a weekend is drawn across it and one
-                    // stopping on the Friday stops at the Saturday. Never a span
-                    // from the engine's `finish`: an unestimated slice finishes
-                    // where it starts, and that width is no bar at all.
-                    width={width}
-                    y={bar.rowIndex + BAR_INSET}
-                    height={BAR_HEIGHT}
-                    rx={BAR_RADIUS_PX / dayPx}
-                    ry={BAR_RADIUS_PX / ROW_PX}
-                    // Who is on it — an unestimated slice included, at 35% through
-                    // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
-                    // honest about the length and cost the reader the assignee;
-                    // now it keeps the person and says "guessed" in how it is
-                    // painted rather than by having no paint.
-                    fill={bar.personColor}
-                    // The critical path is the **outline**, because the fill is
-                    // already saying who. A ring in the foreground colour rather
-                    // than the destructive one: `#d62728` is the fourth person's
-                    // colour, and a red ring on a red bar is no ring at all.
-                    stroke={bar.critical ? undefined : bar.personColor}
-                    className={barClasses(bar.critical, bar.estimated)}
-                    vectorEffect="non-scaling-stroke"
-                    // A control, because it is one: it takes the keyboard, it has
-                    // a name, and Enter and Space act on it. The step is what
-                    // makes the `aria-label` below a name a screen reader reads —
-                    // a bare `<rect>` is presentational whatever it is labelled.
-                    role="button"
-                    tabIndex={0}
-                    // **The bar's only accessible name**, and the reason it is
-                    // here rather than in the `<title>` this change took off the
-                    // bars: two tooltips on one mark is a bug, and the browser's
-                    // is the one nothing can place or style. The same facts the
-                    // surface shows, from the same derivation.
-                    aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
-                    onPointerDown={(pointer) => {
-                      pressedWithTouch.current = pointer.pointerType === 'touch';
-                    }}
-                    // The three ends a touch has that are not a click, all of
-                    // them through {@link endTouchPress}: the release, the
-                    // cancellation a scroll or a system gesture takes the touch
-                    // away with, and the capture release that follows either.
-                    onPointerUp={endTouchPress}
-                    onPointerCancel={endTouchPress}
-                    onLostPointerCapture={endTouchPress}
-                    onClick={(click) => {
-                      const rowId = rowIdAt(bar.rowIndex);
-                      // A bar with no row is not a state this can be in — the bar
-                      // was placed on that row by {@link layOutGantt} — so there is
-                      // nothing to do about it but leave the click alone.
-                      const touchPress = pressedWithTouch.current;
-                      pressedWithTouch.current = false;
-                      if (fullScreen && touchPress) {
-                        cancelOpening();
-                        if (open?.sliceId !== bar.sliceId) {
-                          showSurface(bar.sliceId, click.currentTarget);
-                          return;
-                        }
-                        dismiss();
-                        // A deliberate second tap navigates to the row, so focus
-                        // belongs on its name cell after leaving full screen, not
-                        // back inside the layer or on the Full trigger.
-                        leavingToRow.current = true;
-                        setFullScreen(false);
-                      }
-                      if (rowId !== undefined) onPickRow(rowId);
-                    }}
-                    onKeyDown={(key) => {
-                      if (key.key !== 'Enter' && key.key !== ' ') return;
-                      // Before anything else: Space's own default is to scroll
-                      // the panel, and a reader who asked to go to a row and got
-                      // the chart scrolled out from under them is R5 #14's fault
-                      // wearing another hat. jsdom performs no default action, so
-                      // this line is guarded in a browser (`e2e/gantt.spec.ts`).
-                      key.preventDefault();
-                      const rowId = rowIdAt(bar.rowIndex);
-                      if (rowId !== undefined) onPickRow(rowId);
-                    }}
-                    onPointerOver={(pointer) => {
-                      // **The touch seam.** Chromium synthesizes a whole mouse
-                      // sequence from a tap — `mouseover` included — so a surface
-                      // opened on a mouse event opens on every tap as well, over
-                      // the row the tap was taking the reader to. The pointer
-                      // events are the only ones that say which they came from.
-                      if (pointer.pointerType !== 'mouse') return;
-                      // Before the timer and never inside it: the pointed row is
-                      // a tint, which is cheap to paint and cheap to be wrong
-                      // about for a moment, while the surface is a card that
-                      // covers the chart. So the light is immediate and the card
-                      // still waits out {@link HOVER_OPEN_MS} — a pointer
-                      // crossing eight bars lights eight rows in turn, which
-                      // reads as a trail, and opens no cards at all.
-                      pointRow(bar.rowIndex, 'pointer');
-                      const mark = pointer.currentTarget;
-                      cancelOpening();
-                      opening.current = setTimeout(() => {
-                        showSurface(bar.sliceId, mark);
-                      }, HOVER_OPEN_MS);
-                    }}
-                    onPointerOut={(pointer) => {
-                      // **The card, and not the light.** Leaving a bar used to
-                      // clear the pointed row here, which was right while a bar
-                      // was one of only two things on this chart that could
-                      // point one. Since `pointed-row-one-ink` the row's own
-                      // line points it, so leaving a bar is usually landing on
-                      // the same row — and clearing here blinked the light off
-                      // under the caret or the dependency link the reader had
-                      // moved onto, then straight back on. What clears the
-                      // light is leaving the drawing, which the SVG root says.
-                      //
-                      // A touch leaves the mark before its synthesized click.
-                      // In full screen that click owns the surface: first tap
-                      // opens it, and a second tap on the same bar navigates.
-                      if (fullScreen && pointer.pointerType === 'touch') return;
-                      dismiss();
-                    }}
-                    // No delay on the keyboard: focus is deliberate, and there is
-                    // no crossing of the chart to protect a reader from.
-                    onFocus={(focus) => {
-                      // A touch focuses before its click. Let that click decide
-                      // between opening the facts and deliberate navigation;
-                      // keyboard focus keeps the immediate surface below.
-                      if (fullScreen && pressedWithTouch.current) return;
-                      pointRow(bar.rowIndex, 'focus');
-                      cancelOpening();
-                      showSurface(bar.sliceId, focus.currentTarget);
-                    }}
-                    onBlur={() => {
-                      onPointRow(null, 'focus');
-                      dismiss();
-                    }}
-                  />
-                ))}
-
-                {/*
-              The band, as a cap at the bar's left edge — the third channel, and
-              the only one this mark had spare. Its colour is
-              `priorityBandStyleOf`'s and nothing here decides it: the same
-              function paints the Prio cell's digits, the cards' chip and names
-              the export's column, which is what keeps "different priorities look
-              different" one rule rather than four that agree today.
-
-              Nothing at all for a work item nobody has prioritised, which is the
-              bargain every face makes with an unranked row — and the reason this
-              is a separate element rather than a property of the rect: an absent
-              cap is an absent node, not a transparent one.
-
-              After the bars in document order so it paints over the rounded
-              corner, and `pointer-events: none` so it is not a second target in
-              front of the control the bar is. The bar keeps the hover, the focus
-              and the accessible name; this is paint.
-            */}
-                {drawnBars.flatMap(({ bar, x, width }) => {
-                  const paint = priorityBandStyleOf(plan.priorityBands, bar.priority);
-                  if (paint === null) return [];
-                  return [
-                    <rect
-                      key={`${bar.sliceId}-band`}
-                      data-priority-cap={bar.sliceId}
-                      data-priority-rank={paint.rank}
-                      x={x}
-                      y={bar.rowIndex + BAR_INSET}
-                      width={Math.min(PRIORITY_CAP_PX / dayPx, width)}
-                      height={BAR_HEIGHT}
-                      fill={paint.ink}
-                      pointerEvents="none"
-                    />,
-                  ];
-                })}
-
-                {/*
-              A slice **estimated** at no days is a real answer — somebody
-              costed this work at nothing — and a zero-width rect draws nothing
-              at all, so the tick is where it starts and the row does not read as
-              empty. Drawn from {@link drawnBars} like the rects above, so the
-              slice that has no bar has no tick either.
-
-              `drawnSpan` and not `duration`, which is what keeps the tick the
-              zero-day estimate's alone: an unestimated slice's drawn span is
-              {@link ASSUMED_SLICE_WORKDAYS}, so with the detail on it
-              draws its own bar here and never a tick, and with the detail off it
-              is not in {@link drawnBars} to draw either. Nobody estimating a
-              slice is not the same answer as somebody estimating it at zero
-              (`expectedDays({0,0,0})` is 0, and
-              `libs/domain/src/estimate.test.ts` says so).
-            */}
-                {drawnBars
-                  .filter(({ bar }) => bar.drawnSpan === 0)
-                  .map(({ bar, x }) => (
-                    <line
-                      key={`${bar.sliceId}-tick`}
-                      x1={x}
-                      y1={bar.rowIndex + BAR_INSET}
-                      x2={x}
-                      y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
-                      data-gantt-tick={bar.sliceId}
-                      stroke={bar.critical ? undefined : bar.personColor}
-                      className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  ))}
+                {marksOverLight}
               </svg>
 
-              {/*
-              Who is on each bar, written **in HTML over the SVG** and never in
-              it: the user space is non-uniformly scaled and would stretch every
-              glyph (design §1). The position is the same arithmetic the axis
-              above makes — the engine's workday through {@link DAY_PX} — which
-              is what lets a browser check that this span and the rect under it
-              start at the same pixel.
-
-              `pointer-events-none` so the label is not a hole in the bar: the
-              click that takes the plan to a row belongs to the rect underneath,
-              and a span on top would swallow it in its middle.
-            */}
-              {drawnBars.map(({ bar, x, width }) => {
-                // An unestimated bar writes the `?` its width is a guess about —
-                // see {@link assumedLabelFor} — and an estimated one writes who is
-                // on it. The room is the **drawn** width, weekend cells included:
-                // a bar stretched over a Saturday has those pixels to write in.
-                // The row's own words follow either answer and are cropped by
-                // the box, not the string — see {@link barText}.
-                // Nobody named and a team on the row: the bar says whose people
-                // are on it and how many — see {@link poolLabelFor}. Never over a
-                // name: one label, and the person is the more specific fact.
-                const who = bar.estimated
-                  ? bar.personName === null
-                    ? poolLabelFor(bar.team, bar.width, width, dayPx)
-                    : barLabelFor(bar.personName, width, dayPx)
-                  : assumedLabelFor(bar.personName, width, dayPx);
-                const shown = barText(
-                  who,
-                  rowWords(bar.workItemNumber, bar.workItemName),
-                  width,
-                  dayPx,
-                );
-                if (shown === null) return null;
-                return (
-                  <span
-                    key={`${bar.sliceId}-label`}
-                    data-gantt-bar-label={bar.sliceId}
-                    aria-hidden="true"
-                    className={
-                      bar.estimated
-                        ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
-                        : // The page's own ink on an assumed bar: `inkOn` picks a
-                          // colour to be read on a **solid** fill, and this one is
-                          // 35% of that colour over whatever the page is.
-                          'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
-                    }
-                    style={{
-                      // Dark ink on the three light entries of the palette and
-                      // white on the other seven, never one white for all ten.
-                      // See {@link inkOn}.
-                      ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
-                      // Over the SVG, which now begins one band left of the
-                      // schedule: the label's pixel is the bar's pixel only with
-                      // the same band added. See {@link CHART_PAD_PX}.
-                      left: x * dayPx + CHART_PAD_PX,
-                      top: (bar.rowIndex + BAR_INSET) * ROW_PX,
-                      width: width * dayPx,
-                      height: BAR_HEIGHT * ROW_PX,
-                      lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
-                      paddingLeft: LABEL_PAD_PX,
-                      paddingRight: LABEL_PAD_PX,
-                    }}
-                  >
-                    {shown}
-                  </span>
-                );
-              })}
+              {barWords}
             </div>
           </div>
         </div>
