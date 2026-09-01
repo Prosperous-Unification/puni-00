@@ -110,7 +110,7 @@ until the type checks compile files and the cache reads the right inputs.
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
 | W0-1  | **Done, 2026-09-02** — see §6. `tsc --noEmit -p <solution>` → `tsc --build --force` in the 18 vacuous `typecheck` targets, and `libs/auth` unified onto the same form so all 23 read one way. 12 latent type errors fixed, `@types/node` bumped 18.16.9 → 22.18.0, one guard test added.               | 19 `project.json`; 7 source files; `package.json`                    | 1h + ? | `const x: number = 'no'` in `tools/tool-remote-scripts/src/swap.ts`, watched red                                     |
 | W0-2  | **Done, 2026-09-02** — see §7. Nine targets across six projects read files outside their own project and declared none. Declared precisely, per target. `--skip-nx-cache` **kept** in the release gate, deliberately; see §7.                                                                          | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
-| W0-3  | Delete the dead `derive` (N1).                                                                                                                                                                                                                                                                         | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
+| W0-3  | **Done, 2026-09-02** — see §8. Deleted. The waste was larger than N1 said: a read route resolved the caller twice, not once.                                                                                                                                                                           | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
 | W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                                       | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
 | W0-5  | Close the three column leaks (N3): `toProject` names its fields; `work-item.ts:547` and `directory.ts:127` take column lists; promote `WORK_ITEM_COLUMNS`/`USER_COLUMNS` beside their tables; a source-reading test in `audit.test.ts`'s shape fails on a bare `select()`/`returning()` in the folder. | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
 | W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                              | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
@@ -411,3 +411,31 @@ pre-existing 53/7 recorded in §6.
 The new typecheck target earned its keep immediately: it caught `TS18046` in the guard test above
 (`.filter` on a union that needs a type predicate), which the old `-p` form would have reported
 green.
+
+## 8 · Verify — W0-3, 2026-09-02
+
+The `.derive()` is deleted. `apps/be-01/src/app.test.ts` is new and states the rule two ways, both
+watched failing with the derive restored:
+
+| Case                                                     | With the derive | Without |
+| -------------------------------------------------------- | --------------- | ------- |
+| `GET /health` carrying a valid session — authentications | 1               | **0**   |
+| `GET /health` — `users.findById` calls                   | 1               | **0**   |
+| `GET /api/projects` — authentications                    | 2               | **1**   |
+
+The second row is the point and N1 understated it: a _read_ route resolved the caller **twice**,
+because the derive ran and then the handler asked again. A write route paid three times, since the
+write-scope pre-filter asks as well.
+
+**The token has to be real, and the first draft's did not.** `authenticate(null)` returns at its
+first line without a `jwtVerify` or a lookup, so a probe sent with no token — or with the
+`undefined` the first draft produced by reading `session.token` where the outcome carries
+`session.result.token` — leaves `lookedUp` at zero whatever the app does. The fixture registers and
+signs in a real account, and the counters are reset after that setup so only the request under test
+is measured. This is `estimate-triple-visible`'s "assert in the window the fault lives in" in its
+other form: a check must be able to observe the cost it claims to remove.
+
+The read-route case is what keeps this fixed. Deleting a derive is easy to undo by writing another;
+"one resolution per request that needs one" is the rule that fails when someone does.
+
+**Green:** `be-01` test (1263 pass, 0 fail, 92 files), lint, typecheck.

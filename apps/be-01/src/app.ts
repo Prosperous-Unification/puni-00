@@ -168,9 +168,6 @@ export function buildApp(opts: AppOptions) {
         }
         return undefined;
       })
-      .derive(async ({ headers }) => ({
-        requestIdentity: await userFromHeaders(opts.auth, headers),
-      }))
       .use(smokeController)
       .use(authController(opts.auth, opts.oidc))
       .use(solutionController(opts.auth, opts.projects))
