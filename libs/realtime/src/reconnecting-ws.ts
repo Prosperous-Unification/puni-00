@@ -33,6 +33,22 @@ const EnvelopeGuard = type({
   message: 'unknown',
 }).or(type({ type: 'string', '[string]': 'unknown' }));
 
+/**
+ * A data frame is the arm carrying a subscription's payload. `EnvelopeGuard`'s
+ * other arm is `{ type: string }` with an open index signature — deliberately
+ * wider than {@link WsControlFrame}, so a control type this build does not know
+ * reaches `onControl` instead of throwing — and an index signature defeats `in`
+ * narrowing, which is why this reads the values rather than the keys.
+ */
+function isDataFrame(frame: typeof EnvelopeGuard.infer): frame is WsFrame {
+  const fields = frame as Record<string, unknown>;
+  return (
+    typeof fields['subscription'] === 'string' &&
+    typeof fields['seq'] === 'number' &&
+    'message' in frame
+  );
+}
+
 export interface ReconnectingWsHandle {
   send(frame: { subscription: string; message: unknown }): void;
   close(): void;
@@ -90,13 +106,14 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): ReconnectingW
     };
 
     socket.onmessage = (ev: MessageEvent<string>): void => {
-      const parsed = parseOrThrow(EnvelopeGuard, JSON.parse(ev.data)) as
-        | WsFrame
-        | (WsControlFrame & Record<string, unknown>);
-      if ('subscription' in parsed && 'seq' in parsed && 'message' in parsed) {
+      const parsed = parseOrThrow(EnvelopeGuard, JSON.parse(ev.data));
+      if (isDataFrame(parsed)) {
         opts.subscriptions.update(parsed.subscription, parsed.seq);
         opts.onFrame(parsed);
       } else {
+        // The guard admits any `{ type: string }`, so this narrows to the union
+        // of control frames this build knows; `onControl` reads `type` and the
+        // arms it does not recognise fall through it untouched.
         const control = parsed as WsControlFrame;
         if (control.type === 'pong' && pongTimer) {
           clearTimeout(pongTimer);

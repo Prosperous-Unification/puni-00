@@ -18,7 +18,10 @@ export interface ShellResult {
   stderr: string;
 }
 
-export async function $(strings: TemplateStringsArray, ...values: unknown[]): Promise<ShellResult> {
+export async function $(
+  strings: TemplateStringsArray,
+  ...values: Bun.ShellExpression[]
+): Promise<ShellResult> {
   try {
     const out = await bun$(strings, ...values).quiet();
     return {

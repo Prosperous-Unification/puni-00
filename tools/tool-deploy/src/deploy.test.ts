@@ -81,7 +81,13 @@ describe('parseSha256sumOutput', () => {
 });
 
 describe('materialize', () => {
-  const base = { dryRun: true, skipBuild: false, withMigrations: false, stopTheWorld: false };
+  const base = {
+    dryRun: true,
+    skipBuild: false,
+    withMigrations: false,
+    stopTheWorld: false,
+    layout: envLayout('dev'),
+  };
 
   it('expands all to three tiers', () => {
     expect(materialize({ tiers: 'all', ...base }, [])).toEqual(['be', 'gw', 'fe']);

@@ -19,7 +19,7 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p libs/scripts/tsconfig.json" }
+      "options": { "command": "bunx tsc --build --force libs/scripts/tsconfig.json" }
     }
   }
 }

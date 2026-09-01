@@ -104,7 +104,7 @@ describe('dev supervisor', () => {
     const pkg = JSON.parse(
       await readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ) as { scripts: Record<string, string> };
-    expect(pkg.scripts.dev).toContain('mcp-01');
+    expect(pkg.scripts['dev']).toContain('mcp-01');
   });
 });
 

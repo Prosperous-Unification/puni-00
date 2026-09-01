@@ -21,7 +21,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p tools/tool-devsync/tsconfig.json"
+        "command": "bunx tsc --build --force tools/tool-devsync/tsconfig.json"
       }
     },
     "build": {

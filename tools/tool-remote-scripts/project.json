@@ -39,7 +39,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p tools/tool-remote-scripts/tsconfig.json"
+        "command": "bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json"
       }
     }
   }

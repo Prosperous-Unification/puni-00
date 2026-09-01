@@ -77,7 +77,7 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-dagger/tsconfig.json" }
+      "options": { "command": "bunx tsc --build --force tools/tool-dagger/tsconfig.json" }
     }
   }
 }

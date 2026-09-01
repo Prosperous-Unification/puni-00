@@ -32,7 +32,7 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-bootstrap/tsconfig.json" }
+      "options": { "command": "bunx tsc --build --force tools/tool-bootstrap/tsconfig.json" }
     }
   }
 }

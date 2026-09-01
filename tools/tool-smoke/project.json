@@ -53,7 +53,7 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-smoke/tsconfig.json" }
+      "options": { "command": "bunx tsc --build --force tools/tool-smoke/tsconfig.json" }
     }
   }
 }
