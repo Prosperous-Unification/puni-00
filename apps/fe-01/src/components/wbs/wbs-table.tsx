@@ -10124,19 +10124,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const pointedFromChart: string | null = chartPointedRow ?? chartFocusedRow;
   /**
+   * The table's remembered hover, **dropped once the row it names is no longer
+   * drawn** — which is what makes {@link pointedAt}'s `??` safe.
+   *
+   * {@link tablePointedRow} is cleared by one thing only: a `pointerleave` on
+   * that same `<tr>`. A row can stop being drawn with the pointer sitting still
+   * on it — a search narrows it away, a collapse folds it into its parent, a
+   * peer deletes it — and no browser fires a departure at a node it is
+   * unmounting, so nothing moved and nothing cleared. The id then names a row
+   * that is not on screen, for as long as the pointer stays put.
+   *
+   * That was harmless while the id was only ever *compared* against the rows
+   * being drawn. It stopped being harmless the moment it sat on the **left of a
+   * `??`**: a remembered row nobody can see outranked the live reading of a
+   * pointer that had moved to the chart, and the chart drew a band for a row it
+   * no longer holds — which is no band at all. Dany reported it as "the table's
+   * row lights and the chart's does not", 2026-08-31.
+   *
+   * The chart's own two fields need no such guard, and the asymmetry is the
+   * point rather than an oversight: {@link pointedFromChart} is only ever read
+   * as "does this equal the row being drawn", so a stale reading there lights
+   * nothing and suppresses nothing. Only the left side of a `??` can outrank a
+   * live answer, so only the left side is guarded. A guard on the other two
+   * would be a check with no fault to catch — see R5.
+   *
+   * This is {@link depLit}'s `includes` rule wearing a second hat: make the
+   * derivation total over remembered state rather than dependent on every
+   * writer being right. A `pillId` the cell no longer names lights nothing, and
+   * a pointed row the table no longer draws yields to the pointer's live answer.
+   *
+   * Proof: dropped back to a bare `tablePointedRow ?? pointedFromChart` and
+   * `forgets a pointed row that is no longer drawn, and lights the bar under
+   * the pointer` failed on `expected [] to deeply equal [ '0' ]` — the chart
+   * dark under the pointer. Watched 2026-09-01, with the browser's half of it
+   * (that Chromium really does leave the id behind) in
+   * `e2e/hover-cards.spec.ts`.
+   */
+  const tablePointedShown: string | null =
+    tablePointedRow !== null && shownRows.some((row) => row.original.id === tablePointedRow)
+      ? tablePointedRow
+      : null;
+  /**
    * The one work item the **panel** lights, from either face.
    *
    * The table's own hover comes first: while the pointer is on a row here, that
    * row is what the reader is asking about, and a bar that still held the
-   * keyboard focus from earlier is not.
-   *
-   * A row the tree no longer holds is **not** filtered out, and that is
-   * deliberate rather than an omission: the id is only ever compared against
-   * the rows being drawn, so a pointed row that has been refetched away lights
-   * nothing and needs no lookup to say so. `depLit` has to search `flat`
-   * because it resolves an id into *other* ids; this resolves nothing.
+   * keyboard focus from earlier is not. "While the pointer is on a row here" is
+   * what {@link tablePointedShown} makes true of the left-hand side, and the
+   * whole reason that state exists.
    */
-  const pointedAt: string | null = tablePointedRow ?? pointedFromChart;
+  const pointedAt: string | null = tablePointedShown ?? pointedFromChart;
 
   /**
    * What one row's Depends on `<td>` does with a pointer arriving and leaving.

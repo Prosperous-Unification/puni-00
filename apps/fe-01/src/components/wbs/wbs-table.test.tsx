@@ -9308,6 +9308,37 @@ describe('the pointed row', () => {
     expect(document.activeElement).toBe(input);
     expect(input).toHaveProperty('value', 'Strip the old wir');
   });
+
+  itDom(
+    'forgets a pointed row that is no longer drawn, and lights the bar under the pointer',
+    async () => {
+      await planWithTheChartOpen();
+
+      // The pointer rests on the last row, and the chart answers for it.
+      fireEvent(trOf('030'), pointerEvent('mouse', 'pointerover'));
+      expect(litBands()).toEqual(['2']);
+
+      // A search narrows 030 away **under the stationary pointer**, and no
+      // pointer event follows: a browser fires no `pointerleave` at a node being
+      // unmounted, and nothing moved to fire an arrival anywhere else. So the
+      // remembered `tablePointedRow` still names 030 — which is the whole
+      // premise, and it is measured in Chromium by
+      // `e2e/hover-cards.spec.ts`'s 'a row narrowed away under the pointer
+      // stops outranking the chart'.
+      fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Strip' } });
+      expect(numbersOnScreen()).toEqual(['010']);
+
+      // The pointer now arrives on the one bar left. That is the reading being
+      // made, so the chart lights its row — a remembered row the table is no
+      // longer drawing must not outrank it.
+      fireEvent(barOf('010'), pointerEvent('mouse', 'pointerover'));
+
+      expect(litBands()).toEqual(['0']);
+      expect(labelOf('010').getAttribute('data-gantt-label-lit')).toBe('true');
+      // The table's own row still lights from the chart's reading, as ever.
+      expect(litRows()).toEqual(['010']);
+    },
+  );
 });
 
 describe('the chart under a plan being edited', () => {
