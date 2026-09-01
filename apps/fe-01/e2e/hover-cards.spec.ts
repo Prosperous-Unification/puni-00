@@ -1217,9 +1217,18 @@ test.describe('the pointer moves a row by the same ink on both steps of the stri
    * h2puni, 2026-08-12.
    */
   for (const palette of ['light', 'dark'] as const) {
-    test(`a banded row moves as far under the pointer as a plain one, in ${palette}`, async ({
-      page,
-    }) => {
+    test(`a pointed row is one colour, banded or not, in ${palette}`, async ({ page }) => {
+      // Dany, 2026-09-01: "highlighted row is colored independently of which
+      // odd or even row this is".
+      //
+      // **This reverses what this test used to assert**, which was that the
+      // pointer moves a banded row and a plain one by the same *amount* — two
+      // colours a fixed distance apart, which is what a reader sweeping the
+      // table sees change every row. The contract now is the same *colour*, and
+      // the mechanism is the banded-hover rule going unmatchable on a row that
+      // carries `data-row-lit`: the thing `linked-row-hover` wrote three
+      // `:not()`s to prevent is now the thing being asked for.
+      //
       // The plan is the file's `beforeEach`'s — seeding a second one here signs
       // up over an account that is already signed in, and the Register button
       // the helper clicks is not on that page.
@@ -1233,34 +1242,40 @@ test.describe('the pointer moves a row by the same ink on both steps of the stri
       const restBand = await rowLuminance(page, '020');
       expect(
         Math.abs(restPlain - restBand),
-        'there is no stripe to hover, so this test measures nothing',
+        'there is no stripe to point at, so this test measures nothing',
       ).toBeGreaterThan(2);
 
       await rowOf(page, '010').hover();
-      const hoverPlain = await rowLuminance(page, '010');
+      const litPlain = await settledRowBg(page, '010');
       await parkPointer(page);
       await expect.poll(() => rowLuminance(page, '010')).toBe(restPlain);
 
       await rowOf(page, '020').hover();
-      const hoverBand = await rowLuminance(page, '020');
+      const litBand = await settledRowBg(page, '020');
 
-      // Signed toward the page's own ink rather than always downward: on a
-      // light page the pointer darkens a row and on a dark one it lightens it,
-      // and a subtraction fixed one way would call the dark half a failure for
-      // doing exactly what the tokens promise.
+      // Each row actually moved off its own resting shade, asserted before the
+      // equality: two rows that were never lit at all are also "the same
+      // colour", and the equality alone could not tell the difference.
       const toward = palette === 'light' ? 1 : -1;
-      const stepPlain = (restPlain - hoverPlain) * toward;
-      const stepBand = (restBand - hoverBand) * toward;
-
-      // Each step moves at all, and the right way.
-      expect(stepPlain, 'the pointer did not move a plain row toward the ink').toBeGreaterThan(8);
-      expect(stepBand, 'the pointer did not move a banded row toward the ink').toBeGreaterThan(8);
-      // And by the same amount. This is the assertion the single absolute token
-      // failed: 19.6 against 12.6 on the palette this ships with.
       expect(
-        Math.abs(stepPlain - stepBand),
-        'the pointer moves a banded row and a plain row by different amounts',
-      ).toBeLessThan(3);
+        (restPlain - (await luminance(page, litPlain))) * toward,
+        'the pointer did not move a plain row toward the ink',
+      ).toBeGreaterThan(8);
+      expect(
+        (restBand - (await luminance(page, litBand))) * toward,
+        'the pointer did not move a banded row toward the ink',
+      ).toBeGreaterThan(8);
+
+      // And they landed on the same one.
+      //
+      // Proof: `data-row-lit` put back to `pointedFromChart`, which is the rule
+      // as `linked-row-hover` shipped it. Watched failing on `a pointed row is
+      // a different colour on a banded stripe · Expected: "oklab(0.93903
+      // -0.000271824 -0.00292741)" · Received: "oklab(0.917255 -0.000368904
+      // -0.00397291)"` — the banded row taking `--grid-band-hover` while the
+      // plain one took the row light, which is the two-colour highlight this
+      // change removes.
+      expect(litBand, 'a pointed row is a different colour on a banded stripe').toBe(litPlain);
     });
 
     test(`a hovered banded row is nobody else’s colour, in ${palette}`, async ({ page }) => {
@@ -1361,5 +1376,115 @@ test.describe('a pointed row the plan stops drawing', () => {
     // of the two faces the fault was on.
     await expect(litRows).toHaveCount(1);
     await expect(litRows.first().getByLabel('Name of 010')).toHaveCount(1);
+  });
+});
+
+/**
+ * A Gantt row's own line, which points the row whatever is drawn on it.
+ *
+ * Dany, 2026-09-01: _"when i hover over gantt chart rows they must also be
+ * highlighted, not only when i hover over the item on gantt chart"_. Before
+ * `pointed-row-one-ink` the chart pointed a row from a bar or a row label and
+ * from nothing else, so the plot area — most of a row's width, and the whole of
+ * it on a row nobody has estimated — pointed nothing.
+ *
+ * **A browser is the oracle and jsdom is not**, for the reason the whole file
+ * exists: what is being claimed is that the surface is reachable, and reachable
+ * is a fact about hit-testing under the weekend columns, today's tint and every
+ * gridline the chart draws over its rows. jsdom lays none of it out and would
+ * report the same answer with the surface buried under all three.
+ */
+test.describe('a Gantt row’s own line', () => {
+  const openTheChart = async (page: Page, rows: number): Promise<void> => {
+    await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+    await expect(page.locator('[data-gantt-chart]')).toBeVisible();
+    await expect(page.locator('[data-gantt-label]')).toHaveCount(rows);
+  };
+
+  /** The middle of a row's line, `past` pixels right of wherever its bar ends. */
+  const restOnLine = async (page: Page, rowIndex: number, from: number): Promise<void> => {
+    const line = page.locator(`[data-gantt-row-line="${String(rowIndex)}"]`);
+    const box = await boxOf(line, `the line of row ${String(rowIndex)}`);
+    // Asserted rather than assumed: a line with no area is inside every box
+    // there is and would make the move below land somewhere else entirely —
+    // `G gantt-calendar-axis`'s sixteenth fault, and the reason every geometry
+    // check in this repo asserts area first.
+    expect(box.width > 0 && box.height > 0, 'the row line has no area').toBe(true);
+    await page.mouse.move(from, box.y + box.height / 2);
+  };
+
+  test('points the row from the empty part of its line', async ({ page }) => {
+    await openTheChart(page, 2);
+
+    const bar = page.locator('[data-gantt-bar][aria-label^="010 - "]').first();
+    const barBox = await boxOf(bar, 'the bar for 010');
+    const chartBox = await boxOf(page.locator('[data-gantt-chart]'), 'the chart');
+
+    // Well past the right edge of the bar and still inside the drawing: the
+    // point of this test is the part of the row the bar does not cover.
+    const past = Math.min(barBox.x + barBox.width + 40, chartBox.x + chartBox.width - 4);
+    expect(past, 'there is no empty line right of the bar to point at').toBeGreaterThan(
+      barBox.x + barBox.width,
+    );
+
+    await restOnLine(page, 0, past);
+
+    // Proof: the row lines removed from the chart. Watched failing here on the
+    // locator in `restOnLine` — `the line of row 0 has no box on this page` —
+    // which is the fault taking the surface out of the test's reach rather
+    // than making it answer wrongly, and the right place for it.
+    const bands = page.locator('[data-gantt-row-lit]');
+    await expect(bands).toHaveCount(1);
+    await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '0');
+
+    // Both faces, which is what "pointed" means here.
+    const litRows = page.locator('tbody tr[data-row-lit]');
+    await expect(litRows).toHaveCount(1);
+    await expect(litRows.first().getByLabel('Name of 010')).toHaveCount(1);
+
+    // And no bar surface: pointing a row is a tint, and the card belongs to the
+    // bar that has something to say. Read once, at the instant it is about —
+    // `toHaveCount(0)` polls and would be satisfied by a card that opens and
+    // closes at any point in thirty seconds.
+    expect(await page.getByLabel('Facts for 010').count(), 'the line opened a bar’s card').toBe(0);
+  });
+
+  test('points a row that draws no bar at all', async ({ page }) => {
+    await openTheChart(page, 2);
+
+    // 020 is unestimated in this file's plan, so its row is empty end to end.
+    // That is the row a mark on the bars could never answer for, and the reason
+    // the surface is the row rather than the bar.
+    expect(
+      await page.locator('[data-gantt-bar][aria-label^="020 - "]').count(),
+      'row 020 has a bar, so this case is not about an empty row',
+    ).toBe(0);
+
+    const chartBox = await boxOf(page.locator('[data-gantt-chart]'), 'the chart');
+    await restOnLine(page, 1, chartBox.x + chartBox.width / 2);
+
+    const bands = page.locator('[data-gantt-row-lit]');
+    await expect(bands).toHaveCount(1);
+    await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '1');
+
+    const litRows = page.locator('tbody tr[data-row-lit]');
+    await expect(litRows).toHaveCount(1);
+    await expect(litRows.first().getByLabel('Name of 020')).toHaveCount(1);
+  });
+
+  test('clears when the pointer leaves the chart', async ({ page }) => {
+    await openTheChart(page, 2);
+
+    const chartBox = await boxOf(page.locator('[data-gantt-chart]'), 'the chart');
+    await restOnLine(page, 1, chartBox.x + chartBox.width / 2);
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+
+    // Out of the drawing and onto nothing — not onto a table row, which would
+    // point a row of its own and prove nothing about the departure.
+    await page.mouse.move(4, 4);
+
+    // Proof: the SVG root's `onPointerLeave` removed.
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(0);
+    await expect(page.locator('tbody tr[data-row-lit]')).toHaveCount(0);
   });
 });

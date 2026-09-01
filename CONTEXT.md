@@ -216,6 +216,15 @@ One team a person belongs to, drawn on the directory page as a token that remove
 one membership.
 _Avoid_: tag, pill, badge
 
+**Add button**:
+The `+` on a reference cell — Tags, Teams, Services, Types and Depends on. It **toggles**:
+it opens the cell's picker, and pressed again with that picker's list open it closes it
+and leaves the cell at rest. What it reads is the list, never whether the focus is in the
+cell — a box holding the focus with no list under it is where a reader stands the moment
+after taking a value, and the `+` has to open from there. It never takes the keyboard
+itself.
+_Avoid_: plus, add affordance, new button, opener
+
 **Project owner**:
 The account that created a project and the only one that may edit it while it is
 restricted. An account, never a person from the directory.
@@ -415,15 +424,24 @@ _Avoid_: scroll sync, scroll lock, pinned scroll
 **Pointed row**:
 The one work item both faces of the plan agree the pointer is on, lit in three places at
 once: the plan renderer's row, the Gantt panel's label for it, and a band across its Gantt
-row. One at a time, from whichever face the pointer is over or a bar holds the focus. The
-second thing the two faces share, after the linked scroll, and it moves nothing — nothing
-scrolls to a pointed row.
+row. One at a time, from whichever face the pointer is over or a bar holds the focus —
+including the plan renderer's own row, which since 2026-09-01 carries the row light like
+any other rather than being left to the alternating band's hover. It moves nothing:
+nothing scrolls to a pointed row.
 _Avoid_: hovered row, active row, current row, selection, highlight
 
+**Row line**:
+A Gantt row's whole width as a thing the pointer can be on, bar or no bar. What makes the
+empty part of a row point it, and the only surface a row nobody has estimated has. Not a
+mark — it is never painted, and it draws under every bar so a bar keeps its own hover.
+_Avoid_: row hit area, row track, row background, lane
+
 **Row light**:
-The tint a row is painted to say it is being pointed at — one colour for every cause,
-because there is one pointer and so only ever one reason on screen at a time. What a
-hovered Depends on cell paints the rows it waits for, and what a pointed row is painted.
+The tint a row is painted to say it is being pointed at — one colour for every cause and
+on every stripe, because there is one pointer and so only ever one reason on screen at a
+time. What a hovered Depends on cell paints the rows it waits for, and what a pointed row
+is painted. The alternating band says which row is which **at rest**; it has no say in
+what a pointed row looks like.
 _Avoid_: highlight colour, selection colour, active background
 
 **Calendar axis**:
@@ -590,6 +608,14 @@ _Avoid_: UI tooltip, chrome hint, slow hint
 The mark drawn beside the cursor while a tool hint is waiting to open, and the only sign
 that one exists. It is not a control and it never appears for a project fact.
 _Avoid_: spinner, loader, progress indicator, countdown
+
+**Press quiet**:
+The silence a control keeps after the pointer has pressed it: the wait its tool hint had
+started is cancelled, and no new one begins until the cursor actually moves. A reader who
+has pressed a control has said they know what it does. Nothing remembers which control was
+pressed — the cursor moving is what ends it, so the page redrawing under a still cursor
+does not.
+_Avoid_: dismissed, suppressed hint, seen control, tooltip cooldown
 
 **Actions menu**:
 The list of things one work item can be asked to do — duplicate it, delete it, unfreeze

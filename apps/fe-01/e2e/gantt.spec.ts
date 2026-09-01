@@ -3175,12 +3175,17 @@ test.describe('the pointed row, across both faces', () => {
     // about the plan, so the label says them at once rather than after a wait.
     await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('data-fact', /^010\.2 - /);
 
-    // And the row the pointer is on does **not** light itself: `tr:hover` is
-    // already tinting it, and `data-row-lit` on every hovered row makes
-    // `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable — which
-    // stopped the stripe moving under the pointer at all and failed four of
-    // `hover-cards.spec.ts`'s assertions. Watched, 2026-08-14.
-    await expect(page.locator('[data-row-lit]')).toHaveCount(0);
+    // **And the row the pointer is on lights itself**, which is the half that
+    // reversed in `pointed-row-one-ink`. It used to be left to `tr:hover` so the
+    // alternating band would keep showing through: `data-row-lit` on every
+    // hovered row makes `tr:not([data-row-lit])…:nth-child(even):hover`
+    // unmatchable, which is how this failed four of `hover-cards.spec.ts`'s
+    // assertions in 2026-08-14. Dany, 2026-09-01: "highlighted row is colored
+    // independently of which odd or even row this is" — so the unmatchable rule
+    // is the mechanism now, and exactly one row carries the light on each face.
+    const lit = page.locator('tbody tr[data-row-lit]');
+    await expect(lit).toHaveCount(1);
+    await expect(lit.getByLabel('Name of 010.2')).toHaveCount(1);
   });
 
   test('clears when the pointer leaves both faces', async ({ page }) => {

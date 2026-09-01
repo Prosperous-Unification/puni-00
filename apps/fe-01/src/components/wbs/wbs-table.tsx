@@ -173,6 +173,7 @@ import {
   GANTT_DOCK_SLACK,
   hideableColumnIds,
   hierarchyIndentFor,
+  NUMBER_ENVELOPE,
   numberIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
@@ -7175,16 +7176,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           header: () => <span>#</span>,
           cell: ({ row }) => (
             <span
-              // The whole number, because the cell may not be showing all of it:
+              // The whole number, but **only when the cell is not showing it**:
               // the column is sized to `NUMBER_ENVELOPE` and there is no longest
               // number to size it to instead, so a number past the envelope is
               // clipped by {@link CELL}'s `overflow: hidden` and read here. The
               // same bargain the short dates make.
+              //
+              // Dany, 2026-09-01: _"also remove tooltips from # cells; why it
+              // needed?"_ — and for `010` it was a card that said `010`, which
+              // is a card repeating the screen on every row a cursor crosses.
+              // The words are worth their interruption only where the glyphs
+              // are actually missing, which is what the length compares.
+              //
+              // Character length rather than dotted depth, because the clip is
+              // by pixels: `1000.10` is two levels and still wider than the
+              // envelope it is measured against.
+              //
+              // Spread rather than written as `undefined`, so an ordinary row
+              // carries no attribute at all for `e2e/hints.spec.ts`'s sweep to
+              // find.
               // `numberIndentFor`, the capped half of the indent pair: this
               // column's declared width is what the cap protects, and the share
               // it withholds past `DEEPEST_INDENT` is carried by the Name cell
               // beside it.
-              data-fact={row.original.number}
+              {...(row.original.number.length > NUMBER_ENVELOPE.length
+                ? { 'data-fact': row.original.number }
+                : {})}
               style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
             >
               {/*
@@ -7806,11 +7823,38 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // The box is this button's sibling on the strip — the same
                       // reach the notes marker makes, scoped by the row's own id
                       // so a stale query can never focus another row's cell.
-                      pressed.currentTarget.parentElement
-                        ?.querySelector<HTMLInputElement>(
+                      const box =
+                        pressed.currentTarget.parentElement?.querySelector<HTMLInputElement>(
                           `[data-depends-input="${row.original.id}"]`,
-                        )
-                        ?.focus();
+                        );
+                      /*
+                        **A toggle**, and the question is about the picker rather
+                        than the focus. Dany, 2026-09-01: _"can you make it so
+                        that clicking second time on plus sign for tags/deps
+                        on/teams/services hides the add UI"_.
+
+                        `picker` is already exactly "this cell's picker, or null
+                        while it is closed or under another row", so this cell
+                        needs no `aria-expanded` reading the way the reference
+                        strip's `+` does — it has the state itself. What it must
+                        not read is the focus: this box opens its picker *on*
+                        focus, so "focused" and "open" are the same thing here
+                        only because nothing closes the list under a box that
+                        keeps the focus. The reference strip's `+` says at length
+                        why that distinction matters on the cells where a take
+                        closes the list and leaves the focus behind.
+
+                        `blur()` and not `setDepPicker(null)`: the blur is the
+                        close this cell already makes from Escape and from a
+                        click outside, and it clears the cell-level focus light
+                        beside the picker. Closing the picker alone would leave
+                        the box holding the keyboard with no list under it.
+                      */
+                      if (picker !== null) {
+                        box?.blur();
+                        return;
+                      }
+                      box?.focus();
                     }}
                     style={{ flexShrink: 0 }}
                   >
@@ -11816,13 +11860,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // for `data-armed`'s reason: a pinned cell paints its own
                     // opaque background and would cover a colour set here.
                     data-dep-lit={depLit.has(row.original.id) ? 'true' : undefined}
-                    // Lit because the pointer, or a bar's focus, is on this
-                    // row's mark **on the chart**. From `pointedFromChart` and
-                    // never `pointedAt`: a row the pointer is resting on here is
-                    // already tinted by `tr:hover`, and writing this on it as
-                    // well made `tr:not([data-row-lit])…:nth-child(even):hover`
-                    // unmatchable and stopped the stripe moving under the
-                    // pointer at all — see the state's own doc.
+                    // Lit because this is the **pointed row**, whichever face
+                    // pointed it: a bar or a row's line on the chart, a bar's
+                    // focus, or the pointer resting on this row here. From
+                    // `pointedAt` and never `pointedFromChart`.
+                    //
+                    // **That is a reversal, and the thing it reverses was a
+                    // deliberate rule.** `linked-row-hover` wrote this from the
+                    // chart alone so the alternating band would keep showing
+                    // through: writing it on every hovered row makes
+                    // `tr:not([data-row-lit])…:nth-child(even):hover`
+                    // unmatchable and stops the stripe moving under the pointer
+                    // at all, which is how four of `e2e/hover-cards.spec.ts`'s
+                    // assertions failed in 2026-08-14. Dany, 2026-09-01, having
+                    // watched the shipped table: _"highlighted row is colored
+                    // independently of which odd or even row this is"_. So the
+                    // unmatchable rule is now the **mechanism** rather than the
+                    // bug — one ink for the row you are asking about, and the
+                    // stripe left to say only which row is which at rest.
                     //
                     // A **second attribute** beside `data-dep-lit` rather than a
                     // reuse of it: the two share the tint and not the meaning,
@@ -11830,7 +11885,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // "some Depends on cell waits for this row", which a bar's
                     // hover would make untrue. The tint lands on the cells
                     // through `--cell-bg` for the reason above.
-                    data-row-lit={pointedFromChart === row.original.id ? 'true' : undefined}
+                    data-row-lit={pointedAt === row.original.id ? 'true' : undefined}
                     // Enter and leave, not over and out: a pointer moving from
                     // one `<td>` of this row to the next fires `pointerout` on
                     // the first, and reading that as a departure would clear

@@ -4923,7 +4923,7 @@ describe('the pointed row', () => {
     }
   });
 
-  itDom('reports null when the pointer leaves a bar', () => {
+  itDom('reports null when the pointer leaves the drawing from a bar', () => {
     const pointed: [string | null, string][] = [];
     render(
       draw(null, (rowId, from) => {
@@ -4932,6 +4932,17 @@ describe('the pointed row', () => {
     );
 
     fireEvent(markFor('strip-dev'), pointerEvent('mouse', 'pointerover'));
+    // `relatedTarget` is null on this helper's events, which is a departure to
+    // nothing — out of the drawing rather than onto the row line under the bar.
+    // **That distinction is the whole of what moved in `pointed-row-one-ink`:**
+    // the bar's own `onPointerOut` no longer clears the light, because leaving
+    // a bar is usually landing on the same row, so the `null` below now comes
+    // from the SVG root's `onPointerLeave` rather than from the bar. The case
+    // reads the same from outside and is proved by a different line.
+    //
+    // Proof: the root's `onPointerLeave` removed, watched failing on `expected
+    // [ [ 'strip', 'pointer' ] ] to deeply equal [ [ 'strip', 'pointer' ],
+    // …(1) ]` — the departure reported by nothing at all.
     fireEvent(markFor('strip-dev'), pointerEvent('mouse', 'pointerout'));
 
     expect(pointed).toEqual([

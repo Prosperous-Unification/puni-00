@@ -15,7 +15,7 @@ import { createProject } from './create-project';
  * the cursor over UI elements, rn this is more annoying than useful when you
  * already know what buttons or UI elements do"_. So `tool-hints-wait` splits
  * them: words about the reader's own project keep `data-fact` and open at once,
- * words about what a control does keep `data-hint` and wait three seconds
+ * words about what a control does keep `data-hint` and wait two seconds
  * behind a ring at the cursor.
  *
  * **None of these assertions can be made upstairs.** `hint.test.tsx` drives the
@@ -101,7 +101,7 @@ test.describe('hints are the page’s own', () => {
     expect(carryingBoth, `${String(carryingBoth.length)} marks carry both`).toEqual([]);
   });
 
-  test('a toolbar control waits three seconds, and rings while it does', async ({ page }) => {
+  test('a toolbar control waits two seconds, and rings while it does', async ({ page }) => {
     await aPlan(page);
 
     /*
@@ -172,10 +172,18 @@ test.describe('hints are the page’s own', () => {
       `the ring is ${String(Math.round(fromCursor))}px from the cursor`,
     ).toBeLessThan(40);
 
-    // The card arrives on time. 2600ms is the rest of the three seconds plus a
-    // frame, so a wait that had quietly grown longer fails here rather than
-    // being absorbed by a generous default.
-    await expect(card).toBeVisible({ timeout: 2600 });
+    // The card arrives on time. A second of the two has already passed above,
+    // so 1600ms is the rest of the wait plus 600ms of slack for the two
+    // measurements between — a wait that had quietly grown longer fails here
+    // rather than being absorbed by a generous default.
+    //
+    // Proof: `TOOL_HINT_WAIT_MS` put back to the `3000` it was before Dany
+    // asked for two seconds. Watched failing on `expect(locator).toBeVisible()
+    // failed · Expected: visible · Timeout: 1600ms · Error: element(s) not
+    // found` — which is the whole reason this budget is the rest of the wait
+    // and not Playwright's own default, a wait of any length at all passing
+    // under that.
+    await expect(card).toBeVisible({ timeout: 1600 });
     await expect(card).toHaveText(/Keyboard shortcuts/);
 
     // Proof: the `stopWaiting()` inside the opening timer removed — a ring left
@@ -230,27 +238,140 @@ test.describe('hints are the page’s own', () => {
     whole of what the guard is about.
   */
 
+  test('a press ends the wait, and the ring with it', async ({ page }) => {
+    await aPlan(page);
+
+    /*
+      Dany, 2026-09-01: _"interaction with the element must stop the spinner
+      from appearing; if user clicks and interacts with the element, no need to
+      show the tooltip; only show tooltip after prolonged hover without clicks"_.
+
+      **This case cannot be made upstairs.** A press is a `pointerdown` *and*
+      the focus Chromium performs as its **default action**, and jsdom performs
+      no default action at all — so the seam the cancel has to beat is invisible
+      to `hint.test.tsx`, which can only dispatch the two events by hand in an
+      order it chooses itself. `AGENTS.md`'s R5 #14 and #17 are both this seam,
+      both found in a browser after a jsdom suite had passed through the fault.
+
+      `Keyboard shortcuts` for the reason the case above uses it: a disabled
+      control is not a hit target, so `Undo` on an unedited plan never sees a
+      pointer at all.
+    */
+    const shortcuts = page.getByRole('button', { name: 'Keyboard shortcuts' });
+    const card = page.getByRole('tooltip');
+    const ring = page.locator('[data-wait-ring]');
+
+    const box = await shortcuts.boundingBox();
+    if (box === null) throw new Error('the control has no box to press');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(800);
+
+    // The ring is up — which is what makes the next assertion about a wait that
+    // was actually running, rather than about a page that was never waiting.
+    expect(await ring.count(), 'no ring was drawn to take away').toBe(1);
+
+    /*
+      **`mouse.down()` and not `click()`, and the difference is what makes the
+      assertion below able to fail.** Written as a full click, the ring was read
+      after the dialog this button opens had already been drawn and dismissed —
+      and that redraw clears the ring by itself, through a path that has nothing
+      to do with the press. The check was watched **passing** with the whole
+      `pointerdown` listener removed, the fault surfacing two assertions later
+      as a card instead. Held at the press, the ring's absence is the press's
+      own doing and nothing else's.
+    */
+    await page.mouse.down();
+
+    // Read once, at the instant it is about. `toHaveCount(0)` polls for thirty
+    // seconds and would be satisfied by a ring that goes at any point in them —
+    // `LLM_README.md`'s landmine, and the fault it hid was in this very file.
+    //
+    // Proof: the `pointerdown` listener removed from `HintLayer`, watched
+    // failing here on `Error: the ring outlived the press · Expected: 0 ·
+    // Received: 1`.
+    expect(await ring.count(), 'the ring outlived the press').toBe(0);
+
+    await page.mouse.up();
+    // The dialog the button opens is not this test's subject; it is dismissed
+    // so that what follows is about a cursor resting on the control it pressed.
+    await page.keyboard.press('Escape');
+
+    /*
+      And the whole of the rest of the wait passes with nothing drawn — through
+      the dialog's own opening and closing, which fires `pointerover` twice
+      under a cursor that has not moved. Measured in Chromium: both events
+      report the press's own `834.47998046875,65`. Read as a departure and a
+      return they restart the wait, and the card lands two seconds after the
+      dialog closes over a button the reader has just used.
+    */
+    //
+    // Proof: the `pressedAt` coordinate comparison removed from `pointed`,
+    // watched failing on `Error: the card came up after the press · Expected: 0
+    // · Received: 1`.
+    await page.waitForTimeout(2400);
+    expect(await card.count(), 'the card came up after the press').toBe(0);
+    expect(await ring.count(), 'a ring came back after the press').toBe(0);
+  });
+
+  test('a pressed control explains itself again once the pointer has left', async ({ page }) => {
+    await aPlan(page);
+
+    /*
+      **The quiet is a cancelled timer, not a control marked silent**, and this
+      is the case that says so. Nothing in the layer remembers which control was
+      pressed: the cursor moving is what ends the quiet, and the next rest is a
+      wait like any other. A change that marked the control instead would pass
+      every assertion in the case above and fail here.
+    */
+    const shortcuts = page.getByRole('button', { name: 'Keyboard shortcuts' });
+    const card = page.getByRole('tooltip');
+
+    await shortcuts.hover();
+    await shortcuts.click();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(2400);
+    expect(await card.count(), 'the press did not silence the control').toBe(0);
+
+    // Away, onto something carrying neither attribute, and back — a real move,
+    // which is the only thing that ends the quiet.
+    await page.mouse.move(4, 4);
+    await page.waitForTimeout(100);
+    await shortcuts.hover();
+
+    // Proof: `pointed`'s `pressedAt = null` removed, so a cursor that has moved
+    // never ends the quiet the press bought. Watched failing on
+    // `expect(locator).toBeVisible() failed · Expected: visible · Error:
+    // element(s) not found` — the control silent for the rest of the visit,
+    // which is the design this case exists to refuse.
+    await expect(card).toBeVisible({ timeout: 2600 });
+    await expect(card).toHaveText(/Keyboard shortcuts/);
+  });
+
   test('a project fact answers at once and never rings', async ({ page }) => {
     await aPlan(page);
     await page.getByRole('button', { name: 'Add work item' }).click();
 
     /*
-      The row's own number, which is the plainest fact on the page: the cell is
-      sized to an envelope and a longer number is clipped, so the whole of it
-      lives in the attribute and the card is the only place a reader sees it.
+      The End cell's answer for a row nobody has estimated, which is the
+      plainest fact a fresh plan draws: four words about this row, in a cell
+      showing a dash.
 
-      **Named `010`, not `td [data-fact]`.** Written as the first fact in a row,
-      this case was watched **passing** with the Number cell's attribute turned
-      back into a `data-hint`: the locator simply found the next mark that is
-      still a fact — a row carries several — and asserted the 400ms budget
-      against a cell the fault had not touched. A test about one mark has to say
-      which mark.
+      **Named by its words and its column, not `td [data-fact]`.** Written as
+      the first fact in a row, this case was watched **passing** with the mark's
+      attribute turned back into a `data-hint`: the locator simply found the
+      next mark that is still a fact — a fresh row carries four — and asserted
+      the 400ms budget against a cell the fault had not touched. A test about
+      one mark has to say which mark.
+
+      It was the row's own number until `hint-press-cancels`, which stopped the
+      `#` cell speaking for a number its column is not clipping. Dany,
+      2026-09-01: "also remove tooltips from # cells; why it needed?"
     */
-    const said = '010';
-    const number = page.locator(`td span[data-fact="${said}"]`);
-    await expect(number).toBeVisible();
+    const said = 'No estimate yet';
+    const finish = page.locator(`td[data-column="finish"] [data-fact="${said}"]`);
+    await expect(finish).toBeVisible();
 
-    await number.hover();
+    await finish.hover();
 
     /*
       **A tight budget, and it is the claim rather than a convenience.** The
@@ -259,14 +380,15 @@ test.describe('hints are the page’s own', () => {
       five-second default would be satisfied by either. 400ms is inside a hover
       the reader has not finished making and outside both.
     */
-    // Proof: the row number's `data-fact` changed back to `data-hint`, which is
+    // Proof: the End cell's `data-fact` changed back to `data-hint`, which is
     // this whole change applied to the wrong side of the split. Watched failing
-    // **at the locator above**, not here — `expect(locator).toBeVisible()
-    // failed · Locator: locator('td span[data-fact="010"]') · Error: element(s)
-    // not found`. That is the fault arriving one line earlier than expected and
-    // it is the right place for it: the attribute is what says which kind of
-    // words a mark holds, so changing it takes the mark out of this test's
-    // reach rather than making its card late.
+    // **at the locator above**, not here — `Expect "toBeVisible" with timeout
+    // 30000ms · waiting for locator('td[data-column="finish"]
+    // [data-fact="No estimate yet"]')`. That is the fault
+    // arriving one line earlier than expected and it is the right place for it:
+    // the attribute is what says which kind of words a mark holds, so changing
+    // it takes the mark out of this test's reach rather than making its card
+    // late.
     const card = page.getByRole('tooltip');
     await expect(card).toBeVisible({ timeout: 400 });
     await expect(card).toHaveText(said);
