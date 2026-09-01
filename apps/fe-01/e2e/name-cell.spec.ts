@@ -158,6 +158,30 @@ const settled = (page: Page): Promise<unknown> =>
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
 
+/**
+ * Waits until a box's laid-out height stops changing, then answers it.
+ *
+ * {@link settled} is enough for a layout the browser performs by itself. It is
+ * not enough after a write that **commits**: the blur sends the name to be-01,
+ * the plan is re-read, and the box is briefly the stored value again. Two frames
+ * can land inside that window and measure the old text.
+ *
+ * Agreement between two readings rather than a poll on the expected height, so
+ * a box that has stopped growing altogether settles at once and the caller's
+ * assertion fails immediately instead of timing out.
+ */
+async function settledHeight(cell: Locator): Promise<number> {
+  const read = (): Promise<number> => cell.evaluate((node) => node.clientHeight);
+  let last = await read();
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    await cell.page().waitForTimeout(100);
+    const now = await read();
+    if (now === last) return now;
+    last = now;
+  }
+  throw new Error(`the Name box never settled on a height; last read ${String(last)}`);
+}
+
 let account = 0;
 
 test.beforeEach(() => {
@@ -549,7 +573,27 @@ test.describe('the Name cell has no grip to drag it out of line', () => {
     const short = await boxOf(cell);
 
     await writeInto(cell, LONG_NAME);
-    await settled(page);
+    // Waited for until it stops moving, rather than measured two frames after
+    // the write. `settled` is two `requestAnimationFrame`s, which covers a
+    // layout the browser does on its own and **not** the round trip a blur
+    // starts: `writeInto` commits, the plan is re-read, and the box can be
+    // caught in between holding the stored name — one line, the short height.
+    // On the CI runner that is what happened, once in 275 cases:
+    // `a wrapped name did not make the box taller · Expected: > 20 · Received:
+    // 20`, both heights the same single line. It passes alone in 1.3s, which is
+    // the signature of a wait that is too short rather than a box that does not
+    // grow.
+    //
+    // Stability, deliberately, and not `expect.poll` on the assertion itself:
+    // this waits for two readings 100ms apart to agree and then reads once, so
+    // an auto-grow that has been broken settles at the short height immediately
+    // and fails on the next line rather than passing late.
+    //
+    // Proof: `resize` in `cell-input.tsx` made to return before it writes
+    // `style.height` — watched failing here in **1.6s** on `a wrapped name did
+    // not make the box taller · Expected: > 22 · Received: 22`. A wait that
+    // masked the fault would have taken the 5s cap instead. 2026-09-01.
+    await settledHeight(cell);
     const long = await boxOf(cell);
 
     expect(long.clientHeight, 'a wrapped name did not make the box taller').toBeGreaterThan(
