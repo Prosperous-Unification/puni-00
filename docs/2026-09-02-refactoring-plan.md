@@ -109,7 +109,7 @@ until the type checks compile files and the cache reads the right inputs.
 | Id    | Change                                                                                                                                                                                                                                                                                                 | Files                                                                | Effort | R5 negative                                                                                                          |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
 | W0-1  | **Done, 2026-09-02** — see §6. `tsc --noEmit -p <solution>` → `tsc --build --force` in the 18 vacuous `typecheck` targets, and `libs/auth` unified onto the same form so all 23 read one way. 12 latent type errors fixed, `@types/node` bumped 18.16.9 → 22.18.0, one guard test added.               | 19 `project.json`; 7 source files; `package.json`                    | 1h + ? | `const x: number = 'no'` in `tools/tool-remote-scripts/src/swap.ts`, watched red                                     |
-| W0-2  | Declare `bin/**` and `deploy/**` as inputs on the seven targets that read them; then delete `--skip-nx-cache` from the gate and measure it.                                                                                                                                                            | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
+| W0-2  | **Done, 2026-09-02** — see §7. Nine targets across six projects read files outside their own project and declared none. Declared precisely, per target. `--skip-nx-cache` **kept** in the release gate, deliberately; see §7.                                                                          | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
 | W0-3  | Delete the dead `derive` (N1).                                                                                                                                                                                                                                                                         | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
 | W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                                       | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
 | W0-5  | Close the three column leaks (N3): `toProject` names its fields; `work-item.ts:547` and `directory.ts:127` take column lists; promote `WORK_ITEM_COLUMNS`/`USER_COLUMNS` beside their tables; a source-reading test in `audit.test.ts`'s shape fails on a bare `select()`/`returning()` in the folder. | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
@@ -348,3 +348,66 @@ file in this change reaches the browser.
 **Still out of the gate, deliberately.** be-01, gw-01 and mcp-01 point at `tsconfig.lib.json`, so
 their _spec_ projects are still unchecked — CLAUDE.md records the pre-existing errors there as
 their own change, and this one did not widen that scope.
+
+## 7 · Verify — W0-2, 2026-09-02
+
+**What the sweep undercounted.** It named seven targets reading `bin/` and `deploy/compose/`.
+Walking every `*.test.ts` for a `'../../../…'` literal found **nine reads across six projects**,
+and the ninth is the one worth the paragraph: `libs/domain`'s
+`every name it can answer is one the migration seeds` reads
+`apps/be-01/drizzle/20260830020000_add_external_ref/migration.sql` to prove the domain's list and
+the migration's seed are one fact. `libs/domain` does not depend on be-01 — the dependency runs the
+other way — so that file was in no input of the task that reads it. An anti-drift check whose own
+input is invisible to the thing deciding whether to run it is a check that cannot fail.
+
+| Target                       | Declared now                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| `tool-bootstrap:test`        | two `deploy/compose/` fragments the harness slices                                    |
+| `tool-compose:test`          | `deploy/compose/**/*` (one candidate file, and a directory walk)                      |
+| `tool-dagger:test`           | `bin/with-heavy-lock.sh`, `bin/heavy-lock-lib.sh`                                     |
+| `tool-deploy:test`, `:build` | `bin/assert-no-prod-release.sh`                                                       |
+| `tool-devsync:test`          | three `bin/dev-*.sh`, every `project.json`, and every `*.test.ts` the new guard scans |
+| `tool-devsync:build`         | the four `bin/dev-*.sh` it shellchecks                                                |
+| `domain:test`                | `apps/be-01/drizzle/*/migration.sql`                                                  |
+
+**The fault, watched through Nx itself.** With `tool-devsync:test`'s `inputs` removed, warm the
+cache, then append a line to `bin/dev-be-probe.sh`:
+
+```
+> nx run tool-devsync:test  [existing outputs match the cache, left as is]
+```
+
+Green, over a script no command read. With the declaration restored, the same edit runs the suite.
+
+**The guard.** `tools/tool-devsync/src/workspace-targets.test.ts` (renamed from
+`workspace-typecheck.test.ts`, which now holds both workspace-target rules) walks every suite,
+resolves each `'../../../…'` literal, and fails on one no declared input covers. Watched failing
+twice, once per project:
+
+```
+Received: [ "tool-devsync:test does not declare apps", "tool-devsync:test does not declare bin/dev-be-probe.sh", …
+Received: [ "domain:test does not declare apps/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]
+```
+
+**Deviation from the plan: `--skip-nx-cache` stays in `bin/h2puni-gate.sh`.** The plan said to
+delete it once the inputs were right. Two facts found while doing the work argue against:
+
+- **CI never had the problem.** `.github/workflows/ci.yml:99` runs `nx run-many` _without_
+  `--skip-nx-cache`, but there is no `actions/cache` for `.nx` and no Nx Cloud, so every CI run
+  starts cold and every task actually runs. The hole was only ever the local loop — which is where
+  an agent lives, so fixing it was still worth doing.
+- **That gate is the release gate on the build box.** It is the last thing run before a prod
+  deploy, and its whole value is that it trusts nothing. Correct inputs make the cache safe _as far
+  as we know_; `--skip-nx-cache` is what makes the release gate safe when we are wrong about that.
+  Belt and braces on one command, run once per release, is the right trade. Making the _inner_ loop
+  fast is W1-4's job and has a different risk profile.
+
+**Commands run and green:** `nx run-many -t test lint typecheck --skip-nx-cache` for
+`tool-devsync`, `domain`, `tool-deploy`, `tool-compose`, `tool-dagger`; `nx format:check --all`;
+`nx show project` for all six, confirming Nx parses the new inputs. `tool-bootstrap` was not
+re-run — only its `project.json` changed, its suite takes 16 minutes, and it carries the
+pre-existing 53/7 recorded in §6.
+
+The new typecheck target earned its keep immediately: it caught `TS18046` in the guard test above
+(`.filter` on a union that needs a type predicate), which the old `-p` form would have reported
+green.

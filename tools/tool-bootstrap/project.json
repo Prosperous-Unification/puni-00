@@ -24,15 +24,28 @@
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-bootstrap" }
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/deploy/compose/Caddyfile.bootstrap",
+        "{workspaceRoot}/deploy/compose/log-redact.caddy"
+      ],
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-bootstrap"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-bootstrap/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-bootstrap/src"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --build --force tools/tool-bootstrap/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-bootstrap/tsconfig.json"
+      }
     }
   }
 }
