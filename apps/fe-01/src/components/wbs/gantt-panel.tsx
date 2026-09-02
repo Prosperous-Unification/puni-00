@@ -2142,23 +2142,38 @@ function GanttChart({
   const pointedRow = useSyncExternalStore(pointed.subscribe, pointed.pointedAt);
   const [chartSpanPx, setChartSpanPx] = useState<number | null>(null);
   /**
-   * Reads both facts off one laid-out scroll box.
+   * Whether anything is below the fold, off one laid-out scroll box.
    *
    * The box is a parameter rather than the ref: the observer below holds the
    * element it was given for as long as it is connected, and the scroll handler
    * has it as the event's own target — so there is no nullable read here at
    * all, and no null branch that nothing could ever take.
    *
+   * **Reads no rect**, which is why it is separate from {@link measureTheSpan}:
+   * `scrollTop`, `scrollHeight` and `clientHeight` are what a scroll changes,
+   * and this runs on **every scroll event**. It measured the content row's
+   * width too until 2026-09-02 — a `getBoundingClientRect` per scroll event,
+   * for a width that only a resize can change and that two `ResizeObserver`s
+   * are already watching.
+   */
+  const measureTheFold = useCallback((port: HTMLElement): void => {
+    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
+  }, []);
+  /**
+   * How wide the content row is, off the same box.
+   *
+   * On the observers' path and on mount, never on a scroll: scrolling moves the
+   * content under the box and changes nothing about its width.
+   *
    * @throws When the scroll box has no content row to measure. That row is the
    * one element this panel always draws inside it, so its absence is an
    * invariant broken rather than a width to default (`AGENTS.md` R5).
    */
-  const measureTheFold = useCallback((port: HTMLElement): void => {
+  const measureTheSpan = useCallback((port: HTMLElement): void => {
     const row = port.firstElementChild;
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to measure");
     }
-    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
     const span = row.getBoundingClientRect().width;
     setChartSpanPx(span > 0 ? span : null);
   }, []);
@@ -2186,16 +2201,18 @@ function GanttChart({
       throw new Error("the chart's scroll box holds no content row to watch");
     }
     measureTheFold(port);
+    measureTheSpan(port);
     if (typeof ResizeObserver === 'undefined') return;
     const watch = new ResizeObserver(() => {
       measureTheFold(port);
+      measureTheSpan(port);
     });
     watch.observe(port);
     watch.observe(row);
     return () => {
       watch.disconnect();
     };
-  }, [measureTheFold]);
+  }, [measureTheFold, measureTheSpan]);
   // Whether the chart's detail is drawn: the stored-dependency arrows, the
   // parent rows' summary brackets and the unestimated slices' assumed bars, all
   // three together. The key, the read, the state and the write are one file —
@@ -3577,6 +3594,11 @@ function GanttChart({
           // the fade going away, and one who scrolls back up is owed it
           // returning. The event's own target is the box, so nothing here has
           // to go looking for it.
+          //
+          // The fold only — the content's **width** is `measureTheSpan`'s, and
+          // it is not on this path: a scroll moves the content under the box
+          // and changes nothing about how wide it is. This handler read a rect
+          // per scroll event for it until 2026-09-02.
           measureTheFold(scrollEvent.currentTarget);
           // The surface is a fixed layer and is not in this scroll box, so the
           // bar moves out from under it and the card stays where it was put. A

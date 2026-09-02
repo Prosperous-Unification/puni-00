@@ -3884,6 +3884,55 @@ describe('the caption follows the scroll', () => {
     expect(screen.queryByText('Aug 2026')).toBeNull();
   });
 
+  /**
+   * A scroll reads no rect.
+   *
+   * The panel's `onScroll` measured **both** the fold and the content row's
+   * width until 2026-09-02 — a `getBoundingClientRect` per scroll event, for a
+   * width that only a resize can change and that the two `ResizeObserver`s on
+   * this box are already watching. A wheel over a chart fires one of these per
+   * frame for as long as the finger moves, and each one forced a layout in the
+   * middle of the frame that was drawing the chart.
+   *
+   * What a scroll does change is the fold, and `chartBelowTheFold` reads
+   * `scrollTop`, `scrollHeight` and `clientHeight` — no geometry, no forced
+   * layout.
+   *
+   * Ten events rather than one, because the fault is per-event and at one event
+   * "no rects" and "one rect" differ by one — a difference a reader could argue
+   * was setup. `ResizeObserver` is absent in jsdom, so nothing else on this
+   * path measures anything and the count is the handler's own.
+   *
+   * Proof: `measureTheSpan(scrollEvent.currentTarget)` added back beside the
+   * fold in `onScroll`, watched failing on `expected 10 to be +0`.
+   * Observed 2026-09-02.
+   */
+  itDom('reads no rect per scroll event, however many arrive', () => {
+    augustIntoSeptember();
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (!(panel instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    // The boundary that makes the two lines below safe: one prototype method,
+    // on the jsdom realm this file owns, put back in the `finally`. It is taken
+    // off the prototype unbound on purpose — the replacement calls it with the
+    // element the DOM called *it* with, which is what makes the spy transparent.
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- restored below; `call(this)` supplies the receiver.
+    const real = Element.prototype.getBoundingClientRect;
+    let reads = 0;
+    Element.prototype.getBoundingClientRect = function measured(this: Element): DOMRect {
+      reads += 1;
+      return real.call(this);
+    };
+    try {
+      for (let event = 0; event < 10; event += 1) {
+        panel.scrollLeft = event * 4;
+        fireEvent.scroll(panel);
+      }
+    } finally {
+      Element.prototype.getBoundingClientRect = real;
+    }
+
+    expect(reads).toBe(0);
+  });
   itDom('says a month the way a person does, from a fixed table', () => {
     expect(monthWords('2026-08-17')).toBe('Aug 2026');
     expect(monthWords('2026-12-01')).toBe('Dec 2026');
