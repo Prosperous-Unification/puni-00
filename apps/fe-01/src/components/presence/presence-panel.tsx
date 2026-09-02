@@ -1,3 +1,4 @@
+import { wsSubscribe, wsWho } from '@wbs/contracts/ws-frames';
 import { useEffect, useRef, useState } from 'react';
 
 import { websocketUrl } from '@/lib/api';
@@ -69,9 +70,9 @@ export function PresencePanel({ me, projectId }: PresencePanelProps) {
       // project, so a `who` that overtook the subscribe would be answered with
       // nobody and the panel would sit empty until the next join.
       if (projectId !== null) {
-        ws.send(JSON.stringify({ type: 'subscribe', subscription: `project:${projectId}` }));
+        ws.send(wsSubscribe(`project:${projectId}`));
       }
-      ws.send(JSON.stringify({ type: 'who' }));
+      ws.send(wsWho());
     };
     ws.onmessage = (ev: MessageEvent<string>) => {
       try {

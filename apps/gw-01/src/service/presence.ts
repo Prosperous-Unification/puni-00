@@ -1,3 +1,5 @@
+import { wsPresence } from '@wbs/contracts';
+
 export interface PresenceSocket {
   send(s: string): void;
 }
@@ -119,14 +121,14 @@ export class Presence {
    * must not stop the remaining clients from being told, so each is isolated.
    */
   broadcast(): void {
-    const empty = JSON.stringify({ type: 'presence', users: NOBODY });
+    const empty = wsPresence(NOBODY);
     const byProject = new Map<string, string>();
     for (const { socket, projectId } of this.byConnection.values()) {
       let payload = empty;
       if (projectId !== null) {
         let forProject = byProject.get(projectId);
         if (forProject === undefined) {
-          forProject = JSON.stringify({ type: 'presence', users: this.list(projectId) });
+          forProject = wsPresence(this.list(projectId));
           byProject.set(projectId, forProject);
         }
         payload = forProject;

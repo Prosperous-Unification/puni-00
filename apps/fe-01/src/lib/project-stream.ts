@@ -1,3 +1,5 @@
+import { wsResume, wsSubscribe } from '@wbs/contracts/ws-frames';
+
 import { websocketUrl } from './api';
 
 export interface SocketHandlers {
@@ -96,6 +98,18 @@ const browserDeps: ProjectStreamDeps = {
  * Reconnect lives in this function rather than in the component that calls it: a
  * component would restart the backoff on any render that changed the closure,
  * which is how reconnect storms get written by accident.
+ *
+ * **This is the live client, and `libs/realtime`'s `createReconnectingWs` is
+ * not.** The two are not a duplication to collapse: that one is the generic
+ * scaffold — a heartbeat, a `SubscriptionTracker` in storage, an attempt
+ * ceiling — and this one is what the plan page actually uses, which is why the
+ * rules a reader needs are written here. What they must not do is disagree, and
+ * they did until 2026-09-02: that client advanced the sequence **on the frame**,
+ * which is the mistake the paragraph in `receive` explains. It takes a `seen`
+ * from its caller now, as this does.
+ *
+ * The frames both of them send come from `@wbs/contracts/ws-frames`, so gw-01
+ * cannot be handed a field name only one of them knows.
  */
 export function subscribeToProject(
   options: ProjectStreamOptions,
@@ -181,7 +195,7 @@ export function subscribeToProject(
     pendingReconnect = null;
     socket = deps.openSocket(websocketUrl(), {
       onOpen: () => {
-        socket?.send(JSON.stringify({ type: 'subscribe', subscription }));
+        socket?.send(wsSubscribe(subscription));
 
         // Nothing to resume from. Resuming at -1 asks for the whole stream, and
         // on a project with any history that is either a refusal or a frame per
@@ -196,9 +210,7 @@ export function subscribeToProject(
         // Subscribe first, resume second. The other order leaves a window in
         // which the replay has been sent and a live edit arriving behind it has
         // no socket registered to receive it.
-        socket?.send(
-          JSON.stringify({ type: 'resume', resume_points: { [subscription]: sinceSeq } }),
-        );
+        socket?.send(wsResume({ [subscription]: sinceSeq }));
       },
       onMessage: receive,
       onClose: () => {

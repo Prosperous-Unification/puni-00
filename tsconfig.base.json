@@ -43,6 +43,7 @@
       "@wbs/observability": ["libs/observability/src/index.ts"],
       "@wbs/observability/server": ["libs/observability/src/server/index.ts"],
       "@wbs/realtime": ["libs/realtime/src/index.ts"],
+      "@wbs/contracts/ws-frames": ["libs/contracts/src/ws-frames.ts"],
       "@wbs/deploy-contract": ["tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@wbs/tool-compose": ["tools/tool-compose/src/index.ts"],
       "@wbs/tool-env": ["tools/tool-remote-scripts/src/lib/env.ts"],
