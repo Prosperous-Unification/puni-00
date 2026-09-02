@@ -100,45 +100,74 @@ interface Target {
 
 export type PlanCommandKind = PlanCommand['kind'];
 
-/** Every kind, for the document and for the parser — the union, enumerated once. */
-export const PLAN_COMMAND_KINDS: readonly PlanCommandKind[] = [
-  'createWorkItem',
-  'patchWorkItem',
-  'moveWorkItem',
-  'duplicateWorkItem',
-  'deleteWorkItem',
-  'setEstimate',
-  'clearEstimate',
-  'setActual',
-  'clearActual',
-  'setProgress',
-  'clearProgress',
-  'setMeasure',
-  'clearMeasure',
-  'setAssignee',
-  'addDependency',
-  'removeDependency',
-  'freezeProject',
-  'unfreezeProject',
-  'unfreezeWorkItem',
-  'setCapacity',
-  'setPriorityBands',
-  'createTeam',
-  'patchTeam',
-  'deleteTeam',
-  'createPerson',
-  'patchPerson',
-  'deletePerson',
-  'createTag',
-  'patchTag',
-  'deleteTag',
-  'createWorkItemType',
-  'patchWorkItemType',
-  'deleteWorkItemType',
-  'createService',
-  'patchService',
-  'deleteService',
-];
+/**
+ * Every kind, for the document and for the parser — the union, enumerated once
+ * and **derived** rather than written out beside it.
+ *
+ * The enumeration was a hand-written array typed `readonly PlanCommandKind[]`,
+ * which is a check that cannot fail in the direction that matters: a kind added
+ * to the union and forgotten here type-checks perfectly, because a subset of a
+ * union is a valid array of it. The consequences are silent — `parseCommand`
+ * refuses the new kind as `unknown_kind`, and
+ * `plan-command-schema.ts`'s count check stays balanced because the document
+ * would be short by one too.
+ *
+ * `satisfies Record<PlanCommandKind, true>` closes both directions: a missing
+ * kind is a missing property and an invented one is an excess property, and
+ * either is a typecheck error at this line.
+ *
+ * Proof: `deleteService` removed from the record, `nx typecheck be-01` failed on
+ * `plan-command.ts(160,3): error TS1360: Type '{ createWorkItem: true; … }' does
+ * not satisfy the expected type 'Record<"createWorkItem" | … | "deleteService",
+ * true>'` — the union's own arms listed back as what the record is short of.
+ * Watched 2026-09-02.
+ */
+const EVERY_KIND = {
+  createWorkItem: true,
+  patchWorkItem: true,
+  moveWorkItem: true,
+  duplicateWorkItem: true,
+  deleteWorkItem: true,
+  setEstimate: true,
+  clearEstimate: true,
+  setActual: true,
+  clearActual: true,
+  setProgress: true,
+  clearProgress: true,
+  setMeasure: true,
+  clearMeasure: true,
+  setAssignee: true,
+  addDependency: true,
+  removeDependency: true,
+  freezeProject: true,
+  unfreezeProject: true,
+  unfreezeWorkItem: true,
+  setCapacity: true,
+  setPriorityBands: true,
+  createTeam: true,
+  patchTeam: true,
+  deleteTeam: true,
+  createPerson: true,
+  patchPerson: true,
+  deletePerson: true,
+  createTag: true,
+  patchTag: true,
+  deleteTag: true,
+  createWorkItemType: true,
+  patchWorkItemType: true,
+  deleteWorkItemType: true,
+  createService: true,
+  patchService: true,
+  deleteService: true,
+} satisfies Record<PlanCommandKind, true>;
+
+/**
+ * The kinds, in the order they are written above — which is the order the
+ * commands document lists them in.
+ */
+export const PLAN_COMMAND_KINDS: readonly PlanCommandKind[] = Object.keys(
+  EVERY_KIND,
+) as PlanCommandKind[];
 
 /** The most commands one batch may carry. */
 export const MOST_COMMANDS_IN_A_BATCH = 200;

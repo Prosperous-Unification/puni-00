@@ -294,11 +294,41 @@ const VARIANTS: Schema[] = [
   }),
 ];
 
-if (VARIANTS.length !== PLAN_COMMAND_KINDS.length) {
-  throw new Error(
-    `the commands document describes ${String(VARIANTS.length)} kinds; the API has ${String(PLAN_COMMAND_KINDS.length)}`,
-  );
+/**
+ * What is wrong between the document and the API's kinds, or `null`.
+ *
+ * **Counted, not compared, until 2026-09-02** — and a count is blind to the two
+ * faults worth catching. A kind described twice while another is described
+ * never leaves both totals at 36; so does a variant for a kind the API does not
+ * have, paired with a kind nobody wrote a sentence for. Either way one command
+ * ships undescribed, which for mcp-01 means a model is never told the kind
+ * exists — the whole reason this document is generated from the union.
+ *
+ * A sentence rather than a throw, so the same rule can be read by a test with
+ * the faults injected; the module below throws it at load, which is the
+ * production call path.
+ *
+ * @param variants The document's variants, each titled with its kind.
+ * @param kinds Every kind the API parses — {@link PLAN_COMMAND_KINDS}.
+ */
+export function documentComplaint(
+  variants: readonly Schema[],
+  kinds: readonly PlanCommandKind[],
+): string | null {
+  const described = variants.map((variant) => variant['title']);
+  const twice = described.filter((title, at) => described.indexOf(title) !== at);
+  const undescribed = kinds.filter((kind) => !described.includes(kind));
+  const strangers = described.filter((title) => !(kinds as readonly unknown[]).includes(title));
+  const faults = [
+    undescribed.length === 0 ? null : `undescribed: ${undescribed.join(', ')}`,
+    strangers.length === 0 ? null : `not a command kind: ${strangers.join(', ')}`,
+    twice.length === 0 ? null : `described twice: ${twice.join(', ')}`,
+  ].filter((fault): fault is string => fault !== null);
+  return faults.length === 0 ? null : `the commands document is wrong — ${faults.join('; ')}`;
 }
+
+const complaint = documentComplaint(VARIANTS, PLAN_COMMAND_KINDS);
+if (complaint !== null) throw new Error(complaint);
 
 /**
  * The request body of `POST /api/projects/{id}/commands`, as the OpenAPI
