@@ -33,8 +33,25 @@ export interface ProjectStreamOptions {
   projectId: string;
   /** Where the caller's last read of this project left off; `-1` for none. */
   sinceSeq: number;
-  /** Something changed on the server — refetch. */
-  onChange: () => void;
+  /**
+   * Something changed on the server — refetch.
+   *
+   * The argument is what the frame said changed: be-01's `ProjectEvent.type`,
+   * which gw-01 forwards verbatim as the frame's `message`. It is `null`
+   * whenever this side cannot say — a control frame that means "read again"
+   * (`resume_ack` with no replay count, `resume_denied`), a `message` that is
+   * not an object, or a `type` that is not a string. Optional as well as
+   * nullable, so a caller that does not care reads as one that cannot say: a
+   * `() => void` is still a valid handler, and `readScopeFor` treats an absent
+   * argument exactly as it treats `null`.
+   *
+   * It is a `string` and not a union on purpose. The union lives in be-01
+   * (`service/broadcast.ts`) and is not shared, so what arrives here is an
+   * unvalidated word off a socket; a caller that narrows on it must treat an
+   * unrecognised one exactly as it treats `null`. R5: unknown is not OK, and
+   * the honest answer to an unknown event is the full read.
+   */
+  onChange: (changed?: string | null) => void;
   /** Whether a socket is currently open, so the caller can say so on screen. */
   onConnectionChange?: (connected: boolean) => void;
   /**
@@ -144,6 +161,25 @@ export function subscribeToProject(
     return Math.round(capped * (0.5 + deps.random() * 0.5));
   }
 
+  /**
+   * What a data frame says changed, or `null` when it does not say.
+   *
+   * The one place this side reads `message`, and it reads exactly one field of
+   * it. Everything else in the payload is be-01's business — a `tree_replaced`
+   * carries every row, and reconciling those against a tree this client has not
+   * fetched is the mistake `ProjectEvent`'s own JSDoc argues against.
+   *
+   * Returns `null` rather than throwing for a `message` that is absent, not an
+   * object, or carrying a non-string `type`: a frame this side cannot read is a
+   * reason to read everything, not a reason to fail. That is the modelled
+   * condition, not an invariant — the caller's default is the safe one.
+   */
+  function changedFactOf(message: unknown): string | null {
+    if (typeof message !== 'object' || message === null) return null;
+    const said = (message as { type?: unknown }).type;
+    return typeof said === 'string' ? said : null;
+  }
+
   function receive(raw: string): void {
     let frame: {
       subscription?: string;
@@ -151,6 +187,11 @@ export function subscribeToProject(
       type?: string;
       replayed?: Record<string, number>;
       users?: string[];
+      // be-01's `ProjectEvent`, forwarded whole by gw-01 (`wsData`, and
+      // `internal.controller.ts` inline). Typed `unknown` because nothing on
+      // this side validates it: only its `type` is read, and only as a hint
+      // about which reads are needed.
+      message?: unknown;
     };
     try {
       frame = JSON.parse(raw) as typeof frame;
@@ -173,7 +214,7 @@ export function subscribeToProject(
       // empty `replayed` map — it read a `count` that no longer exists, and JSON
       // drops the undefined — and treating that as "you missed nothing" is the
       // silent divergence this whole module is here to prevent.
-      if (typeof frame.replayed?.[subscription] !== 'number') options.onChange();
+      if (typeof frame.replayed?.[subscription] !== 'number') options.onChange(null);
       settle();
       return;
     }
@@ -184,7 +225,7 @@ export function subscribeToProject(
       // The server cannot say what was missed, so the only honest answer is to
       // read the whole project again — and the caller reports the sequence that
       // read landed at through `seen`.
-      options.onChange();
+      options.onChange(null);
       settle();
       return;
     }
@@ -195,7 +236,7 @@ export function subscribeToProject(
     // would then resume past an edit nobody ever saw. `seen` is the only way
     // forward, and it is called by whoever actually installed the new rows.
     if (typeof frame.seq !== 'number') return;
-    options.onChange();
+    options.onChange(changedFactOf(frame.message));
   }
 
   /**

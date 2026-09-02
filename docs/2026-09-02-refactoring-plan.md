@@ -2278,7 +2278,7 @@ auditing every call site of the write wrapper. Unchanged by this.
 literal instead of calling `wsData` — the sixteenth of the fifteen literals `ws-frames.ts` exists to
 end. It is gw-01's file and one line, and it belongs with whoever is next in that app.
 
-## 60 · W2-9's other half — the calendar is asked once per day, not once per mark
+## 61 · W2-9's other half — the calendar is asked once per day, not once per mark
 
 `calendarScale.startOf` converted a workday to a calendar offset on every call, and a chart calls
 it for every bar's start, every bar's stop, every bracket's two ends, every arrow's two ends and

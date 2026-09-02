@@ -180,7 +180,7 @@ describe('live edits from other people', () => {
     // Throws rather than doing nothing: if the component never subscribes, this
     // test should fail loudly instead of quietly asserting a tree that never
     // needed refreshing.
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     let unsubscribed = false;
@@ -215,6 +215,145 @@ describe('live edits from other people', () => {
 
     view.unmount();
     expect(unsubscribed).toBe(true);
+  });
+
+  /**
+   * Counts the requests one read makes, by path.
+   *
+   * Wraps the fake rather than changing it: every other test in the repository
+   * sees `fakeProjectApi` exactly as it was, and the counters are this block's.
+   */
+  const countingApi = () => {
+    const api = fakeApi();
+    const reads: string[] = [];
+    const counted = {
+      ...api,
+      tree: (id: string) => {
+        reads.push('tree');
+        return api.tree(id);
+      },
+      steps: (id: string) => {
+        reads.push('steps');
+        return api.steps(id);
+      },
+      listTeams: () => {
+        reads.push('listTeams');
+        return api.listTeams();
+      },
+      listTags: () => {
+        reads.push('listTags');
+        return api.listTags();
+      },
+      listServices: () => {
+        reads.push('listServices');
+        return api.listServices();
+      },
+      listWorkItemTypes: () => {
+        reads.push('listWorkItemTypes');
+        return api.listWorkItemTypes();
+      },
+      listExternalSystems: () => {
+        reads.push('listExternalSystems');
+        return api.listExternalSystems();
+      },
+      listPeople: () => {
+        reads.push('listPeople');
+        return api.listPeople();
+      },
+    };
+    return { api: counted, reads };
+  };
+
+  /** Mounts, waits for the first read to land, then forgets what it cost. */
+  const mountedAndCounted = async () => {
+    const { api, reads } = countingApi();
+    let notify: (changed?: string | null) => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await waitFor(() => {
+      expect(reads).toContain('listPeople');
+    });
+    reads.length = 0;
+    return {
+      notify: (changed?: string | null) => {
+        notify(changed);
+      },
+      reads,
+    };
+  };
+
+  itDom('a tree_replaced frame reads the tree and nothing else', async () => {
+    const { notify, reads } = await mountedAndCounted();
+
+    // What be-01 sends when somebody else's edit replaced the rows. The six
+    // global vocabularies cannot have changed behind it: a plan batch that
+    // mints a person or a tag holds the directory announcement and sends it
+    // after the commit, so a directory change arrives as its own frame.
+    notify('tree_replaced');
+
+    await waitFor(() => {
+      expect(reads).toContain('tree');
+    });
+    expect(reads).toEqual(['tree']);
+  });
+
+  itDom('a step frame reads the tree and the steps, and no vocabulary', async () => {
+    const { notify, reads } = await mountedAndCounted();
+
+    notify('step_renamed');
+
+    await waitFor(() => {
+      expect(reads).toContain('steps');
+    });
+    expect([...reads].sort()).toEqual(['steps', 'tree']);
+  });
+
+  itDom('a directory_changed frame still reads every list', async () => {
+    const { notify, reads } = await mountedAndCounted();
+
+    // Not narrowed, and this is the case that says why: a removed team takes
+    // its assignments and its labels out of the tree with it, so the tree alone
+    // would leave a picker offering a team that no longer exists.
+    notify('directory_changed');
+
+    await waitFor(() => {
+      expect(reads).toContain('listPeople');
+    });
+    expect([...reads].sort()).toEqual([
+      'listExternalSystems',
+      'listPeople',
+      'listServices',
+      'listTags',
+      'listTeams',
+      'listWorkItemTypes',
+      'steps',
+      'tree',
+    ]);
+  });
+
+  itDom('a frame this build cannot read reads every list', async () => {
+    const { notify, reads } = await mountedAndCounted();
+
+    // R5: unknown is not OK. An event kind added to be-01 after this build, and
+    // a frame whose `message` this side could not read at all, are the same
+    // thing here — neither is a licence to skip a read.
+    notify('a_kind_from_a_later_be_01');
+    await waitFor(() => {
+      expect(reads).toContain('listPeople');
+    });
+    expect(reads).toHaveLength(8);
+
+    reads.length = 0;
+    notify(null);
+    await waitFor(() => {
+      expect(reads).toContain('listPeople');
+    });
+    expect(reads).toHaveLength(8);
   });
 
   itDom('says so while the connection is down', async () => {
@@ -256,7 +395,7 @@ describe('someone else editing while you are typing', () => {
     // the lot. The comment above the dependency list had been warning about
     // exactly this while the list itself caused it.
     const api = fakeApi();
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
@@ -291,7 +430,7 @@ describe('someone else editing while you are typing', () => {
     // test failed — `document.activeElement` was `<body>` and the value was the
     // peer's, not the half-typed one.
     const api = fakeApi();
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
@@ -323,7 +462,7 @@ describe('someone else editing while you are typing', () => {
     // Proof: the `input.value = latest.current` assignment in `cell-input.tsx`
     // deleted, and only this test failed — the cell still read 'Strip'.
     const api = fakeApi();
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
@@ -360,7 +499,7 @@ describe('someone else editing while you are typing', () => {
     // replaced with `true`, and only this test failed — one patch of a name
     // nobody typed.
     const api = fakeApi();
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
@@ -410,7 +549,7 @@ describe('someone else editing while you are typing', () => {
    */
   async function peerAndMe(name: string, notes: string) {
     const api = fakeApi();
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
@@ -553,7 +692,7 @@ describe('failures you can see', () => {
     const api = fakeApi();
     // Throws rather than doing nothing: a table that never subscribed must
     // fail loudly here instead of quietly asserting a tree nothing refreshed.
-    let notify: () => void = () => {
+    let notify: (changed?: string | null) => void = () => {
       throw new Error('the table never subscribed');
     };
     const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {

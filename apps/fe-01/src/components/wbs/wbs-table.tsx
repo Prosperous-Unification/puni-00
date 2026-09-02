@@ -224,8 +224,50 @@ export interface WbsTableProps {
 }
 
 export interface SubscriptionHandlers {
-  onChange: () => void;
+  /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
+  onChange: (changed?: string | null) => void;
   onConnectionChange: (connected: boolean) => void;
+}
+
+/**
+ * How much of the plan a read has to fetch.
+ *
+ * `refresh` reads eight things: the tree, the project's steps, and six global
+ * vocabularies. Most of those cannot have changed for most events, and the
+ * socket used to start all eight for every one of them — so a peer holding a
+ * key issued eight requests per keystroke.
+ *
+ * `'all'` is the default and the answer to anything this side does not
+ * recognise. The two narrower scopes are claims about be-01's events, and each
+ * is only sound because of something be-01 guarantees:
+ *
+ * - `'tree'` skips the vocabularies because a plan batch that mints a person or
+ *   a tag holds the directory service's own announcement and sends it after the
+ *   commit (`plan-commands.ts`: `announcements.hold` then `send(pending)`), so
+ *   the directory change announces itself and is not folded silently into a
+ *   `tree_replaced`.
+ * - `'tree-and-steps'` adds the steps because that is what the three step
+ *   events change, as `ProjectEvent`'s own JSDoc says.
+ *
+ * `directory_changed` and the capacity events are deliberately **not** narrowed:
+ * a removed team takes its assignments and labels out of the tree with it, so
+ * they are full reads.
+ */
+export type PlanReadScope = 'all' | 'tree' | 'tree-and-steps';
+
+/**
+ * Which reads a frame's event needs.
+ *
+ * Unknown is not OK: an event this build has never heard of, and a frame that
+ * said nothing, both read everything. Narrowing is opt-in per known kind, so a
+ * new `ProjectEvent` added in be-01 is correct here before anybody edits this.
+ */
+export function readScopeFor(changed: string | null | undefined): PlanReadScope {
+  if (changed === 'tree_replaced') return 'tree';
+  if (changed === 'step_added' || changed === 'step_renamed' || changed === 'step_removed') {
+    return 'tree-and-steps';
+  }
+  return 'all';
 }
 
 const showDays = (days: Days | undefined, point: Point): string =>
@@ -3577,117 +3619,131 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     });
   }, []);
 
-  const refresh = useCallback(async () => {
-    // An action from the project shown before the latest render can finish
-    // afterwards. It may finish its server request, but it no longer gets a
-    // read generation or a write into this project's screen.
-    if (projectId !== activeProject.current) return;
-    // Every mutation and every socket event starts a refresh, and they can
-    // finish out of order — an earlier one landing last would replace the table
-    // with a tree older than what is on screen, with nothing guaranteed to
-    // arrive afterwards and repair it. Only the newest request may write.
-    const generation = latestRefresh.current + 1;
-    latestRefresh.current = generation;
-    const [
-      tree,
-      loadedSteps,
-      loadedTeams,
-      loadedTags,
-      loadedServices,
-      loadedWorkItemTypes,
-      loadedExternalSystems,
-      loadedPeople,
-    ] = await Promise.all([
-      api.tree(projectId),
-      api.steps(projectId),
-      api.listTeams(),
-      // Beside the teams rather than behind them: both are global lists the
-      // pickers need before a reader can tick anything, and a second round trip
-      // would put the tag facet a frame behind the team one.
-      api.listTags(),
-      // And the third dimension in the same breath, for that reason a third
-      // time: the service facet names its options out of this list.
-      api.listServices(),
-      // And the fourth, a fourth time. Loaded even though the column is hidden
-      // by default: a reader who turns Types on from `Columns` gets a picker
-      // that already has the vocabulary, rather than one that is empty until the
-      // next refresh — and the type facet is built from this list the same way.
-      api.listWorkItemTypes(),
-      // And the fifth, on the same read for the same reason: the ref marks name
-      // their system out of this list, so a tree that arrived first would draw a
-      // row's links as `other` for a frame.
-      api.listExternalSystems(),
-      api.listPeople(),
-    ]);
-    if (projectId !== activeProject.current) return;
-    if (generation !== latestRefresh.current) return;
-    // This read landed, so whatever the last failed one left behind is over.
-    // After the generation check, not before: a superseded read must not
-    // vouch for a tree it is about to throw away, and the newest read is the
-    // one entitled to say the screen is current.
-    // Proof: removed, `raises the stale-tree banner when a socket refetch
-    // fails` and `clears the banner on a later successful refetch from any
-    // path` both failed with the banner still up after a clean reread.
-    // Watched, 2026-08-06.
-    setTreeMayBeStale(false);
-    setTeams(loadedTeams);
-    setTags(loadedTags);
-    setServices(loadedServices);
-    setWorkItemTypes(loadedWorkItemTypes);
-    setExternalSystems(loadedExternalSystems);
-    setPeople(loadedPeople);
-    const drawn = toTree(tree.workItems);
-    setWorkItems(drawn);
-    // The open hover card, settled against the rows that just arrived. The
-    // previous placements are read into a local **before** the ref is replaced:
-    // React may run the updater below after this call returns, and reading the
-    // ref from inside it would compare the new tree against itself and never
-    // close anything.
-    // Proof: this pair deleted, `closes the card when a peer moves the row it
-    // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
-    // Watched, 2026-08-09.
-    const placements = placementsOf(drawn);
-    const wasPlaced = rowPlacements.current;
-    rowPlacements.current = placements;
-    setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
-    // On the same read as the rows and behind the same generation check: a
-    // superseded read must not leave its slices under another read's rows.
-    // Proof: written as `setSlices((current) => current.length === 0 ?
-    // tree.slices : current)` — the refetch leaving the slices where the first
-    // read put them — and `replaces the slices on every refetch, as it replaces
-    // the rows` failed on `expected '2' to be '1'`: a second row on screen with
-    // the one-row plan's slices still behind it; watched 2026-08-09.
-    //
-    // One call, so the chart's three parts can only ever be one payload's. The
-    // steps and the names come from `tree` and **not** from `loadedSteps` or
-    // `loadedPeople` below: those are three more requests, and a peer's step
-    // delete landing between them is what used to hand `layOutGantt` a slice
-    // under a step the plan no longer listed.
-    setChartRead({
-      slices: tree.slices,
-      steps: tree.steps,
-      people: tree.assignedPeople,
-      depReach: tree.depReach,
-      pertWeights: tree.pertWeights,
-      estimateRounding: tree.estimateRounding,
-      generation,
-    });
-    setStack({ undoable: tree.undoable, redoable: tree.redoable });
-    setTeamCapacities(tree.teamCapacities);
-    setPriorityBands(tree.priorityBands);
-    setScheduleError(tree.scheduleError);
-    setEstimateMethod(tree.estimateMethod);
-    setStartDate(tree.startDate);
-    // Replaced only when the steps actually differ. Every read returns a fresh
-    // array, and `steps` is the one dependency `columns` still has — so a new
-    // array on every refresh rebuilt every column definition, which is how a
-    // stranger's edit used to take the focus of whoever was mid-word.
-    setSteps((current) => (sameSteps(current, loadedSteps) ? current : loadedSteps));
-    settleAgainstSteps(loadedSteps);
-    // Reported after the generation check, so a superseded read cannot move the
-    // resume point to a moment whose rows were thrown away.
-    stream.current?.seen(tree.seq);
-  }, [api, projectId, settleAgainstSteps]);
+  const refresh = useCallback(
+    async (scope: PlanReadScope = 'all') => {
+      // An action from the project shown before the latest render can finish
+      // afterwards. It may finish its server request, but it no longer gets a
+      // read generation or a write into this project's screen.
+      if (projectId !== activeProject.current) return;
+      // Every mutation and every socket event starts a refresh, and they can
+      // finish out of order — an earlier one landing last would replace the table
+      // with a tree older than what is on screen, with nothing guaranteed to
+      // arrive afterwards and repair it. Only the newest request may write.
+      const generation = latestRefresh.current + 1;
+      latestRefresh.current = generation;
+      // `null` where the scope says this read does not need that request. The
+      // vocabularies stay in one nested `Promise.all` rather than becoming six
+      // ternaries, so they are still issued in one breath when they are issued at
+      // all — which is what the five comments below are about.
+      const [tree, loadedSteps, loadedVocabularies] = await Promise.all([
+        api.tree(projectId),
+        scope === 'tree' ? null : api.steps(projectId),
+        scope === 'all'
+          ? Promise.all([
+              api.listTeams(),
+              // Beside the teams rather than behind them: both are global lists the
+              // pickers need before a reader can tick anything, and a second round trip
+              // would put the tag facet a frame behind the team one.
+              api.listTags(),
+              // And the third dimension in the same breath, for that reason a third
+              // time: the service facet names its options out of this list.
+              api.listServices(),
+              // And the fourth, a fourth time. Loaded even though the column is hidden
+              // by default: a reader who turns Types on from `Columns` gets a picker
+              // that already has the vocabulary, rather than one that is empty until the
+              // next refresh — and the type facet is built from this list the same way.
+              api.listWorkItemTypes(),
+              // And the fifth, on the same read for the same reason: the ref marks name
+              // their system out of this list, so a tree that arrived first would draw a
+              // row's links as `other` for a frame.
+              api.listExternalSystems(),
+              api.listPeople(),
+            ])
+          : null,
+      ]);
+      if (projectId !== activeProject.current) return;
+      if (generation !== latestRefresh.current) return;
+      // This read landed, so whatever the last failed one left behind is over.
+      // After the generation check, not before: a superseded read must not
+      // vouch for a tree it is about to throw away, and the newest read is the
+      // one entitled to say the screen is current.
+      // Proof: removed, `raises the stale-tree banner when a socket refetch
+      // fails` and `clears the banner on a later successful refetch from any
+      // path` both failed with the banner still up after a clean reread.
+      // Watched, 2026-08-06.
+      setTreeMayBeStale(false);
+      if (loadedVocabularies !== null) {
+        const [
+          loadedTeams,
+          loadedTags,
+          loadedServices,
+          loadedWorkItemTypes,
+          loadedExternalSystems,
+          loadedPeople,
+        ] = loadedVocabularies;
+        setTeams(loadedTeams);
+        setTags(loadedTags);
+        setServices(loadedServices);
+        setWorkItemTypes(loadedWorkItemTypes);
+        setExternalSystems(loadedExternalSystems);
+        setPeople(loadedPeople);
+      }
+      const drawn = toTree(tree.workItems);
+      setWorkItems(drawn);
+      // The open hover card, settled against the rows that just arrived. The
+      // previous placements are read into a local **before** the ref is replaced:
+      // React may run the updater below after this call returns, and reading the
+      // ref from inside it would compare the new tree against itself and never
+      // close anything.
+      // Proof: this pair deleted, `closes the card when a peer moves the row it
+      // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
+      // Watched, 2026-08-09.
+      const placements = placementsOf(drawn);
+      const wasPlaced = rowPlacements.current;
+      rowPlacements.current = placements;
+      setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
+      // On the same read as the rows and behind the same generation check: a
+      // superseded read must not leave its slices under another read's rows.
+      // Proof: written as `setSlices((current) => current.length === 0 ?
+      // tree.slices : current)` — the refetch leaving the slices where the first
+      // read put them — and `replaces the slices on every refetch, as it replaces
+      // the rows` failed on `expected '2' to be '1'`: a second row on screen with
+      // the one-row plan's slices still behind it; watched 2026-08-09.
+      //
+      // One call, so the chart's three parts can only ever be one payload's. The
+      // steps and the names come from `tree` and **not** from `loadedSteps` or
+      // `loadedPeople` below: those are three more requests, and a peer's step
+      // delete landing between them is what used to hand `layOutGantt` a slice
+      // under a step the plan no longer listed.
+      setChartRead({
+        slices: tree.slices,
+        steps: tree.steps,
+        people: tree.assignedPeople,
+        depReach: tree.depReach,
+        pertWeights: tree.pertWeights,
+        estimateRounding: tree.estimateRounding,
+        generation,
+      });
+      setStack({ undoable: tree.undoable, redoable: tree.redoable });
+      setTeamCapacities(tree.teamCapacities);
+      setPriorityBands(tree.priorityBands);
+      setScheduleError(tree.scheduleError);
+      setEstimateMethod(tree.estimateMethod);
+      setStartDate(tree.startDate);
+      // Replaced only when the steps actually differ. Every read returns a fresh
+      // array, and `steps` is the one dependency `columns` still has — so a new
+      // array on every refresh rebuilt every column definition, which is how a
+      // stranger's edit used to take the focus of whoever was mid-word.
+      if (loadedSteps !== null) {
+        setSteps((current) => (sameSteps(current, loadedSteps) ? current : loadedSteps));
+        settleAgainstSteps(loadedSteps);
+      }
+      // Reported after the generation check, so a superseded read cannot move the
+      // resume point to a moment whose rows were thrown away.
+      stream.current?.seen(tree.seq);
+    },
+    [api, projectId, settleAgainstSteps],
+  );
 
   /**
    * Rereads the tree, and raises the stale banner instead of throwing when
@@ -3699,23 +3755,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * have their own refusals to report (`dependOn`) must still report them
    * after a failed reread.
    */
-  const refreshOrMarkStale = useCallback(async () => {
-    try {
-      await refresh();
-    } catch {
-      // The reason is not shown. It is be-01's word for a network failure the
-      // reader did not cause and cannot act on beyond retrying, and the banner
-      // already says the one thing they can do about it.
-      //
-      // Proof: emptied to the silent catch this replaced, four of the block's
-      // tests failed — `raises the stale-tree banner when a socket refetch
-      // fails`, `clears the banner on a later successful refetch from any
-      // path`, `raises the banner when the refetch after an edit fails` and
-      // `shows both the refusal and the banner when the refetch failed too`.
-      // Watched, 2026-08-06.
-      setTreeMayBeStale(true);
-    }
-  }, [refresh]);
+  const refreshOrMarkStale = useCallback(
+    async (scope: PlanReadScope = 'all') => {
+      try {
+        await refresh(scope);
+      } catch {
+        // The reason is not shown. It is be-01's word for a network failure the
+        // reader did not cause and cannot act on beyond retrying, and the banner
+        // already says the one thing they can do about it.
+        //
+        // Proof: emptied to the silent catch this replaced, four of the block's
+        // tests failed — `raises the stale-tree banner when a socket refetch
+        // fails`, `clears the banner on a later successful refetch from any
+        // path`, `raises the banner when the refetch after an edit fails` and
+        // `shows both the refusal and the banner when the refetch failed too`.
+        // Watched, 2026-08-06.
+        setTreeMayBeStale(true);
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     void refresh().catch((thrown: unknown) => {
@@ -3761,11 +3820,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   useEffect(() => {
     if (subscribe === undefined) return undefined;
     const opened = subscribe(projectId, {
-      onChange: () => {
+      onChange: (changed) => {
         // No toast: nobody asked for this read, so nothing of theirs was
         // refused. What it can leave behind is a tree that has fallen behind,
         // and that is the banner's job.
-        void refreshOrMarkStale();
+        void refreshOrMarkStale(readScopeFor(changed));
       },
       onConnectionChange: setConnected,
     });
