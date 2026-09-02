@@ -116,6 +116,17 @@ require it for day-to-day dev.
 
 - **"Failed to run the query" on be-01 startup** — stale `apps/be-01/local.db`
   from a partial migration. Delete it: `rm apps/be-01/local.db` and restart.
+- **Working out when be-01 last wrote, or why it is down** — read the mtime of
+  `apps/be-01/local.db-wal`, not of `local.db`. The database is `journal_mode=wal`
+  (`repository/db.ts` sets it and asserts it at open), so a crashed be-01 leaves
+  its last writes in the `-wal` and the main file's mtime can be a day older.
+  **Do not open it with a `sqlite3` client first**: even a read-only `select`
+  checkpoints the WAL into the main file and deletes it, which destroys the one
+  timestamp that dates the crash. That happened here on 2026-09-02 — a
+  581,632-byte checkpoint, and with it the evidence of when be-01 had actually
+  stopped (a day earlier, as the pre-checkpoint mtime showed). No test writes
+  this file: every `*.db.test.ts` opens its own `mkdtempSync` copy, so a
+  changed `local.db` is always a real process or a client, never a gate.
 - **Port already in use** — edit `PORT=` in the relevant `apps/*/.env`. All
   URLs in peer `.env` files update by convention, not by magic; change both
   ends.
