@@ -1424,7 +1424,39 @@ export interface ProjectApi {
 /** The header the edge does not read; see `lib/api.ts` for why it is never `Authorization`. */
 const auth = (token: string) => ({ 'content-type': 'application/json', 'x-wbs-token': token });
 
+/**
+ * The GET requests in flight right now, by path.
+ *
+ * A refresh reads the plan and the five global vocabularies together, and a
+ * refresh is started by **every** write and **every** socket frame — so a held
+ * arrow key, or a peer typing, issues the same eight reads again before the
+ * previous eight have landed. Two callers asking for the same URL at the same
+ * moment want the same answer, and this hands them one request instead of two.
+ *
+ * Only GETs, and only while one is in flight: an entry is dropped the moment its
+ * promise settles, so this is request de-duplication and **not** a cache. The
+ * next read after that still goes to be-01, which is what keeps "the plan is
+ * replaced, never patched" true — see `project-stream.ts`.
+ */
+const readsInFlight = new Map<string, Promise<unknown>>();
+
 async function send<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
+  // A GET is the only method it is safe to share: two POSTs to one path are two
+  // different writes however identical they look.
+  const method = init.method ?? 'GET';
+  if (method === 'GET') {
+    const already = readsInFlight.get(path);
+    if (already !== undefined) return already as Promise<T>;
+    const started = sendOnce<T>(path, token, init).finally(() => {
+      readsInFlight.delete(path);
+    });
+    readsInFlight.set(path, started);
+    return started;
+  }
+  return sendOnce<T>(path, token, init);
+}
+
+async function sendOnce<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers: auth(token) });
   const text = await res.text();
   if (!res.ok) {

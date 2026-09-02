@@ -142,7 +142,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 
 | Id    | Change                                                                                                                                                                                                                                                                                                                                                                                                                             | Files                                                                                                  | Effort | Probe                                                                              |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------------- |
-| W2-1  | **fe-01 read-after-write reads the plan, not the world.** A read seam in `wbs-api.ts`: an in-flight map so concurrent asks share a promise, and a stated freshness for the five Directory vocabularies so a write or a peer frame refetches `tree` + `steps` only. Same for `directory-page.tsx`'s five plus its `window.focus` re-read. Keep "the plan is replaced, never patched".                                               | `lib/wbs-api.ts`, `lib/project-stream.ts:113`, `wbs-table.tsx:3671–3775`, `directory-page.tsx:256,342` | 1d     | "a peer edit costs 2 requests, not 8" — fails today                                |
+| W2-1  | **Half done, 2026-09-02** — see §25. Concurrent identical reads now share one request. Narrowing _which_ reads a write triggers is not done, and the reason is recorded.                                                                                                                                                                                                                                                           | `lib/wbs-api.ts`, `lib/project-stream.ts:113`, `wbs-table.tsx:3671–3775`, `directory-page.tsx:256,342` | 1d     | "a peer edit costs 2 requests, not 8" — fails today                                |
 | W2-2  | **Memoise `shownRows`, `ganttPlan`, `startFloor`** on their real inputs (`todayIso`, not `new Date()`), as `pointed-row-render-cost/design.md` D3 said and the code did not do. Every keystroke currently re-runs `layOutGantt` through `GanttPanel`'s `useMemo(…, [plan])` and `startFloorByRow` chart open or closed.                                                                                                            | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
 | W2-4  | **Engine hot spots**, gated by `schedule-identity.test.ts`'s thousand-seed differential and the two captured oracles: `dependsOn` reuses the id `Set` built at `:1302` (5 min); `topological` head index instead of `shift()`; `eventAt` batches inserts instead of `splice` (O(E²) → O(E log E)); `projectOntoWorkItems` one reduce per parent, no spread into `Math.min`.                                                        | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
@@ -1114,3 +1114,37 @@ the next reader does not start from the overstated figure.
 
 **Green:** `be-01` 1269 pass across 93 files, `fe-01` 2043 pass across 75; lint and typecheck on
 both; `format:check --all`.
+
+## 25 · Verify — W2-1 (the transparent half), 2026-09-02
+
+`wbs-api.ts` keeps a map of the **GET requests in flight**, by path. Two callers asking for one URL
+at the same moment get one request and share its answer. A refresh reads the plan and the five
+global vocabularies together and is started by every write and every socket frame, so a held arrow
+key — or a peer typing — used to issue the same eight reads again before the previous eight landed.
+
+It is de-duplication and **not** a cache: the entry is dropped the moment its promise settles, so
+the next read still goes to be-01. That is what keeps "the plan is replaced, never patched" true.
+Three cases, each watched failing against the fault it names:
+
+| Injected fault                                | Observed                                                                           |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| the GET branch removed                        | `expected [ [ '/api/teams', …(1) ], …(1) ] to have a length of 1 but got 2`        |
+| the `.finally` that drops the entry removed   | `expected [ [ '/api/teams', …(1) ] ] to have a length of 2 but got 1`              |
+| the method check dropped, so writes share too | `expected [ [ '/api/projects/p1/opened', …(1) ] ] to have a length of 2 but got 1` |
+
+The first asserts **inside the window the fault lives in** — the stubbed fetch never settles on its
+own, because asserting after both promises resolve would give a count of 1 either way once the map
+had emptied. The second says the window closes. The third says two writes to one path are two
+writes however identical they look.
+
+**The other half — narrowing which reads a write triggers — is not done, and the reason is a
+finding.** The obvious move is to skip the five directory vocabularies on a plan write, since they
+change on the order of days. But a plan write **can** change the directory: `createPerson` and
+`createTag` are command kinds inside a plan batch, and the `@`-assignment flow mints a person. So
+the scope is a property of the individual write, not of the path, and narrowing it safely means
+auditing every call site of the write wrapper rather than flipping one flag. The socket path cannot
+be narrowed at all today: `SubscriptionHandlers.onChange` takes no arguments, so fe-01 cannot tell a
+`directory_changed` from a `tree_replaced` — the event type is on the wire and `project-stream.ts`
+discards it. Both are real changes with real tests to write, and neither is a tail end of this one.
+
+**Green:** `fe-01` 2046 pass across 75 files, lint, typecheck; `format:check --all`.
