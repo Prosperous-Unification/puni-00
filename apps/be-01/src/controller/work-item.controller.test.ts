@@ -181,6 +181,40 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('answers 400 for a ref nobody minted, and 404 for a row that is not there', async () => {
+    // The one exception in `statusForRefusal`'s `unknown_*` family, and until
+    // 2026-09-02 nothing asserted it: `unknown_ref` is a mistake **inside the
+    // batch the caller wrote**, while every other `unknown_*` names something
+    // that is not there. Both codes reach the same route through the same
+    // ladder, so the two have to be asked for together.
+    //
+    // Proof: the `unknown_ref` arm deleted from `statusForRefusal`, watched
+    // failing on `expect(received).toEqual(expected) · - 400 · + 404` — and
+    // the whole store and unit tiers stayed green under that fault, which is
+    // how an arm nobody asks about survives a rewrite. Observed 2026-09-02.
+    const { token, send, projectId, devId } = await setup();
+
+    const unmintedRef = await command(send, token, projectId, {
+      kind: 'createWorkItem',
+      parentRef: 'nobody-minted-this',
+      afterId: null,
+      name: 'Orphan',
+    });
+    const absentRow = await command(send, token, projectId, {
+      kind: 'setEstimate',
+      workItemId: 'no-such-row',
+      stepId: devId,
+      days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+
+    expect([unmintedRef.status, absentRow.status]).toEqual([400, 404]);
+    expect(await unmintedRef.json()).toEqual({
+      error: 'unknown_ref',
+      at: 0,
+      kind: 'createWorkItem',
+    });
+  });
+
   it('applies a command batch, answering the id each ref became and the undo state', async () => {
     const { token, send, projectId, devId } = await setup();
     const res = await send(`/api/projects/${projectId}/commands`, token, {

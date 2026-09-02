@@ -6,6 +6,7 @@ import type { Project } from '../repository';
 import type { AuthService } from '../service/auth.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
+import { statusForRefusal } from './refusal-status';
 
 /** Types only, for the same reason as authController: rules live in the service. */
 const newProject = t.Object({ name: t.String() });
@@ -165,18 +166,12 @@ export function projectController(
       async ({ params, body, user, set }) => {
         const outcome = await projects.update(params.id, user.id, body);
         if (!outcome.ok) {
-          // 403 rather than 404 for a restricted project: the caller may read
-          // it, so pretending it is absent would contradict the next GET. A
-          // date that is not a day is the caller's mistake, not a missing row.
-          // 422 for both of the caller's own mistakes — a date that is not a
-          // day, and weights that cannot average a triple — and 404 for a row
-          // that is not there.
-          set.status =
-            outcome.reason === 'forbidden'
-              ? 403
-              : outcome.reason === 'bad_start_date' || outcome.reason === 'bad_pert_weights'
-                ? 422
-                : 404;
+          // 422 is this route's default, and it is the caller's own two
+          // mistakes: a date that is not a day, and weights that cannot average
+          // a triple. `forbidden` and `not_found` are the shared arms — see
+          // {@link statusForRefusal} for why a restricted project is 403 and
+          // not 404.
+          set.status = statusForRefusal(outcome.reason, 422);
           return { error: outcome.reason };
         }
         return { project: outcome.result };

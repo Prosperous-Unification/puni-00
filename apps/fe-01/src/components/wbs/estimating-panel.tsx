@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import {
   ESTIMATE_ROUNDINGS,
   type EstimateMethod,
@@ -129,6 +130,27 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
  * sentence on this surface rather than a toast in the corner of the page the
  * modal is covering.
  */
+/**
+ * What a refused arithmetic change says out loud.
+ *
+ * One worded arm, and that is not an omission: this surface can earn exactly
+ * one refusal be-01 has a word for, and it is the one `weightsOfDraft` already
+ * refuses without a round trip. Everything else — including a 5xx, which is why
+ * there is no {@link RefusalWords.serverFailure} here — reads as "that change
+ * did not land", because the boxes are kept and trying again is the whole of
+ * what a reader can do about it.
+ *
+ * In the same shape as the other five tables, so the difference is visible as
+ * an absent field rather than as a missing branch of a ternary.
+ */
+const ARITHMETIC_REFUSALS: RefusalWords = {
+  sentences: {
+    bad_pert_weights:
+      'Those weights cannot average an estimate. At least one of the three has to be above zero.',
+  },
+  otherwise: () => 'That change did not land. Try again.',
+};
+
 export function EstimatingPanel({
   method,
   pertWeights,
@@ -178,9 +200,10 @@ export function EstimatingPanel({
       // sentence here — there is one refusal this surface can earn, and it is
       // the one `weightsOfDraft` already refuses without a round trip.
       setProblem(
-        thrown instanceof Error && thrown.message === 'bad_pert_weights'
-          ? 'Those weights cannot average an estimate. At least one of the three has to be above zero.'
-          : 'That change did not land. Try again.',
+        sentenceForRefusal(
+          ARITHMETIC_REFUSALS,
+          thrown instanceof Error ? thrown.message : 'request_failed',
+        ),
       );
     } finally {
       setBusy(false);

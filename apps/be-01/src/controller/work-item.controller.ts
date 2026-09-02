@@ -29,6 +29,7 @@ import type {
 import { BadCapacity, capacityOf } from './capacity-body';
 import { PLAN_COMMANDS_BODY } from './plan-command-schema';
 import { BadLadder, ladderOf } from './priority-ladder-body';
+import { statusForRefusal } from './refusal-status';
 
 /**
  * These routes validate their bodies by hand rather than with an Elysia schema.
@@ -492,15 +493,12 @@ function parsePatch(body: unknown): {
  */
 function answerUndo(outcome: UndoOutcome, set: { status?: number | string }) {
   if (outcome.ok) return { done: outcome.result.done, detail: outcome.result.detail };
-  if (outcome.reason === 'forbidden') {
-    set.status = 403;
+  // 409 is the default here, which is the sentence above made an argument:
+  // `nothing_to_undo` and `stale_undo` are both states of the plan.
+  set.status = statusForRefusal(outcome.reason, 409);
+  if (outcome.reason === 'forbidden' || outcome.reason === 'not_found') {
     return { error: outcome.reason };
   }
-  if (outcome.reason === 'not_found') {
-    set.status = 404;
-    return { error: outcome.reason };
-  }
-  set.status = 409;
   return { error: outcome.reason, detail: outcome.detail };
 }
 
@@ -791,23 +789,14 @@ function parseBatch(body: unknown): PlanCommand[] {
 }
 
 /**
- * `statusFor`, widened to what a batch can refuse with: the work-item ladder,
- * the directory's `taken`/`in_use` (409, as `cycle` is), the runner's own
- * `unknown_ref`/`duplicate_ref`/`too_many_commands`/`missing_id`/`name_required`
- * (400), and the capacity/priority refusals that share `not_found`/`forbidden`.
+ * {@link statusForRefusal} with a batch's own default: **400**.
+ *
+ * The runner's own refusals are what land there —
+ * `duplicate_ref`, `too_many_commands`, `missing_id`, `name_required`,
+ * `project_required` — and every one of them is a fault in the list the caller
+ * wrote rather than a state of the plan.
  */
-function statusForBatch(reason: string): number {
-  if (reason === 'forbidden') return 403;
-  if (reason === 'not_found' || reason.startsWith('unknown_')) {
-    return reason === 'unknown_ref' ? 400 : 404;
-  }
-  if (
-    ['cycle', 'frozen', 'rolled_up', 'ancestor', 'too_large', 'taken', 'in_use'].includes(reason)
-  ) {
-    return 409;
-  }
-  return 400;
-}
+const statusForBatch = (reason: string): number => statusForRefusal(reason, 400);
 
 export function workItemController(
   auth: AuthService,

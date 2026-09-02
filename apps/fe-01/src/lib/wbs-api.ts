@@ -9,6 +9,8 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 
+import { type RefusalWords, sentenceForRefusal } from './refusal';
+
 /**
  * How a project turns its three-point estimates into the one number it plans
  * with. Mirrors `EstimateMethod` in `libs/domain`.
@@ -1561,23 +1563,24 @@ async function removeStepAt(path: string, token: string): Promise<StepRemoval> {
  * this takes the code as a string and answers for anything, so there is one
  * fallback and it is here.
  */
+const STEP_REFUSALS: RefusalWords = {
+  sentences: {
+    taken: 'That name is already a step on this plan.',
+    name_required: 'A step needs a name.',
+    in_use: 'That step still holds estimates or assignments on this plan.',
+    unknown_step: 'That step is no longer on this plan — somebody else removed it.',
+    not_found: 'That step is no longer on this plan.',
+    forbidden: 'This plan is not yours to change.',
+  },
+  // No 5xx arm, deliberately and not by omission: a server failure here reads
+  // as `The step could not be changed (http_502).` and has since this surface
+  // was written. Adding one is a wording change for Dany rather than for a
+  // refactor — see {@link RefusalWords.serverFailure}.
+  otherwise: (code) => `The step could not be changed (${code}).`,
+};
+
 export function stepRefusalSentence(code: string): string {
-  switch (code) {
-    case 'taken':
-      return 'That name is already a step on this plan.';
-    case 'name_required':
-      return 'A step needs a name.';
-    case 'in_use':
-      return 'That step still holds estimates or assignments on this plan.';
-    case 'unknown_step':
-      return 'That step is no longer on this plan — somebody else removed it.';
-    case 'not_found':
-      return 'That step is no longer on this plan.';
-    case 'forbidden':
-      return 'This plan is not yours to change.';
-    default:
-      return `The step could not be changed (${code}).`;
-  }
+  return sentenceForRefusal(STEP_REFUSALS, code);
 }
 
 /** A JSON object, as far as anything read off the wire can be said to be one. */
@@ -1761,30 +1764,32 @@ const SERVER_REFUSAL = 'The server could not save that. Try again.';
  * error is not a word of be-01's and `(http_502)` in the corner of a dialog is
  * the defect `wbs-table.tsx` fixed for `http_500` a week ago.
  */
-export function capacityRefusalSentence(code: string): string {
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (code.startsWith(SIZE_CEILING_CODE)) {
-    return `A plan can have at most ${code.slice(SIZE_CEILING_CODE.length)} of one team at work at once.`;
-  }
-  switch (code) {
+const CAPACITY_REFUSALS: RefusalWords = {
+  sentences: {
     // The floor arm, spelled out rather than left to the fallback: this is a box
     // somebody types a *number* into, and `(size_must_be_a_whole_number_from_1)`
     // in the corner of the screen is a wire code where a sentence about their plan
     // belongs. A pool of nobody is a plan of infinite dates, which is why zero is
     // a refusal and an empty box is not.
-    case 'size_must_be_a_whole_number_from_1':
-      return 'How many of a team are at work at once is a whole number of 1 or more. Leave it empty for a team this plan does not limit.';
-    case 'size_required':
-      return 'That change asked for nothing, so nothing was sent.';
-    case 'not_found':
-      return 'That team or this plan is no longer there — somebody else removed it.';
-    case 'forbidden':
-      return 'This plan is restricted, so its capacities cannot be changed from this account.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `That capacity could not be changed (${code}).`;
-  }
+    size_must_be_a_whole_number_from_1:
+      'How many of a team are at work at once is a whole number of 1 or more. Leave it empty for a team this plan does not limit.',
+    size_required: 'That change asked for nothing, so nothing was sent.',
+    not_found: 'That team or this plan is no longer there — somebody else removed it.',
+    forbidden: 'This plan is restricted, so its capacities cannot be changed from this account.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  limits: [
+    {
+      prefix: SIZE_CEILING_CODE,
+      says: (limit) => `A plan can have at most ${limit} of one team at work at once.`,
+    },
+  ],
+  serverFailure: SERVER_REFUSAL,
+  otherwise: (code) => `That capacity could not be changed (${code}).`,
+};
+
+export function capacityRefusalSentence(code: string): string {
+  return sentenceForRefusal(CAPACITY_REFUSALS, code);
 }
 
 /**
@@ -1805,36 +1810,41 @@ export function capacityRefusalSentence(code: string): string {
  * `5`, because be-01 builds the code from `PRIORITY_BAND_COUNT` — a literal here
  * would be a second copy of that number, free to drift.
  */
+const PRIORITY_BAND_REFUSALS: RefusalWords = {
+  sentences: {
+    first_band_must_start_at_1:
+      'The most important band has to start at 1, or the priorities below it would have no name.',
+    bands_must_start_in_increasing_order:
+      'Each band has to start above the one before it, so every number belongs to exactly one of them.',
+    band_start_must_be_a_whole_number_from_1: 'A band starts at a whole number of 1 or more.',
+    band_default_must_be_a_whole_number_from_1:
+      'The number a band writes is a whole number of 1 or more.',
+    band_default_must_be_inside_its_own_band:
+      'The number a band writes has to fall inside that band, or picking its name would land on a different one.',
+    band_labels_must_differ:
+      'Two bands cannot share a name — one of the two would do nothing anybody could predict.',
+    not_found: 'This plan is no longer there — somebody else removed it.',
+    forbidden:
+      'This plan is restricted, so its priority bands cannot be changed from this account.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  limits: [
+    {
+      prefix: BAND_COUNT_CODE,
+      says: (limit) =>
+        `A priority ladder has exactly ${limit} bands — one cannot be added or taken away.`,
+    },
+    {
+      prefix: BAND_LABEL_CODE,
+      says: (limit) => `A band's name is ${limit.replace(/_/g, ' ')}.`,
+    },
+  ],
+  serverFailure: SERVER_REFUSAL,
+  otherwise: (code) => `Those priority bands could not be saved (${code}).`,
+};
+
 export function priorityBandRefusalSentence(code: string): string {
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (code.startsWith(BAND_COUNT_CODE)) {
-    return `A priority ladder has exactly ${code.slice(BAND_COUNT_CODE.length)} bands — one cannot be added or taken away.`;
-  }
-  if (code.startsWith(BAND_LABEL_CODE)) {
-    return `A band's name is ${code.slice(BAND_LABEL_CODE.length).replace(/_/g, ' ')}.`;
-  }
-  switch (code) {
-    case 'first_band_must_start_at_1':
-      return 'The most important band has to start at 1, or the priorities below it would have no name.';
-    case 'bands_must_start_in_increasing_order':
-      return 'Each band has to start above the one before it, so every number belongs to exactly one of them.';
-    case 'band_start_must_be_a_whole_number_from_1':
-      return 'A band starts at a whole number of 1 or more.';
-    case 'band_default_must_be_a_whole_number_from_1':
-      return 'The number a band writes is a whole number of 1 or more.';
-    case 'band_default_must_be_inside_its_own_band':
-      return 'The number a band writes has to fall inside that band, or picking its name would land on a different one.';
-    case 'band_labels_must_differ':
-      return 'Two bands cannot share a name — one of the two would do nothing anybody could predict.';
-    case 'not_found':
-      return 'This plan is no longer there — somebody else removed it.';
-    case 'forbidden':
-      return 'This plan is restricted, so its priority bands cannot be changed from this account.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `Those priority bands could not be saved (${code}).`;
-  }
+  return sentenceForRefusal(PRIORITY_BAND_REFUSALS, code);
 }
 
 /**
@@ -1853,24 +1863,23 @@ export function priorityBandRefusalSentence(code: string): string {
  * unrecognised refusal is something to report, and a message that hid it would
  * leave nobody able to say what be-01 answered.
  */
+const DIRECTORY_REFUSALS: RefusalWords = {
+  sentences: {
+    name_required: 'A name cannot be blank.',
+    unknown_team: 'One of those teams is no longer in the directory — somebody else removed it.',
+    not_found: 'That entry is no longer in the directory — somebody else removed it.',
+    nothing_to_change: 'That change asked for nothing, so nothing was sent.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  // No 5xx arm, for {@link STEP_REFUSALS}'s reason.
+  otherwise: (code) => `The directory could not be changed (${code}).`,
+};
+
 export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
   if (refusal.reason === 'taken') {
     return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
   }
-  switch (refusal.code) {
-    case 'name_required':
-      return 'A name cannot be blank.';
-    case 'unknown_team':
-      return 'One of those teams is no longer in the directory — somebody else removed it.';
-    case 'not_found':
-      return 'That entry is no longer in the directory — somebody else removed it.';
-    case 'nothing_to_change':
-      return 'That change asked for nothing, so nothing was sent.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `The directory could not be changed (${refusal.code}).`;
-  }
+  return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
 }
 
 /**

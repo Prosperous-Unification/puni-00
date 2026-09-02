@@ -32,6 +32,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
+import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import { type Remembered, remembered } from '@/lib/remembered';
 import type {
   AssignedPersonView,
@@ -259,73 +260,20 @@ const failureText = (thrown: unknown, fallback: string): string =>
   thrown instanceof Error ? thrown.message : fallback;
 
 /**
- * What a refused mutation says, by be-01's own word for the refusal.
- *
- * Every other refusal in this table is a full sentence — `That could not be
- * undone: …`, `020 is frozen — unfreeze it first` — and these were the
- * exception: `not_found` and `http_500` reached the corner of the screen
- * verbatim, observed live on 2026-08-09. The translation lives here rather
- * than in `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the
- * codes are be-01's contract and have to stay stable, and the sentence is a
- * presentation decision that differs per surface.
- *
- * Not exhaustive on purpose. {@link refusalSentence} has a grammatical
- * fallback that carries the code, so a word nobody has written a sentence for
- * is still a sentence rather than a snake_case token.
- */
-const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
-  not_found:
-    'That change could not be completed: its target is no longer here — someone may have deleted it.',
-  forbidden: 'That change could not be completed: this plan is not yours to change.',
-  // Reachable bare — the dependency **picker** takes one entry through `run`,
-  // where the typed list composes its own sentence and keeps the word instead.
-  cycle: 'That dependency could not be added: it would make a loop.',
-  ancestor: 'That dependency could not be added: the row it names is already above this one.',
-  // The three the In-parallel cell earns, spelled out rather than left to the
-  // fallback below. That cell deliberately keeps no copy of be-01's rule and
-  // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right, and
-  // which means be-01's own word is what arrives here, so `INVALID_REQUEST`'s
-  // status arm never fires and the grammatical fallback would carry the token
-  // through. `(maxParallel_must_be_a_whole_number_from_1)` in the corner of the
-  // screen is the same defect `not_found` and `http_500` were fixed for above,
-  // in the one column of this table somebody types a number into every week.
-  // `wbs-api.ts`'s `directoryRefusalSentence` makes the same bargain for the
-  // size box the same rule is written on.
-  maxParallel_must_be_a_whole_number_from_1:
-    'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
-  // be-01 refuses a parallelism on a parent because a parent holds no slices,
-  // so nothing there would read the number. Only reachable through a race — the
-  // cell is read-only on every row that already has children — which is exactly
-  // why the sentence has to say what happened rather than name the code.
-  has_children:
-    'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
-};
-
-/**
- * The prefix be-01 builds its parallelism ceiling out of.
- *
- * A prefix rather than an entry above, and for `wbs-api.ts`'s stated reason:
- * be-01 spells the limit into the code from its own `MOST_PEOPLE_AT_ONCE`, so a
- * literal `maxParallel_must_be_at_most_1000` here would be a second copy of
- * that number — free to drift from it, and to fall silently back to printing
- * the wire code the day it did.
- */
-const PARALLELISM_CEILING_CODE = 'maxParallel_must_be_at_most_';
-
-/** What any 5xx says. Something answered, so never "the server did not answer". */
-const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
-
-/**
  * The statuses be-01 refuses a **malformed** request with, and the only ones
  * that reach here without a word of be-01's own.
  *
- * Listed rather than matched as `http_4\d\d`, which was the first shape and is
+ * A set rather than a match on `http_4\d\d`, which was the first shape and is
  * wrong: 401 and 403 are the same family and say nothing about the value that
  * was sent, and a sentence claiming "that change was not valid" over an expired
  * session would send the reader looking for a typo. be-01's own words —
  * `forbidden`, `not_found` — already cover those; these two are what an ArkType
  * schema refusal leaves, because Elysia answers it with its own JSON body and
  * no `error` field for `send` to read.
+ *
+ * **One list, two decisions**: the sentence below, and whether {@link run}
+ * reads the plan again — see the note at its call site, which is why this
+ * cannot be two literal entries in the table.
  */
 const INVALID_REQUEST = new Set(['http_400', 'http_422']);
 
@@ -347,24 +295,78 @@ const INVALID_REFUSAL =
   'That change was not valid, so nothing was saved — what is on screen was read again.';
 
 /**
+ * What a refused mutation on this table says, by be-01's own word for it.
+ *
+ * Every other refusal in this table is a full sentence — `That could not be
+ * undone: …`, `020 is frozen — unfreeze it first` — and these were the
+ * exception: `not_found` and `http_500` reached the corner of the screen
+ * verbatim, observed live on 2026-08-09. The table lives here rather than in
+ * `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the codes are
+ * be-01's contract and have to stay stable, and the sentence is a presentation
+ * decision that differs per surface. The **shape** of the lookup is
+ * {@link sentenceForRefusal}, shared with the four tables in `wbs-api.ts`.
+ *
+ * Not exhaustive on purpose: the fallback carries the code, so a word nobody
+ * has written a sentence for is still a sentence rather than a snake_case
+ * token.
+ */
+const PLAN_REFUSALS: RefusalWords = {
+  sentences: {
+    not_found:
+      'That change could not be completed: its target is no longer here — someone may have deleted it.',
+    forbidden: 'That change could not be completed: this plan is not yours to change.',
+    // Reachable bare — the dependency **picker** takes one entry through `run`,
+    // where the typed list composes its own sentence and keeps the word instead.
+    cycle: 'That dependency could not be added: it would make a loop.',
+    ancestor: 'That dependency could not be added: the row it names is already above this one.',
+    // The two the In-parallel cell earns, spelled out rather than left to the
+    // fallback below. That cell deliberately keeps no copy of be-01's rule and
+    // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right,
+    // and which means be-01's own word is what arrives here, so the
+    // malformed-request arm never fires and the grammatical fallback would carry
+    // the token through. `(maxParallel_must_be_a_whole_number_from_1)` in the
+    // corner of the screen is the same defect `not_found` and `http_500` were
+    // fixed for above, in the one column of this table somebody types a number
+    // into every week. `wbs-api.ts`'s `CAPACITY_REFUSALS` makes the same bargain
+    // for the size box the same rule is written on.
+    maxParallel_must_be_a_whole_number_from_1:
+      'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
+    // be-01 refuses a parallelism on a parent because a parent holds no slices,
+    // so nothing there would read the number. Only reachable through a race — the
+    // cell is read-only on every row that already has children — which is exactly
+    // why the sentence has to say what happened rather than name the code.
+    has_children:
+      'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+    // {@link INVALID_REQUEST}'s two, worded from the one list that also decides
+    // whether the plan is read again.
+    ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),
+  },
+  limits: [
+    {
+      // A prefix rather than an entry above, and for `wbs-api.ts`'s stated
+      // reason: be-01 spells the limit into the code from its own
+      // `MOST_PEOPLE_AT_ONCE`, so a literal `maxParallel_must_be_at_most_1000`
+      // here would be a second copy of that number — free to drift from it, and
+      // to fall silently back to printing the wire code the day it did.
+      prefix: 'maxParallel_must_be_at_most_',
+      says: (limit) => `People at once is at most ${limit}.`,
+    },
+  ],
+  // Matched as a family rather than listed: a proxy in front of be-01 can answer
+  // with any 5xx and none of them is the reader's doing. Something answered, so
+  // the sentence never says the server did not.
+  serverFailure: 'The server could not complete that change. Try again.',
+  otherwise: (code) => `That change could not be completed (${code}).`,
+};
+
+/**
  * The sentence a refused mutation is reported in.
  *
  * @param thrown Whatever the request rejected with; anything that is not an
  * `Error` reads as an unknown code rather than being guessed at.
  */
-const refusalSentence = (thrown: unknown): string => {
-  const code = failureText(thrown, 'unknown');
-  const known = REFUSAL_SENTENCES[code];
-  if (known !== undefined) return known;
-  if (code.startsWith(PARALLELISM_CEILING_CODE)) {
-    return `People at once is at most ${code.slice(PARALLELISM_CEILING_CODE.length)}.`;
-  }
-  // The whole 5xx family, matched rather than listed: a proxy in front of
-  // be-01 can answer with any of them and none of them is the reader's doing.
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (INVALID_REQUEST.has(code)) return INVALID_REFUSAL;
-  return `That change could not be completed (${code}).`;
-};
+const refusalSentence = (thrown: unknown): string =>
+  sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
 
 /**
  * be-01's word for "the row you named is not there", which is the one refusal

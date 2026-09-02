@@ -1,28 +1,6 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-/**
- * What the fallback says when the thing thrown was not an `Error` at all.
- *
- * Reachable: `throw 'nope'` is legal JavaScript and a dependency can do it.
- * The sentence names the absence rather than printing `undefined` beside a
- * colon.
- *
- * Deliberately not shared with `gantt-fault.tsx`'s copy: the two boundaries say
- * different things about different scopes, and one exported helper between them
- * would be a shared vocabulary that neither is free to change.
- */
-const NO_MESSAGE = 'the reason it gave was not an error message';
-
-/** Whatever was thrown, as a sentence to put after "stopped:". */
-function faultWords(thrown: unknown): string {
-  if (!(thrown instanceof Error)) return NO_MESSAGE;
-  return thrown.message === '' ? NO_MESSAGE : thrown.message;
-}
-
-interface AppFaultState {
-  /** The caught error's own words, or null while nothing has been caught. */
-  message: string | null;
-}
+import { FaultBoundary } from './fault-boundary';
 
 /**
  * The last boundary in the document: what the app throws when nothing nearer
@@ -53,57 +31,45 @@ interface AppFaultState {
  * says it in one word instead of leaving the reader to guess that reloading is
  * allowed.
  *
- * A class because React has no hook for this: `getDerivedStateFromError` is a
- * class-only lifecycle.
+ * The machinery is {@link FaultBoundary}, shared with the chart's boundary
+ * since 2026-09-02; what is here is this boundary's own scope and its own
+ * fallback. `resetKey` is a constant on purpose — see the prop.
  */
-export class AppFaultBoundary extends Component<{ children: ReactNode }, AppFaultState> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { message: null };
-  }
-
-  static getDerivedStateFromError(thrown: unknown): AppFaultState {
-    return { message: faultWords(thrown) };
-  }
-
-  /**
-   * Says so in the console, once, with React's own component stack.
-   *
-   * Not a log-and-continue: the render is already refused and the reader is
-   * already told. This is the trace of *where* it was thrown, which is the one
-   * thing the sentence on screen leaves out.
-   */
-  override componentDidCatch(thrown: unknown, info: ErrorInfo): void {
-    console.error('the app could not render', thrown, info.componentStack);
-  }
-
-  override render(): ReactNode {
-    const { message } = this.state;
-    if (message === null) return this.props.children;
-    return (
-      <main
-        data-app-fault
-        className="bg-background text-foreground min-h-full p-8 font-sans"
-        // `alert`, not `status`: the page the reader was working on has just
-        // gone, and a screen reader that waited for a quiet moment to mention
-        // it would be describing a document that is no longer there.
-        role="alert"
-      >
-        <h1 className="mb-3 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
-        <p className="mb-4 text-sm">
-          The app stopped: {message}. Nothing on this page can put it back — reload it to start
-          again. Anything already saved is on the server.
-        </p>
-        <button
-          type="button"
-          className="border-border bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center rounded-md border px-3 text-sm"
-          onClick={() => {
-            window.location.reload();
-          }}
+export function AppFaultBoundary({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <FaultBoundary
+      logAs="the app could not render"
+      // Nothing to reset against, and that is this boundary's whole difference
+      // from the chart's: the state the tree held is gone with the tree, so no
+      // later prop can prove the fault is over.
+      resetKey="the document"
+      fallback={(message) => (
+        <main
+          data-app-fault
+          className="bg-background text-foreground min-h-full p-8 font-sans"
+          // `alert`, not `status`: the page the reader was working on has just
+          // gone, and a screen reader that waited for a quiet moment to mention
+          // it would be describing a document that is no longer there.
+          role="alert"
         >
-          Reload
-        </button>
-      </main>
-    );
-  }
+          <h1 className="mb-3 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+          <p className="mb-4 text-sm">
+            The app stopped: {message}. Nothing on this page can put it back — reload it to start
+            again. Anything already saved is on the server.
+          </p>
+          <button
+            type="button"
+            className="border-border bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center rounded-md border px-3 text-sm"
+            onClick={() => {
+              window.location.reload();
+            }}
+          >
+            Reload
+          </button>
+        </main>
+      )}
+    >
+      {children}
+    </FaultBoundary>
+  );
 }

@@ -3,6 +3,7 @@ import { Elysia, t } from 'elysia';
 import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
 import type { RemoveStepOutcome, StepRefusal, StepService } from '../service/step.service';
+import { statusForRefusal } from './refusal-status';
 
 const named = t.Object({ name: t.String() });
 
@@ -11,8 +12,7 @@ const named = t.Object({ name: t.String() });
  * makes: a duplicate name is a well-formed request that conflicts with the
  * project as it stands, and a name of spaces is the request itself being wrong.
  */
-const statusFor = (reason: StepRefusal): number =>
-  reason === 'forbidden' ? 403 : reason === 'not_found' ? 404 : reason === 'taken' ? 409 : 422;
+const statusFor = (reason: StepRefusal): number => statusForRefusal(reason, 422);
 
 /**
  * A project's steps.
@@ -75,7 +75,7 @@ export function stepController(auth: AuthService, steps: StepService) {
             set.status = 409;
             return { error: outcome.reason, inUse: outcome.inUse };
           }
-          set.status = outcome.reason === 'forbidden' ? 403 : 404;
+          set.status = statusForRefusal(outcome.reason, 404);
           return { error: outcome.reason };
         }
         set.status = 204;
