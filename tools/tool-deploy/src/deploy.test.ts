@@ -10,7 +10,6 @@ import {
   type ReleaseRecord,
 } from './deploy';
 import { parseRemoteStateOutput, type RemoteTierState } from './remote-state';
-import { buildScpInvocation, buildSshInvocation } from './ssh';
 
 describe('parseDeployArgs', () => {
   it('defaults to affected + dry-run', () => {
@@ -95,19 +94,6 @@ describe('materialize', () => {
 
   it('uses affected when tiers is "affected"', () => {
     expect(materialize({ tiers: 'affected', ...base }, ['gw'])).toEqual(['gw']);
-  });
-});
-
-describe('ssh helpers', () => {
-  it('quotes remote cmd correctly', () => {
-    const s = buildSshInvocation({ host: 'h', user: 'u' }, 'bun run thing');
-    expect(s).toBe('ssh u@h "bun run thing"');
-  });
-
-  it('formats scp command', () => {
-    expect(buildScpInvocation({ host: 'h', user: 'u' }, 'a.tar.gz', '/tmp/')).toBe(
-      'scp a.tar.gz u@h:/tmp/',
-    );
   });
 });
 

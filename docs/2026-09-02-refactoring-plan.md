@@ -118,7 +118,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                                       | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
 | W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                                      | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
 | W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
-| W0-11 | Delete the dead code in N14 (keep the `examples` **table** — migration tests assert its round trip; drop `'examples'` from `audit.test.ts`'s `EXEMPT` once no drizzle write touches it). Drop `d3`/`@types/d3`.                                                                                        | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
+| W0-11 | **Mostly done, 2026-09-02** — see §13. Nine modules and one whole library deleted. Two of N14's entries are **not** dead and were kept, with reasons.                                                                                                                                                  | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
 | W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                                        | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
 
 ### Wave 1 — the test infrastructure that makes every later wave verifiable in seconds (≈ 6 days)
@@ -591,3 +591,51 @@ is rewritten: the hazard is closed at the source, and what remains is its own na
 
 **Green:** `validation`, `config`, `be-01`, `gw-01`, `mcp-01`, `realtime`, `scripts` — test, lint,
 typecheck.
+
+## 13 · Verify — W0-11, 2026-09-02
+
+Deleted, each with a clean deletion test — nothing outside itself referenced it, and removing it
+concentrates no complexity anywhere:
+
+| Gone                                                                   | Why it looked alive                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `apps/be-01/src/repository/example.ts` + test + the `ExampleRepo` port | a store in the store folder, exported through the barrel                  |
+| `apps/fe-01/src/db/config.ts` + test                                   | a directory called `db` holding a client-store design the app never built |
+| `apps/fe-01/src/components/smoke/{d3-smoke,table-smoke}.tsx`           | framework tracers from the spike; the only `d3` importers                 |
+| `libs/validation/src/branded.ts`                                       | `brandedString`, called by its own test only                              |
+| `defineSchema`, `InferSchema` in `core.ts`                             | an identity function and an unused type, exported from the barrel         |
+| `tools/tool-deploy/src/ssh.ts` + its test block                        | two builders whose only caller was that test                              |
+| **`libs/scripts` entirely** (8 files, project, alias)                  | a `scope:shared` library with zero consumers                              |
+
+`src/db/` is the one worth naming: a `DbConfig` with `mode: 'local' | 'server'`, a `wsUrl` and a
+`getJwt`, which the app does not import. An agent asked about caching finds it before it finds that
+there is no query library in the dependency list at all. That is what dead code that looks like
+architecture costs, and it is why these go rather than sit behind a comment.
+
+`tool-deploy/src/ssh.ts` is worse than unused. `buildSshInvocation` forces `user@host`, while
+`deploy.ts` spawns `['ssh', host, …]` with no user at all and says why at `:282` — the ssh config
+supplies it. Wiring the helper in would have broken the deploy; deleting it removes the trap.
+
+**Two of N14's entries are not dead, and are kept.**
+
+- **`libs/contracts/src/errors.ts`.** Its `ErrorCode` values are live — `gw-01`'s
+  `ws.controller.ts` hand-writes `'invalid_payload'` and `'backend_unavailable'` as literals rather
+  than importing them. That is an unused single source, not dead code, and wiring it up belongs to
+  W3-9 with the rest of the socket vocabulary.
+- **`tools/tool-dagger/src/{be-01,gw-01,fe-01}.ts`.** Reachable only through six Nx targets nothing
+  else invokes — `bin/publish-release.sh` runs `main.ts`, not these. So the review's read is
+  probably right. But they are release machinery, and CLAUDE.md requires an OpenSpec change for
+  deploy safety. Left in place; it is its own change, not a line item in a cleanup.
+
+`libs/validation/src/fixtures/` also stays: the review flagged `clock` and `frame` as dead, but
+`makeTestDb` beside them has four be-01 consumers, so the module is live and only some exports are
+in question.
+
+**Green:** `validation`, `contracts`, `be-01`, `fe-01` (2043 tests), `gw-01`, `mcp-01`, `realtime`,
+`tool-deploy`, `tool-devsync`, `tool-secrets` — test, lint, typecheck; `format:check --all`. The
+workspace is 22 projects, from 23.
+
+One thing the removal caught: `git rm -r libs/scripts` left the directory on disk, because an
+untracked `coverage/` was in it — and `tool-devsync`'s `RESTART_PATHS coverage` failed on
+`Expected to contain: "libs/scripts/project.json"`, reading the directory that still existed. The
+test that walks the repo rather than trusting a list is what noticed.

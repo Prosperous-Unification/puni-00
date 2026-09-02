@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   }
   console.log(`[tool-secrets] would run: sops --decrypt ... | ssh ${host} 'tee /srv/wbs/.env'`);
   console.log(
-    '[tool-secrets] push CLI is a placeholder — will be wired to @wbs/scripts ssh helpers once a real age key is configured.',
+    '[tool-secrets] push CLI is a placeholder — it prints the command and runs nothing until a real age key is configured.',
   );
 }
 

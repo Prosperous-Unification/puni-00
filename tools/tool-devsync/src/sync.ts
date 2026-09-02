@@ -66,7 +66,6 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/domain/project.json',
   'libs/observability/project.json',
   'libs/realtime/project.json',
-  'libs/scripts/project.json',
   'libs/validation/project.json',
 ];
 
