@@ -152,7 +152,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-8  | **One done, three refused with measurements, 2026-09-02** — see §54. A chart scroll reads **no** rect (the content width is the observers' job). The other three are already efficient, unsafe to cache, or bounded — each measured rather than assumed.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | W2-9  | **Half done, 2026-09-02** — see §47. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). The fe-01 memoisation half is not done.                                                                                                                                                                                                                                                                                                                                                                                                               |
 | W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
-| W2-11 | **`PlanCard` shell** (the phone face got none of `pointed-row-render-cost`): a shell owning `<article>`, its own actions-menu state and subscription, fields as `children`; ~1,080 per-row reader calls per render today.                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
+| W2-11 | **Done bar a refusal, 2026-09-02** — see §57. The ⋯ menu's open id and the phone toolbar's open state are both out of the render path: opening `Plan actions` cost **5 card renders and now costs 0**, watched. The `PlanCard` shell itself is **refused with measurements**: at rest nothing else re-renders the list — a keystroke, a focus move and a field sheet are 0 renders each — and every prop the call site hands `PlanCards` is a fresh identity per render, so a `memo` shell would be a check that cannot fail until W4-4 stabilises them.                                                                                                                           | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
 | W2-12 | **Started, 2026-09-02** — see §24. Three done: the push retry's re-serialisation, the throttle's whole-map prune, and the two exporters' `nameOf`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
 | W2-13 | **Done, 2026-09-02** — see §48. The roster rides the plan's own stream; the panel opens nothing and is presentational. It also fixes the caveat that panel documented — a dropped connection used to freeze the roster until a reload.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | W2-14 | **Done bar one refusal, 2026-09-02** — see §49. `socketWriter` reads what Bun's `send` answers (nothing did), counts drops and backpressure into `libs/observability`'s first-ever `Counter` callers, and presence is a per-project index behind a thousand-sequence differential. `/metrics/snapshot` is **kept**: the swap's drain polls it.                                                                                                                                                                                                                                                                                                                                     |
@@ -2111,3 +2111,40 @@ untouched for the same reason: they are read by the table's own layout, not by a
 
 Both gates: 2,069 jsdom tests pass, and the browser gate is **282 passed** — the same 282 as the
 pre-change baseline, run in this checkout on shifted ports.
+
+## 57 · W2-11 — measured first, and most of it was already true
+
+The plan's own check for this row — "`cardTrioOf` spy delta when one menu opens" — was answered by
+§45's store, so what was left was the shell. Before writing it, the same oracle was pointed at
+every gesture a reader makes on a phone: `cardIndentFor`, which each card calls exactly once per
+render, counted across five cards.
+
+| gesture, five cards on screen        | card renders |
+| ------------------------------------ | -----------: |
+| a keystroke in a card's Name box     |            0 |
+| the focus moving to another card     |            0 |
+| opening a card's Team sheet          |            0 |
+| opening `Plan actions`               |    **5 → 0** |
+| adding a work item (six cards after) |           23 |
+
+**The toolbar sheet was the one real cost, and it is fixed.** `toolbarSheetOpen` was a `useState`
+in `WbsTable`, so tapping one button re-rendered the plan behind the sheet — and a card's render
+runs the estimate trio per step plus its slack, its mismatches, three label reads and a span read.
+`plan-toolbar-sheet.tsx` owns that state now and the controls arrive as `children`, built by the
+table's own render, so the sheet's re-render reuses that element tree untouched. `closingControlIn`
+and `TAKES_THE_FOCUS` moved with it, and the effect that closed the sheet on every renderer change
+is **deleted**: only the cards renderer mounts the sheet, so a window dragged wide unmounts it and
+there is nothing left to close. Watched failing on `expected 5 to be +0` with the state put back in
+`WbsTable` and read as a prop.
+
+**Refused: the `PlanCard` shell.** Its only benefit is a `memo`, and a `memo` here cannot hold:
+`rows` is rebuilt per render with fresh objects and fresh `toggleBranch` closures, and all twenty
+of the writer props are inline arrows at the call site (`wbs-table.tsx:11671`). A shell wrapped in
+`memo` over those props re-renders every time regardless — the shape R5 calls a check that cannot
+fail — and stabilising twenty callbacks plus the row objects is the `live`-typed restructure W4-4
+is for, not a card change. The 1,080-reader-calls figure in the row above was real and is now
+spent only when the plan actually changes.
+
+**Left open, named rather than fixed:** one write costs the list **~3.8 renders per card** (23
+across six). That is the payload landing, the schedule arriving and the drafts settling, and
+narrowing it is W2-1's other half — which read a write triggers — not this row's.

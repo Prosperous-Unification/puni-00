@@ -1,6 +1,32 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as TableFrameModule from './table-frame';
+
+/**
+ * How many cards the list has drawn, counted through {@link cardIndentFor} —
+ * every card computes its own indent exactly once per render, so the count is
+ * "how many cards rendered".
+ *
+ * The render-cost probes read this. jsdom can see nothing else that
+ * distinguishes "the list held still" from "the list re-rendered into the same
+ * markup" — React reuses the DOM nodes either way.
+ *
+ * The mock is call-through: every other test sees the real module unchanged.
+ */
+const cardIndentCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('./table-frame', async (importOriginal) => {
+  const real = await importOriginal<typeof TableFrameModule>();
+  return {
+    ...real,
+    cardIndentFor: (...args: Parameters<typeof real.cardIndentFor>) => {
+      cardIndentCalls.count += 1;
+      return real.cardIndentFor(...args);
+    },
+  };
+});
 
 import type {
   Days,
@@ -3522,5 +3548,68 @@ describe('setting what a card waits for', () => {
       expect(document.querySelector('[data-card-waits]')).toBeNull();
     });
     expect(api.edges).toEqual([`drop:${api.rows[1]?.id ?? ''}:${api.rows[0]?.id ?? ''}`]);
+  });
+});
+
+/**
+ * What re-renders the card list, and what must not.
+ *
+ * A card's render runs the estimate trio per step plus its slack, its
+ * mismatches, three label reads and a span read — around a thousand reader
+ * calls on a twenty-row plan with two steps. A **plan change** is worth that; a
+ * gesture that opens a surface over the plan is not. `opening a card's menu
+ * re-renders no other card` above is the same rule for the ⋯ menu.
+ */
+describe('what a gesture over the plan costs the cards behind it', () => {
+  afterEach(cleanup);
+
+  /** Five cards on a phone, which is enough that one is not five. */
+  async function fiveCardsOnAPhone(): Promise<void> {
+    const api = fakeApi();
+    for (let at = 0; at < 5; at += 1) await api.createWorkItem('p1', { parentId: null });
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    expect(document.querySelectorAll('[data-card]')).toHaveLength(5);
+  }
+
+  itDom('opening the plan toolbar re-renders no card', async () => {
+    // `toolbarSheetOpen` was a `useState` in `WbsTable` until 2026-09-02, so
+    // tapping `Plan actions` re-rendered the plan behind the sheet. It lives in
+    // `PlanToolbarSheet` now, and the controls reach it as `children` — built
+    // by the table's own render, so the sheet's re-render reuses that element
+    // tree untouched.
+    //
+    // Proof: the open id put back as `useState` in `WbsTable` with the sheet
+    // reading it as a prop, watched failing on `expected 5 to be +0` — one
+    // render per card to open a sheet that changed nothing about the plan.
+    // Observed 2026-09-02.
+    await fiveCardsOnAPhone();
+    // The oracle is on the cards' own render path before anything is asserted
+    // about its silence (R5).
+    expect(cardIndentCalls.count).toBeGreaterThan(0);
+
+    const before = cardIndentCalls.count;
+    openTheSheet();
+    // The sheet really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    await screen.findByRole('button', { name: 'Add work item' });
+
+    expect(cardIndentCalls.count - before).toBe(0);
+  });
+
+  itDom('takes a control on the sheet through to the plan, and closes it', async () => {
+    // The sheet still writes, and it still closes itself on the way — the two
+    // halves the extraction could have dropped silently, since a sheet that
+    // never closes and a control that never fires both leave five cards on
+    // screen. `adds a work item from the sheet` and the focus cases in this
+    // file's own suites cover the rest.
+    await fiveCardsOnAPhone();
+    openTheSheet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add work item' }));
+
+    await screen.findByLabelText('Name of 060');
+    expect(screen.queryByRole('button', { name: 'Add work item' })).toBeNull();
   });
 });
