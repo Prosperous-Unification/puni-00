@@ -36,6 +36,12 @@
         "command": "bunx eslint tools/tool-remote-scripts/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-remote-scripts/src --cache --cache-location .nx/eslintcache-tool-remote-scripts"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

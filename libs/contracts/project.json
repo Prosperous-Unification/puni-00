@@ -11,6 +11,12 @@
         "command": "bunx eslint libs/contracts/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/contracts/src --cache --cache-location .nx/eslintcache-contracts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

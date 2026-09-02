@@ -32,6 +32,12 @@
         "command": "bunx eslint tools/tool-compose/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-compose/src --cache --cache-location .nx/eslintcache-tool-compose"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

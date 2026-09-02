@@ -92,6 +92,12 @@
         "command": "bunx eslint tools/tool-dagger/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-dagger/src --cache --cache-location .nx/eslintcache-tool-dagger"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

@@ -41,6 +41,12 @@
         "command": "bunx eslint tools/tool-bootstrap/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-bootstrap/src --cache --cache-location .nx/eslintcache-tool-bootstrap"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

@@ -131,7 +131,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | W1-2 | Split `wbs-table.test.tsx` by its 63 `describe` blocks into the eleven files sweep C maps (`plan-layout`, `plan-filter`, `plan-keyboard`, `plan-dependencies`, `plan-estimates`, `plan-toolbar`, `plan-cells`, `plan-structure`, `plan-read-and-write`, `plan-chart-seam`, `plan-table`). 585 serial cases → four workers. | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
 | W1-3 | `apps/be-01/src/testing/harness.ts`: `inMemoryServices(overrides?)` returning `BeServices`, composed from the 19 in-memory fixtures that exist and are never composed; `buildServices()` stays the T1 twin. 24 hand-wired files use it; `undo.test.ts:122`'s leaked real repository goes.                                  | new; 24 test files                                       | 2d     | —     |
 | W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                                  | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
-| W1-5 | `lint:fast` with `--cache --cache-location .nx/eslintcache` for the inner loop only; CI and the gate stay uncached (a type change in A stales B's `no-unsafe-*` verdict).                                                                                                                                                  | `project.json` ×N, `.gitignore`                          | 1h     | —     |
+| W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                      | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec.          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
 ### Wave 2 — performance (≈ 10 days)
@@ -869,3 +869,42 @@ have different signatures for different needs (`fakeApi(startDate, skew)`,
 two trivial ones may be right to leave alone. The recorded call log subsuming the eight `watchX`
 wrappers is also still to do. What is done is the precondition for W1-2: the split files can import
 one fixture instead of inheriting eleven copies of it.
+
+## 19 · Verify — W1-5, 2026-09-02
+
+All 22 projects gained `lint:fast`: the same rules and the same files, with
+`--cache --cache-location .nx/eslintcache-<project>`. `lint` is untouched and stays uncached,
+because a type change in one project can stale another's `no-unsafe-*` verdict and no gate may trust
+that. Measured on be-01, through Nx:
+
+| Command                        | One file changed |
+| ------------------------------ | ---------------- |
+| `nx run be-01:lint` (the gate) | 15.1s            |
+| `nx run be-01:lint:fast`       | **4.1s**         |
+
+**The plan's lefthook half is withdrawn, and it is worth saying why.** The proposal was to cache the
+pre-commit lint too. Measured on a realistic staged set:
+
+| Run                                 | Time  |
+| ----------------------------------- | ----- |
+| no cache, as lefthook runs today    | 2.93s |
+| cached, nothing changed             | 1.20s |
+| cached, **one staged file changed** | 2.72s |
+
+The third row is the only one that happens. A pre-commit hook lints the staged files, and staged
+files are by definition the ones that changed, so the cache misses on every one of them. The win is
+0.2s and it is noise. The gain is entirely in the _whole-project_ case, where an agent re-lints
+several hundred unchanged files to check the handful it touched — which is the inner loop this wave
+is about.
+
+**The cache does not hide a real error.** With `const unusedOnPurpose = 1;` appended to
+`services.ts` and the cache warm, `nx run be-01:lint:fast` failed on
+`233:7 error 'unusedOnPurpose' is assigned a value but never used`, and went green with it removed.
+A fast lint that could not fail would be worse than no fast lint.
+
+`LLM_README.md` names it as the inner-loop command and says `lint` is the gate. Getting it back
+under its 150-line cap turned up one more stale figure that W0-10 missed: the index still described
+mcp-01's README as "20 tools", the number that file no longer claims. It names no count now.
+
+**Green:** `lint:fast` across all 22 projects; `lint` on be-01 and fe-01 unchanged;
+`format:check --all`; `doc-caps`.

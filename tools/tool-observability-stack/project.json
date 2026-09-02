@@ -18,15 +18,28 @@
     },
     "validate": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-observability-stack/src/validate.ts" }
+      "options": {
+        "command": "bun run tools/tool-observability-stack/src/validate.ts"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-observability-stack" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-observability-stack"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-observability-stack/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-observability-stack/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-observability-stack/src --cache --cache-location .nx/eslintcache-tool-observability-stack"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",

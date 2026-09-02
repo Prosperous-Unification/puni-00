@@ -31,6 +31,12 @@
         "command": "bunx eslint tools/tool-devsync/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-devsync/src --cache --cache-location .nx/eslintcache-tool-devsync"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

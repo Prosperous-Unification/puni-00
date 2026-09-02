@@ -7,7 +7,15 @@
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint libs/realtime/src" }
+      "options": {
+        "command": "bunx eslint libs/realtime/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/realtime/src --cache --cache-location .nx/eslintcache-realtime"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
@@ -19,7 +27,9 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --build --force libs/realtime/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force libs/realtime/tsconfig.json"
+      }
     }
   }
 }

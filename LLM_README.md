@@ -26,10 +26,11 @@ bun run dev:setup                               # writes the .env files dev need
 bin/h2puni-gate.sh                              # full h2puni gate + canonical lock
 bun run dev                                     # be + gw + fe locally
 bun run e2e                                     # the browser layout gate (needs chromium)
+bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is uncached and is the gate
 ```
 
-`bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the
-DOM `bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh`; raw full Nx
+`bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the DOM
+`bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh`; raw full Nx
 gates bypass the host-wide release lock. `build` needs `shellcheck`.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
@@ -109,7 +110,7 @@ contract: `docs/runbook-prod-deploy.md`.**
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`) — 66 tests
   green against another checkout, 2026-08-09; it keeps its own `DB_PATH`. Shift onto ports the
   **browser** talks to: 1800 puts fe-01 on 6000 (`ERR_UNSAFE_PORT`); 1900 is good.
-- **A whole-workspace run is not the sum of per-project runs.** Six import-sort errors reached
+- **A whole-workspace run is not the sum of per-project runs** — six import-sort errors reached
   `main` on 2026-08-30 green in every per-project run. Gate before merging.
 - **Playwright's `toHaveCount(0)` retries** — it passes the moment the count reaches zero, however
   late, so a _temporary_ absence needs `expect(await l.count()).toBe(0)` instead.
@@ -131,20 +132,19 @@ any first message _containing_ `"pong"`; drain reads a malformed metrics body as
 
 ## More
 
-| Doc                                                                     | When                                                                                              |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md`      | before touching deploy                                                                            |
-| `docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md` | why the pipeline is shaped this way                                                               |
-| `docs/runbook-dev-deploy.md`                                            | deploying dev; what a deploy cannot carry                                                         |
-| `docs/runbook-prod-deploy.md`                                           | deploying prod; commands and their refusals                                                       |
-| `docs/runbook-dagger-engine-registry-dns.md`                            | engine can't resolve `registry`                                                                   |
-| `docs/local-dev.md`                                                     | running locally                                                                                   |
-| `docs/capacity.md`                                                      | why a plan's dates moved; where a team's number is typed                                          |
-| `apps/be-01/openapi.json`                                               | the API's own document — `bun apps/be-01/src/openapi/emit-openapi-cli.ts` rewrites it             |
-| `apps/mcp-01/README.md`                                                 | the MCP server: 20 tools derived from that document, two of them the batch writes                 |
-| `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path                                                     |
-| `docs/2026-08-30-agent-loop-audit.md`                                   | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens |
-| `docs/2026-09-02-refactoring-plan.md`                                   | before any refactor — five waves, file-by-file ledgers, which `typecheck` targets compile nothing |
+| Doc                                                                 | When                                                                                              |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `docs/superpowers/{plans,specs}/2026-08-02-compose-blue-green-*.md` | before touching deploy, and why the pipeline is shaped this way                                   |
+| `docs/runbook-dev-deploy.md`                                        | deploying dev; what a deploy cannot carry                                                         |
+| `docs/runbook-prod-deploy.md`                                       | deploying prod; commands and their refusals                                                       |
+| `docs/runbook-dagger-engine-registry-dns.md`                        | engine can't resolve `registry`                                                                   |
+| `docs/local-dev.md`                                                 | running locally                                                                                   |
+| `docs/capacity.md`                                                  | why a plan's dates moved; where a team's number is typed                                          |
+| `apps/be-01/openapi.json`                                           | the API's own document — `bun apps/be-01/src/openapi/emit-openapi-cli.ts` rewrites it             |
+| `apps/mcp-01/README.md`                                             | the MCP server: the tools derived from that document, two of them the batch writes                |
+| `HUMAN_README.md`                                                   | operating prod; triage runbook; openclaw path                                                     |
+| `docs/2026-08-30-agent-loop-audit.md`                               | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens |
+| `docs/2026-09-02-refactoring-plan.md`                               | before any refactor — five waves, file-by-file ledgers, which `typecheck` targets compile nothing |
 
 Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state what
 was/wasn't verified; never print a secret value. Explicit return types are house style, **not** lint-enforced.

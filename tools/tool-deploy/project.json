@@ -36,6 +36,12 @@
         "command": "bunx eslint tools/tool-deploy/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-deploy/src --cache --cache-location .nx/eslintcache-tool-deploy"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

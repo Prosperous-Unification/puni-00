@@ -2,6 +2,10 @@ node_modules/
 dist/
 coverage/
 .nx/cache
+# ESLint caches written by the `lint:fast` targets. Never by `lint`: the gate
+# and CI must not trust a cache, because a type change in one project can stale
+# another's `no-unsafe-*` verdict.
+.nx/eslintcache-*
 .nx/workspace-data
 *.tsbuildinfo
 routeTree.gen.ts
