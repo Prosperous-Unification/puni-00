@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { type RefusalWords, sentenceForRefusal } from './refusal';
 import {
-  capacityRefusalSentence,
+  CAPACITY_REFUSALS,
   directoryRefusalSentence,
-  priorityBandRefusalSentence,
-  stepRefusalSentence,
+  PRIORITY_BAND_REFUSALS,
+  STEP_REFUSALS,
 } from './wbs-api';
 
 /** A surface with one of everything, so each rule can be asked about on its own. */
@@ -69,10 +69,14 @@ describe('one refusal lookup', () => {
  */
 describe('the sentences each surface says', () => {
   it('words a step refusal, and a 5xx through its fallback', () => {
-    expect(stepRefusalSentence('taken')).toBe('That name is already a step on this plan.');
+    expect(sentenceForRefusal(STEP_REFUSALS, 'taken')).toBe(
+      'That name is already a step on this plan.',
+    );
     // No 5xx arm on this surface, stated in `STEP_REFUSALS` and asserted here
     // so that adding one is a visible change rather than a silent one.
-    expect(stepRefusalSentence('http_502')).toBe('The step could not be changed (http_502).');
+    expect(sentenceForRefusal(STEP_REFUSALS, 'http_502')).toBe(
+      'The step could not be changed (http_502).',
+    );
   });
 
   it('words a directory refusal from the surviving name, never from the draft', () => {
@@ -85,18 +89,20 @@ describe('the sentences each surface says', () => {
   });
 
   it('words a capacity ceiling from the number be-01 sent', () => {
-    expect(capacityRefusalSentence('size_must_be_at_most_1000')).toBe(
+    expect(sentenceForRefusal(CAPACITY_REFUSALS, 'size_must_be_at_most_1000')).toBe(
       'A plan can have at most 1000 of one team at work at once.',
     );
-    expect(capacityRefusalSentence('http_500')).toBe('The server could not save that. Try again.');
+    expect(sentenceForRefusal(CAPACITY_REFUSALS, 'http_500')).toBe(
+      'The server could not save that. Try again.',
+    );
   });
 
   it('words a ladder refusal, including the two codes with numbers in them', () => {
-    expect(priorityBandRefusalSentence('bands_must_number_5')).toBe(
+    expect(sentenceForRefusal(PRIORITY_BAND_REFUSALS, 'bands_must_number_5')).toBe(
       'A priority ladder has exactly 5 bands — one cannot be added or taken away.',
     );
-    expect(priorityBandRefusalSentence('band_label_must_be_1_to_40_characters')).toBe(
-      "A band's name is 1 to 40 characters.",
-    );
+    expect(
+      sentenceForRefusal(PRIORITY_BAND_REFUSALS, 'band_label_must_be_1_to_40_characters'),
+    ).toBe("A band's name is 1 to 40 characters.");
   });
 });

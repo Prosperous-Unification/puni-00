@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { capacityRefusalSentence, type TeamCapacityView, type TeamView } from '@/lib/wbs-api';
+import { CAPACITY_REFUSALS, type TeamCapacityView, type TeamView } from '@/lib/wbs-api';
+
+import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** One team on the plan, and what the plan says about how many of them work at once. */
 export interface TeamOnThePlan {
@@ -136,8 +138,6 @@ export function TeamsPanel({
    * which is why this cannot collapse to `?? ''` over one record.
    */
   const [typed, setTyped] = useState<Record<string, string>>({});
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   /**
    * The request in the air for each team, and the number it is carrying.
    *
@@ -151,23 +151,19 @@ export function TeamsPanel({
   );
 
   /**
-   * What the modal must not close over: a draft in any box, or a number on its
-   * way to be-01. Reported on every change and withdrawn on unmount.
+   * What the modal must not close over: a draft in any box. A number on its way
+   * to be-01 counts too and is {@link useSettingsSection}'s to add.
    *
    * Proof: `dirty` forced to `false`, and `project-settings-modal.test.tsx`'s
    * `the ✕ is refused the same way, and says which section is holding` let the ✕
    * close over a typed capacity; watched 2026-08-30.
    */
-  const dirty = busy || Object.keys(typed).length > 0;
-  useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
-  useEffect(
-    () => () => {
-      onDirtyChange(false);
-    },
-    [onDirtyChange],
-  );
+  const section = useSettingsSection({
+    words: CAPACITY_REFUSALS,
+    dirty: Object.keys(typed).length > 0,
+    onDirtyChange,
+    onChanged,
+  });
 
   const shown = (team: TeamOnThePlan): string =>
     team.id in typed ? (typed[team.id] ?? '') : team.stated === null ? '' : String(team.stated);
@@ -217,7 +213,7 @@ export function TeamsPanel({
     }
     const asNumber = draft === '' ? null : Number(draft);
     if (asNumber !== null && !Number.isFinite(asNumber)) {
-      setProblem(capacityRefusalSentence('size_must_be_a_whole_number_from_1'));
+      section.refuse('size_must_be_a_whole_number_from_1');
       return Promise.resolve(false);
     }
     if (asNumber === team.stated) {
@@ -249,24 +245,16 @@ export function TeamsPanel({
    * close over a surface with nothing left to say.
    */
   async function attempt(teamId: string, size: number | null): Promise<boolean> {
-    setBusy(true);
-    setProblem(null);
     try {
-      await setCapacity(teamId, size);
-      forget(teamId);
-      await onChanged();
-      return true;
-    } catch (thrown: unknown) {
-      // The draft is deliberately **kept** on a refusal: the number on screen is
-      // what the reader typed and what the sentence beside it is about, and
-      // resetting it to be-01's would leave a sentence explaining a value nobody
-      // could see.
-      setProblem(
-        capacityRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'),
-      );
-      return false;
+      // `forget` inside the change and before the re-read, which is the order
+      // this panel needs: the draft goes as the write lands, so the box redraws
+      // from what be-01 now says rather than from what was typed. The draft is
+      // **kept** on a refusal — see {@link SettingsSection.attempt}.
+      return await section.attempt(async () => {
+        await setCapacity(teamId, size);
+        forget(teamId);
+      });
     } finally {
-      setBusy(false);
       // Dropped whether it landed or was refused, so the entry only ever covers
       // the window a request is really in the air for. Kept past that, a
       // refusal could not be retried by pressing `Done` again, and a peer's
@@ -313,11 +301,7 @@ export function TeamsPanel({
         limit them. Every number is this plan’s own — another plan sharing a team is not affected.
       </p>
 
-      {problem !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {problem}
-        </p>
-      )}
+      <SectionProblem problem={section.problem} />
 
       {teams.length === 0 ? (
         /*
@@ -350,7 +334,7 @@ export function TeamsPanel({
                     : `At most ${String(team.stated)} of ${team.name} are at work at once on this plan.`
                 }
                 value={shown(team)}
-                disabled={busy}
+                disabled={section.busy}
                 onChange={(event) => {
                   const draft = event.currentTarget.value;
                   setTyped((current) => ({ ...current, [team.id]: draft }));

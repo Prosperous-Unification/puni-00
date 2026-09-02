@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { sentenceForRefusal } from './refusal';
 import {
   type DirectoryEffect,
   directoryRefusalSentence,
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
-  stepRefusalSentence,
+  STEP_REFUSALS,
   type StepUsage,
 } from './wbs-api';
 
@@ -157,7 +158,7 @@ describe('what a refused step change says', () => {
       'not_found',
       'forbidden',
     ]) {
-      const sentence = stepRefusalSentence(code);
+      const sentence = sentenceForRefusal(STEP_REFUSALS, code);
       expect(sentence).not.toContain(code);
       expect(sentence.endsWith('.')).toBe(true);
     }
@@ -167,7 +168,7 @@ describe('what a refused step change says', () => {
     // Not a default sentence with the code dropped: an unrecognised refusal is
     // something to report, and a message that hid it would leave nobody able to
     // say what be-01 answered.
-    expect(stepRefusalSentence('http_502')).toContain('http_502');
+    expect(sentenceForRefusal(STEP_REFUSALS, 'http_502')).toContain('http_502');
   });
 });
 

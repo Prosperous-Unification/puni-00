@@ -1563,7 +1563,8 @@ async function removeStepAt(path: string, token: string): Promise<StepRemoval> {
  * this takes the code as a string and answers for anything, so there is one
  * fallback and it is here.
  */
-const STEP_REFUSALS: RefusalWords = {
+/** Exported for `steps-panel.tsx`'s `useSettingsSection` — see {@link PRIORITY_BAND_REFUSALS}. */
+export const STEP_REFUSALS: RefusalWords = {
   sentences: {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
@@ -1578,10 +1579,6 @@ const STEP_REFUSALS: RefusalWords = {
   // refactor — see {@link RefusalWords.serverFailure}.
   otherwise: (code) => `The step could not be changed (${code}).`,
 };
-
-export function stepRefusalSentence(code: string): string {
-  return sentenceForRefusal(STEP_REFUSALS, code);
-}
 
 /** A JSON object, as far as anything read off the wire can be said to be one. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1764,7 +1761,8 @@ const SERVER_REFUSAL = 'The server could not save that. Try again.';
  * error is not a word of be-01's and `(http_502)` in the corner of a dialog is
  * the defect `wbs-table.tsx` fixed for `http_500` a week ago.
  */
-const CAPACITY_REFUSALS: RefusalWords = {
+/** Exported for `teams-panel.tsx`'s `useSettingsSection` — see {@link PRIORITY_BAND_REFUSALS}. */
+export const CAPACITY_REFUSALS: RefusalWords = {
   sentences: {
     // The floor arm, spelled out rather than left to the fallback: this is a box
     // somebody types a *number* into, and `(size_must_be_a_whole_number_from_1)`
@@ -1788,10 +1786,6 @@ const CAPACITY_REFUSALS: RefusalWords = {
   otherwise: (code) => `That capacity could not be changed (${code}).`,
 };
 
-export function capacityRefusalSentence(code: string): string {
-  return sentenceForRefusal(CAPACITY_REFUSALS, code);
-}
-
 /**
  * What a refused ladder change says out loud.
  *
@@ -1810,7 +1804,15 @@ export function capacityRefusalSentence(code: string): string {
  * `5`, because be-01 builds the code from `PRIORITY_BAND_COUNT` — a literal here
  * would be a second copy of that number, free to drift.
  */
-const PRIORITY_BAND_REFUSALS: RefusalWords = {
+/**
+ * Exported so `priorities-panel.tsx` can hand it whole to
+ * `useSettingsSection`, which words every refusal that panel can earn.
+ *
+ * There was a `priorityBandRefusalSentence(code)` here until 2026-09-02, and
+ * two siblings beside it; the panels take the table now, so a one-code reader
+ * per surface was three functions doing what `sentenceForRefusal` does.
+ */
+export const PRIORITY_BAND_REFUSALS: RefusalWords = {
   sentences: {
     first_band_must_start_at_1:
       'The most important band has to start at 1, or the priorities below it would have no name.',
@@ -1842,10 +1844,6 @@ const PRIORITY_BAND_REFUSALS: RefusalWords = {
   serverFailure: SERVER_REFUSAL,
   otherwise: (code) => `Those priority bands could not be saved (${code}).`,
 };
-
-export function priorityBandRefusalSentence(code: string): string {
-  return sentenceForRefusal(PRIORITY_BAND_REFUSALS, code);
-}
 
 /**
  * What a refused directory change says out loud.
