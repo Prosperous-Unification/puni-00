@@ -166,7 +166,7 @@ nothing else in the repo changes. Where the copy carries a comment saying "line 
 | Id    | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Files                                                                                                                                     | Effort | LOC out |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------- |
 | W3-1  | **One satellite store** behind `EstimateStore`/`ActualStore`/`StepMeasureStore`/`StepProgressStore` (audit R4): parameterised by table, value columns, key width, and the one drifted flag (`estimate.ts:118` bumps unconditionally; the other three guard). `listByProject`'s 2,000-element `IN` list → an inner join, once for all four. The four `storedX` readers and the eight `setX`/`clearX` bodies in the service collapse with it. Check `audit.test.ts:110`'s `> 40` floor first — the collapse removes write sites, and that alarm firing would be a false one.                                                                                                                        | `repository/{estimate,actual,step-measure,step-progress}.ts`, `index.ts:857–1084`, `work-item.service.ts:2516–2911, :3856–3920`           | 2d     | ~900    |
-| W3-2  | **`remembered<T>(key, isValid, fallback)`** → `{ read, readAndDrop, write, forget }`, taking `lib/theme.ts:60–120` as the reference shape (it is the only copy that gets read-in-render vs read-and-drop right). Migrate the other ten: `gantt-panel.tsx:663`, `project-settings-modal.tsx:63`, `project-page.tsx:65`, the eight in `wbs-table.tsx:743–1412`. Preserve the asymmetry that expansion, Mermaid lanes and saved views have no `forget` (Layout reset does not forget them) as a per-family flag.                                                                                                                                                                                     | `lib/remembered.ts` new; 11 sites                                                                                                         | 1d     | ~350    |
+| W3-2  | **Done, 2026-09-02** — see §39. One `lib/remembered.ts` behind eleven copies, with `read`/`readAndDrop` and a **three-state** `Claim` (only one copy had the first, none had the second, and both are load-bearing). `rememberedText` for the one key stored as bare text; `project-page.tsx` deliberately not converted.                                                                                                                                                                                                                                                                                                                                                                         |
 | W3-3  | **Reference set at three tiers, one adapter each**: `referenceColumn(kind, …)` from the `ReferenceSetAdapter` that already exists for the four table columns (`wbs-table.tsx:8511–8773`, 263 LOC, 8 writers, 12 `live` keys); `<ReferenceField kind>` for the three card components (`plan-cards.tsx:615–915`); `<DirectoryCard kind>` over `directory-page.tsx:290`'s `writesFor` table for the three directory cards (`:1079–1330`); one `EffectiveLabel<'replaced' \| 'accumulated'>` for the three label unions (`gantt-geometry.ts:176–283`). The accumulate-vs-replace distinction stays in the mode, per ADR 0008; there is deliberately no type dimension in `effective-*` (ADR 0009).    | as named, `reference-set-field.tsx`                                                                                                       | 3d     | ~750    |
 | W3-4  | **Directory triple → one `namedEntity(kind, store)`** across the six layers audit R2 names: `repository/directory.ts`, `directory.service.ts:240–428` (nine methods, three bodies), `plan-commands.ts:512–658` (five triples "line for line", says the comment), `directory-usage.ts:221–285` (three identical one-line lambdas under 90 lines of JSDoc), `wbs-api.ts:743–782`. Lands naturally as descriptors when W4-3 exists; do the service and store halves now.                                                                                                                                                                                                                             | as named                                                                                                                                  | 2d     | ~450    |
 | W3-5  | **Done, 2026-09-02** — see §38. An Elysia macro `caller` resolving the identity once and handing the handler a non-null `user`; 23 five-line 401 blocks and the two scope checks are gone, the two cookie parsers are one, and `directory.controller.ts` is 69 → 40 lines. The injected fault found five of the six directory reads had **no** 401 negative; one case over all six now, watched.                                                                                                                                                                                                                                                                                                  |
@@ -1738,3 +1738,38 @@ thing R5 says an Elysia route must not answer.
 
 `openapi.json` was re-emitted after both changes and is byte-identical, which is the evidence that
 no route or annotation moved.
+
+## 39 · W3-2 — one `remembered`, and the two distinctions only one copy made
+
+Ten `remembered*`/`remember*`/`forget*` families across four files each wrote out get-item, parse,
+validate, drop-the-key, fall back. `lib/remembered.ts` holds it once. What makes it worth more
+than the line count is that the eleven copies **did not agree**, and the two disagreements were
+both real:
+
+- **`read` against `readAndDrop`.** Dropping a key is a write, and a lazy `useState` initialiser
+  is a function React calls during a render and StrictMode calls twice on purpose. `theme.ts` and
+  `gantt-panel.tsx` had worked that out (cross-review, 2026-08-12); the other nine had one method.
+- **`Claim` has three states.** `absent` and `refused` are different answers for the Gantt detail
+  switch: nothing stored opens the arrows for a plan that has edges, a refused value does not.
+  Watched — collapsed into `return hasEdges`, that switch's two storage cases fail on `expected
+'true' to be 'false'` (`2 failed | 159 passed`).
+
+Ranges belong **inside** the guard, which the height store proves: with the bounds dropped and
+`typeof claimed === 'number'` left, `refuses a height below the floor` fails on `expected '10px'
+to be ''` and the ceiling case on `expected '99999px' to be ''`, while the not-a-number case stays
+green — so a range checked beside the guard would have been a check about a different fault.
+
+`rememberedText` is the sibling for the settings modal, whose key is written as bare text:
+switching it to JSON would write `"teams"` with quotes and silently forget the tab every existing
+reader was on. The stored format is a compatibility fact, not a style choice.
+
+**Not converted:** `project-page.tsx`'s remembered project id, with the reason in the file — its
+claim is judged against the project list the load just fetched rather than against a shape, so
+there is nothing to hand a guard built at module scope.
+
+Two `Proof:` comments were rewritten and **re-watched** rather than reasoned about: `readAndDrop`
+→ `read` fails theme's two storage cases and the Mermaid lane's two (`2 failed | 22 passed`).
+
+**Green:** fe-01 2047 across 75 files, twice, cold. And a note for the next reader: three of these
+tests time out at 5s on a loaded machine and pass in isolation. A full fe-01 run wants the box to
+itself, and a run that races an edit reports failures in whatever files it caught mid-write.
