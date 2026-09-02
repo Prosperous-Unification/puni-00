@@ -1,19 +1,8 @@
-import { hasCycle, indexTree } from '@wbs/domain';
+import { hasCycle, indexTree, isWithin, parentIndexOf } from '@wbs/domain';
 
 import type { StoredDependency, WorkItem } from '../repository';
 
 export type DependencyRefusal = 'not_found' | 'ancestor' | 'cycle';
-
-/** Whether `candidateId` is `rootId` or sits anywhere beneath it. */
-function isWithin(rows: readonly WorkItem[], candidateId: string, rootId: string): boolean {
-  const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === rootId) return true;
-    cursor = parentOf.get(cursor);
-  }
-  return false;
-}
 
 /**
  * Why an edge cannot be drawn, or `null` when it can.
@@ -38,7 +27,11 @@ export function canDepend(
   // children, so asking it to wait for one is asking it to start after itself.
   // Proof: this branch deleted and exactly the three `ancestor` tests failed —
   // onto itself, onto its parent, onto its child.
-  if (isWithin(rows, predecessorId, successorId) || isWithin(rows, successorId, predecessorId)) {
+  const parentOf = parentIndexOf(rows);
+  if (
+    isWithin(parentOf, predecessorId, successorId) ||
+    isWithin(parentOf, successorId, predecessorId)
+  ) {
     return 'ancestor';
   }
 

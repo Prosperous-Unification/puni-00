@@ -13,6 +13,11 @@ export * from './effective-tag';
 export * from './effective-team';
 export * from './estimate';
 export * from './external-system';
+// One upward walk, where four copies of it stood on 2026-09-02: two in be-01
+// (`canDepend`'s `isWithin` and `moveWorkItem`'s `descendsFrom`, byte-identical
+// under two names) and two in fe-01. It answers a question about a plan's
+// shape and reads nothing else, like everything else in here.
+export * from './is-within';
 export * from './label-mismatch';
 export * from './not-before';
 export * from './place-sibling';

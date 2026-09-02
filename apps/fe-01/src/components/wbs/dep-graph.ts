@@ -1,3 +1,5 @@
+import { isWithin } from '@wbs/domain/is-within';
+
 /** A work item as the dependency rule needs to see it: where it sits, and what it waits for. */
 export interface GraphRow {
   id: string;
@@ -102,16 +104,6 @@ function expandToLeaves(graph: DepGraph, edges: readonly Edge[]): Edge[] {
   return expanded;
 }
 
-/** Whether `candidateId` is `rootId` or sits anywhere beneath it. */
-function isWithin(graph: DepGraph, candidateId: string, rootId: string): boolean {
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === rootId) return true;
-    cursor = graph.parentOf.get(cursor);
-  }
-  return false;
-}
-
 /**
  * Kahn's algorithm over the leaf graph, answering the one question `hasCycle`
  * asks by catching the schedule's throw.
@@ -175,8 +167,8 @@ export function refusalFor(graph: DepGraph, edge: Edge): EdgeRefusal | null {
   // it to start after itself — and the same the other way up.
   // Proof: the two calls swapped and `says which way round an ancestor edge
   // runs` failed, naming a parent as sitting inside its own child.
-  if (isWithin(graph, successorId, predecessorId)) return 'ancestor';
-  if (isWithin(graph, predecessorId, successorId)) return 'descendant';
+  if (isWithin(graph.parentOf, successorId, predecessorId)) return 'ancestor';
+  if (isWithin(graph.parentOf, predecessorId, successorId)) return 'descendant';
 
   // Proof: `expandToLeaves` here replaced by the written edge, and the four
   // expansion cases failed — the two cross-review examples among them.

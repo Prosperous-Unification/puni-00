@@ -9,9 +9,11 @@ import {
   finalDays,
   firstWorkdayOf,
   type IsoDate,
+  isWithin,
   lastWorkdayOf,
   NOT_STARTED,
   ORDINARY_BAND_RANK,
+  parentIndexOf,
   type PertWeights,
   placeAfter,
   POSITION_STEP,
@@ -810,17 +812,6 @@ const asSibling = (workItem: WorkItem): Sibling => ({
   id: workItem.id,
   position: workItem.position,
 });
-
-/** Whether `candidateId` sits anywhere below `ancestorId`, walking parents upward. */
-function descendsFrom(rows: readonly WorkItem[], candidateId: string, ancestorId: string): boolean {
-  const parentOf = new Map(rows.map((w) => [w.id, w.parentId]));
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === ancestorId) return true;
-    cursor = parentOf.get(cursor);
-  }
-  return false;
-}
 
 /** `rootId` and everything beneath it. */
 function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
@@ -1878,7 +1869,7 @@ export class WorkItemService {
     // Moving a work item beneath itself detaches its whole subtree from every
     // root: the rows survive, no number can be derived for them, and the project
     // reads as though the work vanished.
-    if (input.parentId !== null && descendsFrom(rows, input.parentId, id)) {
+    if (input.parentId !== null && isWithin(parentIndexOf(rows), input.parentId, id)) {
       return { ok: false, reason: 'cycle' };
     }
 

@@ -1,3 +1,5 @@
+import { isWithin, parentIndexOf } from '@wbs/domain/is-within';
+
 import type { WorkItemView } from '@/lib/wbs-api';
 
 /** Where in a row the pointer is, and therefore what dropping there means. */
@@ -26,17 +28,6 @@ export function zoneFor(offsetY: number, height: number): DropZone {
   if (fraction < 0.25) return 'above';
   if (fraction > 0.75) return 'below';
   return 'into';
-}
-
-/** Whether `candidateId` sits anywhere at or below `rootId`, walking parents upward. */
-function isWithin(rows: readonly WorkItemView[], candidateId: string, rootId: string): boolean {
-  const parentOf = new Map(rows.map((r) => [r.id, r.parentId]));
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === rootId) return true;
-    cursor = parentOf.get(cursor);
-  }
-  return false;
 }
 
 /** The rows directly under `parentId`, in tree order, without the row being dragged. */
@@ -94,7 +85,7 @@ export function planMove(
   // Proof: this line deleted and three tests failed — the drop onto itself, the
   // drop into its own subtree in all three zones, and the only-child case that
   // then reported a move instead of `unchanged`.
-  if (isWithin(rows, targetId, draggedId)) return { ok: false, reason: 'cycle' };
+  if (isWithin(parentIndexOf(rows), targetId, draggedId)) return { ok: false, reason: 'cycle' };
 
   const planned = resolve(rows, dragged, target, zone, targetShowsChildren);
 

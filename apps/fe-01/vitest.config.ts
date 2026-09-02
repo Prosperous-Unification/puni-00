@@ -45,6 +45,7 @@ export default defineConfig({
         '../../libs/domain/src/effective-service.ts',
       ),
       '@wbs/domain/label-mismatch': resolve(__dirname, '../../libs/domain/src/label-mismatch.ts'),
+      '@wbs/domain/is-within': resolve(__dirname, '../../libs/domain/src/is-within.ts'),
       '@wbs/domain/priority-band': resolve(__dirname, '../../libs/domain/src/priority-band.ts'),
       // And a fourth: `dependency-reach.ts` is a two-member enum and its
       // guard, and the rule it holds — how far into a predecessor a
