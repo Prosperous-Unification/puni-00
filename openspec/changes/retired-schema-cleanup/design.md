@@ -88,5 +88,5 @@ tests enforce:
 5. **Name: keep it.** `service_team` keeps its name until R2-6; a mid-swap rename
    would break the outgoing release's `SELECT … FROM service_team`.
 
-Each rule is asserted by `retired-schema-untouched.test.ts` so that a premature
+Each rule is asserted by `retired-schema-untouched.db.test.ts` so that a premature
 drop, rename, re-key, or stopped dual-write fails a test instead of a swap.

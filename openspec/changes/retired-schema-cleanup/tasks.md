@@ -13,7 +13,7 @@ protocol. The drop/rename itself is a separate later change (R2-6).
 
 ## 2. The additive compatibility seam and its guards
 
-- [ ] 2.1 `retired-schema-untouched.test.ts` — a migration test that, against a
+- [ ] 2.1 `retired-schema-untouched.db.test.ts` — a migration test that, against a
       temp SQLite file, runs the full migration chain forward, then asserts:
   - `service_team.size` is still a column after forward, rollback and restart;
   - `work_item.service_id` is still a column, `REFERENCES service(id)` with

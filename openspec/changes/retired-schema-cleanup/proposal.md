@@ -37,7 +37,7 @@ premature drop. It retires nothing yet.
   re-keyed. The legacy columns stay in their tables; the surviving tables
   (`work_item_team`, `work_item_service`, `project_team_capacity`) stay the single
   source of truth for their dimensions.
-- A watched-red migration test (`retired-schema-untouched`) that asserts the
+- A watched-red migration test (`retired-schema-untouched.db.test.ts`) that asserts the
   three legacy elements survive forward migration, rollback and restart, and that
   `work_item_team` and the `work_item.service_team_id` dual-write stay intact — so
   the R2-6 drop, when it lands as its own later change, cannot arrive here by
