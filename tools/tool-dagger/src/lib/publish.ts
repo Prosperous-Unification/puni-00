@@ -1,10 +1,11 @@
-export type Tier = 'be' | 'gw' | 'fe';
+import { IMAGE_NAME, type Tier } from '@wbs/deploy-contract';
 
-const IMAGE_NAME: Record<Tier, string> = {
-  be: 'wbs-be-01',
-  gw: 'wbs-gw-01',
-  fe: 'wbs-fe-01',
-};
+// Re-exported because this module's own callers take `Tier` from it. The image
+// names came from a second copy here until 2026-09-02, and they are the pair
+// that had to agree: `swap.js` refuses a ref that does not name the tier it was
+// asked to swap, so a drift would have passed the build and failed the deploy
+// on the server, mid-swap.
+export type { Tier };
 
 const DIGEST_RE = /@(sha256:[0-9a-f]{64})\b/;
 

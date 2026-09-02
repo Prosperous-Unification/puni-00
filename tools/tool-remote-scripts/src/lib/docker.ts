@@ -1,3 +1,4 @@
+import { APP_NAME, IMAGE_NAME, PORT } from './deploy-contract';
 import type { Color, Tier } from './state';
 
 /**
@@ -27,14 +28,6 @@ export const ROOT = CURRENT_ENV.root;
 
 export const BE_ALIAS = 'be-01.internal';
 
-const APP: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' };
-
-const IMAGE_NAME: Record<Tier, string> = {
-  be: 'wbs-be-01',
-  gw: 'wbs-gw-01',
-  fe: 'wbs-fe-01',
-};
-
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 
 export function isDigest(v: string): boolean {
@@ -49,20 +42,18 @@ export function isDigest(v: string): boolean {
  * daemon, not per network.
  */
 export function containerName(tier: Tier, color: Color, layout: EnvLayout = CURRENT_ENV): string {
-  return `${layout.containerPrefix}${APP[tier]}-${color}`;
+  return `${layout.containerPrefix}${APP_NAME[tier]}-${color}`;
 }
 
 /** The app name a tier is known by (`be-01`), independent of colour. */
 export function appName(tier: Tier): string {
-  return APP[tier];
+  return APP_NAME[tier];
 }
 
-/**
- * The port each tier's app listens on inside its container. Shared between
- * `swap.ts`'s health-gate (direct container-IP fetch) and `lib/site.ts`'s
- * rendered `reverse_proxy` targets, so the two can never drift apart.
- */
-export const PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
+// Re-exported because `lib/site.ts` and `swap.ts` read it from here, and
+// because where the numbers live is the contract's business — see
+// `deploy-contract.ts`.
+export { PORT };
 
 /** Where the per-colour compose override for this tier is rendered to. */
 export function tierComposeFile(tier: Tier, color: Color): string {
@@ -155,7 +146,7 @@ export const SHARED_ENV_PATH = `${ROOT}/.env`;
 
 /** Where a tier's derived, filtered secrets file lives. Only referenced by `tierEnvFiles` for a tier with a non-empty `SECRET_KEYS` entry. */
 export function tierSecretsFile(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
-  return `${layout.root}/${APP[tier]}.secrets.env`;
+  return `${layout.root}/${APP_NAME[tier]}.secrets.env`;
 }
 
 /**
@@ -193,7 +184,7 @@ export function deriveTierSecrets(tier: Tier, sharedEnvText: string): string {
  * `SECRET_KEYS` entry (fe-01) gets no secrets file at all, not an empty one.
  */
 export function tierEnvFiles(tier: Tier, layout: EnvLayout = CURRENT_ENV): string[] {
-  const files = [`${layout.root}/${APP[tier]}.env`];
+  const files = [`${layout.root}/${APP_NAME[tier]}.env`];
   if (layout.oidcEnvPath !== null && (tier === 'be' || tier === 'gw')) {
     files.push(layout.oidcEnvPath);
   }
@@ -273,7 +264,7 @@ export function assertTierEnvAllowed(tier: Tier, envText: string): void {
   if (bad.length > 0) {
     const allowedList = APP_ENV_ALLOWED_KEYS[tier];
     throw new Error(
-      `${ROOT}/${APP[tier]}.env carries key(s) outside tier "${tier}"'s allowlist: ${bad.join(', ')}. ` +
+      `${ROOT}/${APP_NAME[tier]}.env carries key(s) outside tier "${tier}"'s allowlist: ${bad.join(', ')}. ` +
         `Only ${allowedList.length > 0 ? allowedList.join(', ') : '(no keys — fe-01 needs none)'} ` +
         'may appear in this file — secrets belong in /srv/wbs/.env (and its per-tier derived ' +
         'files), never here.',

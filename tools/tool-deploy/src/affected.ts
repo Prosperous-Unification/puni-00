@@ -1,6 +1,10 @@
+import type { Tier } from '@wbs/deploy-contract';
 import { type EnvLayout, envLayout } from '@wbs/tool-env';
 
-export type Tier = 'be' | 'gw' | 'fe';
+// Re-exported because every module in this project takes `Tier` from here.
+// Declared here in its own words until 2026-09-02, which made four
+// declarations of one three-word union across the deploy tools.
+export type { Tier };
 
 export interface DeployArgs {
   tiers: Tier[] | 'affected' | 'all';

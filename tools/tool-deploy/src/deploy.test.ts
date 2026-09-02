@@ -99,7 +99,7 @@ describe('materialize', () => {
 
 const HEAD = 'abc1234';
 
-function entry(tier: 'be' | 'gw' | 'fe', sha = HEAD) {
+function entry(tier: Tier, sha = HEAD) {
   const digest = `sha256:${tier}`.padEnd(71, '0');
   return {
     sha,

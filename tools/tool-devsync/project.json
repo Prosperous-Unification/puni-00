@@ -18,7 +18,11 @@
         "{workspaceRoot}/tools/*/project.json",
         "{workspaceRoot}/apps/*/src/**/*.test.ts",
         "{workspaceRoot}/libs/*/src/**/*.test.ts",
-        "{workspaceRoot}/tools/*/src/**/*.test.ts"
+        "{workspaceRoot}/tools/*/src/**/*.test.ts",
+        "{workspaceRoot}/apps/*/src/**/*.ts",
+        "{workspaceRoot}/apps/*/src/**/*.tsx",
+        "{workspaceRoot}/libs/*/src/**/*.ts",
+        "{workspaceRoot}/tools/*/src/**/*.ts"
       ],
       "options": {
         "command": "bun test",

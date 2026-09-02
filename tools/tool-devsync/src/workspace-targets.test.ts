@@ -202,3 +202,100 @@ describe('every cached target declares what it reads', () => {
     expect(undeclared).toBeEmpty();
   });
 });
+
+/**
+ * Every `.ts` under `root`, recursively, with the workspace-relative path it
+ * was read from.
+ *
+ * Tests included: a copy of the union in a test file is a second declaration
+ * too, and the one place they are legitimately written out is the contract's
+ * own file.
+ */
+async function sourceFilesIn(root: URL, prefix: string): Promise<{ path: string; text: string }[]> {
+  const found: { path: string; text: string }[] = [];
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    // A project with no `src/` — `tools/dev` is one. Not an unknown: the
+    // listing above is what says which projects exist, and a project without
+    // sources contributes none.
+    return found;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      found.push(
+        ...(await sourceFilesIn(new URL(`${entry.name}/`, root), `${prefix}/${entry.name}`)),
+      );
+      continue;
+    }
+    if (!entry.name.endsWith('.ts') && !entry.name.endsWith('.tsx')) continue;
+    found.push({
+      path: `${prefix}/${entry.name}`,
+      text: await readFile(new URL(entry.name, root), 'utf8'),
+    });
+  }
+  return found;
+}
+
+/**
+ * The deploy vocabulary is declared **once**.
+ *
+ * `Tier` was written out four times and inline twice more, `Color` three times,
+ * and the image names, container names and ports twice each — across four
+ * projects that have to agree or a deploy pushes an image the server will not
+ * run. `@wbs/deploy-contract` is the one declaration since 2026-09-02, and this
+ * is what stops the copies coming back: a re-declared union reads exactly like
+ * the original to anybody who does not go looking for the other three.
+ *
+ * A text scan for the same reason `audit.test.ts` is one — what has to be
+ * refused is a *shape*, and no type can state "and nowhere else". The contract
+ * file itself is exempt, and it is the only exemption.
+ *
+ * Proof: the tier union put back as a `Tier` declaration at the top of
+ * `tools/tool-deploy/src/affected.ts`, watched failing on `Expected value to be
+ * empty · Received: [ "tools/tool-deploy/src/affected.ts re-declares …" ]`; and
+ * with the colour union restored in `tools/tool-smoke/src/color.ts`, on the
+ * same message for that file (2026-09-02).
+ *
+ * The unions are **assembled** in the case below rather than written out,
+ * because this file would otherwise be a copy of the thing it refuses — and the
+ * JSDoc says them the long way round for the same reason.
+ */
+describe('the deploy contract', () => {
+  const CONTRACT = 'tools/tool-remote-scripts/src/lib/deploy-contract.ts';
+
+  it('is the only place a tier or a colour is spelled out', async () => {
+    const copies: string[] = [];
+    for (const group of ['apps', 'libs', 'tools']) {
+      const projects = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
+      for (const project of projects) {
+        if (!project.isDirectory()) continue;
+        const root = new URL(`${group}/${project.name}/src/`, WORKSPACE);
+        for (const file of await sourceFilesIn(root, `${group}/${project.name}/src`)) {
+          if (file.path === CONTRACT) continue;
+          // Assembled rather than written out, so this file is not a copy of
+          // the thing it refuses. Exempting itself instead would have exempted
+          // every future test in it too.
+          const unions = [
+            ['be', 'gw', 'fe'].map((tier) => `'${tier}'`).join(' | '),
+            ['blue', 'green'].map((color) => `'${color}'`).join(' | '),
+          ];
+          for (const union of unions) {
+            if (file.text.includes(union)) copies.push(`${file.path} re-declares ${union}`);
+          }
+        }
+      }
+    }
+    expect(copies).toBeEmpty();
+  });
+
+  it('is reading real sources, not an empty listing', async () => {
+    // The case above passes over an empty file list, for a wrong reason: a
+    // renamed directory, a filter that dropped every file.
+    const root = new URL('tools/tool-remote-scripts/src/', WORKSPACE);
+    const files = await sourceFilesIn(root, 'tools/tool-remote-scripts/src');
+    expect(files.length).toBeGreaterThan(10);
+    expect(files.map((file) => file.path)).toContain(CONTRACT);
+  });
+});

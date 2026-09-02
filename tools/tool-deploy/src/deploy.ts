@@ -6,6 +6,7 @@
 // (Task 4) is a separate, explicit step that writes `release.json`. This CLI
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
+import { APP_NAME, type Color, PORT } from '@wbs/deploy-contract';
 import { type EnvLayout } from '@wbs/tool-env';
 
 import { materialize, parseDeployArgs, type Tier } from './affected';
@@ -309,14 +310,10 @@ export async function buildDeployPlan(
   };
 }
 
-// Duplicated from tools/tool-remote-scripts/src/lib/docker.ts's APP/PORT
-// rather than imported: that project has no `@wbs/*` public entry point (nx
-// enforces cross-project imports go through one — see tool-compose's
-// index.ts for what that looks like), and adding one for three constants
-// used in exactly one place here was not worth the new surface. tool-smoke's
-// own health.ts already hardcodes the same three ports for the same reason.
-const TIER_APP: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' };
-const TIER_HEALTH_PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
+// The app names and the ports come from `@wbs/deploy-contract` — the entry
+// point the comment here used to say did not exist, while line 9 was already
+// importing `@wbs/tool-env` out of that same project. The health *paths* stay:
+// they are this file's only, and nothing else has a copy of them.
 const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
 
 /**
@@ -329,8 +326,8 @@ const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', f
  * aborted operation), or, if the smoke were ever run on prod's network, a
  * green report about prod's containers after deploying dev.
  */
-function tierUrl(tier: Tier, path: string, color: 'blue' | 'green', layout: EnvLayout): string {
-  return `http://${layout.containerPrefix}${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
+function tierUrl(tier: Tier, path: string, color: Color, layout: EnvLayout): string {
+  return `http://${layout.containerPrefix}${APP_NAME[tier]}-${color}:${String(PORT[tier])}${path}`;
 }
 
 /**

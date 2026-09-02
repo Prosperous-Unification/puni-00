@@ -48,11 +48,12 @@ export interface BundleFile {
   remote: string;
 }
 
-// Not imported from tool-smoke: this project has no dependency on it, and
-// none is warranted for two path strings. Same reasoning as tool-deploy's
-// deploy.ts TIER_APP/PORT comment — no `@wbs/*` public entry point exists
-// for either project, so small cross-project constants are duplicated
-// rather than wired through one.
+// Not imported from tool-smoke, and that stands: these are the paths **this**
+// installer writes, and tool-smoke names its own bundle for its own reasons.
+// The reasoning that used to be here — that no `@wbs/*` entry point exists —
+// was already false and is now gone: `@wbs/deploy-contract` is this project's,
+// and it carries the vocabulary four projects have to agree about. These two
+// path strings are not that: nothing else reads them.
 export const BUNDLE_FILES: BundleFile[] = [
   { local: 'dist/tool-remote-scripts/swap.js', remote: `${ROOT}/bin/swap.js` },
   { local: 'dist/tool-smoke/smoke.js', remote: `${ROOT}/bin/smoke.js` },

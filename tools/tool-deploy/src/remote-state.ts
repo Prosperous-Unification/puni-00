@@ -1,8 +1,10 @@
+import type { Color } from '@wbs/deploy-contract';
+
 import type { Tier } from './affected';
 
 export interface RemoteTierState {
   tier: Tier;
-  activeColor: 'blue' | 'green';
+  activeColor: Color;
   lastDeployedSha: string | null;
 }
 
