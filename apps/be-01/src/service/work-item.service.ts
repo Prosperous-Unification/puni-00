@@ -1472,6 +1472,11 @@ export class WorkItemService {
         found.predecessorId,
       ]);
     }
+    // The project's own ids, once. `dependsOn` below filters every row's stored
+    // predecessors down to the ones on this plan, and it did that with
+    // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
+    // on the read every write and every socket frame performs.
+    const idsOnThisPlan = new Set(rows.map((row) => row.id));
     const workItems = rows
       .map((row) => ({
         ...row,
@@ -1527,7 +1532,7 @@ export class WorkItemService {
         // Only predecessors that are in this project. A stored edge naming a
         // work item from elsewhere — which the schema does not prevent — would
         // otherwise be reported as a dependency on a number nobody can see.
-        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
+        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
         ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
         dates: datesOf(

@@ -389,9 +389,17 @@ function topological(
 
   const ready = leafIds.filter((id) => incoming.get(id) === 0);
   const order: string[] = [];
-  while (ready.length > 0) {
-    const id = ready.shift();
-    if (id === undefined) break;
+  // A moving head rather than `ready.shift()`, which is O(V) per pop and made
+  // this O(V²) in leaves. `canDepend` runs a whole sort per `addDependency`, and
+  // `applyRestore` runs one per external edge it puts back, so a restore of a
+  // branch with E edges over a plan of V leaves was O(E·V²).
+  let taken = 0;
+  while (taken < ready.length) {
+    // No `undefined` guard: `shift()` needed one and an index below `length`
+    // does not — this project does not run `noUncheckedIndexedAccess`, and
+    // eslint's typed rule refuses the check as unreachable.
+    const id = ready[taken];
+    taken += 1;
     order.push(id);
     for (const next of outgoing.get(id) ?? []) {
       const left = (incoming.get(next) ?? 0) - 1;

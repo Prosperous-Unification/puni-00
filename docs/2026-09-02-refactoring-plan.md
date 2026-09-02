@@ -1177,3 +1177,33 @@ read is what said so. That is the same blind spot W1-1 found in fe-01's fixture,
 a change at two service call sites.
 
 **Green:** `be-01` 1270 pass across 93 files, lint, typecheck; `format:check --all`.
+
+## 27 · Verify — W2-4 (two of four), 2026-09-02
+
+Two quadratic passes on the plan-read path are linear:
+
+- **`dependsOn`** filtered every row's stored predecessors down to the ones on this plan with
+  `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows), on the read that every
+  write and every socket frame performs. The project's ids are a `Set` built once.
+- **`topological`** popped with `ready.shift()`, which is O(V) per pop and made the sort O(V²) in
+  leaves. A moving head index instead. `canDepend` runs a whole sort per `addDependency` and
+  `applyRestore` runs one per external edge, so restoring a branch with E edges over V leaves was
+  O(E·V²).
+
+The `shift()` needed an `undefined` guard and an index below `length` does not — this project does
+not run `noUncheckedIndexedAccess`, and eslint's typed rule refuses the check as unreachable. It is
+deleted with a note saying why, rather than left as a line whose removal nothing could observe.
+
+**The gate for a change like this is the engine's own oracles, and they are why it was safe.**
+`schedule-identity.test.ts`'s thousand-seed differential and the two captured oracles
+(`capacity-migration-identity`, `priority-band-identity`) assert that the numbers do not move — 20
+cases, green. The cycle refusals are separately green: `topological`'s `ScheduleCycleError` is what
+`canDepend` refuses loops with, and twelve cycle cases pass.
+
+**Not done:** `eventAt`'s `pool.events.splice()`, which makes profile construction O(E²) per pool
+and whose aggregation-by-timestamp invariant carries its own watched proof; and
+`projectOntoWorkItems`, which is O(parents × leaves) and spreads into `Math.min`/`Math.max` — a
+plan with ~10⁵ leaves under one root would hit the argument-count limit and throw a `RangeError` no
+branch handles. Both are real; both want their own change with the differential re-watched.
+
+**Green:** `be-01` 1270 pass across 93 files, lint, typecheck; `format:check --all`.
