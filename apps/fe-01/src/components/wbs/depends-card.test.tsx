@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createDepLights } from './dep-light-store';
 import { dependencyPointerRegion, DependsCard, type PointerRect } from './depends-card';
 
 const hasDom = typeof document !== 'undefined';
@@ -40,7 +41,8 @@ describe('the dependency-card pointer bridge', () => {
           { id: 'w1', number: '010', name: 'Strip' },
           { id: 'w2', number: '020', name: 'Sand' },
         ]}
-        emphasisedId={null}
+        depLights={createDepLights()}
+        rowId="row"
         onPointEntry={() => undefined}
         onPointerOutside={() => undefined}
       />,
@@ -66,7 +68,8 @@ describe('the dependency-card pointer bridge', () => {
                   { id: 'w1', number: '010', name: 'Strip' },
                   { id: 'w2', number: '020', name: 'Sand' },
                 ]}
-                emphasisedId={null}
+                depLights={createDepLights()}
+                rowId="row"
                 onPointEntry={onPointEntry}
                 onPointerOutside={onPointerOutside}
               />
@@ -115,7 +118,8 @@ describe('the dependency-card pointer bridge', () => {
       <DependsCard
         number="030"
         entries={[{ id: 'w1', number: '010', name: 'Strip' }]}
-        emphasisedId={null}
+        depLights={createDepLights()}
+        rowId="row"
         onPointEntry={() => undefined}
         onPointerOutside={() => undefined}
       />,
@@ -133,7 +137,8 @@ describe('the dependency-card pointer bridge', () => {
       <DependsCard
         number="030"
         entries={[{ id: 'w1', number: '010', name: 'Strip' }]}
-        emphasisedId={null}
+        depLights={createDepLights()}
+        rowId="row"
         onPointEntry={() => undefined}
         onPointerOutside={onPointerOutside}
       />,

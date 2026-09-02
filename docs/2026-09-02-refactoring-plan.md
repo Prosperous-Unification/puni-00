@@ -148,7 +148,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-4  | **Done, 2026-09-02** — see §27, §29 and §33. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**. `projectOntoWorkItems` is two loops instead of fourteen array allocations: ~8% faster, its `RangeError` cliff measured out of reach, and three defaults that read a broken index as a legal plan are now throws with all three faults watched.                                                                                                                                                                                                                                                                                                       | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
 | W2-5  | **Done, 2026-09-02** — see §26 and §34. A freeze is one statement instead of one per row; a subtree delete is one `DELETE` rather than one per row, because SQLite checks an immediate foreign key at the end of the **statement**; and `removeAllFor` takes the whole doomed set, which also fixed a bump landing on a row already on its way out. Roughly `3N + 1` statements across `N + 1` transactions became 5.                                                                                                                                                                                                                                                              | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
 | W2-6  | **Done, 2026-09-02** — see §53. `open?.sliceId` and `fullScreen` out of the 23-entry list via a mirror ref, behind the D4 probe on the new gesture; one `drawn` index for the four "is this bar drawn?" readers (**3.9×**) and for an arrow's obstacles by row (**3.1×**).                                                                                                                                                                                                                                                                                                                                                                                                         |
-| W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                                                                                                                                                                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
+| W2-7  | **Half done, 2026-09-02** — see §56. `depHover` and `depFocus` are out of `WbsTable`'s state and in `dep-light-store.ts`: each `<tr>` asks "am I lit", an open card asks which entry is emphasised, and moving one row's light re-renders one row instead of the table (**4 → 1** row-equivalents, watched). The `hoveredCell`/`focusedCell`/`openCard` half is **deferred into W4-4**: its two remaining reads are `<td>` attributes (`aria-describedby`, the popover `zIndex`), so it needs the per-cell shell W4-4's restructure introduces, not a store on its own. `dropHint`/`widthOverrides`/`ganttHeightPx` untouched.                                                     | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
 | W2-8  | **One done, three refused with measurements, 2026-09-02** — see §54. A chart scroll reads **no** rect (the content width is the observers' job). The other three are already efficient, unsafe to cache, or bounded — each measured rather than assumed.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | W2-9  | **Half done, 2026-09-02** — see §47. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). The fe-01 memoisation half is not done.                                                                                                                                                                                                                                                                                                                                                                                                               |
 | W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
@@ -2072,3 +2072,42 @@ app change); narrowed to `react/` it loses `react-dom`.
 `WbsTable`, which 2,063 jsdom tests render synchronously and then assert on; a `lazy()` boundary
 turns every one of those assertions into a `waitFor`. That is a decision about the shape of the
 whole suite, and it belongs to a change that says so.
+
+## 56 · W2-7 — the dependency light leaves React state
+
+`depHover` and `depFocus` were two `useState`s at the top of `WbsTable`, and the **address** was
+the whole of the cost — the same cost `pointed-row-store.ts` was written for. The cells read their
+live state through `live.current` and rely on every parent render reaching every cell, which is
+what makes a `memo` impossible there and a store the only place a pointer-frequency reading can
+live. So one pointer move across a dependency chip re-rendered every row, every cell and the whole
+Gantt.
+
+`dep-light-store.ts` holds both readings, the same resolution (`hover ?? focus`, total over
+remembered state so a stale row or a deleted pill lights nothing) and the same functional writers
+— every one of them is guarded on the row and the pill it belongs to, because a leave that lands
+after the next enter must not undo it. Each `<tr>` shell subscribes for `data-dep-lit`; an open
+`DependsCard` subscribes for which of its entries is emphasised. The `depLit` derivation in
+`WbsTable` is gone.
+
+**Notifying on the lit set alone was wrong**, and this is the one thing the extraction had to
+learn: a row with exactly one dependency lights the same single row whether the pointer is on the
+cell or on its one pill, so the set does not move while `pillFor` does — and a one-entry card's
+emphasis sat at whatever it was when the card opened. `settle()` compares both.
+
+The probe is `plan-dependencies.test.tsx`'s `narrowing to a pill re-renders the row whose light
+moved and nothing else`, and where it measures is the point: **inside** an already-open card,
+because entering the cell mounts the hover card and that is React state either way. With
+`updateHover` routed back through a `WbsTable` `useState` — the shape this replaced — it failed on
+`expected 4 to be less than or equal to 2`, the three rows and the heading re-rendered to move one
+row's light.
+
+**Deferred, not refused: the cell half.** `hoveredCell`, `focusedCell` and `openCard` are down to
+two reads that a store cannot serve on its own, and both are attributes on the `<td>`:
+`aria-describedby={openCard === startCell ? startCardId(row.id) : undefined}` and the popover
+`zIndex` on a name cell whose card is open. Keeping those live needs a per-cell shell that
+subscribes — which is exactly what W4-4's restructure introduces, and doing it before that
+restructure means writing the shell twice. `dropHint`, `widthOverrides` and `ganttHeightPx` are
+untouched for the same reason: they are read by the table's own layout, not by a row.
+
+Both gates: 2,069 jsdom tests pass, and the browser gate is **282 passed** — the same 282 as the
+pre-change baseline, run in this checkout on shifted ports.

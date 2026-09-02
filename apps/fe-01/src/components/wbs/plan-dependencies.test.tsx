@@ -1846,6 +1846,38 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(document.activeElement).toBe(input);
     expect(input).toHaveProperty('value', 'Strip the old wir');
   });
+
+  itDom('narrowing to a pill re-renders the row whose light moved and nothing else', async () => {
+    // The whole point of `dep-light-store.ts`. `depHover` was a `useState` at
+    // the top of `WbsTable` until 2026-09-02, so a pointer crossing a chip
+    // re-rendered every row, every cell and the Gantt — the cells read their
+    // live state through `live.current` and rely on every parent render
+    // reaching every cell, which is exactly what makes a memo impossible here
+    // and a store the only address the light can live at.
+    //
+    // The measurement is taken **inside** an open card rather than across the
+    // card's own open: entering the cell mounts the hover card, which is React
+    // state either way and would swamp the reading. Pointer already in the
+    // cell, moving onto a pill narrows the lit set from both entries to one, so
+    // exactly one row's light moves.
+    //
+    // Proof: `updateHover` routed back through a `WbsTable` `useState` (the
+    // shape this replaced), this failed on `expected 4 to be less than or
+    // equal to 2` — the three rows and the heading, re-rendered to move one
+    // row's light. Watched 2026-09-02.
+    await planWhere030Waits();
+    fireEvent.mouseEnter(hoverTargetOf('030'));
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    const columnCount = document.querySelectorAll('thead th').length;
+    const before = cellStyleCalls.count;
+    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+    // The light really moved, or the count below is about nothing.
+    expect(litNumbers()).toEqual(['010']);
+
+    const rendered = (cellStyleCalls.count - before) / columnCount;
+    expect(rendered).toBeLessThanOrEqual(2);
+  });
 });
 
 describe('adding several dependencies at once', () => {
