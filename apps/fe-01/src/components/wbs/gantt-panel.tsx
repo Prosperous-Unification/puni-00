@@ -587,7 +587,7 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  */
 function arrowRoute(
   arrow: PlacedArrow,
-  bars: readonly PlacedBar[],
+  barsByRow: ReadonlyMap<number, PlacedBar[]>,
   dayPx: number,
 ): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
@@ -597,7 +597,20 @@ function arrowRoute(
   // is two and a half days of user space, not the third of a day it is at 28.
   // Held constant, the head would shrink to a speck and the elbow would leave
   // no clear band at all.
-  const route = routeArrow(arrow, bars, {
+  // Only the rows this arrow runs between, which is what `routeArrow` filters
+  // for anyway: every run of every candidate route stays between the two rows
+  // the arrow joins. It was handed **every** drawn bar until 2026-09-02 and
+  // filtered them per arrow — 100 arrows over 200 bars is 20,000 comparisons
+  // per re-render of the chart, for a range two lookups answer.
+  const obstacles: PlacedBar[] = [];
+  for (
+    let row = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
+    row <= Math.max(arrow.fromRowIndex, arrow.toRowIndex);
+    row += 1
+  ) {
+    obstacles.push(...(barsByRow.get(row) ?? []));
+  }
+  const route = routeArrow(arrow, obstacles, {
     approach: ARROW_APPROACH_PX / dayPx,
     barInset: BAR_INSET,
   });
@@ -2519,13 +2532,21 @@ function GanttChart({
    * because the flag filter asks by row rather than by slice: a not-before
    * holds the work item, not one of its steps.
    */
-  const drawn = useMemo(
-    () => ({
+  const drawn = useMemo(() => {
+    const barsByRow = new Map<number, PlacedBar[]>();
+    for (const placed of drawnBars) {
+      const onRow = barsByRow.get(placed.bar.rowIndex);
+      if (onRow === undefined) barsByRow.set(placed.bar.rowIndex, [placed]);
+      else onRow.push(placed);
+    }
+    return {
       sliceIds: new Set(drawnBars.map(({ bar }) => bar.sliceId)),
-      rowIndexes: new Set(drawnBars.map(({ bar }) => bar.rowIndex)),
-    }),
-    [drawnBars],
-  );
+      rowIndexes: new Set(barsByRow.keys()),
+      // The obstacles an arrow can hit, by row — see {@link arrowRoute}, which
+      // asked every drawn bar per arrow until 2026-09-02.
+      barsByRow,
+    };
+  }, [drawnBars]);
   const openBar =
     open === null || !drawn.sliceIds.has(open.sliceId)
       ? null
@@ -3085,7 +3106,7 @@ function GanttChart({
               */}
         {detailShown &&
           placed.arrows.map((arrow) => {
-            const route = arrowRoute(arrow, drawnBars, dayPx);
+            const route = arrowRoute(arrow, drawn.barsByRow, dayPx);
             const id = `${arrow.predecessorId}->${arrow.successorId}`;
             return (
               <g key={id}>
@@ -3423,6 +3444,11 @@ function GanttChart({
       dayPx,
       detailShown,
       dismiss,
+      // Changes exactly when `drawnBars` does — it is derived from it and
+      // nothing else — so this adds no re-render. It is listed because the
+      // marks read `drawn.barsByRow`, and a dependency the linter cannot see is
+      // a dependency the next reader cannot either.
+      drawn,
       drawnBars,
       drawnFlags,
       drawnLinks,
