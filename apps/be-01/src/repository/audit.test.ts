@@ -48,6 +48,10 @@ const FOLDER = import.meta.dir;
  * record: each already holds the acting user and the instant, and nothing ever
  * updates them. `eventSequencer` is one counter row and `examples` is scaffold.
  */
+// `examples` is the scaffold table. Its repository was deleted on 2026-09-02
+// and the table kept, because `migrate.test.ts` and `migrate-down.test.ts`
+// assert it survives a round trip — a claim about migrations rather than about
+// any code. It stays listed so a write added against it is a deliberate act.
 const EXEMPT = new Set(['eventLog', 'commandJournal', 'planEvent', 'eventSequencer', 'examples']);
 
 /** The files that hold writes — every repository, and not this test or the helper. */

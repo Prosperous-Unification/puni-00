@@ -51,17 +51,6 @@ export interface WriteStamp {
   readonly by: string;
 }
 
-export interface Example {
-  id: string;
-  label: string;
-  createdAt: number;
-}
-
-export interface ExampleRepo {
-  create(ex: Example): Promise<void>;
-  findById(id: string): Promise<Example | null>;
-}
-
 export interface User {
   id: string;
   username: string;

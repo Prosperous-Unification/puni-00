@@ -6,8 +6,6 @@ export { type };
 export type { Type };
 export { ValidationError };
 
-export type InferSchema<T> = T extends Type<infer U> ? U : never;
-
 /**
  * Parse, or throw naming what was wrong with it.
  *
@@ -59,8 +57,4 @@ export function parseSecretsOrThrow<T extends Type>(schema: T, input: unknown): 
     throw new ValidationError(`Validation failed for ${where}`);
   }
   return result;
-}
-
-export function defineSchema<T extends Type>(schema: T): T {
-  return schema;
 }
