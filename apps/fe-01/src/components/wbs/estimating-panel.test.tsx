@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { EstimateRoundingView, PertWeightsView } from '@/lib/wbs-api';
@@ -20,20 +21,32 @@ const DEFAULT_WEIGHTS: PertWeightsView = { optimistic: 1, realistic: 4, pessimis
  * arrangement, and for its reason: the shell's own rules are the modal's tests,
  * and what is asserted here is the two contracts this panel keeps with it.
  */
+/** What the panel reports through `setArithmetic`, named so the spy can be typed. */
+interface Arithmetic {
+  pertWeights?: PertWeightsView;
+  estimateRounding?: EstimateRoundingView;
+}
+
+/**
+ * The `setArithmetic` prop as a spy.
+ *
+ * Named because the option and the default have to be the **same** type: typed
+ * `ReturnType<typeof vi.fn>` the option was `Mock<any[], unknown>`, whose union
+ * with the default is assignable to neither the prop nor `.mock.calls`.
+ */
+type SetArithmetic = Mock<[Arithmetic], Promise<void>>;
+
 function stubbed(
   over: {
     method?: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
     pertWeights?: PertWeightsView;
     estimateRounding?: EstimateRoundingView;
-    setArithmetic?: ReturnType<typeof vi.fn>;
+    setArithmetic?: SetArithmetic;
   } = {},
 ) {
   const setArithmetic =
     over.setArithmetic ??
-    vi.fn<
-      [{ pertWeights?: PertWeightsView; estimateRounding?: EstimateRoundingView }],
-      Promise<void>
-    >(async () => {
+    vi.fn<[Arithmetic], Promise<void>>(async () => {
       await Promise.resolve();
     });
   const onChanged = vi.fn(async () => {
@@ -180,7 +193,7 @@ describe('the estimating panel', () => {
   });
 
   itDom('keeps what was typed when be-01 refuses the triple, and says why', async () => {
-    const refusing = vi.fn(async () => {
+    const refusing = vi.fn<[Arithmetic], Promise<void>>(async () => {
       await Promise.resolve();
       throw new Error('bad_pert_weights');
     });

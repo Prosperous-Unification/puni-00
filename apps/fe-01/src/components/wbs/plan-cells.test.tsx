@@ -2272,7 +2272,7 @@ describe('the service cell', () => {
     fireEvent.keyDown(picker, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(api.rows[0]?.serviceIds.length).toBe(2);
+      expect(api.rows[0]?.serviceIds?.length).toBe(2);
     });
     expect((await api.listServices()).map((service) => service.name)).toContain('Painting');
   });

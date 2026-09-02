@@ -73,11 +73,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": [
-          "bunx tsc --build --force apps/fe-01/tsconfig.app.json",
-          "bunx tsc --build --force apps/fe-01/tsconfig.e2e.json"
-        ],
-        "parallel": false
+        "command": "bunx tsc --build --force apps/fe-01/tsconfig.json"
       }
     }
   }

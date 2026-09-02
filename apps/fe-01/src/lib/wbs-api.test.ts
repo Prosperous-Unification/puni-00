@@ -97,7 +97,9 @@ describe('removing a step', () => {
   });
 
   it('asks for the cascade only when it is given one', async () => {
-    const fetched = vi.fn(() => Promise.resolve(response(204, '')));
+    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+      Promise.resolve(response(204, '')),
+    );
     vi.stubGlobal('fetch', fetched);
     const api = httpProjectApi('t');
     await api.removeStep('p1', 'step-qa', false);
@@ -121,7 +123,7 @@ describe('removing a step', () => {
 
 describe('adding and renaming a step', () => {
   it('sends the name and answers with the step', async () => {
-    const fetched = vi.fn(() =>
+    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify({ step: { id: 'r3', name: 'Design' } }))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -130,9 +132,7 @@ describe('adding and renaming a step', () => {
       name: 'Design',
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
-    expect((fetched.mock.calls[0]?.[1] as RequestInit | undefined)?.body).toBe(
-      JSON.stringify({ name: 'Design' }),
-    );
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ name: 'Design' }));
   });
 
   it('throws be-01’s code for a duplicate, for the caller to phrase', async () => {
@@ -542,7 +542,9 @@ const APPLIED = JSON.stringify({ results: [{ index: 0 }], undoable: true, redoab
 
 /** The fetch stub, answering `body` to everything and keeping every call. */
 function stubbed(status: number, body: string) {
-  const fetched = vi.fn(() => Promise.resolve(response(status, body)));
+  const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    Promise.resolve(response(status, body)),
+  );
   vi.stubGlobal('fetch', fetched);
   return {
     calls: () =>
@@ -584,7 +586,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
   });
 
   it('posts exactly one command for every plan write, of the kind the write stands for', async () => {
-    const fetched = vi.fn((url: string) =>
+    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>((url: string) =>
       Promise.resolve(
         response(
           200,

@@ -10,6 +10,7 @@ import type {
   PersonView,
   TeamView,
 } from '@/lib/wbs-api';
+import { personView } from '@/testing/views';
 
 import { DirectoryPage } from './directory-page';
 
@@ -639,7 +640,7 @@ describe('the directory page re-reads', () => {
     expect(api.reads).toBe(1);
 
     // Somebody else adds a person while this window is elsewhere.
-    api.put([KAT, { id: 'p9', name: 'Bo', teamIds: [] }]);
+    api.put([KAT, personView({ id: 'p9', name: 'Bo' })]);
     fireEvent.focus(window);
 
     await waitFor(() => {
@@ -694,7 +695,7 @@ describe('the directory page re-reads', () => {
     });
 
     // The newest answers first — somebody has renamed Kat to Bo.
-    pending[2]([{ id: 'p1', name: 'Bo', teamIds: [] }]);
+    pending[2]([personView({ id: 'p1', name: 'Bo' })]);
     await waitFor(() => {
       expect(screen.queryByLabelText('Name of Bo')).not.toBeNull();
     });
@@ -1114,7 +1115,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
     // one was owed — a directory quietly claiming somebody belongs to
     // `regulatory`. Watched 2026-08-20.
     const api = fakeDirectory(
-      [{ id: 'p1', name: 'Ada', teamIds: ['t1'] }],
+      [personView({ id: 'p1', name: 'Ada', teamIds: ['t1'] })],
       [{ id: 't1', name: 'Platform' }],
     );
     api.putTags([{ id: 'g1', name: 'regulatory' }]);
@@ -1139,7 +1140,7 @@ describe('the Tags section, and what it deliberately has not got', () => {
     // and a patient one land on the same screen and the only difference is the
     // window between the request and the answer. `holdWrites` is that window.
     const api = fakeDirectory(
-      [{ id: 'p1', name: 'Ada', teamIds: ['t1'] }],
+      [personView({ id: 'p1', name: 'Ada', teamIds: ['t1'] })],
       [{ id: 't1', name: 'Platform' }],
     );
     api.putWorkItemTypes([{ id: 'w1', name: 'Bug' }]);
@@ -1211,7 +1212,7 @@ describe('the Services section, and the removal that had to say which dimension 
     // people is still a team. Dany, 2026-08-20 23:16 — service and team are
     // independent — taught by the screen rather than by a sentence.
     const api = fakeDirectory(
-      [{ id: 'p1', name: 'Ada', teamIds: ['t1'] }],
+      [personView({ id: 'p1', name: 'Ada', teamIds: ['t1'] })],
       [{ id: 't1', name: 'Platform', serviceIds: [] }],
     );
     api.putServices([{ id: 's1', name: 'Payments' }]);

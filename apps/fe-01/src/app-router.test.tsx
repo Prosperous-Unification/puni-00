@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
+import { refusingApi } from '@/testing/refusing-api';
 
 import { AppRouter } from './app-router';
 
@@ -19,7 +20,7 @@ const itDom = hasDom ? it : it.skip;
  */
 function emptyProjects(): ProjectApi {
   const notHere = () => Promise.reject(new Error('not_in_these_tests'));
-  return {
+  return refusingApi({
     listProjects: () => Promise.resolve([]),
     openProject: notHere,
     createProject: notHere,
@@ -54,7 +55,7 @@ function emptyProjects(): ProjectApi {
     removeDependency: notHere,
     undo: notHere,
     redo: notHere,
-  };
+  });
 }
 
 /** The signed-in region entered at one address, the way a reload enters it. */

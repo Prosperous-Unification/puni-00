@@ -95,6 +95,55 @@ describe('every typecheck target compiles files', () => {
     expect(offenders).toBeEmpty();
   });
 
+  it('builds each project’s own solution config, so its tests are compiled too', async () => {
+    // The fault `tsc -p` above is the *other* half of: a target that builds a
+    // **sub**-config (`tsconfig.lib.json`, `tsconfig.app.json`) compiles the
+    // source and leaves the spec project — every test file the project has —
+    // read by nothing. That is how 229 type errors accumulated unseen in
+    // be-01, fe-01 and gw-01, and how a fake stopped satisfying `ProjectApi`
+    // while its suite stayed green (`d4b62a30`). `tsc --build` on the solution
+    // config follows every reference, so the tests are compiled with the code.
+    //
+    // Proof: with `apps/gw-01/project.json` put back to
+    // `bunx tsc --build --force apps/gw-01/tsconfig.lib.json`, watched failing
+    // on `Expected value to be empty · Received: [ "gw-01" ]` (2026-09-02).
+    const offenders: string[] = [];
+    for (const { dir, config } of await projectsOnDisk()) {
+      const target = config.targets?.['typecheck'];
+      if (target === undefined) continue;
+      const builds = commandsOf(target).some((command) =>
+        new RegExp(`tsc\\s[^&|]*?--build[^&|]*?\\s${dir}/tsconfig\\.json(\\s|$)`).test(command),
+      );
+      if (!builds) offenders.push(config.name ?? dir);
+    }
+    expect(offenders).toBeEmpty();
+  });
+
+  it('references every spec config from the solution config that names it', async () => {
+    // A `tsconfig.spec.json` the solution config does not reference is a spec
+    // project `tsc --build` never reaches — the same blindness one file down,
+    // and invisible to the case above because the command would still look
+    // right.
+    //
+    // Proof: with the `./tsconfig.spec.json` reference struck from
+    // `apps/gw-01/tsconfig.json`, watched failing on `Expected value to be
+    // empty · Received: [ "apps/gw-01" ]` (2026-09-02).
+    const orphans: string[] = [];
+    for (const { dir } of await projectsOnDisk()) {
+      let spec: string;
+      try {
+        spec = await readFile(new URL(`${dir}/tsconfig.spec.json`, WORKSPACE), 'utf8');
+      } catch {
+        // A project with no spec config has no test files to lose.
+        continue;
+      }
+      expect(spec.length).toBeGreaterThan(0);
+      const solution = await readFile(new URL(`${dir}/tsconfig.json`, WORKSPACE), 'utf8');
+      if (!solution.includes('./tsconfig.spec.json')) orphans.push(dir);
+    }
+    expect(orphans).toBeEmpty();
+  });
+
   it('gives every project a typecheck target', async () => {
     const missing = (await projectsOnDisk())
       .filter(({ config }) => config.targets?.['typecheck'] === undefined)

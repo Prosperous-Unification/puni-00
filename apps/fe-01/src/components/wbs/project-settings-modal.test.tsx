@@ -69,6 +69,11 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
       hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
       numberOf: () => null,
       nameOf: () => null,
+      // The reach and its writer, stubbed rather than omitted: the panel draws
+      // the ticked one straight off the project, and a suite that leaves a
+      // required prop out typechecks differently from the app that mounts it.
+      depReach: 'whole-item',
+      setDepReach: () => Promise.resolve(),
       addStep,
       renameStep,
       removeStep,
@@ -272,6 +277,8 @@ describe('closing over an edit', () => {
         hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
         numberOf: () => null,
         nameOf: () => null,
+        depReach: 'whole-item',
+        setDepReach: () => Promise.resolve(),
         addStep: vi.fn(),
         renameStep: vi.fn(),
         removeStep,

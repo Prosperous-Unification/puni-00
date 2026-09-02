@@ -919,7 +919,7 @@ describe('the widths this browser has dragged', () => {
       expect(header?.style.minWidth).toBe('300px');
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
-      expect(laidOut().name).toBe('');
+      expect(laidOut()['name']).toBe('');
       // The table's own width is the declaration: the resolved sum — the 1499
       // this plan resolves at rest (1471 → 1483 → 1523 in
       // `number-column-widen` and then `external-refs`, and 1523 → 1499 on
@@ -961,7 +961,7 @@ describe('the widths this browser has dragged', () => {
     expect(document.querySelector<HTMLElement>('thead th[data-column="name"]')?.style.width).toBe(
       '',
     );
-    expect(laidOut().name).toBe('');
+    expect(laidOut()['name']).toBe('');
   });
 
   itDom('drops a stored Name width outside Name’s own bounds, each end on its own', async () => {
@@ -976,7 +976,7 @@ describe('the widths this browser has dragged', () => {
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
     // The entry beside it still applies: one bad entry takes only itself.
-    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['number']).toBe('240px');
 
     cleanup();
     localStorage.clear();
@@ -1004,7 +1004,7 @@ describe('the widths this browser has dragged', () => {
     const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
-    expect(laidOut().number).toBe('105px');
+    expect(laidOut()['number']).toBe('105px');
     expect(screen.getByRole('table').style.width).toMatch(/^min\(100%, \d+px\)$/);
     expect(stored()).toBe(null);
   });
@@ -1013,7 +1013,7 @@ describe('the widths this browser has dragged', () => {
     storedWidths({ number: 240 });
     await threeRoots();
 
-    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['number']).toBe('240px');
     // And the pinned column behind it moved with it, which is the whole of why
     // the override lives in the frame layout rather than in the `<colgroup>`.
     expect([...rowFor('020').querySelectorAll('td')][2]?.style.left).toBe(`${String(24 + 240)}px`);
@@ -1033,7 +1033,7 @@ describe('the widths this browser has dragged', () => {
     storedWidths({ number: widthFromDrag('number', 93, 10_000, UNDATED) });
     await threeRoots();
 
-    expect(laidOut().number).toBe('600px');
+    expect(laidOut()['number']).toBe('600px');
   });
 
   itDom('drops storage that is not a set of column widths, key and all', async () => {
@@ -1051,7 +1051,7 @@ describe('the widths this browser has dragged', () => {
       storedWidths(junk);
       await threeRoots();
 
-      expect(laidOut().number).toBe('105px');
+      expect(laidOut()['number']).toBe('105px');
       expect(stored()).toBe(null);
     }
   });
@@ -1066,7 +1066,7 @@ describe('the widths this browser has dragged', () => {
       storedWidths({ number: 240, serviec: 80 });
       await threeRoots();
 
-      expect(laidOut().number).toBe('240px');
+      expect(laidOut()['number']).toBe('240px');
       expect(Object.keys(laidOut())).not.toContain('serviec');
     },
   );
@@ -1094,7 +1094,7 @@ describe('the widths this browser has dragged', () => {
     storedWidths('{"number":240,"not-before":1e999}');
     await threeRoots();
 
-    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['number']).toBe('240px');
     expect(laidOut()['not-before']).toBe('56px');
     expect(screen.getByRole('table').style.minWidth).not.toContain('NaN');
   });
@@ -1110,9 +1110,9 @@ describe('the widths this browser has dragged', () => {
       storedWidths({ number: 1e9, depends: 4, tag: 240 });
       await threeRoots();
 
-      expect(laidOut().number).toBe('105px');
-      expect(laidOut().depends).toBe('86px');
-      expect(laidOut().tag).toBe('240px');
+      expect(laidOut()['number']).toBe('105px');
+      expect(laidOut()['depends']).toBe('86px');
+      expect(laidOut()['tag']).toBe('240px');
     },
   );
 
@@ -1123,7 +1123,7 @@ describe('the widths this browser has dragged', () => {
     storedWidths({ 'step-gone-final': 140, number: 240 });
     await threeRoots();
 
-    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['number']).toBe('240px');
     expect(stored()).toContain('step-gone-final');
   });
 
@@ -1210,7 +1210,7 @@ describe('the widths this browser has dragged', () => {
 
     click('Reset layout');
 
-    expect(laidOut().number).toBe('105px');
+    expect(laidOut()['number']).toBe('105px');
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
@@ -1226,12 +1226,12 @@ describe('the widths this browser has dragged', () => {
     const { rerender } = render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['number']).toBe('240px');
 
     rerender(<WbsTable projectId="p2" api={api} />);
 
     await waitFor(() => {
-      expect(laidOut().number).toBe('300px');
+      expect(laidOut()['number']).toBe('300px');
     });
     expect(localStorage.getItem(KEY)).toBe(JSON.stringify({ number: 240 }));
   });

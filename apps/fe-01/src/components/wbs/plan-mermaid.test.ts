@@ -2,6 +2,8 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type { Mermaid } from 'mermaid';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { sliceView } from '@/testing/views';
+
 import {
   type ExportRow,
   type ExportSlice,
@@ -32,65 +34,75 @@ const QA = { id: 'step-qa', name: 'QA' };
  */
 const START = '2026-09-01';
 
-const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): ExportRow => ({
-  parentId: null,
-  maxParallel: 1,
-  name: '',
-  notes: '',
-  rolledUp: false,
-  teamIds: [],
-  estimates: {},
-  finalDays: {},
-  finalTotal: 0,
-  dependsOn: [],
-  startNoEarlierThan: null,
-  priority: null,
-  dates: null,
-  schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
-  assignees: {},
-  doesEveryStep: null,
-  ...over,
-});
+const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): ExportRow =>
+  Object.assign(
+    {
+      parentId: null,
+      maxParallel: 1,
+      name: '',
+      notes: '',
+      tagIds: [],
+      serviceIds: [],
+      rolledUp: false,
+      teamIds: [],
+      estimates: {},
+      finalDays: {},
+      finalTotal: 0,
+      dependsOn: [],
+      startNoEarlierThan: null,
+      priority: null,
+      dates: null,
+      schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
+      assignees: {},
+      doesEveryStep: null,
+      ...over,
+    },
+    over,
+  );
 
 /** A placed slice, spelled out in full: `ExportSlice` is be-01's `SliceView`. */
-const slice = (
-  over: Partial<ExportSlice> & Pick<ExportSlice, 'id' | 'workItemId'>,
-): ExportSlice => ({
-  stepId: DEV.id,
-  personId: null,
-  duration: 3,
-  estimated: true,
-  earliestStart: 0,
-  earliestFinish: 3,
-  latestStart: 0,
-  latestFinish: 3,
-  float: 0,
-  critical: false,
-  boundBy: 'projectStart',
-  resourcePredecessorId: null,
-  width: 1,
-  effort: 3,
-  capacityPredecessorIds: [],
-  ...over,
-});
+const slice = (over: Partial<ExportSlice> & Pick<ExportSlice, 'id' | 'workItemId'>): ExportSlice =>
+  sliceView({
+    stepId: DEV.id,
+    personId: null,
+    duration: 3,
+    estimated: true,
+    earliestStart: 0,
+    earliestFinish: 3,
+    latestStart: 0,
+    latestFinish: 3,
+    float: 0,
+    critical: false,
+    boundBy: 'projectStart',
+    resourcePredecessorId: null,
+    width: 1,
+    effort: 3,
+    capacityPredecessorIds: [],
+    ...over,
+  });
 
-const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
-  projectName: 'Rewire the shed',
-  generatedAt: '2026-09-01T09:15:00.000Z',
-  method: 'pert',
-  startDate: START,
-  scheduleError: null,
-  steps: [DEV, QA],
-  teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
-  priorityBands: DEFAULT_PRIORITY_BANDS,
-  people: [
-    { id: 'person-ada', name: 'Ada' },
-    { id: 'person-bo', name: 'Bo' },
-  ],
-  rows: [row({ id: 'a', number: '010', name: 'Strip' })],
-  slices: [slice({ id: 'slice-a', workItemId: 'a' })],
-  ...over,
-});
+const plan = (over: Partial<PlanExport> = {}): PlanExport =>
+  Object.assign(
+    {
+      projectName: 'Rewire the shed',
+      generatedAt: '2026-09-01T09:15:00.000Z',
+      method: 'pert',
+      startDate: START,
+      scheduleError: null,
+      steps: [DEV, QA],
+      teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
+      priorityBands: DEFAULT_PRIORITY_BANDS,
+      people: [
+        { id: 'person-ada', name: 'Ada' },
+        { id: 'person-bo', name: 'Bo' },
+      ],
+      tags: [],
+      services: [],
+      rows: [row({ id: 'a', number: '010', name: 'Strip' })],
+      slices: [slice({ id: 'slice-a', workItemId: 'a' })],
+    },
+    over,
+  );
 
 /** The diagram, or the failure of a test that expected one. */
 function drawn(document: PlanExport, sectionMode: SectionMode = DEFAULT_SECTION_MODE): string {

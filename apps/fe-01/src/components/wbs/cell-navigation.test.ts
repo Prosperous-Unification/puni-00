@@ -175,7 +175,7 @@ describe('nextCell — left and right', () => {
 
   it('leaves the key alone when something is selected', () => {
     // Shift+Right is extending a selection, not asking to leave the cell.
-    const selecting: Caret = { atStart: true, atEnd: true, hasSelection: true };
+    const selecting: Caret = { atStart: true, atEnd: true, hasSelection: true, multiline: false };
 
     expect(move(at('strip', 'name'), 'ArrowRight', selecting)).toBeNull();
     expect(move(at('strip', 'notes'), 'ArrowLeft', selecting)).toBeNull();
