@@ -20,6 +20,7 @@ import type {
 // `MEASURE_METRICS` the same way.
 import { PERSON_KINDS } from '../repository/schema';
 import type { Broadcaster } from './broadcast';
+import { cleanName } from './clean-name';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
@@ -111,12 +112,6 @@ export type RemoveDirectoryOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
-
-/** The trimmed name, or null when there is nothing there to name. */
-function cleanName(name: string): string | null {
-  const trimmed = name.trim();
-  return trimmed === '' ? null : trimmed;
-}
 
 /**
  * The global directory of teams and people.

@@ -6,6 +6,7 @@ import type { ProjectStore, Step, StepStore, StepUsageRows, WriteStamp } from '.
 import { stepIsInUse } from '../repository/step';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
+import { cleanName } from './clean-name';
 import { canEdit } from './project.service';
 
 export interface StepServiceOptions {
@@ -83,12 +84,6 @@ export type RemoveStepOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; inUse: StepInUse };
-
-/** The trimmed name, or null when there is nothing there to name. */
-function cleanName(name: string): string | null {
-  const trimmed = name.trim();
-  return trimmed === '' ? null : trimmed;
-}
 
 /**
  * One usage reading as the refusal reports it: the step's own rows counted, and

@@ -18,6 +18,23 @@ import { bumpProject, bumpWorkItems } from './revision';
 import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem } from './schema';
 
 /**
+ * The columns a {@link Step} is, named once because four reads and writes in
+ * this file and one in `project.ts` want exactly them.
+ *
+ * Spelled out rather than left to `select()`, which is this folder's convention
+ * (see `WORK_ITEM_COLUMNS`): the audit columns are **recorded, not published**,
+ * so a bare select would put `created_at`, `updated_at` and `created_by` into
+ * `Step` and from there into the plan payload. The declared return types check
+ * the list is complete.
+ */
+export const STEP_COLUMNS = {
+  id: step.id,
+  projectId: step.projectId,
+  name: step.name,
+  position: step.position,
+};
+
+/**
  * Every assignment in one project, read through the work items that hold them.
  *
  * The whole project's rather than one step's, because whether a work item's
@@ -106,33 +123,15 @@ export class StepRepository implements StepStore {
    * its name sorts` fails with `Analysis, Dev, QA`; watched 2026-08-09.
    */
   listByProject(projectId: string): Promise<Step[]> {
-    // Projected, like every read that crosses this boundary: the audit columns
-    // are recorded and not published, so a bare `select()` would put three
-    // fields nobody asked for into `Step` and from there into the payload. The
-    // declared return type checks the list is complete.
     return this.db
-      .select({
-        id: step.id,
-        projectId: step.projectId,
-        name: step.name,
-        position: step.position,
-      })
+      .select(STEP_COLUMNS)
       .from(step)
       .where(eq(step.projectId, projectId))
       .orderBy(step.position, step.id);
   }
 
   async findById(stepId: string): Promise<Step | null> {
-    const rows = await this.db
-      .select({
-        id: step.id,
-        projectId: step.projectId,
-        name: step.name,
-        position: step.position,
-      })
-      .from(step)
-      .where(eq(step.id, stepId))
-      .limit(1);
+    const rows = await this.db.select(STEP_COLUMNS).from(step).where(eq(step.id, stepId)).limit(1);
     return rows.at(0) ?? null;
   }
 
@@ -197,12 +196,7 @@ export class StepRepository implements StepStore {
           .update(step)
           .set({ name, ...auditOnUpdate(stamp) })
           .where(eq(step.id, stepId))
-          .returning({
-            id: step.id,
-            projectId: step.projectId,
-            name: step.name,
-            position: step.position,
-          })
+          .returning(STEP_COLUMNS)
           .all();
         const renamed = rows.at(0);
         // Nothing was updated, so there is no step by that id — and nothing to

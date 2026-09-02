@@ -745,3 +745,44 @@ describe('StepRepository', () => {
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
   });
 });
+
+describe('what a step read publishes', () => {
+  /**
+   * The audit columns are recorded and not published (ADR 0012), and
+   * `STEP_COLUMNS` is what keeps them off the wire for **five** reads and
+   * writes: `listByProject`, `findById`, `rename`'s `returning`, and
+   * `ProjectRepository.stepsOf`, which is the list `GET /api/projects/{id}`
+   * answers with.
+   *
+   * The comment those reads carried until 2026-09-02 said the declared return
+   * type checked the list was complete. It does not: a `Step` with three extra
+   * properties is structurally assignable to `Step`, so a bare `select()`
+   * typechecks and publishes `created_at`, `updated_at` and `created_by`. The
+   * type catches a **missing** column and nothing else, which is why this is a
+   * test and not a comment.
+   *
+   * Proof: `.select(STEP_COLUMNS)` in `listByProject` replaced by `.select()`,
+   * watched failing on `expect(received).toEqual(expected) · - Expected - 0 ·
+   * + Received + 3` at the `listed` assertion — the three audit columns — and
+   * taking `reports another project's step as not there, and leaves it alone`
+   * down with it (2026-09-02).
+   */
+  it('carries the columns the Step type declares and no others', async () => {
+    const written = await steps.add({ id: 'design', projectId, name: 'Design' }, wrote());
+    if (!written.ok) throw new Error(`add refused: ${written.reason}`);
+
+    const listed = (await steps.listByProject(projectId)).find((each) => each.id === 'design');
+    const found = await steps.findById('design');
+    const throughProject = (await projects.stepsOf(projectId)).find((each) => each.id === 'design');
+    const renamed = await steps.rename('design', 'Drafting', wrote());
+    if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
+
+    const declared = Object.keys(written.step).sort();
+    expect(Object.keys(listed ?? {}).sort()).toEqual(declared);
+    expect(Object.keys(found ?? {}).sort()).toEqual(declared);
+    expect(Object.keys(throughProject ?? {}).sort()).toEqual(declared);
+    expect(Object.keys(renamed.step).sort()).toEqual(declared);
+    expect(declared).not.toContain('createdBy');
+    expect(declared).not.toContain('updatedAt');
+  });
+});

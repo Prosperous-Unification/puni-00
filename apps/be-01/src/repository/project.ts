@@ -27,6 +27,7 @@ import type {
 } from './index';
 import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
+import { STEP_COLUMNS } from './step';
 
 /**
  * One {@link PertWeights} as the three columns that hold it.
@@ -384,19 +385,14 @@ export class ProjectRepository implements ProjectStore {
   stepsOf(projectId: string): Promise<Step[]> {
     return (
       this.db
-        // Projected, unlike the project reads above it, and the difference is
-        // `toProject`: those pass every row through a mapper that drops the
-        // audit columns by name. It did not until 2026-09-02 — it spread the
-        // rest of the row — so `createdBy` and `updatedAt` reached
-        // `GET /api/projects/{id}` for as long as those columns existed, with
-        // this comment asserting they did not. This read has no mapper at all,
-        // so a bare `select()` would put them straight into `Step`.
-        .select({
-          id: step.id,
-          projectId: step.projectId,
-          name: step.name,
-          position: step.position,
-        })
+        // {@link STEP_COLUMNS}, not a bare `select()`, and not the mapper the
+        // project reads above it use: `toProject` drops the audit columns by
+        // name, and it did not until 2026-09-02 — it spread the rest of the row
+        // — so `createdBy` and `updatedAt` reached `GET /api/projects/{id}` for
+        // as long as those columns existed, with the comment here asserting
+        // they did not. This read has no mapper, so the column list is the only
+        // thing between the audit columns and a `Step`.
+        .select(STEP_COLUMNS)
         .from(step)
         .where(eq(step.projectId, projectId))
         .orderBy(step.position, step.id)
