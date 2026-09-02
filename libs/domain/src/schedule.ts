@@ -2168,8 +2168,18 @@ function projectOntoWorkItems(
     const own = slicesOf(leafId).slices.map((slice) =>
       scheduleOf(sliceKey(slice.workItemId, slice.stepId)),
     );
-    const start = Math.min(...own.map((s) => s.earliestStart));
-    const late = Math.min(...own.map((s) => s.latestStart));
+    // One pass rather than six `own.map(...)` allocations and six spreads. The
+    // spread also has a cliff: `Math.min(...xs)` throws `RangeError: Maximum
+    // call stack size exceeded.` past somewhere between 500,000 and 1,000,000
+    // arguments in this runtime (measured 2026-09-02). A work item has a
+    // handful of slices so that end was never in reach here — it is the parent
+    // loop below, over every leaf in the plan, where the number could grow.
+    let start = Infinity;
+    let late = Infinity;
+    for (const s of own) {
+      if (s.earliestStart < start) start = s.earliestStart;
+      if (s.latestStart < late) late = s.latestStart;
+    }
     // Whether the slices tile: each one begins where the one before it ended,
     // early and late. That is exactly the condition under which the placement
     // kept one anchor for the whole work item, so the endpoints below are the
@@ -2194,16 +2204,30 @@ function projectOntoWorkItems(
     // here, and the least of snapped numbers is one of them. Its `critical` is
     // left as it was, read off the slices rather than off the aggregate, which
     // is that branch's own rule and not this change's to move.
-    const slack = tiles ? slackOf(late, start) : Math.min(...own.map((s) => s.float));
+    let effort = 0;
+    let leastFloat = Infinity;
+    let lastEarly = -Infinity;
+    let lastLate = -Infinity;
+    let anyEstimated = false;
+    let anyCritical = false;
+    for (const s of own) {
+      effort += s.duration;
+      if (s.float < leastFloat) leastFloat = s.float;
+      if (s.earliestFinish > lastEarly) lastEarly = s.earliestFinish;
+      if (s.latestFinish > lastLate) lastLate = s.latestFinish;
+      if (s.estimated) anyEstimated = true;
+      if (s.critical) anyCritical = true;
+    }
+    const slack = tiles ? slackOf(late, start) : leastFloat;
     projected.set(leafId, {
-      duration: own.reduce((sum, s) => sum + s.duration, 0),
-      estimated: own.some((s) => s.estimated),
+      duration: effort,
+      estimated: anyEstimated,
       earliestStart: start,
-      earliestFinish: Math.max(...own.map((s) => s.earliestFinish)),
+      earliestFinish: lastEarly,
       latestStart: late,
-      latestFinish: Math.max(...own.map((s) => s.latestFinish)),
+      latestFinish: lastLate,
       float: slack,
-      critical: tiles ? slack === 0 : own.some((s) => s.critical),
+      critical: tiles ? slack === 0 : anyCritical,
     });
   }
 
@@ -2211,29 +2235,68 @@ function projectOntoWorkItems(
   // and is reported separately.
   for (const row of rows) {
     if (isLeaf.has(row.id)) continue;
-    const beneath = (index.leavesUnder.get(row.id) ?? [])
-      .map((id) => projected.get(id))
-      .filter((s): s is Scheduled => s !== undefined);
-    const starts = beneath.map((s) => s.earliestStart);
-    const finishes = beneath.map((s) => s.earliestFinish);
-    const spanStart = Math.min(...starts, Infinity) === Infinity ? 0 : Math.min(...starts);
-    // Proof: summed instead of maxed and two `parents` tests failed, reporting
-    // a 4-day branch as 7 days long because that is its effort.
-    const spanFinish = Math.max(0, ...finishes);
+    // One pass over the leaves beneath, rather than eight `beneath.map(...)`
+    // allocations feeding eight spreads. The spread is also the only thing here
+    // with a cliff: `Math.min(...xs)` throws `RangeError: Maximum call stack
+    // size exceeded.` past somewhere between 500,000 and 1,000,000 arguments in
+    // this runtime, and `beneath` for a root parent is every leaf in the plan.
+    // Nothing this tool plans comes near half a million leaves under one row, so
+    // that was never a live defect — but a loop has no such number at all, and
+    // it is what made the flat shape below twice as slow as the nested one.
+    let anyLeaf = false;
+    let spanStart = Infinity;
+    let spanFinish = 0;
+    let latestStart = Infinity;
+    let latestFinish = 0;
+    let leastFloat = Infinity;
+    let anyEstimated = false;
+    let anyCritical = false;
+    // Three invariants of {@link indexTree}'s output, thrown rather than
+    // defaulted. `leafIds` is every row with no children, so a row reaching
+    // here has children; `walk` returns `[id]` for a childless id and
+    // `flatMap`s its children otherwise, so in a finite tree every non-leaf
+    // resolves to at least one leaf, every one of those is a `leafId`, and the
+    // loop above placed all of them. Reading a missing one as an empty span at
+    // day zero — which is what `?? []`, a `continue` and a `Math.min(..., Infinity)`
+    // sentinel used to do between them — would draw a silently wrong bar rather
+    // than say the index is broken.
+    //
+    // Proof, all three injected into {@link indexTree} after its walk and
+    // watched in `schedule-shapes.test.ts` (2026-09-02): deleting every
+    // top-level row's entry failed on `no leaves indexed under P`; appending a
+    // `'ghost-leaf'` to every non-empty entry failed on `leaf ghost-leaf under
+    // P was never placed`; and emptying a top-level row's entry failed on `P is
+    // not a leaf and has no leaves under it`. Under the defaults these three
+    // replaced, all three faults were silent.
+    const under = index.leavesUnder.get(row.id);
+    if (under === undefined) throw new Error(`no leaves indexed under ${row.id}`);
+    for (const leafId of under) {
+      const beneath = projected.get(leafId);
+      if (beneath === undefined) throw new Error(`leaf ${leafId} under ${row.id} was never placed`);
+      anyLeaf = true;
+      if (beneath.earliestStart < spanStart) spanStart = beneath.earliestStart;
+      // Proof: `spanFinish` summed instead of maxed and two `parents` tests
+      // failed, reporting a 4-day branch as 7 days long because that is its
+      // effort.
+      if (beneath.earliestFinish > spanFinish) spanFinish = beneath.earliestFinish;
+      if (beneath.latestStart < latestStart) latestStart = beneath.latestStart;
+      if (beneath.latestFinish > latestFinish) latestFinish = beneath.latestFinish;
+      if (beneath.float < leastFloat) leastFloat = beneath.float;
+      if (beneath.estimated) anyEstimated = true;
+      if (beneath.critical) anyCritical = true;
+    }
+    if (!anyLeaf) throw new Error(`${row.id} is not a leaf and has no leaves under it`);
     projected.set(row.id, {
       duration: 0,
-      estimated: beneath.some((s) => s.estimated),
+      estimated: anyEstimated,
       earliestStart: spanStart,
       earliestFinish: spanFinish,
-      latestStart: Math.min(...beneath.map((s) => s.latestStart), spanStart),
-      latestFinish: Math.max(0, ...beneath.map((s) => s.latestFinish)),
-      float:
-        Math.min(...beneath.map((s) => s.float), Infinity) === Infinity
-          ? 0
-          : Math.min(...beneath.map((s) => s.float)),
+      latestStart: Math.min(latestStart, spanStart),
+      latestFinish,
+      float: leastFloat,
       // A branch is critical when anything inside it is: shortening that leaf
       // shortens the project, and the branch is where a reader looks first.
-      critical: beneath.some((s) => s.critical),
+      critical: anyCritical,
     });
   }
 

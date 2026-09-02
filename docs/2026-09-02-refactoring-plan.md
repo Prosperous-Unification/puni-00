@@ -145,7 +145,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-1  | **Half done, 2026-09-02** — see §25. Concurrent identical reads now share one request. Narrowing _which_ reads a write triggers is not done, and the reason is recorded.                                                                                                                                                                                                                                                           | `lib/wbs-api.ts`, `lib/project-stream.ts:113`, `wbs-table.tsx:3671–3775`, `directory-page.tsx:256,342` | 1d     | "a peer edit costs 2 requests, not 8" — fails today                                |
 | W2-2  | **Done, 2026-09-02** — see §28. All three memoised, with the label closures stabilised first, and a layout-count probe that took three attempts to stop being vacuous.                                                                                                                                                                                                                                                             | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
-| W2-4  | **Done as far as it should be, 2026-09-02** — see §27 and §29. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**; `projectOntoWorkItems` is open.                                                                                                                                                                                                                                                    | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
+| W2-4  | **Done, 2026-09-02** — see §27, §29 and §33. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**. `projectOntoWorkItems` is two loops instead of fourteen array allocations: ~8% faster, its `RangeError` cliff measured out of reach, and three defaults that read a broken index as a legal plan are now throws with all three faults watched.                                                       | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
 | W2-5  | **Started, 2026-09-02** — see §26. A freeze is one statement instead of one per row. `remove`'s batching and the dependency N+1 are not done.                                                                                                                                                                                                                                                                                      | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
 | W2-6  | **Gantt mark memos lose their per-gesture deps**: `open?.sliceId` and `fullScreen` out of the 23-entry list via refs; one `Set` of drawn slice ids for the two link filters, the flag filter and `openBar`; `routeArrow` indexes obstacles by row.                                                                                                                                                                                 | `gantt-panel.tsx:3504–3527, :2611, :2638, :2652`, `gantt-geometry.ts:1372`                             | 1d     | "opening a bar's facts re-renders no Gantt mark" — the D4 probe, new gesture       |
 | W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
@@ -1442,3 +1442,66 @@ change touches **zero** files under `tools/` (`git diff --name-only` says so), a
 `tool-bootstrap` names neither `@wbs/domain` nor anything that moved. It is the pre-existing
 failure already in the plan's landmines, unchanged. Stated rather than skipped: the whole
 workspace gate was not green, and this is why.
+
+## 33 · W2-4 — `projectOntoWorkItems`, and three defaults that hid a broken index
+
+The item was proposed as a performance fix with a `RangeError` cliff behind it. The cliff is
+not reachable, the speed-up is small, and the change is worth keeping for a third reason the
+review did not name.
+
+### The `RangeError` is real and out of reach
+
+`Math.min(...xs)` does throw `RangeError: Maximum call stack size exceeded.` — measured in
+this runtime at **between 500,000 and 1,000,000 arguments** (500k passed, 1M threw). The
+parent loop spread every leaf under a row into eight such calls, so a plan with half a
+million leaves under one parent would have crashed. Nothing this tool plans is that shape.
+Recorded in the code and **not** treated as a defect.
+
+### The speed-up is about 8%, not a multiple
+
+Both versions timed alternately, best of 20 to 200 runs each, discarding a cold first pass:
+
+| Plan                             | Before (best / median) | After (best / median) |
+| -------------------------------- | ---------------------- | --------------------- |
+| 220 rows, 600 slices             | 0.69 / 0.80 ms         | 0.63 / 0.77 ms        |
+| 2,020 rows, 6,000 slices         | 10.84 / 15.71 ms       | 8.33 / 14.20 ms       |
+| 20,020 rows, 60,000 slices       | 123.01 / 147.55 ms     | 113.82 / 138.64 ms    |
+| 20,001 rows under **one** parent | 322.90 / 347.93 ms     | 317.31 / 346.07 ms    |
+
+Never slower, consistently a few percent faster, and under a millisecond in absolute terms at
+any size this tool sees. **A hypothesis that was wrong:** the flat shape costs roughly twice
+the nested one at identical row and slice counts, and the spread was not why — removing it
+moved that case by 2%. Whatever causes it is elsewhere in the engine and is not this item.
+
+### What actually justified the change
+
+Fourteen `beneath.map(...)` and `own.map(...)` allocations became two loops, and with them
+went three defaults that were each reading a broken index as a legal plan:
+
+- `index.leavesUnder.get(row.id) ?? []`
+- `if (beneath === undefined) continue`
+- `Math.min(...starts, Infinity) === Infinity ? 0 : …`, which conflated "no leaves" with
+  "the minimum happens to be `Infinity`"
+
+None can fire. `leafIds` is every row with no children, so a row reaching that loop has
+children; `walk` returns `[id]` for a childless id and `flatMap`s its children otherwise, so
+in a finite tree every non-leaf resolves to at least one leaf, each is a `leafId`, and the
+leaf loop placed all of them. That is exactly R5's case: an invariant, so **throw**, because
+reading a missing leaf as a zero-length span at day zero draws a silently wrong bar.
+
+**First evidence that they were vacuous:** deleting the empty-parent floor outright left all
+316 tests green.
+
+**Proofs, watched 2026-09-02**, each injected into `indexTree` after its walk and run against
+`schedule-shapes.test.ts`:
+
+| Injected fault                                   | Failure observed                             |
+| ------------------------------------------------ | -------------------------------------------- |
+| delete every top-level row's `leavesUnder` entry | `no leaves indexed under P`                  |
+| append `'ghost-leaf'` to every non-empty entry   | `leaf ghost-leaf under P was never placed`   |
+| empty a top-level row's entry                    | `P is not a leaf and has no leaves under it` |
+
+Under the defaults these replaced, all three faults were silent.
+
+**Green:** `domain` 316 pass, 0 fail, 34,575 assertions — the thousand-seed differential and
+both captured oracles among them. Lint and typecheck clean.
