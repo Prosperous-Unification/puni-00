@@ -147,11 +147,11 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-3  | **Two thirds measured and refused, 2026-09-02 — see §35.** `Promise.all` over the nine `tree()` reads buys **nothing** (`bun:sqlite` is synchronous: 14.40 ms either way), and the duplicate `deriveNumbers` is ~5% for a widened interface. The snapshot is the real item and is **architecture**, so it needs an OpenSpec change. Original: `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time. | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
 | W2-4  | **Done, 2026-09-02** — see §27, §29 and §33. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**. `projectOntoWorkItems` is two loops instead of fourteen array allocations: ~8% faster, its `RangeError` cliff measured out of reach, and three defaults that read a broken index as a legal plan are now throws with all three faults watched.                                                                                                                                                                                                                                                                                                       | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
 | W2-5  | **Done, 2026-09-02** — see §26 and §34. A freeze is one statement instead of one per row; a subtree delete is one `DELETE` rather than one per row, because SQLite checks an immediate foreign key at the end of the **statement**; and `removeAllFor` takes the whole doomed set, which also fixed a bump landing on a row already on its way out. Roughly `3N + 1` statements across `N + 1` transactions became 5.                                                                                                                                                                                                                                                              | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
-| W2-6  | **Gantt mark memos lose their per-gesture deps**: `open?.sliceId` and `fullScreen` out of the 23-entry list via refs; one `Set` of drawn slice ids for the two link filters, the flag filter and `openBar`; `routeArrow` indexes obstacles by row.                                                                                                                                                                                                                                                                                                                                                                                                                                 | `gantt-panel.tsx:3504–3527, :2611, :2638, :2652`, `gantt-geometry.ts:1372`                             | 1d     | "opening a bar's facts re-renders no Gantt mark" — the D4 probe, new gesture       |
+| W2-6  | **Done, 2026-09-02** — see §53. `open?.sliceId` and `fullScreen` out of the 23-entry list via a mirror ref, behind the D4 probe on the new gesture; one `drawn` index for the four "is this bar drawn?" readers (**3.9×**) and for an arrow's obstacles by row (**3.1×**).                                                                                                                                                                                                                                                                                                                                                                                                         |
 | W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                                                                                                                                                                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
-| W2-8  | **Layout reads off the pointer and scroll paths**: `depends-card.tsx:196–212` reads every card line's rect per `pointermove`; `plan-scroll-link.ts:243` ~10 rects per scroll event; the Gantt `onScroll` four reads + three state updates; `plan-cards.tsx:1237` a 600-frame rAF poll on a phone. One rAF per frame, node lists cached per layout generation, `transitionend` instead of the poll. Keep `alignmentMove` untouched.                                                                                                                                                                                                                                                 | as named                                                                                               | 1d     | `getBoundingClientRect` spy per pointer event; Chromium for the linked scroll      |
+| W2-8  | **One done, three refused with measurements, 2026-09-02** — see §54. A chart scroll reads **no** rect (the content width is the observers' job). The other three are already efficient, unsafe to cache, or bounded — each measured rather than assumed.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | W2-9  | **Half done, 2026-09-02** — see §47. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). The fe-01 memoisation half is not done.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| W2-10 | **Code splitting**: `/directory` lazy route; `GanttPanel` + `gantt-geometry` behind `lazy()` (its fault boundary exists); `PlanCards` behind the viewport branch; `manualChunks` for vendor. The sign-in form currently waits for all of it because `app.tsx:88` blocks on `fetchMe()`.                                                                                                                                                                                                                                                                                                                                                                                            | `app-router.tsx`, `vite.config.ts`, `plan-renderer.ts`                                                 | 0.5d   | a chunk-count assertion in `e2e-packaged`                                          |
+| W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
 | W2-11 | **`PlanCard` shell** (the phone face got none of `pointed-row-render-cost`): a shell owning `<article>`, its own actions-menu state and subscription, fields as `children`; ~1,080 per-row reader calls per render today.                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
 | W2-12 | **Started, 2026-09-02** — see §24. Three done: the push retry's re-serialisation, the throttle's whole-map prune, and the two exporters' `nameOf`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
 | W2-13 | **Done, 2026-09-02** — see §48. The roster rides the plan's own stream; the panel opens nothing and is presentational. It also fixes the caveat that panel documented — a dropped connection used to freeze the roster until a reload.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -2012,3 +2012,63 @@ The eight "generated with Nx" stubs are gone, each in mcp-01's shape. `libs/doma
 noun → module map, and its rows are **asserted**: `readme.test.ts` checks every module it names and
 every ADR it cites, because a README is the one artefact nothing else checks and it rots first.
 Both faults watched.
+
+## 53 · W2-6 — the marks stop re-rendering for things they do not draw
+
+`open?.sliceId` and `fullScreen` were entries 15 and 28 of `marksOverLight`'s twenty-three-deep
+dependency list, and **neither is drawn by a mark**: both are read in `onClick`, `onPointerLeave`
+and `onFocus`. Opening one bar's facts card re-rendered every bar, arrow, flag and tick in the
+chart to change nothing about any of them. A mirror ref in `wbs-table.tsx`'s `live` shape, and its
+rule holds: anything a mark _draws_ stays in the list.
+
+Getting the probe's oracle right took a measurement rather than a guess. `shortIsoDate` runs in
+**both** a bar's `aria-label` and the card's own `barFacts`, so "no new date words" is not
+available — the card is supposed to produce four. The number is the assertion: two bars cost two
+each, so a re-render turns 4 into 8, which is exactly what putting `open?.sliceId` back produces.
+`initialsOf` is the second oracle, on the bar-words' path alone, and stays at zero either way.
+
+Then one `drawn` index where four readers each scanned every drawn bar — the two link filters, the
+flag filter and `openBar`: **3.9×** for 100 links over 200 bars. It carries slice ids _and_ row
+indexes, because the flag filter asks by row (a not-before holds the work item, not one of its
+steps). And `arrowRoute` was handed **every** drawn bar per arrow and filtered it down to the two
+rows the arrow joins: the same index answers that in two lookups, **3.1×**.
+
+## 54 · W2-8 — one storm, and three that measurement says are not
+
+The Gantt panel's `onScroll` measured the fold **and** the content row's width — a
+`getBoundingClientRect` per scroll event, forcing a layout inside the frame that was drawing the
+chart, for a width only a resize can change and that two `ResizeObserver`s already watch. It reads
+no rect now; `reads no rect per scroll event, however many arrive` holds it at ten events, watched
+failing on `expected 10 to be +0`.
+
+The other three are refused, each for a reason that was measured:
+
+- `plan-scroll-link.ts` is already a **binary search** (~7 rects for 100 rows, not 100), and the
+  rects it reads are the ones a scroll moves — they cannot be cached. Only the node list could be,
+  and a stale one after a row is added is a follower that scrolls to the wrong row.
+  `alignmentMove` stays untouched, as the plan asks.
+- `depends-card.tsx`'s `pointermove` reads N+1 rects where N is **one row's** dependencies
+  (typically ≤5), and only while a hover card is open. Coalescing into a rAF costs six tests their
+  synchronous assertions for a handful of reads on a transient surface.
+- `plan-cards.tsx`'s rAF poll is bounded by the sheet's open animation (~12 frames, two rects
+  each) and stops the moment it settles. Its 600-frame ceiling is the guard against an animation
+  that never settles — the one case `transitionend` cannot answer, so the swap needs the poll as
+  its fallback anyway.
+
+## 55 · W2-10 — the first bundle, and the split that would cost the suite
+
+One 796.82 kB JavaScript file, and `app.tsx` blocks on `fetchMe()` before it draws anything — so
+every byte was in front of the login box and every deploy invalidated all of it. Now **511.85 kB
+app + 269.37 kB vendor + 15.43 kB directory page** (160.85 + 85.77 + 3.79 gzipped): a cold load of
+`/` is 15 kB lighter, and a release that touches neither React nor the router leaves 269 kB
+cached.
+
+The rule is asserted rather than the output — asserting the output means a 30-second build in a
+unit suite — and what can go wrong is the regex. Both directions watched: widened to
+`/node_modules\//` it puts `arktype` in `vendor` (which would invalidate the cached half on every
+app change); narrowed to `react/` it loses `react-dom`.
+
+**Refused: `GanttPanel` and `PlanCards`**, and not for bundle reasons. They render inside
+`WbsTable`, which 2,063 jsdom tests render synchronously and then assert on; a `lazy()` boundary
+turns every one of those assertions into a `waitFor`. That is a decision about the shape of the
+whole suite, and it belongs to a change that says so.
