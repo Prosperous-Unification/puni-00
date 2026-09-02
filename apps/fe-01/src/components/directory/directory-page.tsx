@@ -363,21 +363,19 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     Object.fromEntries(Object.entries(current).filter(([at]) => at !== id));
 
   /**
-   * Drops both drafts for one entry, which is what a **commit** leaves behind.
+   * Drops the entry's name draft — what a **commit** leaves behind, and what
+   * **Escape** means.
    *
-   * Both, and deliberately: a write to either box refetches the whole
+   * Dropping it is deliberate rather than tidiness: a write refetches the whole
    * directory, so a draft left standing over a value that has just come back
    * would hold the box at what this browser typed and hide what be-01 answered.
    *
-   * Escape is the other way a draft goes — {@link forgetNameDraft}, which since
-   * `capacity-per-project` is the only draft this page holds: the size box that
-   * made these two functions two moved to the plan's own `TeamsPanel`.
+   * One function, because since `capacity-per-project` the name is the only
+   * draft this page holds: the size box that made this two — `forgetDraft` for a
+   * commit and `forgetNameDraft` for Escape, identical by then — moved to the
+   * plan's own `TeamsPanel` with the number it edits.
    */
   const forgetDraft = (id: string) => {
-    setRenamed((current) => withoutDraft(current, id));
-  };
-
-  const forgetNameDraft = (id: string) => {
     setRenamed((current) => withoutDraft(current, id));
   };
 
@@ -908,7 +906,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                               event.preventDefault();
                               commitRename('team', team);
                             }
-                            if (event.key === 'Escape') forgetNameDraft(team.id);
+                            if (event.key === 'Escape') forgetDraft(team.id);
                           }}
                         />
                         {/*
@@ -1095,7 +1093,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             event.preventDefault();
                             commitRename('tag', tag);
                           }
-                          if (event.key === 'Escape') forgetNameDraft(tag.id);
+                          if (event.key === 'Escape') forgetDraft(tag.id);
                         }}
                       />
                       <Button
@@ -1176,7 +1174,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             event.preventDefault();
                             commitRename('type', workItemType);
                           }
-                          if (event.key === 'Escape') forgetNameDraft(workItemType.id);
+                          if (event.key === 'Escape') forgetDraft(workItemType.id);
                         }}
                       />
                       <Button
@@ -1262,7 +1260,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             event.preventDefault();
                             commitRename('service', service);
                           }
-                          if (event.key === 'Escape') forgetNameDraft(service.id);
+                          if (event.key === 'Escape') forgetDraft(service.id);
                         }}
                       />
                       <Button

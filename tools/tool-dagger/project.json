@@ -28,15 +28,21 @@
     },
     "test-be": {
       "executor": "nx:run-commands",
-      "options": { "command": "nx test be-01" }
+      "options": {
+        "command": "nx test be-01"
+      }
     },
     "test-gw": {
       "executor": "nx:run-commands",
-      "options": { "command": "nx test gw-01" }
+      "options": {
+        "command": "nx test gw-01"
+      }
     },
     "test-fe": {
       "executor": "nx:run-commands",
-      "options": { "command": "nx test fe-01" }
+      "options": {
+        "command": "nx test fe-01"
+      }
     },
     "publish-be": {
       "executor": "nx:run-commands",
@@ -69,15 +75,34 @@
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-dagger" }
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/bin/with-heavy-lock.sh",
+        "{workspaceRoot}/bin/heavy-lock-lib.sh"
+      ],
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-dagger"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-dagger/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-dagger/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-dagger/src --cache --cache-location .nx/eslintcache-tool-dagger"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-dagger/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-dagger/tsconfig.json"
+      }
     }
   }
 }

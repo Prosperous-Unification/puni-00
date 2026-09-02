@@ -12,9 +12,11 @@ import {
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
+import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { PriorityBandView } from '@/lib/wbs-api';
 
+import { useGanttDetail } from './gantt-detail';
 import {
   CAPACITY_LINK_COLOR,
   droppedLinkWords,
@@ -450,6 +452,60 @@ const NOT_BEFORE_CLEARANCE = 0.03;
 const BAR_RADIUS_PX = 3;
 
 /**
+ * One chip on the chart's own toolbar — `Names`, `Detail`, `Full`, `⇩`.
+ *
+ * Through `buttonVariants` rather than a hand-rolled border, for the reason
+ * that table's own note gives: this app's reset leaves every `<button>` its
+ * platform box, so a chrome control that does not go through the variants gets
+ * the platform's idea of one. Three things were measured wrong before this
+ * existed, at 900px in Chromium:
+ *
+ * - keyboard focus drew the **browser's** ring, not the app's. A chip with the
+ *   old class string, appended to this same bar and arrived at by `Tab`, read
+ *   `outline: auto 1px rgb(0, 95, 204)` with no ring in its `box-shadow`;
+ *   every other focusable control in this app answers with `ring-ring`. That
+ *   blue `auto` outline is what Dany called ugly on the sign-in form's reveal,
+ *   which had the same cause.
+ * - `⇩` stood 19px tall where its four neighbours and the scale `<select>`
+ *   stood 16px, because the glyph's line box is taller than the words'.
+ *   `leading-none` and a stated height are what make the row one row.
+ * - every chip carried `ml-1` **and** sat in a `gap-1` row, so the gaps were
+ *   8px between chips and 4px after the caption.
+ *
+ * The ring is `ring-1 ring-offset-1` rather than the variants' `ring-2
+ * ring-offset-2`: on a 16px chip in a 21px bar the wider ring is clipped by
+ * the panel's own top border, which reads as a broken box rather than focus.
+ *
+ * `cn` wraps the variants rather than `buttonVariants({ className })` taking
+ * the overrides, and that is not a style choice. `cva` **appends** `className`
+ * without merging it, so `size: 'default'`'s `h-9` and the base's `ring-2`
+ * both survived alongside `h-4` and `ring-1`, and the stylesheet's order
+ * decided: the first cut drew four 36px chips beside a 16px `<select>`. `cn`
+ * is `tailwind-merge`, which drops the losing half — but only where the two
+ * halves collide, which is why `py-0` is spelled out below. Every number here
+ * was read off `getBoundingClientRect` in Chromium at 900px, and two guesses
+ * at this paragraph were wrong before it: `h-9` was blamed for a height
+ * `py-2` was making, and `box-border` was added for a `box-sizing` that was
+ * already `border-box`.
+ */
+const chartChip = (extra?: string): string =>
+  cn(
+    buttonVariants({ variant: 'outline' }),
+    // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
+    // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
+    // put 8px above and below a 10px word, and the chips measured 18px against
+    // the scale `<select>`'s 16px. `border-border` for the same reason in the
+    // other direction: `variant: 'outline'` brings `border-input`, and this
+    // bar's border is `border-border`.
+    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    'focus-visible:ring-1 focus-visible:ring-offset-1',
+    extra,
+  );
+
+/** What a chart chip looks like when the thing it names is switched off. */
+const CHART_CHIP_OFF = 'border-dashed text-muted-foreground/60 line-through';
+
+/**
  * How wide the priority cap at a bar's left edge is drawn, in px.
  *
  * The bar's own two visual channels are already spoken for — `fill` is the
@@ -586,7 +642,7 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  */
 function arrowRoute(
   arrow: PlacedArrow,
-  bars: readonly PlacedBar[],
+  barsByRow: ReadonlyMap<number, PlacedBar[]>,
   dayPx: number,
 ): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
@@ -596,7 +652,20 @@ function arrowRoute(
   // is two and a half days of user space, not the third of a day it is at 28.
   // Held constant, the head would shrink to a speck and the elbow would leave
   // no clear band at all.
-  const route = routeArrow(arrow, bars, {
+  // Only the rows this arrow runs between, which is what `routeArrow` filters
+  // for anyway: every run of every candidate route stays between the two rows
+  // the arrow joins. It was handed **every** drawn bar until 2026-09-02 and
+  // filtered them per arrow — 100 arrows over 200 bars is 20,000 comparisons
+  // per re-render of the chart, for a range two lookups answer.
+  const obstacles: PlacedBar[] = [];
+  for (
+    let row = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
+    row <= Math.max(arrow.fromRowIndex, arrow.toRowIndex);
+    row += 1
+  ) {
+    obstacles.push(...(barsByRow.get(row) ?? []));
+  }
+  const route = routeArrow(arrow, obstacles, {
     approach: ARROW_APPROACH_PX / dayPx,
     barInset: BAR_INSET,
   });
@@ -611,117 +680,6 @@ function arrowRoute(
       `L ${at(arrow.toX - headX, toY - headY)} ` +
       `L ${at(arrow.toX - headX, toY + headY)} Z`,
   };
-}
-
-/**
- * Where this browser remembers whether it has asked for the chart's detail.
- *
- * One key for the browser, and that is where this parts from
- * `wbs.ganttHeight.<projectId>` beside it: a panel height is one plan's share of
- * one screen, while detail on or off is an answer about a **feature** — a reader
- * who has turned sixty elbows off has turned them off, and having to say so
- * again in the next project is the fault this remembers away.
- *
- * `wbs.ganttDetail` and no longer `wbs.ganttArrows`, because the switch no
- * longer answers about the arrows alone. See {@link RETIRED_ARROWS_KEY}.
- */
-const DETAIL_KEY = 'wbs.ganttDetail';
-
-/**
- * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
- * and `declutter-one-button`.
- *
- * **Dropped rather than migrated**, and the difference matters: it held an
- * answer about the arrows, and this switch draws two further families of mark
- * with them. Reading a stored `true` across would open the chart with parent
- * brackets and uncosted bars on it for a reader who asked for elbows — which is
- * the clutter Dany asked to be rid of in the first place. So the answer is
- * discarded and the key is **removed**, rather than left in storage to be
- * puzzled over by whoever reads a browser's `localStorage` next.
- */
-const RETIRED_ARROWS_KEY = 'wbs.ganttArrows';
-
-/**
- * Drops the two keys this panel refuses, then reads the remembered answer.
- *
- * The chart's own starting answer is {@link readDetail}'s, not this function's
- * return — `true` for a plan with dependency edges, `false` without, and a
- * stored answer wherever this browser has said. This function exists for the
- * mount-effect **write** half of the read: the drop is a side effect and the
- * return is ignored by its one caller.
- *
- * The stored value is a claim, not a fact: user-editable storage read at a
- * boundary. Anything that is not a boolean takes the key with it and the switch
- * stays off. `JSON.parse` and a type check rather than `stored === 'true'`,
- * because the two answers a browser can hold have to be told apart from the
- * strings that merely look like them — `"yes"` parses fine and is not an answer.
- *
- * Deliberately not the "unknown is not OK" throw, for `rememberedGanttHeight`'s
- * reason: the alternative is a chart nobody can open until they clear storage by
- * hand, over a preference about a mark.
- */
-function rememberedDetail(): boolean {
-  // The retired key goes whatever this browser has said since, and its value is
-  // never looked at: see {@link RETIRED_ARROWS_KEY}. `removeItem` on a key that
-  // is not there is a no-op, so there is nothing to ask first.
-  //
-  // Proof: this line deleted. `drops the key the arrows switch wrote, without
-  // reading it` alone failed, `1 failed | 90 passed`, on `expected 'true' to be
-  // null` — the retired key still in storage after the chart had been opened.
-  // Watched 2026-08-12.
-  localStorage.removeItem(RETIRED_ARROWS_KEY);
-  // Proof: this refusal replaced by `claimed === true || (typeof claimed ===
-  // 'string' && claimed !== '')`, which is what "read the claim, drop nothing"
-  // comes to. `2 failed | 89 passed`: `refuses a stored answer that is not a
-  // boolean, and drops the key` on `expected 'true' to be 'false'` — the detail
-  // drawn from the string `"yes"` — and `refuses storage that is not JSON at
-  // all, and drops the key` on `expected '{not json' to be null`, the unreadable
-  // key left in storage to be read again next time. Watched 2026-08-11, and
-  // again over the renamed key 2026-08-12.
-  const stored = localStorage.getItem(DETAIL_KEY);
-  if (stored !== null && typeof claimedDetail(stored) !== 'boolean') {
-    localStorage.removeItem(DETAIL_KEY);
-  }
-  return readDetail();
-}
-
-/**
- * The same read with **nothing written** — what a React render is allowed to
- * do.
- *
- * `useState(() => readDetail(hasDependencyEdges))` below is a lazy initialiser,
- * which React calls during
- * a render and StrictMode calls **twice** on purpose to surface exactly this:
- * {@link rememberedDetail} drops two keys, and dropping a key is a write. The
- * rule is the one this file already states over the switch's own handler — "a
- * state updater React may call twice is no place for a side effect" — and it
- * was being kept eleven hundred lines below where it was being broken. The
- * drops happen in a mount effect instead.
- *
- * Nothing anybody can observe changed: `removeItem` is idempotent, and the
- * `DETAIL_KEY` drop only ever fires on a stored value this panel refuses. It is
- * a rule kept, not a defect fixed. Cross-review, 2026-08-12.
- */
-function readDetail(hasEdges = false): boolean {
-  const stored = localStorage.getItem(DETAIL_KEY);
-  // Nothing stored: the chart opens with the detail on for a plan that has
-  // dependency edges — a first-time reader sees the arrows without hunting for
-  // the toggle — and off for a plan with nothing to hide. A stored answer,
-  // either way, wins.
-  if (stored === null) return hasEdges;
-  const claimed = claimedDetail(stored);
-  return typeof claimed === 'boolean' ? claimed : false;
-}
-
-/** Stored bytes parsed as they were written, or `undefined` if they will not. */
-function claimedDetail(stored: string): unknown {
-  try {
-    return JSON.parse(stored);
-  } catch {
-    // Nothing but this panel writes the key, so the only way here is a
-    // hand-edited store. Recovered from above rather than rethrown.
-    return undefined;
-  }
 }
 
 /**
@@ -2252,23 +2210,38 @@ function GanttChart({
   const pointedRow = useSyncExternalStore(pointed.subscribe, pointed.pointedAt);
   const [chartSpanPx, setChartSpanPx] = useState<number | null>(null);
   /**
-   * Reads both facts off one laid-out scroll box.
+   * Whether anything is below the fold, off one laid-out scroll box.
    *
    * The box is a parameter rather than the ref: the observer below holds the
    * element it was given for as long as it is connected, and the scroll handler
    * has it as the event's own target — so there is no nullable read here at
    * all, and no null branch that nothing could ever take.
    *
+   * **Reads no rect**, which is why it is separate from {@link measureTheSpan}:
+   * `scrollTop`, `scrollHeight` and `clientHeight` are what a scroll changes,
+   * and this runs on **every scroll event**. It measured the content row's
+   * width too until 2026-09-02 — a `getBoundingClientRect` per scroll event,
+   * for a width that only a resize can change and that two `ResizeObserver`s
+   * are already watching.
+   */
+  const measureTheFold = useCallback((port: HTMLElement): void => {
+    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
+  }, []);
+  /**
+   * How wide the content row is, off the same box.
+   *
+   * On the observers' path and on mount, never on a scroll: scrolling moves the
+   * content under the box and changes nothing about its width.
+   *
    * @throws When the scroll box has no content row to measure. That row is the
    * one element this panel always draws inside it, so its absence is an
    * invariant broken rather than a width to default (`AGENTS.md` R5).
    */
-  const measureTheFold = useCallback((port: HTMLElement): void => {
+  const measureTheSpan = useCallback((port: HTMLElement): void => {
     const row = port.firstElementChild;
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to measure");
     }
-    setMoreBelow(chartBelowTheFold(port) > AT_THE_LAST_ROW_PX);
     const span = row.getBoundingClientRect().width;
     setChartSpanPx(span > 0 ? span : null);
   }, []);
@@ -2296,45 +2269,25 @@ function GanttChart({
       throw new Error("the chart's scroll box holds no content row to watch");
     }
     measureTheFold(port);
+    measureTheSpan(port);
     if (typeof ResizeObserver === 'undefined') return;
     const watch = new ResizeObserver(() => {
       measureTheFold(port);
+      measureTheSpan(port);
     });
     watch.observe(port);
     watch.observe(row);
     return () => {
       watch.disconnect();
     };
-  }, [measureTheFold]);
+  }, [measureTheFold, measureTheSpan]);
   // Whether the chart's detail is drawn: the stored-dependency arrows, the
   // parent rows' summary brackets and the unestimated slices' assumed bars, all
-  // three together. Off until somebody asks, and their answer outlives the
-  // panel — sixty elbows and forty ghosts bury the bars they stand among, and a
-  // reader who has turned them off should not have to do it again on the next
-  // read. **One** answer and not three: Dany asked for "all decluttering into
-  // one button" (2026-08-12), so there is no per-family state to disagree with
-  // itself. Read straight into the initial state rather than in an effect,
-  // exactly as the panel height is: an effect would draw every mark for one
-  // frame and then take them away. Never shared, never touching the plan.
-  //
-  // {@link readDetail} and not {@link rememberedDetail}: the initialiser is a
-  // render, and the two keys `rememberedDetail` drops are writes. The drops run
-  // from the mount effect just below — same answer either way, and the rule
-  // this file states over the switch's own handler kept where it is broken.
-  //
-  // The default is no longer a bare `false`: a plan that carries dependency
-  // edges opens with the detail on, so a first-time reader sees the arrows a
-  // WBS Gantt exists to show rather than a toggle they have to find first
-  // (TASK-38). A stored answer still wins — turning the detail off is a
-  // remembered choice, and the `hasDependencyEdges` seed only ever decides the
-  // never-said case.
-  const hasDependencyEdges = plan.dependencies.length > 0;
-  const [detailShown, setDetailShown] = useState(() => readDetail(hasDependencyEdges));
-  // The retired key, and any stored answer this panel refuses, dropped once
-  // after the first paint. The write half of the read above.
-  useEffect(() => {
-    rememberedDetail();
-  }, []);
+  // three together. The key, the read, the state and the write are one file —
+  // {@link useGanttDetail} — and what is left here is the drawing: the three
+  // `detail.shown &&` gates over the marks, and the switch's own label.
+  const detail = useGanttDetail(plan.dependencies.length > 0);
+  const detailShown = detail.shown;
   // Whether the chart has taken the whole viewport. Chunk 4 of
   // `wbs-gantt-phone-scale`, and Dany's R8 #1 — built once, for both faces.
   //
@@ -2511,6 +2464,23 @@ function GanttChart({
   // Memoized against the one read it is a pure layout of, so a pointed-row
   // render of this shell re-draws no geometry (`pointed-row-render-cost`).
   const chart = useMemo(() => layOutGantt(plan), [plan]);
+
+  /**
+   * The two per-gesture facts the marks' **handlers** read, mirrored so the
+   * marks themselves do not depend on them.
+   *
+   * `fullScreen` and the open card's slice id are read in `onClick`,
+   * `onPointerLeave` and `onFocus` and drawn nowhere, but they were entries 15
+   * and 28 of `marksOverLight`'s dependency list — so opening one bar's facts,
+   * or going full screen, re-rendered **every mark in the chart**: every bar,
+   * every arrow, every flag, every tick.
+   *
+   * `wbs-table.tsx`'s `live` ref is the pattern, and its rule holds here too:
+   * anything a mark *draws* stays in the dependency list. These two are only
+   * ever asked "what is true now" by a handler the reader has just fired.
+   */
+  const gesture = useRef({ fullScreen: false, openSliceId: undefined as string | undefined });
+  gesture.current = { fullScreen, openSliceId: open?.sliceId };
   /**
    * The sentence about the waits this chart could not draw, or null where it
    * drew every one — {@link droppedLinkWords}, whose count comes from the three
@@ -2607,8 +2577,57 @@ function GanttChart({
    *
    * It has to sit here, under `drawnBars`, rather than up beside `chart`.
    */
+  /**
+   * The slices and the rows that have a bar on the chart, indexed once.
+   *
+   * Four readers asked "is this drawn?" with a `some` or a `find` over every
+   * drawn bar — the two link filters, the flag filter and `openBar` — so a plan
+   * of 200 bars with 100 links cost 40,000 comparisons per re-render of the
+   * chart shell, for a question a `Set` answers in one. The rows are here too,
+   * because the flag filter asks by row rather than by slice: a not-before
+   * holds the work item, not one of its steps.
+   */
+  const drawn = useMemo(() => {
+    const barsByRow = new Map<number, PlacedBar[]>();
+    for (const placed of drawnBars) {
+      const onRow = barsByRow.get(placed.bar.rowIndex);
+      if (onRow === undefined) barsByRow.set(placed.bar.rowIndex, [placed]);
+      else onRow.push(placed);
+    }
+    return {
+      sliceIds: new Set(drawnBars.map(({ bar }) => bar.sliceId)),
+      rowIndexes: new Set(barsByRow.keys()),
+      // The obstacles an arrow can hit, by row — see {@link arrowRoute}, which
+      // asked every drawn bar per arrow until 2026-09-02.
+      barsByRow,
+    };
+  }, [drawnBars]);
+  /**
+   * The rows this chart can light, by id.
+   *
+   * The pointed band read `chart.labels.filter((label) => label.id ===
+   * pointedRow)` — a scan of every row to draw **one** rectangle, and it sits on
+   * the path a pointer moves along, so it ran per row per pointer move. In the
+   * memo rather than beside it because `chart.labels` is what it indexes and
+   * that is what the memo is keyed on.
+   */
+  const labelsById = useMemo(
+    () => new Map(chart.labels.map((label) => [label.id, label])),
+    [chart.labels],
+  );
+  /**
+   * The row the band is drawn on, or nothing at all.
+   *
+   * `undefined` is the answer for an id the chart does not hold — a row a
+   * search has narrowed away or a collapse has taken — and drawing nothing is
+   * what that should do, which is what the `filter` this replaced achieved by
+   * finding no match.
+   */
+  const pointedLabel = pointedRow === null ? undefined : labelsById.get(pointedRow);
   const openBar =
-    open === null ? null : (drawnBars.find(({ bar }) => bar.sliceId === open.sliceId)?.bar ?? null);
+    open === null || !drawn.sliceIds.has(open.sliceId)
+      ? null
+      : (drawnBars.find(({ bar }) => bar.sliceId === open.sliceId)?.bar ?? null);
 
   // The anchor has gone: its row was collapsed away, narrowed off by a search,
   // or is simply no longer drawn. A surface pointing at a mark that is not on
@@ -2638,11 +2657,9 @@ function GanttChart({
   const drawnLinks = useMemo(
     () =>
       placed.personLinks.filter(
-        (link) =>
-          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+        (link) => drawn.sliceIds.has(link.fromSliceId) && drawn.sliceIds.has(link.toSliceId),
       ),
-    [drawnBars, placed],
+    [drawn, placed],
   );
   /**
    * The pool waits whose both ends are on the chart — {@link drawnLinks}' rule,
@@ -2652,11 +2669,9 @@ function GanttChart({
   const drawnPoolWaits = useMemo(
     () =>
       placed.capacityLinks.filter(
-        (link) =>
-          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+        (link) => drawn.sliceIds.has(link.fromSliceId) && drawn.sliceIds.has(link.toSliceId),
       ),
-    [drawnBars, placed],
+    [drawn, placed],
   );
   /**
    * The not-before carets that have something to stand over.
@@ -2690,10 +2705,8 @@ function GanttChart({
     () =>
       detailShown
         ? placed.notBeforeFlags
-        : placed.notBeforeFlags.filter((flag) =>
-            drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
-          ),
-    [detailShown, drawnBars, placed],
+        : placed.notBeforeFlags.filter((flag) => drawn.rowIndexes.has(flag.rowIndex)),
+    [detailShown, drawn, placed],
   );
   const axis = useMemo(
     () =>
@@ -3170,7 +3183,7 @@ function GanttChart({
               */}
         {detailShown &&
           placed.arrows.map((arrow) => {
-            const route = arrowRoute(arrow, drawnBars, dayPx);
+            const route = arrowRoute(arrow, drawn.barsByRow, dayPx);
             const id = `${arrow.predecessorId}->${arrow.successorId}`;
             return (
               <g key={id}>
@@ -3350,9 +3363,9 @@ function GanttChart({
               // nothing to do about it but leave the click alone.
               const touchPress = pressedWithTouch.current;
               pressedWithTouch.current = false;
-              if (fullScreen && touchPress) {
+              if (gesture.current.fullScreen && touchPress) {
                 cancelOpening();
-                if (open?.sliceId !== bar.sliceId) {
+                if (gesture.current.openSliceId !== bar.sliceId) {
                   showSurface(bar.sliceId, click.currentTarget);
                   return;
                 }
@@ -3411,7 +3424,7 @@ function GanttChart({
               // A touch leaves the mark before its synthesized click.
               // In full screen that click owns the surface: first tap
               // opens it, and a second tap on the same bar navigates.
-              if (fullScreen && pointer.pointerType === 'touch') return;
+              if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
               dismiss();
             }}
             // No delay on the keyboard: focus is deliberate, and there is
@@ -3420,7 +3433,7 @@ function GanttChart({
               // A touch focuses before its click. Let that click decide
               // between opening the facts and deliberate navigation;
               // keyboard focus keeps the immediate surface below.
-              if (fullScreen && pressedWithTouch.current) return;
+              if (gesture.current.fullScreen && pressedWithTouch.current) return;
               pointRow(bar.rowIndex, 'focus');
               cancelOpening();
               showSurface(bar.sliceId, focus.currentTarget);
@@ -3508,6 +3521,11 @@ function GanttChart({
       dayPx,
       detailShown,
       dismiss,
+      // Changes exactly when `drawnBars` does — it is derived from it and
+      // nothing else — so this adds no re-render. It is listed because the
+      // marks read `drawn.barsByRow`, and a dependency the linter cannot see is
+      // a dependency the next reader cannot either.
+      drawn,
       drawnBars,
       drawnFlags,
       drawnLinks,
@@ -3517,9 +3535,7 @@ function GanttChart({
       pad,
       placed,
       plan,
-      fullScreen,
       onPointRow,
-      open?.sliceId,
       pointRow,
       rowCount,
       rowIdAt,
@@ -3709,6 +3725,11 @@ function GanttChart({
           // the fade going away, and one who scrolls back up is owed it
           // returning. The event's own target is the box, so nothing here has
           // to go looking for it.
+          //
+          // The fold only — the content's **width** is `measureTheSpan`'s, and
+          // it is not on this path: a scroll moves the content under the box
+          // and changes nothing about how wide it is. This handler read a rect
+          // per scroll event for it until 2026-09-02.
           measureTheFold(scrollEvent.currentTarget);
           // The surface is a fixed layer and is not in this scroll box, so the
           // bar moves out from under it and the card stays where it was put. A
@@ -3956,19 +3977,17 @@ function GanttChart({
                 no row and draws nothing, which is what a row a search has
                 narrowed away should do.
               */}
-                {chart.labels
-                  .filter((label) => label.id === pointedRow)
-                  .map((label) => (
-                    <rect
-                      key={`${label.id}-pointed`}
-                      data-gantt-row-lit={label.rowIndex}
-                      x={0}
-                      y={label.rowIndex}
-                      width={days}
-                      height={1}
-                      className="fill-(--grid-dep-lit)"
-                    />
-                  ))}
+                {pointedLabel === undefined ? null : (
+                  <rect
+                    key={`${pointedLabel.id}-pointed`}
+                    data-gantt-row-lit={pointedLabel.rowIndex}
+                    x={0}
+                    y={pointedLabel.rowIndex}
+                    width={days}
+                    height={1}
+                    className="fill-(--grid-dep-lit)"
+                  />
+                )}
 
                 {marksOverLight}
               </svg>
@@ -4144,11 +4163,7 @@ function GanttChart({
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
           }
-          className={
-            labelsShown
-              ? 'border-border hover:bg-accent ml-1 rounded border px-1 normal-case'
-              : 'border-border hover:bg-accent text-muted-foreground/60 ml-1 rounded border border-dashed px-1 normal-case line-through'
-          }
+          className={labelsShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
           onClick={() => {
             onPickLabelsShown(!labelsShown);
           }}
@@ -4179,11 +4194,7 @@ function GanttChart({
               ? 'Hide the arrows, the parent bars and the unestimated slices'
               : 'Show the arrows, the parent bars and the unestimated slices'
           }
-          className={
-            detailShown
-              ? 'border-border hover:bg-accent rounded border px-1 normal-case'
-              : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
-          }
+          className={detailShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
           onClick={() => {
             // The next answer worked out here, beside the write, and the
             // setter given a value rather than a function: a state updater
@@ -4191,18 +4202,10 @@ function GanttChart({
             // rendered `detailShown` is the only answer a click on this
             // switch can be flipping.
             const asked = !detailShown;
-            // Written here and nowhere else, so opening a chart never
-            // changes what is remembered about it — the same bargain
-            // `rememberGanttHeight` makes with a drag that is let go of.
-            //
-            // Proof: this line deleted, so the answer lived in the hook
-            // alone. `opens with the detail a fresh panel is remounted
-            // onto` alone failed, `1 failed | 90 passed`, on `expected
-            // 'false' to be 'true'` — the switch back off on the next
-            // mount. Watched 2026-08-11 over the arrows key, and again
-            // 2026-08-12 over this one.
-            localStorage.setItem(DETAIL_KEY, JSON.stringify(asked));
-            setDetailShown(asked);
+            // The write and the state together — see {@link GanttDetail.ask},
+            // which is where the "remember it here and nowhere else" rule and
+            // its watched proof now live.
+            detail.ask(asked);
           }}
         >
           Detail
@@ -4229,7 +4232,12 @@ function GanttChart({
           data-gantt-day-scale
           aria-label="Day scale — how wide one day is drawn"
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
-          className="border-border hover:bg-accent ml-1 rounded border bg-transparent px-1 normal-case"
+          // The chips' look without their element: `buttonVariants` is for
+          // `<button>`, and a `<select>` put through it loses the platform
+          // chevron this corner has no room to redraw. So the four classes the
+          // bar is made of are stated here instead, and the height is the same
+          // `h-4` the chips take.
+          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);
@@ -4279,7 +4287,7 @@ function GanttChart({
               ? 'Leave full screen and put the chart back under the plan (Escape)'
               : 'Draw the chart on the whole screen — the page padding is about 47px of it'
           }
-          className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+          className={chartChip()}
           onClick={() => {
             setFullScreen(!fullScreen);
           }}
@@ -4291,7 +4299,7 @@ function GanttChart({
           data-gantt-svg-download
           aria-label="Download this chart as a standalone SVG"
           data-hint="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
-          className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+          className={chartChip()}
           onClick={downloadGanttSvg}
         >
           ⇩

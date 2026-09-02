@@ -131,6 +131,8 @@ export default defineConfig(({ command, mode }) => ({
         '../../libs/domain/src/effective-service.ts',
       ),
       '@wbs/domain/label-mismatch': resolve(__dirname, '../../libs/domain/src/label-mismatch.ts'),
+      '@wbs/domain/is-within': resolve(__dirname, '../../libs/domain/src/is-within.ts'),
+      '@wbs/contracts/ws-frames': resolve(__dirname, '../../libs/contracts/src/ws-frames.ts'),
       // The same bargain a third time: `priority-band.ts` is four pure functions
       // and a constant, and the rule it holds — which band a number falls in —
       // is what be-01 validates a ladder against. A second copy here is a table
@@ -186,5 +188,28 @@ export default defineConfig(({ command, mode }) => ({
     // would turn this into a build that fails for want of a dev setting.
     proxy: command === 'serve' ? edgeRoutes(mode) : undefined,
   },
-  build: { outDir: '../../dist/apps/fe-01', emptyOutDir: true },
+  build: {
+    outDir: '../../dist/apps/fe-01',
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        /**
+         * React and the router in their own chunk.
+         *
+         * Not for the total — it is the same bytes over the wire on a cold load
+         * — but for the **second** load: the vendor chunk's hash changes when a
+         * dependency is upgraded, and the app's when the app changes, so a
+         * deploy that touches neither the router nor React leaves the larger
+         * half of the bundle in the reader's cache. Before this there was one
+         * 797 kB file and every deploy invalidated all of it.
+         *
+         * Listed rather than "everything in node_modules": a catch-all pulls
+         * whatever a transitive dependency drags in, and the point is the two
+         * that never change with the app.
+         */
+        manualChunks: (id) =>
+          /node_modules\/(react|react-dom|scheduler|@tanstack)\//.test(id) ? 'vendor' : undefined,
+      },
+    },
+  },
 }));

@@ -51,17 +51,6 @@ export interface WriteStamp {
   readonly by: string;
 }
 
-export interface Example {
-  id: string;
-  label: string;
-  createdAt: number;
-}
-
-export interface ExampleRepo {
-  create(ex: Example): Promise<void>;
-  findById(id: string): Promise<Example | null>;
-}
-
 export interface User {
   id: string;
   username: string;
@@ -79,7 +68,7 @@ export interface UserStore {
   findById(id: string): Promise<User | null>;
 }
 
-export interface OidcAccountIdentity {
+interface OidcAccountIdentity {
   issuer: string;
   subject: string;
   email: string | null;
@@ -182,7 +171,7 @@ export type NewStep = Omit<Step, 'position'>;
 export const STEP_POSITION_STEP = 10;
 
 /** Why a step could not be added or renamed. Both are states of the project, not faults. */
-export type StepWriteRefusal = 'taken' | 'not_found';
+type StepWriteRefusal = 'taken' | 'not_found';
 
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
 
@@ -728,7 +717,7 @@ export interface WorkItemPatch {
 }
 
 /** A ref as a caller states it — no `id`, because the store mints one per row. */
-export interface ExternalRefWrite {
+interface ExternalRefWrite {
   systemId: string;
   url: string;
 }
@@ -1102,8 +1091,17 @@ export interface DependencyStore {
    */
   add(dependency: StoredDependency, stamp: WriteStamp): Promise<void>;
   remove(predecessorId: string, successorId: string, stamp: WriteStamp): Promise<void>;
-  /** Every edge touching a work item, so deleting the row can take them with it. */
-  removeAllFor(workItemId: string, stamp: WriteStamp): Promise<void>;
+  /**
+   * Every edge touching any of these work items, so deleting the rows can take
+   * them along.
+   *
+   * Takes the whole doomed set rather than one id at a time. A subtree delete
+   * knows every row it is about to remove, and calling this once per row cost
+   * one transaction, one read and one write **each** — and bumped rows that
+   * were themselves on the way out, because from inside a single-id call a
+   * doomed sibling is indistinguishable from a survivor.
+   */
+  removeAllFor(workItemIds: readonly string[], stamp: WriteStamp): Promise<void>;
 }
 
 /**
@@ -1218,7 +1216,7 @@ export interface Assignment {
  * race, not a fault. `not_found` is an id the directory no longer holds, which
  * is the loser of two removals and a client working from a stale picker.
  */
-export type DirectoryWriteRefusal = 'not_found' | 'taken';
+type DirectoryWriteRefusal = 'not_found' | 'taken';
 
 /**
  * Every project a directory write touched, collected **inside the write's own

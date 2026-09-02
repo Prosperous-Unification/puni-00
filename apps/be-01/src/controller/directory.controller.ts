@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
 import type { DirectoryService } from '../service/directory.service';
 
@@ -15,55 +15,26 @@ import type { DirectoryService } from '../service/directory.service';
  *
  * Adding is idempotent by name, so the picker's "type it if it is not in the
  * list" cannot make two `Platform`s.
+ *
+ * Every route here is a bare read behind {@link callerGuard} — the six of them
+ * carried thirty lines of identical 401 block until 2026-09-02.
  */
 export function directoryController(auth: AuthService, directory: DirectoryService) {
+  const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api' })
-    .get('/teams', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { teams: await directory.listTeams() };
-    })
-    .get('/people', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { people: await directory.listPeople() };
-    })
-    .get('/tags', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { tags: await directory.listTags() };
-    })
-    .get('/services', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { services: await directory.listServices() };
-    })
-    .get('/work-item-types', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { workItemTypes: await directory.listWorkItemTypes() };
-    })
-    .get('/external-systems', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { externalSystems: await directory.listExternalSystems() };
-    });
+    .use(callerGuard(auth))
+    .get('/teams', async () => ({ teams: await directory.listTeams() }), signedIn)
+    .get('/people', async () => ({ people: await directory.listPeople() }), signedIn)
+    .get('/tags', async () => ({ tags: await directory.listTags() }), signedIn)
+    .get('/services', async () => ({ services: await directory.listServices() }), signedIn)
+    .get(
+      '/work-item-types',
+      async () => ({ workItemTypes: await directory.listWorkItemTypes() }),
+      signedIn,
+    )
+    .get(
+      '/external-systems',
+      async () => ({ externalSystems: await directory.listExternalSystems() }),
+      signedIn,
+    );
 }

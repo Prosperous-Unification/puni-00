@@ -1,4 +1,4 @@
-import type { WsControlFrame, WsFrame } from '@wbs/contracts';
+import { type WsControlFrame, type WsFrame, wsPing, wsResume } from '@wbs/contracts';
 import { parseOrThrow, type } from '@wbs/validation';
 
 import type { SubscriptionTracker } from './subscription-tracker';
@@ -33,8 +33,37 @@ const EnvelopeGuard = type({
   message: 'unknown',
 }).or(type({ type: 'string', '[string]': 'unknown' }));
 
+/**
+ * A data frame is the arm carrying a subscription's payload. `EnvelopeGuard`'s
+ * other arm is `{ type: string }` with an open index signature — deliberately
+ * wider than {@link WsControlFrame}, so a control type this build does not know
+ * reaches `onControl` instead of throwing — and an index signature defeats `in`
+ * narrowing, which is why this reads the values rather than the keys.
+ */
+function isDataFrame(frame: typeof EnvelopeGuard.infer): frame is WsFrame {
+  const fields = frame as Record<string, unknown>;
+  return (
+    typeof fields['subscription'] === 'string' &&
+    typeof fields['seq'] === 'number' &&
+    'message' in frame
+  );
+}
+
 export interface ReconnectingWsHandle {
   send(frame: { subscription: string; message: unknown }): void;
+  /**
+   * The sequence a caller has **read** one subscription up to, which is what a
+   * later resume asks from.
+   *
+   * The caller reports it because the caller is the one doing the reading, and
+   * this socket advanced the tracker **on the frame** until 2026-09-02 —
+   * contradicting the rule fe-01's live `project-stream.ts` states and proves:
+   * "`onChange` may fail — the table swallows a failed refetch on purpose, to
+   * keep the last good tree on screen — and a stream that advanced on the frame
+   * rather than on the read would then resume past an edit nobody ever saw."
+   * Two clients, one rule, and this was the copy that had it wrong.
+   */
+  seen(subscription: string, seq: number): void;
   close(): void;
 }
 
@@ -67,7 +96,7 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): ReconnectingW
     clearHeartbeat();
     heartbeat = setInterval(() => {
       if (ws?.readyState !== 1) return;
-      ws.send(JSON.stringify({ type: 'ping' }));
+      ws.send(wsPing());
       pongTimer = setTimeout(() => ws?.close(), pongMs);
     }, heartbeatMs);
   }
@@ -85,18 +114,21 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): ReconnectingW
       attempt = 0;
       attemptStart = Date.now();
       setState('open');
-      socket.send(JSON.stringify({ type: 'resume', resume_points: opts.subscriptions.snapshot() }));
+      socket.send(wsResume(opts.subscriptions.snapshot()));
       startHeartbeat();
     };
 
     socket.onmessage = (ev: MessageEvent<string>): void => {
-      const parsed = parseOrThrow(EnvelopeGuard, JSON.parse(ev.data)) as
-        | WsFrame
-        | (WsControlFrame & Record<string, unknown>);
-      if ('subscription' in parsed && 'seq' in parsed && 'message' in parsed) {
-        opts.subscriptions.update(parsed.subscription, parsed.seq);
+      const parsed = parseOrThrow(EnvelopeGuard, JSON.parse(ev.data));
+      if (isDataFrame(parsed)) {
+        // The tracker is **not** advanced here — see {@link
+        // ReconnectingWsHandle.seen}. The frame is handed on; what the caller
+        // does with it decides where the stream has got to.
         opts.onFrame(parsed);
       } else {
+        // The guard admits any `{ type: string }`, so this narrows to the union
+        // of control frames this build knows; `onControl` reads `type` and the
+        // arms it does not recognise fall through it untouched.
         const control = parsed as WsControlFrame;
         if (control.type === 'pong' && pongTimer) {
           clearTimeout(pongTimer);
@@ -126,6 +158,9 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): ReconnectingW
   return {
     send(frame) {
       if (ws?.readyState === 1) ws.send(JSON.stringify(frame));
+    },
+    seen(subscription, seq) {
+      opts.subscriptions.update(subscription, seq);
     },
     close() {
       closed = true;

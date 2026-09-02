@@ -9,6 +9,8 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 
+import { type RefusalWords, sentenceForRefusal } from './refusal';
+
 /**
  * How a project turns its three-point estimates into the one number it plans
  * with. Mirrors `EstimateMethod` in `libs/domain`.
@@ -1025,6 +1027,114 @@ export interface CreatedProject {
 }
 
 /**
+ * The project's work items, and the event sequence they were read at.
+ *
+ * The sequence is what a socket resumes from, so it belongs to the read that
+ * produced the rows: taken separately it would describe a different moment
+ * than the tree on screen.
+ */
+export interface PlanRead {
+  workItems: WorkItemView[];
+  seq: number;
+  scheduleError: 'cycle' | null;
+  /**
+   * Every slice the schedule placed, in be-01's own order — what the chart
+   * draws, where the rows carry the spans the columns show.
+   *
+   * Empty when `scheduleError` says the plan could not be scheduled at all,
+   * exactly as the rows' dates go: bars from a plan that no longer computes
+   * would be the same stale lie in a different shape.
+   */
+  slices: SliceView[];
+  /**
+   * The steps the slices above were placed under, in the engine's own order.
+   *
+   * The same list {@link ProjectApi.steps} answers with, carried here so that
+   * a chart drawn from this read never has to pair it with another one. Both
+   * are needed and they are not the same fact: this one describes **these**
+   * slices, and the separate read is what the column headers and the steps
+   * dialog edit.
+   */
+  steps: StepView[];
+  /**
+   * The names of everybody an assignment on these rows points at.
+   *
+   * Not the directory — {@link ProjectApi.listPeople} is that, and the
+   * pickers offer from it. This is who is on the plan that just arrived, so a
+   * bar can be painted and labelled from one moment's answer.
+   */
+  assignedPeople: AssignedPersonView[];
+  /**
+   * How many of each team this plan may have at work at once, for the teams it
+   * has stated a number about.
+   *
+   * Carried on the tree rather than fetched separately, and for a stronger
+   * reason than `steps` has: the dates and bars in this very payload were
+   * computed **from** these numbers, so a second request at a second moment
+   * could put a capacity on screen that does not explain the bars beside it.
+   *
+   * A team with no entry is _unstated_ and bounds nothing. Which teams the plan
+   * is labelled with is a different question, answered by the rows — see
+   * `effectiveTeamOf`.
+   */
+  teamCapacities: TeamCapacityView[];
+  /**
+   * What this project calls its priority numbers — five rungs, most important
+   * first.
+   *
+   * Always five and never empty: a project that has never been configured reads
+   * as be-01's `DEFAULT_PRIORITY_BANDS`, so every priority on this plan resolves
+   * to exactly one label without this client holding a fallback of its own.
+   *
+   * **No date in this payload was computed from it.** The ladder names the
+   * numbers; the leveller orders on the numbers. What it does drive is every
+   * face — the Prio cell, the chart's bars, the cards and the export all read
+   * their label and their colour through the one resolution in
+   * `priority-band-style.ts`.
+   */
+  priorityBands: PriorityBandView[];
+  estimateMethod: EstimateMethod;
+  /**
+   * The arithmetic every figure in this payload came out of: the coefficients
+   * the PERT numbers were weighed by, and the rounding each step's figure was
+   * charged at.
+   *
+   * Reported for {@link depReach}'s reason — a client that guessed would
+   * describe the numbers in front of it with a formula they did not come from
+   * — and written through {@link ProjectApi.setEstimateArithmetic}.
+   */
+  pertWeights: PertWeightsView;
+  estimateRounding: EstimateRoundingView;
+  /**
+   * How far into a predecessor this plan's dependencies reach.
+   *
+   * **Every date in this payload was computed from it**, on be-01, and the
+   * chart draws a dependency arrow out of the slice it names — so it rides
+   * with the slices rather than being read separately. It is reported here
+   * and written through {@link ProjectApi.setDepReach}; nothing sends it with
+   * a read.
+   */
+  depReach: DependencyReach;
+  startDate: string | null;
+  /**
+   * The project row's own revision: its name, restriction, estimate method,
+   * start date and steps. It does not move when a work item does — each
+   * carries its own.
+   */
+  projectRevision: number;
+  /**
+   * Whether **this account** has anything to undo or redo on this project.
+   *
+   * Carried on the tree rather than asked for separately: the tree is
+   * already reread after every change this client makes and every event from
+   * anybody else, which is exactly when these can have moved. A second
+   * endpoint would be a second round trip at the same moments.
+   */
+  undoable: boolean;
+  redoable: boolean;
+}
+
+/**
  * Everything the table does to a project.
  *
  * An interface rather than bare functions so the table can be driven by a fake
@@ -1044,113 +1154,8 @@ export interface ProjectApi {
   openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
   renameProject(id: string, name: string): Promise<void>;
-  /**
-   * The project's work items, and the event sequence they were read at.
-   *
-   * The sequence is what a socket resumes from, so it belongs to the read that
-   * produced the rows: taken separately it would describe a different moment
-   * than the tree on screen.
-   */
-  tree(projectId: string): Promise<{
-    workItems: WorkItemView[];
-    seq: number;
-    scheduleError: 'cycle' | null;
-    /**
-     * Every slice the schedule placed, in be-01's own order — what the chart
-     * draws, where the rows carry the spans the columns show.
-     *
-     * Empty when `scheduleError` says the plan could not be scheduled at all,
-     * exactly as the rows' dates go: bars from a plan that no longer computes
-     * would be the same stale lie in a different shape.
-     */
-    slices: SliceView[];
-    /**
-     * The steps the slices above were placed under, in the engine's own order.
-     *
-     * The same list {@link ProjectApi.steps} answers with, carried here so that
-     * a chart drawn from this read never has to pair it with another one. Both
-     * are needed and they are not the same fact: this one describes **these**
-     * slices, and the separate read is what the column headers and the steps
-     * dialog edit.
-     */
-    steps: StepView[];
-    /**
-     * The names of everybody an assignment on these rows points at.
-     *
-     * Not the directory — {@link ProjectApi.listPeople} is that, and the
-     * pickers offer from it. This is who is on the plan that just arrived, so a
-     * bar can be painted and labelled from one moment's answer.
-     */
-    assignedPeople: AssignedPersonView[];
-    /**
-     * How many of each team this plan may have at work at once, for the teams it
-     * has stated a number about.
-     *
-     * Carried on the tree rather than fetched separately, and for a stronger
-     * reason than `steps` has: the dates and bars in this very payload were
-     * computed **from** these numbers, so a second request at a second moment
-     * could put a capacity on screen that does not explain the bars beside it.
-     *
-     * A team with no entry is _unstated_ and bounds nothing. Which teams the plan
-     * is labelled with is a different question, answered by the rows — see
-     * `effectiveTeamOf`.
-     */
-    teamCapacities: TeamCapacityView[];
-    /**
-     * What this project calls its priority numbers — five rungs, most important
-     * first.
-     *
-     * Always five and never empty: a project that has never been configured reads
-     * as be-01's `DEFAULT_PRIORITY_BANDS`, so every priority on this plan resolves
-     * to exactly one label without this client holding a fallback of its own.
-     *
-     * **No date in this payload was computed from it.** The ladder names the
-     * numbers; the leveller orders on the numbers. What it does drive is every
-     * face — the Prio cell, the chart's bars, the cards and the export all read
-     * their label and their colour through the one resolution in
-     * `priority-band-style.ts`.
-     */
-    priorityBands: PriorityBandView[];
-    estimateMethod: EstimateMethod;
-    /**
-     * The arithmetic every figure in this payload came out of: the coefficients
-     * the PERT numbers were weighed by, and the rounding each step's figure was
-     * charged at.
-     *
-     * Reported for {@link depReach}'s reason — a client that guessed would
-     * describe the numbers in front of it with a formula they did not come from
-     * — and written through {@link ProjectApi.setEstimateArithmetic}.
-     */
-    pertWeights: PertWeightsView;
-    estimateRounding: EstimateRoundingView;
-    /**
-     * How far into a predecessor this plan's dependencies reach.
-     *
-     * **Every date in this payload was computed from it**, on be-01, and the
-     * chart draws a dependency arrow out of the slice it names — so it rides
-     * with the slices rather than being read separately. It is reported here
-     * and written through {@link ProjectApi.setDepReach}; nothing sends it with
-     * a read.
-     */
-    depReach: DependencyReach;
-    startDate: string | null;
-    /**
-     * The project row's own revision: its name, restriction, estimate method,
-     * start date and steps. It does not move when a work item does — each
-     * carries its own.
-     */
-    projectRevision: number;
-    /**
-     * Whether **this account** has anything to undo or redo on this project.
-     *
-     * Carried on the tree rather than asked for separately: the tree is
-     * already reread after every change this client makes and every event from
-     * anybody else, which is exactly when these can have moved. A second
-     * endpoint would be a second round trip at the same moments.
-     */
-    undoable: boolean;
-    redoable: boolean;
-  }>;
+  /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
+  tree(projectId: string): Promise<PlanRead>;
   /**
    * Reverses this account's last change to the project, **if nothing it
    * touched has been written to since**.
@@ -1231,11 +1236,11 @@ export interface ProjectApi {
    * caller saying it has shown those counts to somebody and been told to go on.
    */
   removeStep(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
-  create(
+  createWorkItem(
     projectId: string,
     input: { parentId: string | null; afterId: string | null; name?: string },
   ): Promise<{ id: string }>;
-  patch(
+  patchWorkItem(
     id: string,
     patch: {
       name?: string;
@@ -1385,8 +1390,8 @@ export interface ProjectApi {
   /** Adds a person; no teams means a free agent. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
   /** Sets or (with `null`) clears who does one work item's work for one step. */
-  assign(workItemId: string, stepId: string, personId: string | null): Promise<void>;
-  move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
+  assignPerson(workItemId: string, stepId: string, personId: string | null): Promise<void>;
+  moveWorkItem(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   /**
    * Copies a work item and everything under it, as the next sibling of the
    * original, answering the copy's id.
@@ -1397,8 +1402,8 @@ export interface ProjectApi {
    * frozen numbers, no edges leaving the branch — is be-01's rule, stated in
    * `openspec/changes/duplicate-subtree/`.
    */
-  duplicate(id: string): Promise<{ id: string }>;
-  remove(id: string, options?: DeleteOptions): Promise<void>;
+  duplicateWorkItem(id: string): Promise<{ id: string }>;
+  removeWorkItem(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, stepId: string, days: Days): Promise<void>;
   /**
    * Takes one work item's stored trio for one step back off.
@@ -1408,9 +1413,9 @@ export interface ProjectApi {
    * there is anything there to remove.
    */
   clearEstimate(id: string, stepId: string): Promise<void>;
-  freeze(projectId: string): Promise<void>;
+  freezeProject(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
-  unfreeze(id: string): Promise<void>;
+  unfreezeWorkItem(id: string): Promise<void>;
   /**
    * Records "`predecessorId`'s **anchor** must finish before this starts" —
    * its first step somebody estimated, not the whole of it. The steps behind
@@ -1424,7 +1429,39 @@ export interface ProjectApi {
 /** The header the edge does not read; see `lib/api.ts` for why it is never `Authorization`. */
 const auth = (token: string) => ({ 'content-type': 'application/json', 'x-wbs-token': token });
 
+/**
+ * The GET requests in flight right now, by path.
+ *
+ * A refresh reads the plan and the five global vocabularies together, and a
+ * refresh is started by **every** write and **every** socket frame — so a held
+ * arrow key, or a peer typing, issues the same eight reads again before the
+ * previous eight have landed. Two callers asking for the same URL at the same
+ * moment want the same answer, and this hands them one request instead of two.
+ *
+ * Only GETs, and only while one is in flight: an entry is dropped the moment its
+ * promise settles, so this is request de-duplication and **not** a cache. The
+ * next read after that still goes to be-01, which is what keeps "the plan is
+ * replaced, never patched" true — see `project-stream.ts`.
+ */
+const readsInFlight = new Map<string, Promise<unknown>>();
+
 async function send<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
+  // A GET is the only method it is safe to share: two POSTs to one path are two
+  // different writes however identical they look.
+  const method = init.method ?? 'GET';
+  if (method === 'GET') {
+    const already = readsInFlight.get(path);
+    if (already !== undefined) return already as Promise<T>;
+    const started = sendOnce<T>(path, token, init).finally(() => {
+      readsInFlight.delete(path);
+    });
+    readsInFlight.set(path, started);
+    return started;
+  }
+  return sendOnce<T>(path, token, init);
+}
+
+async function sendOnce<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...init, headers: auth(token) });
   const text = await res.text();
   if (!res.ok) {
@@ -1526,24 +1563,22 @@ async function removeStepAt(path: string, token: string): Promise<StepRemoval> {
  * this takes the code as a string and answers for anything, so there is one
  * fallback and it is here.
  */
-export function stepRefusalSentence(code: string): string {
-  switch (code) {
-    case 'taken':
-      return 'That name is already a step on this plan.';
-    case 'name_required':
-      return 'A step needs a name.';
-    case 'in_use':
-      return 'That step still holds estimates or assignments on this plan.';
-    case 'unknown_step':
-      return 'That step is no longer on this plan — somebody else removed it.';
-    case 'not_found':
-      return 'That step is no longer on this plan.';
-    case 'forbidden':
-      return 'This plan is not yours to change.';
-    default:
-      return `The step could not be changed (${code}).`;
-  }
-}
+/** Exported for `steps-panel.tsx`'s `useSettingsSection` — see {@link PRIORITY_BAND_REFUSALS}. */
+export const STEP_REFUSALS: RefusalWords = {
+  sentences: {
+    taken: 'That name is already a step on this plan.',
+    name_required: 'A step needs a name.',
+    in_use: 'That step still holds estimates or assignments on this plan.',
+    unknown_step: 'That step is no longer on this plan — somebody else removed it.',
+    not_found: 'That step is no longer on this plan.',
+    forbidden: 'This plan is not yours to change.',
+  },
+  // No 5xx arm, deliberately and not by omission: a server failure here reads
+  // as `The step could not be changed (http_502).` and has since this surface
+  // was written. Adding one is a wording change for Dany rather than for a
+  // refactor — see {@link RefusalWords.serverFailure}.
+  otherwise: (code) => `The step could not be changed (${code}).`,
+};
 
 /** A JSON object, as far as anything read off the wire can be said to be one. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1726,31 +1761,30 @@ const SERVER_REFUSAL = 'The server could not save that. Try again.';
  * error is not a word of be-01's and `(http_502)` in the corner of a dialog is
  * the defect `wbs-table.tsx` fixed for `http_500` a week ago.
  */
-export function capacityRefusalSentence(code: string): string {
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (code.startsWith(SIZE_CEILING_CODE)) {
-    return `A plan can have at most ${code.slice(SIZE_CEILING_CODE.length)} of one team at work at once.`;
-  }
-  switch (code) {
+/** Exported for `teams-panel.tsx`'s `useSettingsSection` — see {@link PRIORITY_BAND_REFUSALS}. */
+export const CAPACITY_REFUSALS: RefusalWords = {
+  sentences: {
     // The floor arm, spelled out rather than left to the fallback: this is a box
     // somebody types a *number* into, and `(size_must_be_a_whole_number_from_1)`
     // in the corner of the screen is a wire code where a sentence about their plan
     // belongs. A pool of nobody is a plan of infinite dates, which is why zero is
     // a refusal and an empty box is not.
-    case 'size_must_be_a_whole_number_from_1':
-      return 'How many of a team are at work at once is a whole number of 1 or more. Leave it empty for a team this plan does not limit.';
-    case 'size_required':
-      return 'That change asked for nothing, so nothing was sent.';
-    case 'not_found':
-      return 'That team or this plan is no longer there — somebody else removed it.';
-    case 'forbidden':
-      return 'This plan is restricted, so its capacities cannot be changed from this account.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `That capacity could not be changed (${code}).`;
-  }
-}
+    size_must_be_a_whole_number_from_1:
+      'How many of a team are at work at once is a whole number of 1 or more. Leave it empty for a team this plan does not limit.',
+    size_required: 'That change asked for nothing, so nothing was sent.',
+    not_found: 'That team or this plan is no longer there — somebody else removed it.',
+    forbidden: 'This plan is restricted, so its capacities cannot be changed from this account.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  limits: [
+    {
+      prefix: SIZE_CEILING_CODE,
+      says: (limit) => `A plan can have at most ${limit} of one team at work at once.`,
+    },
+  ],
+  serverFailure: SERVER_REFUSAL,
+  otherwise: (code) => `That capacity could not be changed (${code}).`,
+};
 
 /**
  * What a refused ladder change says out loud.
@@ -1770,37 +1804,46 @@ export function capacityRefusalSentence(code: string): string {
  * `5`, because be-01 builds the code from `PRIORITY_BAND_COUNT` — a literal here
  * would be a second copy of that number, free to drift.
  */
-export function priorityBandRefusalSentence(code: string): string {
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (code.startsWith(BAND_COUNT_CODE)) {
-    return `A priority ladder has exactly ${code.slice(BAND_COUNT_CODE.length)} bands — one cannot be added or taken away.`;
-  }
-  if (code.startsWith(BAND_LABEL_CODE)) {
-    return `A band's name is ${code.slice(BAND_LABEL_CODE.length).replace(/_/g, ' ')}.`;
-  }
-  switch (code) {
-    case 'first_band_must_start_at_1':
-      return 'The most important band has to start at 1, or the priorities below it would have no name.';
-    case 'bands_must_start_in_increasing_order':
-      return 'Each band has to start above the one before it, so every number belongs to exactly one of them.';
-    case 'band_start_must_be_a_whole_number_from_1':
-      return 'A band starts at a whole number of 1 or more.';
-    case 'band_default_must_be_a_whole_number_from_1':
-      return 'The number a band writes is a whole number of 1 or more.';
-    case 'band_default_must_be_inside_its_own_band':
-      return 'The number a band writes has to fall inside that band, or picking its name would land on a different one.';
-    case 'band_labels_must_differ':
-      return 'Two bands cannot share a name — one of the two would do nothing anybody could predict.';
-    case 'not_found':
-      return 'This plan is no longer there — somebody else removed it.';
-    case 'forbidden':
-      return 'This plan is restricted, so its priority bands cannot be changed from this account.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `Those priority bands could not be saved (${code}).`;
-  }
-}
+/**
+ * Exported so `priorities-panel.tsx` can hand it whole to
+ * `useSettingsSection`, which words every refusal that panel can earn.
+ *
+ * There was a `priorityBandRefusalSentence(code)` here until 2026-09-02, and
+ * two siblings beside it; the panels take the table now, so a one-code reader
+ * per surface was three functions doing what `sentenceForRefusal` does.
+ */
+export const PRIORITY_BAND_REFUSALS: RefusalWords = {
+  sentences: {
+    first_band_must_start_at_1:
+      'The most important band has to start at 1, or the priorities below it would have no name.',
+    bands_must_start_in_increasing_order:
+      'Each band has to start above the one before it, so every number belongs to exactly one of them.',
+    band_start_must_be_a_whole_number_from_1: 'A band starts at a whole number of 1 or more.',
+    band_default_must_be_a_whole_number_from_1:
+      'The number a band writes is a whole number of 1 or more.',
+    band_default_must_be_inside_its_own_band:
+      'The number a band writes has to fall inside that band, or picking its name would land on a different one.',
+    band_labels_must_differ:
+      'Two bands cannot share a name — one of the two would do nothing anybody could predict.',
+    not_found: 'This plan is no longer there — somebody else removed it.',
+    forbidden:
+      'This plan is restricted, so its priority bands cannot be changed from this account.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  limits: [
+    {
+      prefix: BAND_COUNT_CODE,
+      says: (limit) =>
+        `A priority ladder has exactly ${limit} bands — one cannot be added or taken away.`,
+    },
+    {
+      prefix: BAND_LABEL_CODE,
+      says: (limit) => `A band's name is ${limit.replace(/_/g, ' ')}.`,
+    },
+  ],
+  serverFailure: SERVER_REFUSAL,
+  otherwise: (code) => `Those priority bands could not be saved (${code}).`,
+};
 
 /**
  * What a refused directory change says out loud.
@@ -1818,24 +1861,23 @@ export function priorityBandRefusalSentence(code: string): string {
  * unrecognised refusal is something to report, and a message that hid it would
  * leave nobody able to say what be-01 answered.
  */
+const DIRECTORY_REFUSALS: RefusalWords = {
+  sentences: {
+    name_required: 'A name cannot be blank.',
+    unknown_team: 'One of those teams is no longer in the directory — somebody else removed it.',
+    not_found: 'That entry is no longer in the directory — somebody else removed it.',
+    nothing_to_change: 'That change asked for nothing, so nothing was sent.',
+    unexpected_response: 'The server replied with something this page could not read.',
+  },
+  // No 5xx arm, for {@link STEP_REFUSALS}'s reason.
+  otherwise: (code) => `The directory could not be changed (${code}).`,
+};
+
 export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
   if (refusal.reason === 'taken') {
     return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
   }
-  switch (refusal.code) {
-    case 'name_required':
-      return 'A name cannot be blank.';
-    case 'unknown_team':
-      return 'One of those teams is no longer in the directory — somebody else removed it.';
-    case 'not_found':
-      return 'That entry is no longer in the directory — somebody else removed it.';
-    case 'nothing_to_change':
-      return 'That change asked for nothing, so nothing was sent.';
-    case 'unexpected_response':
-      return 'The server replied with something this page could not read.';
-    default:
-      return `The directory could not be changed (${refusal.code}).`;
-  }
+  return sentenceForRefusal(DIRECTORY_REFUSALS, refusal.code);
 }
 
 /**
@@ -2008,6 +2050,18 @@ export function httpDirectoryApi(token: string): DirectoryApi {
 }
 
 export function httpProjectApi(token: string): ProjectApi {
+  /**
+   * The directory client, spread into the answer below rather than delegated
+   * method by method: the thirteen vocabulary members {@link ProjectApi} shares
+   * with {@link DirectoryApi} were thirteen one-line forwards until 2026-09-02,
+   * and each of them was a chance to forward the wrong argument. Spread, they
+   * are the same functions the directory page calls.
+   *
+   * `DirectoryApi`'s other eight members (the renames and removals the
+   * directory page owns) come along at runtime and are not on `ProjectApi`, so
+   * nothing typed can reach them from a plan. Segregating them would mean a
+   * third interface for no caller.
+   */
   const directory = httpDirectoryApi(token);
   /**
    * Which project each work item this client has seen belongs to — learned
@@ -2029,6 +2083,7 @@ export function httpProjectApi(token: string): ProjectApi {
     command(projectFor(workItemId), { ...step, workItemId });
 
   return {
+    ...directory,
     async listProjects() {
       const body = await send<{ projects: ProjectListEntry[] }>('/api/projects', token);
       return body.projects;
@@ -2050,24 +2105,7 @@ export function httpProjectApi(token: string): ProjectApi {
       });
     },
     async tree(projectId) {
-      const tree = await send<{
-        workItems: WorkItemView[];
-        seq: number;
-        scheduleError: 'cycle' | null;
-        slices: SliceView[];
-        steps: StepView[];
-        assignedPeople: AssignedPersonView[];
-        teamCapacities: TeamCapacityView[];
-        priorityBands: PriorityBandView[];
-        estimateMethod: EstimateMethod;
-        pertWeights: PertWeightsView;
-        estimateRounding: EstimateRoundingView;
-        depReach: DependencyReach;
-        startDate: string | null;
-        projectRevision: number;
-        undoable: boolean;
-        redoable: boolean;
-      }>(`/api/projects/${projectId}/work-items`, token);
+      const tree = await send<PlanRead>(`/api/projects/${projectId}/work-items`, token);
       for (const row of tree.workItems) projectOf.set(row.id, projectId);
       return tree;
     },
@@ -2077,20 +2115,7 @@ export function httpProjectApi(token: string): ProjectApi {
     redo(projectId) {
       return stepStack(`/api/projects/${projectId}/redo`, token);
     },
-    listTeams: () => directory.listTeams(),
-    addTeam: (name) => directory.addTeam(name),
-    listTags: () => directory.listTags(),
-    listServices: () => directory.listServices(),
-    addService: (name) => directory.addService(name),
-    listWorkItemTypes: () => directory.listWorkItemTypes(),
-    listExternalSystems: () => directory.listExternalSystems(),
-    addWorkItemType: (name) => directory.addWorkItemType(name),
-    addTag: (name) => directory.addTag(name),
-    renameTag: (tagId, name) => directory.renameTag(tagId, name),
-    removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),
-    listPeople: () => directory.listPeople(),
-    addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
-    async assign(workItemId, stepId, personId) {
+    async assignPerson(workItemId, stepId, personId) {
       await onRow(workItemId, { kind: 'setAssignee', stepId, personId });
     },
     async setStartDate(projectId, startDate) {
@@ -2148,19 +2173,19 @@ export function httpProjectApi(token: string): ProjectApi {
         token,
       );
     },
-    async create(projectId, input) {
+    async createWorkItem(projectId, input) {
       const made = onlyResult(await command(projectId, { kind: 'createWorkItem', ...input }));
       if (made.id === undefined) throw new Error('unexpected_response');
       projectOf.set(made.id, projectId);
       return { id: made.id };
     },
-    async patch(id, patch) {
+    async patchWorkItem(id, patch) {
       await onRow(id, { kind: 'patchWorkItem', patch });
     },
-    async move(id, parentId, afterId) {
+    async moveWorkItem(id, parentId, afterId) {
       await onRow(id, { kind: 'moveWorkItem', parentId, afterId });
     },
-    async duplicate(id) {
+    async duplicateWorkItem(id) {
       const projectId = projectFor(id);
       const copy = onlyResult(
         await command(projectId, { kind: 'duplicateWorkItem', workItemId: id }),
@@ -2169,7 +2194,7 @@ export function httpProjectApi(token: string): ProjectApi {
       projectOf.set(copy.id, projectId);
       return { id: copy.id };
     },
-    async remove(id, options) {
+    async removeWorkItem(id, options) {
       await onRow(id, {
         kind: 'deleteWorkItem',
         ...(options?.strategy === undefined ? {} : { strategy: options.strategy }),
@@ -2181,13 +2206,13 @@ export function httpProjectApi(token: string): ProjectApi {
     async clearEstimate(id, stepId) {
       await onRow(id, { kind: 'clearEstimate', stepId });
     },
-    async freeze(projectId) {
+    async freezeProject(projectId) {
       await command(projectId, { kind: 'freezeProject' });
     },
     async unfreezeProject(projectId) {
       await command(projectId, { kind: 'unfreezeProject' });
     },
-    async unfreeze(id) {
+    async unfreezeWorkItem(id) {
       await onRow(id, { kind: 'unfreezeWorkItem' });
     },
     async addDependency(id, predecessorId) {

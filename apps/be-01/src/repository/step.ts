@@ -2,6 +2,7 @@ import { and, eq, inArray, max } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type {
   Assignment,
   NewStep,
@@ -17,34 +18,21 @@ import { bumpProject, bumpWorkItems } from './revision';
 import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem } from './schema';
 
 /**
- * Whether a thrown error is SQLite refusing a second step of the same name in
- * one project.
+ * The columns a {@link Step} is, named once because four reads and writes in
+ * this file and one in `project.ts` want exactly them.
  *
- * The message rather than a typed error, because `bun:sqlite` has no typed
- * one — the same translation `UserRepository.create` makes for usernames. It
- * names the index's columns so that a different constraint failing here is
- * still an unknown, and still throws.
- *
- * The columns are spelled the way SQLite quotes them, which is the **physical**
- * index — `step.project_id, step.name` since
- * `20260831120000_rename_role_to_step`. This string and the migration have to
- * move together: a stale spelling here takes every duplicate step name from a
- * 409 `taken` to an uncaught 500, silently, because the message simply stops
- * matching.
- *
- * Proof: `refuses a name the project already holds, and leaves the steps as
- * they were` and `refuses a rename onto a name already in use, leaving both
- * alone` in `step.test.ts` — both watched failing with this string left at the
- * pre-rename spelling against the renamed schema, on
- * `SQLiteError: UNIQUE constraint failed: step.project_id, step.name` escaping
- * the repository instead of becoming a `taken`. Observed 2026-08-31.
+ * Spelled out rather than left to `select()`, which is this folder's convention
+ * (see `WORK_ITEM_COLUMNS`): the audit columns are **recorded, not published**,
+ * so a bare select would put `created_at`, `updated_at` and `created_by` into
+ * `Step` and from there into the plan payload. The declared return types check
+ * the list is complete.
  */
-function isDuplicateName(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    err.message.includes('UNIQUE constraint failed: step.project_id, step.name')
-  );
-}
+export const STEP_COLUMNS = {
+  id: step.id,
+  projectId: step.projectId,
+  name: step.name,
+  position: step.position,
+};
 
 /**
  * Every assignment in one project, read through the work items that hold them.
@@ -65,6 +53,45 @@ function assignmentsIn(reader: Pick<SQLiteBunDatabase, 'select'>, projectId: str
     .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
     .where(eq(workItem.projectId, projectId))
     .all();
+}
+
+/** What a step holds, counted for that step alone. */
+export interface StepHoldings {
+  estimates: number;
+  actuals: number;
+  progress: number;
+  measures: number;
+  assignments: number;
+}
+
+/**
+ * Whether removing this step would take a statement with it.
+ *
+ * **One function because there are two callers and they had drifted.**
+ * `StepService.remove` refuses early so a reader is asked to confirm before a
+ * transaction opens, and the transaction below refuses again because the early
+ * answer can be stale by the time the deletes would run. Those are two moments,
+ * deliberately — but they are one rule, and the early one had been written as
+ * `estimates > 0 || assignments > 0`. A step holding only recorded days, or only
+ * progress, or only measures was let through the gate and refused by the
+ * transaction instead, so a reader saw a generic failure where they were owed
+ * the "this would take N statements" confirmation. {@link StepUsageRows.actuals}
+ * argues at length that exactly that case must refuse.
+ *
+ * Proof: with the `actuals` term dropped, `refuses a step holding only recorded
+ * days at the gate, before a transaction opens` fails on
+ * `expect(received).toMatchObject(expected) · - "ok": false · + "ok": true` —
+ * both callers ask this function, so a missing term deletes the step rather
+ * than merely letting it past the gate (2026-09-02).
+ */
+export function stepIsInUse(held: StepHoldings): boolean {
+  return (
+    held.estimates > 0 ||
+    held.actuals > 0 ||
+    held.progress > 0 ||
+    held.measures > 0 ||
+    held.assignments > 0
+  );
 }
 
 /**
@@ -96,33 +123,15 @@ export class StepRepository implements StepStore {
    * its name sorts` fails with `Analysis, Dev, QA`; watched 2026-08-09.
    */
   listByProject(projectId: string): Promise<Step[]> {
-    // Projected, like every read that crosses this boundary: the audit columns
-    // are recorded and not published, so a bare `select()` would put three
-    // fields nobody asked for into `Step` and from there into the payload. The
-    // declared return type checks the list is complete.
     return this.db
-      .select({
-        id: step.id,
-        projectId: step.projectId,
-        name: step.name,
-        position: step.position,
-      })
+      .select(STEP_COLUMNS)
       .from(step)
       .where(eq(step.projectId, projectId))
       .orderBy(step.position, step.id);
   }
 
   async findById(stepId: string): Promise<Step | null> {
-    const rows = await this.db
-      .select({
-        id: step.id,
-        projectId: step.projectId,
-        name: step.name,
-        position: step.position,
-      })
-      .from(step)
-      .where(eq(step.id, stepId))
-      .limit(1);
+    const rows = await this.db.select(STEP_COLUMNS).from(step).where(eq(step.id, stepId)).limit(1);
     return rows.at(0) ?? null;
   }
 
@@ -136,7 +145,7 @@ export class StepRepository implements StepStore {
    * at the same moment cannot both be told the same last position — one of them
    * would then sort by id, which is a UUID, which is no order at all.
    *
-   * Proof: with the `isDuplicateName` branch removed, `refuses a name the
+   * Proof: with the `stepNameInProject` unique-violation branch removed, `refuses a name the
    * project already holds, and leaves the steps as they were` fails with the
    * raw `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this
    * translation exists to prevent. With `bumpProject` removed, `adds a step and
@@ -163,7 +172,8 @@ export class StepRepository implements StepStore {
         return { ok: true, step: written };
       });
     } catch (err) {
-      if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject))
+        return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -186,12 +196,7 @@ export class StepRepository implements StepStore {
           .update(step)
           .set({ name, ...auditOnUpdate(stamp) })
           .where(eq(step.id, stepId))
-          .returning({
-            id: step.id,
-            projectId: step.projectId,
-            name: step.name,
-            position: step.position,
-          })
+          .returning(STEP_COLUMNS)
           .all();
         const renamed = rows.at(0);
         // Nothing was updated, so there is no step by that id — and nothing to
@@ -202,7 +207,8 @@ export class StepRepository implements StepStore {
         return { ok: true, step: renamed };
       });
     } catch (err) {
-      if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject))
+        return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -370,24 +376,22 @@ export class StepRepository implements StepStore {
         .from(assignment)
         .where(inArray(assignment.stepId, stepInProject))
         .all();
-      if (
-        !cascade &&
-        (estimated.length > 0 ||
-          recorded.length > 0 ||
-          spoken.length > 0 ||
-          measured.length > 0 ||
-          assigned.length > 0)
-      ) {
+      const held: StepHoldings = {
+        estimates: estimated.length,
+        actuals: recorded.length,
+        progress: spoken.length,
+        measures: measured.length,
+        assignments: assigned.length,
+      };
+      if (!cascade && stepIsInUse(held)) {
         return {
           ok: false,
           reason: 'in_use',
-          usage: {
-            estimates: estimated.length,
-            actuals: recorded.length,
-            progress: spoken.length,
-            measures: measured.length,
-            assignments: assignmentsIn(tx, projectId),
-          },
+          // Every count but the assignments is the one just tested. The
+          // assignments are re-read across the whole project rather than for
+          // this step, because the caller reports assumed-assignee flips from
+          // them and those are a fact about rows this step does not hold.
+          usage: { ...held, assignments: assignmentsIn(tx, projectId) },
         };
       }
       tx.delete(estimate).where(inArray(estimate.stepId, stepInProject)).run();

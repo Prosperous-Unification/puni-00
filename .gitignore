@@ -2,6 +2,10 @@ node_modules/
 dist/
 coverage/
 .nx/cache
+# ESLint caches written by the `lint:fast` targets. Never by `lint`: the gate
+# and CI must not trust a cache, because a type change in one project can stale
+# another's `no-unsafe-*` verdict.
+.nx/eslintcache-*
 .nx/workspace-data
 *.tsbuildinfo
 routeTree.gen.ts
@@ -22,6 +26,12 @@ pnpm-lock.yaml
 .idea/
 
 vite.config.*.timestamp*
+# And vitest's, which the line above does not match: the file is
+# `vitest.config.ts.timestamp-…mjs`, and `vite.config.*` stops at the `s`.
+# Written by every `vitest run` that loads a TS config and deleted seconds
+# later, so it is only ever visible to whatever looks at the tree in that
+# window — a `git add -A` mid-run being the one that matters.
+vitest.config.*.timestamp*
 
 # What the browser layout gate leaves behind: the screenshot CI uploads, the
 # traces, and the HTML report. Diagnostics of one run, never of the repo.

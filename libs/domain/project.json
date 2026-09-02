@@ -11,8 +11,20 @@
         "command": "bunx eslint libs/domain/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/domain/src --cache --cache-location .nx/eslintcache-domain"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/be-01/drizzle/*/migration.sql",
+        "{workspaceRoot}/docs/adr/*.md"
+      ],
       "options": {
         "command": "bun test --coverage --coverage-reporter=lcov",
         "cwd": "libs/domain"
@@ -22,7 +34,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p libs/domain/tsconfig.json"
+        "command": "bunx tsc --build --force libs/domain/tsconfig.json"
       }
     }
   }

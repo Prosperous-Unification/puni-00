@@ -1,3 +1,5 @@
+import { APP_NAME, PORT } from '@wbs/deploy-contract';
+
 import { resolveColor } from './color';
 
 /** No fetch in this file waits longer than this before failing. */
@@ -32,8 +34,9 @@ export interface HealthCheck {
  * tool-smoke:smoke` blocked indefinitely — the same failure class as a
  * check that always silently passes: both hide a real problem instead of
  * reporting it. Mirrors `tools/tool-remote-scripts/src/lib/health.ts`'s
- * `AbortController` + `setTimeout` pattern (not imported directly: no path
- * alias wires that project as an importable entry point from here).
+ * `AbortController` + `setTimeout` pattern (not imported directly — this is a
+ * different fetch with a different timeout, and `@wbs/deploy-contract` carries
+ * the names and ports rather than the fetching).
  */
 async function fetchWithTimeout(
   url: string,
@@ -70,8 +73,14 @@ function targetUrl(
  */
 export function resolveTargets(env: NodeJS.ProcessEnv = process.env): HealthTarget[] {
   return [
-    { name: 'be-01', url: targetUrl(env, 'SMOKE_BE_URL', 'be-01', 3100, '/health') },
-    { name: 'gw-01', url: targetUrl(env, 'SMOKE_GW_URL', 'gw-01', 3200, '/health') },
+    {
+      name: APP_NAME.be,
+      url: targetUrl(env, 'SMOKE_BE_URL', APP_NAME.be, PORT.be, '/health'),
+    },
+    {
+      name: APP_NAME.gw,
+      url: targetUrl(env, 'SMOKE_GW_URL', APP_NAME.gw, PORT.gw, '/health'),
+    },
     {
       name: 'fe-01',
       url: targetUrl(env, 'SMOKE_FE_URL', 'fe-01', 80, '/'),
@@ -135,7 +144,7 @@ export async function runHealthChecks(
  * repeatedly has no side effects.
  */
 export function resolveInternalForwardUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return targetUrl(env, 'SMOKE_INTERNAL_URL', 'be-01', 3100, '/internal/forward');
+  return targetUrl(env, 'SMOKE_INTERNAL_URL', APP_NAME.be, PORT.be, '/internal/forward');
 }
 
 export interface InternalForwardCheck {

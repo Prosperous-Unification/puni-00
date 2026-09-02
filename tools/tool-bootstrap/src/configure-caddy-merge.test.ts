@@ -312,7 +312,7 @@ const runShippedScript = (
   }
   const env = Object.fromEntries(
     Object.entries<string | null>({
-      PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      PATH: `${bin}:${process.env['PATH'] ?? '/usr/bin:/bin'}`,
       WBS_ROOT: root,
       ...BASE_ENV,
       ...overrides,
@@ -354,7 +354,7 @@ const runMerge = (
   const res = spawnSync('/bin/sh', [script, root], {
     encoding: 'utf8',
     env: {
-      PATH: process.env.PATH ?? '/usr/bin:/bin',
+      PATH: process.env['PATH'] ?? '/usr/bin:/bin',
       ...(opts.failGrepNth ? { FAIL_GREP_NTH: String(opts.failGrepNth) } : {}),
     },
   });
@@ -379,7 +379,9 @@ const importsOf = (text: string): string[] =>
     .filter((l) => l.startsWith('import '));
 
 const OWNED = ['import log-redact.caddy', 'import site.caddy'];
-const RUNNING_AS_ROOT = process.getuid() === 0;
+// `getuid` is absent on platforms that have no uid at all; this suite's root
+// cases are skipped there rather than crashing on the call.
+const RUNNING_AS_ROOT = process.getuid?.() === 0;
 
 describe('configure.sh Caddyfile merge, executed', () => {
   it('slices the shipped block rather than a copy of it', () => {

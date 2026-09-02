@@ -1,5 +1,6 @@
-import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt } from 'drizzle-orm';
 
+import { rowsChanged } from './changes';
 import type { Drizzle } from './db';
 import type { PlanEvent, PlanEventFilter, PlanEventStore } from './index';
 import { planEvent, type PlanEventRow } from './schema';
@@ -63,17 +64,24 @@ export class PlanEventRepository implements PlanEventStore {
    * this same file and a concurrent insert between them lands in the difference
    * and reports as a deletion.
    *
-   * No row back from `SELECT changes()` throws rather than reading as zero. A
-   * sweep that deleted a year of history and reported none is the shape of
-   * failure a retention timer must not be able to have.
+   * No row back from `SELECT changes()` throws rather than reading as zero —
+   * see {@link rowsChanged}. A sweep that deleted a year of history and
+   * reported none is the shape of failure a retention timer must not be able to
+   * have.
    */
   async pruneOlderThan(cutoff: number): Promise<number> {
-    await this.db.delete(planEvent).where(lt(planEvent.createdAt, cutoff));
-    const changed = this.db.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
-    if (changed === undefined) {
-      throw new Error('SELECT changes() answered no row after deleting from plan_event');
-    }
-    return changed.n;
+    await Promise.resolve();
+    // **One transaction over the delete and its count**, which is the whole
+    // point of the pairing: `changes()` answers about the last statement this
+    // connection ran, and this method used to `await` between the two. Nothing
+    // else in be-01 writes without the write lock — but the retention sweep
+    // does not hold it, so a plan command landing in that window would have
+    // handed its own row count to the sweep's log line. The four satellite
+    // stores already did it this way; these two did not.
+    return this.db.transaction((tx) => {
+      tx.delete(planEvent).where(lt(planEvent.createdAt, cutoff)).run();
+      return rowsChanged(tx, 'deleting from plan_event');
+    });
   }
 }
 

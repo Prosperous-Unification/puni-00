@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { callerGuard } from '../middleware/caller';
 import type { PlanEventFilter } from '../repository';
 import type { AuthService } from '../service/auth.service';
 import type { HistoryService } from '../service/history.service';
@@ -46,31 +46,26 @@ function filterFrom(query: Record<string, string | undefined>): PlanEventFilter 
  * nothing on screen is stale because somebody's edit was recorded, and a plan
  * edited all week would put a thousand rows nobody asked for into every tree read.
  *
- * Registered beside `capacityController` and `priorityBandController` for their
- * reason: it shares `projectController`'s prefix, `/:id/history` cannot be
- * shadowed by anything that route declares, and adjacency is what makes that
- * checkable at a glance.
+ * Registered after `projectController`, whose prefix it shares: `/:id/history`
+ * cannot be shadowed by anything that route declares, and adjacency is what
+ * makes that checkable at a glance.
  *
  * Open to every authenticated account, like every other read. `HistoryService`
  * owns the absent-project answer so there is one copy of the rule.
  */
 export function historyController(auth: AuthService, history: HistoryService) {
-  return new Elysia({ prefix: '/api/projects' }).get(
+  return new Elysia({ prefix: '/api/projects' }).use(callerGuard(auth)).get(
     '/:id/history',
-    async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
+    async ({ params, query, set }) => {
       const outcome = await history.read(params.id, filterFrom(query));
       if (!outcome.ok) {
         set.status = 404;
         return { error: outcome.reason };
       }
-      return { events: outcome.result };
+      return { events: outcome.value };
     },
     {
+      caller: 'signed-in',
       // Declared as a schema rather than left to the handler's raw `query`, which
       // is how `?cascade=true` is read two controllers over. The reason is the
       // committed document: Elysia derives a route's parameters from the route

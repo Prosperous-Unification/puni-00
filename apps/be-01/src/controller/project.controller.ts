@@ -1,11 +1,12 @@
 import { DEPENDENCY_REACHES, ESTIMATE_METHODS, ESTIMATE_ROUNDINGS } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { callerGuard } from '../middleware/caller';
 import type { Project } from '../repository';
 import type { AuthService } from '../service/auth.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
+import { statusForRefusal } from './refusal-status';
 
 /** Types only, for the same reason as authController: rules live in the service. */
 const newProject = t.Object({ name: t.String() });
@@ -97,115 +98,84 @@ export function projectController(
   projects: ProjectService,
   workItems: WorkItemService,
 ) {
+  const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api/projects' })
+    .use(callerGuard(auth))
+    .post('/', async ({ body, user }) => projects.create(body.name, user.id), {
+      ...signedIn,
+      body: newProject,
+    })
+    .get('/', async ({ user }) => ({ projects: await projects.list(user.id) }), signedIn)
     .post(
-      '/',
-      async ({ body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
+      '/:id/opened',
+      async ({ params, user, set }) => {
+        // No authorisation check beyond authentication: this is the caller's own
+        // navigation history, and every account may already read every project.
+        // See `ProjectService.open`.
+        const recorded = await projects.open(params.id, user.id);
+        if (!recorded) {
+          set.status = 404;
+          return { error: 'not_found' };
         }
-        return projects.create(body.name, user.id);
+        set.status = 204;
+        return null;
       },
-      { body: newProject },
+      signedIn,
     )
-    .get('/', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { projects: await projects.list(user.id) };
-    })
-    .post('/:id/opened', async ({ params, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // No authorisation check beyond authentication: this is the caller's own
-      // navigation history, and every account may already read every project.
-      // See `ProjectService.open`.
-      const recorded = await projects.open(params.id, user.id);
-      if (!recorded) {
-        set.status = 404;
-        return { error: 'not_found' };
-      }
-      set.status = 204;
-      return null;
-    })
-    .get('/:id/export', async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      if (!user.scopes.includes('read')) {
-        set.status = 403;
-        return { error: 'insufficient_scope' };
-      }
-      const format = query['format'];
-      if (format !== 'json' && format !== 'markdown') {
-        set.status = 400;
-        return { error: 'unsupported_format' };
-      }
-      const found = await projects.read(params.id);
-      if (found === null) {
-        set.status = 404;
-        return { error: 'not_found' };
-      }
-      const tree = await workItems.tree(params.id);
-      if (tree === null) {
-        set.status = 404;
-        return { error: 'not_found' };
-      }
-      if (format === 'markdown') {
-        set.headers['content-type'] = 'text/markdown; charset=utf-8';
-        return projectMarkdown(found.project, tree.workItems);
-      }
-      set.headers['content-type'] = 'application/json; charset=utf-8';
-      return { project: found.project, ...tree };
-    })
-    .get('/:id', async ({ params, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const found = await projects.read(params.id);
-      if (found === null) {
-        set.status = 404;
-        return { error: 'not_found' };
-      }
-      return found;
-    })
+    .get(
+      '/:id/export',
+      async ({ params, query, set }) => {
+        const format = query['format'];
+        if (format !== 'json' && format !== 'markdown') {
+          set.status = 400;
+          return { error: 'unsupported_format' };
+        }
+        const found = await projects.read(params.id);
+        if (found === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        const tree = await workItems.tree(params.id);
+        if (tree === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        if (format === 'markdown') {
+          set.headers['content-type'] = 'text/markdown; charset=utf-8';
+          return projectMarkdown(found.project, tree.workItems);
+        }
+        set.headers['content-type'] = 'application/json; charset=utf-8';
+        return { project: found.project, ...tree };
+      },
+      { caller: 'read-scope' },
+    )
+    .get(
+      '/:id',
+      async ({ params, set }) => {
+        const found = await projects.read(params.id);
+        if (found === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        return found;
+      },
+      signedIn,
+    )
     .patch(
       '/:id',
-      async ({ params, body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
-        }
+      async ({ params, body, user, set }) => {
         const outcome = await projects.update(params.id, user.id, body);
         if (!outcome.ok) {
-          // 403 rather than 404 for a restricted project: the caller may read
-          // it, so pretending it is absent would contradict the next GET. A
-          // date that is not a day is the caller's mistake, not a missing row.
-          // 422 for both of the caller's own mistakes — a date that is not a
-          // day, and weights that cannot average a triple — and 404 for a row
-          // that is not there.
-          set.status =
-            outcome.reason === 'forbidden'
-              ? 403
-              : outcome.reason === 'bad_start_date' || outcome.reason === 'bad_pert_weights'
-                ? 422
-                : 404;
+          // 422 is this route's default, and it is the caller's own two
+          // mistakes: a date that is not a day, and weights that cannot average
+          // a triple. `forbidden` and `not_found` are the shared arms — see
+          // {@link statusForRefusal} for why a restricted project is 403 and
+          // not 404.
+          set.status = statusForRefusal(outcome.reason, 422);
           return { error: outcome.reason };
         }
-        return { project: outcome.result };
+        return { project: outcome.value };
       },
-      { body: projectPatch },
+      { ...signedIn, body: projectPatch },
     );
 }

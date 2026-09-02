@@ -91,7 +91,7 @@ export class TagAncestryCycleError extends Error {
  * walks over two fields and neither reads the other.
  *
  * **What a tag is not:** nothing here is a pool and nothing here is a size. No
- * caller below `slicesOf` exists, `service/schedule.ts` has an empty diff in the
+ * caller below `slicesOf` exists, `libs/domain/src/schedule.ts` has an empty diff in the
  * change that adds this, and a test wires the scheduler to read a tag and
  * watches every downstream date move to keep it that way. A team answers _who
  * does the work_ and the engine spends its capacity; a tag answers _what kind of

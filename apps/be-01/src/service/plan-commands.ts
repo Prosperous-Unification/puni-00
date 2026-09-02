@@ -1,3 +1,4 @@
+import type { DeferringBroadcaster, HeldAnnouncement } from './broadcast';
 import type { CapacityService } from './capacity.service';
 import type { DirectoryService } from './directory.service';
 import type { OuterTransaction } from './outer-transaction';
@@ -12,7 +13,7 @@ import type { WriteLock } from './write-lock';
  * the browser's `addTeam`/`renameTag` answer with the row, and a second read
  * for what the batch just wrote would be the round trip this route removes.
  */
-export interface BatchResult {
+export interface AppliedCommand {
   index: number;
   ref?: string;
   id?: string;
@@ -33,7 +34,7 @@ export interface BatchRefusal {
 }
 
 export type BatchOutcome =
-  | { ok: true; results: BatchResult[]; undoable: boolean; redoable: boolean }
+  | { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean }
   | BatchRefusal;
 
 export interface PlanCommandRunnerOptions {
@@ -43,6 +44,12 @@ export interface PlanCommandRunnerOptions {
   priorityBands: PriorityBandService;
   transactions: OuterTransaction;
   lock: WriteLock;
+  /**
+   * The broadcaster the directory, capacity and priority-band services publish
+   * through, so this runner can hold their announcements until the batch has
+   * committed and let go of the lock. See {@link DeferringBroadcaster}.
+   */
+  announcements: DeferringBroadcaster;
 }
 
 /** The kinds that need no project: the directory's. */
@@ -114,49 +121,82 @@ export class PlanCommandRunner {
    * `plan-commands.test.ts` › lets go of the write lock before the broadcast
    * leaves — with the announce inside `lock.run` the second batch waited on a
    * publish held open and the test timed out.
+   *
+   * That rule used to be this method's alone, and three services it calls broke
+   * it by publishing from inside `applyAll`. They publish through
+   * {@link DeferringBroadcaster} now, held for the length of the transaction and
+   * drained here — so the rule is one mechanism rather than four conventions.
+   *
+   * **The hold sits inside `lock.run`, not around it**, and that is not a
+   * detail: `execute` runs concurrently for every queued batch and only the lock
+   * makes one-at-a-time true. Held around the lock, a second batch opened a hold
+   * while the first still waited for it, and the queue is process-wide.
+   * Proof: with `hold` moved outside, `lets go of the write lock before the
+   * broadcast leaves` and `applies a rename queued behind a refused batch, after
+   * it` both failed on `error: a batch is already holding announcements`;
+   * watched 2026-09-02.
    */
   private async execute(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
   ): Promise<BatchOutcome> {
-    const applied = await this.opts.lock.run(
-      async (): Promise<BatchOutcome | Collected<BatchResult[]>> => {
+    const { announcements } = this.opts;
+    const done = await this.opts.lock.run(
+      async (): Promise<{
+        applied: BatchOutcome | Collected<AppliedCommand[]>;
+        pending: HeldAnnouncement[];
+      }> => {
         const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
         if (over !== undefined) {
           return {
-            ok: false,
-            at: MOST_COMMANDS_IN_A_BATCH,
-            kind: over.kind,
-            reason: 'too_many_commands',
+            applied: {
+              ok: false,
+              at: MOST_COMMANDS_IN_A_BATCH,
+              kind: over.kind,
+              reason: 'too_many_commands',
+            },
+            pending: [],
           };
         }
         const { workItems, transactions } = this.opts;
         transactions.begin();
-        let collected;
-        try {
-          collected = await workItems.collect(() => this.applyAll(projectId, actorId, commands));
-          if (projectId !== null) {
-            await workItems.recordCollected(projectId, actorId, collected.recordings);
-          }
-        } catch (cause) {
-          transactions.rollback();
-          if (cause instanceof Refused) {
-            return {
-              ok: false,
-              at: cause.at,
-              kind: cause.kind,
-              reason: cause.reason,
-              ...(cause.detail === undefined ? {} : { detail: cause.detail }),
-            };
-          }
-          throw cause;
-        }
+        const held = await announcements.hold(
+          async (): Promise<BatchOutcome | Collected<AppliedCommand[]>> => {
+            try {
+              const collected = await workItems.collect(() =>
+                this.applyAll(projectId, actorId, commands),
+              );
+              if (projectId !== null) {
+                await workItems.recordCollected(projectId, actorId, collected.recordings);
+              }
+              return collected;
+            } catch (cause) {
+              transactions.rollback();
+              if (cause instanceof Refused) {
+                return {
+                  ok: false,
+                  at: cause.at,
+                  kind: cause.kind,
+                  reason: cause.reason,
+                  ...(cause.detail === undefined ? {} : { detail: cause.detail }),
+                };
+              }
+              throw cause;
+            }
+          },
+        );
+        // A refusal already rolled the transaction back, so whatever it queued
+        // describes writes that are not there. Dropped rather than sent.
+        if ('ok' in held.result) return { applied: held.result, pending: [] };
         transactions.commit();
-        return collected;
+        return { applied: held.result, pending: held.pending };
       },
     );
+    const { applied, pending } = done;
     if ('ok' in applied) return applied;
+    // Out of the lock and after the commit, which is what the whole hold is for.
+    await announcements.send(pending);
     const { workItems } = this.opts;
     if (projectId === null)
       return { ok: true, results: applied.result, undoable: false, redoable: false };
@@ -210,9 +250,9 @@ export class PlanCommandRunner {
     scope: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
-  ): Promise<BatchResult[]> {
+  ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
-    const results: BatchResult[] = [];
+    const results: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
       // A plan command in a batch with no project has nowhere to land.
       const projectId: string = (() => {
@@ -244,14 +284,14 @@ export class PlanCommandRunner {
         ...(given ?? []),
         ...(named ?? []).map((ref) => required(undefined, ref)),
       ];
-      const mint = (ref: string | undefined, created: string): BatchResult => {
+      const mint = (ref: string | undefined, created: string): AppliedCommand => {
         if (ref !== undefined) {
           if (refs.has(ref)) refuse('duplicate_ref');
           refs.set(ref, created);
         }
         return { index, ref, id: created };
       };
-      const plain = (): BatchResult => ({ index });
+      const plain = (): AppliedCommand => ({ index });
       const { workItems, directory, capacity, priorityBands } = this.opts;
       // A refusal's own fields ride along: `{ ok: false, reason: 'taken', name }`
       // becomes `detail: { name }`, `in_use`'s `usage` the same way.
@@ -264,13 +304,13 @@ export class PlanCommandRunner {
         delete rest['reason'];
         return Object.keys(rest).length === 0 ? undefined : rest;
       };
-      const reasonOf = <T>(outcome: { ok: true; result: T } | { ok: false; reason: string }): T =>
-        outcome.ok ? outcome.result : refuse(outcome.reason, detailOf(outcome));
-      const done = (outcome: { ok: true } | { ok: false; reason: string }): BatchResult => {
+      const reasonOf = <T>(outcome: { ok: true; value: T } | { ok: false; reason: string }): T =>
+        outcome.ok ? outcome.value : refuse(outcome.reason, detailOf(outcome));
+      const done = (outcome: { ok: true } | { ok: false; reason: string }): AppliedCommand => {
         if (!outcome.ok) refuse(outcome.reason, detailOf(outcome));
         return plain();
       };
-      const entity = (result: BatchResult, value: unknown): BatchResult => ({
+      const entity = (result: AppliedCommand, value: unknown): AppliedCommand => ({
         ...result,
         entity: value,
       });

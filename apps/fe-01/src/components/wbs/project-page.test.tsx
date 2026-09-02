@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { ProjectPage } from './project-page';
 
@@ -283,41 +284,46 @@ describe('the header bar', () => {
     expect(bar.contains(picker())).toBe(true);
   });
 
-  itDom('tells the presence slot which project is open, and when none is', async () => {
-    // The roster is a project's (F4): gw-01 scopes it by the project the
-    // socket subscribed to, and the selection lives here, so the panel cannot
-    // be a finished node handed down from `App`.
+  itDom('hands the presence slot the roster, and an empty one before any socket', async () => {
+    // The roster is a project's (F4): gw-01 scopes it by the project the socket
+    // subscribed to. Until 2026-09-02 the slot was handed the **selection** and
+    // the panel opened its own socket per project; the panel is presentational
+    // now and this page owns the roster, because the stream that carries it is
+    // the table's and this page renders both halves of the screen.
     //
-    // Proof: `presence?.(selected)` in `project-page.tsx` put back to passing
+    // Proof: `presence?.(roster)` in `project-page.tsx` put back to passing
     // `presence` straight through as a node. This test failed on
-    // `expect(asked[0]).toBeNull()` — `expected undefined to be null`, the slot
-    // never called at all — and `gives the header the slots the app fills` failed
-    // beside it on `Unable to find an element with the text: who is here`,
-    // because a function React is handed as a child renders nothing. Watched
-    // 2026-08-09.
-    const asked: (string | null)[] = [];
+    // `expect(asked[0]).toEqual({ users: [], connected: false })` — `expected
+    // undefined to deeply equal …`, the slot never called at all — and `gives
+    // the header the slots the app fills` failed beside it on `Unable to find
+    // an element with the text: who is here`, because a function React is
+    // handed as a child renders nothing. Watched 2026-08-09, and again over the
+    // roster 2026-09-02.
+    const asked: { users: readonly string[]; connected: boolean }[] = [];
     render(
       <ProjectPage
         token="t"
         api={fakeProjects(TWO)}
-        presence={(projectId) => {
-          asked.push(projectId);
-          return <p>who is in {projectId ?? 'nothing'}</p>;
+        presence={(roster) => {
+          asked.push(roster);
+          return (
+            <p>who is here: {roster.users.length === 0 ? 'nobody' : roster.users.join(', ')}</p>
+          );
         }}
       />,
     );
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
-    // Two projects, so nothing is auto-selected and the first ask is honest
-    // about it.
-    expect(asked[0]).toBeNull();
-    expect(screen.getByText('who is in nothing')).toBeDefined();
+
+    // Nothing has subscribed yet, and the honest roster for that is empty and
+    // disconnected rather than a stale list under a new project's name.
+    expect(asked[0]).toEqual({ users: [], connected: false });
+    expect(screen.getByText('who is here: nobody')).toBeDefined();
 
     await selectProject('p2');
 
-    expect(asked.at(-1)).toBe('p2');
-    expect(screen.getByText('who is in p2')).toBeDefined();
+    expect(asked.at(-1)?.users).toEqual([]);
   });
 
   itDom('leaves the table out of the banner and in the page’s main', async () => {
@@ -353,12 +359,7 @@ describe('the chosen project survives a refresh', () => {
     const api = fakeProjects(TWO);
     // What the guard prevents is the table asking be-01 for the deleted
     // project's tree.
-    const asked: string[] = [];
-    const realTree = api.tree.bind(api);
-    api.tree = (projectId) => {
-      asked.push(projectId);
-      return realTree(projectId);
-    };
+    const asked = recordCalls(api, 'tree', (projectId) => projectId);
     pageWith(api);
 
     await waitFor(() => {
@@ -468,12 +469,7 @@ describe('the picker searches', () => {
 
   itDom('chooses with the keyboard alone, and shows that project’s table', async () => {
     const api = fakeProjects(TWO);
-    const asked: string[] = [];
-    const realTree = api.tree.bind(api);
-    api.tree = (projectId) => {
-      asked.push(projectId);
-      return realTree(projectId);
-    };
+    const asked = recordCalls(api, 'tree', (projectId) => projectId);
     pageWith(api);
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();

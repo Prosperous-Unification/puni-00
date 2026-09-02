@@ -4,13 +4,14 @@ import type { NumberedWorkItem } from './work-item.service';
 /**
  * What subscribers to `project:<id>` receive.
  *
- * Two shapes rather than one for the work items, because they cost differently.
- * A cell edit touches one work item and its ancestors' totals, and that is a
- * small patch worth computing. A structural change can renumber a large slice of
- * the project — every sibling after an insertion, every child of a repadded
- * parent — and working out the minimal set is fiddly code that would be wrong in
- * rare cases. A work breakdown is hundreds of rows and structural edits are
- * rare, so sending the tree is the cheaper mistake.
+ * One shape for the work items, and it is the whole tree. There were two: a
+ * cell edit was to send the touched row and its ancestors, a structural change
+ * the tree. The command bus retired the small one. Every write now arrives
+ * through `PlanCommandRunner`, which collects a batch and announces **once**
+ * after the transaction commits — and a batch is any set of rows at all, so
+ * there is no per-row change left to describe. The narrow shape survived
+ * unreachable for two releases before it was deleted; a whole plan is hundreds
+ * of rows and one read after a write is the cheaper mistake.
  *
  * The three step events carry the step and **not** the tree, even though
  * removing one deletes estimates from it. A client reads the project's steps and
@@ -20,7 +21,6 @@ import type { NumberedWorkItem } from './work-item.service';
  * has not read yet.
  */
 export type ProjectEvent =
-  | { type: 'work_items_changed'; workItems: NumberedWorkItem[] }
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
   | { type: 'step_added'; step: Step }
   | { type: 'step_renamed'; step: Step }
@@ -104,21 +104,90 @@ export interface Broadcaster {
   latestSeq(projectId: string): Promise<number>;
 }
 
-/** The work item and every ancestor above it, whose roll-ups its change moved. */
-export function withAncestors(
-  workItems: readonly NumberedWorkItem[],
-  id: string,
-): NumberedWorkItem[] {
-  const byId = new Map(workItems.map((w) => [w.id, w]));
-  const chain: NumberedWorkItem[] = [];
-  // `string | null`, not `| undefined`: a parentId is null at the root and never
-  // absent. The `byId` lookup below is the one that can genuinely miss.
-  let cursor: string | null = id;
-  while (cursor !== null) {
-    const found = byId.get(cursor);
-    if (found === undefined) break;
-    chain.push(found);
-    cursor = found.parentId;
+/** One announcement waiting for its batch to commit and let go of the lock. */
+export interface HeldAnnouncement {
+  projectId: string;
+  event: ProjectEvent;
+}
+
+/**
+ * A {@link Broadcaster} that can hold a batch's announcements back.
+ *
+ * `PlanCommandRunner` states the rule its own broadcast follows: the lock covers
+ * the transaction and nothing after it, because a push to gw-01 is a network
+ * call and a lock held across it lets one slow gateway stall every write in the
+ * process. `PushClient` retries six times with a 500ms→30s backoff, so the worst
+ * case is about a minute **per push**.
+ *
+ * Three services broke that rule by publishing from inside `applyAll`:
+ * `CapacityService.set`, `PriorityBandService.set` and
+ * `DirectoryService.announce`, the last of them once per touched project, in
+ * sequence. A tag rename across forty projects made forty event-log inserts and
+ * forty gateway pushes with the process-wide write lock held.
+ *
+ * It was also unsound, not merely slow. Under ADR 0007 the batch runs in one
+ * outer transaction, so those event-log inserts were savepoints inside it: a
+ * command refused at step nine rolled back the recorded events for pushes that
+ * had already left the process. `directory.service.ts`'s own doc argued the
+ * opposite — "`recordEvent` opens a transaction of its own, so it cannot be
+ * nested inside the write's" — which is true of a single directory route and
+ * false of every directory command in a batch.
+ *
+ * So a held batch keeps its announcements until the runner has committed *and*
+ * released the lock, and drops them entirely when it rolls back. Held events are
+ * deduplicated when they carry nothing but a `type`, which is what makes forty
+ * `directory_changed` for one rename into one per project.
+ */
+export class DeferringBroadcaster implements Broadcaster {
+  private held: HeldAnnouncement[] | null = null;
+
+  constructor(private readonly inner: Broadcaster) {}
+
+  /**
+   * Run `step` with every announcement held, and hand back what it queued.
+   *
+   * The caller decides whether they leave: {@link send} them after a commit,
+   * drop them after a rollback.
+   *
+   * @throws when a hold is already open. Two batches sharing one queue would let
+   * the outer one send events the inner one's rollback disowned.
+   */
+  async hold<T>(step: () => Promise<T>): Promise<{ result: T; pending: HeldAnnouncement[] }> {
+    if (this.held !== null) throw new Error('a batch is already holding announcements');
+    const held: HeldAnnouncement[] = [];
+    this.held = held;
+    try {
+      return { result: await step(), pending: held };
+    } finally {
+      this.held = null;
+    }
   }
-  return chain;
+
+  /** Publish what a hold queued, in the order it was queued. */
+  async send(pending: readonly HeldAnnouncement[]): Promise<void> {
+    for (const each of pending) await this.inner.publish(each.projectId, each.event);
+  }
+
+  async publish(projectId: string, event: ProjectEvent): Promise<void> {
+    const held = this.held;
+    if (held === null) {
+      await this.inner.publish(projectId, event);
+      return;
+    }
+    // Only an event that carries nothing but its type can be deduplicated: two
+    // `directory_changed` for one project say the same thing, and two
+    // `step_renamed` do not.
+    const saysOnlyItsType = Object.keys(event).length === 1;
+    if (
+      saysOnlyItsType &&
+      held.some((each) => each.projectId === projectId && each.event.type === event.type)
+    ) {
+      return;
+    }
+    held.push({ projectId, event });
+  }
+
+  latestSeq(projectId: string): Promise<number> {
+    return this.inner.latestSeq(projectId);
+  }
 }

@@ -9,19 +9,8 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../repository';
-import { WorkItemService } from '../service/work-item.service';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryActuals } from './actual-fixture';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { inMemoryCommandJournal } from './command-journal-fixture';
-import { inMemoryDependencies } from './dependency-fixture';
-import { inMemoryEstimates } from './estimate-fixture';
-import { inMemoryMeasures } from './measure-fixture';
-import { inMemoryProgress } from './progress-fixture';
-import { inMemoryProjects } from './project-fixture';
-import { inMemorySubtrees } from './subtree-fixture';
+import type { WorkItemService } from '../service/work-item.service';
+import { inMemoryServices } from './harness';
 
 /**
  * A WorkItemStore backed by a Map.
@@ -281,36 +270,15 @@ export function inMemoryWorkItems(
   };
 }
 
-/** A WorkItemService over in-memory stores, for tests that only need `buildApp` to construct. */
+/**
+ * A WorkItemService over in-memory stores, for tests that only need `buildApp`
+ * to construct.
+ *
+ * The graph comes from {@link inMemoryServices}, which is the one place that
+ * knows how these thirteen ports wire together. This wrapper survives because
+ * nine callers want only the service and would otherwise write `.service` at
+ * every one of them.
+ */
 export function testWorkItemService(): WorkItemService {
-  const directory = inMemoryDirectory();
-  const workItems = inMemoryWorkItems(directory);
-  const estimates = inMemoryEstimates(workItems);
-  const actuals = inMemoryActuals(workItems);
-  const measures = inMemoryMeasures(workItems);
-  const progress = inMemoryProgress(workItems);
-  const dependencies = inMemoryDependencies();
-  return new WorkItemService({
-    workItems,
-    projects: inMemoryProjects(),
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies,
-    directory,
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-    }),
-    journal: inMemoryCommandJournal(),
-    broadcast: recordingBroadcaster(),
-  });
+  return inMemoryServices().service;
 }

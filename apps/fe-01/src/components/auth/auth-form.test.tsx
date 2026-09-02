@@ -55,6 +55,33 @@ describe('the signed-out screen', () => {
     }
   });
 
+  itDom('reveals and re-hides the password it was given, keeping what was typed', () => {
+    render(<AuthForm onSignedIn={() => undefined} />);
+    const password = screen.getByLabelText<HTMLInputElement>('Password');
+    fireEvent.change(password, { target: { value: 'lovelace99' } });
+    expect(password.type).toBe('password');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+    expect(password.type).toBe('text');
+    expect(password.value).toBe('lovelace99');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    expect(password.type).toBe('password');
+    expect(password.value).toBe('lovelace99');
+  });
+
+  itDom('does not sign in when the password is merely revealed', () => {
+    const fetched = vi.fn(() => Promise.resolve(response(200, {})));
+    vi.stubGlobal('fetch', fetched);
+    render(<AuthForm onSignedIn={() => undefined} />);
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'lovel' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
   itDom('enters the returned cookie session after a password sign-in', async () => {
     const session: Session = { token: '', user: { id: 'u1', username: 'ada' } };
     vi.stubGlobal(

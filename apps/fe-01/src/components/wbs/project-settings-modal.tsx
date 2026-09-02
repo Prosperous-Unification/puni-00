@@ -9,6 +9,7 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
+import { type Remembered, rememberedText } from '@/lib/remembered';
 
 import { EstimatingPanel, type EstimatingPanelProps } from './estimating-panel';
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
@@ -61,16 +62,19 @@ const sectionKey = (projectId: string): string => `wbs.projectSettingsSection.${
  * selecting no tab at all, with nothing on the surface. Watched 2026-08-30.
  */
 export function rememberedSettingsSection(projectId: string): SettingsSection {
-  const stored = localStorage.getItem(sectionKey(projectId));
-  if (stored === null) return FIRST_SECTION;
-  if (isSettingsSection(stored)) return stored;
-  localStorage.removeItem(sectionKey(projectId));
-  return FIRST_SECTION;
+  return storedSection(projectId).readAndDrop() ?? FIRST_SECTION;
 }
 
 export function rememberSettingsSection(projectId: string, section: SettingsSection): void {
-  localStorage.setItem(sectionKey(projectId), section);
+  storedSection(projectId).write(section);
 }
+
+/**
+ * One project's open section, stored as **bare text** — see
+ * {@link rememberedText} for why that cannot become JSON now.
+ */
+const storedSection = (projectId: string): Remembered<SettingsSection> =>
+  rememberedText(sectionKey(projectId), isSettingsSection);
 
 /** What each section gets from the plan, less what the modal itself supplies. */
 type SectionOwn<P> = Omit<P, 'onDirtyChange' | 'onDone'>;

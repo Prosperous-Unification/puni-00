@@ -7,11 +7,11 @@
  * fails until you do, which is the whole point of committing the file: a document
  * that rots is worse than none, because a caller reads it as current.
  *
- * The services are the test doubles from `src/testing`, and that is not a
- * shortcut — route registration touches no service. `buildApp` needs them to
- * exist and the document needs none of their behaviour, so a real one here would
- * mean a database file, migrations and a temp directory to produce a byte-
- * identical answer.
+ * The app is `testApp()` — the test doubles from `src/testing`, and that is not
+ * a shortcut: route registration touches no service. The same fixture builds
+ * the app `openapi-document.test.ts` compares this file against, which is the
+ * point of it being a fixture. A double passed to one and not the other is a
+ * document that fails its own freshness check for a reason neither file says.
  *
  * In `src` beside `migrate-cli.ts` rather than in `apps/be-01/tools`, which is
  * outside both of be-01's tsconfigs and outside its lint: the file that writes a
@@ -22,17 +22,7 @@
  */
 import { writeFileSync } from 'node:fs';
 
-import { buildApp } from '../app';
-import { testAuthService } from '../testing/auth-fixture';
-import { testCapacityService } from '../testing/capacity-fixture';
-import { testDirectoryService } from '../testing/directory-fixture';
-import { testHistoryService } from '../testing/history-fixture';
-import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { testReplay } from '../testing/replay-fixture';
-import { testStepService } from '../testing/step-fixture';
-import { testWorkItemService } from '../testing/work-item-fixture';
-import { testWrites } from '../testing/writes-fixture';
+import { testApp } from '../testing/app-fixture';
 import { documentFromApp, OPENAPI_DOCUMENT_FILE, serialiseDocument } from './document-from-app';
 
 /**
@@ -41,21 +31,7 @@ import { documentFromApp, OPENAPI_DOCUMENT_FILE, serialiseDocument } from './doc
  * `doc-caps.ts` is the house pattern for a script that must not act on import.
  */
 if (import.meta.main) {
-  const app = buildApp({
-    auth: testAuthService(),
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
-    steps: testStepService(),
-    directory: testDirectoryService(),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
-    replay: testReplay().replay,
-    probeDatabase: () => 'ok',
-    internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
-    migrationsApplied: true,
-  });
+  const app = testApp();
   writeFileSync(OPENAPI_DOCUMENT_FILE, serialiseDocument(await documentFromApp(app)), 'utf8');
   console.log(`wrote ${OPENAPI_DOCUMENT_FILE}`);
 }

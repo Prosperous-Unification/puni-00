@@ -1,6 +1,7 @@
 import {
   addWorkdays,
   type DependencyReach,
+  deriveNumbers,
   effectiveTeamsOf,
   type EstimateMethod,
   type EstimateRounding,
@@ -8,13 +9,26 @@ import {
   finalDays,
   firstWorkdayOf,
   type IsoDate,
+  isWithin,
   lastWorkdayOf,
   NOT_STARTED,
   ORDINARY_BAND_RANK,
+  parentIndexOf,
   type PertWeights,
+  placeAfter,
+  POSITION_STEP,
   type PriorityBand,
+  type Sibling,
   type StepState,
   workdaysBetween,
+} from '@wbs/domain';
+import {
+  schedule,
+  ScheduleCycleError,
+  type Scheduled,
+  type ScheduledSlice,
+  type Slice,
+  sliceKey,
 } from '@wbs/domain';
 
 import type {
@@ -50,7 +64,7 @@ import { isForeignKeyViolation } from '../repository/constraint';
 import { MEASURE_METRICS } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
-import { withAncestors } from './broadcast';
+import { type Clock, clockOf } from './clock';
 import {
   type CompensatingCommand,
   quoteName,
@@ -62,27 +76,17 @@ import {
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
-import { deriveNumbers } from './derive-numbers';
-import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import {
   type Days,
   rollUp,
   rollUpActuals,
   rollUpFinals,
-  rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
+  rollUpWorkItemStates,
   workedStepsOf,
 } from './roll-up';
-import {
-  schedule,
-  ScheduleCycleError,
-  type Scheduled,
-  type ScheduledSlice,
-  type Slice,
-  sliceKey,
-} from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -619,7 +623,7 @@ export type WorkItemRefusal =
    */
   | 'not_before_reason_needs_a_date';
 
-export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
+export type WorkItemOutcome<T> = { ok: true; value: T } | { ok: false; reason: WorkItemRefusal };
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -739,8 +743,8 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
-  newId?: () => string;
-  now?: () => number;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /** Why an undo or a redo did not happen. */
@@ -775,7 +779,7 @@ export interface UndoDone {
  * supplies its opening.
  */
 export type UndoOutcome =
-  | { ok: true; result: UndoDone }
+  | { ok: true; value: UndoDone }
   | {
       ok: false;
       reason: UndoRefusal;
@@ -809,17 +813,6 @@ const asSibling = (workItem: WorkItem): Sibling => ({
   id: workItem.id,
   position: workItem.position,
 });
-
-/** Whether `candidateId` sits anywhere below `ancestorId`, walking parents upward. */
-function descendsFrom(rows: readonly WorkItem[], candidateId: string, ancestorId: string): boolean {
-  const parentOf = new Map(rows.map((w) => [w.id, w.parentId]));
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === ancestorId) return true;
-    cursor = parentOf.get(cursor);
-  }
-  return false;
-}
 
 /** `rootId` and everything beneath it. */
 function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
@@ -1095,28 +1088,13 @@ export interface Recording {
 }
 
 export class WorkItemService {
-  private readonly newId: () => string;
-  private readonly now: () => number;
+  private readonly clock: Clock;
 
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
 
   constructor(private readonly opts: WorkItemServiceOptions) {
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-    this.now = opts.now ?? (() => Date.now());
-  }
-
-  /**
-   * The one stamp an act carries — see {@link WriteStamp}; built once per act.
-   *
-   * This service is where the discipline was already kept by hand: {@link record}
-   * read `this.now()` once for the journal entry and the plan event, "because two
-   * `now()` calls would let one act carry two timestamps". The stamp is that
-   * sentence made the type system's, and it now covers the rows the act wrote as
-   * well as the two it recorded.
-   */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   /**
@@ -1343,9 +1321,9 @@ export class WorkItemService {
     // the estimate to put it here. See `rollUpProgress`.
     const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
     // The row's own reading, folded over its **children** rather than over its
-    // rolled-up steps — see `rollUpItemStates` for why the two differ and which
+    // rolled-up steps — see `rollUpWorkItemStates` for why the two differ and which
     // one is true.
-    const itemStates = rollUpItemStates(rows, statedTotals);
+    const itemStates = rollUpWorkItemStates(rows, statedTotals);
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
     // graph as they read it. If one ever lands, every read of this project must
@@ -1473,6 +1451,11 @@ export class WorkItemService {
         found.predecessorId,
       ]);
     }
+    // The project's own ids, once. `dependsOn` below filters every row's stored
+    // predecessors down to the ones on this plan, and it did that with
+    // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
+    // on the read every write and every socket frame performs.
+    const idsOnThisPlan = new Set(rows.map((row) => row.id));
     const workItems = rows
       .map((row) => ({
         ...row,
@@ -1528,7 +1511,7 @@ export class WorkItemService {
         // Only predecessors that are in this project. A stored edge naming a
         // work item from elsewhere — which the schema does not prevent — would
         // otherwise be reported as a dependency on a number nobody can see.
-        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
+        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
         ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
         dates: datesOf(
@@ -1596,9 +1579,9 @@ export class WorkItemService {
     // Past every refusal, so nothing is stamped for a request that wrote
     // nothing. One stamp for the row, for the four hand-downs below it and for
     // the journal entry: a create and the estimates it moves are one act.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const workItem: WorkItem = {
-      id: this.newId(),
+      id: this.clock.newId(),
       projectId,
       parentId: input.parentId,
       position: placed.position,
@@ -1744,7 +1727,7 @@ export class WorkItemService {
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
     });
-    return { ok: true, result: workItem };
+    return { ok: true, value: workItem };
   }
 
   async patch(
@@ -1760,7 +1743,7 @@ export class WorkItemService {
     // tag off" for a row that had some — an undo that loses exactly the data
     // this field's whole design is about — so a row the plan read cannot see is
     // `not_found` instead, which is what it is.
-    const before = context.result.rows.find((row) => row.id === id);
+    const before = context.value.rows.find((row) => row.id === id);
     if (before === undefined) return { ok: false, reason: 'not_found' };
     // A row with children has no slices of its own — `slicesOf` skips it — so a
     // parallelism stored there would be a number on screen that decides
@@ -1776,14 +1759,14 @@ export class WorkItemService {
     // children` failed on `Expected: 400, Received: 200` — the parent took the
     // write and came back carrying a number no slice of that plan reads;
     // watched 2026-08-12.
-    if (patch.maxParallel !== undefined && context.result.rows.some((row) => row.parentId === id)) {
+    if (patch.maxParallel !== undefined && context.value.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
     }
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.workItems.patch(id, patch, stamp);
     if (!written.ok) return { ok: false, reason: written.reason };
     const updated = written.workItem;
-    await this.announceWorkItem(updated.projectId, id);
+    await this.announceTree(updated.projectId);
     // A patch naming no field wrote nothing — the store returns the row it
     // found — so there is nothing to reverse. Journalling it would put an
     // entry on the stack whose undo is visibly a no-op.
@@ -1799,11 +1782,11 @@ export class WorkItemService {
           forward: { do: 'patch', workItemId: id, patch },
           inverse: { do: 'patch', workItemId: id, patch: revertTo(before, patch) },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: updated };
+    return { ok: true, value: updated };
   }
 
   /**
@@ -1823,19 +1806,19 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.stepId === stepId)
         ?.personId ?? null;
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const assigned = await this.writeNamingStep(workItem.projectId, stepId, () =>
       this.opts.directory.assign(id, stepId, personId, stamp),
     );
     if (assigned === null) return { ok: false, reason: 'unknown_step' };
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -1847,16 +1830,16 @@ export class WorkItemService {
         forward: { do: 'assign', workItemId: id, stepId, personId },
         inverse: { do: 'assign', workItemId: id, stepId, personId: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     // A frozen number has left the tool — it is in someone's ticket. Moving the
     // row would either break that reference or quietly stop it meaning what it
@@ -1872,7 +1855,7 @@ export class WorkItemService {
     // Moving a work item beneath itself detaches its whole subtree from every
     // root: the rows survive, no number can be derived for them, and the project
     // reads as though the work vanished.
-    if (input.parentId !== null && descendsFrom(rows, input.parentId, id)) {
+    if (input.parentId !== null && isWithin(parentIndexOf(rows), input.parentId, id)) {
       return { ok: false, reason: 'cycle' };
     }
 
@@ -1886,7 +1869,7 @@ export class WorkItemService {
 
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
@@ -1900,7 +1883,7 @@ export class WorkItemService {
       touched: [id],
       before: rows,
     });
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -1931,14 +1914,14 @@ export class WorkItemService {
   async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     // Ancestors-first, which is the order the copies have to be written in:
     // `parent_id` references a row that must already be there.
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
 
-    const newIds = new Map(originals.map((originalId) => [originalId, this.newId()]));
+    const newIds = new Map(originals.map((originalId) => [originalId, this.clock.newId()]));
     /**
      * The copy of one original. Throws rather than defaulting: an id that was
      * not copied means the map and the subtree disagree, and carrying the
@@ -2013,7 +1996,7 @@ export class WorkItemService {
     const copiedEdges = edges
       .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
       .map((edge) => ({
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId: edge.projectId,
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
@@ -2022,7 +2005,7 @@ export class WorkItemService {
     // One stamp for six tables: the copy is one transaction and one act, so
     // every row it writes — work items, estimates, measures, assignments, edges
     // and the respacing of the originals' siblings — carries one instant.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.subtrees.insertSubtree(
       {
         rows: copies,
@@ -2105,7 +2088,7 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, result: { id: copyOf(id) } };
+    return { ok: true, value: { id: copyOf(id) } };
   }
 
   async remove(
@@ -2115,7 +2098,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const children = rows
       .filter((row) => row.parentId === id)
@@ -2127,7 +2110,7 @@ export class WorkItemService {
     // Before the branch rather than inside each of them: whichever of the two a
     // delete takes, it is one act, and the hand-ups it writes on the surviving
     // parent belong to the same instant as the removal itself.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const label = `delete ${quoteName(workItem.name)}`;
     const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
     // Read before anything is deleted, exactly like the estimates and the
@@ -2255,7 +2238,7 @@ export class WorkItemService {
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
       // with a constraint error the caller cannot act on.
-      for (const gone of doomed) await this.opts.dependencies.removeAllFor(gone, stamp);
+      await this.opts.dependencies.removeAllFor(doomed, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
@@ -2326,7 +2309,7 @@ export class WorkItemService {
         touched: handedUp.map((each) => each.workItemId),
         before: rows,
       });
-      return { ok: true, result: null };
+      return { ok: true, value: null };
     }
 
     const formerGroup = rows
@@ -2345,7 +2328,7 @@ export class WorkItemService {
     // The same reason as the cascade branch above: an edge to a row that is
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
-    await this.opts.dependencies.removeAllFor(id, stamp);
+    await this.opts.dependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
@@ -2405,7 +2388,7 @@ export class WorkItemService {
       touched: promoted.map((each) => each.id),
       before: rows,
     });
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2426,7 +2409,7 @@ export class WorkItemService {
     const updates = rows
       .filter((row) => row.frozenNumber === null)
       .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(updates, stamp);
     await this.announceTree(projectId);
     // A freeze that pinned nothing — every number was already written down —
@@ -2442,15 +2425,15 @@ export class WorkItemService {
         before: rows,
       });
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Returns one work item to deriving, which is what lets it move again. */
   async unfreeze(id: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
-    const stamp = this.stampFor(actorId);
+    const { workItem } = context.value;
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }], stamp);
     await this.announceTree(workItem.projectId);
     await this.record(
@@ -2465,10 +2448,10 @@ export class WorkItemService {
           updates: [{ id, frozenNumber: workItem.frozenNumber }],
         },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
@@ -2478,7 +2461,7 @@ export class WorkItemService {
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(
       frozen.map((row) => ({
         id: row.id,
@@ -2503,7 +2486,7 @@ export class WorkItemService {
         before: rows,
       });
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2521,17 +2504,17 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2544,10 +2527,10 @@ export class WorkItemService {
             ? { do: 'clear_estimate', workItemId: id, stepId }
             : { do: 'set_estimate', workItemId: id, stepId, days: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2573,14 +2556,14 @@ export class WorkItemService {
   async clearEstimate(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedTrio(workItem.projectId, id, stepId);
     // A delete has no column to stamp, so this stamp is the journal entry's
     // alone — built here rather than beside the {@link record} call because the
     // act begins at the write, not at the recording of it.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.estimates.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Clearing a trio that was not there changed nothing — the call is
     // idempotent by design — so there is nothing to put back.
     if (before !== null) {
@@ -2593,11 +2576,11 @@ export class WorkItemService {
           forward: { do: 'clear_estimate', workItemId: id, stepId },
           inverse: { do: 'set_estimate', workItemId: id, stepId, days: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2629,12 +2612,12 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedActual(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `recordedAt` off the act's own stamp: the day this was recorded and the
       // day the row was written are the same day, and reading the clock twice
@@ -2642,7 +2625,7 @@ export class WorkItemService {
       this.opts.actuals.set({ workItemId: id, stepId, days, recordedAt: stamp.at }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2659,10 +2642,10 @@ export class WorkItemService {
             ? { do: 'clear_actual', workItemId: id, stepId }
             : { do: 'set_actual', workItemId: id, stepId, days: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2678,11 +2661,11 @@ export class WorkItemService {
   async clearActual(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedActual(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.actuals.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stored, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` makes, and the reason a plan does not gain
     // a history row every time somebody empties an empty box.
@@ -2696,11 +2679,11 @@ export class WorkItemService {
           forward: { do: 'clear_actual', workItemId: id, stepId },
           inverse: { do: 'set_actual', workItemId: id, stepId, days: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2742,12 +2725,12 @@ export class WorkItemService {
     if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
       this.opts.measures.set(
@@ -2756,7 +2739,7 @@ export class WorkItemService {
       ),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2774,10 +2757,10 @@ export class WorkItemService {
             ? { do: 'clear_measure', workItemId: id, stepId, metric }
             : { do: 'set_measure', workItemId: id, stepId, metric, value: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2801,11 +2784,11 @@ export class WorkItemService {
     if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stored in this metric, so nothing changed and there is
     // nothing to put back — `clearActual`'s skip, per metric.
     if (before !== null) {
@@ -2818,11 +2801,11 @@ export class WorkItemService {
           forward: { do: 'clear_measure', workItemId: id, stepId, metric },
           inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2835,7 +2818,7 @@ export class WorkItemService {
    * does not hold is `unknown_step`.
    *
    * **Nothing about this reaches the schedule.** Recording that a step is done
-   * moves no date, no bar and no critical path — `service/schedule.ts` has an
+   * moves no date, no bar and no critical path — `libs/domain/src/schedule.ts` has an
    * empty diff in the change that adds this. What it buys is that the number
    * beside it becomes readable: 8 days spent against 5 estimated, **finished**,
    * is a variance somebody can act on, and 8 days spent against 5 estimated,
@@ -2860,19 +2843,19 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedProgress(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `statedAt` off the act's own stamp — {@link setActual}'s reading of
       // `recordedAt`, in this method's tense.
       this.opts.progress.set({ workItemId: id, stepId, state, statedAt: stamp.at }, stamp),
     );
     if (written === null) return { ok: false, reason: 'unknown_step' };
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
       stamp,
@@ -2889,10 +2872,10 @@ export class WorkItemService {
             ? { do: 'clear_progress', workItemId: id, stepId }
             : { do: 'set_progress', workItemId: id, stepId, state: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2911,11 +2894,11 @@ export class WorkItemService {
   async clearProgress(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedProgress(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.progress.remove(id, stepId, stamp);
-    await this.announceWorkItem(workItem.projectId, id);
+    await this.announceTree(workItem.projectId);
     // Nothing was stated, so nothing changed and there is nothing to put back —
     // the same skip `clearEstimate` and `clearActual` make, and the reason a
     // plan does not gain a history row every time somebody clears an empty box.
@@ -2929,11 +2912,11 @@ export class WorkItemService {
           forward: { do: 'clear_progress', workItemId: id, stepId },
           inverse: { do: 'set_progress', workItemId: id, stepId, state: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
@@ -2952,7 +2935,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const existing = await this.opts.dependencies.listByProject(workItem.projectId);
     // `rows` is this project's only, so a predecessor from another project is
@@ -2961,10 +2944,10 @@ export class WorkItemService {
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
 
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.add(
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId: workItem.projectId,
         predecessorId,
         successorId: id,
@@ -2984,7 +2967,7 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Removing an edge that was not there is not an error; the state asked for is the state left. */
@@ -2995,12 +2978,12 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const existed = (await this.opts.dependencies.listByProject(workItem.projectId)).some(
       (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
     );
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.remove(predecessorId, id, stamp);
     await this.announceTree(workItem.projectId);
     // The removal is idempotent, so a request for an edge that was not there
@@ -3019,7 +3002,7 @@ export class WorkItemService {
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -3102,7 +3085,7 @@ export class WorkItemService {
     // discarded and never stamped. Nothing is appended to the journal here — an
     // undo is not itself journalled — so this stamp is spent only on the rows
     // {@link apply} rewrites.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const applied = await this.apply(projectId, command, stamp);
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
@@ -3120,7 +3103,7 @@ export class WorkItemService {
     });
     await this.rebase(stack, entry, direction, preconditions.from, now);
     await this.announceTree(projectId);
-    return { ok: true, result: { done: payload.label, detail: applied.detail } };
+    return { ok: true, value: { done: payload.label, detail: applied.detail } };
   }
 
   /**
@@ -3418,7 +3401,7 @@ export class WorkItemService {
         }
         await this.opts.dependencies.add(
           {
-            id: this.newId(),
+            id: this.clock.newId(),
             projectId,
             predecessorId: command.predecessorId,
             successorId: command.successorId,
@@ -3517,7 +3500,7 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
-    for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone, stamp);
+    await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put
@@ -3617,7 +3600,7 @@ export class WorkItemService {
       }
       await this.opts.dependencies.add(
         {
-          id: this.newId(),
+          id: this.clock.newId(),
           projectId,
           predecessorId: edge.predecessorId,
           successorId: edge.successorId,
@@ -3709,7 +3692,7 @@ export class WorkItemService {
     // The batch's own act, and its own stamp: the steps it gathered each dated
     // their rows when they ran, and this is the one entry and one event standing
     // for all of them.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const [only] = recordings;
     if (recordings.length === 1) {
       await this.record(projectId, stamp, only.kind, only.label, only.recording);
@@ -3759,7 +3742,7 @@ export class WorkItemService {
     const subject = subjectOf(recording.forward);
     await this.opts.journal.append(
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId,
         userId: stamp.by,
         kind,
@@ -3776,7 +3759,7 @@ export class WorkItemService {
         createdAt: stamp.at,
       },
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId,
         userId: stamp.by,
         kind,
@@ -3941,20 +3924,6 @@ export class WorkItemService {
     });
   }
 
-  /** Sends one work item and its ancestors, whose roll-ups its change moved. */
-  private async announceWorkItem(projectId: string, id: string): Promise<void> {
-    if (this.collector !== null) {
-      this.collector.dirty = true;
-      return;
-    }
-    const tree = await this.tree(projectId);
-    if (tree === null) return;
-    await this.opts.broadcast.publish(projectId, {
-      type: 'work_items_changed',
-      workItems: withAncestors(tree.workItems, id),
-    });
-  }
-
   private groupUnder(rows: readonly WorkItem[], parentId: string | null): Sibling[] {
     return rows.filter((row) => row.parentId === parentId).map(asSibling);
   }
@@ -4002,6 +3971,6 @@ export class WorkItemService {
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
     const rows = await this.opts.workItems.listByProject(workItem.projectId);
-    return { ok: true, result: { workItem, project, rows } };
+    return { ok: true, value: { workItem, project, rows } };
   }
 }

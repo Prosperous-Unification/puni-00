@@ -11,7 +11,12 @@ import { type } from '@wbs/validation';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import {
+  auditOnCreate,
+  auditOnCreateBesidesCreatedAt,
+  auditOnUpdate,
+  withoutAuditColumns,
+} from './audit';
 import type {
   Project,
   ProjectPatch,
@@ -22,6 +27,7 @@ import type {
 } from './index';
 import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
+import { STEP_COLUMNS } from './step';
 
 /**
  * One {@link PertWeights} as the three columns that hold it.
@@ -84,16 +90,22 @@ function toProject<
   },
 >(
   row: T,
+  // Nested rather than one union of keys, because that is what the body
+  // produces and TypeScript does not prove `Omit<Omit<T, A>, B>` equals
+  // `Omit<T, A | B>` for a generic `T`.
 ): Omit<
-  T,
-  | 'estimateMethod'
-  | 'depReach'
-  | 'estimateRounding'
-  | 'pertWeightOptimistic'
-  | 'pertWeightRealistic'
-  | 'pertWeightPessimistic'
-  | 'solutionSlug'
-  | 'solutionUrl'
+  Omit<
+    T,
+    | 'estimateMethod'
+    | 'depReach'
+    | 'estimateRounding'
+    | 'pertWeightOptimistic'
+    | 'pertWeightRealistic'
+    | 'pertWeightPessimistic'
+    | 'solutionSlug'
+    | 'solutionUrl'
+  >,
+  'createdBy' | 'updatedAt' | 'updatedBy'
 > & {
   estimateMethod: EstimateMethod;
   depReach: DependencyReach;
@@ -133,7 +145,10 @@ function toProject<
     throw new Error('project has a partial solution reference');
   }
   return {
-    ...rest,
+    // Named by {@link withoutAuditColumns} rather than spread whole: this
+    // mapper is generic over its row, so it has no column list of its own, and
+    // `...rest` published `createdBy` and `updatedAt` until 2026-09-02.
+    ...withoutAuditColumns(rest),
     estimateMethod,
     depReach,
     estimateRounding,
@@ -370,16 +385,14 @@ export class ProjectRepository implements ProjectStore {
   stepsOf(projectId: string): Promise<Step[]> {
     return (
       this.db
-        // Projected, unlike the project reads above it, and the difference is
-        // `toProject`: those pass every row through a mapper that names the
-        // fields, so the audit columns fall off there. This has no mapper, so a
-        // bare `select()` would put them into `Step`.
-        .select({
-          id: step.id,
-          projectId: step.projectId,
-          name: step.name,
-          position: step.position,
-        })
+        // {@link STEP_COLUMNS}, not a bare `select()`, and not the mapper the
+        // project reads above it use: `toProject` drops the audit columns by
+        // name, and it did not until 2026-09-02 — it spread the rest of the row
+        // — so `createdBy` and `updatedAt` reached `GET /api/projects/{id}` for
+        // as long as those columns existed, with the comment here asserting
+        // they did not. This read has no mapper, so the column list is the only
+        // thing between the audit columns and a `Step`.
+        .select(STEP_COLUMNS)
         .from(step)
         .where(eq(step.projectId, projectId))
         .orderBy(step.position, step.id)

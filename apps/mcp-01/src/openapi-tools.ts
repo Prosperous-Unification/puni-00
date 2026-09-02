@@ -196,9 +196,15 @@ function toTool(method: HttpMethod, path: string, operation: OpenApiOperation): 
     }
   }
 
-  // 40 of be-01's 51 operations carry no prose at all — the typebox routes
-  // generate their document entry. Saying so is honest; writing a summary here
-  // would be this file inventing API documentation.
+  // Most of be-01's operations carry no prose at all — a typebox route's
+  // document entry is generated, so there is nothing to join. Saying so is
+  // honest; writing a summary here would be this file inventing API
+  // documentation.
+  //
+  // Deliberately without a count. This comment read "40 of be-01's 51
+  // operations" until 2026-09-02, when the document held 30 with 27 of them
+  // bare. A figure nothing checks is a figure that goes stale, and the number
+  // was never the point.
   const written = joinProse(operation.summary, operation.description);
   const headline =
     written === ''

@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { rowsChanged } from './changes';
+
 export interface RecordedEvent {
   subscription: string;
   seq: number;
@@ -91,8 +93,13 @@ export class DrizzleEventLogRepo implements EventLogRepo {
 
   async pruneBeyond(maxPerSubscription: number): Promise<number> {
     await Promise.resolve();
-    this.db.run(
-      sql`DELETE FROM event_log
+    // One transaction over the delete and its count, for the reason
+    // `PlanEventRepository.pruneOlderThan` states: `changes()` answers about
+    // the last statement **this connection** ran, and the retention sweep does
+    // not hold the write lock.
+    return this.db.transaction((tx) => {
+      tx.run(
+        sql`DELETE FROM event_log
           WHERE id IN (
             SELECT id FROM (
               SELECT id, ROW_NUMBER() OVER (PARTITION BY subscription ORDER BY seq DESC) AS rn
@@ -100,12 +107,12 @@ export class DrizzleEventLogRepo implements EventLogRepo {
             )
             WHERE rn > ${maxPerSubscription}
           )`,
-    );
-    // `changes()` rather than counting the whole table before and after. Two
-    // full scans per sweep is the expensive way to ask, and it is also the wrong
-    // way: a concurrent insert between them — the other deployment colour writes
-    // to this same file — lands in the difference and reports as a deletion.
-    const changed = this.db.all<{ n: number }>(sql`SELECT changes() AS n`);
-    return changed.at(0)?.n ?? 0;
+      );
+      // The count is what the retention sweep reports, so no row back throws
+      // rather than reading as zero: `?? 0` stood here until 2026-09-02, which
+      // is a default for an unknown in the one place a caller acts on the
+      // number. See {@link rowsChanged}.
+      return rowsChanged(tx, 'pruning event_log');
+    });
   }
 }

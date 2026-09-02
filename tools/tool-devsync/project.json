@@ -7,6 +7,23 @@
   "targets": {
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/bin/dev-be-probe.sh",
+        "{workspaceRoot}/bin/dev-mcp-preflight.sh",
+        "{workspaceRoot}/bin/dev-mcp-probe.sh",
+        "{workspaceRoot}/apps/*/project.json",
+        "{workspaceRoot}/libs/*/project.json",
+        "{workspaceRoot}/tools/*/project.json",
+        "{workspaceRoot}/apps/*/src/**/*.test.ts",
+        "{workspaceRoot}/libs/*/src/**/*.test.ts",
+        "{workspaceRoot}/tools/*/src/**/*.test.ts",
+        "{workspaceRoot}/apps/*/src/**/*.ts",
+        "{workspaceRoot}/apps/*/src/**/*.tsx",
+        "{workspaceRoot}/libs/*/src/**/*.ts",
+        "{workspaceRoot}/tools/*/src/**/*.ts"
+      ],
       "options": {
         "command": "bun test",
         "cwd": "tools/tool-devsync"
@@ -18,14 +35,28 @@
         "command": "bunx eslint tools/tool-devsync/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-devsync/src --cache --cache-location .nx/eslintcache-tool-devsync"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p tools/tool-devsync/tsconfig.json"
+        "command": "bunx tsc --build --force tools/tool-devsync/tsconfig.json"
       }
     },
     "build": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/bin/dev-deploy.sh",
+        "{workspaceRoot}/bin/dev-be-probe.sh",
+        "{workspaceRoot}/bin/dev-mcp-preflight.sh",
+        "{workspaceRoot}/bin/dev-mcp-probe.sh"
+      ],
       "options": {
         "commands": [
           "command -v shellcheck >/dev/null 2>&1 || { echo '[tool-devsync] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",

@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type {
   AssignmentWritten,
   DirectoryRemoved,
@@ -47,42 +48,7 @@ import {
   workItemType,
   workItemWorkItemType,
 } from './schema';
-
-/**
- * Whether a thrown error is SQLite refusing a second team of the same name.
- *
- * The message rather than a typed error, because `bun:sqlite` has no typed one
- * — the same translation `StepRepository` makes for a duplicate step name. It
- * names the index's column so that a different constraint failing here is still
- * an unknown, and still throws.
- */
-function isDuplicateTeamName(err: unknown): boolean {
-  return (
-    err instanceof Error && err.message.includes('UNIQUE constraint failed: service_team.name')
-  );
-}
-
-/** The same translation as {@link isDuplicateTeamName}, for the tag name index. */
-function isDuplicateTagName(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('UNIQUE constraint failed: tag.name');
-}
-
-/** The same translation as {@link isDuplicateTagName}, for the type name index. */
-function isDuplicateWorkItemTypeName(err: unknown): boolean {
-  return (
-    err instanceof Error && err.message.includes('UNIQUE constraint failed: work_item_type.name')
-  );
-}
-
-/** The same translation as {@link isDuplicateTeamName}, for the service name index. */
-function isDuplicateServiceName(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('UNIQUE constraint failed: service.name');
-}
-
-/** The same translation as {@link isDuplicateTeamName}, for the person name index. */
-function isDuplicatePersonName(err: unknown): boolean {
-  return err instanceof Error && err.message.includes('UNIQUE constraint failed: person.name');
-}
+import { WORK_ITEM_COLUMNS } from './work-item';
 
 /** Nothing points at it: the empty usage, with both halves present as the spec requires. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
@@ -124,7 +90,15 @@ function usageRowsIn(
   // The rows and the teams they are joined to, because the usage is computed
   // through `effectiveTeamsOf` — the join is the read since `team-sets`, and
   // rows handed over without their sets would report no effect at all.
-  const rows = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
+  // Named rather than bare, which is this folder's rule and is argued at
+  // `DirectoryRepository`'s own doc: a bare `select()` reads every column
+  // drizzle knows about, and these rows are folded into the usage preview a
+  // person is shown before consenting to a removal.
+  const rows = reader
+    .select(WORK_ITEM_COLUMNS)
+    .from(workItem)
+    .where(inArray(workItem.projectId, ids))
+    .all();
   const joined = reader
     .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
     .from(workItemTeam)
@@ -425,7 +399,7 @@ export class DirectoryRepository implements DirectoryStore {
    * caller, because the primary key would turn a client naming a service twice
    * into a 500 for a patch that means exactly what it says.
    *
-   * Proof: with the `isDuplicateTeamName` branch removed, `refuses a name
+   * Proof: with the `teamName` unique-violation branch removed, `refuses a name
    * another team holds, naming the survivor` fails with the raw
    * `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this translation
    * exists to prevent. With the empty-`returning` branch reporting success,
@@ -497,7 +471,7 @@ export class DirectoryRepository implements DirectoryStore {
         };
       });
     } catch (err) {
-      if (isDuplicateTeamName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.teamName)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -527,7 +501,7 @@ export class DirectoryRepository implements DirectoryStore {
         return { ok: true, tag: renamed, projectIds: this.projectsTagged(tx, tagId) };
       });
     } catch (err) {
-      if (isDuplicateTagName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.tagName)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -556,7 +530,7 @@ export class DirectoryRepository implements DirectoryStore {
         return { ok: true, service: renamed, projectIds: this.projectsServiced(tx, serviceId) };
       });
     } catch (err) {
-      if (isDuplicateServiceName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.serviceName)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -661,7 +635,7 @@ export class DirectoryRepository implements DirectoryStore {
    * guard removed, `refuses a name of whitespace alone, and a person that is
    * not there` answers `ok` for an id nothing holds — a patch of no rows
    * reporting a person. With the
-   * `isDuplicatePersonName` branch removed, `refuses a name another person
+   * `personName` unique-violation branch removed, `refuses a name another person
    * holds, naming the survivor` fails with the raw `SQLITE_CONSTRAINT_UNIQUE`.
    * All watched 2026-08-09.
    */
@@ -733,7 +707,7 @@ export class DirectoryRepository implements DirectoryStore {
         };
       });
     } catch (err) {
-      if (isDuplicatePersonName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.personName)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -884,7 +858,8 @@ export class DirectoryRepository implements DirectoryStore {
         return { ok: true, workItemType: renamed, projectIds: this.projectsTyped(tx, typeId) };
       });
     } catch (err) {
-      if (isDuplicateWorkItemTypeName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.workItemTypeName))
+        return { ok: false, reason: 'taken' };
       throw err;
     }
   }

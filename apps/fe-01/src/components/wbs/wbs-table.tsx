@@ -30,8 +30,9 @@ import {
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
+import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
+import { type Remembered, remembered } from '@/lib/remembered';
 import type {
   AssignedPersonView,
   ExternalSystemView,
@@ -68,6 +69,7 @@ import {
   pickerOptionId,
 } from './creatable-picker';
 import { DateField } from './date-field';
+import { createDepLights, type DepLights } from './dep-light-store';
 import { pickerEntries, REFUSAL_SUFFIX } from './dep-picker';
 import { DependsCard, dependsLine, entersThroughDependsCard } from './depends-card';
 import { parseDependencies, unknownMessage } from './depends-input';
@@ -150,6 +152,7 @@ import {
 } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
+import { PlanToolbarSheet, TAKES_THE_FOCUS } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { PriorityCell, priorityTyped } from './priority-cell';
 import { ProjectSettingsModal } from './project-settings-modal';
@@ -221,8 +224,50 @@ export interface WbsTableProps {
 }
 
 export interface SubscriptionHandlers {
-  onChange: () => void;
+  /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
+  onChange: (changed?: string | null) => void;
   onConnectionChange: (connected: boolean) => void;
+}
+
+/**
+ * How much of the plan a read has to fetch.
+ *
+ * `refresh` reads eight things: the tree, the project's steps, and six global
+ * vocabularies. Most of those cannot have changed for most events, and the
+ * socket used to start all eight for every one of them — so a peer holding a
+ * key issued eight requests per keystroke.
+ *
+ * `'all'` is the default and the answer to anything this side does not
+ * recognise. The two narrower scopes are claims about be-01's events, and each
+ * is only sound because of something be-01 guarantees:
+ *
+ * - `'tree'` skips the vocabularies because a plan batch that mints a person or
+ *   a tag holds the directory service's own announcement and sends it after the
+ *   commit (`plan-commands.ts`: `announcements.hold` then `send(pending)`), so
+ *   the directory change announces itself and is not folded silently into a
+ *   `tree_replaced`.
+ * - `'tree-and-steps'` adds the steps because that is what the three step
+ *   events change, as `ProjectEvent`'s own JSDoc says.
+ *
+ * `directory_changed` and the capacity events are deliberately **not** narrowed:
+ * a removed team takes its assignments and labels out of the tree with it, so
+ * they are full reads.
+ */
+export type PlanReadScope = 'all' | 'tree' | 'tree-and-steps';
+
+/**
+ * Which reads a frame's event needs.
+ *
+ * Unknown is not OK: an event this build has never heard of, and a frame that
+ * said nothing, both read everything. Narrowing is opt-in per known kind, so a
+ * new `ProjectEvent` added in be-01 is correct here before anybody edits this.
+ */
+export function readScopeFor(changed: string | null | undefined): PlanReadScope {
+  if (changed === 'tree_replaced') return 'tree';
+  if (changed === 'step_added' || changed === 'step_renamed' || changed === 'step_removed') {
+    return 'tree-and-steps';
+  }
+  return 'all';
 }
 
 const showDays = (days: Days | undefined, point: Point): string =>
@@ -258,73 +303,20 @@ const failureText = (thrown: unknown, fallback: string): string =>
   thrown instanceof Error ? thrown.message : fallback;
 
 /**
- * What a refused mutation says, by be-01's own word for the refusal.
- *
- * Every other refusal in this table is a full sentence — `That could not be
- * undone: …`, `020 is frozen — unfreeze it first` — and these were the
- * exception: `not_found` and `http_500` reached the corner of the screen
- * verbatim, observed live on 2026-08-09. The translation lives here rather
- * than in `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the
- * codes are be-01's contract and have to stay stable, and the sentence is a
- * presentation decision that differs per surface.
- *
- * Not exhaustive on purpose. {@link refusalSentence} has a grammatical
- * fallback that carries the code, so a word nobody has written a sentence for
- * is still a sentence rather than a snake_case token.
- */
-const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
-  not_found:
-    'That change could not be completed: its target is no longer here — someone may have deleted it.',
-  forbidden: 'That change could not be completed: this plan is not yours to change.',
-  // Reachable bare — the dependency **picker** takes one entry through `run`,
-  // where the typed list composes its own sentence and keeps the word instead.
-  cycle: 'That dependency could not be added: it would make a loop.',
-  ancestor: 'That dependency could not be added: the row it names is already above this one.',
-  // The three the In-parallel cell earns, spelled out rather than left to the
-  // fallback below. That cell deliberately keeps no copy of be-01's rule and
-  // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right, and
-  // which means be-01's own word is what arrives here, so `INVALID_REQUEST`'s
-  // status arm never fires and the grammatical fallback would carry the token
-  // through. `(maxParallel_must_be_a_whole_number_from_1)` in the corner of the
-  // screen is the same defect `not_found` and `http_500` were fixed for above,
-  // in the one column of this table somebody types a number into every week.
-  // `wbs-api.ts`'s `directoryRefusalSentence` makes the same bargain for the
-  // size box the same rule is written on.
-  maxParallel_must_be_a_whole_number_from_1:
-    'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
-  // be-01 refuses a parallelism on a parent because a parent holds no slices,
-  // so nothing there would read the number. Only reachable through a race — the
-  // cell is read-only on every row that already has children — which is exactly
-  // why the sentence has to say what happened rather than name the code.
-  has_children:
-    'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
-};
-
-/**
- * The prefix be-01 builds its parallelism ceiling out of.
- *
- * A prefix rather than an entry above, and for `wbs-api.ts`'s stated reason:
- * be-01 spells the limit into the code from its own `MOST_PEOPLE_AT_ONCE`, so a
- * literal `maxParallel_must_be_at_most_1000` here would be a second copy of
- * that number — free to drift from it, and to fall silently back to printing
- * the wire code the day it did.
- */
-const PARALLELISM_CEILING_CODE = 'maxParallel_must_be_at_most_';
-
-/** What any 5xx says. Something answered, so never "the server did not answer". */
-const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
-
-/**
  * The statuses be-01 refuses a **malformed** request with, and the only ones
  * that reach here without a word of be-01's own.
  *
- * Listed rather than matched as `http_4\d\d`, which was the first shape and is
+ * A set rather than a match on `http_4\d\d`, which was the first shape and is
  * wrong: 401 and 403 are the same family and say nothing about the value that
  * was sent, and a sentence claiming "that change was not valid" over an expired
  * session would send the reader looking for a typo. be-01's own words —
  * `forbidden`, `not_found` — already cover those; these two are what an ArkType
  * schema refusal leaves, because Elysia answers it with its own JSON body and
  * no `error` field for `send` to read.
+ *
+ * **One list, two decisions**: the sentence below, and whether {@link run}
+ * reads the plan again — see the note at its call site, which is why this
+ * cannot be two literal entries in the table.
  */
 const INVALID_REQUEST = new Set(['http_400', 'http_422']);
 
@@ -346,24 +338,78 @@ const INVALID_REFUSAL =
   'That change was not valid, so nothing was saved — what is on screen was read again.';
 
 /**
+ * What a refused mutation on this table says, by be-01's own word for it.
+ *
+ * Every other refusal in this table is a full sentence — `That could not be
+ * undone: …`, `020 is frozen — unfreeze it first` — and these were the
+ * exception: `not_found` and `http_500` reached the corner of the screen
+ * verbatim, observed live on 2026-08-09. The table lives here rather than in
+ * `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the codes are
+ * be-01's contract and have to stay stable, and the sentence is a presentation
+ * decision that differs per surface. The **shape** of the lookup is
+ * {@link sentenceForRefusal}, shared with the four tables in `wbs-api.ts`.
+ *
+ * Not exhaustive on purpose: the fallback carries the code, so a word nobody
+ * has written a sentence for is still a sentence rather than a snake_case
+ * token.
+ */
+const PLAN_REFUSALS: RefusalWords = {
+  sentences: {
+    not_found:
+      'That change could not be completed: its target is no longer here — someone may have deleted it.',
+    forbidden: 'That change could not be completed: this plan is not yours to change.',
+    // Reachable bare — the dependency **picker** takes one entry through `run`,
+    // where the typed list composes its own sentence and keeps the word instead.
+    cycle: 'That dependency could not be added: it would make a loop.',
+    ancestor: 'That dependency could not be added: the row it names is already above this one.',
+    // The two the In-parallel cell earns, spelled out rather than left to the
+    // fallback below. That cell deliberately keeps no copy of be-01's rule and
+    // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right,
+    // and which means be-01's own word is what arrives here, so the
+    // malformed-request arm never fires and the grammatical fallback would carry
+    // the token through. `(maxParallel_must_be_a_whole_number_from_1)` in the
+    // corner of the screen is the same defect `not_found` and `http_500` were
+    // fixed for above, in the one column of this table somebody types a number
+    // into every week. `wbs-api.ts`'s `CAPACITY_REFUSALS` makes the same bargain
+    // for the size box the same rule is written on.
+    maxParallel_must_be_a_whole_number_from_1:
+      'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
+    // be-01 refuses a parallelism on a parent because a parent holds no slices,
+    // so nothing there would read the number. Only reachable through a race — the
+    // cell is read-only on every row that already has children — which is exactly
+    // why the sentence has to say what happened rather than name the code.
+    has_children:
+      'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+    // {@link INVALID_REQUEST}'s two, worded from the one list that also decides
+    // whether the plan is read again.
+    ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),
+  },
+  limits: [
+    {
+      // A prefix rather than an entry above, and for `wbs-api.ts`'s stated
+      // reason: be-01 spells the limit into the code from its own
+      // `MOST_PEOPLE_AT_ONCE`, so a literal `maxParallel_must_be_at_most_1000`
+      // here would be a second copy of that number — free to drift from it, and
+      // to fall silently back to printing the wire code the day it did.
+      prefix: 'maxParallel_must_be_at_most_',
+      says: (limit) => `People at once is at most ${limit}.`,
+    },
+  ],
+  // Matched as a family rather than listed: a proxy in front of be-01 can answer
+  // with any 5xx and none of them is the reader's doing. Something answered, so
+  // the sentence never says the server did not.
+  serverFailure: 'The server could not complete that change. Try again.',
+  otherwise: (code) => `That change could not be completed (${code}).`,
+};
+
+/**
  * The sentence a refused mutation is reported in.
  *
  * @param thrown Whatever the request rejected with; anything that is not an
  * `Error` reads as an unknown code rather than being guessed at.
  */
-const refusalSentence = (thrown: unknown): string => {
-  const code = failureText(thrown, 'unknown');
-  const known = REFUSAL_SENTENCES[code];
-  if (known !== undefined) return known;
-  if (code.startsWith(PARALLELISM_CEILING_CODE)) {
-    return `People at once is at most ${code.slice(PARALLELISM_CEILING_CODE.length)}.`;
-  }
-  // The whole 5xx family, matched rather than listed: a proxy in front of
-  // be-01 can answer with any of them and none of them is the reader's doing.
-  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
-  if (INVALID_REQUEST.has(code)) return INVALID_REFUSAL;
-  return `That change could not be completed (${code}).`;
-};
+const refusalSentence = (thrown: unknown): string =>
+  sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
 
 /**
  * be-01's word for "the row you named is not there", which is the one refusal
@@ -749,6 +795,10 @@ const MATCH_TINT = 'var(--grid-match)';
  */
 const expansionKey = (projectId: string): string => `wbs.expanded.${projectId}`;
 
+/** One project's expansion, judged by {@link isExpansion} — see {@link remembered}. */
+const storedExpansion = (projectId: string): Remembered<ExpandedState> =>
+  remembered(expansionKey(projectId), isExpansion);
+
 /**
  * Whether a value read back out of storage is an expansion this table can use.
  *
@@ -760,18 +810,6 @@ function isExpansion(value: unknown): value is ExpandedState {
   if (value === true) return true;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   return Object.values(value).every((open) => typeof open === 'boolean');
-}
-
-/** `stored` as JSON, or nothing at all when it is not JSON. */
-function parsedOrNothing(stored: string): unknown {
-  try {
-    const claimed: unknown = JSON.parse(stored);
-    return claimed;
-  } catch {
-    // Nothing but this component writes the key, so the only way here is a
-    // hand-edited store. Recovered from below rather than rethrown.
-    return undefined;
-  }
 }
 
 /**
@@ -798,16 +836,11 @@ function parsedOrNothing(stored: string): unknown {
  *   three.
  */
 function rememberedExpansion(projectId: string): ExpandedState {
-  const stored = localStorage.getItem(expansionKey(projectId));
-  if (stored === null) return true;
-  const claimed = parsedOrNothing(stored);
-  if (isExpansion(claimed)) return claimed;
-  localStorage.removeItem(expansionKey(projectId));
-  return true;
+  return storedExpansion(projectId).readAndDrop() ?? true;
 }
 
 function rememberExpansion(projectId: string, expanded: ExpandedState): void {
-  localStorage.setItem(expansionKey(projectId), JSON.stringify(expanded));
+  storedExpansion(projectId).write(expanded);
 }
 
 /**
@@ -820,6 +853,14 @@ function rememberExpansion(projectId: string, expanded: ExpandedState): void {
 const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${projectId}`;
 
 /**
+ * One project's dragged widths, as **stored** — a record, not the `Map` the
+ * table holds, because the two are different shapes and only one of them is
+ * JSON. Per-entry sanitising is {@link rememberedWidthOverrides}'s.
+ */
+const storedWidthOverrides = (projectId: string): Remembered<Record<string, number>> =>
+  remembered(widthOverridesKey(projectId), isWidthOverrides);
+
+/**
  * Where this browser remembers how tall one project's Gantt panel was dragged.
  *
  * Per project and per browser for {@link widthOverridesKey}'s reason: the
@@ -827,6 +868,21 @@ const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${pro
  * about it.
  */
 const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${projectId}`;
+
+/**
+ * One project's panel height, in bounds or not stored at all.
+ *
+ * The range is part of the guard rather than a check after it, for the reason
+ * {@link remembered} states: a height outside the bounds a drag can reach is
+ * not a height this app wrote, and `1e999` parses to an `Infinity` above every
+ * ceiling.
+ */
+const storedGanttHeight = (projectId: string): Remembered<number> =>
+  remembered(
+    ganttHeightKey(projectId),
+    (claimed): claimed is number =>
+      typeof claimed === 'number' && claimed >= GANTT_MIN_PX && claimed <= GANTT_CEILING_PX,
+  );
 
 /**
  * The panel height this browser last saved for `projectId`, or none where it
@@ -846,18 +902,15 @@ const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${project
  * open until they clear storage by hand, over a preference about its height.
  */
 function rememberedGanttHeight(projectId: string): number | null {
-  const stored = localStorage.getItem(ganttHeightKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  // Proof: with this refusal deleted, `refuses storage that is not a number,
-  // and drops the key`, `refuses a height below the floor…` and `refuses a
-  // height above the ceiling…` (wbs-table.test.tsx) all failed — the panel
-  // drawn at the claimed height, the key still there. Watched, 2026-08-10.
-  if (typeof claimed !== 'number' || claimed < GANTT_MIN_PX || claimed > GANTT_CEILING_PX) {
-    localStorage.removeItem(ganttHeightKey(projectId));
-    return null;
-  }
-  return claimed;
+  // Proof: the range dropped from `storedGanttHeight`'s guard, leaving
+  // `typeof claimed === 'number'`. `refuses a height below the floor, and drops
+  // the key` failed on `expected '10px' to be ''` and `refuses a height above
+  // the ceiling, and drops the key` on `expected '99999px' to be ''` — the
+  // panel drawn at the claimed height, the key still there. `refuses storage
+  // that is not a number` stays green under that fault, which is why the range
+  // is in the guard rather than beside it. Observed 2026-09-02; the original
+  // watch of these two was 2026-08-10.
+  return storedGanttHeight(projectId).readAndDrop();
 }
 
 /**
@@ -868,7 +921,7 @@ function rememberedGanttHeight(projectId: string): number | null {
  * remembered about it.
  */
 function rememberGanttHeight(projectId: string, heightPx: number): void {
-  localStorage.setItem(ganttHeightKey(projectId), JSON.stringify(heightPx));
+  storedGanttHeight(projectId).write(heightPx);
 }
 
 /**
@@ -882,6 +935,10 @@ function rememberGanttHeight(projectId: string, heightPx: number): void {
  * sixty elbows off is a statement about elbows.
  */
 const ganttDayPxKey = (projectId: string): string => `wbs.ganttDayPx.${projectId}`;
+
+/** One project's day scale, judged against the same `DAY_SCALES` the control offers. */
+const storedGanttDayPx = (projectId: string): Remembered<DayPx> =>
+  remembered(ganttDayPxKey(projectId), isDayPx);
 
 /**
  * The day scale this browser last picked for `projectId`, or none where it has
@@ -899,14 +956,7 @@ const ganttDayPxKey = (projectId: string): string => `wbs.ganttDayPx.${projectId
  * open until they clear storage by hand, over a preference about its zoom.
  */
 function rememberedGanttDayPx(projectId: string): DayPx | null {
-  const stored = localStorage.getItem(ganttDayPxKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  if (!isDayPx(claimed)) {
-    localStorage.removeItem(ganttDayPxKey(projectId));
-    return null;
-  }
-  return claimed;
+  return storedGanttDayPx(projectId).readAndDrop();
 }
 
 /**
@@ -917,12 +967,12 @@ function rememberedGanttDayPx(projectId: string): DayPx | null {
  * is remembered about it.
  */
 function rememberGanttDayPx(projectId: string, dayPx: DayPx): void {
-  localStorage.setItem(ganttDayPxKey(projectId), JSON.stringify(dayPx));
+  storedGanttDayPx(projectId).write(dayPx);
 }
 
 /** Forgets the remembered day scale for `projectId` — the third part of a {@link Layout reset}. */
 function forgetGanttDayPx(projectId: string): void {
-  localStorage.removeItem(ganttDayPxKey(projectId));
+  storedGanttDayPx(projectId).forget();
 }
 
 /**
@@ -938,6 +988,19 @@ function forgetGanttDayPx(projectId: string): void {
 const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${projectId}`;
 
 /**
+ * Whether one project's chart draws its name column.
+ *
+ * A boolean and nothing else to check: unlike a height there is no range, and
+ * `false` is a real stored answer that a `??` would eat — which is why the
+ * caller keeps the `boolean | null` this answers with.
+ */
+const storedGanttLabels = (projectId: string): Remembered<boolean> =>
+  remembered(
+    ganttLabelsKey(projectId),
+    (claimed): claimed is boolean => typeof claimed === 'boolean',
+  );
+
+/**
  * Whether this browser last left `projectId`'s row names shown, or none where
  * it has never said — which opens the chart with them shown.
  *
@@ -950,14 +1013,7 @@ const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${project
  * {@link rememberedGanttHeight}'s reason.
  */
 function rememberedGanttLabels(projectId: string): boolean | null {
-  const stored = localStorage.getItem(ganttLabelsKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  if (typeof claimed !== 'boolean') {
-    localStorage.removeItem(ganttLabelsKey(projectId));
-    return null;
-  }
-  return claimed;
+  return storedGanttLabels(projectId).readAndDrop();
 }
 
 /**
@@ -967,12 +1023,12 @@ function rememberedGanttLabels(projectId: string): boolean | null {
  * {@link rememberGanttDayPx}'s reason.
  */
 function rememberGanttLabels(projectId: string, labelsShown: boolean): void {
-  localStorage.setItem(ganttLabelsKey(projectId), JSON.stringify(labelsShown));
+  storedGanttLabels(projectId).write(labelsShown);
 }
 
 /** Forgets the remembered name column for `projectId` — the fourth part of a {@link Layout reset}. */
 function forgetGanttLabels(projectId: string): void {
-  localStorage.removeItem(ganttLabelsKey(projectId));
+  storedGanttLabels(projectId).forget();
 }
 
 /**
@@ -988,6 +1044,9 @@ function forgetGanttLabels(projectId: string): void {
  * again in the next one is the fault this remembers away.
  */
 const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
+
+/** The Mermaid lane, judged against the modes `sectionOf` has a branch for. */
+const storedMermaidSectionMode = remembered(MERMAID_SECTION_MODE_KEY, isSectionMode);
 
 /**
  * The grouping this browser last picked for the Mermaid exports, or none where
@@ -1007,23 +1066,16 @@ const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
  * line.
  */
 function rememberedMermaidSectionMode(): SectionMode | null {
-  const stored = localStorage.getItem(MERMAID_SECTION_MODE_KEY);
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  // Proof: this refusal replaced by `return claimed as SectionMode`.
-  // `refuses a remembered lane this app does not offer, and drops the key`
-  // failed on `expected '"assignees"' to be null` and `refuses remembered
-  // lanes that are not JSON at all, and drops the key` on `expected '{not
-  // json' to be null` — `2 failed | 6 passed`, the refused answer left in
-  // storage to be read again next time. Note what did **not** fail: the
-  // picker still read `outline`, because a `<select>` whose value matches no
-  // option falls back to its first. The dropped key is the observable half.
-  // Watched 2026-08-30.
-  if (!isSectionMode(claimed)) {
-    localStorage.removeItem(MERMAID_SECTION_MODE_KEY);
-    return null;
-  }
-  return claimed;
+  // Proof: `readAndDrop` replaced by `read`, which is what "read the claim,
+  // drop nothing" comes to. `refuses a remembered lane this app does not offer,
+  // and drops the key` failed on `expected '"assignees"' to be null` and
+  // `refuses remembered lanes that are not JSON at all, and drops the key` on
+  // `expected '{not json' to be null` — `2 failed | 6 passed`, the refused
+  // answer left in storage to be read again next time. Note what did **not**
+  // fail: the picker still read `outline`, because a `<select>` whose value
+  // matches no option falls back to its first. The dropped key is the
+  // observable half. Watched 2026-08-30.
+  return storedMermaidSectionMode.readAndDrop();
 }
 
 /**
@@ -1034,7 +1086,7 @@ function rememberedMermaidSectionMode(): SectionMode | null {
  * is remembered about it.
  */
 function rememberMermaidSectionMode(sectionMode: SectionMode): void {
-  localStorage.setItem(MERMAID_SECTION_MODE_KEY, JSON.stringify(sectionMode));
+  storedMermaidSectionMode.write(sectionMode);
 }
 
 /**
@@ -1046,7 +1098,7 @@ function rememberMermaidSectionMode(sectionMode: SectionMode): void {
  * the frame layout resolves now.
  */
 function forgetGanttHeight(projectId: string): void {
-  localStorage.removeItem(ganttHeightKey(projectId));
+  storedGanttHeight(projectId).forget();
 }
 
 /**
@@ -1112,13 +1164,8 @@ function isWidthOverrides(value: unknown): value is Record<string, number> {
  * until they clear storage by hand, over a preference about a column.
  */
 function rememberedWidthOverrides(projectId: string): Map<string, number> {
-  const stored = localStorage.getItem(widthOverridesKey(projectId));
-  if (stored === null) return new Map();
-  const claimed = parsedOrNothing(stored);
-  if (!isWidthOverrides(claimed)) {
-    localStorage.removeItem(widthOverridesKey(projectId));
-    return new Map();
-  }
+  const claimed = storedWidthOverrides(projectId).readAndDrop();
+  if (claimed === null) return new Map();
   const kept = new Map<string, number>();
   for (const [columnId, width] of Object.entries(claimed)) {
     if (!sizableColumn(columnId, STATE_AT_MOUNT)) continue;
@@ -1145,7 +1192,7 @@ function rememberedWidthOverrides(projectId: string): Map<string, number> {
  * the entry for a step that is only temporarily absent.
  */
 function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string, number>): void {
-  localStorage.setItem(widthOverridesKey(projectId), JSON.stringify(Object.fromEntries(overrides)));
+  storedWidthOverrides(projectId).write(Object.fromEntries(overrides));
 }
 
 /**
@@ -1158,7 +1205,7 @@ function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string
  * the drag would come back to the old one.
  */
 function forgetWidthOverrides(projectId: string): void {
-  localStorage.removeItem(widthOverridesKey(projectId));
+  storedWidthOverrides(projectId).forget();
 }
 
 /**
@@ -1171,6 +1218,10 @@ function forgetWidthOverrides(projectId: string): void {
  * told about it.
  */
 const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${projectId}`;
+
+/** One project's hide-list, judged by {@link isStringArray}. */
+const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
+  remembered(hiddenColumnsKey(projectId), isStringArray);
 
 /**
  * The hide-list this browser last saved for `projectId`, or the default hidden
@@ -1203,14 +1254,7 @@ const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${pro
  * be null`. Watched, 2026-08-28.
  */
 function rememberedHiddenColumns(projectId: string): readonly string[] {
-  const stored = localStorage.getItem(hiddenColumnsKey(projectId));
-  if (stored === null) return DEFAULT_HIDDEN_COLUMNS;
-  const claimed = parsedOrNothing(stored);
-  if (!isStringArray(claimed)) {
-    localStorage.removeItem(hiddenColumnsKey(projectId));
-    return DEFAULT_HIDDEN_COLUMNS;
-  }
-  return claimed;
+  return storedHiddenColumns(projectId).readAndDrop() ?? DEFAULT_HIDDEN_COLUMNS;
 }
 
 /**
@@ -1221,7 +1265,7 @@ function rememberedHiddenColumns(projectId: string): readonly string[] {
  * {@link rememberedHiddenColumns} for why not on read.
  */
 function rememberHiddenColumns(projectId: string, hidden: readonly string[]): void {
-  localStorage.setItem(hiddenColumnsKey(projectId), JSON.stringify(hidden));
+  storedHiddenColumns(projectId).write(hidden);
 }
 
 /**
@@ -1233,7 +1277,7 @@ function rememberHiddenColumns(projectId: string, hidden: readonly string[]): vo
  * here is that promise broken the day the default moves.
  */
 function forgetHiddenColumns(projectId: string): void {
-  localStorage.removeItem(hiddenColumnsKey(projectId));
+  storedHiddenColumns(projectId).forget();
 }
 
 /**
@@ -1266,6 +1310,14 @@ interface SavedView {
  * plan on their own machine.
  */
 const savedViewsKey = (projectId: string): string => `wbs.views.${projectId}`;
+
+/**
+ * One project's saved views, as a **list of anything** — each entry is judged
+ * by {@link isSavedView} in {@link rememberedSavedViews}, which keeps the ones
+ * that are views rather than dropping the whole key over one bad entry.
+ */
+const storedSavedViews = (projectId: string): Remembered<readonly unknown[]> =>
+  remembered(savedViewsKey(projectId), (claimed): claimed is unknown[] => Array.isArray(claimed));
 
 /** Whether a claimed value is a list of strings — a facet's chosen ids. */
 function isStringArray(value: unknown): value is string[] {
@@ -1387,13 +1439,8 @@ function isSavedView(value: unknown): value is SavedView {
  * view on the reader's behalf.
  */
 function rememberedSavedViews(projectId: string): SavedView[] {
-  const stored = localStorage.getItem(savedViewsKey(projectId));
-  if (stored === null) return [];
-  const claimed = parsedOrNothing(stored);
-  if (!Array.isArray(claimed)) {
-    localStorage.removeItem(savedViewsKey(projectId));
-    return [];
-  }
+  const claimed = storedSavedViews(projectId).readAndDrop();
+  if (claimed === null) return [];
   return claimed
     .filter(isSavedView)
     .map((view) => ({ ...view, criteria: everyFacetOf(view.criteria) }));
@@ -1408,7 +1455,7 @@ function rememberedSavedViews(projectId: string): SavedView[] {
  * is never written back on a read.
  */
 function rememberSavedViews(projectId: string, views: readonly SavedView[]): void {
-  localStorage.setItem(savedViewsKey(projectId), JSON.stringify(views));
+  storedSavedViews(projectId).write(views);
 }
 
 /**
@@ -1898,69 +1945,6 @@ const showDay = (days: number): string => String(Math.round(days * 10) / 10);
  */
 const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): number | null =>
   startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
-
-/**
- * The control on the toolbar sheet a click was on, if that click closes it.
- *
- * Taking a control on the sheet is taking it on the plan behind the sheet, and
- * the plan is what wants looking at next — a phone screen is 390px and the
- * sheet is most of it. So a click on one of the sheet's own controls closes it.
- *
- * The control itself rather than a yes/no, because the caller has a second
- * question for it: {@link TAKES_THE_FOCUS} says whether that control moves the
- * focus itself, and the answer decides whether Radix's own restore is allowed
- * to happen.
- *
- * Two exemptions, and each is a fault this was written after meeting:
- *
- * - **A control that opens a surface of its own.** `ProjectSettingsModal`'s
- *   trigger is on this sheet, and closing the sheet unmounts the modal it was
- *   about to open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
- *   question asked here.
- * - **A click on another surface entirely.** React sends a portal's events up
- *   the **React** tree, so every click inside that steps dialog arrives here
- *   even though the modal is nowhere near this element in the DOM — and would
- *   close the sheet under it, mid-click, on the way to adding a step.
- *
- * @param target What was clicked — `event.target`, not the handler's element.
- * @param surface The sheet's own surface, which is `event.currentTarget`.
- */
-function closingControlIn(target: EventTarget | null, surface: Element): HTMLButtonElement | null {
-  if (!(target instanceof Element)) return null;
-  if (target.closest('[data-modal-surface]') !== surface) return null;
-  const control = target.closest('button');
-  if (control?.getAttribute('aria-haspopup') !== null) return null;
-  return control;
-}
-
-/**
- * The mark a toolbar control wears when taking it puts the focus somewhere of
- * its own choosing, so the sheet must not put it back on the trigger.
- *
- * Three controls wear it, and no others:
- *
- * - **`Add work item`**, which asks for the caret in the new row's name.
- * - **The readiness badge**, which walks to the cell estimating the next gap.
- * - **`Keyboard shortcuts`**, which opens the cheat sheet — a dialog that
- *   focuses its own panel on mount and restores on unmount. Radix's restore lands on a timer, so it
- *   arrives *after* that and takes the focus off a dialog that is still open;
- *   measured in jsdom, where the panel had the focus with the restore refused
- *   and the `Plan actions` trigger had it without.
- *
- * Every other control on the sheet — `Collapse all`, `Gantt`, `Undo`, the
- * exports — changes the plan without aiming the caret anywhere, and for those
- * Radix restoring the focus to the `Plan actions` trigger is the right answer
- * rather than a thing to suppress. Suppressing it left them on `<body>`.
- *
- * Not `data-lands-in-plan`, which is what the first two do and what the review
- * asked for: the cheat sheet lands in a dialog instead, and a name that
- * described two of the three would be a name the third is filed under wrongly.
- *
- * A DOM attribute rather than a list of labels here: the control that knows it
- * moves the focus is the control that says so, and a list would go stale the
- * next time one is added. See {@link closingControlIn} for who reads it.
- */
-const TAKES_THE_FOCUS = 'data-takes-the-focus';
 
 /**
  * What a control that is unavailable **because a save is in flight** looks
@@ -2637,12 +2621,16 @@ interface PlanRowProps {
   rowId: string;
   frozen: boolean;
   /**
-   * Lit because some hovered Depends on cell names this row. The tint itself
-   * lands on the cells through the `--cell-bg` join (`styles.css`), never on
-   * the `<tr>`, for `data-armed`'s reason: a pinned cell paints its own opaque
-   * background and would cover a colour set here.
+   * Where this row's **dependency** light is read from.
+   *
+   * Subscribed to rather than handed in as a boolean since 2026-09-02: it was a
+   * prop derived per render of the whole table, so pointing at one chip
+   * re-rendered every row and the chart to move a tint that lands on two. The
+   * tint itself lands on the cells through the `--cell-bg` join (`styles.css`),
+   * never on the `<tr>`, for `data-armed`'s reason: a pinned cell paints its
+   * own opaque background and would cover a colour set here.
    */
-  depLit: boolean;
+  depLights: DepLights;
   /**
    * The armed row, said on the row rather than only in the toast: a sentence
    * in the corner of the screen is not where somebody looks to find out which
@@ -2703,7 +2691,7 @@ interface PlanRowProps {
 function PlanRow({
   rowId,
   frozen,
-  depLit,
+  depLights,
   armed,
   drop,
   pointed,
@@ -2713,6 +2701,7 @@ function PlanRow({
   children,
 }: PlanRowProps) {
   const lit = useSyncExternalStore(pointed.subscribe, () => pointed.pointedAt() === rowId);
+  const depLit = useSyncExternalStore(depLights.subscribe, () => depLights.isLit(rowId));
   return (
     <tr
       // The row's identity, on the row — the handle the browser proofs find a
@@ -3264,49 +3253,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     highlightId: string | null;
   } | null>(null);
   /**
-   * The dependency hover: whose Depends on cell the pointer is in, and which
-   * of its pills it is on — `pillId: null` while it is on the cell's input
-   * area rather than on a pill.
+   * Which rows a hovered or focused **Depends on** cell lights — the pointer's
+   * reading, the keyboard's, and the resolution of the two. See
+   * {@link createDepLights}, which owns all three and the proofs that guard
+   * them.
    *
-   * Two fields rather than a list of ids to light (codex 10 on the U4 plan):
-   * a single list cannot distinguish "the cell" from "the cell's only pill",
-   * and the card's emphasis needs exactly that distinction. The lit set is
-   * derived per render — see {@link WbsTable}'s `depLit` — all of the row's
-   * dependencies while `pillId` is null, the one pill's row otherwise.
+   * A **store** rather than two `useState`s since 2026-09-02, and the address
+   * was the whole of the cost: the cells read their live state through
+   * {@link live} and rely on every parent render reaching every cell, so a
+   * pointer crossing one chip re-rendered every row, every cell and the chart
+   * to move a tint that lands on two rows. Each `<tr>` shell subscribes for its
+   * own light and an open card for its emphasis; `plan-dependencies.test.tsx`'s
+   * `narrowing to a pill re-renders the row whose light moved and nothing else`
+   * is what holds that, watched failing on `expected 4 to be less than or equal
+   * to 2` with the writes routed back through state.
    *
-   * Read through {@link live} inside `columns`, for the reason `hoveredCell`
-   * is: a hover **re-renders** the table, which is how React works and is
-   * cheap here, but a `columns` that depended on it would **remount** every
-   * cell on the first hover and take the focus with it. The writers below
-   * bail out (return the current object) when the value is already there, so
-   * a pointer resting on one pill costs one render, not one per mousemove.
+   * Still read through {@link live} inside `columns`, and for the unchanged
+   * reason `hoveredCell` is: a `columns` that depended on a pointer reading
+   * would **remount** every cell on the first hover and take the focus with it.
+   * `useRef` and not `useState` for the handle itself — the store is created
+   * once and never replaced.
    */
-  const [depHover, setDepHover] = useState<{ rowId: string; pillId: string | null } | null>(null);
-  /**
-   * The same reading of the same cell, from the **keyboard**: whose Depends on
-   * cell holds the focus, and which of its pills has it.
-   *
-   * The light is the change's one visual answer to "what does this row wait
-   * for", and a hover-only answer is no answer to somebody who never touches a
-   * mouse. Focus is the keyboard's pointer, so it drives the same light through
-   * the same derivation ({@link WbsTable}'s `depLit` reads `depHover ??
-   * depFocus`) — the pointer's reading wins while both are live, because the
-   * pointer is where the eyes are.
-   *
-   * A second state rather than more writers on `depHover`, and that is the
-   * whole of why: focus and the pointer come and go independently, so one field
-   * would have a blur clearing a live hover and a mouseleave clearing a live
-   * focus. Two fields cannot interfere, and "the pointer wins" is then one
-   * `??` rather than a rule spread over four writers.
-   *
-   * **Sequential Tab reaches the box and not the chips.** `deps-single-line`
-   * holds a clipped chip out of the tab order on purpose — see the chips'
-   * `tabIndex` below — so the per-pill narrowing is reachable from focus
-   * wherever focus can land on a chip at all, and the cell-level light is what
-   * a Tab through the plan gets. That narrowing is stated in the change's spec
-   * rather than left to be discovered here.
-   */
-  const [depFocus, setDepFocus] = useState<{ rowId: string; pillId: string | null } | null>(null);
+  const depLights = useRef(createDepLights()).current;
   /**
    * The **pointed row** — three readings, one per place the answer can come
    * from — and the rule that each face lights the other face's.
@@ -3461,32 +3429,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const gridElement = useRef<HTMLElement | null>(null);
   /**
-   * Which of the two renderers is drawing the plan, and whether the toolbar is
-   * open as a sheet under the cards.
+   * Which of the two renderers is drawing the plan.
    *
-   * The sheet is closed on every renderer change rather than only on the way
-   * out: a window dragged wide with the sheet open would otherwise leave a
-   * modal over a table that has the toolbar in a row of its own.
+   * Whether the phone's toolbar sheet is **open** is no longer here — see
+   * {@link PlanToolbarSheet}, which owns it so that opening a sheet does not
+   * re-render the plan behind it. The effect that closed the sheet on every
+   * renderer change went with it: only this renderer mounts the sheet, so a
+   * window dragged wide unmounts it and there is nothing left to close.
    */
   const renderer = useRendererForViewport();
-  const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
-  /**
-   * Whether the control that closed the sheet aims the caret itself — the
-   * {@link TAKES_THE_FOCUS} mark, read off the control that was clicked.
-   *
-   * False for every other way out, and that includes the rest of the toolbar:
-   * Escape, the ✕, a tap outside, and `Collapse all`, `Gantt`, `Undo` and the
-   * exports, none of which ask for the focus anywhere. Only the three that do
-   * may refuse Radix's restore, because refusing it for the others drops the
-   * focus on `<body>` — nothing to type into and nothing to Tab from.
-   *
-   * A ref because nothing renders it, and because it is read from Radix's own
-   * close handler one turn of the event loop after the click that set it.
-   */
-  const sheetControlTakesTheFocus = useRef(false);
-  useEffect(() => {
-    setToolbarSheetOpen(false);
-  }, [renderer]);
   /**
    * Whether the Gantt panel is under the plan.
    *
@@ -3668,117 +3619,131 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     });
   }, []);
 
-  const refresh = useCallback(async () => {
-    // An action from the project shown before the latest render can finish
-    // afterwards. It may finish its server request, but it no longer gets a
-    // read generation or a write into this project's screen.
-    if (projectId !== activeProject.current) return;
-    // Every mutation and every socket event starts a refresh, and they can
-    // finish out of order — an earlier one landing last would replace the table
-    // with a tree older than what is on screen, with nothing guaranteed to
-    // arrive afterwards and repair it. Only the newest request may write.
-    const generation = latestRefresh.current + 1;
-    latestRefresh.current = generation;
-    const [
-      tree,
-      loadedSteps,
-      loadedTeams,
-      loadedTags,
-      loadedServices,
-      loadedWorkItemTypes,
-      loadedExternalSystems,
-      loadedPeople,
-    ] = await Promise.all([
-      api.tree(projectId),
-      api.steps(projectId),
-      api.listTeams(),
-      // Beside the teams rather than behind them: both are global lists the
-      // pickers need before a reader can tick anything, and a second round trip
-      // would put the tag facet a frame behind the team one.
-      api.listTags(),
-      // And the third dimension in the same breath, for that reason a third
-      // time: the service facet names its options out of this list.
-      api.listServices(),
-      // And the fourth, a fourth time. Loaded even though the column is hidden
-      // by default: a reader who turns Types on from `Columns` gets a picker
-      // that already has the vocabulary, rather than one that is empty until the
-      // next refresh — and the type facet is built from this list the same way.
-      api.listWorkItemTypes(),
-      // And the fifth, on the same read for the same reason: the ref marks name
-      // their system out of this list, so a tree that arrived first would draw a
-      // row's links as `other` for a frame.
-      api.listExternalSystems(),
-      api.listPeople(),
-    ]);
-    if (projectId !== activeProject.current) return;
-    if (generation !== latestRefresh.current) return;
-    // This read landed, so whatever the last failed one left behind is over.
-    // After the generation check, not before: a superseded read must not
-    // vouch for a tree it is about to throw away, and the newest read is the
-    // one entitled to say the screen is current.
-    // Proof: removed, `raises the stale-tree banner when a socket refetch
-    // fails` and `clears the banner on a later successful refetch from any
-    // path` both failed with the banner still up after a clean reread.
-    // Watched, 2026-08-06.
-    setTreeMayBeStale(false);
-    setTeams(loadedTeams);
-    setTags(loadedTags);
-    setServices(loadedServices);
-    setWorkItemTypes(loadedWorkItemTypes);
-    setExternalSystems(loadedExternalSystems);
-    setPeople(loadedPeople);
-    const drawn = toTree(tree.workItems);
-    setWorkItems(drawn);
-    // The open hover card, settled against the rows that just arrived. The
-    // previous placements are read into a local **before** the ref is replaced:
-    // React may run the updater below after this call returns, and reading the
-    // ref from inside it would compare the new tree against itself and never
-    // close anything.
-    // Proof: this pair deleted, `closes the card when a peer moves the row it
-    // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
-    // Watched, 2026-08-09.
-    const placements = placementsOf(drawn);
-    const wasPlaced = rowPlacements.current;
-    rowPlacements.current = placements;
-    setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
-    // On the same read as the rows and behind the same generation check: a
-    // superseded read must not leave its slices under another read's rows.
-    // Proof: written as `setSlices((current) => current.length === 0 ?
-    // tree.slices : current)` — the refetch leaving the slices where the first
-    // read put them — and `replaces the slices on every refetch, as it replaces
-    // the rows` failed on `expected '2' to be '1'`: a second row on screen with
-    // the one-row plan's slices still behind it; watched 2026-08-09.
-    //
-    // One call, so the chart's three parts can only ever be one payload's. The
-    // steps and the names come from `tree` and **not** from `loadedSteps` or
-    // `loadedPeople` below: those are three more requests, and a peer's step
-    // delete landing between them is what used to hand `layOutGantt` a slice
-    // under a step the plan no longer listed.
-    setChartRead({
-      slices: tree.slices,
-      steps: tree.steps,
-      people: tree.assignedPeople,
-      depReach: tree.depReach,
-      pertWeights: tree.pertWeights,
-      estimateRounding: tree.estimateRounding,
-      generation,
-    });
-    setStack({ undoable: tree.undoable, redoable: tree.redoable });
-    setTeamCapacities(tree.teamCapacities);
-    setPriorityBands(tree.priorityBands);
-    setScheduleError(tree.scheduleError);
-    setEstimateMethod(tree.estimateMethod);
-    setStartDate(tree.startDate);
-    // Replaced only when the steps actually differ. Every read returns a fresh
-    // array, and `steps` is the one dependency `columns` still has — so a new
-    // array on every refresh rebuilt every column definition, which is how a
-    // stranger's edit used to take the focus of whoever was mid-word.
-    setSteps((current) => (sameSteps(current, loadedSteps) ? current : loadedSteps));
-    settleAgainstSteps(loadedSteps);
-    // Reported after the generation check, so a superseded read cannot move the
-    // resume point to a moment whose rows were thrown away.
-    stream.current?.seen(tree.seq);
-  }, [api, projectId, settleAgainstSteps]);
+  const refresh = useCallback(
+    async (scope: PlanReadScope = 'all') => {
+      // An action from the project shown before the latest render can finish
+      // afterwards. It may finish its server request, but it no longer gets a
+      // read generation or a write into this project's screen.
+      if (projectId !== activeProject.current) return;
+      // Every mutation and every socket event starts a refresh, and they can
+      // finish out of order — an earlier one landing last would replace the table
+      // with a tree older than what is on screen, with nothing guaranteed to
+      // arrive afterwards and repair it. Only the newest request may write.
+      const generation = latestRefresh.current + 1;
+      latestRefresh.current = generation;
+      // `null` where the scope says this read does not need that request. The
+      // vocabularies stay in one nested `Promise.all` rather than becoming six
+      // ternaries, so they are still issued in one breath when they are issued at
+      // all — which is what the five comments below are about.
+      const [tree, loadedSteps, loadedVocabularies] = await Promise.all([
+        api.tree(projectId),
+        scope === 'tree' ? null : api.steps(projectId),
+        scope === 'all'
+          ? Promise.all([
+              api.listTeams(),
+              // Beside the teams rather than behind them: both are global lists the
+              // pickers need before a reader can tick anything, and a second round trip
+              // would put the tag facet a frame behind the team one.
+              api.listTags(),
+              // And the third dimension in the same breath, for that reason a third
+              // time: the service facet names its options out of this list.
+              api.listServices(),
+              // And the fourth, a fourth time. Loaded even though the column is hidden
+              // by default: a reader who turns Types on from `Columns` gets a picker
+              // that already has the vocabulary, rather than one that is empty until the
+              // next refresh — and the type facet is built from this list the same way.
+              api.listWorkItemTypes(),
+              // And the fifth, on the same read for the same reason: the ref marks name
+              // their system out of this list, so a tree that arrived first would draw a
+              // row's links as `other` for a frame.
+              api.listExternalSystems(),
+              api.listPeople(),
+            ])
+          : null,
+      ]);
+      if (projectId !== activeProject.current) return;
+      if (generation !== latestRefresh.current) return;
+      // This read landed, so whatever the last failed one left behind is over.
+      // After the generation check, not before: a superseded read must not
+      // vouch for a tree it is about to throw away, and the newest read is the
+      // one entitled to say the screen is current.
+      // Proof: removed, `raises the stale-tree banner when a socket refetch
+      // fails` and `clears the banner on a later successful refetch from any
+      // path` both failed with the banner still up after a clean reread.
+      // Watched, 2026-08-06.
+      setTreeMayBeStale(false);
+      if (loadedVocabularies !== null) {
+        const [
+          loadedTeams,
+          loadedTags,
+          loadedServices,
+          loadedWorkItemTypes,
+          loadedExternalSystems,
+          loadedPeople,
+        ] = loadedVocabularies;
+        setTeams(loadedTeams);
+        setTags(loadedTags);
+        setServices(loadedServices);
+        setWorkItemTypes(loadedWorkItemTypes);
+        setExternalSystems(loadedExternalSystems);
+        setPeople(loadedPeople);
+      }
+      const drawn = toTree(tree.workItems);
+      setWorkItems(drawn);
+      // The open hover card, settled against the rows that just arrived. The
+      // previous placements are read into a local **before** the ref is replaced:
+      // React may run the updater below after this call returns, and reading the
+      // ref from inside it would compare the new tree against itself and never
+      // close anything.
+      // Proof: this pair deleted, `closes the card when a peer moves the row it
+      // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
+      // Watched, 2026-08-09.
+      const placements = placementsOf(drawn);
+      const wasPlaced = rowPlacements.current;
+      rowPlacements.current = placements;
+      setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
+      // On the same read as the rows and behind the same generation check: a
+      // superseded read must not leave its slices under another read's rows.
+      // Proof: written as `setSlices((current) => current.length === 0 ?
+      // tree.slices : current)` — the refetch leaving the slices where the first
+      // read put them — and `replaces the slices on every refetch, as it replaces
+      // the rows` failed on `expected '2' to be '1'`: a second row on screen with
+      // the one-row plan's slices still behind it; watched 2026-08-09.
+      //
+      // One call, so the chart's three parts can only ever be one payload's. The
+      // steps and the names come from `tree` and **not** from `loadedSteps` or
+      // `loadedPeople` below: those are three more requests, and a peer's step
+      // delete landing between them is what used to hand `layOutGantt` a slice
+      // under a step the plan no longer listed.
+      setChartRead({
+        slices: tree.slices,
+        steps: tree.steps,
+        people: tree.assignedPeople,
+        depReach: tree.depReach,
+        pertWeights: tree.pertWeights,
+        estimateRounding: tree.estimateRounding,
+        generation,
+      });
+      setStack({ undoable: tree.undoable, redoable: tree.redoable });
+      setTeamCapacities(tree.teamCapacities);
+      setPriorityBands(tree.priorityBands);
+      setScheduleError(tree.scheduleError);
+      setEstimateMethod(tree.estimateMethod);
+      setStartDate(tree.startDate);
+      // Replaced only when the steps actually differ. Every read returns a fresh
+      // array, and `steps` is the one dependency `columns` still has — so a new
+      // array on every refresh rebuilt every column definition, which is how a
+      // stranger's edit used to take the focus of whoever was mid-word.
+      if (loadedSteps !== null) {
+        setSteps((current) => (sameSteps(current, loadedSteps) ? current : loadedSteps));
+        settleAgainstSteps(loadedSteps);
+      }
+      // Reported after the generation check, so a superseded read cannot move the
+      // resume point to a moment whose rows were thrown away.
+      stream.current?.seen(tree.seq);
+    },
+    [api, projectId, settleAgainstSteps],
+  );
 
   /**
    * Rereads the tree, and raises the stale banner instead of throwing when
@@ -3790,23 +3755,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * have their own refusals to report (`dependOn`) must still report them
    * after a failed reread.
    */
-  const refreshOrMarkStale = useCallback(async () => {
-    try {
-      await refresh();
-    } catch {
-      // The reason is not shown. It is be-01's word for a network failure the
-      // reader did not cause and cannot act on beyond retrying, and the banner
-      // already says the one thing they can do about it.
-      //
-      // Proof: emptied to the silent catch this replaced, four of the block's
-      // tests failed — `raises the stale-tree banner when a socket refetch
-      // fails`, `clears the banner on a later successful refetch from any
-      // path`, `raises the banner when the refetch after an edit fails` and
-      // `shows both the refusal and the banner when the refetch failed too`.
-      // Watched, 2026-08-06.
-      setTreeMayBeStale(true);
-    }
-  }, [refresh]);
+  const refreshOrMarkStale = useCallback(
+    async (scope: PlanReadScope = 'all') => {
+      try {
+        await refresh(scope);
+      } catch {
+        // The reason is not shown. It is be-01's word for a network failure the
+        // reader did not cause and cannot act on beyond retrying, and the banner
+        // already says the one thing they can do about it.
+        //
+        // Proof: emptied to the silent catch this replaced, four of the block's
+        // tests failed — `raises the stale-tree banner when a socket refetch
+        // fails`, `clears the banner on a later successful refetch from any
+        // path`, `raises the banner when the refetch after an edit fails` and
+        // `shows both the refusal and the banner when the refetch failed too`.
+        // Watched, 2026-08-06.
+        setTreeMayBeStale(true);
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     void refresh().catch((thrown: unknown) => {
@@ -3852,11 +3820,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   useEffect(() => {
     if (subscribe === undefined) return undefined;
     const opened = subscribe(projectId, {
-      onChange: () => {
+      onChange: (changed) => {
         // No toast: nobody asked for this read, so nothing of theirs was
         // refused. What it can leave behind is a tree that has fallen behind,
         // and that is the banner's job.
-        void refreshOrMarkStale();
+        void refreshOrMarkStale(readScopeFor(changed));
       },
       onConnectionChange: setConnected,
     });
@@ -4184,7 +4152,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * words the Depends on chips carry. An unnamed row keeps the number it does
    * have, which is why the empty name has words rather than a trailing space.
    */
-  const namedInTheTree = new Map(flat.map((row) => [row.id, rowWords(row.number, row.name)]));
+  const namedInTheTree = useMemo(
+    () => new Map(flat.map((row) => [row.id, rowWords(row.number, row.name)])),
+    [flat],
+  );
+
+  /**
+   * The three directory vocabularies as lookups.
+   *
+   * The label readings below asked `teams.find(...)`, `tags.find(...)` and
+   * `services.find(...)` **per row**, and the chart's input calls all three for
+   * every row it draws — so naming a plan's labels was O(rows × directory) three
+   * times over. They change when a directory read lands, which is rarely.
+   */
+  const teamsById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
+  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
+  const servicesById = useMemo(
+    () => new Map(services.map((service) => [service.id, service])),
+    [services],
+  );
 
   /**
    * The service team a work item is labelled with, resolved against the
@@ -4195,11 +4181,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * lookup and says so, rather than rendering a blank label or throwing the
    * chart away. See {@link ServiceTeamLabel}.
    */
-  const teamLabelOf = (serviceTeamId: string | null): ServiceTeamLabel => {
-    if (serviceTeamId === null) return { state: 'none' };
-    const named = teams.find((team) => team.id === serviceTeamId);
-    return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
-  };
+  const teamLabelOf = useCallback(
+    (serviceTeamId: string | null): ServiceTeamLabel => {
+      if (serviceTeamId === null) return { state: 'none' };
+      const named = teamsById.get(serviceTeamId);
+      return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
+    },
+    [teamsById],
+  );
 
   /**
    * Which team's work each row is, the leaf's own label or the nearest
@@ -4348,23 +4337,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * out of a pool, and "why did this row move when somebody edited a team's
    * number" has no answer anywhere in the tool.
    */
-  const effectiveTeamLabelOf = (row: TreeRow): ServiceTeamLabel => {
-    // The row's own set first, and `at(0)` because a set of more than one is
-    // unwritable until R2-4 — R2-3 is the change that gives every member a
-    // chip. Empty is *unstated* and inherits, which is the whole of the rule
-    // this cell shares with the scheduler.
-    const own = row.teamIds.at(0);
-    if (own !== undefined) return teamLabelOf(own);
-    const inherited = effectiveTeams.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const named = teams.find((team) => team.id === inherited.teamIds.at(0));
-    if (named === undefined) return { state: 'unresolved' };
-    return {
-      state: 'inherited',
-      name: named.name,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
-  };
+  const effectiveTeamLabelOf = useCallback(
+    (row: TreeRow): ServiceTeamLabel => {
+      // The row's own set first, and `at(0)` because a set of more than one is
+      // unwritable until R2-4 — R2-3 is the change that gives every member a
+      // chip. Empty is *unstated* and inherits, which is the whole of the rule
+      // this cell shares with the scheduler.
+      const own = row.teamIds.at(0);
+      if (own !== undefined) return teamLabelOf(own);
+      const inherited = effectiveTeams.get(row.id);
+      if (inherited === undefined) return { state: 'none' };
+      const first = inherited.teamIds.at(0);
+      const named = first === undefined ? undefined : teamsById.get(first);
+      if (named === undefined) return { state: 'unresolved' };
+      return {
+        state: 'inherited',
+        name: named.name,
+        fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+      };
+    },
+    [teamLabelOf, effectiveTeams, teamsById, namedInTheTree],
+  );
 
   /**
    * A row's tags as a cell or a card can state them: what it says itself, and
@@ -4380,22 +4373,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * A name the directory read has not caught up with is simply left out — see
    * {@link TagLabel} for why there is no `unresolved` arm.
    */
-  const effectiveTagLabelOf = (row: TreeRow): TagLabel => {
-    const own: string[] = [];
-    const inherited: InheritedTagLabel[] = [];
-    for (const each of effectiveTags.get(row.id) ?? []) {
-      const found = tags.find((entry) => entry.id === each.tagId);
-      if (found === undefined) continue;
-      if (each.fromId === row.id) own.push(found.name);
-      else
-        inherited.push({
-          id: found.id,
-          name: found.name,
-          fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
-        });
-    }
-    return { own, inherited };
-  };
+  const effectiveTagLabelOf = useCallback(
+    (row: TreeRow): TagLabel => {
+      const own: string[] = [];
+      const inherited: InheritedTagLabel[] = [];
+      for (const each of effectiveTags.get(row.id) ?? []) {
+        const found = tagsById.get(each.tagId);
+        if (found === undefined) continue;
+        if (each.fromId === row.id) own.push(found.name);
+        else
+          inherited.push({
+            id: found.id,
+            name: found.name,
+            fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
+          });
+      }
+      return { own, inherited };
+    },
+    [effectiveTags, tagsById, namedInTheTree],
+  );
 
   /**
    * A row's service as a cell or a card can state it: its own, or the one it
@@ -4412,34 +4408,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * `effectiveTagLabelOf` with different names, which is what the domain walk
    * underneath has been since chunk 12.
    */
-  const effectiveServiceLabelOf = (row: TreeRow): ServiceLabel => {
-    // Unnamed ids are dropped rather than carried, which is `effectiveTagLabelOf`'s
-    // rule and the reason `ServiceLabel` lost its `unresolved` arm: this function
-    // feeds the *placeholder*, and the chips beside it show every stated id with
-    // the id itself as the fallback. A service the directory has not caught up
-    // with is therefore on screen in the cell, not silently absent from it.
-    const namesFor = (ids: readonly string[]): string[] =>
-      ids.flatMap((id) => {
-        const found = services.find((each) => each.id === id);
-        return found === undefined ? [] : [found.name];
-      });
-    // Its own set, which is what makes the row's answer its own rather than an
-    // inherited one — the emptiness below is `effectiveServicesOf`'s question,
-    // not this one's.
-    if (row.serviceIds.length > 0) {
-      const names = namesFor(row.serviceIds);
-      return names.length === 0 ? { state: 'none' } : { state: 'named', names };
-    }
-    const inherited = effectiveServices.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const names = namesFor(inherited.serviceIds);
-    if (names.length === 0) return { state: 'none' };
-    return {
-      state: 'inherited',
-      names,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
-  };
+  const effectiveServiceLabelOf = useCallback(
+    (row: TreeRow): ServiceLabel => {
+      // Unnamed ids are dropped rather than carried, which is `effectiveTagLabelOf`'s
+      // rule and the reason `ServiceLabel` lost its `unresolved` arm: this function
+      // feeds the *placeholder*, and the chips beside it show every stated id with
+      // the id itself as the fallback. A service the directory has not caught up
+      // with is therefore on screen in the cell, not silently absent from it.
+      const namesFor = (ids: readonly string[]): string[] =>
+        ids.flatMap((id) => {
+          const found = servicesById.get(id);
+          return found === undefined ? [] : [found.name];
+        });
+      // Its own set, which is what makes the row's answer its own rather than an
+      // inherited one — the emptiness below is `effectiveServicesOf`'s question,
+      // not this one's.
+      if (row.serviceIds.length > 0) {
+        const names = namesFor(row.serviceIds);
+        return names.length === 0 ? { state: 'none' } : { state: 'named', names };
+      }
+      const inherited = effectiveServices.get(row.id);
+      if (inherited === undefined) return { state: 'none' };
+      const names = namesFor(inherited.serviceIds);
+      if (names.length === 0) return { state: 'none' };
+      return {
+        state: 'inherited',
+        names,
+        fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+      };
+    },
+    [servicesById, effectiveServices, namedInTheTree],
+  );
 
   /**
    * A pending Ctrl+D whose row the tree no longer holds — or no longer holds
@@ -4774,7 +4773,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         while (queue.queued > 0 && activeProject.current === queue.projectId) {
           queue.queued -= 1;
           const outcome = await run(async () => {
-            const created = await api.create(projectId, { parentId: null, afterId, name: '' });
+            const created = await api.createWorkItem(projectId, {
+              parentId: null,
+              afterId,
+              name: '',
+            });
             afterId = created.id;
             focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
           });
@@ -5250,7 +5253,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
 
       if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
-      void run(() => api.move(draggedId, plan.parentId, plan.afterId));
+      void run(() => api.moveWorkItem(draggedId, plan.parentId, plan.afterId));
     },
     [api, dragging, flat, pushToast, run],
   );
@@ -5258,7 +5261,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const addSibling = useCallback(
     (after: TreeRow) =>
       run(async () => {
-        const created = await api.create(projectId, {
+        const created = await api.createWorkItem(projectId, {
           parentId: after.parentId,
           afterId: after.id,
           name: '',
@@ -5286,7 +5289,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         const newParent = index > 0 ? siblings[index - 1] : undefined;
         if (newParent === undefined) return;
         const lastChild = newParent.subRows.at(-1) ?? null;
-        await api.move(row.id, newParent.id, lastChild?.id ?? null);
+        await api.moveWorkItem(row.id, newParent.id, lastChild?.id ?? null);
         // After the move, not before: a refused request then leaves the focus
         // where the person left it rather than sending it after a row that
         // never went anywhere.
@@ -5302,7 +5305,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         if (row.parentId === null) return;
         const parent = flat.find((w) => w.id === row.parentId);
         if (parent === undefined) return;
-        await api.move(row.id, parent.parentId, parent.id);
+        await api.moveWorkItem(row.id, parent.parentId, parent.id);
         // After the move, for the reason `indent` gives.
         focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       }),
@@ -5345,7 +5348,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           ? (siblings[swapWith]?.id ?? null)
           : (siblings[swapWith - 1]?.id ?? null);
       void run(async () => {
-        await api.move(row.id, row.parentId, afterId);
+        await api.moveWorkItem(row.id, row.parentId, afterId);
         // Asked for only once be-01 has taken the move: a refused request leaves
         // the focus where the person left it rather than chasing a row that did
         // not go anywhere.
@@ -5371,7 +5374,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const duplicateRow = useCallback(
     (id: string) =>
       run(async () => {
-        const copy = await api.duplicate(id);
+        const copy = await api.duplicateWorkItem(id);
         focusIntent.current.wants({ rowId: copy.id, columnId: 'name' });
       }),
     [api, run],
@@ -5417,7 +5420,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // has no row above, and `.at(-1)` would send the focus to the last one.
         const above = flatAt > 0 ? flat[flatAt - 1] : undefined;
         const landsOn = nextSibling ?? above;
-        await api.remove(row.id, {
+        await api.removeWorkItem(row.id, {
           strategy: row.subRows.length > 0 ? 'promote' : undefined,
         });
         focusIntent.current.wants(
@@ -5475,7 +5478,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // mean the same thing, so there is nothing unsaved for the cell to hold
       // and nothing for be-01 to have refused.
       if (Object.keys(patch).length === 0) return unsent();
-      return run(() => api.patch(rowId, patch));
+      return run(() => api.patchWorkItem(rowId, patch));
     },
     [api, run],
   );
@@ -5491,7 +5494,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         focusIntent.current.wants(
           above === undefined ? null : { rowId: above.id, columnId: 'name' },
         );
-        await api.remove(row.id);
+        await api.removeWorkItem(row.id);
       }),
     [api, flat, run],
   );
@@ -6374,7 +6377,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setNotBefore = useCallback(
     (id: string, day: string | null, reason?: string | null) => {
       void run(() =>
-        api.patch(
+        api.patchWorkItem(
           id,
           day === null
             ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
@@ -6414,7 +6417,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setNotBeforeReason = useCallback(
     (id: string, typed: string) => {
       const said = typed.trim();
-      void run(() => api.patch(id, { startNoEarlierThanReason: said === '' ? null : said }));
+      void run(() =>
+        api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
+      );
     },
     [api, run],
   );
@@ -6443,7 +6448,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // typed name and a typed number all become one `patch`, one journal entry
       // and one undo. `priorityTyped` owns the rule and the order in it.
       const trimmed = priorityTyped(priorityBands, typed).trim();
-      if (trimmed === '') return run(() => api.patch(id, { priority: null }));
+      if (trimmed === '') return run(() => api.patchWorkItem(id, { priority: null }));
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
       // `Number` answers `NaN` for either.
@@ -6469,7 +6474,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pushToast({ kind: 'error', text: 'A priority is a whole number from 1 upward.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patch(id, { priority: asNumber }));
+      return run(() => api.patchWorkItem(id, { priority: asNumber }));
     },
     [api, priorityBands, pushToast, run],
   );
@@ -6492,7 +6497,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setParallelism = useCallback(
     (id: string, typed: string): Promise<CommitOutcome> => {
       const trimmed = typed.trim();
-      if (trimmed === '') return run(() => api.patch(id, { maxParallel: null }));
+      if (trimmed === '') return run(() => api.patchWorkItem(id, { maxParallel: null }));
       const asNumber = Number(trimmed);
       // {@link setPriority}'s refusal, for its reason: JSON has no literal for
       // `NaN` or `Infinity`, so either would arrive as `null` — which here is
@@ -6502,7 +6507,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pushToast({ kind: 'error', text: 'People at once is a whole number from 1 to 1000.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patch(id, { maxParallel: asNumber }));
+      return run(() => api.patchWorkItem(id, { maxParallel: asNumber }));
     },
     [api, pushToast, run],
   );
@@ -6580,7 +6585,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /** Replaces a work item's own team set, whole. */
   const setTeamOf = useCallback(
     (id: string, teamIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { teamIds: [...teamIds] })),
+      run(() => api.patchWorkItem(id, { teamIds: [...teamIds] })),
     [api, run],
   );
 
@@ -6602,7 +6607,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setServicesOf = useCallback(
     (id: string, serviceIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { serviceIds: [...serviceIds] })),
+      run(() => api.patchWorkItem(id, { serviceIds: [...serviceIds] })),
     [api, run],
   );
 
@@ -6616,7 +6621,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setTagsOf = useCallback(
     (id: string, tagIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { tagIds: [...tagIds] })),
+      run(() => api.patchWorkItem(id, { tagIds: [...tagIds] })),
     [api, run],
   );
 
@@ -6627,7 +6632,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // be-01 is idempotent by name, so two browsers typing `Platform` at
         // once end up on one team rather than two.
         const team = await api.addTeam(name);
-        await api.patch(id, { teamIds: [...current, team.id] });
+        await api.patchWorkItem(id, { teamIds: [...current, team.id] });
       }),
     [api, run],
   );
@@ -6637,7 +6642,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async () => {
         const service = await api.addService(name);
-        await api.patch(id, { serviceIds: [...current, service.id] });
+        await api.patchWorkItem(id, { serviceIds: [...current, service.id] });
       }),
     [api, run],
   );
@@ -6658,14 +6663,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setExternalRefsOf = useCallback(
     (id: string, refs: readonly ExternalRefDraft[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { externalRefs: refs.map((ref) => ({ ...ref })) })),
+      run(() => api.patchWorkItem(id, { externalRefs: refs.map((ref) => ({ ...ref })) })),
     [api, run],
   );
 
   /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
   const setTypesOf = useCallback(
     (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { typeIds: [...typeIds] })),
+      run(() => api.patchWorkItem(id, { typeIds: [...typeIds] })),
     [api, run],
   );
 
@@ -6683,7 +6688,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // be-01 is idempotent by name, so two browsers typing `Bug` at once end
         // up on one type rather than two.
         const workItemType = await api.addWorkItemType(name);
-        await api.patch(id, { typeIds: [...current, workItemType.id] });
+        await api.patchWorkItem(id, { typeIds: [...current, workItemType.id] });
       }),
     [api, run],
   );
@@ -6693,14 +6698,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async () => {
         const tag = await api.addTag(name);
-        await api.patch(id, { tagIds: [...current, tag.id] });
+        await api.patchWorkItem(id, { tagIds: [...current, tag.id] });
       }),
     [api, run],
   );
 
   const assignTo = useCallback(
     (id: string, stepId: string, personId: string | null) => {
-      void run(() => api.assign(id, stepId, personId));
+      void run(() => api.assignPerson(id, stepId, personId));
     },
     [api, run],
   );
@@ -6718,7 +6723,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (row: TreeRow, stepId: string, name: string) => {
       void run(async () => {
         const person = await api.addPerson(name, row.teamIds);
-        await api.assign(row.id, stepId, person.id);
+        await api.assignPerson(row.id, stepId, person.id);
       });
     },
     [api, run],
@@ -7066,7 +7071,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const startFloor = useRef<ReadonlyMap<string, string>>(new Map());
 
-  const live = useRef({
+  /**
+   * The 80 fields above, built once.
+   *
+   * They used to be written twice — the `useRef` initialiser and the
+   * assignment under it were the same literal, so every render allocated two
+   * identical 80-key objects and every new field had to be added in both
+   * places or read `undefined` through one of them. Nothing enforced the
+   * pairing; the second copy was a transcription.
+   *
+   * The initialiser still runs on later renders (an argument is evaluated
+   * whether `useRef` keeps it or not), so this is the same work once rather
+   * than a saving that depends on the first render. `live.current` is
+   * reassigned every render exactly as before, and holds the same object the
+   * initialiser saw on the first one.
+   */
+  const liveNow = {
     api,
     projectId,
     run,
@@ -7088,93 +7108,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     showSchedule,
     depPicker,
     setDepPicker,
-    depHover,
-    setDepHover,
-    setDepFocus,
-    openMenuRowId,
-    setOpenMenuRowId,
-    depEntriesFor,
-    pickDependency,
-    moveDepHighlight,
-    estimateValue,
-    trioProblemFor,
-    commitEstimate,
-    combinedValue,
-    combinedProblem,
-    commitCombinedEstimate,
-    mention,
-    enterFoldedCell,
-    readFoldedCell,
-    closeMention,
-    leaveFoldedCell,
-    mentionOptions,
-    openCard,
-    setHoveredCell,
-    setFocusedCell,
-    setNotBefore,
-    setNotBeforeReason,
-    setPriority,
-    priorityBands,
-    setParallelism,
-    effectiveTeamLabelOf,
-    effectiveTagLabelOf,
-    effectiveServiceLabelOf,
-    editingNotBefore,
-    openNotBefore,
-    closeNotBefore,
-    startDate,
-    teams,
-    tags,
-    services,
-    workItemTypes,
-    externalSystems,
-    setRefsEditing,
-    people,
-    setTeamOf,
-    setTagsOf,
-    setServicesOf,
-    setTypesOf,
-    setExternalRefsOf,
-    createTeamFor,
-    createServiceFor,
-    createTagFor,
-    createTypeFor,
-    assignTo,
-    createPersonFor,
-    toggleStep,
-    spanOf,
-    assigneeOn,
-    anyAssigneeOn,
-    nonOwnerNoteOf,
-    waitsFor,
-    matchIds: search.matchIds,
-    filtering,
-  });
-  live.current = {
-    api,
-    projectId,
-    run,
-    busy,
-    duplicateRow,
-    deleteRow,
-    commitNameCell,
-    onKeyDown,
-    onTabKey,
-    onArrowKey,
-    onAltMove,
-    onCommandKey,
-    armedDelete,
-    setDragging,
-    setDropHint,
-    dependenciesOf,
-    dependOn,
-    hasSchedule,
-    showSchedule,
-    depPicker,
-    setDepPicker,
-    depHover,
-    setDepHover,
-    setDepFocus,
+    depLights,
     openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
@@ -7234,6 +7168,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     matchIds: search.matchIds,
     filtering,
   };
+
+  const live = useRef(liveNow);
+  live.current = liveNow;
 
   const columns = useMemo(
     () =>
@@ -8071,7 +8008,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ) {
                           return;
                         }
-                        live.current.setDepHover((current) =>
+                        live.current.depLights.updateHover((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? current
                             : { rowId: row.original.id, pillId: id },
@@ -8088,7 +8025,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // again when the pill is left` failed on `expected
                         // ['010'] to deeply equal ['010', '020']`. Watched,
                         // 2026-08-10.
-                        live.current.setDepHover((current) =>
+                        live.current.depLights.updateHover((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? { rowId: row.original.id, pillId: null }
                             : current,
@@ -8105,14 +8042,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // chip → box relights the cell from the box's own focus,
                       // which fires after this blur.
                       onFocus={() => {
-                        live.current.setDepFocus((current) =>
+                        live.current.depLights.updateFocus((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? current
                             : { rowId: row.original.id, pillId: id },
                         );
                       }}
                       onBlur={() => {
-                        live.current.setDepFocus((current) =>
+                        live.current.depLights.updateFocus((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? null
                             : current,
@@ -8137,12 +8074,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // pointer` failed on `expected [] to deeply equal
                         // ['020']` — the light gone from a cell the pointer was
                         // still in. Watched, 2026-08-11.
-                        live.current.setDepHover((current) =>
+                        live.current.depLights.updateHover((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? { rowId: row.original.id, pillId: null }
                             : current,
                         );
-                        live.current.setDepFocus((current) =>
+                        live.current.depLights.updateFocus((current) =>
                           current?.rowId === row.original.id && current.pillId === id
                             ? null
                             : current,
@@ -8200,7 +8137,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // is here. Guarded on having something to say by the same
                       // rule the wrapper's `mouseenter` uses.
                       if (waitingFor.length > 0) {
-                        live.current.setDepFocus({ rowId: row.original.id, pillId: null });
+                        live.current.depLights.updateFocus(() => ({
+                          rowId: row.original.id,
+                          pillId: null,
+                        }));
                       }
                     }}
                     onBlur={() => {
@@ -8212,7 +8152,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // fires this blur *before* the chip's focus, and without the
                       // field in the guard a later blur could not tell its own
                       // reading from the chip's.
-                      live.current.setDepFocus((current) =>
+                      live.current.depLights.updateFocus((current) =>
                         current?.rowId === row.original.id && current.pillId === null
                           ? null
                           : current,
@@ -8436,20 +8376,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // Proof: hardcoded to null, `emphasises the pill's entry in
                     // the card as a background, not bold` failed on `expected
                     // '' to be 'var(--card-dep-lit)'`. Watched, 2026-08-11.
-                    emphasisedId={
-                      live.current.depHover?.rowId === row.original.id
-                        ? live.current.depHover.pillId
-                        : null
-                    }
+                    // Subscribed inside the card since 2026-09-02, so moving
+                    // the pointer between its entries costs a render of the
+                    // card and not of the plan. The guard the prop used to
+                    // carry is {@link DepLights.pillFor}'s own.
+                    depLights={live.current.depLights}
+                    rowId={row.original.id}
                     onPointEntry={(pillId) => {
-                      live.current.setDepHover((current) =>
+                      live.current.depLights.updateHover((current) =>
                         current?.rowId === row.original.id && current.pillId === pillId
                           ? current
                           : { rowId: row.original.id, pillId },
                       );
                     }}
                     onPointerOutside={() => {
-                      live.current.setDepHover((current) =>
+                      live.current.depLights.updateHover((current) =>
                         current?.rowId === row.original.id ? null : current,
                       );
                       live.current.setHoveredCell((current) =>
@@ -10139,7 +10080,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         id: 'unfreeze',
                         label: 'Unfreeze',
                         run: () => {
-                          void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                          void live.current.run(() =>
+                            live.current.api.unfreezeWorkItem(row.original.id),
+                          );
                         },
                       },
                     ]),
@@ -10230,57 +10173,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * are open branches' children and so still in the row model. With nothing
    * typed the kept set is every row and this filters nothing out.
    */
-  const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
+  const rowModel = table.getRowModel().rows;
+  // Memoised because it is the chart's own key: `GanttPanel` lays the whole
+  // chart out in a `useMemo` on `plan`, and a fresh array here made every render
+  // of this table — every keystroke in the Find box, every hover card, every
+  // `busy` toggle — re-lay-out every bar.
+  const shownRows = useMemo(
+    () => rowModel.filter((row) => search.visibleIds.has(row.id)),
+    [rowModel, search.visibleIds],
+  );
 
-  /**
-   * The rows the dependency hover lights, by id — the read row's whole
-   * waited-for set while the pointer or the focus is on the cell, the one
-   * pill's row while it is on a pill.
-   *
-   * `depHover ?? depFocus`: the pointer's reading wins over the keyboard's
-   * while both are live, because the pointer is where the eyes are. See
-   * {@link depFocus} for why they are two states and not one.
-   *
-   * Derived from the read row's `dependsOn` and never from its own id: that row
-   * is the *successor*, and lighting it would answer "what does this wait for"
-   * by pointing at the question. Nothing here filters the row back out of its
-   * own dependency set, because nothing can put it there: `be-01`'s dependency
-   * service refuses an edge that closes a cycle (`service/dependency.ts`), and
-   * a row waiting for itself is the shortest cycle there is. The guarantee is
-   * upstream-enforced, and the change's spec says so.
-   *
-   * A dependency whose row is collapsed or filtered out is in this set and on
-   * no shown `<tr>`, so nothing lights — the hover card still names it, which
-   * is the guarantee. A read row the tree no longer holds lights nothing,
-   * modeled rather than thrown: a hover can outlive its row by one refetch,
-   * exactly as {@link goToRow}'s absences can.
-   *
-   * **`pillId` is checked against the cell, not trusted.** It is a remembered
-   * id, and the edge under it can be cut while the pointer is still on the
-   * strip — the ✕ *is* the pill, so a click unmounts the element and the
-   * `mouseleave` that would have cleared the id never fires. The chip's
-   * `onClick` widens the hover back to the cell for that case; this is the
-   * other end of it, and it is what makes the derivation total over remembered
-   * state rather than dependent on every writer being right: a `pillId` the
-   * cell no longer names lights nothing, so no reader follows a light to an
-   * edge that is gone.
-   *
-   * Proof: derived from `depHover.rowId` instead, `lights every dependency's
-   * row from the cell, and no other row` failed on `expected ['030'] to
-   * deeply equal ['010', '020']` — the successor lit, its dependencies dark.
-   * Watched, 2026-08-10. The `includes` guard: dropped together with the
-   * chip's widen, `widens back to the remaining dependencies when a pill is
-   * deleted under the pointer` failed on `expected ['010'] to deeply equal
-   * ['020']` — the cut edge still lit. Watched, 2026-08-11.
-   */
-  const depLit: ReadonlySet<string> = (() => {
-    const read = depHover ?? depFocus;
-    if (read === null) return new Set();
-    const hovered = flat.find((row) => row.id === read.rowId);
-    if (hovered === undefined) return new Set();
-    if (read.pillId === null) return new Set(hovered.dependsOn);
-    return hovered.dependsOn.includes(read.pillId) ? new Set([read.pillId]) : new Set();
-  })();
+  // The rows a dependency hover lights were derived here, per render of the
+  // table, until 2026-09-02: `dep-light-store.ts` owns that derivation and the
+  // proofs that guard it now. What this component still owns is the **world**
+  // the resolution reads — the tree as it was last drawn — pushed below, beside
+  // the pointed store's shown rows.
 
   /**
    * Keeps the store's shown-row guard current: the resolution must drop a
@@ -10296,6 +10203,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   useEffect(() => {
     pointedRows.setShownRows(new Set(shownRows.map((row) => row.original.id)));
   }, [pointedRows, shownRows]);
+
+  /**
+   * The dependency store's own world: what each row waits for, as the tree was
+   * last read.
+   *
+   * `flat` and not `shownRows`, deliberately — a dependency whose row is
+   * collapsed or filtered out is still in the hovered row's set, lights no
+   * `<tr>` because none is drawn, and is still named by the card. That is the
+   * guarantee the change spelled out, and reading the shown rows here would
+   * quietly narrow it.
+   *
+   * Pushed per commit, and silent while nothing moved: the store compares the
+   * lit set before it tells anybody.
+   */
+  useEffect(() => {
+    const dependsOnOf = new Map(flat.map((row) => [row.id, row.dependsOn]));
+    depLights.setDependsOnOf((rowId) => dependsOnOf.get(rowId));
+  }, [depLights, flat]);
 
   /**
    * The Gantt panel's report line into the store — stable so the chart's
@@ -10358,7 +10283,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // current object when the value is already there, which is the
         // string-key bail-out below, spelt for an object.
         if (dependenciesOf(row.dependsOn).length > 0) {
-          setDepHover((current) =>
+          depLights.updateHover((current) =>
             current?.rowId === row.id && current.pillId === null
               ? current
               : { rowId: row.id, pillId: null },
@@ -10397,7 +10322,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // Leaving the cell clears the dependency hover outright — with the
         // same-cell guard `hoveredCell`'s clear uses, because a leave lands
         // after the next cell's enter.
-        setDepHover((current) => (current?.rowId === row.id ? null : current));
+        depLights.updateHover((current) => (current?.rowId === row.id ? null : current));
         // The same-cell guard, for the reason the Name cell's marker gives: a
         // leave lands after the next cell's enter.
         setHoveredCell((current) => (current === dependsCell ? null : current));
@@ -10516,91 +10441,109 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * depends on `steps` alone, and anything added to it remounts every cell in
    * the table and eats the focus (LLM_README landmine #1).
    */
-  const ganttPlan: GanttPlan = {
-    rows: shownRows.map((row) => ({
-      id: row.id,
-      // The Number column's own number, not a second derivation of it: the
-      // chart's labels read `010 - Strip` because that is how the plan is
-      // spoken about.
-      number: row.original.number,
-      name: row.original.name,
-      depth: row.depth,
-      // A leaf of the plan as drawn, which is a row with nothing under it —
-      // the same question `getSubRows` answers for the table model.
-      leaf: row.subRows.length === 0,
-      schedule: {
-        earliestStart: row.original.schedule.earliestStart,
-        earliestFinish: row.original.schedule.earliestFinish,
-      },
-      notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
-      // The words about that date, for the floor sentence to append where the
-      // not-before is the floor that actually binds this bar. Read on **every**
-      // row rather than only the floored ones: which floor binds is
-      // `floorWordsOf`'s answer, computed from the schedule, and a chart row
-      // that carried the reason only where this side already thought it
-      // mattered would be two places deciding one thing.
-      notBeforeReason: row.original.startNoEarlierThanReason,
-      // Straight off the tree read, like the trio beside it: what a bar says is
-      // a fact about the plan the chart was drawn from, not about a draft
-      // somebody is half-way through typing into the column.
-      priority: row.original.priority,
-      maxParallel: row.original.maxParallel,
-      // The **effective** team, which is the pool be-01 scheduled this row's
-      // slices against — not the label the row carries, which may be none at
-      // all. A chart drawn from the stored label alone cannot say whose people
-      // a bar is waiting for.
-      team: effectiveTeamLabelOf(row.original),
-      // The **effective** tags, for the team's reason one line up and for none
-      // of its consequences: an inherited tag has to be sayable on the bar of a
-      // row that names no tag, and that is the whole of what this field does.
-      // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
-      tags: effectiveTagLabelOf(row.original),
-      // The trio the plan holds for each step on this row, straight off the
-      // tree read — the drafts a reader is half-way through typing are not
-      // facts about the schedule the chart was drawn from.
-      trioByStep: new Map(Object.entries(row.original.estimates)),
-      waitsFor: row.original.dependsOn.map(
-        // A predecessor the tree does not hold at all is the same modeled
-        // absence `personFloorWords` already has words for, and it is said the
-        // same way rather than left as a bare id.
-        (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
+  const ganttPlan: GanttPlan = useMemo<GanttPlan>(
+    () => ({
+      rows: shownRows.map((row) => ({
+        id: row.id,
+        // The Number column's own number, not a second derivation of it: the
+        // chart's labels read `010 - Strip` because that is how the plan is
+        // spoken about.
+        number: row.original.number,
+        name: row.original.name,
+        depth: row.depth,
+        // A leaf of the plan as drawn, which is a row with nothing under it —
+        // the same question `getSubRows` answers for the table model.
+        leaf: row.subRows.length === 0,
+        schedule: {
+          earliestStart: row.original.schedule.earliestStart,
+          earliestFinish: row.original.schedule.earliestFinish,
+        },
+        notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+        // The words about that date, for the floor sentence to append where the
+        // not-before is the floor that actually binds this bar. Read on **every**
+        // row rather than only the floored ones: which floor binds is
+        // `floorWordsOf`'s answer, computed from the schedule, and a chart row
+        // that carried the reason only where this side already thought it
+        // mattered would be two places deciding one thing.
+        notBeforeReason: row.original.startNoEarlierThanReason,
+        // Straight off the tree read, like the trio beside it: what a bar says is
+        // a fact about the plan the chart was drawn from, not about a draft
+        // somebody is half-way through typing into the column.
+        priority: row.original.priority,
+        maxParallel: row.original.maxParallel,
+        // The **effective** team, which is the pool be-01 scheduled this row's
+        // slices against — not the label the row carries, which may be none at
+        // all. A chart drawn from the stored label alone cannot say whose people
+        // a bar is waiting for.
+        team: effectiveTeamLabelOf(row.original),
+        // The **effective** tags, for the team's reason one line up and for none
+        // of its consequences: an inherited tag has to be sayable on the bar of a
+        // row that names no tag, and that is the whole of what this field does.
+        // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
+        tags: effectiveTagLabelOf(row.original),
+        // The trio the plan holds for each step on this row, straight off the
+        // tree read — the drafts a reader is half-way through typing are not
+        // facts about the schedule the chart was drawn from.
+        trioByStep: new Map(Object.entries(row.original.estimates)),
+        waitsFor: row.original.dependsOn.map(
+          // A predecessor the tree does not hold at all is the same modeled
+          // absence `personFloorWords` already has words for, and it is said the
+          // same way rather than left as a bare id.
+          (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
+        ),
+      })),
+      slices: chartRead.slices,
+      // The full tree, ids and parents alone — `flat` and not `shownRows`, for
+      // `namedInTheTree`'s reason: a dependency arrow's anchor is selected from
+      // the predecessor's leaves' slices, and a collapsed branch's leaves are
+      // exactly the rows the shown set has dropped (design.md D6).
+      tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
+      // Why the rows above are the length they are, which the list itself cannot
+      // say: `isFiltering`'s one answer, the same one the count beside the Find
+      // box and the empty-answer sentence read, so the chart's account of what it
+      // did not draw cannot disagree with the table's account of what it kept.
+      narrowedByFilter: filtering,
+      // **Every** stored dependency of the plan, `flat` and not `shownRows` since
+      // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
+      // and counted there, so the arrows drawn are the same ones as before — what
+      // the widening adds is the edge that leaves a shown row for a hidden one,
+      // which never reached the loop while this list was built from the
+      // successors on screen, and so could not be counted or said.
+      dependencies: flat.flatMap((row) =>
+        row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
       ),
-    })),
-    slices: chartRead.slices,
-    // The full tree, ids and parents alone — `flat` and not `shownRows`, for
-    // `namedInTheTree`'s reason: a dependency arrow's anchor is selected from
-    // the predecessor's leaves' slices, and a collapsed branch's leaves are
-    // exactly the rows the shown set has dropped (design.md D6).
-    tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
-    // Why the rows above are the length they are, which the list itself cannot
-    // say: `isFiltering`'s one answer, the same one the count beside the Find
-    // box and the empty-answer sentence read, so the chart's account of what it
-    // did not draw cannot disagree with the table's account of what it kept.
-    narrowedByFilter: filtering,
-    // **Every** stored dependency of the plan, `flat` and not `shownRows` since
-    // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
-    // and counted there, so the arrows drawn are the same ones as before — what
-    // the widening adds is the edge that leaves a shown row for a hidden one,
-    // which never reached the loop while this list was built from the
-    // successors on screen, and so could not be counted or said.
-    dependencies: flat.flatMap((row) =>
-      row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
-    ),
-    // All three off {@link chartRead}, which is one payload. **Not** `steps`
-    // and `people`: those are the separate reads the pickers and the steps
-    // dialog are about, and a slice checked against a step list from another
-    // moment is the skew `layOutGantt` throws on.
-    steps: chartRead.steps,
-    personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
-    teamNames: new Map(teams.map((team) => [team.id, team.name])),
-    // The ladder the chart names its priorities with. Off the same state the
-    // table's cells read, so a bar's cap and its row's digits are one colour.
-    priorityBands,
-    // Off the chart read for `roles`' reason exactly: the arrow leaves the
-    // slice this names, and a reach out of step with the slices beside it
-    // draws an arrow the engine never placed.
-    depReach: chartRead.depReach,
-  };
+      // All three off {@link chartRead}, which is one payload. **Not** `steps`
+      // and `people`: those are the separate reads the pickers and the steps
+      // dialog are about, and a slice checked against a step list from another
+      // moment is the skew `layOutGantt` throws on.
+      steps: chartRead.steps,
+      personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+      teamNames: new Map(teams.map((team) => [team.id, team.name])),
+      // The ladder the chart names its priorities with. Off the same state the
+      // table's cells read, so a bar's cap and its row's digits are one colour.
+      priorityBands,
+      // Off the chart read for `roles`' reason exactly: the arrow leaves the
+      // slice this names, and a reach out of step with the slices beside it
+      // draws an arrow the engine never placed.
+      depReach: chartRead.depReach,
+    }),
+    // Every value the object above reads. The three label readings and
+    // `namedInTheTree` are `useCallback`/`useMemo` now precisely so this list can
+    // hold: a closure rebuilt each render would make this memo a fresh object
+    // every time and buy nothing.
+    [
+      shownRows,
+      flat,
+      chartRead,
+      startDate,
+      teams,
+      priorityBands,
+      filtering,
+      namedInTheTree,
+      effectiveTeamLabelOf,
+      effectiveTagLabelOf,
+    ],
+  );
 
   // The `Start` column's sentences, off the same payload the chart is drawn
   // from and therefore off the same rows: a row narrowed away by the search has
@@ -10614,9 +10557,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   // start date has no day to say — `null` is that plan, stated rather than
   // defaulted into silence. `today` is the browser's, and it decides only
   // whether the year is printed (`shortIsoDate`).
-  startFloor.current = startFloorByRow(
-    ganttPlan,
-    startDate === null ? null : { startDate, today: new Date() },
+  //
+  // Memoised on the plan it reads. It ran on **every** render — six index builds
+  // and a walk of every leaf, whether or not the chart was open — to supply one
+  // hover sentence. `today` is taken as a day rather than a `Date` so it can be
+  // a dependency at all: it decides only whether the year is printed, and a
+  // fresh `Date` each render would make this memo a no-op.
+  // The browser's own day as a plain `YYYY-MM-DD`, which is all the floor
+  // sentence uses it for.
+  const todayForFloor = new Date().toISOString().slice(0, 10);
+  startFloor.current = useMemo(
+    () =>
+      startFloorByRow(
+        ganttPlan,
+        startDate === null ? null : { startDate, today: new Date(todayForFloor) },
+      ),
+    [ganttPlan, startDate, todayForFloor],
   );
 
   /**
@@ -10796,7 +10752,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () => void run(() => api.freeze(projectId)),
+            run: () => void run(() => api.freezeProject(projectId)),
           },
           {
             id: 'unfreeze-all',
@@ -11429,91 +11385,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       */}
       {renderer === 'cards' ? (
         <div data-toolbar-sheet className="mb-1.5 flex shrink-0 items-center gap-2">
-          <Modal open={toolbarSheetOpen} onOpenChange={setToolbarSheetOpen}>
-            {/*
-              The trigger belongs to the modal rather than sitting beside it,
-              for `ProjectSettingsModal`'s reason: Radix restores the focus to its
-              trigger on close, and to nothing at all without one.
-            */}
-            <ModalTrigger asChild>
-              <Button variant="outline" type="button" className="min-h-11">
-                Plan actions
-              </Button>
-            </ModalTrigger>
-            <ModalContent
-              side="bottom"
-              // Taking a control on this sheet is taking it on the plan behind
-              // it, and the plan is what wants looking at next.
-              //
-              // **The bubble step, and that is load-bearing.** As
-              // `onClickCapture` this closed the sheet *before* the control's
-              // own handler ran, and in a real browser that means the handler
-              // never ran at all: React registers one capture listener and one
-              // bubble listener per container, a discrete update flushes
-              // between them, and the button is unmounted by the time the
-              // bubble dispatch walks the fiber tree looking for handlers. So
-              // every toolbar control on the sheet did nothing — no request,
-              // no work item. jsdom passed all sixteen card tests through it,
-              // because `Add work item`'s own `onClick` had already been
-              // collected there.
-              //
-              // Found by a browser at 390×844, 2026-08-09: `POST
-              // /api/projects/…/work-items` simply absent from the network log
-              // after a click that closed the sheet.
-              onClick={(event) => {
-                const control = closingControlIn(event.target, event.currentTarget);
-                if (control === null) return;
-                // Assigned, never set: the flag outlives the click that wrote
-                // it, so a `Collapse all` after an `Add work item` would read
-                // the create's `true` and suppress a restore nothing had asked
-                // for. Every close writes its own answer.
-                sheetControlTakesTheFocus.current = control.hasAttribute(TAKES_THE_FOCUS);
-                setToolbarSheetOpen(false);
-              }}
-              // Radix restores the focus to the trigger when a modal closes,
-              // and it does it on a timer — so it lands *after* the refetch a
-              // control on this sheet started, and takes the caret back off the
-              // work item that control created. Refused for the three controls
-              // that aim the caret themselves, and for nothing else: a sheet
-              // closed by Escape, by the ✕, by a tap outside or by any of the
-              // other dozen controls has aimed the caret nowhere, and the
-              // trigger is exactly where the focus belongs.
-              //
-              // Proof: this handler removed, `lands the focus in the card of a
-              // work item it just created` failed on `expected <button …> to be
-              // <textarea …>` — Radix's restore arriving last. Watched,
-              // 2026-08-09.
-              //
-              // Proof of the other half — the flag pinned back to an
-              // unconditional `true`, which is what shipped: `gives the focus
-              // back to the trigger when the control aimed the caret nowhere`
-              // failed on `expected <body> to be <button …>`. Watched in jsdom
-              // and in Chromium at 390×844 (`e2e/mobile.spec.ts`), 2026-08-09.
-              onCloseAutoFocus={(event) => {
-                if (!sheetControlTakesTheFocus.current) return;
-                sheetControlTakesTheFocus.current = false;
-                event.preventDefault();
-              }}
-            >
-              <ModalHeader>
-                <ModalTitle>Plan actions</ModalTitle>
-              </ModalHeader>
-              <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
-                {toolbarControls}
-                {(ganttHeightPx !== null || ganttDayPx !== DAY_PX || !ganttLabelsShown) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
-                    onClick={resetGanttSettings}
-                  >
-                    Reset layout
-                  </Button>
-                )}
-              </div>
-            </ModalContent>
-          </Modal>
+          <PlanToolbarSheet>
+            <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
+              {toolbarControls}
+              {(ganttHeightPx !== null || ganttDayPx !== DAY_PX || !ganttLabelsShown) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
+                  onClick={resetGanttSettings}
+                >
+                  Reset layout
+                </Button>
+              )}
+            </div>
+          </PlanToolbarSheet>
         </div>
       ) : (
         <div
@@ -11768,7 +11655,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               void duplicateRow(rowId);
             },
             unfreeze: (rowId) => {
-              void run(() => api.unfreeze(rowId));
+              void run(() => api.unfreezeWorkItem(rowId));
             },
             remove: (row) => {
               void deleteRow(row);
@@ -11929,7 +11816,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     key={row.id}
                     rowId={row.original.id}
                     frozen={row.original.frozenNumber !== null}
-                    depLit={depLit.has(row.original.id)}
+                    depLights={depLights}
                     armed={armedDelete?.rowId === row.original.id}
                     drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
                     pointed={pointedRows}

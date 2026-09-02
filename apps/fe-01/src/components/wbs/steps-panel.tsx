@@ -1,12 +1,12 @@
 import { DEPENDENCY_REACHES, type DependencyReach } from '@wbs/domain/dependency-reach';
-import { type FormEvent, type KeyboardEvent, useEffect, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   type AssumedAssigneeFlipView,
-  stepRefusalSentence,
+  STEP_REFUSALS,
   type StepUsage,
   type StepView,
 } from '@/lib/wbs-api';
@@ -15,6 +15,7 @@ import { commandChordIn } from './keyboard-bindings';
 import { CARDS_BELOW, TABLE_NEEDS_HEIGHT } from './plan-renderer';
 import { foldedTableMinWidth, type FrameLayoutState } from './table-frame';
 import type { SettingsSectionReport } from './teams-panel';
+import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** What a work item's number is, or null once it is no longer in the tree on screen. */
 export type NumberOf = (workItemId: string) => string | null;
@@ -159,7 +160,7 @@ interface Confirming {
  * **Refusals are shown on the surface rather than raised as toasts.** A toast
  * appears in the corner of a page this modal is covering, and every one of
  * these refusals is about the box somebody is typing in. They are also
- * sentences rather than be-01's codes; {@link stepRefusalSentence} is the one
+ * sentences rather than be-01's codes; {@link STEP_REFUSALS} is the one table
  * place that translation happens.
  *
  * **Nothing here is optimistic.** Every change re-reads the project through
@@ -196,30 +197,23 @@ export function StepsPanel({
    */
   const [renamed, setRenamed] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState<Confirming | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   /**
    * What the modal must not close over: a name typed and not added, a rename
-   * typed and not committed, a confirmation not yet answered, or a change on
-   * its way to be-01. Reported on every change and withdrawn on unmount.
+   * typed and not committed, or a confirmation not yet answered. A change on
+   * its way to be-01 counts too and is {@link useSettingsSection}'s to add.
    *
    * Proof: reported `false` unconditionally, and `project-settings-modal.test.tsx`'s
    * `a clean modal closes from any section` still passed — it is about the clean
    * case — while `refuses to close over a confirmation nobody has answered` let
    * Escape close over an open removal; watched 2026-08-30.
    */
-  const dirty =
-    busy || newName.trim() !== '' || Object.keys(renamed).length > 0 || confirming !== null;
-  useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
-  useEffect(
-    () => () => {
-      onDirtyChange(false);
-    },
-    [onDirtyChange],
-  );
+  const section = useSettingsSection({
+    words: STEP_REFUSALS,
+    dirty: newName.trim() !== '' || Object.keys(renamed).length > 0 || confirming !== null,
+    onDirtyChange,
+    onChanged,
+  });
 
   const nameShown = (step: StepView): string => renamed[step.id] ?? step.name;
 
@@ -237,16 +231,7 @@ export function StepsPanel({
    * exists to close.
    */
   async function attempt(change: () => Promise<void>): Promise<void> {
-    setBusy(true);
-    setProblem(null);
-    try {
-      await change();
-      await onChanged();
-    } catch (thrown: unknown) {
-      setProblem(stepRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'));
-    } finally {
-      setBusy(false);
-    }
+    await section.attempt(change);
   }
 
   function submitNew(event: FormEvent): void {
@@ -256,7 +241,7 @@ export function StepsPanel({
     // this one arrives without a round trip. Trimmed rather than tested as
     // typed, because a name of spaces is what `name_required` is about.
     if (clean === '') {
-      setProblem(stepRefusalSentence('name_required'));
+      section.refuse('name_required');
       return;
     }
     void attempt(async () => {
@@ -285,7 +270,7 @@ export function StepsPanel({
   function commitRename(step: StepView): void {
     const clean = nameShown(step).trim();
     if (clean === '') {
-      setProblem(stepRefusalSentence('name_required'));
+      section.refuse('name_required');
       return;
     }
     if (clean === step.name) {
@@ -378,11 +363,7 @@ export function StepsPanel({
         The steps every work item on this plan is estimated by. Estimates and assignees follow them.
       </p>
 
-      {problem !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {problem}
-        </p>
-      )}
+      <SectionProblem problem={section.problem} />
 
       {confirming === null ? (
         <>
@@ -399,7 +380,7 @@ export function StepsPanel({
                   <Input
                     id={`step-${step.id}`}
                     value={nameShown(step)}
-                    disabled={busy}
+                    disabled={section.busy}
                     onChange={(event) => {
                       const typed = event.currentTarget.value;
                       setRenamed((current) => ({ ...current, [step.id]: typed }));
@@ -417,7 +398,7 @@ export function StepsPanel({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={busy}
+                  disabled={section.busy}
                   onClick={() => {
                     askToRemove(step);
                   }}
@@ -439,7 +420,7 @@ export function StepsPanel({
               through `attempt`, so a refusal is a sentence on this surface and
               the plan is re-read either way: every date on it can move on this.
             */}
-          <fieldset className="flex flex-col gap-2" disabled={busy}>
+          <fieldset className="flex flex-col gap-2" disabled={section.busy}>
             <legend className="text-sm font-medium">A dependency waits for</legend>
             {DEPENDENCY_REACHES.map((reach) => (
               <Label key={reach} className="flex items-start gap-2 font-normal">
@@ -469,14 +450,14 @@ export function StepsPanel({
               <Input
                 id="step-new"
                 value={newName}
-                disabled={busy}
+                disabled={section.busy}
                 onChange={(event) => {
                   setNewName(event.currentTarget.value);
                 }}
                 onKeyDown={onChord}
               />
             </div>
-            <Button type="submit" size="sm" disabled={busy}>
+            <Button type="submit" size="sm" disabled={section.busy}>
               Add step
             </Button>
           </form>
@@ -530,7 +511,7 @@ export function StepsPanel({
             <input
               type="checkbox"
               checked={confirming.cascade}
-              disabled={busy}
+              disabled={section.busy}
               onChange={(event) => {
                 const ticked = event.currentTarget.checked;
                 setConfirming((current) =>
@@ -545,7 +526,7 @@ export function StepsPanel({
               type="button"
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={section.busy}
               onClick={() => {
                 setConfirming(null);
               }}
@@ -558,7 +539,7 @@ export function StepsPanel({
               size="sm"
               // Off until the box is ticked, and the button says so rather
               // than the click quietly doing nothing.
-              disabled={busy || !confirming.cascade}
+              disabled={section.busy || !confirming.cascade}
               onClick={confirmRemoval}
             >
               Remove {confirming.step.name}

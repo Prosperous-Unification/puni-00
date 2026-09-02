@@ -89,7 +89,21 @@ _Avoid_: roster, address book, org chart, users
 A team work can be labelled with. A label on the work, never a constraint on who may be
 assigned it, and unique by name across the directory. How many of them may be at work at
 once is a separate fact, stated per project — a Capacity, not a property of the team.
-_Avoid_: department, squad, group, service
+_Avoid_: department, squad, group
+
+**Service**:
+What the work is part of — a system, a product surface, a deliverable — named globally and
+unique across the directory. Independent of the team that does it (Dany, 2026-08-20: "let
+service and teams be independent"), so it has no pool and no size; which teams **own** one
+is a separate map, and owning it constrains nothing about who may be assigned the work.
+_Avoid_: component, system, area, service team
+
+**Work item type**:
+A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
+across the directory. Unlike a Tag it does not inherit at all
+(`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`): a row's types are the row's
+own, and an ancestor's say nothing about it.
+_Avoid_: kind, category, issue type, tag
 
 **Team set**:
 The teams one work item states — none, one, or several. Stated in `work_item_team` and
@@ -491,6 +505,18 @@ that the width reads as a guess. The width itself is the schedule's — what the
 the saying.
 _Avoid_: ghost bar, placeholder bar
 
+**Slack**:
+How long a work item can be late before the plan's end moves — its latest finish less its
+earliest finish. Zero slack is Critical. One word for it, and `float` is the one to avoid:
+the scheduler's own field is `float` and its prose says `slack`, which is one concept with
+two names and the rename is owed.
+_Avoid_: float, buffer, spare time
+
+**Critical**:
+A work item with no Slack: every day it slips, the plan's end slips. A reading of the
+schedule rather than a property anybody types, and a plan with no dates has none.
+_Avoid_: blocker, bottleneck, on the critical path (as a flag)
+
 **Summary bracket**:
 The drawing of a parent on the Gantt panel: a bracket over its projection. A span,
 never a sum, exactly as the projection is.
@@ -538,6 +564,18 @@ _Avoid_: filter, query, lookup
 A work item whose own name contains the search. Marked as such, because the rows kept
 around it are on screen as context rather than as answers.
 _Avoid_: hit, result, found row
+
+**Facet**:
+One dimension the table narrows by — a team, a person, a step, a tag, a service, a type, a
+priority band. Every facet answers "which rows carry this", and a facet naming a value the
+plan no longer holds narrows to nothing rather than being repaired.
+_Avoid_: filter, dimension, criterion
+
+**Saved view**:
+How one reader is looking at a plan, named so it can be picked again: the facets in force
+and, since `configurable-columns`, the Column set that was on screen. Per browser and never
+told to be-01 — not the expansion, not the column widths.
+_Avoid_: preset, bookmark, layout, filter set
 
 **Expansion**:
 Which branches of one project's tree are open, in one browser. Either every branch or a
@@ -775,11 +813,23 @@ zero and never going down. Moves on the entity's own stored fields and on its sa
 and never on the number derived for it.
 _Avoid_: version, etag, timestamp, sequence
 
+**Phase**:
+Retired, and recorded so nobody reintroduces it: what a Step was called until
+`steps-not-phases`. A reader who says "phase" means a step, and the schema, the routes and
+the screens all say `step` since `20260831120000_rename_role_to_step`.
+_Avoid_: it entirely — say Step
+
 **Satellite**:
 A row that belongs to one entity, has no identity anyone holds, and is only ever read
 through that entity — an estimate, an assignment, a step. Writing one moves the owner's
 revision; a dependency has two owners and moves both.
 _Avoid_: child row, detail, related record
+
+**Solution ref**:
+The external solution a project belongs to, as a slug and a URL on the project itself. The
+slug is what `GET /plans/by-solution/{slug}` resolves, which is the one route an integration
+token reaches with nothing but a name it already knows.
+_Avoid_: integration, link, external project
 
 **Command journal**:
 The last fifty reversible commands one account ran on one project, held on the server in

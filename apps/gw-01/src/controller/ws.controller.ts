@@ -1,3 +1,5 @@
+import { wsData, wsError, wsPong, wsPresence, wsResumeAck, wsResumeDenied } from '@wbs/contracts';
+
 import type { SubscriptionMap } from '../service/subscription-map';
 
 export type ResumeStatus =
@@ -70,19 +72,19 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   try {
     msg = JSON.parse(args.data) as Record<string, unknown>;
   } catch {
-    args.socket.send(JSON.stringify({ type: 'error', code: 'invalid_payload' }));
+    args.socket.send(wsError('invalid_payload'));
     return;
   }
 
   if (msg['type'] === 'ping') {
-    args.socket.send(JSON.stringify({ type: 'pong' }));
+    args.socket.send(wsPong());
     return;
   }
 
   // A client that reconnects has missed every broadcast sent while it was
   // away, so it must be able to ask rather than wait for the next join.
   if (msg['type'] === 'who') {
-    args.socket.send(JSON.stringify({ type: 'presence', users: args.roster?.() ?? [] }));
+    args.socket.send(wsPresence(args.roster?.() ?? []));
     return;
   }
 
@@ -99,19 +101,15 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       // left on an open socket with stale rows and no reason to refetch.
       // `unavailable`, not `out_of_range`: nothing is known about the range.
       for (const subscription of Object.keys(points)) {
-        args.socket.send(
-          JSON.stringify({ type: 'resume_denied', subscription, reason: 'unavailable' }),
-        );
+        args.socket.send(wsResumeDenied(subscription, 'unavailable'));
       }
-      args.socket.send(JSON.stringify({ type: 'resume_ack', replayed: {} }));
+      args.socket.send(wsResumeAck({}));
       return;
     }
     const replayed: Record<string, number> = {};
     for (const [subscription, outcome] of Object.entries(result)) {
       if (outcome.status === 'denied') {
-        args.socket.send(
-          JSON.stringify({ type: 'resume_denied', subscription, reason: 'out_of_range' }),
-        );
+        args.socket.send(wsResumeDenied(subscription, 'out_of_range'));
         continue;
       }
       // To `args.socket`, never to `subs.socketsFor(subscription)`. The other
@@ -121,26 +119,20 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       // `subs.socketsFor(subscription)`, and only "replays only to the socket
       // that asked" failed.
       for (const event of outcome.events) {
-        args.socket.send(JSON.stringify({ subscription, seq: event.seq, message: event.message }));
+        args.socket.send(wsData(subscription, event.seq, event.message));
       }
       replayed[subscription] = outcome.events.length;
     }
     // Last, and counted from the events actually written above: an
     // acknowledgement that arrives first would let a client advance its
     // sequence past frames it has not been handed yet.
-    args.socket.send(JSON.stringify({ type: 'resume_ack', replayed }));
+    args.socket.send(wsResumeAck(replayed));
     return;
   }
 
   if (msg['type'] === 'subscribe' && typeof msg['subscription'] === 'string') {
     if (!isKnownSubscription(msg['subscription'])) {
-      args.socket.send(
-        JSON.stringify({
-          type: 'error',
-          code: 'unknown_subscription',
-          subscription: msg['subscription'],
-        }),
-      );
+      args.socket.send(wsError('unknown_subscription', { subscription: msg['subscription'] }));
       return;
     }
     args.subs.subscribe(msg['subscription'], args.socket);
@@ -163,12 +155,10 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       await args.forward(msg);
     } catch {
       args.onBackendUnavailable?.();
-      args.socket.send(
-        JSON.stringify({ type: 'error', code: 'backend_unavailable', retry_after: 5 }),
-      );
+      args.socket.send(wsError('backend_unavailable', { retry_after: 5 }));
     }
     return;
   }
 
-  args.socket.send(JSON.stringify({ type: 'error', code: 'invalid_payload' }));
+  args.socket.send(wsError('invalid_payload'));
 }

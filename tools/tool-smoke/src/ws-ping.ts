@@ -326,7 +326,7 @@ function connectThroughCaddy(target: CaddyWsTarget): SocketLike {
     open: ((e: { data: string }) => void)[];
     message: ((e: { data: string }) => void)[];
   } = { open: [], message: [] };
-  let pending = new Uint8Array(0);
+  let pending: Uint8Array = new Uint8Array(0);
   let upgraded = false;
   let sock: Bun.Socket | null = null;
 
@@ -423,12 +423,17 @@ export async function runWsSuite(): Promise<boolean> {
       ? () => {
           const url = new URL(override);
           const origin = `${url.protocol === 'wss:' ? 'https:' : 'http:'}//${url.host}`;
-          return new WebSocket(override, {
+          // Bun's `WebSocket` accepts an options object with request headers;
+          // the DOM lib declares the second argument as subprotocols only, so
+          // the cast names that gap rather than hiding a wrong call. Sending the
+          // cookie here is the whole point of the override path.
+          const withHeaders = {
             headers: {
               cookie: `__Host-wbs_access=${encodeURIComponent(token)}`,
               origin,
             },
-          });
+          } as unknown as string[];
+          return new WebSocket(override, withHeaders);
         }
       : () =>
           connectThroughCaddy({

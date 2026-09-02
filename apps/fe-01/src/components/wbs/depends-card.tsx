@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 
+import type { DepLights } from './dep-light-store';
 import { HoverCard } from './hover-card';
 import { rowWords } from './work-item-words';
 
@@ -160,8 +161,17 @@ export interface DependsCardProps {
    * absolute mix, so a single token moved the rows lighter and this line darker
    * — see the tokens' own note in `styles.css`. In light they coincide, which
    * is why the fault only ever showed on a dark page.
+   *
+   * **Subscribed rather than handed in** since 2026-09-02: it was a prop read
+   * off `WbsTable`'s state, so moving the pointer between two entries of an
+   * open card re-rendered every row and cell of the plan to move a background
+   * on one line. {@link DepLights.pillFor} carries the guard the prop's own
+   * caller used to — a card is only on screen for the hovered cell, but a stale
+   * reading from another row would otherwise emphasise an entry here.
    */
-  emphasisedId: string | null;
+  depLights: DepLights;
+  /** Whose card this is, which is what {@link DepLights.pillFor} is asked about. */
+  rowId: string;
   /** Narrow or widen the table/card tint as the document pointer moves. */
   onPointEntry: (entryId: string | null) => void;
   /** Clear the owner and every tint once the pointer leaves the bridge. */
@@ -183,10 +193,12 @@ export interface DependsCardProps {
 export function DependsCard({
   number,
   entries,
-  emphasisedId,
+  depLights,
+  rowId,
   onPointEntry,
   onPointerOutside,
 }: DependsCardProps) {
+  const emphasisedId = useSyncExternalStore(depLights.subscribe, () => depLights.pillFor(rowId));
   const targets = useRef(new Map<string, HTMLDivElement>());
 
   useEffect(() => {

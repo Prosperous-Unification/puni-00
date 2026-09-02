@@ -107,4 +107,4 @@ Compliance)`. Types have no analogue, because they have no provenance.
   depth — so the cell keeps its one clipped line however many it carries, and the
   facet and the export must cope with a long one rather than assume a short one.
 - Nothing about dates changes. A tag is still not a pool and not a size, and
-  `service/schedule.ts` still has an empty diff.
+  `libs/domain/src/schedule.ts` still has an empty diff.

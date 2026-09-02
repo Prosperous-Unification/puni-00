@@ -940,7 +940,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "days": {
                               "type": "object",
@@ -990,7 +990,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -1019,7 +1019,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "days": {
                               "type": "number"
@@ -1052,7 +1052,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -1081,7 +1081,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "state": {
                               "type": "string",
@@ -1118,7 +1118,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -1147,7 +1147,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -1185,7 +1185,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -1219,7 +1219,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "personId": {
                               "type": "string",
@@ -2077,7 +2077,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "days": {
                               "type": "object",
@@ -2127,7 +2127,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -2156,7 +2156,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "days": {
                               "type": "number"
@@ -2189,7 +2189,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -2218,7 +2218,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "state": {
                               "type": "string",
@@ -2255,7 +2255,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             }
                           },
                           "required": [
@@ -2284,7 +2284,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -2322,7 +2322,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "metric": {
                               "type": "string",
@@ -2356,7 +2356,7 @@
                             },
                             "stepId": {
                               "type": "string",
-                              "description": "The step (step) this figure belongs to."
+                              "description": "The step this figure belongs to."
                             },
                             "personId": {
                               "type": "string",

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { type RefusalWords } from '@/lib/refusal';
 import {
   ESTIMATE_ROUNDINGS,
   type EstimateMethod,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/wbs-api';
 
 import type { SettingsSectionReport } from './teams-panel';
+import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** The three coefficients as their boxes hold them — text, because a half-typed number is text. */
 export interface WeightDraft {
@@ -129,6 +131,33 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
  * sentence on this surface rather than a toast in the corner of the page the
  * modal is covering.
  */
+/**
+ * What a refused arithmetic change says out loud.
+ *
+ * One worded arm, and that is not an omission: this surface can earn exactly
+ * one refusal be-01 has a word for, and it is the one `weightsOfDraft` already
+ * refuses without a round trip. Everything else — including a 5xx, which is why
+ * there is no {@link RefusalWords.serverFailure} here — reads as "that change
+ * did not land", because the boxes are kept and trying again is the whole of
+ * what a reader can do about it.
+ *
+ * In the same shape as the other five tables, so the difference is visible as
+ * an absent field rather than as a missing branch of a ternary.
+ */
+const ARITHMETIC_REFUSALS: RefusalWords = {
+  sentences: {
+    bad_pert_weights:
+      'Those weights cannot average an estimate. At least one of the three has to be above zero.',
+    // This panel's own refusal, which never reaches be-01: `weightsOfDraft`
+    // answers null for a box that is not a number at all. Worded here so the
+    // two readings of "these weights will not do" are one table rather than a
+    // sentence in a handler.
+    weights_must_be_numbers_at_or_above_zero:
+      'Each weight has to be a number at or above zero, and at least one of the three has to be above zero.',
+  },
+  otherwise: () => 'That change did not land. Try again.',
+};
+
 export function EstimatingPanel({
   method,
   pertWeights,
@@ -139,60 +168,39 @@ export function EstimatingPanel({
   onDone,
 }: EstimatingPanelProps) {
   const [draft, setDraft] = useState<WeightDraft>(() => draftOfWeights(pertWeights));
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
   /**
-   * Dirty while the boxes say something the saved weights do not, or while a
-   * write is in flight. Compared against what be-01 has **now**, so a peer's
-   * change that happens to match what was typed reads as clean.
+   * Dirty while the boxes say something the saved weights do not. Compared
+   * against what be-01 has **now**, so a peer's change that happens to match
+   * what was typed reads as clean. A write in flight is
+   * {@link useSettingsSection}'s to add.
    */
-  const dirty =
-    busy ||
-    Object.entries(draftOfWeights(pertWeights)).some(
-      ([field, saved]) => draft[field as keyof WeightDraft] !== saved,
-    );
-  useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
-  useEffect(
-    () => () => {
-      onDirtyChange(false);
-    },
-    [onDirtyChange],
+  const dirty = Object.entries(draftOfWeights(pertWeights)).some(
+    ([field, saved]) => draft[field as keyof WeightDraft] !== saved,
   );
+  const section = useSettingsSection({
+    words: ARITHMETIC_REFUSALS,
+    dirty,
+    onDirtyChange,
+    onChanged,
+  });
 
   async function write(
     arithmetic: { pertWeights?: PertWeightsView; estimateRounding?: EstimateRoundingView },
     done: boolean,
   ): Promise<void> {
-    setBusy(true);
-    setProblem(null);
-    try {
-      await setArithmetic(arithmetic);
-      await onChanged();
-      if (done) onDone();
-    } catch (thrown: unknown) {
-      // The boxes are kept on a refusal: what is on screen is what the reader
-      // typed and what the sentence is about. be-01's code is turned into a
-      // sentence here — there is one refusal this surface can earn, and it is
-      // the one `weightsOfDraft` already refuses without a round trip.
-      setProblem(
-        thrown instanceof Error && thrown.message === 'bad_pert_weights'
-          ? 'Those weights cannot average an estimate. At least one of the three has to be above zero.'
-          : 'That change did not land. Try again.',
-      );
-    } finally {
-      setBusy(false);
-    }
+    // The boxes are kept on a refusal — see {@link SettingsSection.attempt}.
+    // `onDone` only on the write that landed: a `Done` that closed over a
+    // refusal would take the sentence off screen with it.
+    const landed = await section.attempt(() => setArithmetic(arithmetic));
+    if (landed && done) onDone();
   }
 
   function save(): void {
     const weights = weightsOfDraft(draft);
     if (weights === null) {
-      setProblem(
-        'Each weight has to be a number at or above zero, and at least one of the three has to be above zero.',
-      );
+      // Refused without a round trip, in the same words `bad_pert_weights`
+      // gets: this is the one refusal `weightsOfDraft` can make on its own.
+      section.refuse('weights_must_be_numbers_at_or_above_zero');
       return;
     }
     void write({ pertWeights: weights }, true);
@@ -208,13 +216,9 @@ export function EstimatingPanel({
         only then are a work item’s steps added up.
       </p>
 
-      {problem !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {problem}
-        </p>
-      )}
+      <SectionProblem problem={section.problem} />
 
-      <fieldset className="flex flex-col gap-2" disabled={busy}>
+      <fieldset className="flex flex-col gap-2" disabled={section.busy}>
         <legend className="text-sm font-medium">PERT weights</legend>
         <p className="text-muted-foreground text-sm">
           {weighed
@@ -245,7 +249,7 @@ export function EstimatingPanel({
         </div>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-2" disabled={busy}>
+      <fieldset className="flex flex-col gap-2" disabled={section.busy}>
         <legend className="text-sm font-medium">A step’s days are</legend>
         {ESTIMATE_ROUNDINGS.map((rounding) => (
           <Label key={rounding} className="flex items-start gap-2 font-normal">

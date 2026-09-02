@@ -1,66 +1,28 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type {
-  ActualStore,
-  EstimateStore,
-  MeasureStore,
-  Project,
-  ProjectStore,
-  StepProgressStore,
-  WorkItemStore,
-} from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import type { Project, ProjectStore } from '../repository';
+import type { RecordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryServices } from '../testing/harness';
 import type { ProjectEvent } from './broadcast';
 import type { Days } from './roll-up';
-import { WorkItemService } from './work-item.service';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const DEV = 'step-dev';
 const QA = 'step-qa';
 
+// Only the two this suite reads. It declared and wired five more it never
+// touched — the cost of every file re-deriving the service graph by hand.
 let projects: ProjectStore;
-let workItems: WorkItemStore;
-let estimates: EstimateStore;
-let actuals: ActualStore;
-let measures: MeasureStore;
-let progress: StepProgressStore;
-let broadcast: ReturnType<typeof recordingBroadcaster>;
+let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  workItems = inMemoryWorkItems();
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  broadcast = recordingBroadcaster();
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    journal: inMemoryCommandJournal(),
-    broadcast,
-  });
+  const harness = inMemoryServices();
+  ({ projects } = harness.stores);
+  broadcast = harness.broadcast;
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -95,7 +57,7 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -118,7 +80,7 @@ async function shown(): Promise<Map<string, Record<string, Days>>> {
  */
 function namesIn(event: ProjectEvent | undefined): string[] {
   if (event === undefined) throw new Error('nothing was published');
-  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+  if (event.type !== 'tree_replaced') {
     throw new Error(`a ${event.type} event carries no work items`);
   }
   return event.workItems.map((each) => each.name);
@@ -225,7 +187,7 @@ describe('clearing estimates', () => {
 
     const outcome = await service.clearEstimate(strip, OWNER, DEV);
 
-    expect(outcome).toEqual({ ok: true, result: null });
+    expect(outcome).toEqual({ ok: true, value: null });
     expect((await shown()).get('Strip')).toEqual({ [QA]: days(4, 5, 6) });
   });
 
@@ -234,7 +196,7 @@ describe('clearing estimates', () => {
     // three boxes must not turn the second one into an error on screen.
     const strip = await add('Strip');
 
-    expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
   });
 
   it('refuses a stranger on a restricted project, and clears nothing', async () => {
@@ -256,9 +218,9 @@ describe('clearing estimates', () => {
   });
 
   it('tells the project’s subscribers, with the ancestors whose totals moved', async () => {
-    // The same narrow announce `setEstimate` sends. Without it a peer's table
-    // keeps showing a figure be-01 no longer holds until something else
-    // happens to refresh it.
+    // The same announce `setEstimate` sends. Without it a peer's table keeps
+    // showing a figure be-01 no longer holds until something else happens to
+    // refresh it. The ancestors ride along because the event is the whole plan.
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
     await service.setEstimate(sockets, OWNER, DEV, days(1, 2, 3));
@@ -268,7 +230,7 @@ describe('clearing estimates', () => {
 
     const last = broadcast.published.at(-1);
     expect(last?.projectId).toBe(projectId);
-    expect(last?.event.type).toBe('work_items_changed');
-    expect(namesIn(last?.event)).toEqual(['Sockets', 'Strip']);
+    expect(last?.event.type).toBe('tree_replaced');
+    expect(namesIn(last?.event)).toEqual(['Strip', 'Sockets']);
   });
 });

@@ -97,7 +97,11 @@ export function bootBe01(opts: BootOptions): RunningBe {
     history: services.history,
     replay: services.replay,
     probeDatabase: () => probeSchema(db),
-    writes: { transactions: drizzleOuterTransaction(db), lock: new WriteLock() },
+    writes: {
+      transactions: drizzleOuterTransaction(db),
+      lock: new WriteLock(),
+      announcements: services.announcements,
+    },
     // Read per call, not captured here: dev's deploy is a `git reset` under
     // live watchers, so this process outlives the commit it started on.
     deployedCommit: () => readDeployedCommit(opts.commitDir),

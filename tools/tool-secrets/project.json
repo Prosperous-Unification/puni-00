@@ -7,35 +7,56 @@
   "targets": {
     "decrypt": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-secrets/src/cli/decrypt.ts" },
+      "options": {
+        "command": "bun run tools/tool-secrets/src/cli/decrypt.ts"
+      },
       "cache": false
     },
     "push": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-secrets/src/cli/push.ts" },
+      "options": {
+        "command": "bun run tools/tool-secrets/src/cli/push.ts"
+      },
       "cache": false
     },
     "encrypt": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-secrets/src/cli/encrypt.ts" },
+      "options": {
+        "command": "bun run tools/tool-secrets/src/cli/encrypt.ts"
+      },
       "cache": false
     },
     "updatekeys": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-secrets/src/cli/updatekeys.ts" },
+      "options": {
+        "command": "bun run tools/tool-secrets/src/cli/updatekeys.ts"
+      },
       "cache": false
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-secrets" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-secrets"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-secrets/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-secrets/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-secrets/src --cache --cache-location .nx/eslintcache-tool-secrets"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-secrets/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-secrets/tsconfig.json"
+      }
     }
   }
 }

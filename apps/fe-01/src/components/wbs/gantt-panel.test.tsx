@@ -178,8 +178,6 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise.
   depReach: 'whole-item',
-  pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-  estimateRounding: 'ceil',
   ...parts,
 });
 
@@ -2672,6 +2670,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 5, finish: 6, duration: 1 })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -2696,6 +2695,7 @@ describe('the words on the bars are HTML over the chart', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -3071,6 +3071,7 @@ const sliceOf = (workItemId: string, start: number, finish: number): SliceView =
   resourcePredecessorId: null,
   width: 1,
   effort: finish - start,
+  capacityTeamId: null,
   capacityPredecessorIds: [],
 });
 
@@ -3151,6 +3152,15 @@ interface ReadSkew {
  * branch, type in the Find box and click a bar, and every one of those is
  * answered from the tree that arrived. `plan-cards.test.tsx`'s fake writes, and
  * borrowing it would mean importing a file whose own tests would run again.
+ *
+ * **Every writer on the interface is listed**, and the list is only true
+ * because it is typechecked. It had drifted: seven names this fake stubbed —
+ * `assign`, `patch`, `move` and four more — had been renamed on `ProjectApi`,
+ * and nine real ones were missing. A stub under the wrong name is worse than no
+ * stub: the method the code actually calls is `undefined`, so a chart test that
+ * reached a writer crashed on "not a function" instead of naming what it asked
+ * for. `nx typecheck` does not read this project (see AGENTS.md), so the drift
+ * was invisible until `tsc -p tsconfig.spec.json` was pointed at it.
  */
 function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
   const people: PersonView[] = [{ id: 'kat', name: 'Kat', kind: 'person', teamIds: [] }];
@@ -3181,7 +3191,10 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
-        priorityBands: DEFAULT_PRIORITY_BANDS,
+        // Copied rather than handed over: `PlanRead`'s ladder is a mutable
+        // array and the domain's default is `readonly`, and a fake that
+        // narrowed the payload's type would be describing a different read.
+        priorityBands: [...DEFAULT_PRIORITY_BANDS],
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
         pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
@@ -3213,19 +3226,28 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
     addPerson: () => notImplemented('addPerson'),
-    create: () => notImplemented('create'),
-    patch: () => notImplemented('patch'),
+    createWorkItem: () => notImplemented('createWorkItem'),
+    patchWorkItem: () => notImplemented('patchWorkItem'),
     setEstimate: () => notImplemented('setEstimate'),
-    assign: () => notImplemented('assign'),
-    move: () => notImplemented('move'),
-    duplicate: () => notImplemented('duplicate'),
-    remove: () => notImplemented('remove'),
+    assignPerson: () => notImplemented('assignPerson'),
+    moveWorkItem: () => notImplemented('moveWorkItem'),
+    duplicateWorkItem: () => notImplemented('duplicateWorkItem'),
+    removeWorkItem: () => notImplemented('removeWorkItem'),
     clearEstimate: () => notImplemented('clearEstimate'),
-    freeze: () => notImplemented('freeze'),
+    freezeProject: () => notImplemented('freezeProject'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
-    unfreeze: () => notImplemented('unfreeze'),
+    unfreezeWorkItem: () => notImplemented('unfreezeWorkItem'),
     addDependency: () => notImplemented('addDependency'),
     removeDependency: () => notImplemented('removeDependency'),
+    addService: () => notImplemented('addService'),
+    addTag: () => notImplemented('addTag'),
+    addWorkItemType: () => notImplemented('addWorkItemType'),
+    removeTag: () => notImplemented('removeTag'),
+    renameTag: () => notImplemented('renameTag'),
+    setDepReach: () => notImplemented('setDepReach'),
+    setEstimateArithmetic: () => notImplemented('setEstimateArithmetic'),
+    setPriorityBands: () => notImplemented('setPriorityBands'),
+    setTeamCapacity: () => notImplemented('setTeamCapacity'),
   };
 }
 
@@ -3884,6 +3906,55 @@ describe('the caption follows the scroll', () => {
     expect(screen.queryByText('Aug 2026')).toBeNull();
   });
 
+  /**
+   * A scroll reads no rect.
+   *
+   * The panel's `onScroll` measured **both** the fold and the content row's
+   * width until 2026-09-02 — a `getBoundingClientRect` per scroll event, for a
+   * width that only a resize can change and that the two `ResizeObserver`s on
+   * this box are already watching. A wheel over a chart fires one of these per
+   * frame for as long as the finger moves, and each one forced a layout in the
+   * middle of the frame that was drawing the chart.
+   *
+   * What a scroll does change is the fold, and `chartBelowTheFold` reads
+   * `scrollTop`, `scrollHeight` and `clientHeight` — no geometry, no forced
+   * layout.
+   *
+   * Ten events rather than one, because the fault is per-event and at one event
+   * "no rects" and "one rect" differ by one — a difference a reader could argue
+   * was setup. `ResizeObserver` is absent in jsdom, so nothing else on this
+   * path measures anything and the count is the handler's own.
+   *
+   * Proof: `measureTheSpan(scrollEvent.currentTarget)` added back beside the
+   * fold in `onScroll`, watched failing on `expected 10 to be +0`.
+   * Observed 2026-09-02.
+   */
+  itDom('reads no rect per scroll event, however many arrive', () => {
+    augustIntoSeptember();
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (!(panel instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    // The boundary that makes the two lines below safe: one prototype method,
+    // on the jsdom realm this file owns, put back in the `finally`. It is taken
+    // off the prototype unbound on purpose — the replacement calls it with the
+    // element the DOM called *it* with, which is what makes the spy transparent.
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- restored below; `call(this)` supplies the receiver.
+    const real = Element.prototype.getBoundingClientRect;
+    let reads = 0;
+    Element.prototype.getBoundingClientRect = function measured(this: Element): DOMRect {
+      reads += 1;
+      return real.call(this);
+    };
+    try {
+      for (let event = 0; event < 10; event += 1) {
+        panel.scrollLeft = event * 4;
+        fireEvent.scroll(panel);
+      }
+    } finally {
+      Element.prototype.getBoundingClientRect = real;
+    }
+
+    expect(reads).toBe(0);
+  });
   itDom('says a month the way a person does, from a fixed table', () => {
     expect(monthWords('2026-08-17')).toBe('Aug 2026');
     expect(monthWords('2026-12-01')).toBe('Dec 2026');
@@ -5142,6 +5213,74 @@ describe('the pointed row', () => {
     expect(initialsCalls.count - beforeWords).toBe(0);
     // …and neither did the svg's own marks.
     expect(shortDateCalls.count - beforeMarks).toBe(0);
+  });
+
+  /**
+   * The same silence for the other per-gesture state: opening a bar's facts.
+   *
+   * `open?.sliceId` and `fullScreen` were entries 15 and 28 of
+   * `marksOverLight`'s twenty-three-deep dependency list, and neither is
+   * **drawn** by a mark — both are read in `onClick`, `onPointerLeave` and
+   * `onFocus`. So opening one bar's card re-rendered every bar, every arrow,
+   * every flag and every tick in the chart, to change nothing about any of
+   * them. They are read through a mirror ref now, in `wbs-table.tsx`'s `live`
+   * shape.
+   *
+   * The oracle is the **card's own** four `shortIsoDate` calls, and the number
+   * matters: the marks cost two per bar and there are two of them, so a
+   * re-render of the marks turns 4 into 8. `initialsOf` is the second oracle
+   * and is on the bar-words' path alone, which is why it stays at zero either
+   * way.
+   *
+   * Proof: `open?.sliceId` put back into the dependency list, watched failing
+   * on `expected 8 to be 4` — the card opening re-rendering both bars' labels
+   * on top of its own facts. Observed 2026-09-02.
+   */
+  itDom('opening a bar’s facts re-renders no Gantt mark', () => {
+    const pointed = createPointedRows();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { number: '010', name: 'Strip' }),
+            rowAt('sand', 3, 5, { number: '020', name: 'Sand' }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 3, 5, { personId: 'kat' }),
+          ],
+          personNames: new Map([['kat', 'Kat Holmes']]),
+        })}
+        startDate={MONDAY}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />,
+    );
+    // Both oracles are on the marks' render path before anything is asserted
+    // about their silence (R5).
+    expect(initialsCalls.count).toBeGreaterThan(0);
+    expect(shortDateCalls.count).toBeGreaterThan(0);
+
+    const bar = document.querySelector('[data-gantt-bar="strip-dev"]');
+    if (!(bar instanceof Element)) throw new Error('the chart drew no bar to open');
+    const beforeWords = initialsCalls.count;
+    const beforeMarks = shortDateCalls.count;
+    fireEvent.focus(bar);
+
+    // The card really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    expect(screen.getByRole('tooltip', { name: 'Facts for 010' })).toBeDefined();
+    // The words on the bars did not re-render at all…
+    expect(initialsCalls.count - beforeWords).toBe(0);
+    // …and the only new date words are the **card's own**: `barFacts` runs
+    // four `shortIsoDate`s for the bar it is describing. The marks cost two per
+    // bar and there are two of them, so a re-render of the marks makes this 8
+    // rather than 4 — which is exactly what the injected fault produces.
+    expect(shortDateCalls.count - beforeMarks).toBe(4);
   });
 });
 

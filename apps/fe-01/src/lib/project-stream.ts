@@ -1,3 +1,5 @@
+import { wsResume, wsSubscribe, wsWho } from '@wbs/contracts/ws-frames';
+
 import { websocketUrl } from './api';
 
 export interface SocketHandlers {
@@ -31,10 +33,42 @@ export interface ProjectStreamOptions {
   projectId: string;
   /** Where the caller's last read of this project left off; `-1` for none. */
   sinceSeq: number;
-  /** Something changed on the server — refetch. */
-  onChange: () => void;
+  /**
+   * Something changed on the server — refetch.
+   *
+   * The argument is what the frame said changed: be-01's `ProjectEvent.type`,
+   * which gw-01 forwards verbatim as the frame's `message`. It is `null`
+   * whenever this side cannot say — a control frame that means "read again"
+   * (`resume_ack` with no replay count, `resume_denied`), a `message` that is
+   * not an object, or a `type` that is not a string. Optional as well as
+   * nullable, so a caller that does not care reads as one that cannot say: a
+   * `() => void` is still a valid handler, and `readScopeFor` treats an absent
+   * argument exactly as it treats `null`.
+   *
+   * It is a `string` and not a union on purpose. The union lives in be-01
+   * (`service/broadcast.ts`) and is not shared, so what arrives here is an
+   * unvalidated word off a socket; a caller that narrows on it must treat an
+   * unrecognised one exactly as it treats `null`. R5: unknown is not OK, and
+   * the honest answer to an unknown event is the full read.
+   */
+  onChange: (changed?: string | null) => void;
   /** Whether a socket is currently open, so the caller can say so on screen. */
   onConnectionChange?: (connected: boolean) => void;
+  /**
+   * Who else is in this project, whenever gw-01 says.
+   *
+   * **On this socket, which is the point.** The presence panel opened a second
+   * WebSocket per project until 2026-09-02 — two connections per browser, two
+   * `subscribe` frames, two entries in the gateway's fan-out — to be told the
+   * same thing by the same gateway. The roster arrives on the frames this
+   * socket is already receiving.
+   *
+   * It also fixes what that panel's own JSDoc called a caveat: its socket did
+   * not reconnect, so a dropped connection froze the roster at whoever was
+   * there and only a reload started another. This one reconnects, resubscribes
+   * and asks again, so the roster comes back.
+   */
+  onPresence?: (users: readonly string[]) => void;
 }
 
 export interface ProjectStream {
@@ -96,6 +130,18 @@ const browserDeps: ProjectStreamDeps = {
  * Reconnect lives in this function rather than in the component that calls it: a
  * component would restart the backoff on any render that changed the closure,
  * which is how reconnect storms get written by accident.
+ *
+ * **This is the live client, and `libs/realtime`'s `createReconnectingWs` is
+ * not.** The two are not a duplication to collapse: that one is the generic
+ * scaffold — a heartbeat, a `SubscriptionTracker` in storage, an attempt
+ * ceiling — and this one is what the plan page actually uses, which is why the
+ * rules a reader needs are written here. What they must not do is disagree, and
+ * they did until 2026-09-02: that client advanced the sequence **on the frame**,
+ * which is the mistake the paragraph in `receive` explains. It takes a `seen`
+ * from its caller now, as this does.
+ *
+ * The frames both of them send come from `@wbs/contracts/ws-frames`, so gw-01
+ * cannot be handed a field name only one of them knows.
  */
 export function subscribeToProject(
   options: ProjectStreamOptions,
@@ -115,12 +161,37 @@ export function subscribeToProject(
     return Math.round(capped * (0.5 + deps.random() * 0.5));
   }
 
+  /**
+   * What a data frame says changed, or `null` when it does not say.
+   *
+   * The one place this side reads `message`, and it reads exactly one field of
+   * it. Everything else in the payload is be-01's business — a `tree_replaced`
+   * carries every row, and reconciling those against a tree this client has not
+   * fetched is the mistake `ProjectEvent`'s own JSDoc argues against.
+   *
+   * Returns `null` rather than throwing for a `message` that is absent, not an
+   * object, or carrying a non-string `type`: a frame this side cannot read is a
+   * reason to read everything, not a reason to fail. That is the modelled
+   * condition, not an invariant — the caller's default is the safe one.
+   */
+  function changedFactOf(message: unknown): string | null {
+    if (typeof message !== 'object' || message === null) return null;
+    const said = (message as { type?: unknown }).type;
+    return typeof said === 'string' ? said : null;
+  }
+
   function receive(raw: string): void {
     let frame: {
       subscription?: string;
       seq?: number;
       type?: string;
       replayed?: Record<string, number>;
+      users?: string[];
+      // be-01's `ProjectEvent`, forwarded whole by gw-01 (`wsData`, and
+      // `internal.controller.ts` inline). Typed `unknown` because nothing on
+      // this side validates it: only its `type` is read, and only as a hint
+      // about which reads are needed.
+      message?: unknown;
     };
     try {
       frame = JSON.parse(raw) as typeof frame;
@@ -130,12 +201,20 @@ export function subscribeToProject(
       return;
     }
 
+    // Push-only after the first frame: gw-01 broadcasts the roster whenever
+    // anybody joins or leaves, and the `who` sent on open is what a client
+    // entering a quiet room is answered with.
+    if (frame.type === 'presence') {
+      if (Array.isArray(frame.users)) options.onPresence?.(frame.users);
+      return;
+    }
+
     if (frame.type === 'resume_ack') {
       // Silence is not an answer. A gateway from before replay existed sends an
       // empty `replayed` map — it read a `count` that no longer exists, and JSON
       // drops the undefined — and treating that as "you missed nothing" is the
       // silent divergence this whole module is here to prevent.
-      if (typeof frame.replayed?.[subscription] !== 'number') options.onChange();
+      if (typeof frame.replayed?.[subscription] !== 'number') options.onChange(null);
       settle();
       return;
     }
@@ -146,7 +225,7 @@ export function subscribeToProject(
       // The server cannot say what was missed, so the only honest answer is to
       // read the whole project again — and the caller reports the sequence that
       // read landed at through `seen`.
-      options.onChange();
+      options.onChange(null);
       settle();
       return;
     }
@@ -157,7 +236,7 @@ export function subscribeToProject(
     // would then resume past an edit nobody ever saw. `seen` is the only way
     // forward, and it is called by whoever actually installed the new rows.
     if (typeof frame.seq !== 'number') return;
-    options.onChange();
+    options.onChange(changedFactOf(frame.message));
   }
 
   /**
@@ -181,7 +260,13 @@ export function subscribeToProject(
     pendingReconnect = null;
     socket = deps.openSocket(websocketUrl(), {
       onOpen: () => {
-        socket?.send(JSON.stringify({ type: 'subscribe', subscription }));
+        socket?.send(wsSubscribe(subscription));
+        // Subscribe first, then ask: `who` is answered with **this
+        // connection's** project, so a `who` that overtook the subscribe would
+        // be answered with nobody and the roster would sit empty until the next
+        // join. Asked only when somebody is listening, so a page with no
+        // presence on screen sends one frame fewer.
+        if (options.onPresence !== undefined) socket?.send(wsWho());
 
         // Nothing to resume from. Resuming at -1 asks for the whole stream, and
         // on a project with any history that is either a refusal or a frame per
@@ -196,9 +281,7 @@ export function subscribeToProject(
         // Subscribe first, resume second. The other order leaves a window in
         // which the replay has been sent and a live edit arriving behind it has
         // no socket registered to receive it.
-        socket?.send(
-          JSON.stringify({ type: 'resume', resume_points: { [subscription]: sinceSeq } }),
-        );
+        socket?.send(wsResume({ [subscription]: sinceSeq }));
       },
       onMessage: receive,
       onClose: () => {

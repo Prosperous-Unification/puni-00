@@ -2,9 +2,9 @@ import {
   agree,
   type EstimateRule,
   finalDays,
-  type ItemState,
   NOT_STARTED,
   stateOf,
+  type WorkItemState,
 } from '@wbs/domain';
 
 import type {
@@ -272,10 +272,10 @@ export function rollUpProgress(
   rows: readonly WorkItem[],
   stated: readonly StoredProgress[],
   worked: ReadonlyMap<string, ReadonlySet<string>>,
-): Map<string, Map<string, ItemState>> {
-  const ownOf = new Map<string, Map<string, ItemState>>();
+): Map<string, Map<string, WorkItemState>> {
+  const ownOf = new Map<string, Map<string, WorkItemState>>();
   for (const [workItemId, stepIds] of worked) {
-    const byStep = new Map<string, ItemState>();
+    const byStep = new Map<string, WorkItemState>();
     for (const stepId of stepIds) byStep.set(stepId, NOT_STARTED);
     ownOf.set(workItemId, byStep);
   }
@@ -285,7 +285,7 @@ export function rollUpProgress(
     // never invents an entry. Written defensively anyway: a stale read that
     // dropped one would otherwise silently lose the statement rather than the
     // row, and losing a `done` is the direction that lies.
-    const byStep = ownOf.get(said.workItemId) ?? new Map<string, ItemState>();
+    const byStep = ownOf.get(said.workItemId) ?? new Map<string, WorkItemState>();
     byStep.set(said.stepId, said.state);
     ownOf.set(said.workItemId, byStep);
   }
@@ -320,18 +320,18 @@ export function rollUpProgress(
  * `a branch is not done while one of its rows has never been spoken about` fails
  * with `done` — a finished branch over an untouched row; watched 2026-08-18.
  */
-export function rollUpItemStates(
+export function rollUpWorkItemStates(
   rows: readonly WorkItem[],
-  byStep: ReadonlyMap<string, ReadonlyMap<string, ItemState>>,
-): Map<string, ItemState> {
+  byStep: ReadonlyMap<string, ReadonlyMap<string, WorkItemState>>,
+): Map<string, WorkItemState> {
   const childrenOf = new Map<string | null, WorkItem[]>();
   for (const row of rows) {
     const group = childrenOf.get(row.parentId) ?? [];
     group.push(row);
     childrenOf.set(row.parentId, group);
   }
-  const answers = new Map<string, ItemState>();
-  const stateFor = (id: string): ItemState => {
+  const answers = new Map<string, WorkItemState>();
+  const stateFor = (id: string): WorkItemState => {
     const cached = answers.get(id);
     if (cached !== undefined) return cached;
     const children = childrenOf.get(id) ?? [];

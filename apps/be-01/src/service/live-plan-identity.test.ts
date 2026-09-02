@@ -1,24 +1,11 @@
+import type { Scheduled } from '@wbs/domain';
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryServices } from '../testing/harness';
 import captured from './fixtures/live-plan-2026-08-09.json';
-import type { Scheduled } from './schedule';
-import { WorkItemService } from './work-item.service';
 
 /**
  * A real project's `/work-items` response, captured from a running be-01 on
@@ -93,37 +80,10 @@ function stepsInPlan(): string[] {
  * which is the rule an unestimated `Dev` in front of an estimated `QA` rests on.
  */
 async function replay(extraSteps: readonly string[]) {
-  const projects = inMemoryProjects();
-  const workItems = inMemoryWorkItems();
-  const estimates = inMemoryEstimates(workItems);
-  const actuals = inMemoryActuals(workItems);
-  const measures = inMemoryMeasures(workItems);
-  const progress = inMemoryProgress(workItems);
-  const dependencies = inMemoryDependencies();
-  const directory = inMemoryDirectory();
-  const service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies,
-    directory,
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-    }),
-    journal: inMemoryCommandJournal(),
-    broadcast: recordingBroadcaster(),
-  });
+  const {
+    service,
+    stores: { projects, workItems, estimates, dependencies },
+  } = inMemoryServices();
 
   const project: Project = {
     id: PROJECT_ID,

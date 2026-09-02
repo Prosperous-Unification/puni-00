@@ -1,5 +1,5 @@
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -93,7 +93,7 @@ function joinRowsFor(
  * into its answer — and from there into the plan payload. The declared return
  * types check the list is complete.
  */
-const WORK_ITEM_COLUMNS = {
+export const WORK_ITEM_COLUMNS = {
   id: workItem.id,
   projectId: workItem.projectId,
   parentId: workItem.parentId,
@@ -544,7 +544,11 @@ export class WorkItemRepository implements WorkItemStore {
           ...auditOnUpdate(stamp),
         })
         .where(eq(workItem.id, id))
-        .returning()
+        // Named, like every read in this file and for the same reason: a bare
+        // `.returning()` answers every column drizzle knows about, and this row
+        // is handed back as `{ ok: true, workItem }` — so the audit columns
+        // would ride a patch out to the caller. See {@link WORK_ITEM_COLUMNS}.
+        .returning(WORK_ITEM_COLUMNS)
         .all();
       const updated = rows.at(0);
       if (updated === undefined) return { ok: false, reason: 'not_found' };
@@ -706,32 +710,72 @@ export class WorkItemRepository implements WorkItemStore {
     });
   }
 
+  /**
+   * Freezes every number in one statement, not one per row.
+   *
+   * A freeze names **every** work item in the project, so the loop this replaces
+   * issued 2,000 `UPDATE`s for a 2,000-row plan — inside the outer transaction
+   * and therefore inside the process-wide write lock (ADR 0007), which is the
+   * cost that ADR names as the first thing to revisit.
+   *
+   * `CASE id WHEN … THEN …` with one `IN` list is the whole of it: the numbers
+   * differ per row and everything else does not, so one statement can carry all
+   * of them. Built with `sql.join` rather than by concatenation — every id and
+   * every number goes in as a parameter, which is what keeps a work item id from
+   * being anything but a value.
+   *
+   * Proof: `freezes every number in a single statement` counts the statements
+   * drizzle logs for a three-row freeze. With the loop restored it failed on
+   * `expect(received).toHaveLength(expected)` — three where one is owed
+   * (2026-09-02).
+   */
   async setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     if (updates.length === 0) return;
+    const arms = updates.map(
+      (update) => sql`when ${workItem.id} = ${update.id} then ${update.frozenNumber}`,
+    );
     this.db.transaction((tx) => {
-      for (const update of updates) {
-        tx.update(workItem)
-          .set({
-            frozenNumber: update.frozenNumber,
-            revision: bumpedWorkItem,
-            ...auditOnUpdate(stamp),
-          })
-          .where(eq(workItem.id, update.id))
-          .run();
-      }
+      tx.update(workItem)
+        .set({
+          frozenNumber: sql`case ${sql.join(arms, sql` `)} end`,
+          revision: bumpedWorkItem,
+          ...auditOnUpdate(stamp),
+        })
+        .where(
+          inArray(
+            workItem.id,
+            updates.map((update) => update.id),
+          ),
+        )
+        .run();
     });
   }
 
   /**
-   * `promoted` is applied *before* the deletion, and `ids` are deleted in
-   * reverse of the order given.
+   * `promoted` is applied *before* the deletion, and the whole subtree goes in
+   * one `DELETE`.
    *
-   * Both are forced by the foreign keys. A child still pointing at a parent
-   * being deleted fails the constraint, so promotions have to land first; and
-   * `ids` arrive ancestors-first from `subtreeOf`, so reversing them removes
-   * leaves before the parents they hang from. Estimates go first for the same
-   * reason — they reference the work items about to disappear.
+   * The promotions are forced by the foreign keys: a child still pointing at a
+   * parent being deleted fails the constraint, so they have to land first.
+   * Estimates go first for the same reason — they reference the work items
+   * about to disappear.
+   *
+   * **The order within `ids` is not.** This used to delete one row per
+   * statement, deepest first, on the reasoning that `work_item.parent_id`
+   * references `work_item.id` and so a parent cannot go before its child.
+   * That is true statement by statement and irrelevant inside one: SQLite
+   * checks an *immediate* foreign key at the **end of the statement**, not
+   * after each row, so a single `DELETE … WHERE id IN (…)` naming a parent and
+   * its child is legal however SQLite happens to visit them. Measured directly
+   * against a self-referencing table before this was written — ancestors-first,
+   * leaves-first and with `defer_foreign_keys` all succeeded. So a subtree of
+   * 2,000 rows costs one statement rather than 2,000, inside the outer
+   * transaction and therefore inside the process-wide write lock (ADR 0007).
+   *
+   * Proof: `deletes a whole subtree in one statement` with the per-row loop
+   * restored, watched failing on `expect(received).toHaveLength(expected)` ·
+   * `Expected length: 2` · `Received length: 4` (2026-09-02).
    */
   async remove(
     ids: readonly string[],
@@ -740,7 +784,6 @@ export class WorkItemRepository implements WorkItemStore {
   ): Promise<void> {
     await Promise.resolve();
     if (ids.length === 0) return;
-    const deepestFirst = [...ids].reverse();
     this.db.transaction((tx) => {
       for (const child of promoted) {
         // A promoted child gained a new parent, which is a change to its own
@@ -756,10 +799,8 @@ export class WorkItemRepository implements WorkItemStore {
           .where(eq(workItem.id, child.id))
           .run();
       }
-      tx.delete(estimate).where(inArray(estimate.workItemId, deepestFirst)).run();
-      for (const id of deepestFirst) {
-        tx.delete(workItem).where(eq(workItem.id, id)).run();
-      }
+      tx.delete(estimate).where(inArray(estimate.workItemId, ids)).run();
+      tx.delete(workItem).where(inArray(workItem.id, ids)).run();
     });
   }
 }

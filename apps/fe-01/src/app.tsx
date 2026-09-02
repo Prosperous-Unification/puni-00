@@ -147,11 +147,11 @@ function AppContent() {
       <AppRouter
         token={session.token}
         presence={
-          // A roster is a project's, so the panel is built from the page's
-          // selection rather than handed down finished — gw-01 scopes the
-          // roster by the project the socket subscribes to (F4, and
-          // {@link PresencePanel}).
-          (projectId) => <PresencePanel me={session.user.username} projectId={projectId} />
+          // The panel is presentational and the roster is the page's, because
+          // it arrives on the table's own socket — one connection per browser
+          // since 2026-09-02. What the session contributes is the username the
+          // panel marks as "you".
+          (roster) => <PresencePanel me={session.user.username} {...roster} />
         }
         account={
           <ThemedAccountMenu

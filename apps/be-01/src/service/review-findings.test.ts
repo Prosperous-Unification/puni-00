@@ -1,37 +1,14 @@
+import { deriveNumbers } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type {
-  ActualStore,
-  EstimateStore,
-  MeasureStore,
-  Project,
-  ProjectStore,
-  StepProgressStore,
-  WorkItemStore,
-} from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
-import { deriveNumbers } from './derive-numbers';
-import { WorkItemService } from './work-item.service';
+import type { Project, ProjectStore } from '../repository';
+import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryServices } from '../testing/harness';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 
 let projects: ProjectStore;
-let workItems: WorkItemStore;
-let estimates: EstimateStore;
-let actuals: ActualStore;
-let measures: MeasureStore;
-let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
@@ -60,34 +37,17 @@ async function newProject(name: string): Promise<string> {
 }
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  workItems = inMemoryWorkItems();
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  broadcast = recordingBroadcaster();
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    journal: inMemoryCommandJournal(),
-    broadcast,
-  });
+  const harness = inMemoryServices();
+  ({ projects } = harness.stores);
+  broadcast = harness.broadcast;
+  service = harness.service;
   projectId = await newProject('Rewire the shed');
 });
 
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 async function numbersByName(): Promise<Record<string, string>> {
@@ -161,7 +121,7 @@ describe('review finding: a parent must belong to the same project', () => {
     if (!foreign.ok) throw new Error('setup failed');
 
     const outcome = await service.create(projectId, OWNER, {
-      parentId: foreign.result.id,
+      parentId: foreign.value.id,
       afterId: null,
       name: 'Smuggled',
     });

@@ -30,6 +30,11 @@ export class PushClient {
 
   async push(payload: InternalPushRequest): Promise<{ delivered: number }> {
     let backoff = 500;
+    // Serialised once, outside the retry loop. The payload does not change
+    // between attempts, and the dominant one is `tree_replaced` carrying a whole
+    // plan — so a gateway that is down made be-01 stringify every row of the
+    // project six times over about a minute.
+    const body = JSON.stringify(payload);
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const res = await this.fetch(`${this.opts.gwUrl}/internal/push`, {
         method: 'POST',
@@ -37,7 +42,7 @@ export class PushClient {
           'content-type': 'application/json',
           'X-Internal-Auth': this.opts.secret,
         },
-        body: JSON.stringify(payload),
+        body,
       });
       if (res.status >= 200 && res.status < 300) {
         const body = (await res.json()) as { delivered_to_sockets: number };

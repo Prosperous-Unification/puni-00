@@ -229,6 +229,31 @@ describe('the resolved frame layout', () => {
     expect(flexibleCellStyle('depends', DATED)).toBeUndefined();
   });
 
+  it('hands every cell of one layout the same style object', () => {
+    // A `<td>`'s style was a fresh object per cell per render — around 900
+    // allocations on a 78-row plan for a value that takes one of a handful of
+    // numbers, and a new identity every time, so nothing downstream could ever
+    // tell that the layout had held still.
+    //
+    // Proof: `internedFloor` replaced with `return { minWidth: floor }`, this
+    // failed on `expected { minWidth: 200 } to be { minWidth: 200 } //
+    // Object.is equality` — equal and not the same. Watched 2026-09-02.
+    expect(flexibleCellStyle('name', DATED)).toBe(flexibleCellStyle('name', DATED));
+  });
+
+  it('hands a dragged width its own object, so an entry cannot go stale', () => {
+    // The key is the resolved number and not the column, which is what makes
+    // staleness impossible: a drag is a different key rather than an entry to
+    // invalidate.
+    const dragged = {
+      ...DATED,
+      columnWidthOverrides: new Map([['name', FLEXIBLE_FLOOR + 120]]),
+    };
+
+    expect(flexibleCellStyle('name', dragged)).toEqual({ minWidth: FLEXIBLE_FLOOR + 120 });
+    expect(flexibleCellStyle('name', dragged)).not.toBe(flexibleCellStyle('name', DATED));
+  });
+
   it('has no width for a Notes column, because there is no Notes column', () => {
     // The notes are typed under the name, in the Name cell. A width left
     // behind here would be 260px of table nothing renders — and, worse, a

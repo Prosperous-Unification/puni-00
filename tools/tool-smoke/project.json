@@ -18,12 +18,16 @@
     },
     "health": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-smoke/src/health.ts" },
+      "options": {
+        "command": "bun run tools/tool-smoke/src/health.ts"
+      },
       "cache": false
     },
     "ws-ping": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-smoke/src/ws-ping.ts" },
+      "options": {
+        "command": "bun run tools/tool-smoke/src/ws-ping.ts"
+      },
       "cache": false
     },
     "build": {
@@ -45,15 +49,28 @@
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-smoke" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-smoke"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-smoke/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-smoke/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-smoke/src --cache --cache-location .nx/eslintcache-tool-smoke"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-smoke/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-smoke/tsconfig.json"
+      }
     }
   }
 }

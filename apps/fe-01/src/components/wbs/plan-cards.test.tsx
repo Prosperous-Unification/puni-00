@@ -1,6 +1,32 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as TableFrameModule from './table-frame';
+
+/**
+ * How many cards the list has drawn, counted through {@link cardIndentFor} —
+ * every card computes its own indent exactly once per render, so the count is
+ * "how many cards rendered".
+ *
+ * The render-cost probes read this. jsdom can see nothing else that
+ * distinguishes "the list held still" from "the list re-rendered into the same
+ * markup" — React reuses the DOM nodes either way.
+ *
+ * The mock is call-through: every other test sees the real module unchanged.
+ */
+const cardIndentCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('./table-frame', async (importOriginal) => {
+  const real = await importOriginal<typeof TableFrameModule>();
+  return {
+    ...real,
+    cardIndentFor: (...args: Parameters<typeof real.cardIndentFor>) => {
+      cardIndentCalls.count += 1;
+      return real.cardIndentFor(...args);
+    },
+  };
+});
 
 import type {
   Days,
@@ -255,7 +281,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
-    create: (_projectId: string, input: { parentId: string | null; name?: string }) => {
+    createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
       next += 1;
       const id = `w${String(next)}`;
       rows.push({
@@ -295,7 +321,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       });
       return Promise.resolve({ id });
     },
-    patch: (
+    patchWorkItem: (
       id: string,
       patch: {
         name?: string;
@@ -356,7 +382,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
       return Promise.resolve();
     },
-    assign: (workItemId: string, stepId: string, personId: string | null) => {
+    assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
       assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
       if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
       else assigned.set(`${workItemId}::${stepId}`, personId);
@@ -404,13 +430,13 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       return Promise.resolve({ ...service });
     },
     addPerson: () => notImplemented('addPerson'),
-    move: () => notImplemented('move'),
+    moveWorkItem: () => notImplemented('move'),
     /**
      * A copy beside the original, numbered as {@link create} numbers, because
      * a card that duplicated nothing and a card that duplicated something both
      * look the same until a second row is on screen.
      */
-    duplicate: (id: string) => {
+    duplicateWorkItem: (id: string) => {
       rowActionCalls.push(`duplicate:${id}`);
       const original = rows.find((each) => each.id === id);
       if (original === undefined) return Promise.reject(new Error('not_found'));
@@ -427,7 +453,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       rows.push(copy);
       return Promise.resolve({ id: copy.id });
     },
-    remove: (id: string) => {
+    removeWorkItem: (id: string) => {
       rowActionCalls.push(`remove:${id}`);
       const at = rows.findIndex((each) => each.id === id);
       if (at === -1) return Promise.reject(new Error('not_found'));
@@ -451,9 +477,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
       return Promise.resolve();
     },
-    freeze: () => notImplemented('freeze'),
+    freezeProject: () => notImplemented('freeze'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
-    unfreeze: (id: string) => {
+    unfreezeWorkItem: (id: string) => {
       rowActionCalls.push(`unfreeze:${id}`);
       const row = rows.find((each) => each.id === id);
       if (row === undefined) return Promise.reject(new Error('not_found'));
@@ -529,16 +555,20 @@ afterEach(() => {
 describe('the plan-card ProjectApi fake', () => {
   it('round trips whole team sets and retains the legacy scalar arm', async () => {
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const created = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
 
-    await api.patch(created.id, { teamIds: ['team-b', 'team-a'] });
+    await api.patchWorkItem(created.id, { teamIds: ['team-b', 'team-a'] });
 
     expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
       teamIds: ['team-b', 'team-a'],
       serviceTeamId: 'team-a',
     });
 
-    await api.patch(created.id, { serviceTeamId: 'team-c' });
+    await api.patchWorkItem(created.id, { serviceTeamId: 'team-c' });
 
     expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
       teamIds: ['team-c'],
@@ -556,9 +586,9 @@ describe('the plan on a phone', () => {
     // eight rows, each the child of the one before, so the deepest is depth 7
     // — one past the cards' stated cap.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     for (let parent = 1; parent <= 7; parent += 1) {
-      await api.create('p1', { parentId: `w${String(parent)}` });
+      await api.createWorkItem('p1', { parentId: `w${String(parent)}` });
     }
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1424,7 +1454,7 @@ describe('what a card says about capacity', () => {
     howMany = 1,
   ): Promise<void> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams, api);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1619,7 +1649,7 @@ describe('what a card says about capacity', () => {
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1'];
       rows[0].serviceIds = ['s1'];
-      void api.assign(rows[0].id, DEV.id, 'p1');
+      void api.assignPerson(rows[0].id, DEV.id, 'p1');
     }, howMany);
   };
 
@@ -1688,7 +1718,7 @@ describe('what a card says about capacity', () => {
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1'];
       rows[0].serviceIds = ['s1'];
-      void api.assign(rows[0].id, DEV.id, 'p1');
+      void api.assignPerson(rows[0].id, DEV.id, 'p1');
     });
 
     expect(document.querySelector('[data-card-mismatches]')).toBeNull();
@@ -1780,7 +1810,7 @@ describe('what a card says about capacity', () => {
       // Through the write path, because the fake derives both `assignees` and
       // `doesEveryStep` from the assignments it holds — a row object with an
       // `assignees` written straight onto it is a shape the tree never sends.
-      void api.assign(row.id, DEV.id, 'p1');
+      void api.assignPerson(row.id, DEV.id, 'p1');
     });
 
     expect(parallelOnCard()?.textContent).toBe('3 at once (not applied)');
@@ -1806,7 +1836,7 @@ describe('what a card says about the schedule', () => {
   /** A plan on a phone, arranged before the first render — the capacity block’s own pattern. */
   async function aPlan(arrange: (rows: WorkItemView[]) => void, howMany = 1): Promise<void> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1950,7 +1980,7 @@ describe('the trio behind a step’s figure, on a card', () => {
       // `folded-step-card.tsx`'s own points make, and for the same reason:
       // a card is what the fold left behind, not what somebody is mid-typing.
       const api = fakeApi();
-      const created = await api.create('p1', { parentId: null });
+      const created = await api.createWorkItem('p1', { parentId: null });
       await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
       widthIs(PHONE);
       render(<WbsTable projectId="p1" api={api} />);
@@ -1972,7 +2002,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     // `combinedValue` put back to the final figure: on `expected '3.7' to be
     // '2/3/8'`.
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1986,7 +2016,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     // `5` stores `5/5/5` and every estimate method answers `5`; a card that
     // printed both would read `5 · 5` beside a step name.
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2042,7 +2072,7 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
    */
   const aPhonePlan = async (days: Days | null = null): Promise<ReturnType<typeof fakeApi>> => {
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     if (days !== null) await api.setEstimate(created.id, DEV.id, days);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2153,7 +2183,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
 
   itDom('duplicates a row through the table’s own handler', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByRole('article', { name: 'Work item 010' });
@@ -2171,8 +2201,8 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
 
   itDom('deletes a row through the table’s own handler', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByRole('article', { name: 'Work item 020' });
@@ -2192,7 +2222,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     'unfreezes a frozen row, and refuses to delete one, with the table’s own words',
     async () => {
       const api = fakeApi();
-      await api.create('p1', { parentId: null });
+      await api.createWorkItem('p1', { parentId: null });
       // Arranged on the row rather than through a write path: this fake has no
       // `freeze`, and what is under test is what the menu does with a frozen row,
       // not how it came to be frozen.
@@ -2283,11 +2313,22 @@ function renderCards(
   /** The rows that answered a filter themselves, which is what the tint marks. */
   matchedIds: readonly string[] = [],
   /**
+   * Counted by the render-isolation probe below: every card's render calls it
+   * once for its total and once per step through `cardTrioOf`, so it is a
+   * per-card render counter the list itself does not know about.
+   */
+  /**
    * What holds each row's start, defaulting to the answer a payload the
    * geometry could not explain produces — which is also what every row of this
    * suite's stub tree honestly is, since none of them came from a plan.
    */
   startFloor: (row: TreeRow) => string | null = () => null,
+  /**
+   * Counted by the render-isolation probe below: every card's render calls it
+   * once for its total and once per step through `cardTrioOf`, so it is a
+   * per-card render counter the list itself does not know about.
+   */
+  countShowDay: () => void = () => undefined,
 ) {
   return render(
     <PlanCards
@@ -2340,7 +2381,10 @@ function renderCards(
       createService={() => undefined}
       nonOwner={() => null}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
-      showDay={(days) => String(days)}
+      showDay={(days) => {
+        countShowDay();
+        return String(days);
+      }}
       rowActions={rowActions}
     />,
   );
@@ -2455,6 +2499,54 @@ describe('the ⋯ row-actions menu on a card', () => {
     expect(button.style.minWidth).toBe('44px');
   });
 
+  /**
+   * Opening a menu re-renders that card and the one that closed, not the list.
+   *
+   * The open id was a `useState` in `PlanCards` until 2026-09-02, so one write
+   * re-rendered **every** card — and a card's render runs `cardTrioOf` per
+   * step plus `cardSlackOf`, `cardMismatchesOf`, three label reads and a span
+   * read. On a twenty-row plan with two steps that is around a thousand reader
+   * calls to draw a three-item popup. The id lives in an external store now
+   * (`pointed-row-store.ts`'s shape) and each `CardActions` subscribes on its
+   * own.
+   *
+   * `showDay` is the oracle because it is a **prop**: every card calls it once
+   * for its total and once per step through `cardTrioOf`, and the list has no
+   * idea the test is counting. Five rows, so the fault is five cards' worth of
+   * calls rather than one — at one row a store and a `useState` are
+   * indistinguishable.
+   *
+   * Proof: the store swapped back for `useState(openActionsRowId)` in
+   * `PlanCards`, watched failing on `expected 10 to be +0` — two calls per card
+   * across five cards, for a menu on one of them. Observed 2026-09-02.
+   */
+  itDom('opening a card’s menu re-renders no other card', () => {
+    let calls = 0;
+    const rows = ['010', '020', '030', '040', '050'].map((number) =>
+      aTreeRow({ id: `row-${number}`, number }),
+    );
+    renderCards(
+      rows,
+      doNothingActions(),
+      [],
+      () => null,
+      () => {
+        calls += 1;
+      },
+    );
+    // The oracle is on the cards' own render path before anything is asserted
+    // about its silence (R5).
+    expect(calls).toBeGreaterThan(0);
+
+    const before = calls;
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 030' }));
+
+    // The menu really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    expect(screen.getByRole('menu', { name: 'Actions for 030' })).toBeDefined();
+    expect(calls - before).toBe(0);
+  });
+
   itDom('keeps at most one card’s menu open at a time — the table’s own rule', () => {
     const rowA = aTreeRow({ id: 'a', number: '010' });
     const rowB = aTreeRow({ id: 'b', number: '020' });
@@ -2505,8 +2597,8 @@ describe('a filter on a phone', () => {
    */
   async function aFilterablePlan(): Promise<void> {
     const api = fakeApi();
-    const { id } = await api.create('p1', { parentId: null, name: 'Strip the hull' });
-    await api.create('p1', { parentId: null, name: 'Paint' });
+    const { id } = await api.createWorkItem('p1', { parentId: null, name: 'Strip the hull' });
+    await api.createWorkItem('p1', { parentId: null, name: 'Paint' });
     api.teams.push({ id: 't1', name: 'Billing' });
     // By the id `create` answered with rather than by position: a fake whose
     // first row is not the row this labels is a fixture quietly filtering on
@@ -2576,7 +2668,7 @@ describe('setting a card’s team', () => {
     options: { refusePatch?: boolean } = {},
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi(options);
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2647,11 +2739,11 @@ describe('setting a card’s team', () => {
 
   itDom('blocks a pending team double tap and closes after it lands', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     api.teams.push({ id: 't1', name: 'Billing' });
     let patchCalls = 0;
     let land: (() => void) | undefined;
-    api.patch = async () => {
+    api.patchWorkItem = async () => {
       patchCalls += 1;
       await new Promise<void>((resolve) => {
         land = resolve;
@@ -2775,7 +2867,7 @@ describe('setting a card’s tags and services', () => {
     // Proof: with CardSetField rendered unconditionally, h2puni failed here on
     // the first selector (received a button instead of null), 103/104 passed.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
@@ -2788,7 +2880,7 @@ describe('setting a card’s tags and services', () => {
     arrange: (rows: WorkItemView[]) => void = () => undefined,
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     api.tags.push({ id: 'tag-seed', name: 'seed tag' });
     api.services.push({ id: 'service-seed', name: 'seed service' });
     arrange(api.rows);
@@ -2864,7 +2956,7 @@ describe('setting a card’s earliest start', () => {
     },
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi({ dated: true });
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2967,7 +3059,7 @@ describe('setting a card’s earliest start', () => {
     // nothing would be worse than a field that will not take one: be-01 ignores
     // the constraint entirely without a day zero to count from.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
@@ -3022,7 +3114,7 @@ describe('setting a card’s priority', () => {
     howMany = 1,
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -3223,7 +3315,7 @@ describe('setting what a card waits for', () => {
     },
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -3456,5 +3548,68 @@ describe('setting what a card waits for', () => {
       expect(document.querySelector('[data-card-waits]')).toBeNull();
     });
     expect(api.edges).toEqual([`drop:${api.rows[1]?.id ?? ''}:${api.rows[0]?.id ?? ''}`]);
+  });
+});
+
+/**
+ * What re-renders the card list, and what must not.
+ *
+ * A card's render runs the estimate trio per step plus its slack, its
+ * mismatches, three label reads and a span read — around a thousand reader
+ * calls on a twenty-row plan with two steps. A **plan change** is worth that; a
+ * gesture that opens a surface over the plan is not. `opening a card's menu
+ * re-renders no other card` above is the same rule for the ⋯ menu.
+ */
+describe('what a gesture over the plan costs the cards behind it', () => {
+  afterEach(cleanup);
+
+  /** Five cards on a phone, which is enough that one is not five. */
+  async function fiveCardsOnAPhone(): Promise<void> {
+    const api = fakeApi();
+    for (let at = 0; at < 5; at += 1) await api.createWorkItem('p1', { parentId: null });
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    expect(document.querySelectorAll('[data-card]')).toHaveLength(5);
+  }
+
+  itDom('opening the plan toolbar re-renders no card', async () => {
+    // `toolbarSheetOpen` was a `useState` in `WbsTable` until 2026-09-02, so
+    // tapping `Plan actions` re-rendered the plan behind the sheet. It lives in
+    // `PlanToolbarSheet` now, and the controls reach it as `children` — built
+    // by the table's own render, so the sheet's re-render reuses that element
+    // tree untouched.
+    //
+    // Proof: the open id put back as `useState` in `WbsTable` with the sheet
+    // reading it as a prop, watched failing on `expected 5 to be +0` — one
+    // render per card to open a sheet that changed nothing about the plan.
+    // Observed 2026-09-02.
+    await fiveCardsOnAPhone();
+    // The oracle is on the cards' own render path before anything is asserted
+    // about its silence (R5).
+    expect(cardIndentCalls.count).toBeGreaterThan(0);
+
+    const before = cardIndentCalls.count;
+    openTheSheet();
+    // The sheet really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    await screen.findByRole('button', { name: 'Add work item' });
+
+    expect(cardIndentCalls.count - before).toBe(0);
+  });
+
+  itDom('takes a control on the sheet through to the plan, and closes it', async () => {
+    // The sheet still writes, and it still closes itself on the way — the two
+    // halves the extraction could have dropped silently, since a sheet that
+    // never closes and a control that never fires both leave five cards on
+    // screen. `adds a work item from the sheet` and the focus cases in this
+    // file's own suites cover the rest.
+    await fiveCardsOnAPhone();
+    openTheSheet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add work item' }));
+
+    await screen.findByLabelText('Name of 060');
+    expect(screen.queryByRole('button', { name: 'Add work item' })).toBeNull();
   });
 });

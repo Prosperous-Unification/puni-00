@@ -10,6 +10,8 @@ import {
   useState,
 } from 'react';
 
+import { remembered } from './remembered';
+
 /**
  * What a reader has asked for, which is not the same as what is painted.
  *
@@ -45,36 +47,24 @@ function isThemeChoice(claimed: unknown): claimed is ThemeChoice {
   return claimed === 'system' || claimed === 'light' || claimed === 'dark';
 }
 
+/** The choice as stored, judged by {@link isThemeChoice} — see {@link remembered}. */
+const storedChoice = remembered(THEME_KEY, isThemeChoice);
+
 /**
  * The choice as this browser last said it — and `system` where it has never
  * said, which is the state every reader starts in.
  *
- * The stored value is a claim, not a fact: user-editable storage read at a
- * boundary. Anything that is not one of the three takes the key with it and the
- * answer goes back to `system`. `JSON.parse` and a membership check rather than
- * a bare string compare, for {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage | localStorage}'s
- * reason and `rememberedArrows`': the three answers a browser can hold have to
- * be told apart from the strings that merely look like them, and the key is
- * written with `JSON.stringify` so it must be read with its inverse.
- *
- * Deliberately not the "unknown is not OK" throw, for `rememberedArrows`'
- * reason: the alternative is an app nobody can open until they clear storage by
- * hand, over a preference about a colour.
+ * The stored value is a claim, not a fact, and {@link remembered} is where that
+ * is dealt with for every key this app holds: anything that is not one of the
+ * three takes the key with it and the answer goes back to `system`.
  */
 export function rememberedTheme(): ThemeChoice {
-  const stored = localStorage.getItem(THEME_KEY);
-  if (stored === null) return 'system';
-  // Proof: this refusal replaced by `return stored as ThemeChoice`, which is
-  // what "read the claim, drop nothing" comes to. `refuses a stored answer that
-  // is not one of the three, and drops the key` failed on `expected '"midnight"'
-  // to be null` — the unreadable key left in storage to be read again next
-  // time — and `refuses storage that is not JSON at all` with it.
-  const claimed = claimedTheme(stored);
-  if (!isThemeChoice(claimed)) {
-    localStorage.removeItem(THEME_KEY);
-    return 'system';
-  }
-  return claimed;
+  // Proof: `readAndDrop` replaced by `read`, which is what "read the claim,
+  // drop nothing" comes to. `refuses a stored answer that is not one of the
+  // three, and drops the key` failed on `expected '"midnight"' to be null` —
+  // the unreadable key left in storage to be read again next time — and
+  // `refuses storage that is not JSON at all` with it.
+  return storedChoice.readAndDrop() ?? 'system';
 }
 
 /**
@@ -84,12 +74,9 @@ export function rememberedTheme(): ThemeChoice {
  * {@link useTheme}'s lazy `useState` initialiser calls this and its mount
  * effect calls {@link rememberedTheme}, which is the same split
  * {@link useTheme}'s own `chooseTheme` states in prose: a function React may
- * call twice during a render is no place for a side effect. StrictMode
- * double-invokes initialisers on purpose to surface exactly this, and before
- * the split the `removeItem` really did run twice per mount. Nothing anybody
- * can observe changed — `removeItem` is idempotent and only a corrupt stored
- * value reaches it — which is why this is a rule being kept rather than a
- * defect being fixed. Cross-review, 2026-08-12.
+ * call twice during a render is no place for a side effect. Cross-review,
+ * 2026-08-12; {@link Remembered.read} carries the whole reason now, and it is
+ * the distinction the other ten stores did not make.
  *
  * Not folded into one function returning a pair, because the boundary API is
  * the one `index.html`'s bootstrap is checked against for parity
@@ -97,26 +84,12 @@ export function rememberedTheme(): ThemeChoice {
  * of these bytes, storage and all".
  */
 export function readTheme(): ThemeChoice {
-  const stored = localStorage.getItem(THEME_KEY);
-  if (stored === null) return 'system';
-  const claimed = claimedTheme(stored);
-  return isThemeChoice(claimed) ? claimed : 'system';
-}
-
-/** Stored bytes parsed as they were written, or `undefined` if they will not. */
-function claimedTheme(stored: string): unknown {
-  try {
-    return JSON.parse(stored);
-  } catch {
-    // Nothing but this module writes the key, so the only way here is a
-    // hand-edited store. Recovered from above rather than rethrown.
-    return undefined;
-  }
+  return storedChoice.read() ?? 'system';
 }
 
 /** Writes the answer down. `system` is stored, not absent — see {@link rememberedTheme}. */
 export function rememberTheme(choice: ThemeChoice): void {
-  localStorage.setItem(THEME_KEY, JSON.stringify(choice));
+  storedChoice.write(choice);
 }
 
 /**

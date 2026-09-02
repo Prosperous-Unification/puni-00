@@ -36,10 +36,16 @@
         "command": "bunx eslint tools/tool-remote-scripts/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-remote-scripts/src --cache --cache-location .nx/eslintcache-tool-remote-scripts"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p tools/tool-remote-scripts/tsconfig.json"
+        "command": "bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json"
       }
     }
   }

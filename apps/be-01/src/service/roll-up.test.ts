@@ -13,9 +13,9 @@ import {
   rollUp,
   rollUpActuals,
   rollUpFinals,
-  rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
+  rollUpWorkItemStates,
   workedStepsOf,
 } from './roll-up';
 
@@ -330,7 +330,7 @@ function fold(
   stated: readonly StoredProgress[],
 ) {
   const byStep = rollUpProgress(rows, stated, workedStepsOf(estimates, actuals, stated));
-  return { byStep, states: rollUpItemStates(rows, byStep) };
+  return { byStep, states: rollUpWorkItemStates(rows, byStep) };
 }
 
 describe('rollUpProgress', () => {
@@ -415,7 +415,7 @@ describe('rollUpProgress', () => {
     // it — `{dev: done}` is all it answers. The item state is folded over the
     // children instead, and that is where the silence is counted.
     //
-    // Proof: `rollUpItemStates` folded from the parent's own step map, and this
+    // Proof: `rollUpWorkItemStates` folded from the parent's own step map, and this
     // fails with `done` — a finished branch over an untouched row; watched
     // 2026-08-18.
     const rows = [item('parent', null), item('one', 'parent'), item('empty', 'parent')];

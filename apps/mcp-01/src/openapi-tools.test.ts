@@ -396,6 +396,25 @@ describe('the README names the tools that exist', () => {
     expect(readme).not.toMatch(/\b(phase|phases|role|roles)\b/i);
   });
 
+  it('counts them the same way the document does', () => {
+    /*
+      The README said "Twenty tools in all" while this file asserted 22 — a
+      figure nobody could see was wrong, in the one document a person reads
+      before writing a client. The names were already checked above and the
+      count was not, so two tools could be added and the sentence stay put.
+
+      Proof: the README's "22 tools in all" spelled back to "Twenty tools in
+      all". This failed on `expect(received).not.toBeNull()` — the digits are
+      what makes the claim checkable, so writing the number as a word is itself
+      the drift. With "20 tools in all" it failed on
+      `expect(received).toBe(expected) · Expected: 22 · Received: 20`.
+      Watched 2026-09-02.
+    */
+    const claimed = /\b(\d+) tools in all\b/.exec(readme);
+    expect(claimed).not.toBeNull();
+    expect(Number(claimed?.[1])).toBe(tools.length);
+  });
+
   it('spells the example batch in the fields the commands tool declares', () => {
     /*
       Proof: `"stepId"` in the README's `setEstimate` example spelled back to

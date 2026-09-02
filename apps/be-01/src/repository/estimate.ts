@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -11,6 +11,17 @@ import { estimate, step, workItem } from './schema';
  * anyone holds and is only ever read through that work item. So every write
  * here moves that work item's revision, inside the same transaction as the
  * estimate write — see `work_item.revision` in `schema.ts`.
+ *
+ * **What the four satellite stores share is named, and it is not the class.**
+ * `rowsChanged` is one function where three of them held the same eight lines,
+ * and `listByProject` is one statement in all four — a join through
+ * `work_item`, where it used to be an id read followed by an `IN (…)` over
+ * every row. What is *not* shared is the four classes themselves, and the
+ * reason is in this paragraph and the next: the value columns, the key width
+ * (`step_measure` carries a third column) and the bump below all differ, so a
+ * parameterised store would take each of them as an option and would need a
+ * cast to hand drizzle a table it does not know the shape of. The rules would
+ * be no shorter and no longer typechecked.
  *
  * The bumps are unconditional rather than conditional on rows having actually
  * changed. Asking first would be a read-then-write, which is exactly the shape
@@ -42,11 +53,7 @@ export class EstimateRepository implements EstimateStore {
    * watched 2026-08-09.
    */
   async listByProject(projectId: string): Promise<StoredEstimate[]> {
-    const ids = await this.db
-      .select({ id: workItem.id })
-      .from(workItem)
-      .where(eq(workItem.projectId, projectId));
-    if (ids.length === 0) return [];
+    await Promise.resolve();
     return (
       this.db
         .select({
@@ -61,12 +68,13 @@ export class EstimateRepository implements EstimateStore {
         // estimate whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step.
         .innerJoin(step, eq(estimate.stepId, step.id))
-        .where(
-          inArray(
-            estimate.workItemId,
-            ids.map((row) => row.id),
-          ),
-        )
+        // And the work item, so the project is asked for in the statement that
+        // reads the rows. This was two queries until 2026-09-02 — every work item
+        // id, then `IN (…)` over the lot — which put one bound parameter per row
+        // into the read, four times over per plan read. Inner again, and for the
+        // same reason: `workItemId` is a foreign key.
+        .innerJoin(workItem, eq(estimate.workItemId, workItem.id))
+        .where(eq(workItem.projectId, projectId))
         .orderBy(estimate.workItemId, step.position, estimate.stepId)
     );
   }

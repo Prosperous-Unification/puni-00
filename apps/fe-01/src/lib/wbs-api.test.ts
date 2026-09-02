@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { sentenceForRefusal } from './refusal';
 import {
   type DirectoryEffect,
   directoryRefusalSentence,
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
-  stepRefusalSentence,
+  STEP_REFUSALS,
   type StepUsage,
 } from './wbs-api';
 
@@ -157,7 +158,7 @@ describe('what a refused step change says', () => {
       'not_found',
       'forbidden',
     ]) {
-      const sentence = stepRefusalSentence(code);
+      const sentence = sentenceForRefusal(STEP_REFUSALS, code);
       expect(sentence).not.toContain(code);
       expect(sentence.endsWith('.')).toBe(true);
     }
@@ -167,7 +168,7 @@ describe('what a refused step change says', () => {
     // Not a default sentence with the code dropped: an unrecognised refusal is
     // something to report, and a message that hid it would leave nobody able to
     // say what be-01 answered.
-    expect(stepRefusalSentence('http_502')).toContain('http_502');
+    expect(sentenceForRefusal(STEP_REFUSALS, 'http_502')).toContain('http_502');
   });
 });
 
@@ -215,7 +216,7 @@ describe('patching a work item team set', () => {
     );
     const api = httpProjectApi('t');
     await api.tree('p1');
-    await api.patch('w1', { teamIds: ['team-b', 'team-a'] });
+    await api.patchWorkItem('w1', { teamIds: ['team-b', 'team-a'] });
 
     expect(fetched).toHaveBeenCalledTimes(2);
     expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
@@ -562,7 +563,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
     vi.stubGlobal('fetch', fetched);
     const api = httpProjectApi('t');
     await api.tree('p1');
-    await api.patch('w1', { name: 'Strip it' });
+    await api.patchWorkItem('w1', { name: 'Strip it' });
 
     const [, write] = fetched.mock.calls as [unknown, [string, RequestInit]];
     expect(write[0]).toBe('/api/projects/p1/commands');
@@ -577,7 +578,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
     // this failed on `expected …rejects.toThrow('unknown_work_item')`. Watched,
     // 2026-08-29.
     stubbed(200, APPLIED);
-    await expect(httpProjectApi('t').patch('nobody', { name: 'X' })).rejects.toThrow(
+    await expect(httpProjectApi('t').patchWorkItem('nobody', { name: 'X' })).rejects.toThrow(
       'unknown_work_item',
     );
   });
@@ -602,19 +603,22 @@ describe('the browser writes through command batches (plan-commands)', () => {
     await api.tree('p1');
     const days = { optimistic: 1, realistic: 2, pessimistic: 3 };
     const writes: [() => Promise<unknown>, string][] = [
-      [() => api.create('p1', { parentId: null, afterId: null, name: 'A' }), 'createWorkItem'],
-      [() => api.patch('w1', { notes: 'n' }), 'patchWorkItem'],
-      [() => api.move('w1', null, 'w2'), 'moveWorkItem'],
-      [() => api.duplicate('w1'), 'duplicateWorkItem'],
-      [() => api.remove('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
+      [
+        () => api.createWorkItem('p1', { parentId: null, afterId: null, name: 'A' }),
+        'createWorkItem',
+      ],
+      [() => api.patchWorkItem('w1', { notes: 'n' }), 'patchWorkItem'],
+      [() => api.moveWorkItem('w1', null, 'w2'), 'moveWorkItem'],
+      [() => api.duplicateWorkItem('w1'), 'duplicateWorkItem'],
+      [() => api.removeWorkItem('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
       [() => api.setEstimate('w1', 'r1', days), 'setEstimate'],
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
-      [() => api.assign('w1', 'r1', 'k'), 'setAssignee'],
+      [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
-      [() => api.freeze('p1'), 'freezeProject'],
+      [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
-      [() => api.unfreeze('w1'), 'unfreezeWorkItem'],
+      [() => api.unfreezeWorkItem('w1'), 'unfreezeWorkItem'],
       [() => api.setTeamCapacity('p1', 'team1', 3), 'setCapacity'],
       [() => api.setPriorityBands('p1', []), 'setPriorityBands'],
     ];
@@ -633,7 +637,9 @@ describe('the browser writes through command batches (plan-commands)', () => {
       ).toEqual([kind]);
     }
     // And the create answers the id the batch minted, as the route did.
-    await expect(api.create('p1', { parentId: null, afterId: null, name: 'B' })).resolves.toEqual({
+    await expect(
+      api.createWorkItem('p1', { parentId: null, afterId: null, name: 'B' }),
+    ).resolves.toEqual({
       id: 'new',
     });
   });
@@ -673,5 +679,84 @@ describe('the browser writes through command batches (plan-commands)', () => {
     const removal = await httpDirectoryApi('t').removeTag('t1', false);
     expect(removal.ok).toBe(false);
     if (!removal.ok) expect(removal.reason).toBe('in_use');
+  });
+});
+
+describe('reads asked for twice at once', () => {
+  /**
+   * A refresh reads the plan and the five global vocabularies together, and a
+   * refresh is started by every write and every socket frame — so a held arrow
+   * key, or a peer typing, asks for the same eight URLs again before the
+   * previous eight have landed.
+   *
+   * The fetch below never settles on its own, which is the window the fault
+   * lives in: asserting after both promises resolve would be asserting outside
+   * it, and the count would be 1 either way once the map had emptied.
+   *
+   * Proof: with `send`'s GET branch removed so every call goes straight to
+   * `sendOnce`, watched failing on `expected [ [ '/api/teams', …(1) ], …(1) ]
+   * to have a length of 1 but got 2` (2026-09-02).
+   */
+  it('makes one request, and both callers get its answer', async () => {
+    let settle: (value: Response) => void = () => undefined;
+    const held = new Promise<Response>((resolve) => {
+      settle = resolve;
+    });
+    const fetched = vi.fn(() => held);
+    vi.stubGlobal('fetch', fetched);
+    const api = httpProjectApi('t');
+
+    const first = api.listTeams();
+    const second = api.listTeams();
+    expect(fetched.mock.calls).toHaveLength(1);
+
+    settle(response(200, JSON.stringify({ teams: [{ id: 'team1', name: 'Wiring' }] })));
+    expect(await first).toEqual(await second);
+  });
+
+  /**
+   * The de-duplication is a window, not a cache: once a read has landed the next
+   * one goes to be-01 again, which is what keeps "the plan is replaced, never
+   * patched" true.
+   *
+   * Proof: with the `.finally` that drops the entry removed, watched failing on
+   * `expected [ [ '/api/teams', …(1) ] ] to have a length of 2 but got 1` — the
+   * second read answered from the first's promise, so an edit made in between
+   * was invisible (2026-09-02).
+   */
+  it('asks again once the first has landed', async () => {
+    const fetched = vi.fn(() => Promise.resolve(response(200, JSON.stringify({ teams: [] }))));
+    vi.stubGlobal('fetch', fetched);
+    const api = httpProjectApi('t');
+
+    await api.listTeams();
+    await api.listTeams();
+
+    expect(fetched.mock.calls).toHaveLength(2);
+  });
+
+  /**
+   * Two writes to one path are two writes, however identical they look.
+   *
+   * Proof: with the method check dropped so every call is de-duplicated, watched
+   * failing on `expected [ [ '/api/projects/p1/opened', …(1) ] ] to have a
+   * length of 2 but got 1` — the second `opened` never left.
+   */
+  it('never shares a write', async () => {
+    let settle: (value: Response) => void = () => undefined;
+    const held = new Promise<Response>((resolve) => {
+      settle = resolve;
+    });
+    const fetched = vi.fn(() => held);
+    vi.stubGlobal('fetch', fetched);
+    const api = httpProjectApi('t');
+
+    const first = api.openProject('p1');
+    const second = api.openProject('p1');
+    expect(fetched.mock.calls).toHaveLength(2);
+
+    settle(response(204, ''));
+    await first;
+    await second;
   });
 });

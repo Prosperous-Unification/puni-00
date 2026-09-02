@@ -24,6 +24,7 @@ export class ReplayBuffer {
     list.push({ seq, message, at });
     this.evict(list);
     this.store.set(subscription, list);
+    this.sweepOneOther(subscription);
   }
 
   since(subscription: string, sinceSeq: number): BufferEntry[] {
@@ -58,6 +59,57 @@ export class ReplayBuffer {
     const list = this.store.get(subscription);
     if (!list || list.length === 0) return null;
     return list[0]?.seq ?? null;
+  }
+
+  /**
+   * Where the rotating sweep is up to — see {@link sweepOneOther}.
+   *
+   * A name and not an index: the map's keys move as subscriptions are added and
+   * dropped, and an index into a changing key list skips entries silently.
+   */
+  private sweptLast: string | null = null;
+
+  /**
+   * Evicts one subscription **other** than the one just written to, and drops
+   * it when nothing is left.
+   *
+   * **Eviction was only ever lazy, and lazy means never for an abandoned key.**
+   * `record`, `since` and `covers` each evict the subscription they are about,
+   * so a project that is edited a thousand times and then closed keeps a
+   * thousand `tree_replaced` entries — whole plans, hundreds of rows each —
+   * with every one of them long past `maxAgeMs` and nothing left that would
+   * ever ask about them again. The map kept the name too.
+   *
+   * One key per write, which is `login-throttle.ts`'s bargain in this same
+   * wave: bounded work per operation, and a sweep that visits every
+   * subscription once per K writes across K live subscriptions. An abandoned
+   * project therefore drains within one lap of whatever traffic is left, rather
+   * than never.
+   *
+   * It changes no answer. `since` and `covers` already evict before answering,
+   * and `oldestSeq` has no production caller — so what this releases is memory
+   * that no reader could reach.
+   */
+  private sweepOneOther(justWritten: string): void {
+    const keys = [...this.store.keys()].filter((key) => key !== justWritten);
+    if (keys.length === 0) {
+      this.sweptLast = null;
+      return;
+    }
+    const after = this.sweptLast === null ? -1 : keys.indexOf(this.sweptLast);
+    // `+ 1` past the last one swept, wrapping — and past `-1` when that key is
+    // gone, which starts the lap again rather than stopping.
+    // In range because `keys.length > 0` above, so no `undefined` check here:
+    // `noUncheckedIndexedAccess` is off in this repo and one would be a branch
+    // nothing can reach.
+    const next = keys[(after + 1) % keys.length];
+    this.sweptLast = next;
+    const list = this.store.get(next);
+    // A key taken from `store.keys()` a line ago, so this narrows a type rather
+    // than modelling a state — nothing runs between the two.
+    if (list === undefined) return;
+    this.evict(list);
+    if (list.length === 0) this.store.delete(next);
   }
 
   private evict(list: BufferEntry[]): void {

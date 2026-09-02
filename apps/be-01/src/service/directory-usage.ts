@@ -1,8 +1,7 @@
-import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain';
+import { deriveNumbers, type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain';
 
 import type { Assignment, DirectoryUsageRows, LabelledWorkItem } from '../repository';
 import { assumedAssignee } from './assumed-assignee';
-import { deriveNumbers } from './derive-numbers';
 
 /**
  * What removing a directory entry would do to one work item.
@@ -193,6 +192,33 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
 }
 
 /**
+ * What removing one member of a **label set** would take with it: that
+ * labelling, and nothing else.
+ *
+ * The rule the tag, the work item type and the service all have, written once
+ * where it was written three times identically. Each of them keeps its own
+ * documentation, because what is worth reading about them is not this line —
+ * it is the arms they deliberately do **not** have, and those differ: for a tag
+ * the absent inherited arm is a judgement call, for a type there is nothing to
+ * choose (ADR 0009), and for a service the absent `team_service` arm is
+ * design.md D7.
+ *
+ * `setOf` reads the row's **own** set and never an effective one. A work item
+ * carrying two tags loses one per removal, so a reader of `tagIds[0]` would
+ * report nothing at all for the second of them; and an inherited label is
+ * stated by an ancestor rather than by the row the removal writes to.
+ */
+function usageOfLabelIn(
+  rows: DirectoryUsageRows,
+  labelId: string,
+  setOf: (row: LabelledWorkItem) => readonly string[],
+): DirectoryUsage {
+  return usageFrom(rows, (row) =>
+    setOf(row).includes(labelId) ? [{ kind: 'label_removed' }] : [],
+  );
+}
+
+/**
  * What removing one **tag** would take with it: the labelling, and nothing else.
  *
  * **Two arms shorter than {@link directoryUsageOfTeam}, and the absences are the
@@ -219,7 +245,7 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * reader of `tagIds[0]` would report nothing at all for the second of them.
  */
 export function directoryUsageOfTag(rows: DirectoryUsageRows, tagId: string): DirectoryUsage {
-  return usageFrom(rows, (row) => (row.tagIds.includes(tagId) ? [{ kind: 'label_removed' }] : []));
+  return usageOfLabelIn(rows, tagId, (row) => row.tagIds);
 }
 
 /**
@@ -248,9 +274,7 @@ export function directoryUsageOfWorkItemType(
   rows: DirectoryUsageRows,
   typeId: string,
 ): DirectoryUsage {
-  return usageFrom(rows, (row) =>
-    row.typeIds.includes(typeId) ? [{ kind: 'label_removed' }] : [],
-  );
+  return usageOfLabelIn(rows, typeId, (row) => row.typeIds);
 }
 
 /**
@@ -286,9 +310,7 @@ export function directoryUsageOfService(
   rows: DirectoryUsageRows,
   serviceId: string,
 ): DirectoryUsage {
-  return usageFrom(rows, (row) =>
-    row.serviceIds.includes(serviceId) ? [{ kind: 'label_removed' }] : [],
-  );
+  return usageOfLabelIn(rows, serviceId, (row) => row.serviceIds);
 }
 
 /**

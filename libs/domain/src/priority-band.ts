@@ -12,7 +12,7 @@
  *
  * A band decides **nothing about a date**. Priority is an ordering the leveller
  * reads off `work_item.priority` and that column alone (`goesFirst` in
- * `be-01/src/service/schedule.ts`); a ladder is the vocabulary that number is
+ * `libs/domain/src/schedule.ts`); a ladder is the vocabulary that number is
  * read and written in. Re-cutting the ladder renames what a plan's numbers are
  * called and moves not one of its dates.
  */

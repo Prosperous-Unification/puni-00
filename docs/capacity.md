@@ -158,7 +158,7 @@ the sake of a display promise. The argument is `capacity-engine/design.md`, D7.
 | -------------------------------------- | ----------------------------------------------------------------------- |
 | The stored number                      | `apps/be-01/src/repository/schema.ts`, `projectTeamCapacity`            |
 | The lookup the scheduler uses          | `apps/be-01/src/repository/capacity.ts`, `slotsFor`                     |
-| Placement against the pool             | `apps/be-01/src/service/schedule.ts`                                    |
+| Placement against the pool             | `apps/libs/domain/src/schedule.ts`                                      |
 | Label inheritance, shared by both apps | `libs/domain/src/effective-team.ts`                                     |
 | The box                                | `apps/fe-01/src/components/wbs/teams-dialog.tsx`                        |
 | The chart's sentence                   | `apps/fe-01/src/components/wbs/gantt-geometry.ts`, `capacityFloorWords` |

@@ -27,6 +27,12 @@
         "command": "bunx eslint apps/be-01/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/be-01/src --cache --cache-location .nx/eslintcache-be-01"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {
@@ -34,6 +40,20 @@
         "cwd": "apps/be-01"
       },
       "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ')",
+        "cwd": "apps/be-01"
+      }
+    },
+    "test:store": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test .db.test.ts",
+        "cwd": "apps/be-01"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",

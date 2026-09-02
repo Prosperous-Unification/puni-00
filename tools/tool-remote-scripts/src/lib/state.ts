@@ -1,12 +1,15 @@
-export type Tier = 'be' | 'gw' | 'fe';
+import type { Color, Tier } from './deploy-contract';
+
+// Re-exported rather than re-declared: every reader of this module already
+// imports `Tier` and `Color` from it, and the words themselves belong to the
+// deploy contract — see `deploy-contract.ts`.
+export type { Color, Tier };
 
 export interface TierState {
   tier: Tier;
   lastDeployedSha: string | null;
   activeColor: Color;
 }
-
-export type Color = 'blue' | 'green';
 
 export function flipColor(c: Color): Color {
   return c === 'blue' ? 'green' : 'blue';

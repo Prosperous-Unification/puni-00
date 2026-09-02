@@ -1,15 +1,9 @@
 import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type {
-  Project,
-  ProjectPatch,
-  ProjectStore,
-  ProjectWithAccess,
-  Step,
-  WriteStamp,
-} from '../repository';
+import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
+import { type Clock, clockOf } from './clock';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is
@@ -24,13 +18,13 @@ export interface ProjectWithSteps {
 }
 
 export type UpdateOutcome =
-  | { ok: true; result: Project }
+  | { ok: true; value: Project }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' | 'bad_pert_weights' };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
-  now?: () => number;
-  newId?: () => string;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /**
@@ -47,26 +41,19 @@ export function canEdit(project: Project, actorId: string): boolean {
 }
 
 export class ProjectService {
-  private readonly now: () => number;
-  private readonly newId: () => string;
+  private readonly clock: Clock;
 
   constructor(private readonly opts: ProjectServiceOptions) {
-    this.now = opts.now ?? (() => Date.now());
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-  }
-
-  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
     // Built before the row, because the row's own `createdAt` is this act's
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
-    const stamp = this.stampFor(ownerId);
+    const stamp = this.clock.stampFor(ownerId);
     const project: Project = {
-      id: this.newId(),
+      id: this.clock.newId(),
       name,
       ownerId,
       restricted: false,
@@ -100,7 +87,7 @@ export class ProjectService {
     // seed as it is, and `STARTING_STEPS` is already an order — Dev is done
     // before QA, which is the order the schedule runs a work item's slices in.
     const steps = STARTING_STEPS.map((stepName, place) => ({
-      id: this.newId(),
+      id: this.clock.newId(),
       projectId: project.id,
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
@@ -139,7 +126,7 @@ export class ProjectService {
     // The stamp is the whole of what this write says: who opened the project and
     // when, which is what {@link ProjectStore.recordOpen} used to take as two
     // arguments of its own.
-    await this.opts.projects.recordOpen(id, this.stampFor(actorId));
+    await this.opts.projects.recordOpen(id, this.clock.stampFor(actorId));
     return true;
   }
 
@@ -184,10 +171,10 @@ export class ProjectService {
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const updated = await this.opts.projects.update(id, patch, this.stampFor(actorId));
+    const updated = await this.opts.projects.update(id, patch, this.clock.stampFor(actorId));
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
-    return { ok: true, result: updated };
+    return { ok: true, value: updated };
   }
 }

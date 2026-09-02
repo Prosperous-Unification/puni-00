@@ -57,3 +57,32 @@ export const auditOnCreateBesidesCreatedAt = (stamp: WriteStamp) => ({
 export const auditOnUpdate = (stamp: WriteStamp) => ({
   updatedAt: stamp.at,
 });
+
+/** The three columns {@link auditOnCreate} and {@link auditOnUpdate} write. */
+export const AUDIT_COLUMN_NAMES = ['createdBy', 'updatedAt', 'updatedBy'] as const;
+
+/**
+ * A row with the audit columns taken off, for a read that answers with the row.
+ *
+ * Every read in this folder names its columns instead, which is better — the
+ * declared return type then checks the projection is complete. This exists for
+ * the one read that cannot: `project.ts`'s `toProject` is generic over the row
+ * it maps, so it has no column list to name, and it spread the rest of the row
+ * straight into its answer. `createdBy` — a user id — reached
+ * `GET /api/projects/{id}` that way, under a JSDoc that cited this mapper as
+ * the reason it could not.
+ *
+ * `createdAt` stays: it is a published field of a project and predates the
+ * audit columns by months.
+ */
+export function withoutAuditColumns<T extends object>(
+  row: T,
+): Omit<T, (typeof AUDIT_COLUMN_NAMES)[number]> {
+  const dropped = new Set<string>(AUDIT_COLUMN_NAMES);
+  // Rebuilt rather than copied-and-deleted, because `delete` on a computed key
+  // is banned here and because building the answer states what it publishes.
+  return Object.fromEntries(Object.entries(row).filter(([name]) => !dropped.has(name))) as Omit<
+    T,
+    (typeof AUDIT_COLUMN_NAMES)[number]
+  >;
+}

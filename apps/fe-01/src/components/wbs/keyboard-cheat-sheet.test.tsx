@@ -175,7 +175,26 @@ const PROVEN_BY = new Map<string, readonly string[]>(
  * `readFileSync` rather than being read as "no tests named", which would be
  * the vacuous version of this whole check.
  */
-const behaviourTestSources = ['wbs-table.test.tsx', 'creatable-picker.test.tsx'].map((file) =>
+const behaviourTestSources = [
+  // `wbs-table.test.tsx` was one 16,000-line file until 2026-09-02 and is these
+  // eleven now, one per concept. Named individually rather than globbed for the
+  // reason above: a file that moves or is renamed has to throw out of
+  // `readFileSync`, and a glob would quietly read ten of eleven and report the
+  // chords of the missing one as uncovered — or, worse, match nothing and read
+  // as "no tests named".
+  'plan-table.test.tsx',
+  'plan-structure.test.tsx',
+  'plan-cells.test.tsx',
+  'plan-estimates.test.tsx',
+  'plan-keyboard.test.tsx',
+  'plan-dependencies.test.tsx',
+  'plan-chart-seam.test.tsx',
+  'plan-layout.test.tsx',
+  'plan-filter.test.tsx',
+  'plan-toolbar.test.tsx',
+  'plan-read-and-write.test.tsx',
+  'creatable-picker.test.tsx',
+].map((file) =>
   readFileSync(
     // Joined, not `new URL('./…', import.meta.url)`: Vite rewrites that exact
     // pattern into an asset URL served over http, and the read would be of

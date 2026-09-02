@@ -27,6 +27,12 @@
         "command": "bunx eslint apps/gw-01/src"
       }
     },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/gw-01/src --cache --cache-location .nx/eslintcache-gw-01"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

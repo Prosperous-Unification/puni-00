@@ -19,6 +19,7 @@ import { userFromHeaders } from './middleware/authenticated';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
+import type { DeferringBroadcaster } from './service/broadcast';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
 import type { HistoryService } from './service/history.service';
@@ -103,7 +104,17 @@ export interface AppOptions {
    * `WriteLock` in production, the counting fixture on in-memory stores. See
    * `service/plan-commands.ts` and ADR 0007.
    */
-  writes: { transactions: OuterTransaction; lock: WriteLock };
+  writes: {
+    transactions: OuterTransaction;
+    lock: WriteLock;
+    /**
+     * The broadcaster the directory, capacity and priority-band services were
+     * built with, so a batch can hold their announcements until it has committed
+     * and let go of the lock. It has to be the *same* object those services
+     * publish through — a second one would hold nothing.
+     */
+    announcements: DeferringBroadcaster;
+  };
   /**
    * The commit the checkout on disk is at, read fresh on every `/health` call.
    *
@@ -131,6 +142,7 @@ export function buildApp(opts: AppOptions) {
     priorityBands: opts.priorityBands,
     transactions: opts.writes.transactions,
     lock: opts.writes.lock,
+    announcements: opts.writes.announcements,
   });
 
   return (
@@ -168,9 +180,6 @@ export function buildApp(opts: AppOptions) {
         }
         return undefined;
       })
-      .derive(async ({ headers }) => ({
-        requestIdentity: await userFromHeaders(opts.auth, headers),
-      }))
       .use(smokeController)
       .use(authController(opts.auth, opts.oidc))
       .use(solutionController(opts.auth, opts.projects))
@@ -179,16 +188,8 @@ export function buildApp(opts: AppOptions) {
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))
       // After `projectController`, whose prefix it shares: Elysia matches in
-      // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
-      // anything that route declares, but keeping the two adjacent is what makes
-      // that checkable at a glance.
-      // Beside `capacityController` for its reason: it shares
-      // `projectController`'s prefix, `/:id/priority-bands` cannot be shadowed by
-      // anything that route declares, and adjacency is what makes that checkable
-      // at a glance.
-      // Beside the two above for their reason: it shares `projectController`'s
-      // prefix, `/:id/history` cannot be shadowed by anything that route
-      // declares, and adjacency is what makes that checkable at a glance.
+      // registration order, `/:id/history` cannot be shadowed by anything that
+      // route declares, and adjacency is what makes that checkable at a glance.
       .use(historyController(opts.auth, opts.history))
       .use(
         internalController({

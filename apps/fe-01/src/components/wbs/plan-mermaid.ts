@@ -6,7 +6,7 @@ import {
   type ExportSlice,
   markdownHeaderLines,
   markdownTableLines,
-  type NamedEntry,
+  nameOf,
   type PlanExport,
 } from './plan-export';
 
@@ -57,9 +57,6 @@ const NO_STEP = 'no step';
 
 /** What a slice nobody is named on is called, under `assignee` sectioning. */
 const UNASSIGNED = 'unassigned';
-
-/** What an id naming nobody prints as, in the table export's own word for it. */
-const UNKNOWN_NAME = '(unknown)';
 
 /**
  * What a `section` line groups tasks by — M3 of the R7 brief.
@@ -145,11 +142,6 @@ function mermaidPhrase(value: string): string {
 /** One line of comment prose, with the one thing that would end it early removed. */
 function mermaidComment(value: string): string {
   return value.replaceAll(/[\r\n]+/g, ' ').trim();
-}
-
-/** `entries`' name for `id`, or the export's word for an id that names nobody. */
-function nameOf(entries: readonly NamedEntry[], id: string): string {
-  return entries.find((entry) => entry.id === id)?.name ?? UNKNOWN_NAME;
 }
 
 /** `010.1 Strip cables`, the way every cross reference in an export names a row. */
@@ -330,18 +322,34 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
       // dropped bar is a smaller wrong answer than a thrown copy button.
       return row === undefined ? [] : [{ slice, row }];
     })
+    // The section resolved **once per slice**, before the sort. It was called
+    // twice per comparison — and in `outline` mode `sectionOf` walks the row's
+    // ancestors, so an N log N sort was doing 2 N log N tree walks — and a
+    // third time per slice below, for the label. Same order, same labels: the
+    // function is pure over the arguments it is given here.
+    .map((placement) => ({
+      ...placement,
+      section: sectionOf(
+        sectionMode,
+        plan,
+        placement.row,
+        placement.slice,
+        byId,
+        rowOrder,
+        stepOrder,
+        personOrder,
+      ),
+    }))
     .sort(
       (a, b) =>
-        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, stepOrder, personOrder).order -
-          sectionOf(sectionMode, plan, b.row, b.slice, byId, rowOrder, stepOrder, personOrder)
-            .order ||
+        a.section.order - b.section.order ||
         (rowOrder.get(a.row.id) ?? 0) - (rowOrder.get(b.row.id) ?? 0) ||
         (a.slice.stepId === null ? plan.steps.length : (stepOrder.get(a.slice.stepId) ?? 0)) -
           (b.slice.stepId === null ? plan.steps.length : (stepOrder.get(b.slice.stepId) ?? 0)) ||
         a.slice.earliestStart - b.slice.earliestStart ||
         a.slice.id.localeCompare(b.slice.id),
     );
-  return placed.map(({ slice, row }, at): MermaidTask => {
+  return placed.map(({ slice, row, section }, at): MermaidTask => {
     const point: PointReason | null = !slice.estimated
       ? 'unestimated'
       : slice.duration === 0
@@ -350,8 +358,7 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
     const first = Math.floor(scale.startOf(slice.earliestStart));
     const last = Math.max(first, Math.ceil(scale.endOf(slice.earliestFinish)) - 1);
     return {
-      section: sectionOf(sectionMode, plan, row, slice, byId, rowOrder, stepOrder, personOrder)
-        .label,
+      section: section.label,
       text: taskTextOf(plan, row, slice, point),
       // Generated, and that is what keeps every user-typed character out of the
       // metadata position: an id taken from a name would collide the moment two

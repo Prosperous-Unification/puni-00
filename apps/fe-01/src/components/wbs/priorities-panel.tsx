@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { priorityBandRefusalSentence, type PriorityBandView } from '@/lib/wbs-api';
+import { PRIORITY_BAND_REFUSALS, type PriorityBandView } from '@/lib/wbs-api';
 
 import { priorityBandStyleOf } from './priority-band-style';
 import type { SettingsSectionReport } from './teams-panel';
+import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** One rung as its three boxes hold it — text, because a half-typed number is text. */
 export interface BandDraft {
@@ -130,39 +131,31 @@ export function PrioritiesPanel({
   onDone,
 }: PrioritiesPanelProps) {
   const [drafts, setDrafts] = useState<BandDraft[]>(() => draftsOf(bands));
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   /**
-   * Dirty while the boxes say something the saved ladder does not, or while a
-   * ladder is on its way to be-01. Compared field by field against the ladder
-   * as be-01 has it **now**, so a peer's re-cut that happens to match what was
-   * typed reads as clean rather than as an edit to lose.
-   *
-   * Proof: reported `false` unconditionally, and `a half-typed value survives a
-   * look at another section` still passed — the panels stay mounted whatever is
-   * reported — while `an in-flight write holds the modal open and is shown`
-   * let Escape close over the write; watched 2026-08-30.
+   * Dirty while the boxes say something the saved ladder does not. Compared
+   * field by field against the ladder as be-01 has it **now**, so a peer's
+   * re-cut that happens to match what was typed reads as clean rather than as
+   * an edit to lose. A write in flight is {@link useSettingsSection}'s to add.
    */
-  const dirty =
-    busy ||
-    drafts.some((draft, at) => {
-      const saved = draftsOf(bands).at(at);
-      return (
-        saved?.label !== draft.label ||
-        saved.startsAt !== draft.startsAt ||
-        saved.defaultValue !== draft.defaultValue
-      );
-    });
-  useEffect(() => {
-    onDirtyChange(dirty);
-  }, [dirty, onDirtyChange]);
-  useEffect(
-    () => () => {
-      onDirtyChange(false);
-    },
-    [onDirtyChange],
-  );
+  // Built once, not once per band: it was inside the predicate, so a
+  // twelve-rung ladder rebuilt twelve copies of itself to answer one question,
+  // on every render of the panel.
+  const savedDrafts = draftsOf(bands);
+  const dirty = drafts.some((draft, at) => {
+    const saved = savedDrafts.at(at);
+    return (
+      saved?.label !== draft.label ||
+      saved.startsAt !== draft.startsAt ||
+      saved.defaultValue !== draft.defaultValue
+    );
+  });
+  const section = useSettingsSection({
+    words: PRIORITY_BAND_REFUSALS,
+    dirty,
+    onDirtyChange,
+    onChanged,
+  });
 
   function edit(at: number, field: keyof BandDraft, value: string): void {
     setDrafts((current) =>
@@ -173,31 +166,20 @@ export function PrioritiesPanel({
   async function save(): Promise<void> {
     const ladder = ladderOfDrafts(drafts);
     if (ladder === null) {
-      setProblem('Every band needs a whole number to start at and a whole number to write.');
+      // Refused without a round trip: a box that is not a whole number is not a
+      // rung, and be-01 would answer the same thing a request later.
+      section.refuse('band_start_must_be_a_whole_number_from_1');
       return;
     }
-    setBusy(true);
-    setProblem(null);
-    try {
-      await setBands(ladder);
-      await onChanged();
-      onDone();
-    } catch (thrown: unknown) {
-      // The drafts are kept on a refusal: the ladder on screen is what the reader
-      // typed and what the sentence beside it is about, and resetting it to
-      // be-01's would leave a sentence explaining a value nobody could see.
-      setProblem(
-        priorityBandRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'),
-      );
-    } finally {
-      setBusy(false);
-    }
+    // The drafts are kept on a refusal — see {@link SettingsSection.attempt} —
+    // and `onDone` only on the write that landed.
+    if (await section.attempt(() => setBands(ladder))) onDone();
   }
 
   /** Puts the ladder back as be-01 has it and leaves — the drafts are the only thing to discard. */
   function cancel(): void {
     setDrafts(draftsOf(bands));
-    setProblem(null);
+    section.clear();
     onDone();
   }
 
@@ -209,11 +191,7 @@ export function PrioritiesPanel({
         picking its name in the Prio column puts on a row. Every band is this plan’s own.
       </p>
 
-      {problem !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {problem}
-        </p>
-      )}
+      <SectionProblem problem={section.problem} />
 
       <ul className="flex flex-col gap-2">
         {drafts.map((draft, at) => {
@@ -234,7 +212,7 @@ export function PrioritiesPanel({
                 className="h-8 min-w-0 flex-1"
                 aria-label={`Name of band ${String(at + 1)}`}
                 value={draft.label}
-                disabled={busy}
+                disabled={section.busy}
                 onChange={(event) => {
                   edit(at, 'label', event.currentTarget.value);
                 }}
@@ -244,7 +222,7 @@ export function PrioritiesPanel({
                 aria-label={`${draft.label} starts at`}
                 inputMode="numeric"
                 value={draft.startsAt}
-                disabled={busy}
+                disabled={section.busy}
                 onChange={(event) => {
                   edit(at, 'startsAt', event.currentTarget.value);
                 }}
@@ -264,7 +242,7 @@ export function PrioritiesPanel({
                 aria-label={`${draft.label} writes`}
                 inputMode="numeric"
                 value={draft.defaultValue}
-                disabled={busy}
+                disabled={section.busy}
                 onChange={(event) => {
                   edit(at, 'defaultValue', event.currentTarget.value);
                 }}
@@ -280,12 +258,12 @@ export function PrioritiesPanel({
       </p>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" type="button" disabled={busy} onClick={cancel}>
+        <Button variant="outline" type="button" disabled={section.busy} onClick={cancel}>
           Cancel
         </Button>
         <Button
           type="button"
-          disabled={busy}
+          disabled={section.busy}
           onClick={() => {
             void save();
           }}

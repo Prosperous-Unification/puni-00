@@ -1,5 +1,7 @@
+import type { Tier } from '@wbs/deploy-contract';
+
 export interface ImageSpec {
-  tier: 'be' | 'gw' | 'fe';
+  tier: Tier;
   baseImage: string;
   entrypoint: string[];
   workdir: string;

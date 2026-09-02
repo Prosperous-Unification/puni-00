@@ -274,7 +274,7 @@ const NOT_ON_A_CALENDAR = 'not on a calendar';
 const NO_SCHEDULE = '—';
 
 /** What an id that names nobody prints as, in the table's own words. */
-const UNKNOWN_NAME = '(unknown)';
+export const UNKNOWN_NAME = '(unknown)';
 
 /** RFC 4180's record separator. Both writers of a CSV field agree on this one. */
 const CRLF = '\r\n';
@@ -320,8 +320,57 @@ function markdownCell(value: string): string {
 const showFigure = (days: number): string => String(days);
 
 /** `entries`' name for `id`, or the table's word for an id that names nobody. */
-function nameOf(entries: readonly NamedEntry[], id: string): string {
-  return entries.find((entry) => entry.id === id)?.name ?? UNKNOWN_NAME;
+/**
+ * Per-list id→name indexes, keyed by the list itself.
+ *
+ * A `WeakMap` rather than a parameter, so the callers keep reading
+ * `nameOf(plan.people, id)` and the index is built once per export instead of
+ * once per call. A plan's `steps` and `people` arrays come straight off one tree
+ * read and do not change during an export, and when the read is replaced the old
+ * arrays — and their indexes — are collected with it.
+ */
+const namesByList = new WeakMap<readonly NamedEntry[], Map<string, string>>();
+
+/**
+ * `entries`' name for `id`, or the export's word for an id that names nobody.
+ *
+ * It was `entries.find(...)` in **both** exporters, and both call it per cell of
+ * every row: naming the steps and the people in a plan was O(rows × entries)
+ * twice over, in two copies of one function that had to agree about what an
+ * unknown id reads as. One copy now, and it is a lookup.
+ */
+export function nameOf(entries: readonly NamedEntry[], id: string): string {
+  let byId = namesByList.get(entries);
+  if (byId === undefined) {
+    byId = new Map(entries.map((entry) => [entry.id, entry.name]));
+    namesByList.set(entries, byId);
+  }
+  return byId.get(id) ?? UNKNOWN_NAME;
+}
+
+/** Per-plan id→row indexes, keyed by the row list itself — {@link namesByList}'s shape. */
+const rowsByList = new WeakMap<readonly ExportRow[], Map<string, ExportRow>>();
+
+/**
+ * The row `id` names, or `undefined` for an id this document does not carry.
+ *
+ * It was a `find` over `plan.rows` at three places, each called **per cell**:
+ * the inherited-label note on every labelled cell of every row, the tag cell's
+ * note per tag, and the `Depends on` cell per edge. So printing a document was
+ * O(rows²) in the row count, three times over, for a lookup.
+ *
+ * `undefined` is a state and not a fault: a row outside the document is exactly
+ * what the three callers each have their own sentence for — `(inherited)` with
+ * no source named, and a dropped predecessor number. Throwing here would turn a
+ * copy button into a broken one over a row nobody asked about.
+ */
+function rowById(rows: readonly ExportRow[], id: string): ExportRow | undefined {
+  let byId = rowsByList.get(rows);
+  if (byId === undefined) {
+    byId = new Map(rows.map((row) => [row.id, row]));
+    rowsByList.set(rows, byId);
+  }
+  return byId.get(id);
 }
 
 /**
@@ -495,7 +544,7 @@ function labelCell(
   if (effective === undefined) return '';
   const name = effective.ids.map((id) => nameOf(vocabulary, id)).join('; ');
   if (effective.fromId === row.id) return name;
-  const from = plan.rows.find((each) => each.id === effective.fromId);
+  const from = rowById(plan.rows, effective.fromId);
   return from === undefined
     ? `${name} (inherited)`
     : `${name} (inherited from ${from.number} ${from.name})`;
@@ -545,7 +594,7 @@ function tagCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTags>, 
     .map((each) => {
       const name = nameOf(plan.tags, each.tagId);
       if (each.fromId === row.id) return name;
-      const from = plan.rows.find((candidate) => candidate.id === each.fromId);
+      const from = rowById(plan.rows, each.fromId);
       return from === undefined
         ? `${name} (inherited)`
         : `${name} (inherited from ${from.number} ${from.name})`;
@@ -692,7 +741,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
       cell: (row) =>
         row.dependsOn
           .flatMap((id) => {
-            const predecessor = plan.rows.find((each) => each.id === id);
+            const predecessor = rowById(plan.rows, id);
             return predecessor === undefined ? [] : [predecessor.number];
           })
           .join(', '),

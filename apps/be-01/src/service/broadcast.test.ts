@@ -1,63 +1,23 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type {
-  ActualStore,
-  EstimateStore,
-  MeasureStore,
-  Project,
-  ProjectStore,
-  StepProgressStore,
-  WorkItemStore,
-} from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import type { Project, ProjectStore } from '../repository';
+import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryServices } from '../testing/harness';
 import type { ProjectEvent } from './broadcast';
-import { WorkItemService } from './work-item.service';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 
 let projects: ProjectStore;
-let workItems: WorkItemStore;
-let estimates: EstimateStore;
-let actuals: ActualStore;
-let measures: MeasureStore;
-let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  workItems = inMemoryWorkItems();
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  broadcast = recordingBroadcaster();
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    journal: inMemoryCommandJournal(),
-    broadcast,
-  });
+  const harness = inMemoryServices();
+  ({ projects } = harness.stores);
+  broadcast = harness.broadcast;
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -83,7 +43,7 @@ beforeEach(async () => {
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 // `.at` rather than an index: indexing is typed as always present, and every
@@ -99,7 +59,7 @@ const latest = () => broadcast.published.at(-1);
  */
 function namesIn(event: ProjectEvent | undefined): string[] {
   if (event === undefined) throw new Error('nothing was published');
-  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+  if (event.type !== 'tree_replaced') {
     throw new Error(`a ${event.type} event carries no work items`);
   }
   return event.workItems.map((each) => each.name);
@@ -123,7 +83,12 @@ describe('what a project subscriber receives', () => {
     expect(latest()?.event.type).toBe('tree_replaced');
   });
 
-  it('sends a narrow patch when an estimate changes, with the ancestors it moved', async () => {
+  // A cell edit used to send the edited row and its ancestors. It cannot any
+  // more: every write arrives in a batch, the batch announces once after it
+  // commits, and there is no single row to name. What these two hold is that a
+  // figure edit and a name edit each still reach subscribers, carrying the
+  // whole plan and therefore the ancestors whose totals moved with it.
+  it('sends the whole tree when an estimate changes, ancestors included', async () => {
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
     const boxes = await add('Back boxes', sockets);
@@ -136,19 +101,17 @@ describe('what a project subscriber receives', () => {
     });
 
     const event = latest()?.event;
-    expect(event?.type).toBe('work_items_changed');
-    // The edited work item and the two above it, whose totals just changed —
-    // and nothing else, which is the whole point of the narrow shape.
-    expect(namesIn(event)).toEqual(['Back boxes', 'Sockets', 'Strip']);
+    expect(event?.type).toBe('tree_replaced');
+    expect(namesIn(event)).toEqual(['Strip', 'Sockets', 'Back boxes']);
   });
 
-  it('sends a narrow patch when a name changes', async () => {
+  it('sends the whole tree when a name changes', async () => {
     const strip = await add('Strip');
     broadcast.published.length = 0;
 
     await service.patch(strip, OWNER, { name: 'Strip the old wiring' });
 
-    expect(latest()?.event.type).toBe('work_items_changed');
+    expect(latest()?.event.type).toBe('tree_replaced');
     expect(namesIn(latest()?.event)).toEqual(['Strip the old wiring']);
   });
 

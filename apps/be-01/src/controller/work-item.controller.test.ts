@@ -3,36 +3,20 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
-import { WorkItemService } from '../service/work-item.service';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { testCapacityService } from '../testing/capacity-fixture';
+import { testDirectoryService } from '../testing/directory-fixture';
+import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
+import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testStepService } from '../testing/step-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 function buildHarness() {
   const writes = testWrites();
-  const projectStore = inMemoryProjects();
-  const directoryStore = inMemoryDirectory();
-  const workItemStore = inMemoryWorkItems(directoryStore);
-  const estimateStore = inMemoryEstimates(workItemStore);
-  const actualStore = inMemoryActuals(workItemStore);
-  const measureStore = inMemoryMeasures(workItemStore);
-  const progressStore = inMemoryProgress(workItemStore);
-  const dependencyStore = inMemoryDependencies();
+  const plan = inMemoryServices();
+  const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
   const app = buildApp({
     // **One** directory, shared with the work item service below. Two would
     // both look healthy while a person created through a `createPerson`
@@ -46,29 +30,7 @@ function buildHarness() {
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
     steps: testStepService(projectStore),
-    workItems: new WorkItemService({
-      workItems: workItemStore,
-      projects: projectStore,
-      estimates: estimateStore,
-      actuals: actualStore,
-      measures: measureStore,
-      progress: progressStore,
-      dependencies: dependencyStore,
-      directory: directoryStore,
-      capacity: inMemoryCapacity(),
-      priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({
-        workItems: workItemStore,
-        estimates: estimateStore,
-        actuals: actualStore,
-        measures: measureStore,
-        progress: progressStore,
-        dependencies: dependencyStore,
-        directory: directoryStore,
-      }),
-      journal: inMemoryCommandJournal(),
-      broadcast: recordingBroadcaster(),
-    }),
+    workItems: plan.service,
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
@@ -219,6 +181,40 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('answers 400 for a ref nobody minted, and 404 for a row that is not there', async () => {
+    // The one exception in `statusForRefusal`'s `unknown_*` family, and until
+    // 2026-09-02 nothing asserted it: `unknown_ref` is a mistake **inside the
+    // batch the caller wrote**, while every other `unknown_*` names something
+    // that is not there. Both codes reach the same route through the same
+    // ladder, so the two have to be asked for together.
+    //
+    // Proof: the `unknown_ref` arm deleted from `statusForRefusal`, watched
+    // failing on `expect(received).toEqual(expected) · - 400 · + 404` — and
+    // the whole store and unit tiers stayed green under that fault, which is
+    // how an arm nobody asks about survives a rewrite. Observed 2026-09-02.
+    const { token, send, projectId, devId } = await setup();
+
+    const unmintedRef = await command(send, token, projectId, {
+      kind: 'createWorkItem',
+      parentRef: 'nobody-minted-this',
+      afterId: null,
+      name: 'Orphan',
+    });
+    const absentRow = await command(send, token, projectId, {
+      kind: 'setEstimate',
+      workItemId: 'no-such-row',
+      stepId: devId,
+      days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+
+    expect([unmintedRef.status, absentRow.status]).toEqual([400, 404]);
+    expect(await unmintedRef.json()).toEqual({
+      error: 'unknown_ref',
+      at: 0,
+      kind: 'createWorkItem',
+    });
+  });
+
   it('applies a command batch, answering the id each ref became and the undo state', async () => {
     const { token, send, projectId, devId } = await setup();
     const res = await send(`/api/projects/${projectId}/commands`, token, {
@@ -985,7 +981,7 @@ describe('work item routes', () => {
   // change ships can draw` — lived here, and its landmine is spent: C3 (#57)
   // taught `floorWordsOf` the word, and `capacity-per-project` retired the
   // `PATCH /api/teams/:id/size` it reached the floor through. Its successor is
-  // `capacity.controller.test.ts`'s `puts a capacity floor on the wire, which
+  // `capacity-body.test.ts`'s `puts a capacity floor on the wire, which
   // fe-01 has been able to draw since C3`, over the route that replaced it.
 
   it('refuses a parallelism that is not a whole number of 1 or more', async () => {

@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 
 import { auditOnCreate } from './audit';
 import type { Drizzle } from './db';
@@ -79,32 +79,46 @@ export class DependencyRepository implements DependencyStore {
    * nor a successor any more. The foreign keys would refuse the delete otherwise,
    * which is the point: an edge to a row that is gone is not a thing to keep.
    *
-   * The **surviving** ends are bumped and `workItemId` is not. This is the one
-   * place the edges have to be read before they are written: which work items
-   * lose an edge is not knowable from the argument, and it is the *set of rows*
-   * being read, never the counter — the counter is still `revision + 1` in SQL,
-   * inside the same transaction as the delete. The caller is on its way to
-   * deleting `workItemId`, so bumping it would move a counter onto a row about
-   * to stop existing.
+   * The **surviving** ends are bumped and the doomed ones are not. This is the
+   * one place the edges have to be read before they are written: which work
+   * items lose an edge is not knowable from the argument, and it is the *set of
+   * rows* being read, never the counter — the counter is still `revision + 1`
+   * in SQL, inside the same transaction as the delete. The caller is on its way
+   * to deleting these rows, so bumping one of them would move a counter onto a
+   * row about to stop existing.
+   *
+   * **The whole doomed set at once, in one transaction.** A subtree delete used
+   * to call this once per row, which cost a transaction, a read and a write for
+   * each — and got the survivor rule wrong: an edge between two doomed rows
+   * bumped the far end, because a single-id call cannot tell a doomed sibling
+   * from a survivor. Reading the set is what makes that answerable.
+   *
+   * Proof: `takes a subtree's edges in one transaction and bumps only the
+   * survivors`, with the per-row loop restored, watched failing on
+   * `Expected length: 3` · `Received length: 6`; and with that assertion
+   * silenced, on `Expected: 0` · `Received: 1` at `moved(b)` — the doomed
+   * sibling bumped on its way out (2026-09-02).
    */
-  async removeAllFor(workItemId: string, stamp: WriteStamp): Promise<void> {
+  async removeAllFor(workItemIds: readonly string[], stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
-    const touchesIt = or(
-      eq(dependency.predecessorId, workItemId),
-      eq(dependency.successorId, workItemId),
+    if (workItemIds.length === 0) return;
+    const doomed = new Set(workItemIds);
+    const touchesAny = or(
+      inArray(dependency.predecessorId, workItemIds),
+      inArray(dependency.successorId, workItemIds),
     );
     this.db.transaction((tx) => {
       const losing = tx
         .select({ predecessorId: dependency.predecessorId, successorId: dependency.successorId })
         .from(dependency)
-        .where(touchesIt)
+        .where(touchesAny)
         .all();
-      tx.delete(dependency).where(touchesIt).run();
+      tx.delete(dependency).where(touchesAny).run();
       bumpWorkItems(
         tx,
         losing
           .flatMap((edge) => [edge.predecessorId, edge.successorId])
-          .filter((id) => id !== workItemId),
+          .filter((id) => !doomed.has(id)),
         stamp,
       );
     });

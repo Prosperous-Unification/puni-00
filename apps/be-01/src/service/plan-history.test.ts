@@ -1,48 +1,24 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore, WorkItemStore } from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
+import type { Project, ProjectStore } from '../repository';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryServices } from '../testing/harness';
 import type { Days } from './roll-up';
-import { WorkItemService } from './work-item.service';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const DEV = 'step-dev';
 
 let projects: ProjectStore;
-let workItems: WorkItemStore;
 let journal: ReturnType<typeof inMemoryCommandJournal>;
 let service: WorkItemService;
 let projectId: string;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  workItems = inMemoryWorkItems();
   journal = inMemoryCommandJournal();
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates: inMemoryEstimates(workItems),
-    actuals: inMemoryActuals(workItems),
-    measures: inMemoryMeasures(workItems),
-    progress: inMemoryProgress(workItems),
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    journal,
-    broadcast: recordingBroadcaster(),
-  });
+  const harness = inMemoryServices({ journal });
+  ({ projects } = harness.stores);
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -71,7 +47,7 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 async function add(name: string): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**

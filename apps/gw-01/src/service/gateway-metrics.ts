@@ -5,6 +5,17 @@ export interface GatewayCounters {
   messageFanoutTotal: number;
   inboundMessagesTotal: number;
   backendUnavailableTotal: number;
+  /**
+   * Frames a socket refused because it was not open, and frames enqueued behind
+   * backpressure rather than written.
+   *
+   * Both were **unobservable** until 2026-09-02: twelve call sites wrote to a
+   * socket and none of them read what Bun answered, so a dropped `resume_ack` a
+   * client was waiting on looked exactly like a delivered one. See
+   * {@link socketWriter}, which is the one place that reads it now.
+   */
+  droppedFramesTotal: number;
+  backpressuredFramesTotal: number;
 }
 
 export class GatewayMetrics {
@@ -15,6 +26,8 @@ export class GatewayMetrics {
     messageFanoutTotal: 0,
     inboundMessagesTotal: 0,
     backendUnavailableTotal: 0,
+    droppedFramesTotal: 0,
+    backpressuredFramesTotal: 0,
   };
 
   connectionOpened(): void {
@@ -41,6 +54,17 @@ export class GatewayMetrics {
   backendUnavailable(): void {
     this.counters.backendUnavailableTotal++;
   }
+
+  frameDropped(): void {
+    this.counters.droppedFramesTotal++;
+  }
+
+  frameBackpressured(): void {
+    this.counters.backpressuredFramesTotal++;
+  }
 }
 
-export const gwMetrics = new GatewayMetrics();
+// The module-level `gwMetrics` singleton was deleted on 2026-09-02: `app.ts`
+// has always built its own, so nothing imported it, and a second set of
+// counters that nothing increments is a snapshot that reads zero and means
+// "you are looking at the wrong object".

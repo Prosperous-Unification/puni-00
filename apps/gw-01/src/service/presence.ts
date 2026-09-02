@@ -1,3 +1,5 @@
+import { wsPresence } from '@wbs/contracts';
+
 export interface PresenceSocket {
   send(s: string): void;
 }
@@ -38,13 +40,42 @@ interface Connected {
  */
 export class Presence {
   private readonly byConnection = new Map<string, Connected>();
+  /**
+   * The connections in each project, so a roster is a lookup rather than a scan.
+   *
+   * `list()` filtered every connection the gateway holds, and `broadcast()`
+   * calls it once per distinct project — O(connections × projects) per join,
+   * per subscribe and per leave, on the one class that runs on every socket
+   * event. It is O(members) per project now, and the broadcast is one pass.
+   *
+   * Two indexes over one fact, which is a thing to keep honest rather than a
+   * thing to be pleased about: every write below moves both, and
+   * `presence.test.ts`'s `the two indexes never disagree` walks a thousand
+   * random join/subscribe/move/leave sequences comparing `list()` against a
+   * full scan.
+   */
+  private readonly byProject = new Map<string, Set<string>>();
 
   join(connectionId: string, username: string, socket: PresenceSocket): void {
+    // A rejoin on the same id must not leave the old entry in a project's set:
+    // `leave` is what takes it out, and it is idempotent.
+    this.leave(connectionId);
     this.byConnection.set(connectionId, { username, socket, projectId: null });
   }
 
   leave(connectionId: string): void {
+    const connected = this.byConnection.get(connectionId);
+    if (connected?.projectId != null) this.membersOf(connected.projectId).delete(connectionId);
     this.byConnection.delete(connectionId);
+  }
+
+  /** The set for `projectId`, made on first use and never left empty behind. */
+  private membersOf(projectId: string): Set<string> {
+    const held = this.byProject.get(projectId);
+    if (held !== undefined) return held;
+    const made = new Set<string>();
+    this.byProject.set(projectId, made);
+    return made;
   }
 
   /**
@@ -65,7 +96,9 @@ export class Presence {
   enterProject(connectionId: string, projectId: string): void {
     const connected = this.byConnection.get(connectionId);
     if (connected === undefined) return;
+    if (connected.projectId != null) this.membersOf(connected.projectId).delete(connectionId);
     connected.projectId = projectId;
+    this.membersOf(projectId).add(connectionId);
   }
 
   /**
@@ -78,15 +111,27 @@ export class Presence {
    */
   leaveProject(connectionId: string, projectId: string): void {
     const connected = this.byConnection.get(connectionId);
-    if (connected?.projectId === projectId) connected.projectId = null;
+    if (connected?.projectId !== projectId) return;
+    connected.projectId = null;
+    this.membersOf(projectId).delete(connectionId);
   }
 
   /** Distinct usernames in `projectId`, sorted so the front end renders a stable order. */
   list(projectId: string): string[] {
-    const inProject = [...this.byConnection.values()].filter(
-      (connected) => connected.projectId === projectId,
-    );
-    return [...new Set(inProject.map((connected) => connected.username))].sort();
+    const names = new Set<string>();
+    for (const connectionId of this.byProject.get(projectId) ?? []) {
+      const held = this.byConnection.get(connectionId);
+      // Unknown is not OK anywhere it could hide a bug, and here it would hide
+      // the one this index can have: a connection in a project's set that
+      // `leave` did not take out. Nothing in this class can produce it, and if
+      // something does, a silent skip would show as a roster quietly missing a
+      // name.
+      if (held === undefined) {
+        throw new Error(`presence: ${connectionId} is in ${projectId} but is not connected`);
+      }
+      names.add(held.username);
+    }
+    return [...names].sort();
   }
 
   /**
@@ -119,15 +164,15 @@ export class Presence {
    * must not stop the remaining clients from being told, so each is isolated.
    */
   broadcast(): void {
-    const empty = JSON.stringify({ type: 'presence', users: NOBODY });
-    const byProject = new Map<string, string>();
+    const empty = wsPresence(NOBODY);
+    const payloads = new Map<string, string>();
     for (const { socket, projectId } of this.byConnection.values()) {
       let payload = empty;
       if (projectId !== null) {
-        let forProject = byProject.get(projectId);
+        let forProject = payloads.get(projectId);
         if (forProject === undefined) {
-          forProject = JSON.stringify({ type: 'presence', users: this.list(projectId) });
-          byProject.set(projectId, forProject);
+          forProject = wsPresence(this.list(projectId));
+          payloads.set(projectId, forProject);
         }
         payload = forProject;
       }

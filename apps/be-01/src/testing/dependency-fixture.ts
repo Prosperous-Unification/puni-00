@@ -34,10 +34,11 @@ export function inMemoryDependencies(seed: readonly StoredDependency[] = []): De
       if (index >= 0) rows.splice(index, 1);
       return Promise.resolve();
     },
-    removeAllFor(workItemId, stamp) {
+    removeAllFor(workItemIds, stamp) {
       stampsSeen.push(stamp);
+      const doomed = new Set(workItemIds);
       const kept = rows.filter(
-        (row) => row.predecessorId !== workItemId && row.successorId !== workItemId,
+        (row) => !doomed.has(row.predecessorId) && !doomed.has(row.successorId),
       );
       rows.splice(0, rows.length, ...kept);
       return Promise.resolve();

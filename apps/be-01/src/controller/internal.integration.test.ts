@@ -90,7 +90,7 @@ describe('POST /internal/resume', () => {
   it('replays the recorded events after the requested sequence', async () => {
     const { post, authed, log } = buildHarness();
     await log.record('project:a', { type: 'tree_replaced', workItems: [] });
-    await log.record('project:a', { type: 'work_items_changed', workItems: [] });
+    await log.record('project:a', { type: 'tree_replaced', workItems: [] });
 
     const res = await post(
       '/internal/resume',
@@ -102,7 +102,7 @@ describe('POST /internal/resume', () => {
     expect((await res.json()) as unknown).toEqual({
       'project:a': {
         status: 'replaying',
-        events: [{ seq: 1, message: { type: 'work_items_changed', workItems: [] } }],
+        events: [{ seq: 1, message: { type: 'tree_replaced', workItems: [] } }],
       },
     });
   });

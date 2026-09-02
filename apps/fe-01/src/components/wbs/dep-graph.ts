@@ -1,3 +1,5 @@
+import { isWithin } from '@wbs/domain/is-within';
+
 /** A work item as the dependency rule needs to see it: where it sits, and what it waits for. */
 export interface GraphRow {
   id: string;
@@ -46,7 +48,7 @@ export interface DepGraph {
  * The rows and their `dependsOn`, turned into the graph be-01 judges an edge
  * against.
  *
- * A port of `indexTree` + `expandToLeaves` in `apps/be-01/src/service/schedule.ts`,
+ * A port of `indexTree` + `expandToLeaves` in `apps/libs/domain/src/schedule.ts`,
  * down to what it does with an id it has no row for: `expandToLeaves` reads that
  * end as no leaves and contributes nothing, so this does too. Refusing more than
  * be-01 refuses would grey out a row the server would have accepted, which is
@@ -100,16 +102,6 @@ function expandToLeaves(graph: DepGraph, edges: readonly Edge[]): Edge[] {
     }
   }
   return expanded;
-}
-
-/** Whether `candidateId` is `rootId` or sits anywhere beneath it. */
-function isWithin(graph: DepGraph, candidateId: string, rootId: string): boolean {
-  let cursor: string | null | undefined = candidateId;
-  while (cursor !== null && cursor !== undefined) {
-    if (cursor === rootId) return true;
-    cursor = graph.parentOf.get(cursor);
-  }
-  return false;
 }
 
 /**
@@ -175,8 +167,8 @@ export function refusalFor(graph: DepGraph, edge: Edge): EdgeRefusal | null {
   // it to start after itself — and the same the other way up.
   // Proof: the two calls swapped and `says which way round an ancestor edge
   // runs` failed, naming a parent as sitting inside its own child.
-  if (isWithin(graph, successorId, predecessorId)) return 'ancestor';
-  if (isWithin(graph, predecessorId, successorId)) return 'descendant';
+  if (isWithin(graph.parentOf, successorId, predecessorId)) return 'ancestor';
+  if (isWithin(graph.parentOf, predecessorId, successorId)) return 'descendant';
 
   // Proof: `expandToLeaves` here replaced by the written edge, and the four
   // expansion cases failed — the two cross-review examples among them.

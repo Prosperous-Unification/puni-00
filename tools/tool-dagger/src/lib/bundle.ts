@@ -1,6 +1,8 @@
+import type { Tier } from '@wbs/deploy-contract';
+
 export interface BundleMeta {
   sha: string;
-  tier: 'be' | 'gw' | 'fe';
+  tier: Tier;
   builtAt: string;
   images?: string[];
   files: string[];

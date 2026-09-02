@@ -122,5 +122,5 @@ it('rejects legacy HS256 sessions after OIDC mode is configured', async () => {
     },
   });
 
-  expect(await oidc.authenticate(login.result.token)).toBeNull();
+  expect(await oidc.authenticate(login.value.token)).toBeNull();
 });

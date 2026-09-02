@@ -14,19 +14,35 @@
     },
     "render": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-compose/src/render.ts" }
+      "options": {
+        "command": "bun run tools/tool-compose/src/render.ts"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-compose" }
+      "inputs": ["default", "^production", "{workspaceRoot}/deploy/compose/**/*"],
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-compose"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-compose/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-compose/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-compose/src --cache --cache-location .nx/eslintcache-tool-compose"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-compose/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-compose/tsconfig.json"
+      }
     }
   }
 }

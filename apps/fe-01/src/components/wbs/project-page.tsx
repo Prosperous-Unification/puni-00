@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import type { Roster } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { subscribeToProject } from '@/lib/project-stream';
@@ -26,17 +27,18 @@ export interface ProjectPageProps {
   /**
    * Who else is in the project, for the right-hand end of the header bar.
    *
-   * A function of the selected project rather than the panel itself, because
-   * what the panel needs — the session's own username — is the app's and not
-   * this page's, and because a page that built its own presence panel would
-   * open a gateway socket in every test that renders one.
+   * A function of the roster rather than the panel itself, because what the
+   * panel needs — the session's own username — is the app's and not this
+   * page's.
    *
-   * It takes the selection because a roster is a project's: gw-01 scopes it by
-   * the project a socket subscribed to (F4), and the selection lives here. It
-   * is called with null while no project is open, which is a real state — a
-   * fresh account with nothing selected has no roster to be in.
+   * **The roster is handed in, and it arrives on the table's own socket.** The
+   * panel opened a second WebSocket per project until 2026-09-02; it is
+   * presentational now, and this page owns the one stream both halves of the
+   * screen are fed by. `users` is empty while no project is open, which is a
+   * real state — a fresh account with nothing selected has no roster to be in —
+   * and `connected` says whether the socket carrying it is up.
    */
-  presence?: (projectId: string | null) => ReactNode;
+  presence?: (roster: Roster) => ReactNode;
   /** The account menu, for the same reason and the same end of the bar. */
   account?: ReactNode;
   /** The two-page navigation, from router context — see `app-router.tsx`. */
@@ -62,6 +64,18 @@ const PROJECT_KEY = 'wbs.project';
  */
 const PLACEHOLDER_PROJECT_NAME = 'New project';
 
+/**
+ * Writes, or forgets, which project this browser was last in.
+ *
+ * Deliberately **not** through `lib/remembered.ts`, and this is the one store
+ * that stays hand-written: its claim is judged against the project list this
+ * load just fetched, not against a shape, so there is nothing to hand a guard
+ * built once at module scope — `found.some(...)` is the whole validity rule and
+ * it is different on every load. What it shares with the other ten is
+ * `getItem`, `removeItem` and the reading that a disproved claim is dropped
+ * rather than left to be re-offered; what it does not share is the part
+ * `remembered` exists to hold.
+ */
 function rememberProject(id: string | null): void {
   if (id === null) localStorage.removeItem(PROJECT_KEY);
   else localStorage.setItem(PROJECT_KEY, id);
@@ -231,6 +245,20 @@ function ProjectNameField({
  */
 export function ProjectPage({ token, api: apiOverride, presence, account, nav }: ProjectPageProps) {
   const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
+  /**
+   * Who else is in the selected project, and whether the socket saying so is
+   * up.
+   *
+   * Held here because this page renders both halves of the screen the answer
+   * is for: the header's panel and the `<main>` the table fills. The table
+   * opens the stream (it is the thing that has to refetch), so the roster
+   * arrives through the factory below rather than from a socket of the header's
+   * own.
+   */
+  const [roster, setRoster] = useState<Roster>({
+    users: [],
+    connected: false,
+  });
   const subscribe = useMemo(
     () => (projectId: string, handlers: SubscriptionHandlers) =>
       subscribeToProject({
@@ -239,7 +267,13 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
         // knowing nothing and the read reports its sequence through `seen`.
         sinceSeq: -1,
         onChange: handlers.onChange,
-        onConnectionChange: handlers.onConnectionChange,
+        onConnectionChange: (connected) => {
+          setRoster((current) => ({ ...current, connected }));
+          handlers.onConnectionChange(connected);
+        },
+        onPresence: (users) => {
+          setRoster((current) => ({ ...current, users }));
+        },
       }),
     [],
   );
@@ -765,7 +799,7 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
       <AppHeader
         nav={nav}
         project={projectControls}
-        presence={presence?.(selected)}
+        presence={presence?.(roster)}
         account={account}
       />
       {/*

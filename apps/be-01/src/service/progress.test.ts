@@ -1,32 +1,17 @@
-import type { ItemState } from '@wbs/domain';
+import type { WorkItemState } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
-  ActualStore,
   CommandJournalStore,
-  EstimateStore,
-  MeasureStore,
   Project,
   ProjectStore,
   StepProgressStore,
   StoredProgress,
-  WorkItemStore,
 } from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryServices } from '../testing/harness';
 import type { Days } from './roll-up';
-import { WorkItemService } from './work-item.service';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
@@ -34,24 +19,12 @@ const DEV = 'step-dev';
 const QA = 'step-qa';
 
 let projects: ProjectStore;
-let workItems: WorkItemStore;
-let estimates: EstimateStore;
-let actuals: ActualStore;
-let measures: MeasureStore;
 let progress: StepProgressStore;
 let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  const directory = inMemoryDirectory();
-  workItems = inMemoryWorkItems(directory);
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
   const recorded: { kind: string; stepId: string | null }[] = [];
   // The journal with the history rows it is handed kept where a test can read
@@ -66,29 +39,10 @@ beforeEach(async () => {
       await store.append(entry, event);
     },
   };
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies,
-    directory,
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-    }),
-    journal,
-    broadcast: recordingBroadcaster(),
-  });
+  // Only the journal is this suite's own, as in `actual.test.ts`.
+  const harness = inMemoryServices({ journal });
+  ({ projects, progress } = harness.stores);
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -132,7 +86,7 @@ function stored(
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -149,7 +103,7 @@ async function shown(): Promise<Map<string, Record<string, string>>> {
 }
 
 /** The derived item state by work item name — the field nothing stores. */
-async function states(): Promise<Map<string, ItemState>> {
+async function states(): Promise<Map<string, WorkItemState>> {
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.state]));
@@ -305,13 +259,13 @@ describe('stating where the work has got to', () => {
     const strip = await add('Strip');
     await service.setProgress(strip, OWNER, DEV, 'in_progress');
 
-    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
     // Back to the absence of a row, which is "nobody has said" — not "the work
     // was undone", and not a stored `not_started`.
     expect(await progress.listByProject(projectId)).toEqual([]);
     expect((await states()).get('Strip')).toBe('not_started');
 
-    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
     expect(await service.clearProgress(crypto.randomUUID(), OWNER, DEV)).toEqual({
       ok: false,
       reason: 'not_found',
@@ -481,7 +435,7 @@ describe('states through the structural commands', () => {
     if (!copied.ok) throw new Error('duplicate failed');
 
     const tree = await service.tree(projectId);
-    const copy = tree?.workItems.find((row) => row.id === copied.result.id);
+    const copy = tree?.workItems.find((row) => row.id === copied.value.id);
     expect(copy?.estimates).toEqual({ [DEV]: days(1, 2, 3) });
     expect(copy?.progress).toEqual({});
     expect(copy?.state).toBe('not_started');
@@ -497,7 +451,7 @@ describe('what stating progress does not do', () => {
     // Proof: the engine wired to skip a finished step's slice — the obvious
     // reading of "done" and the one the next change has to argue for
     // deliberately — and this fails with every date downstream moved; watched
-    // 2026-08-18. `service/schedule.ts` has an empty diff on this branch, and
+    // 2026-08-18. `libs/domain/src/schedule.ts` has an empty diff on this branch, and
     // this is the behavioural half of that claim.
     const first = await add('Strip');
     const second = await add('Sand');

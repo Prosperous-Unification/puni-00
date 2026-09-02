@@ -82,7 +82,7 @@ in the position of knowing what somebody else's taxonomy means.
 - The export prints types with no provenance, because there is no provenance to
   print. 0008's `Risk (inherited from 010 Compliance)` has no analogue here.
 - Nothing about dates changes. A type is not a pool and not a size, and
-  `service/schedule.ts` has an empty diff.
+  `libs/domain/src/schedule.ts` has an empty diff.
 
 ## The assumption, marked as one
 
