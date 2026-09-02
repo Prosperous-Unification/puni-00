@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { personAdded } from '../testing/directory-fixture';
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
@@ -47,39 +49,22 @@ beforeEach(async () => {
   projectId = crypto.randomUUID();
   stepId = crypto.randomUUID();
   otherStepId = crypto.randomUUID();
-  const project: Project = {
+  const project: Project = projectRow({
     id: projectId,
-    name: 'Rewire the shed',
     ownerId,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   const steps: Step[] = [
     { id: stepId, projectId, name: 'Dev', position: 10 },
     { id: otherStepId, projectId, name: 'QA', position: 20 },
   ];
   await new ProjectRepository(db).create(project, steps, wrote());
   itemId = crypto.randomUUID();
-  const item: WorkItem = {
+  const item: WorkItem = workItemRow({
     id: itemId,
     projectId,
-    parentId: null,
     position: 10,
     name: 'Strip',
-    notes: '',
-    frozenNumber: null,
-    priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
-  };
+  });
   await workItems.insert(item, [], wrote());
 });
 
@@ -240,21 +225,12 @@ describe('DirectoryRepository', () => {
     );
     const otherItemId = crypto.randomUUID();
     await workItems.insert(
-      {
+      workItemRow({
         id: otherItemId,
         projectId,
-        parentId: null,
         position: 20,
         name: 'Sand',
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        startNoEarlierThan: null,
-        serviceTeamId: null,
-        serviceId: null,
-        maxParallel: 1,
-        revision: 0,
-      },
+      }),
       [],
       wrote(),
     );

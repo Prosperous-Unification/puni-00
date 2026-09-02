@@ -3,17 +3,19 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CapacityStore,
+  DependencyStore,
+  DirectoryStore,
   Project,
   ProjectStore,
   WorkItemStore,
   WriteStamp,
 } from '../repository';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
-import type { inMemoryDependencies } from '../testing/dependency-fixture';
-import type { inMemoryDirectory } from '../testing/directory-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { poolsFor, WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -32,8 +34,8 @@ let service: WorkItemService;
 let serviceOptions: WorkItemServiceOptions;
 let projectId: string;
 let stepId: string;
-let dependencies: ReturnType<typeof inMemoryDependencies>;
-let directory: ReturnType<typeof inMemoryDirectory>;
+let dependencies: DependencyStore;
+let directory: DirectoryStore;
 /**
  * This project's capacity for each team, which is where a pool size is stated
  * since `capacity-per-project`. `directory.addTeam({ size })` no longer bounds
@@ -51,19 +53,10 @@ beforeEach(async () => {
   // real stores cannot produce.
   serviceOptions = { ...harness.stores, broadcast };
   service = harness.service;
-  const project: Project = {
+  const project: Project = projectRow({
     id: crypto.randomUUID(),
-    name: 'Rewire the shed',
     ownerId: OWNER,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    depReach: 'whole-item',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   stepId = crypto.randomUUID();
   await projects.create(
     project,
@@ -501,19 +494,11 @@ describe('the plan waits for the people in it', () => {
 
   /** A second project, holding `Dev` and `QA` in that order. */
   async function twoStepProject() {
-    const project: Project = {
+    const project: Project = projectRow({
       id: crypto.randomUUID(),
       name: 'Two steps',
       ownerId: OWNER,
-      restricted: false,
-      estimateMethod: 'pert',
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-      depReach: 'whole-item',
-      startDate: null,
-      revision: 0,
-      createdAt: 1,
-    };
+    });
     const dev = crypto.randomUUID();
     const qa = crypto.randomUUID();
     await projects.create(
@@ -901,7 +886,8 @@ describe('duplicating a subtree', () => {
     const under = (await readTree()).filter((w) => w.parentId === copyId);
     const copiedBoxes = under.find((w) => w.name === 'Back boxes');
     const copiedSockets = under.find((w) => w.name === 'Sockets');
-    expect(copiedSockets?.dependsOn).toEqual([copiedBoxes?.id]);
+    if (copiedBoxes === undefined) throw new Error('the duplicate has no Back boxes');
+    expect(copiedSockets?.dependsOn).toEqual([copiedBoxes.id]);
     expect(copiedSockets?.dependsOn).not.toContain(boxes);
   });
 
@@ -1358,19 +1344,12 @@ describe('the project’s dependency reach', () => {
     const dev = crypto.randomUUID();
     const qa = crypto.randomUUID();
     await projects.create(
-      {
+      projectRow({
         id,
         name: `Chain on ${reach}`,
         ownerId: OWNER,
-        restricted: false,
-        estimateMethod: 'pert',
-        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-        estimateRounding: 'ceil',
         depReach: reach,
-        startDate: null,
-        revision: 0,
-        createdAt: 1,
-      },
+      }),
       [
         { id: dev, projectId: id, name: 'Dev', position: 10 },
         { id: qa, projectId: id, name: 'QA', position: 20 },
@@ -1387,7 +1366,10 @@ describe('the project’s dependency reach', () => {
     await service.setEstimate(a, OWNER, dev, flat(3));
     await service.setEstimate(a, OWNER, qa, flat(2));
     await service.setEstimate(b, OWNER, dev, flat(1));
-    await dependencies.add({ projectId: id, predecessorId: a, successorId: b }, WROTE);
+    await dependencies.add(
+      { id: crypto.randomUUID(), projectId: id, predecessorId: a, successorId: b },
+      WROTE,
+    );
     return { id, a, b };
   }
 
@@ -1708,20 +1690,15 @@ describe('capacity, as the adapter resolves it', () => {
   ): Promise<string> {
     const id = crypto.randomUUID();
     await workItems.insert(
-      {
+      workItemRow({
         id,
         projectId,
         parentId,
         position: (position += 10),
         name,
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        startNoEarlierThan: null,
         serviceTeamId,
         maxParallel,
-        revision: 0,
-      },
+      }),
       [],
       WROTE,
     );
@@ -1972,19 +1949,11 @@ describe('the slices the schedule placed, on the wire', () => {
     const devId = crypto.randomUUID();
     const qaId = crypto.randomUUID();
     await projects.create(
-      {
+      projectRow({
         id,
         name: 'Refit',
         ownerId: OWNER,
-        restricted: false,
-        estimateMethod: 'pert',
-        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-        estimateRounding: 'ceil',
-        depReach: 'whole-item',
-        startDate: null,
-        revision: 0,
-        createdAt: 1,
-      },
+      }),
       [
         { id: devId, projectId: id, name: 'Dev', position: 10 },
         { id: qaId, projectId: id, name: 'QA', position: 20 },

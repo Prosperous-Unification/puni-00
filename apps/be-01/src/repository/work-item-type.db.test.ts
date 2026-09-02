@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
@@ -67,19 +68,10 @@ beforeEach(async () => {
     wrote(),
   );
   projectId = crypto.randomUUID();
-  const project: Project = {
+  const project: Project = projectRow({
     id: projectId,
-    name: 'Rewire the shed',
     ownerId,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    solutionRef: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   const steps: Step[] = [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }];
   await new ProjectRepository(db).create(project, steps, wrote());
 

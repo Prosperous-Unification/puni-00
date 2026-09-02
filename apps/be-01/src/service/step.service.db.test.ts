@@ -28,8 +28,9 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { personAdded } from '../testing/directory-fixture';
+import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ProjectService } from './project.service';
@@ -68,21 +69,13 @@ let qaId: string;
 
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 
-const newItem = (id: string, position: number, name: string): WorkItem => ({
-  id,
-  projectId,
-  parentId: null,
-  position,
-  name,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-});
+const newItem = (id: string, position: number, name: string): WorkItem =>
+  workItemRow({
+    id,
+    projectId,
+    position,
+    name,
+  });
 
 /**
  * The stamp the writes this file makes by hand carry. The account is the owner
@@ -485,17 +478,12 @@ describe('a step removed between the check and the write', () => {
         await estimates.set(toSet, stamp);
       },
     };
-    const vanishingToo: DirectoryStore = {
-      listTeams: () => directory.listTeams(),
-      addTeam: (team, stamp) => directory.addTeam(team, stamp),
-      listPeople: () => directory.listPeople(),
-      addPerson: (toAdd, teamIds, stamp) => directory.addPerson(toAdd, teamIds, stamp),
-      assignmentsOf: (ids) => directory.assignmentsOf(ids),
+    const vanishingToo: DirectoryStore = directoryWith(directory, {
       async assign(workItemId, stepId, personId, stamp) {
         await stepStore.remove(projectId, qaId, true, wrote());
         return directory.assign(workItemId, stepId, personId, stamp);
       },
-    };
+    });
     return new WorkItemService({
       workItems: new WorkItemRepository(db),
       projects: projectStore,

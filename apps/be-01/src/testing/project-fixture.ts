@@ -1,3 +1,5 @@
+import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
+
 import type {
   Project,
   ProjectStore,
@@ -8,6 +10,37 @@ import type {
 } from '../repository';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
+
+/**
+ * A `Project` row carrying every field the schema requires.
+ *
+ * Twenty-one suites wrote this literal by hand — the same "Rewire the shed",
+ * copied — and fifteen of the copies were missing `depReach` and `solutionRef`,
+ * added to {@link Project} long after the copies were made. Nothing said so: no
+ * `typecheck` target in this repository compiled a test file until 2026-09-02.
+ *
+ * The defaults are {@link ProjectService.create}'s own, `DEFAULT_ESTIMATE_RULE`
+ * included, so a fixture row and a row production writes are the same
+ * arithmetic — a fixture that chose its own weights would let an estimate test
+ * pass against a project no `create` can produce.
+ */
+export function projectRow(overrides: Partial<Project> = {}): Project {
+  return {
+    id: crypto.randomUUID(),
+    name: 'Rewire the shed',
+    ownerId: 'owner',
+    restricted: false,
+    estimateMethod: 'pert',
+    depReach: 'whole-item',
+    pertWeights: DEFAULT_ESTIMATE_RULE.pertWeights,
+    estimateRounding: DEFAULT_ESTIMATE_RULE.rounding,
+    startDate: null,
+    solutionRef: null,
+    revision: 0,
+    createdAt: 1,
+    ...overrides,
+  };
+}
 
 /**
  * A ProjectStore backed by Maps, for controller and service tests that do not

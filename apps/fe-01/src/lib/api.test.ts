@@ -60,14 +60,14 @@ describe('login error codes', () => {
 
 describe('me', () => {
   it('uses the browser cookie and sends no application token header', async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify({ user: { id: 'u', username: 'ada' } }))),
     );
     vi.stubGlobal('fetch', fetchMock);
 
     await me();
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    const init = fetchMock.mock.calls[0]?.[1];
     const headers = (init?.headers ?? {}) as Record<string, string>;
     expect(headers['x-wbs-token']).toBeUndefined();
     expect(Object.keys(headers).map((k) => k.toLowerCase())).not.toContain('authorization');

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
@@ -36,21 +38,12 @@ const insertItem = async (
   position: number,
   name: string,
 ): Promise<void> => {
-  const item: WorkItem = {
+  const item: WorkItem = workItemRow({
     id,
     projectId,
-    parentId: null,
     position,
     name,
-    notes: '',
-    frozenNumber: null,
-    priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
-  };
+  });
   await workItems.insert(item, [], wrote());
 };
 
@@ -73,18 +66,10 @@ beforeEach(async () => {
   // read that fell back to the primary key's own order would pass on those runs.
   devId = `z-dev-${crypto.randomUUID()}`;
   qaId = `a-qa-${crypto.randomUUID()}`;
-  const project: Project = {
+  const project: Project = projectRow({
     id: projectId,
-    name: 'Rewire the shed',
     ownerId,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   const steps: Step[] = [
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },

@@ -10,9 +10,8 @@ describe('PushClient', () => {
       secret: 'sec',
       fetchImpl: (url, init) => {
         called++;
-        const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
-        expect(urlStr).toBe('http://gw:3200/internal/push');
-        const headers = (init as RequestInit).headers as Record<string, string>;
+        expect(url).toBe('http://gw:3200/internal/push');
+        const headers = init?.headers as Record<string, string>;
         expect(headers['X-Internal-Auth']).toBe('sec');
         return Promise.resolve(
           new Response(JSON.stringify({ delivered_to_sockets: 2 }), { status: 202 }),

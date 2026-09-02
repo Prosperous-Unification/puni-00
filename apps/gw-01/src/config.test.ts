@@ -47,8 +47,10 @@ describe('loadConfig', () => {
       AUTH_REDIRECT_URI: 'https://dev.wbs.test/api/auth/okta/callback',
     });
 
-    expect(config.wsAuth?.appOrigin).toBe('https://dev.wbs.test');
-    expect(typeof config.wsAuth?.verifier.verify).toBe('function');
+    const wsAuth = config.wsAuth;
+    if (wsAuth === undefined) throw new Error('an OIDC config must carry wsAuth');
+    expect(wsAuth.appOrigin).toBe('https://dev.wbs.test');
+    expect(typeof wsAuth.verifier?.verify).toBe('function');
   });
 
   it('turns password-session verification off and back on with the kill switch', async () => {

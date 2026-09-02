@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
 import { CommandJournalRepository } from './command-journal';
 import { openDatabase, openDrizzle } from './db';
 import {
@@ -39,18 +40,11 @@ describe('appending a command', () => {
   let journal: CommandJournalRepository;
   let events: PlanEventRepository;
 
-  const project = (id: string): Project => ({
-    id,
-    name: 'Rewire the shed',
-    ownerId: 'owner',
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  });
+  const project = (id: string): Project =>
+    projectRow({
+      id,
+      ownerId: 'owner',
+    });
 
   const entry = (id: string, at: number): NewJournalEntry => ({
     id,

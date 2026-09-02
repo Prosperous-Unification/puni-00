@@ -2,24 +2,18 @@ import { schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredDependency, WorkItem } from '../repository';
+import { workItemRow } from '../testing/work-item-fixture';
 import { canDepend, type DependencyRefusal } from './dependency';
 
 let position = 0;
-const item = (id: string, parentId: string | null = null): WorkItem => ({
-  id,
-  projectId: 'p1',
-  parentId,
-  position: (position += 10),
-  name: id,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-});
+const item = (id: string, parentId: string | null = null): WorkItem =>
+  workItemRow({
+    id,
+    projectId: 'p1',
+    parentId,
+    position: (position += 10),
+    name: id,
+  });
 
 const edge = (predecessorId: string, successorId: string): StoredDependency => ({
   id: `${predecessorId}->${successorId}`,

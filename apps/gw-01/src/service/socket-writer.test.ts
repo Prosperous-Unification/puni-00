@@ -6,7 +6,7 @@ import { socketWriter, type WsSink } from './socket-writer';
 /** A socket that answers whatever Bun would answer. */
 const answering = (answer: number | undefined | (() => never)): WsSink => ({
   send: () => {
-    if (typeof answer === 'function') answer();
+    if (typeof answer === 'function') return answer();
     return answer;
   },
 });

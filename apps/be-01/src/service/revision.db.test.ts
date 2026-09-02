@@ -22,6 +22,7 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { ProjectService } from './project.service';
 import { StepService } from './step.service';
 import { WorkItemService } from './work-item.service';
@@ -264,21 +265,12 @@ describe('what a work item write moves', () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
 
-    const inserted: WorkItem = {
+    const inserted: WorkItem = workItemRow({
       id: crypto.randomUUID(),
       projectId,
-      parentId: null,
       position: 20,
       name: 'Survey',
-      notes: '',
-      frozenNumber: null,
-      priority: null,
-      startNoEarlierThan: null,
-      serviceTeamId: null,
-      serviceId: null,
-      maxParallel: 1,
-      revision: 0,
-    };
+    });
     await workItemStore.insert(
       inserted,
       [

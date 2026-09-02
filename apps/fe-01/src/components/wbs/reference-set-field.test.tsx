@@ -205,7 +205,7 @@ describe('ReferenceSetStrip', () => {
     );
 
     const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
-    expect(box.dataset.cell).toBe('row-1::team');
+    expect(box.dataset['cell']).toBe('row-1::team');
     fireEvent.keyDown(box, { key: 'Tab' });
     expect(calls).toEqual(['tab:Tab']);
   });

@@ -1,6 +1,8 @@
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { describe, expect, it } from 'vitest';
 
+import { sliceView } from '@/testing/views';
+
 import {
   type ExportRow,
   type ExportSlice,
@@ -669,25 +671,26 @@ describe('the capacity columns', () => {
    * columns read three of the fields and no more; the diagram writer next door
    * reads the others.
    */
-  const slice = (workItemId: string, width: number, effort: number): ExportSlice => ({
-    id: `${workItemId}-${String(width)}-${String(effort)}`,
-    workItemId,
-    stepId: DEV.id,
-    personId: null,
-    estimated: true,
-    earliestStart: 0,
-    earliestFinish: effort / width,
-    latestStart: 0,
-    latestFinish: effort / width,
-    float: 0,
-    critical: false,
-    boundBy: 'projectStart',
-    resourcePredecessorId: null,
-    capacityPredecessorIds: [],
-    width,
-    effort,
-    duration: effort / width,
-  });
+  const slice = (workItemId: string, width: number, effort: number): ExportSlice =>
+    sliceView({
+      id: `${workItemId}-${String(width)}-${String(effort)}`,
+      workItemId,
+      stepId: DEV.id,
+      personId: null,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: effort / width,
+      latestStart: 0,
+      latestFinish: effort / width,
+      float: 0,
+      critical: false,
+      boundBy: 'projectStart',
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      width,
+      effort,
+      duration: effort / width,
+    });
 
   it('prints every team of a set, joined', () => {
     // One member today, so this changes no cell in any plan that exists — but

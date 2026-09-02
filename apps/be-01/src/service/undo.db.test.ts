@@ -23,6 +23,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { ProjectService } from './project.service';
 import { type UndoOutcome, WorkItemService } from './work-item.service';
 
@@ -1074,21 +1075,12 @@ describe('an undo refuses when what it touched has moved', () => {
     // is the state the refusal exists for, and the alternative to refusing is
     // writing over a row somebody else is using.
     await workItemStore.insert(
-      {
+      workItemRow({
         id: strip,
         projectId,
-        parentId: null,
         position: 10,
         name: 'Something else entirely',
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        startNoEarlierThan: null,
-        serviceTeamId: null,
-        serviceId: null,
-        maxParallel: 1,
-        revision: 0,
-      },
+      }),
       [],
       // Somebody else's row, which is the whole reason the undo must refuse it.
       { at: 1, by: strangerId },

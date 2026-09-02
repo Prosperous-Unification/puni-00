@@ -1,20 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WorkItemView } from '@/lib/wbs-api';
+import { workItemView } from '@/testing/views';
 
 import { toTree } from './wbs-rows';
 
-const item = (id: string, parentId: string | null, number: string): WorkItemView => ({
-  id,
-  parentId,
-  number,
-  name: id,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  rolledUp: false,
-  estimates: {},
-});
+const item = (id: string, parentId: string | null, number: string): WorkItemView =>
+  workItemView({ id, parentId, number, name: id });
 
 describe('toTree', () => {
   it('attaches children to their parents', () => {

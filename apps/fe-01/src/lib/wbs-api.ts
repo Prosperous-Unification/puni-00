@@ -1238,7 +1238,13 @@ export interface ProjectApi {
   removeStep(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
   createWorkItem(
     projectId: string,
-    input: { parentId: string | null; afterId: string | null; name?: string },
+    /**
+     * `afterId` absent is be-01's own "null or absent puts it first in its
+     * group" (`plan-command-schema.ts`), which is why it is optional here: the
+     * only null this app sends is on an empty group, where first and last are
+     * the same place.
+     */
+    input: { parentId: string | null; afterId?: string | null; name?: string },
   ): Promise<{ id: string }>;
   patchWorkItem(
     id: string,

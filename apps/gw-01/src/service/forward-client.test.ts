@@ -8,9 +8,8 @@ describe('ForwardClient', () => {
       beUrl: 'http://be',
       secret: 's',
       fetchImpl: (url, init) => {
-        const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
-        expect(urlStr).toBe('http://be/internal/forward');
-        const headers = new Headers((init as RequestInit).headers);
+        expect(url).toBe('http://be/internal/forward');
+        const headers = new Headers(init?.headers);
         expect(headers.get('x-internal-auth')).toBe('s');
         expect(headers.get('x-client-id')).toBe('u-1');
         expect(headers.get('x-connection-id')).toBe('c-1');

@@ -172,7 +172,7 @@ const DRAFT: PlanCommand[] = [
   { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
   { kind: 'createWorkItem', ref: 'sand', parentId: null, afterRef: 'strip', name: 'Sand' },
   { kind: 'createWorkItem', ref: 'paint', parentId: null, afterRef: 'sand', name: 'Paint' },
-  { kind: 'setEstimate', ref: undefined, workItemRef: 'strip', stepId: 'STEP', days: DAYS },
+  { kind: 'setEstimate', workItemRef: 'strip', stepId: 'STEP', days: DAYS },
   { kind: 'setEstimate', workItemRef: 'sand', stepId: 'STEP', days: DAYS },
   { kind: 'addDependency', workItemRef: 'sand', predecessorRef: 'strip' },
 ];
@@ -187,9 +187,17 @@ describe('a command batch', () => {
     const refs = applied(await run(draft()));
     expect([...refs.keys()].sort()).toEqual(['paint', 'sand', 'strip']);
     expect(await names()).toEqual(['Paint', 'Sand', 'Strip']);
+    const sand = refs.get('sand');
+    const strip = refs.get('strip');
+    // An absent ref is a fault rather than a value to compare: left as
+    // `string | undefined` the assertion would happily match a batch that
+    // answered nothing at all for one of them.
+    if (sand === undefined || strip === undefined) {
+      throw new Error('the batch answered no id for a ref it applied');
+    }
     expect(
       (await estimateStore.listByProject(projectId)).map((each) => each.workItemId).sort(),
-    ).toEqual([refs.get('sand'), refs.get('strip')].sort());
+    ).toEqual([sand, strip].sort());
     expect(await dependencyStore.listByProject(projectId)).toHaveLength(1);
   });
 
@@ -452,23 +460,23 @@ describe('a command batch', () => {
     const slowRunner = new PlanCommandRunner({ ...runnerOptions, workItems: slowItems });
     const fastRunner = new PlanCommandRunner(runnerOptions);
 
-    let a: 'pending' | 'applied' = 'pending';
+    const batchA = { state: 'pending' as 'pending' | 'applied' };
     const first = slowRunner
       .run(projectId, ownerId, [
         { kind: 'createWorkItem', parentId: null, afterId: null, name: 'A' },
       ])
       .then(() => {
-        a = 'applied';
+        batchA.state = 'applied';
       });
     const second = await fastRunner.run(projectId, ownerId, [
       { kind: 'createWorkItem', parentId: null, afterId: null, name: 'B' },
     ]);
     expect(second.ok).toBe(true);
-    expect(a).toBe('pending');
+    expect(batchA.state).toBe('pending');
     expect(await names()).toEqual(['A', 'B']);
     releaseA();
     await first;
-    expect(a).toBe('applied');
+    expect(batchA.state).toBe('applied');
   });
 
   it('holds a directory command\u2019s announcement until the lock is let go', async () => {
@@ -518,11 +526,11 @@ describe('a command batch', () => {
     const tagId = tagged.at(0)?.id;
     expect(tagId).toBeDefined();
 
-    let renamed: 'pending' | 'applied' = 'pending';
+    const rename = { state: 'pending' as 'pending' | 'applied' };
     const first = tagRunner
       .runDirectory(ownerId, [{ kind: 'patchTag', tagId: tagId ?? '', name: 'critical' }])
       .then(() => {
-        renamed = 'applied';
+        rename.state = 'applied';
       });
 
     // The plan batch has to get through while that directory push is held open.
@@ -531,11 +539,11 @@ describe('a command batch', () => {
     ]);
 
     expect(second.ok).toBe(true);
-    expect(renamed).toBe('pending');
+    expect(rename.state).toBe('pending');
     expect(await names()).toEqual(['A', 'Strip']);
     releaseTag();
     await first;
-    expect(renamed).toBe('applied');
+    expect(rename.state).toBe('applied');
   });
 
   it('refuses two hundred and one commands before applying any', async () => {

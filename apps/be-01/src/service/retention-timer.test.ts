@@ -140,7 +140,7 @@ describe('RetentionTimer', () => {
   it('stops the schedule and waits for a sweep already running', async () => {
     const log = await seed(5);
     const schedule = fakeSchedule();
-    let released: (() => void) | null = null;
+    let released: () => void = () => undefined;
     const slow = {
       ...log,
       pruneBeyond: () =>
@@ -170,7 +170,7 @@ describe('RetentionTimer', () => {
     timer.start();
     schedule.advance();
     const stopping = timer.stop();
-    released?.();
+    released();
     await stopping;
 
     expect(finished).toBe(true);
@@ -210,7 +210,7 @@ describe('RetentionTimer', () => {
     // deployment colour is also using.
     const log = await seed(5);
     let started = 0;
-    let release: (() => void) | null = null;
+    let release: () => void = () => undefined;
     const slow = {
       ...log,
       pruneBeyond: () => {
@@ -242,7 +242,7 @@ describe('RetentionTimer', () => {
     expect(started).toBe(1);
 
     const stopping = timer.stop();
-    release?.();
+    release();
     await stopping;
 
     // And the next tick after it finished would have swept again, had one come.

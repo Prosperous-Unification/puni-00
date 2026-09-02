@@ -40,6 +40,8 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { refusingApi } from '@/testing/refusing-api';
+import { planRead, sliceView } from '@/testing/views';
 
 import { refusedDraftFor, unsent } from './live-editing';
 import { type CardRowActionHandlers, PlanCards } from './plan-cards';
@@ -215,295 +217,295 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     ),
   });
 
-  return {
-    patched,
-    assignments,
-    rows,
-    teams,
-    services,
-    tags,
-    people,
-    rowActionCalls,
-    edges,
-    tree: () =>
-      Promise.resolve({
-        workItems: rows.map(view),
-        seq: 0,
-        scheduleError: null,
-        // One per row, since these tests make no parents. Read since
-        // `wbs-row-waiting-explanation` chunk 4: `startFloorByRow` turns the
-        // `boundBy` below into the sentence a card prints, so the field that
-        // used to be inert payload is now the thing three cases arrange.
-        slices: rows.map((row) => ({
-          id: `${row.id}::${DEV.id}`,
-          workItemId: row.id,
-          stepId: DEV.id,
-          personId: null,
-          duration: 0,
-          estimated: false,
-          earliestStart: 0,
-          earliestFinish: 0,
-          latestStart: 0,
-          latestFinish: 0,
-          float: 0,
-          critical: false,
-          boundBy: fixtureFloorOf(row),
-          resourcePredecessorId: null,
-          // One at a time and nothing holding a pool. The cards read neither —
-          // a card's parallelism line is the row's stored number — but the
-          // payload carries them, so this fake does too.
-          width: 1,
-          effort: 0,
-          capacityPredecessorIds: [],
-        })),
-        // The same two lists `steps` and `listPeople` answer with, on the read
-        // that carried the slices: the chart is drawn from this payload alone.
-        steps: stepList.map((step) => ({ ...step })),
-        assignedPeople: people.map(({ id, name }) => ({ id, name })),
-        // Present and empty, never absent: be-01 always sends it, so a fake that
-        // left it out would let `teamsOnThePlan` be handed `undefined` here and
-        // never in production. A plan whose teams are unlimited is what `[]` says.
-        teamCapacities: [],
-        priorityBands: DEFAULT_PRIORITY_BANDS,
-        estimateMethod: 'pert' as const,
-        depReach: 'whole-item' as const,
-        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-        estimateRounding: 'ceil' as const,
-        startDate: options.dated === true ? DATED_PLAN.startsOn : null,
-        projectRevision: 0,
-        undoable: false,
-        redoable: false,
-      }),
-    steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
-    listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
-    listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
-    listWorkItemTypes: () => Promise.resolve([]),
-    listExternalSystems: () => Promise.resolve([]),
-    listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
-    listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
-    createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
-      next += 1;
-      const id = `w${String(next)}`;
-      rows.push({
-        id,
-        parentId: input.parentId,
-        revision: 0,
-        number: String(rows.length + 1).padStart(2, '0') + '0',
-        name: input.name ?? '',
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        // One at a time, be-01's `NOT NULL DEFAULT 1`: never absent, because 1
-        // and unset are the same fact.
-        maxParallel: 1,
-        rolledUp: false,
-        estimates: {},
-        dependsOn: [],
-        finalDays: {},
-        finalTotal: 0,
-        dates: options.dated === true ? { ...DATED_PLAN } : null,
-        startNoEarlierThan: null,
-        startNoEarlierThanReason: null,
-        serviceTeamId: null,
-        teamIds: [],
-        assignees: {},
-        doesEveryStep: null,
-        schedule: {
-          duration: 0,
-          estimated: false,
-          earliestStart: 0,
-          earliestFinish: 0,
-          latestStart: 0,
-          latestFinish: 0,
-          float: 0,
-          critical: false,
-        },
-      });
-      return Promise.resolve({ id });
-    },
-    patchWorkItem: (
-      id: string,
-      patch: {
-        name?: string;
-        notes?: string;
-        serviceTeamId?: string | null;
-        teamIds?: string[];
-        tagIds?: string[];
-        serviceIds?: string[];
-        startNoEarlierThan?: string | null;
-        startNoEarlierThanReason?: string | null;
-        priority?: number | null;
+  return Object.assign(
+    refusingApi({
+      tree: () =>
+        Promise.resolve(
+          planRead({
+            workItems: rows.map(view),
+            seq: 0,
+            scheduleError: null,
+            // One per row, since these tests make no parents. Read since
+            // `wbs-row-waiting-explanation` chunk 4: `startFloorByRow` turns the
+            // `boundBy` below into the sentence a card prints, so the field that
+            // used to be inert payload is now the thing three cases arrange.
+            slices: rows.map((row) =>
+              sliceView({
+                id: `${row.id}::${DEV.id}`,
+                workItemId: row.id,
+                stepId: DEV.id,
+                personId: null,
+                duration: 0,
+                estimated: false,
+                earliestStart: 0,
+                earliestFinish: 0,
+                latestStart: 0,
+                latestFinish: 0,
+                float: 0,
+                critical: false,
+                boundBy: fixtureFloorOf(row),
+                resourcePredecessorId: null,
+                // One at a time and nothing holding a pool. The cards read neither —
+                // a card's parallelism line is the row's stored number — but the
+                // payload carries them, so this fake does too.
+                width: 1,
+                effort: 0,
+                capacityPredecessorIds: [],
+              }),
+            ),
+            // The same two lists `steps` and `listPeople` answer with, on the read
+            // that carried the slices: the chart is drawn from this payload alone.
+            steps: stepList.map((step) => ({ ...step })),
+            assignedPeople: people.map(({ id, name }) => ({ id, name })),
+            // Present and empty, never absent: be-01 always sends it, so a fake that
+            // left it out would let `teamsOnThePlan` be handed `undefined` here and
+            // never in production. A plan whose teams are unlimited is what `[]` says.
+            teamCapacities: [],
+            priorityBands: [...DEFAULT_PRIORITY_BANDS],
+            estimateMethod: 'pert' as const,
+            depReach: 'whole-item' as const,
+            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+            estimateRounding: 'ceil' as const,
+            startDate: options.dated === true ? DATED_PLAN.startsOn : null,
+            projectRevision: 0,
+            undoable: false,
+            redoable: false,
+          }),
+        ),
+      steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
+      listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
+      listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
+      listWorkItemTypes: () => Promise.resolve([]),
+      listExternalSystems: () => Promise.resolve([]),
+      listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
+      listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
+      createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
+        next += 1;
+        const id = `w${String(next)}`;
+        rows.push({
+          id,
+          parentId: input.parentId,
+          revision: 0,
+          number: String(rows.length + 1).padStart(2, '0') + '0',
+          name: input.name ?? '',
+          notes: '',
+          frozenNumber: null,
+          priority: null,
+          // One at a time, be-01's `NOT NULL DEFAULT 1`: never absent, because 1
+          // and unset are the same fact.
+          maxParallel: 1,
+          rolledUp: false,
+          estimates: {},
+          dependsOn: [],
+          finalDays: {},
+          finalTotal: 0,
+          dates: options.dated === true ? { ...DATED_PLAN } : null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          serviceTeamId: null,
+          teamIds: [],
+          assignees: {},
+          doesEveryStep: null,
+          schedule: {
+            duration: 0,
+            estimated: false,
+            earliestStart: 0,
+            earliestFinish: 0,
+            latestStart: 0,
+            latestFinish: 0,
+            float: 0,
+            critical: false,
+          },
+        });
+        return Promise.resolve({ id });
       },
-    ) => {
-      if (options.refusePatch === true) return Promise.reject(new Error('forbidden'));
-      patched.push({ id, ...patch });
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      if (patch.name !== undefined) row.name = patch.name;
-      if (patch.notes !== undefined) row.notes = patch.notes;
-      // `serviceTeamId` is the stored label and `teamIds` is what the row is
-      // read through — be-01 keeps both in step, so a fake that moved only one
-      // would let a card pass a test the server would fail.
-      if (patch.serviceTeamId !== undefined) {
-        row.serviceTeamId = patch.serviceTeamId;
-        row.teamIds = patch.serviceTeamId === null ? [] : [patch.serviceTeamId];
-      }
-      if (patch.teamIds !== undefined) {
-        row.teamIds = [...patch.teamIds];
-        row.serviceTeamId = [...patch.teamIds].sort().at(0) ?? null;
-      }
-      if (patch.tagIds !== undefined) row.tagIds = [...patch.tagIds];
-      if (patch.serviceIds !== undefined) row.serviceIds = [...patch.serviceIds];
-      // be-01's pair rule, kept by the fake so a card cannot pass here what the
-      // server would refuse: words about a date that is not there are a
-      // `not_before_reason_needs_a_date` 400, checked inside the one
-      // transaction that would write them. A fake that took them silently would
-      // let the two-request version of this write look correct.
-      if (patch.startNoEarlierThan !== undefined) row.startNoEarlierThan = patch.startNoEarlierThan;
-      if (patch.startNoEarlierThanReason !== undefined) {
-        if (patch.startNoEarlierThanReason !== null && row.startNoEarlierThan === null) {
-          return Promise.reject(new Error('not_before_reason_needs_a_date'));
+      patchWorkItem: (
+        id: string,
+        patch: {
+          name?: string;
+          notes?: string;
+          serviceTeamId?: string | null;
+          teamIds?: string[];
+          tagIds?: string[];
+          serviceIds?: string[];
+          startNoEarlierThan?: string | null;
+          startNoEarlierThanReason?: string | null;
+          priority?: number | null;
+        },
+      ) => {
+        if (options.refusePatch === true) return Promise.reject(new Error('forbidden'));
+        patched.push({ id, ...patch });
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        if (patch.name !== undefined) row.name = patch.name;
+        if (patch.notes !== undefined) row.notes = patch.notes;
+        // `serviceTeamId` is the stored label and `teamIds` is what the row is
+        // read through — be-01 keeps both in step, so a fake that moved only one
+        // would let a card pass a test the server would fail.
+        if (patch.serviceTeamId !== undefined) {
+          row.serviceTeamId = patch.serviceTeamId;
+          row.teamIds = patch.serviceTeamId === null ? [] : [patch.serviceTeamId];
         }
-        row.startNoEarlierThanReason = patch.startNoEarlierThanReason;
-      }
-      // Moved on the row and not only recorded, because half of what the
-      // priority sheet's cases assert is what the *chip* says afterwards — a
-      // fake that took the patch and left the row alone would let a write that
-      // never reached the row read as green.
-      if (patch.priority !== undefined) row.priority = patch.priority;
-      return Promise.resolve();
-    },
-    setEstimate: (id: string, stepId: string, days: Days) => {
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      row.estimates = { ...row.estimates, [stepId]: days };
-      const final = (days.optimistic + 4 * days.realistic + days.pessimistic) / 6;
-      row.finalDays = { ...row.finalDays, [stepId]: final };
-      row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
-      return Promise.resolve();
-    },
-    assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
-      assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
-      if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
-      else assigned.set(`${workItemId}::${stepId}`, personId);
-      return Promise.resolve();
-    },
-    addStep: (_projectId: string, name: string) => {
-      const step = { id: `step-${name.toLowerCase()}`, name };
-      stepList.push(step);
-      return Promise.resolve({ ...step });
-    },
-    listProjects: () => notImplemented('listProjects'),
-    createProject: () => notImplemented('createProject'),
-    openProject: () => notImplemented('openProject'),
-    renameProject: () => notImplemented('renameProject'),
-    undo: () => notImplemented('undo'),
-    redo: () => notImplemented('redo'),
-    setEstimateMethod: () => notImplemented('setEstimateMethod'),
-    setStartDate: () => notImplemented('setStartDate'),
-    renameStep: () => notImplemented('renameStep'),
-    removeStep: () => notImplemented('removeStep'),
-    // Idempotent by name, because be-01 is: two browsers typing `Platform`
-    // at once end up on one team, and a fake that made two would hide the
-    // whole reason `createTeamFor` goes through the server at all.
-    addTeam: (name: string) => {
-      const existing = teams.find((team) => team.name.toLowerCase() === name.toLowerCase());
-      if (existing !== undefined) return Promise.resolve({ ...existing });
-      const team = { id: `team-${name.toLowerCase()}`, name };
-      teams.push(team);
-      return Promise.resolve({ ...team });
-    },
-    addTag: (name: string) => {
-      const existing = tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
-      if (existing !== undefined) return Promise.resolve({ ...existing });
-      const tag = { id: `tag-${name.toLowerCase()}`, name };
-      tags.push(tag);
-      return Promise.resolve({ ...tag });
-    },
-    addService: (name: string) => {
-      const existing = services.find(
-        (service) => service.name.toLowerCase() === name.toLowerCase(),
-      );
-      if (existing !== undefined) return Promise.resolve({ ...existing });
-      const service = { id: `service-${name.toLowerCase()}`, name };
-      services.push(service);
-      return Promise.resolve({ ...service });
-    },
-    addPerson: () => notImplemented('addPerson'),
-    moveWorkItem: () => notImplemented('move'),
-    /**
-     * A copy beside the original, numbered as {@link create} numbers, because
-     * a card that duplicated nothing and a card that duplicated something both
-     * look the same until a second row is on screen.
-     */
-    duplicateWorkItem: (id: string) => {
-      rowActionCalls.push(`duplicate:${id}`);
-      const original = rows.find((each) => each.id === id);
-      if (original === undefined) return Promise.reject(new Error('not_found'));
-      next += 1;
-      const copy: WorkItemView = {
-        ...original,
-        id: `w${String(next)}`,
-        number: String(rows.length + 1).padStart(2, '0') + '0',
-        // A freeze pins the number a row left the tool under, and the copy is
-        // given none — `wbs-table.tsx`'s own comment on offering Duplicate on a
-        // frozen row.
-        frozenNumber: null,
-      };
-      rows.push(copy);
-      return Promise.resolve({ id: copy.id });
-    },
-    removeWorkItem: (id: string) => {
-      rowActionCalls.push(`remove:${id}`);
-      const at = rows.findIndex((each) => each.id === id);
-      if (at === -1) return Promise.reject(new Error('not_found'));
-      rows.splice(at, 1);
-      return Promise.resolve();
-    },
-    // Real since `wbs-mobile-orp-input`: the trio sheet's `Clear` is the one
-    // control on a card that reaches it, and a fake that refused would have let
-    // "taking an estimate back off" pass untested on the only face that can do
-    // it with a thumb. Removes the step's key rather than storing zeros —
-    // `0/0/0` is an estimate somebody made, and no estimate is not.
-    clearEstimate: (id: string, stepId: string) => {
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      const { [stepId]: goneDays, ...keptDays } = row.estimates;
-      const { [stepId]: goneFinal, ...keptFinal } = row.finalDays;
-      void goneDays;
-      void goneFinal;
-      row.estimates = keptDays;
-      row.finalDays = keptFinal;
-      row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
-      return Promise.resolve();
-    },
-    freezeProject: () => notImplemented('freeze'),
-    unfreezeProject: () => notImplemented('unfreezeProject'),
-    unfreezeWorkItem: (id: string) => {
-      rowActionCalls.push(`unfreeze:${id}`);
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      row.frozenNumber = null;
-      return Promise.resolve();
-    },
-    addDependency: (id: string, predecessorId: string) => {
-      edges.push(`add:${id}:${predecessorId}`);
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      // Idempotent by pair, which is be-01's own unique constraint: the picker
-      // never offers a predecessor a row already holds, so a duplicate here
-      // would be modelling a request the app cannot make.
-      if (!row.dependsOn.includes(predecessorId)) row.dependsOn = [...row.dependsOn, predecessorId];
-      return Promise.resolve();
-    },
-    removeDependency: (id: string, predecessorId: string) => {
-      edges.push(`drop:${id}:${predecessorId}`);
-      const row = rows.find((each) => each.id === id);
-      if (row === undefined) return Promise.reject(new Error('not_found'));
-      row.dependsOn = row.dependsOn.filter((each) => each !== predecessorId);
-      return Promise.resolve();
-    },
-  };
+        if (patch.teamIds !== undefined) {
+          row.teamIds = [...patch.teamIds];
+          row.serviceTeamId = [...patch.teamIds].sort().at(0) ?? null;
+        }
+        if (patch.tagIds !== undefined) row.tagIds = [...patch.tagIds];
+        if (patch.serviceIds !== undefined) row.serviceIds = [...patch.serviceIds];
+        // be-01's pair rule, kept by the fake so a card cannot pass here what the
+        // server would refuse: words about a date that is not there are a
+        // `not_before_reason_needs_a_date` 400, checked inside the one
+        // transaction that would write them. A fake that took them silently would
+        // let the two-request version of this write look correct.
+        if (patch.startNoEarlierThan !== undefined)
+          row.startNoEarlierThan = patch.startNoEarlierThan;
+        if (patch.startNoEarlierThanReason !== undefined) {
+          if (patch.startNoEarlierThanReason !== null && row.startNoEarlierThan === null) {
+            return Promise.reject(new Error('not_before_reason_needs_a_date'));
+          }
+          row.startNoEarlierThanReason = patch.startNoEarlierThanReason;
+        }
+        // Moved on the row and not only recorded, because half of what the
+        // priority sheet's cases assert is what the *chip* says afterwards — a
+        // fake that took the patch and left the row alone would let a write that
+        // never reached the row read as green.
+        if (patch.priority !== undefined) row.priority = patch.priority;
+        return Promise.resolve();
+      },
+      setEstimate: (id: string, stepId: string, days: Days) => {
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        row.estimates = { ...row.estimates, [stepId]: days };
+        const final = (days.optimistic + 4 * days.realistic + days.pessimistic) / 6;
+        row.finalDays = { ...row.finalDays, [stepId]: final };
+        row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
+        return Promise.resolve();
+      },
+      assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
+        assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
+        if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
+        else assigned.set(`${workItemId}::${stepId}`, personId);
+        return Promise.resolve();
+      },
+      addStep: (_projectId: string, name: string) => {
+        const step = { id: `step-${name.toLowerCase()}`, name };
+        stepList.push(step);
+        return Promise.resolve({ ...step });
+      },
+      listProjects: () => notImplemented('listProjects'),
+      createProject: () => notImplemented('createProject'),
+      openProject: () => notImplemented('openProject'),
+      renameProject: () => notImplemented('renameProject'),
+      undo: () => notImplemented('undo'),
+      redo: () => notImplemented('redo'),
+      setEstimateMethod: () => notImplemented('setEstimateMethod'),
+      setStartDate: () => notImplemented('setStartDate'),
+      renameStep: () => notImplemented('renameStep'),
+      removeStep: () => notImplemented('removeStep'),
+      // Idempotent by name, because be-01 is: two browsers typing `Platform`
+      // at once end up on one team, and a fake that made two would hide the
+      // whole reason `createTeamFor` goes through the server at all.
+      addTeam: (name: string) => {
+        const existing = teams.find((team) => team.name.toLowerCase() === name.toLowerCase());
+        if (existing !== undefined) return Promise.resolve({ ...existing });
+        const team = { id: `team-${name.toLowerCase()}`, name };
+        teams.push(team);
+        return Promise.resolve({ ...team });
+      },
+      addTag: (name: string) => {
+        const existing = tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+        if (existing !== undefined) return Promise.resolve({ ...existing });
+        const tag = { id: `tag-${name.toLowerCase()}`, name };
+        tags.push(tag);
+        return Promise.resolve({ ...tag });
+      },
+      addService: (name: string) => {
+        const existing = services.find(
+          (service) => service.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (existing !== undefined) return Promise.resolve({ ...existing });
+        const service = { id: `service-${name.toLowerCase()}`, name };
+        services.push(service);
+        return Promise.resolve({ ...service });
+      },
+      addPerson: () => notImplemented('addPerson'),
+      moveWorkItem: () => notImplemented('move'),
+      /**
+       * A copy beside the original, numbered as {@link create} numbers, because
+       * a card that duplicated nothing and a card that duplicated something both
+       * look the same until a second row is on screen.
+       */
+      duplicateWorkItem: (id: string) => {
+        rowActionCalls.push(`duplicate:${id}`);
+        const original = rows.find((each) => each.id === id);
+        if (original === undefined) return Promise.reject(new Error('not_found'));
+        next += 1;
+        const copy: WorkItemView = {
+          ...original,
+          id: `w${String(next)}`,
+          number: String(rows.length + 1).padStart(2, '0') + '0',
+          // A freeze pins the number a row left the tool under, and the copy is
+          // given none — `wbs-table.tsx`'s own comment on offering Duplicate on a
+          // frozen row.
+          frozenNumber: null,
+        };
+        rows.push(copy);
+        return Promise.resolve({ id: copy.id });
+      },
+      removeWorkItem: (id: string) => {
+        rowActionCalls.push(`remove:${id}`);
+        const at = rows.findIndex((each) => each.id === id);
+        if (at === -1) return Promise.reject(new Error('not_found'));
+        rows.splice(at, 1);
+        return Promise.resolve();
+      },
+      // Real since `wbs-mobile-orp-input`: the trio sheet's `Clear` is the one
+      // control on a card that reaches it, and a fake that refused would have let
+      // "taking an estimate back off" pass untested on the only face that can do
+      // it with a thumb. Removes the step's key rather than storing zeros —
+      // `0/0/0` is an estimate somebody made, and no estimate is not.
+      clearEstimate: (id: string, stepId: string) => {
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        const { [stepId]: goneDays, ...keptDays } = row.estimates;
+        const { [stepId]: goneFinal, ...keptFinal } = row.finalDays;
+        void goneDays;
+        void goneFinal;
+        row.estimates = keptDays;
+        row.finalDays = keptFinal;
+        row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
+        return Promise.resolve();
+      },
+      freezeProject: () => notImplemented('freeze'),
+      unfreezeProject: () => notImplemented('unfreezeProject'),
+      unfreezeWorkItem: (id: string) => {
+        rowActionCalls.push(`unfreeze:${id}`);
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        row.frozenNumber = null;
+        return Promise.resolve();
+      },
+      addDependency: (id: string, predecessorId: string) => {
+        edges.push(`add:${id}:${predecessorId}`);
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        // Idempotent by pair, which is be-01's own unique constraint: the picker
+        // never offers a predecessor a row already holds, so a duplicate here
+        // would be modelling a request the app cannot make.
+        if (!row.dependsOn.includes(predecessorId))
+          row.dependsOn = [...row.dependsOn, predecessorId];
+        return Promise.resolve();
+      },
+      removeDependency: (id: string, predecessorId: string) => {
+        edges.push(`drop:${id}:${predecessorId}`);
+        const row = rows.find((each) => each.id === id);
+        if (row === undefined) return Promise.reject(new Error('not_found'));
+        row.dependsOn = row.dependsOn.filter((each) => each !== predecessorId);
+        return Promise.resolve();
+      },
+    }),
+    { patched, assignments, rows, teams, services, tags, people, rowActionCalls, edges },
+  );
 }
 
 /**
@@ -2274,32 +2276,45 @@ const EMPTY_SCHEDULE: ScheduleView = {
 };
 
 function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
-  return {
-    id: 'w1',
-    parentId: null,
-    revision: 0,
-    number: '010',
-    name: 'Strip the hull',
-    notes: '',
-    frozenNumber: null,
-    rolledUp: false,
-    estimates: {},
-    dependsOn: [],
-    finalDays: {},
-    finalTotal: 0,
-    dates: null,
-    startNoEarlierThan: null,
-    startNoEarlierThanReason: null,
-    priority: null,
-    maxParallel: 1,
-    teamIds: [],
-    serviceTeamId: null,
-    assignees: {},
-    doesEveryStep: null,
-    schedule: EMPTY_SCHEDULE,
-    subRows: [],
-    ...overrides,
-  };
+  // `Object.assign` rather than a second spread: `{ ...row, ...overrides }`
+  // types every field `overrides` could carry as possibly-undefined, and
+  // `TreeRow`'s `tagIds` is required.
+  return Object.assign(
+    {
+      id: 'w1',
+      parentId: null,
+      revision: 0,
+      number: '010',
+      name: 'Strip the hull',
+      notes: '',
+      frozenNumber: null,
+      rolledUp: false,
+      estimates: {},
+      dependsOn: [],
+      finalDays: {},
+      finalTotal: 0,
+      dates: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      priority: null,
+      maxParallel: 1,
+      teamIds: [],
+      serviceTeamId: null,
+      assignees: {},
+      doesEveryStep: null,
+      schedule: EMPTY_SCHEDULE,
+      subRows: [],
+      // Required on a `TreeRow` where the wire has them optional — `toTree`
+      // fills them, so every surface above it reads a set rather than checking
+      // for one. Absent from the defaults here, they arrived only from
+      // `overrides` and typed the whole row as possibly-undefined.
+      tagIds: [],
+      serviceIds: [],
+      typeIds: [],
+      externalRefs: [],
+    },
+    overrides,
+  );
 }
 
 /**
@@ -2362,8 +2377,8 @@ function renderCards(
       // leaves a required prop out is one that will typecheck differently from
       // the app that uses it.
       teams={[]}
-      setTeam={() => undefined}
-      createTeam={() => undefined}
+      setTeams={() => Promise.resolve('landed')}
+      createTeam={() => Promise.resolve('landed')}
       // No calendar, which is what a stub tree honestly is: none of these rows
       // came from a plan, so none of them has a project start date behind it.
       // The date field draws its refusal and opens onto nothing, which is
@@ -2371,14 +2386,20 @@ function renderCards(
       hasCalendar={false}
       setNotBefore={() => undefined}
       setPriority={() => Promise.resolve('landed')}
+      // Three props this stub predates, stubbed for the reason the teams and
+      // dates above are: a suite that leaves a required prop out typechecks
+      // differently from the app that uses it. No row here has a dependency.
+      dependencyOptions={() => []}
+      addDependency={() => Promise.resolve('landed')}
+      dropDependency={() => Promise.resolve('landed')}
       tagLabel={() => ({ own: [], inherited: [] })}
       tags={[]}
-      setTags={() => undefined}
-      createTag={() => undefined}
+      setTags={() => Promise.resolve('landed')}
+      createTag={() => Promise.resolve('landed')}
       serviceLabel={() => ({ state: 'none' })}
       services={[]}
-      setServices={() => undefined}
-      createService={() => undefined}
+      setServices={() => Promise.resolve('landed')}
+      createService={() => Promise.resolve('landed')}
       nonOwner={() => null}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
       showDay={(days) => {

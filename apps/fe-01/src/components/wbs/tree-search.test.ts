@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FilterCriteria,
+  type FilterLabels,
   filterWords,
   isFiltering,
   type NarrowableRow,
@@ -15,6 +16,7 @@ const NO_FACETS: RowFacets = {
   teamIds: [],
   tagIds: [],
   serviceIds: [],
+  typeIds: [],
   builtByNonOwner: false,
   assignedOutsideTeam: false,
   assigneeIds: [],
@@ -348,8 +350,11 @@ describe('narrowTree — a name and a facet together', () => {
 
 describe('what the filter says it is asking', () => {
   /** The names the ids stand for, as the table resolves them for an export. */
-  const LABELS = {
+  const LABELS: FilterLabels = {
     teamName: (id: string) => (id === 'platform' ? 'Platform' : 'Payments'),
+    tagName: (id: string) => `tag-${id}`,
+    serviceName: (id: string) => `service-${id}`,
+    typeName: (id: string) => `type-${id}`,
     personName: (id: string) => (id === 'ada' ? 'Ada' : 'Kat'),
     stepName: (id: string) => (id === 'dev' ? 'Dev' : 'QA'),
   };
@@ -446,6 +451,8 @@ describe('the tag facet narrows like every other facet', () => {
       filterWords(asking({ teamIds: ['platform'], tagIds: ['regulatory', 'tech-debt'] }), {
         teamName: (id) => `team-${id}`,
         tagName: (id) => `tag-${id}`,
+        serviceName: (id) => `service-${id}`,
+        typeName: (id) => `type-${id}`,
         personName: (id) => id,
         stepName: (id) => id,
       }),
@@ -596,10 +603,11 @@ describe('the two mismatch signals narrow as flags', () => {
 });
 
 describe('what the filter says it is asking, for the third dimension', () => {
-  const LABELS = {
+  const LABELS: FilterLabels = {
     teamName: (id: string) => `team-${id}`,
     tagName: (id: string) => `tag-${id}`,
     serviceName: (id: string) => `service-${id}`,
+    typeName: (id: string) => `type-${id}`,
     personName: (id: string) => `person-${id}`,
     stepName: (id: string) => `step-${id}`,
   };

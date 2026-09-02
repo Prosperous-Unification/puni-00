@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { refusingApi } from '@/testing/refusing-api';
+import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
 import type * as GanttGeometryModule from './gantt-geometry';
 import type * as TableFrameModule from './table-frame';
@@ -468,9 +470,8 @@ describe('the chart under a plan being edited', () => {
       float: 2,
       critical: false,
     });
-    return {
-      listProjects: () =>
-        Promise.resolve([{ id: 'p1', name: 'P', restricted: false, lastOpenedAt: null }]),
+    return refusingApi({
+      listProjects: () => Promise.resolve([projectListEntry({ name: 'P' })]),
       createProject: (name: string) =>
         Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
       openProject: () => Promise.resolve(),
@@ -492,69 +493,70 @@ describe('the chart under a plan being edited', () => {
       renameStep: () => Promise.reject(new Error('not_in_these_tests')),
       removeStep: () => Promise.reject(new Error('not_in_these_tests')),
       tree: () =>
-        Promise.resolve({
-          seq: 0,
-          scheduleError: null,
-          startDate: '2026-08-03',
-          projectRevision: 0,
-          slices: [
-            {
-              id: `w1::${DEV.id}`,
-              workItemId: 'w1',
-              stepId: DEV.id,
-              personId: null,
-              // Which floor binds moves with the edit, the way be-01's does: a
-              // row with a not-before that pushed it is a slice bound by that
-              // date, and it is the one floor whose sentence has words of its
-              // own to carry.
-              boundBy: floored ? ('notBefore' as const) : ('projectStart' as const),
-              resourcePredecessorId: null,
-              width: 1,
-              effort: 3,
-              capacityPredecessorIds: [],
-              ...scheduleNow(),
-            },
-          ],
-          steps: [DEV],
-          assignedPeople: [],
-          // Present and empty, never absent: be-01 always sends it, so a fake that
-          // left it out would let `teamsOnThePlan` be handed `undefined` here and
-          // never in production. A plan whose teams are unlimited is what `[]` says.
-          teamCapacities: [],
-          priorityBands: DEFAULT_PRIORITY_BANDS,
-          estimateMethod: 'pert' as const,
-          depReach: 'whole-item' as const,
-          pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-          estimateRounding: 'ceil' as const,
-          workItems: [
-            {
-              id: 'w1',
-              parentId: null,
-              revision: 0,
-              number: '010',
-              name: 'Strip',
-              notes: '',
-              frozenNumber: null,
-              priority: null,
-              rolledUp: false,
-              estimates: {},
-              dependsOn: [],
-              finalDays: {},
-              finalTotal: 0,
-              startNoEarlierThan: floored ? '2026-08-10' : null,
-              startNoEarlierThanReason: null,
-              startNoEarlierThanReason: floored ? 'waiting on client sign-off' : null,
-              serviceTeamId: null,
-              teamIds: [],
-              assignees: {},
-              doesEveryStep: null,
-              dates: null,
-              schedule: scheduleNow(),
-            },
-          ],
-          undoable: false,
-          redoable: false,
-        }),
+        Promise.resolve(
+          planRead({
+            seq: 0,
+            scheduleError: null,
+            startDate: '2026-08-03',
+            projectRevision: 0,
+            slices: [
+              sliceView({
+                id: `w1::${DEV.id}`,
+                workItemId: 'w1',
+                stepId: DEV.id,
+                personId: null,
+                // Which floor binds moves with the edit, the way be-01's does: a
+                // row with a not-before that pushed it is a slice bound by that
+                // date, and it is the one floor whose sentence has words of its
+                // own to carry.
+                boundBy: floored ? ('notBefore' as const) : ('projectStart' as const),
+                resourcePredecessorId: null,
+                width: 1,
+                effort: 3,
+                capacityPredecessorIds: [],
+                ...scheduleNow(),
+              }),
+            ],
+            steps: [DEV],
+            assignedPeople: [],
+            // Present and empty, never absent: be-01 always sends it, so a fake that
+            // left it out would let `teamsOnThePlan` be handed `undefined` here and
+            // never in production. A plan whose teams are unlimited is what `[]` says.
+            teamCapacities: [],
+            priorityBands: [...DEFAULT_PRIORITY_BANDS],
+            estimateMethod: 'pert' as const,
+            depReach: 'whole-item' as const,
+            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+            estimateRounding: 'ceil' as const,
+            workItems: [
+              workItemView({
+                id: 'w1',
+                parentId: null,
+                revision: 0,
+                number: '010',
+                name: 'Strip',
+                notes: '',
+                frozenNumber: null,
+                priority: null,
+                rolledUp: false,
+                estimates: {},
+                dependsOn: [],
+                finalDays: {},
+                finalTotal: 0,
+                startNoEarlierThan: floored ? '2026-08-10' : null,
+                startNoEarlierThanReason: floored ? 'waiting on client sign-off' : null,
+                serviceTeamId: null,
+                teamIds: [],
+                assignees: {},
+                doesEveryStep: null,
+                dates: null,
+                schedule: scheduleNow(),
+              }),
+            ],
+            undoable: false,
+            redoable: false,
+          }),
+        ),
       createWorkItem: () => Promise.resolve({ id: 'w2' }),
       patchWorkItem: (_id: string, body: object) => {
         if ('startNoEarlierThan' in body) floored = body.startNoEarlierThan !== null;
@@ -571,7 +573,7 @@ describe('the chart under a plan being edited', () => {
       removeDependency: () => Promise.resolve(),
       undo: () => Promise.reject(new Error('not_in_these_tests')),
       redo: () => Promise.reject(new Error('not_in_these_tests')),
-    };
+    });
   };
 
   itDom('redraws the open chart when a not-before edit moves the schedule', async () => {
@@ -671,13 +673,15 @@ describe('holding the chart to the row the table is showing', () => {
    */
   const circularApi = (): ProjectApi => {
     const api = fakeApi();
-    return {
+    return refusingApi({
       ...api,
       // A cycle takes the slices with it, the way be-01 sends it: there is no
       // schedule to have placed any.
-      tree: () =>
-        api.tree().then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] })),
-    };
+      tree: (projectId) =>
+        api
+          .tree(projectId)
+          .then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] })),
+    });
   };
 
   itDom('does not hold the chart to the table while the plan is a circle', async () => {

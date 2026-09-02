@@ -1,10 +1,17 @@
 import { resolve } from 'node:path';
 
 import react from '@vitejs/plugin-react';
+import type { UserConfig } from 'vitest/config';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [react()],
+  // `vitest` bundles its **own** copy of vite (`vitest/node_modules/vite`), so
+  // its `Plugin` and the one `@vitejs/plugin-react` is typed against are two
+  // structurally different declarations of the same shape — `apply`'s parameter
+  // is where they part. The cast names that boundary and nothing else: the
+  // value is one React plugin either way, and `vite.config.ts` beside this file
+  // needs no cast because it imports `defineConfig` from `vite` itself.
+  plugins: [react()] as UserConfig['plugins'],
   // The same seven the app is built with. `@wbs/domain/workday`,
   // `@wbs/domain/assumed-duration`, `@wbs/domain/effective-team`,
   // `@wbs/domain/effective-tag`, `@wbs/domain/effective-service`,

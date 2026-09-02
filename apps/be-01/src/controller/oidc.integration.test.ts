@@ -1,3 +1,4 @@
+import type { JwtClaims } from '@wbs/auth';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
@@ -49,7 +50,7 @@ function registeredRoutes(value: unknown): RegisteredRoute[] {
 }
 
 function fixture(
-  idTokenClaims?: Record<string, unknown>,
+  idTokenClaims?: JwtClaims,
   routeOverrides: {
     passwordLoginEnabled?: boolean;
     passwordRegisterEnabled?: boolean;

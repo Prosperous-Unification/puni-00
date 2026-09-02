@@ -21,6 +21,7 @@ import {
   type Sibling,
   type StepState,
   workdaysBetween,
+  type WorkItemState,
 } from '@wbs/domain';
 import {
   schedule,
@@ -420,6 +421,34 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   estimates: Record<string, Days>;
   /** True when the estimates above are sums and therefore not editable here. */
   rolledUp: boolean;
+  /**
+   * The days **recorded** against this row, by step — its own if it is a leaf,
+   * the sum of its descendants' if it is not.
+   *
+   * A step nobody has recorded days for is absent, and an empty object means
+   * nobody has recorded anything on this row. Neither is a zero: a face that
+   * renders a missing key as `0` is saying somebody stated the work took no
+   * time. Reported and never planned with — it reaches no scheduling function.
+   */
+  actuals: Record<string, number>;
+  /**
+   * Where each step's work on this row has got to — its own if it is a leaf,
+   * `agree` across its descendants' if it is not.
+   *
+   * **A step reading `not_started` is absent from this object**, exactly as an
+   * unestimated step is absent from `estimates`: the absence of a statement is
+   * how "nobody has said" is spelled everywhere in this tool, including on the
+   * wire.
+   */
+  progress: Record<string, StepState>;
+  /**
+   * The row's own reading, derived from its steps and never stored: `done` when
+   * every step with work on it says so, `not_started` when none has said
+   * anything, and `in_progress` for every disagreement between — including the
+   * one that matters most, one step finished and another silent. See
+   * `rollUpWorkItemStates`.
+   */
+  state: WorkItemState;
   /**
    * The figures that are not days: **metric first, then step**, its own if it is
    * a leaf and the sum of its descendants' if it is not.

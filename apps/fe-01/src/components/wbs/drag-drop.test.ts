@@ -1,24 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WorkItemView } from '@/lib/wbs-api';
+import { workItemView } from '@/testing/views';
 
 import { planMove, zoneFor } from './drag-drop';
 
-const row = (
-  id: string,
-  number: string,
-  parentId: string | null,
-  frozen = false,
-): WorkItemView => ({
-  id,
-  parentId,
-  number,
-  name: id,
-  notes: '',
-  frozenNumber: frozen ? number : null,
-  rolledUp: false,
-  estimates: {},
-});
+const row = (id: string, number: string, parentId: string | null, frozen = false): WorkItemView =>
+  workItemView({ id, parentId, number, name: id, frozenNumber: frozen ? number : null });
 
 /**
  * ```

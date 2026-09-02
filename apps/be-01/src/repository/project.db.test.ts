@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
 import type { Project, Step, WriteStamp } from './index';
 import { STEP_POSITION_STEP } from './index';
@@ -241,7 +242,7 @@ describe('ProjectRepository', () => {
       { at: 1, by: strip },
     );
     const shed = project('Rewire the shed', 100);
-    const fence: Project = { ...project('Paint the fence', 200), ownerId: strip };
+    const fence: Project = projectRow({ ...project('Paint the fence', 200), ownerId: strip });
     // Each project's row is authored by the account that owns it, which is what
     // makes `ownerName` a claim about two accounts rather than about the caller.
     for (const p of [shed, fence])
@@ -477,7 +478,7 @@ describe('ProjectRepository', () => {
   it('refuses a project whose owner does not exist', async () => {
     // Proof that foreign keys are enforced rather than merely declared: this
     // insert parses fine and is rejected only because the pragma is on.
-    const orphan: Project = { ...project('Orphan', 100), ownerId: crypto.randomUUID() };
+    const orphan: Project = projectRow({ ...project('Orphan', 100), ownerId: crypto.randomUUID() });
     // Stamped by an account that does exist, so `owner_id` is the only reference
     // left dangling — a stamp naming nobody would satisfy the match through
     // `created_by` instead, and the case would stop being about the owner.

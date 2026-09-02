@@ -7,7 +7,7 @@ import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { inMemoryProjects, testProjectService } from '../testing/project-fixture';
+import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
@@ -47,18 +47,10 @@ describe('one plan’s history, over HTTP', () => {
     const users = inMemoryUsers();
     const auth = testAuthService(users);
     projects = inMemoryProjects(users);
-    const project: Project = {
+    const project: Project = projectRow({
       id: PROJECT,
-      name: 'Rewire the shed',
       ownerId: 'owner',
-      restricted: false,
-      estimateMethod: 'pert',
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-      startDate: null,
-      revision: 0,
-      createdAt: 1,
-    };
+    });
     await projects.create(project, [], { at: 1, by: project.ownerId });
     const events = inMemoryPlanEvents([
       event('set', { createdAt: 1_000 }),

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { openDatabase, openDrizzle } from './db';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
@@ -35,21 +37,12 @@ let sandId: string;
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const insertItem = async (id: string, position: number, name: string): Promise<void> => {
-  const item: WorkItem = {
+  const item: WorkItem = workItemRow({
     id,
     projectId,
-    parentId: null,
     position,
     name,
-    notes: '',
-    frozenNumber: null,
-    priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
-  };
+  });
   await workItems.insert(item, [], wrote());
 };
 
@@ -79,18 +72,10 @@ beforeEach(async () => {
   // back to the primary key's own order hands back `QA` first.
   devId = `z-dev-${crypto.randomUUID()}`;
   qaId = `a-qa-${crypto.randomUUID()}`;
-  const project: Project = {
+  const project: Project = projectRow({
     id: projectId,
-    name: 'Rewire the shed',
     ownerId,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   const steps: Step[] = [
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
@@ -389,37 +374,21 @@ describe('StepMeasureRepository', () => {
       wroteElsewhere,
     );
     await new ProjectRepository(db).create(
-      {
+      projectRow({
         id: otherProject,
         name: 'Another shed',
         ownerId: owner,
-        restricted: false,
-        estimateMethod: 'pert',
-        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-        estimateRounding: 'ceil',
-        startDate: null,
-        revision: 0,
-        createdAt: 1,
-      },
+      }),
       [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
       wroteElsewhere,
     );
     await new WorkItemRepository(db).insert(
-      {
+      workItemRow({
         id: otherItem,
         projectId: otherProject,
-        parentId: null,
         position: 10,
         name: 'Elsewhere',
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        startNoEarlierThan: null,
-        serviceTeamId: null,
-        serviceId: null,
-        maxParallel: 1,
-        revision: 0,
-      },
+      }),
       [],
       wroteElsewhere,
     );

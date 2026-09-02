@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { Project, ProjectStore } from '../repository';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';
+import { projectRow } from '../testing/project-fixture';
 import type { Days } from './roll-up';
 import type { WorkItemService } from './work-item.service';
 
@@ -19,18 +20,10 @@ beforeEach(async () => {
   const harness = inMemoryServices({ journal });
   ({ projects } = harness.stores);
   service = harness.service;
-  const project: Project = {
+  const project: Project = projectRow({
     id: crypto.randomUUID(),
-    name: 'Rewire the shed',
     ownerId: OWNER,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   await projects.create(project, [{ id: DEV, projectId: project.id, name: 'Dev', position: 10 }], {
     at: 1,
     by: OWNER,

@@ -207,7 +207,10 @@ const namesOnScreen = (): string[] =>
 
 describe('moving between cells with the arrow keys', () => {
   /** Focuses a cell and puts the caret where a test needs it. */
-  const focusCell = (label: string, caret: 'start' | 'end' | 'middle'): HTMLInputElement => {
+  const focusCell = (
+    label: string,
+    caret: 'start' | 'end' | 'middle',
+  ): HTMLInputElement | HTMLTextAreaElement => {
     const input = screen.getByLabelText(label);
     // Either element: the Name and Notes cells are textareas so their text
     // wraps, and both carry the selection fields the keyboard code reads.
@@ -224,7 +227,7 @@ describe('moving between cells with the arrow keys', () => {
   };
 
   /** Returns whether the browser would still act on the key. */
-  const press = (input: HTMLInputElement, key: string): boolean =>
+  const press = (input: HTMLInputElement | HTMLTextAreaElement, key: string): boolean =>
     fireEvent.keyDown(input, { key });
 
   itDom('moves down a column of estimates', async () => {

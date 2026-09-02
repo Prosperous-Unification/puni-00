@@ -12,6 +12,22 @@ import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
+ * A `Step` row carrying every field the schema requires.
+ *
+ * `position` is `STEP_POSITION_STEP`, the spacing `add` gives a project's first
+ * step, so a row this builds sorts where production would put it.
+ */
+export function stepRow(overrides: Partial<Step> = {}): Step {
+  return {
+    id: crypto.randomUUID(),
+    projectId: 'project',
+    name: 'Build',
+    position: STEP_POSITION_STEP,
+    ...overrides,
+  };
+}
+
+/**
  * A StepStore backed by an array, for tests that only need `buildApp` to be
  * constructible.
  *

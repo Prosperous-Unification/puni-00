@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { personAdded } from '../testing/directory-fixture';
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
@@ -50,34 +52,20 @@ let qaId: string;
  */
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
-const newProject = (ownerId: string, name: string): Project => ({
-  id: crypto.randomUUID(),
-  name,
-  ownerId,
-  restricted: false,
-  estimateMethod: 'pert',
-  pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-  estimateRounding: 'ceil',
-  startDate: null,
-  revision: 0,
-  createdAt: 1,
-});
+const newProject = (ownerId: string, name: string): Project =>
+  projectRow({
+    id: crypto.randomUUID(),
+    name,
+    ownerId,
+  });
 
-const newItem = (id: string, position: number, name: string): WorkItem => ({
-  id,
-  projectId,
-  parentId: null,
-  position,
-  name,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-});
+const newItem = (id: string, position: number, name: string): WorkItem =>
+  workItemRow({
+    id,
+    projectId,
+    position,
+    name,
+  });
 
 const revisionOf = async (id: string): Promise<number> => {
   const found = await projects.findById(id);

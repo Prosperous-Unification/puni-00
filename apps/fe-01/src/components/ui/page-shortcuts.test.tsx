@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { KeyboardCheatSheet } from '@/components/wbs/keyboard-cheat-sheet';
 import { WbsTable } from '@/components/wbs/wbs-table';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import { refusingApi } from '@/testing/refusing-api';
+import { personView, planRead, workItemView } from '@/testing/views';
 
 import { Modal, ModalContent, ModalTitle } from './modal';
 
@@ -15,7 +17,7 @@ const itDom = hasDom ? it : it.skip;
 afterEach(cleanup);
 
 /** The one row every test here works over, numbered the way be-01 numbers it. */
-const ROW: WorkItemView = {
+const ROW: WorkItemView = workItemView({
   id: 'row-1',
   parentId: null,
   number: '010',
@@ -45,14 +47,15 @@ const ROW: WorkItemView = {
     float: 0,
     critical: true,
   },
-};
+});
 
 /** What a test needs: the table's api, and the two calls it asserts never happen. */
 interface SilentApi {
   api: ProjectApi;
   /** `api.undo`, held separately — reading it back off the object is an unbound method. */
   undo: Mock;
-  create: Mock;
+  /** `api.createWorkItem`, the write the chord must not reach. */
+  createWorkItem: Mock;
 }
 
 /**
@@ -60,7 +63,7 @@ interface SilentApi {
  *
  * Spies rather than `wbs-table.test.tsx`'s in-memory tree, because what every
  * test here asserts is a **call that must not happen**: `undo` never reached,
- * `create` never reached. A fake that mutated a tree would make the assertion
+ * `createWorkItem` never reached. A fake that mutated a tree would make the assertion
  * "the row count did not change", which is also true when the request was sent
  * and refused.
  *
@@ -72,35 +75,39 @@ function silentApi(): SilentApi {
   /** Every write here is a write that must not be made; answering is the whole body. */
   const nothing = () => Promise.resolve();
   const undo = vi.fn(() => Promise.resolve({ ok: true as const, done: 'rename', detail: null }));
-  const create = vi.fn(() => Promise.resolve({ id: 'row-2' }));
+  const createWorkItem = vi.fn(() => Promise.resolve({ id: 'row-2' }));
   return {
     undo,
-    create,
-    api: {
+    createWorkItem,
+    api: refusingApi({
       listProjects: () => Promise.resolve([]),
       createProject: () => Promise.resolve({ id: 'p', name: 'Plan', restricted: false }),
       openProject: nothing,
       renameProject: nothing,
       tree: () =>
-        Promise.resolve({
-          workItems: [ROW],
-          seq: 1,
-          scheduleError: null,
-          slices: [],
-          steps: [],
-          assignedPeople: [],
-          // Present and empty, never absent: be-01 always sends it, so a fake that
-          // left it out would let `teamsOnThePlan` be handed `undefined` here and
-          // never in production. A plan whose teams are unlimited is what `[]` says.
-          teamCapacities: [],
-          priorityBands: DEFAULT_PRIORITY_BANDS,
-          estimateMethod: 'pert' as const,
-          depReach: 'whole-item' as const,
-          startDate: null,
-          projectRevision: 1,
-          undoable: true,
-          redoable: true,
-        }),
+        Promise.resolve(
+          planRead({
+            workItems: [ROW],
+            seq: 1,
+            scheduleError: null,
+            slices: [],
+            steps: [],
+            assignedPeople: [],
+            // Present and empty, never absent: be-01 always sends it, so a fake that
+            // left it out would let `teamsOnThePlan` be handed `undefined` here and
+            // never in production. A plan whose teams are unlimited is what `[]` says.
+            teamCapacities: [],
+            // Copied: `PlanRead.priorityBands` is a mutable array and the
+            // constant is `readonly`.
+            priorityBands: [...DEFAULT_PRIORITY_BANDS],
+            estimateMethod: 'pert' as const,
+            depReach: 'whole-item' as const,
+            startDate: null,
+            projectRevision: 1,
+            undoable: true,
+            redoable: true,
+          }),
+        ),
       undo,
       redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
       setEstimateMethod: nothing,
@@ -109,8 +116,8 @@ function silentApi(): SilentApi {
       addStep: () => Promise.reject(new Error('not_in_these_tests')),
       renameStep: () => Promise.reject(new Error('not_in_these_tests')),
       removeStep: () => Promise.reject(new Error('not_in_these_tests')),
-      create,
-      patch: nothing,
+      createWorkItem,
+      patchWorkItem: nothing,
       listTeams: () => Promise.resolve([]),
       listTags: () => Promise.resolve([]),
       listWorkItemTypes: () => Promise.resolve([]),
@@ -118,19 +125,19 @@ function silentApi(): SilentApi {
       listServices: () => Promise.resolve([]),
       addTeam: () => Promise.resolve({ id: 't', name: 'T' }),
       listPeople: () => Promise.resolve([]),
-      addPerson: () => Promise.resolve({ id: 'person', name: 'Kat', teamIds: [] }),
-      assign: nothing,
-      move: nothing,
-      duplicate: () => Promise.resolve({ id: 'row-3' }),
-      remove: nothing,
+      addPerson: () => Promise.resolve(personView({ id: 'person' })),
+      assignPerson: nothing,
+      moveWorkItem: nothing,
+      duplicateWorkItem: () => Promise.resolve({ id: 'row-3' }),
+      removeWorkItem: nothing,
       setEstimate: nothing,
       clearEstimate: nothing,
-      freeze: nothing,
+      freezeProject: nothing,
       unfreezeProject: nothing,
-      unfreeze: nothing,
+      unfreezeWorkItem: nothing,
       addDependency: nothing,
       removeDependency: nothing,
-    },
+    }),
   };
 }
 
@@ -190,7 +197,7 @@ function press(target: Element, key: Record<string, unknown>): void {
  * made has been made by the time it is asserted about.
  *
  * A macrotask rather than `await Promise.resolve()`: the create path is
- * `flushCell` then `run` then `api.create`, three links of a chain, and one
+ * `flushCell` then `run` then `api.createWorkItem`, three links of a chain, and one
  * microtask drains one of them.
  */
 async function settle(): Promise<void> {
@@ -207,7 +214,7 @@ async function settle(): Promise<void> {
  * true)` line and its removal commented out, so the hook registers nothing.
  * Every one of the four tests below failed, each on the thing the shortcut
  * would have done: the cheat sheet mounted over the open dialog, `api.undo`
- * called once, `api.create` called once, and the cheat sheet — which is a modal
+ * called once, `api.createWorkItem` called once, and the cheat sheet — which is a modal
  * with no focus trap, so a cell really can hold the focus behind it — letting
  * Cmd+Z through.
  */
@@ -237,25 +244,25 @@ describe('a modal holds the page’s keyboard back', () => {
     const stub = silentApi();
     await renderTable(stub.api);
     // The cell is what a chord is pressed in, and a chord aimed at one is what
-    // reaches `api.create`. It is reachable behind a modal for real: this app's
+    // reaches `api.createWorkItem`. It is reachable behind a modal for real: this app's
     // cheat sheet does not trap the focus and says so, so Tab out of it lands
     // here — which is the fault `agy #10` reported.
     //
     // This is also the **outside**-the-surface half of the rule the second
     // review corrected, and the check that the correction did not widen both
     // sides: with `isOnModalSurface` forced true for every target, this test
-    // failed on `api.create` being called once. Watched.
+    // failed on `api.createWorkItem` being called once. Watched.
     const cell = screen.getByLabelText('Name of 010');
     openModal();
 
     press(cell, { key: 'n', ctrlKey: true, code: 'KeyN' });
-    // The chord flushes the cell and *then* creates, so `api.create` is two
+    // The chord flushes the cell and *then* creates, so `api.createWorkItem` is two
     // awaits away rather than in this tick. Asserted before the queue drains,
     // this test passed with the rule taken out — watched, and the reason the
     // settle below is here rather than a bare `expect` on the next line.
     await settle();
 
-    expect(stub.create).not.toHaveBeenCalled();
+    expect(stub.createWorkItem).not.toHaveBeenCalled();
   });
 
   // The chords, on the surface's own side of the line. Both reviews found this

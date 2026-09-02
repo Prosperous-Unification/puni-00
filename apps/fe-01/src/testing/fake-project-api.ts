@@ -580,8 +580,15 @@ export function fakeProjectApi(): ProjectApi & {
     createWorkItem(_projectId, input) {
       next += 1;
       const id = `w${String(next)}`;
-      const at =
-        input.afterId === null ? rows.length : rows.findIndex((r) => r.id === input.afterId) + 1;
+      // Absent is null, as be-01's schema says ("null or absent puts it first
+      // in its group"); left apart, an absent one fell through to
+      // `findIndex(undefined) + 1` and landed at 0 instead.
+      //
+      // The end of the row list rather than the head of the group, and the two
+      // coincide for the only null this app sends: `wbs-table.tsx` reads the
+      // last sibling's id and passes null only when the group is empty.
+      const after = input.afterId ?? null;
+      const at = after === null ? rows.length : rows.findIndex((r) => r.id === after) + 1;
       rows.splice(at, 0, {
         id,
         parentId: input.parentId,

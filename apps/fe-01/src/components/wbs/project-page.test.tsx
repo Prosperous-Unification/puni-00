@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { recordCalls } from '@/testing/record-calls';
+import { refusingApi } from '@/testing/refusing-api';
+import { planRead } from '@/testing/views';
 
 import { ProjectPage } from './project-page';
 
@@ -23,98 +25,104 @@ function fakeProjects(
   let projects = [...initial];
   const renamed: [string, string][] = [];
   const opened: string[] = [];
-  return {
-    renamed,
-    opened,
-    // A deletion that happened somewhere else: the next listProjects simply
-    // no longer has the project.
-    drop(id) {
-      projects = projects.filter((p) => p.id !== id);
+  return Object.assign(
+    refusingApi({
+      listProjects: () => Promise.resolve([...projects]),
+      openProject(id) {
+        opened.push(id);
+        return Promise.resolve();
+      },
+      createProject(name) {
+        const id = `p${String(projects.length + 1)}`;
+        // Two shapes, as be-01 has them. The list gains a whole entry; the
+        // response carries the project that was written and **no**
+        // `lastOpenedAt` — an account's navigation history is not part of a row
+        // that has just come into being, and typing it as the list's shape is
+        // what let the page believe otherwise.
+        projects = [
+          ...projects,
+          {
+            id,
+            name,
+            restricted: false,
+            startDate: null,
+            lastOpenedAt: null,
+            ownerName: 'kat',
+            createdAt: MADE_ON,
+          },
+        ];
+        const created: CreatedProject = { id, name, restricted: false };
+        return Promise.resolve(created);
+      },
+      renameProject(id, name) {
+        renamed.push([id, name]);
+        projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
+        return Promise.resolve();
+      },
+      tree: () =>
+        Promise.resolve(
+          planRead({
+            workItems: [],
+            seq: -1,
+            scheduleError: null,
+            slices: [],
+            steps: [],
+            assignedPeople: [],
+            // Present and empty, never absent: be-01 always sends it, so a fake that
+            // left it out would let `teamsOnThePlan` be handed `undefined` here and
+            // never in production. A plan whose teams are unlimited is what `[]` says.
+            teamCapacities: [],
+            priorityBands: [...DEFAULT_PRIORITY_BANDS],
+            estimateMethod: 'pert' as const,
+            depReach: 'whole-item' as const,
+            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+            estimateRounding: 'ceil' as const,
+            startDate: null,
+            projectRevision: 0,
+            undoable: false,
+            redoable: false,
+          }),
+        ),
+      setEstimateMethod: () => Promise.resolve(),
+      setStartDate: () => Promise.resolve(),
+      listTeams: () => Promise.resolve([]),
+      listTags: () => Promise.resolve([]),
+      listWorkItemTypes: () => Promise.resolve([]),
+      listExternalSystems: () => Promise.resolve([]),
+      listServices: () => Promise.resolve([]),
+      addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+      listPeople: () => Promise.resolve([]),
+      addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+      assignPerson: () => Promise.reject(new Error('not_in_these_tests')),
+      steps: () => Promise.resolve([]),
+      addStep: () => Promise.reject(new Error('not_in_these_tests')),
+      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
+      createWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      patchWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      moveWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      removeWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      setEstimate: () => Promise.reject(new Error('not_in_these_tests')),
+      clearEstimate: () => Promise.reject(new Error('not_in_these_tests')),
+      freezeProject: () => Promise.reject(new Error('not_in_these_tests')),
+      unfreezeProject: () => Promise.reject(new Error('not_in_these_tests')),
+      unfreezeWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      addDependency: () => Promise.reject(new Error('not_in_these_tests')),
+      removeDependency: () => Promise.reject(new Error('not_in_these_tests')),
+      undo: () => Promise.reject(new Error('not_in_these_tests')),
+      redo: () => Promise.reject(new Error('not_in_these_tests')),
+    }),
+    {
+      renamed,
+      opened,
+      // A deletion that happened somewhere else: the next listProjects simply
+      // no longer has the project.
+      drop: (id: string) => {
+        projects = projects.filter((p) => p.id !== id);
+      },
     },
-    listProjects: () => Promise.resolve([...projects]),
-    openProject(id) {
-      opened.push(id);
-      return Promise.resolve();
-    },
-    createProject(name) {
-      const id = `p${String(projects.length + 1)}`;
-      // Two shapes, as be-01 has them. The list gains a whole entry; the
-      // response carries the project that was written and **no**
-      // `lastOpenedAt` — an account's navigation history is not part of a row
-      // that has just come into being, and typing it as the list's shape is
-      // what let the page believe otherwise.
-      projects = [
-        ...projects,
-        {
-          id,
-          name,
-          restricted: false,
-          startDate: null,
-          lastOpenedAt: null,
-          ownerName: 'kat',
-          createdAt: MADE_ON,
-        },
-      ];
-      const created: CreatedProject = { id, name, restricted: false };
-      return Promise.resolve(created);
-    },
-    renameProject(id, name) {
-      renamed.push([id, name]);
-      projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
-      return Promise.resolve();
-    },
-    tree: () =>
-      Promise.resolve({
-        workItems: [],
-        seq: -1,
-        scheduleError: null,
-        slices: [],
-        steps: [],
-        assignedPeople: [],
-        // Present and empty, never absent: be-01 always sends it, so a fake that
-        // left it out would let `teamsOnThePlan` be handed `undefined` here and
-        // never in production. A plan whose teams are unlimited is what `[]` says.
-        teamCapacities: [],
-        priorityBands: DEFAULT_PRIORITY_BANDS,
-        estimateMethod: 'pert' as const,
-        depReach: 'whole-item' as const,
-        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-        estimateRounding: 'ceil' as const,
-        startDate: null,
-        projectRevision: 0,
-        undoable: false,
-        redoable: false,
-      }),
-    setEstimateMethod: () => Promise.resolve(),
-    setStartDate: () => Promise.resolve(),
-    listTeams: () => Promise.resolve([]),
-    listTags: () => Promise.resolve([]),
-    listWorkItemTypes: () => Promise.resolve([]),
-    listExternalSystems: () => Promise.resolve([]),
-    listServices: () => Promise.resolve([]),
-    addTeam: () => Promise.reject(new Error('not_in_these_tests')),
-    listPeople: () => Promise.resolve([]),
-    addPerson: () => Promise.reject(new Error('not_in_these_tests')),
-    assign: () => Promise.reject(new Error('not_in_these_tests')),
-    steps: () => Promise.resolve([]),
-    addStep: () => Promise.reject(new Error('not_in_these_tests')),
-    renameStep: () => Promise.reject(new Error('not_in_these_tests')),
-    removeStep: () => Promise.reject(new Error('not_in_these_tests')),
-    create: () => Promise.reject(new Error('not_in_these_tests')),
-    patch: () => Promise.reject(new Error('not_in_these_tests')),
-    move: () => Promise.reject(new Error('not_in_these_tests')),
-    duplicate: () => Promise.reject(new Error('not_in_these_tests')),
-    remove: () => Promise.reject(new Error('not_in_these_tests')),
-    setEstimate: () => Promise.reject(new Error('not_in_these_tests')),
-    clearEstimate: () => Promise.reject(new Error('not_in_these_tests')),
-    freeze: () => Promise.reject(new Error('not_in_these_tests')),
-    unfreezeProject: () => Promise.reject(new Error('not_in_these_tests')),
-    unfreeze: () => Promise.reject(new Error('not_in_these_tests')),
-    addDependency: () => Promise.reject(new Error('not_in_these_tests')),
-    removeDependency: () => Promise.reject(new Error('not_in_these_tests')),
-    undo: () => Promise.reject(new Error('not_in_these_tests')),
-    redo: () => Promise.reject(new Error('not_in_these_tests')),
-  };
+  );
 }
 
 /**
@@ -1234,7 +1242,7 @@ describe('a new project opens with its name ready to be typed', () => {
   itDom('arms the rename only once the list can name the new project', async () => {
     const api = fakeProjects(TWO);
     const listProjects = api.listProjects.bind(api);
-    let releaseList: (() => void) | null = null;
+    let releaseList: () => void = () => undefined;
     let listCalls = 0;
     // The page's own first load answers at once; the create's reload is held,
     // which is the window the fault lives in. Armed before `await load()`, the
@@ -1262,7 +1270,7 @@ describe('a new project opens with its name ready to be typed', () => {
     });
     expect(screen.queryByLabelText('Project name')).toBeNull();
 
-    releaseList?.();
+    releaseList();
 
     expect(await screen.findByLabelText<HTMLInputElement>('Project name')).toBeDefined();
   });
@@ -1270,7 +1278,7 @@ describe('a new project opens with its name ready to be typed', () => {
   itDom('a draft armed for another project does not follow the create', async () => {
     const api = fakeProjects(TWO);
     const createProject = api.createProject.bind(api);
-    let releaseCreate: (() => void) | null = null;
+    let releaseCreate: () => void = () => undefined;
     api.createProject = async (name) => {
       await new Promise<void>((resolve) => {
         releaseCreate = resolve;
@@ -1295,7 +1303,7 @@ describe('a new project opens with its name ready to be typed', () => {
     });
     expect(screen.queryByLabelText<HTMLInputElement>('Project name')?.value ?? null).toBeNull();
 
-    releaseCreate?.();
+    releaseCreate();
 
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('New project');

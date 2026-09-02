@@ -27,9 +27,9 @@ import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { WorkItemService } from './work-item.service';
 
@@ -308,6 +308,8 @@ describe('every plan schedules identically across the migration', () => {
             measures,
             progress,
             state,
+            serviceId,
+            startNoEarlierThanReason,
             ...row
           }) => {
             // The arity claim, and the only place it is made: the set the join
@@ -390,6 +392,18 @@ describe('every plan schedules identically across the migration', () => {
             // a bare lift would hide a fold that invented a state.
             expect(progress).toEqual({});
             expect(state).toBe('not_started');
+            // The last two lifts, and the newest reason: both keys are on the
+            // row today and the oracle predates both — `serviceId` came with
+            // task 10.2's column, `startNoEarlierThanReason` with the words
+            // beside a not-before date. Until 2026-09-02 the corpus was replayed
+            // through row literals that simply **lacked** them, which is not a
+            // `WorkItem` and was a type error no `typecheck` target compiled;
+            // built whole, the answer carries both and the pinned document
+            // cannot. `null` on all sixteen replayed plans is the claim — no row
+            // in this corpus delivers a service or says why it waits — and a
+            // bare lift would hide a read path that invented either.
+            expect(serviceId).toBeNull();
+            expect(startNoEarlierThanReason).toBeNull();
             return row;
           },
         ),
@@ -445,7 +459,11 @@ describe('every plan schedules identically across the migration', () => {
     // own so a reader does not have to infer it from 16 passing comparisons.
     const seeded = await slotsAfterTheMigration();
 
-    const sized = oracle.teams.filter((team) => team.size !== null);
+    // A predicate rather than a boolean: a plain `filter` leaves `size` as
+    // `number | null`, and `toBe(null)` is not the claim this makes.
+    const sized = oracle.teams.filter(
+      (team): team is (typeof oracle.teams)[number] & { size: number } => team.size !== null,
+    );
     for (const plan of oracle.plans) {
       const slots = seeded.get(plan.projectId);
       if (slots === undefined) throw new Error(`${plan.projectId} was seeded nothing at all`);
@@ -558,13 +576,11 @@ describe('every plan schedules identically across the migration', () => {
       await directory.addTeam({ id: team.id, name: team.name }, STAMP);
     for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
-    const project: Project = {
+    const project: Project = projectRow({
       id: plan.projectId,
       name: `Plan ${plan.projectId}`,
       ownerId: 'owner',
-      restricted: false,
       estimateMethod: plan.estimateMethod,
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
       estimateRounding: 'exact',
       // The oracle was captured at a tip whose engine had no reach at all and
       // waited on the anchor slice, so these plans are replayed on
@@ -573,9 +589,7 @@ describe('every plan schedules identically across the migration', () => {
       // change, and the two would fail each other's claims for ever after.
       depReach: 'anchor-slice',
       startDate: plan.startDate,
-      revision: 0,
-      createdAt: 1,
-    };
+    });
     const steps: Step[] = plan.stepIds.map((id, place) => ({
       id,
       projectId: plan.projectId,
@@ -584,20 +598,17 @@ describe('every plan schedules identically across the migration', () => {
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {
-      const stored: WorkItem = {
+      const stored: WorkItem = workItemRow({
         id: row.id,
         projectId: plan.projectId,
         parentId: row.parentId,
         position: row.position,
         name: row.name,
-        notes: '',
-        frozenNumber: null,
         priority: row.priority,
         maxParallel: row.maxParallel,
         startNoEarlierThan: row.startNoEarlierThan,
         serviceTeamId: row.serviceTeamId,
-        revision: 0,
-      };
+      });
       await workItems.insert(stored, [], STAMP);
     }
     // After the rows, so an estimate is never written against a work item that is

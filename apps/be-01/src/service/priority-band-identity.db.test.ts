@@ -27,9 +27,9 @@ import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { WorkItemService } from './work-item.service';
 
@@ -322,13 +322,11 @@ describe('a priority ladder moves no date', () => {
     });
     await directory.addPerson({ id: 'ada', name: 'Ada' }, [], STAMP);
     await projects.create(
-      {
+      projectRow({
         id: 'contended',
         name: 'Two things, one person',
         ownerId: 'owner',
-        restricted: false,
         estimateMethod: 'realistic',
-        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
         // The arithmetic this capture was taken under: a step's figure reached
         // the schedule as the fraction the method produced. See
         // `estimate-weights-and-rounding`, which made `ceil` the default for
@@ -337,10 +335,7 @@ describe('a priority ladder moves no date', () => {
         // The `anchor-slice` reach, for the reason the replayed plans below
         // carry it: this fixture's figures were derived before a reach existed.
         depReach: 'anchor-slice',
-        startDate: null,
-        revision: 0,
-        createdAt: 1,
-      },
+      }),
       [{ id: 'dev', projectId: 'contended', name: 'Dev', position: STEP_POSITION_STEP }],
       STAMP,
     );
@@ -349,21 +344,13 @@ describe('a priority ladder moves no date', () => {
       ['b', 20, second],
     ] as const) {
       await workItems.insert(
-        {
+        workItemRow({
           id,
           projectId: 'contended',
-          parentId: null,
           position,
           name: id,
-          notes: '',
-          frozenNumber: null,
           priority,
-          maxParallel: 1,
-          startNoEarlierThan: null,
-          serviceTeamId: null,
-          serviceId: null,
-          revision: 0,
-        },
+        }),
         [],
         STAMP,
       );
@@ -499,6 +486,8 @@ describe('a priority ladder moves no date', () => {
           measures,
           progress,
           state,
+          serviceId,
+          startNoEarlierThanReason,
           ...row
         }) => {
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
@@ -549,6 +538,17 @@ describe('a priority ladder moves no date', () => {
           // would otherwise pass here silently.
           expect(progress).toEqual({});
           expect(state).toBe('not_started');
+          // Lifted for the reason every key above it is, and the newest one:
+          // `serviceId` came with task 10.2's column and
+          // `startNoEarlierThanReason` with the words beside a not-before date,
+          // and the oracle predates both. Until 2026-09-02 this corpus was
+          // replayed through row literals that simply **lacked** them — not a
+          // `WorkItem`, and a type error no `typecheck` target compiled. Built
+          // whole, the answer carries both keys and the pinned document cannot.
+          // `null` on every replayed row is the claim; a bare lift would hide a
+          // read path that invented either.
+          expect(serviceId).toBeNull();
+          expect(startNoEarlierThanReason).toBeNull();
           return row;
         },
       ),
@@ -691,13 +691,11 @@ describe('a priority ladder moves no date', () => {
       await directory.addTeam({ id: team.id, name: team.name }, STAMP);
     for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
-    const project: Project = {
+    const project: Project = projectRow({
       id: plan.projectId,
       name: `Plan ${plan.projectId}`,
       ownerId: 'owner',
-      restricted: false,
       estimateMethod: plan.estimateMethod,
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
       // The arithmetic this capture was taken under: a step's figure reached
       // the schedule as the fraction the method produced. See
       // `estimate-weights-and-rounding`, which made `ceil` the default for
@@ -710,9 +708,7 @@ describe('a priority ladder moves no date', () => {
       // change, and the two would fail each other's claims for ever after.
       depReach: 'anchor-slice',
       startDate: plan.startDate,
-      revision: 0,
-      createdAt: 1,
-    };
+    });
     const steps: Step[] = plan.stepIds.map((id, place) => ({
       id,
       projectId: plan.projectId,
@@ -721,20 +717,17 @@ describe('a priority ladder moves no date', () => {
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {
-      const stored: WorkItem = {
+      const stored: WorkItem = workItemRow({
         id: row.id,
         projectId: plan.projectId,
         parentId: row.parentId,
         position: row.position,
         name: row.name,
-        notes: '',
-        frozenNumber: null,
         priority: row.priority,
         maxParallel: row.maxParallel,
         startNoEarlierThan: row.startNoEarlierThan,
         serviceTeamId: row.serviceTeamId,
-        revision: 0,
-      };
+      });
       await workItems.insert(stored, [], STAMP);
     }
     // After the rows, so an estimate is never written against a work item that is

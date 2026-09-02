@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // only ever run on one of the two machines. The stub is the whole point of the
 // mock; `defineConfig` stays the real one.
 const loadEnv = vi.hoisted(() =>
-  vi.fn<(mode: string, envDir: string, prefix: string) => Record<string, string>>(),
+  vi.fn<[mode: string, envDir: string, prefix: string], Record<string, string>>(),
 );
 
 vi.mock('vite', async (importOriginal) => ({

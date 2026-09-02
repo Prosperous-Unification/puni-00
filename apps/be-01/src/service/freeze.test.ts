@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore, WorkItemStore } from '../repository';
 import { inMemoryServices } from '../testing/harness';
+import { projectRow } from '../testing/project-fixture';
 import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -15,18 +16,10 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems } = harness.stores);
   service = harness.service;
-  const project: Project = {
+  const project: Project = projectRow({
     id: crypto.randomUUID(),
-    name: 'Rewire the shed',
     ownerId: OWNER,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   await projects.create(project, [], { at: 1, by: OWNER });
   projectId = project.id;
 });

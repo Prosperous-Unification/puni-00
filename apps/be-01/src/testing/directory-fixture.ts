@@ -34,6 +34,34 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
  * names are unique, adding an existing name returns the existing row, and one
  * work item holds at most one assignee per step.
  */
+/**
+ * The store it is handed, with some of its methods answered by `overrides`.
+ *
+ * A `Proxy` rather than an object written out method by method:
+ * `DirectoryRepository`'s methods live on its prototype, so `{ ...store }`
+ * copies its connection and none of them — and the two hand-written copies this
+ * replaces named 13 and 6 of the interface's 27 methods, which compiled nowhere
+ * until 2026-09-02. A proxy also picks up the next method the interface grows.
+ */
+export function directoryWith(
+  base: DirectoryStore,
+  overrides: Partial<DirectoryStore>,
+): DirectoryStore {
+  return new Proxy(base, {
+    get(target, key) {
+      const override = overrides[key as keyof DirectoryStore];
+      if (override !== undefined) return override;
+      const held: unknown = Reflect.get(target, key);
+      if (typeof held !== 'function') return held;
+      // Bound to the store itself: an unbound prototype method called through
+      // the proxy would run with `this` as the proxy and re-enter this trap.
+      // The cast is the boundary a `Proxy` trap is: its key is a `string |
+      // symbol` and what stands behind it is only knowable at runtime.
+      return (held as (...args: readonly unknown[]) => unknown).bind(target);
+    },
+  });
+}
+
 export function inMemoryDirectory(): DirectoryStore & { stampsSeen: WriteStamp[] } {
   const teams = new Map<string, ServiceTeam>();
   const tags = new Map<string, Tag>();

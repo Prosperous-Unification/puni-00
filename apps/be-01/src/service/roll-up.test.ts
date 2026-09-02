@@ -9,6 +9,7 @@ import type {
   StoredProgress,
   WorkItem,
 } from '../repository';
+import { workItemRow } from '../testing/work-item-fixture';
 import {
   rollUp,
   rollUpActuals,
@@ -19,21 +20,14 @@ import {
   workedStepsOf,
 } from './roll-up';
 
-const item = (id: string, parentId: string | null): WorkItem => ({
-  id,
-  projectId: 'p',
-  parentId,
-  position: 10,
-  name: id,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-});
+const item = (id: string, parentId: string | null): WorkItem =>
+  workItemRow({
+    id,
+    projectId: 'p',
+    parentId,
+    position: 10,
+    name: id,
+  });
 
 const held = (
   workItemId: string,

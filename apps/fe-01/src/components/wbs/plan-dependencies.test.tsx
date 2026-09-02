@@ -6,6 +6,8 @@ import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { recordCalls } from '@/testing/record-calls';
+import { refusingApi } from '@/testing/refusing-api';
+import { planRead, projectListEntry, sliceView, workItemView } from '@/testing/views';
 
 import { cellKey } from './editable-grid';
 import type * as TableFrameModule from './table-frame';
@@ -1227,52 +1229,95 @@ describe('dependencies in the table — cross-review findings', () => {
   const apiReturning = (
     scheduleError: 'cycle' | null,
     schedule: Partial<WorkItemView['schedule']> = {},
-  ): ProjectApi => ({
-    listProjects: () =>
-      Promise.resolve([
-        {
-          id: 'p1',
-          name: 'P',
-          restricted: false,
-          lastOpenedAt: null,
-          ownerName: 'kat',
-          createdAt: 1_780_000_000_000,
-        },
-      ]),
-    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
-    openProject: () => Promise.resolve(),
-    setEstimateMethod: () => Promise.resolve(),
-    setStartDate: () => Promise.resolve(),
-    listTeams: () => Promise.resolve([]),
-    listTags: () => Promise.resolve([]),
-    listWorkItemTypes: () => Promise.resolve([]),
-    listServices: () => Promise.resolve([]),
-    listExternalSystems: () => Promise.resolve([]),
-    addTeam: () => Promise.reject(new Error('not_in_these_tests')),
-    listPeople: () => Promise.resolve([]),
-    addPerson: () => Promise.reject(new Error('not_in_these_tests')),
-    assign: () => Promise.resolve(),
-    renameProject: () => Promise.resolve(),
-    duplicate: () => Promise.reject(new Error('not_in_these_tests')),
-    steps: () => Promise.resolve([DEV]),
-    addStep: () => Promise.reject(new Error('not_in_these_tests')),
-    renameStep: () => Promise.reject(new Error('not_in_these_tests')),
-    removeStep: () => Promise.reject(new Error('not_in_these_tests')),
-    tree: () =>
-      Promise.resolve({
-        seq: 0,
-        scheduleError,
-        // A cycle takes the slices with the dates: there is no schedule to have
-        // placed any.
-        slices:
-          scheduleError !== null
-            ? []
-            : [
-                {
-                  id: `w1::${DEV.id}`,
-                  workItemId: 'w1',
-                  stepId: DEV.id,
-                  personId: null,
+  ): ProjectApi =>
+    refusingApi({
+      listProjects: () =>
+        Promise.resolve([projectListEntry({ name: 'P', createdAt: 1_780_000_000_000 })]),
+      createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+      openProject: () => Promise.resolve(),
+      setEstimateMethod: () => Promise.resolve(),
+      setStartDate: () => Promise.resolve(),
+      listTeams: () => Promise.resolve([]),
+      listTags: () => Promise.resolve([]),
+      listWorkItemTypes: () => Promise.resolve([]),
+      listServices: () => Promise.resolve([]),
+      listExternalSystems: () => Promise.resolve([]),
+      addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+      listPeople: () => Promise.resolve([]),
+      addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+      assignPerson: () => Promise.resolve(),
+      renameProject: () => Promise.resolve(),
+      duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
+      steps: () => Promise.resolve([DEV]),
+      addStep: () => Promise.reject(new Error('not_in_these_tests')),
+      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
+      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
+      tree: () =>
+        Promise.resolve(
+          planRead({
+            seq: 0,
+            scheduleError,
+            // A cycle takes the slices with the dates: there is no schedule to have
+            // placed any.
+            slices:
+              scheduleError !== null
+                ? []
+                : [
+                    sliceView({
+                      id: `w1::${DEV.id}`,
+                      workItemId: 'w1',
+                      stepId: DEV.id,
+                      personId: null,
+                      duration: 7,
+                      estimated: true,
+                      earliestStart: 11,
+                      earliestFinish: 18,
+                      latestStart: 13,
+                      latestFinish: 20,
+                      float: 2,
+                      critical: false,
+                      boundBy: 'projectStart' as const,
+                      resourcePredecessorId: null,
+                      width: 1,
+                      effort: 7,
+                      capacityPredecessorIds: [],
+                      ...schedule,
+                    }),
+                  ],
+            steps: [DEV],
+            assignedPeople: [],
+            // Present and empty, never absent: be-01 always sends it, so a fake that
+            // left it out would let `teamsOnThePlan` be handed `undefined` here and
+            // never in production. A plan whose teams are unlimited is what `[]` says.
+            teamCapacities: [],
+            priorityBands: [...DEFAULT_PRIORITY_BANDS],
+            estimateMethod: 'pert' as const,
+            depReach: 'whole-item' as const,
+            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+            estimateRounding: 'ceil' as const,
+            workItems: [
+              workItemView({
+                id: 'w1',
+                parentId: null,
+                revision: 0,
+                number: '010',
+                name: 'Strip',
+                notes: '',
+                frozenNumber: null,
+                priority: null,
+                rolledUp: false,
+                estimates: {},
+                dependsOn: [],
+                finalDays: {},
+                finalTotal: 0,
+                startNoEarlierThan: null,
+                startNoEarlierThanReason: null,
+                serviceTeamId: null,
+                teamIds: [],
+                assignees: {},
+                doesEveryStep: null,
+                dates: null,
+                schedule: {
                   duration: 7,
                   estimated: true,
                   earliestStart: 11,
@@ -1281,77 +1326,28 @@ describe('dependencies in the table — cross-review findings', () => {
                   latestFinish: 20,
                   float: 2,
                   critical: false,
-                  boundBy: 'projectStart' as const,
-                  resourcePredecessorId: null,
-                  width: 1,
-                  effort: 7,
-                  capacityPredecessorIds: [],
                   ...schedule,
                 },
-              ],
-        steps: [DEV],
-        assignedPeople: [],
-        // Present and empty, never absent: be-01 always sends it, so a fake that
-        // left it out would let `teamsOnThePlan` be handed `undefined` here and
-        // never in production. A plan whose teams are unlimited is what `[]` says.
-        teamCapacities: [],
-        priorityBands: DEFAULT_PRIORITY_BANDS,
-        estimateMethod: 'pert' as const,
-        depReach: 'whole-item' as const,
-        pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-        estimateRounding: 'ceil' as const,
-        workItems: [
-          {
-            id: 'w1',
-            parentId: null,
-            revision: 0,
-            number: '010',
-            name: 'Strip',
-            notes: '',
-            frozenNumber: null,
-            priority: null,
-            rolledUp: false,
-            estimates: {},
-            dependsOn: [],
-            finalDays: {},
-            finalTotal: 0,
-            startNoEarlierThan: null,
-            startNoEarlierThanReason: null,
-            serviceTeamId: null,
-            teamIds: [],
-            assignees: {},
-            doesEveryStep: null,
-            dates: null,
-            schedule: {
-              duration: 7,
-              estimated: true,
-              earliestStart: 11,
-              earliestFinish: 18,
-              latestStart: 13,
-              latestFinish: 20,
-              float: 2,
-              critical: false,
-              ...schedule,
-            },
-          },
-        ],
-        undoable: false,
-        redoable: false,
-      }),
-    create: () => Promise.resolve({ id: 'w2' }),
-    patch: () => Promise.resolve(),
-    move: () => Promise.resolve(),
-    remove: () => Promise.resolve(),
-    setEstimate: () => Promise.resolve(),
-    clearEstimate: () => Promise.resolve(),
-    freeze: () => Promise.resolve(),
-    unfreezeProject: () => Promise.resolve(),
-    unfreeze: () => Promise.resolve(),
-    addDependency: () => Promise.resolve(),
-    removeDependency: () => Promise.resolve(),
-    undo: () => Promise.reject(new Error('not_in_these_tests')),
-    redo: () => Promise.reject(new Error('not_in_these_tests')),
-  });
+              }),
+            ],
+            undoable: false,
+            redoable: false,
+          }),
+        ),
+      createWorkItem: () => Promise.resolve({ id: 'w2' }),
+      patchWorkItem: () => Promise.resolve(),
+      moveWorkItem: () => Promise.resolve(),
+      removeWorkItem: () => Promise.resolve(),
+      setEstimate: () => Promise.resolve(),
+      clearEstimate: () => Promise.resolve(),
+      freezeProject: () => Promise.resolve(),
+      unfreezeProject: () => Promise.resolve(),
+      unfreezeWorkItem: () => Promise.resolve(),
+      addDependency: () => Promise.resolve(),
+      removeDependency: () => Promise.resolve(),
+      undo: () => Promise.reject(new Error('not_in_these_tests')),
+      redo: () => Promise.reject(new Error('not_in_these_tests')),
+    });
 
   const cells = async () => {
     const row = await waitFor(() => {
