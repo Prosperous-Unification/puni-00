@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
-import type { WriteStamp } from '../repository';
+import type { Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
@@ -31,6 +31,7 @@ import { personAdded } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -258,7 +259,7 @@ describe('POST /api/projects/:id/steps', () => {
     const res = await addStep(project.id, token, 'Design');
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { step: { id: string; projectId: string; name: string } };
+    const body = (await res.json()) as { step: Step };
     expect(body.step.name).toBe('Design');
     expect(body.step.projectId).toBe(project.id);
     expect(await stepStore.findById(body.step.id)).toEqual(body.step);
@@ -336,21 +337,8 @@ describe('PATCH /api/projects/:id/steps/:stepId', () => {
 });
 
 describe('DELETE /api/projects/:id/steps/:stepId', () => {
-  const item = (projectId: string, id: string, position: number) => ({
-    id,
-    projectId,
-    parentId: null,
-    position,
-    name: 'Strip',
-    notes: '',
-    frozenNumber: null,
-    priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
-  });
+  const item = (projectId: string, id: string, position: number): WorkItem =>
+    workItemRow({ id, projectId, position, name: 'Strip' });
 
   it('removes a step nothing points at, answering 204', async () => {
     const token = await register('owner');

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
 import { CapacityRepository } from './capacity';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
@@ -35,18 +36,12 @@ describe('a project’s capacity for a team', () => {
   let sqlite: Database;
   let capacity: CapacityRepository;
 
-  const project = (id: string, name: string): Project => ({
-    id,
-    name,
-    ownerId: 'owner',
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  });
+  const project = (id: string, name: string): Project =>
+    projectRow({
+      id,
+      name,
+      ownerId: 'owner',
+    });
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-'));

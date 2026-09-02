@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { Project, ProjectStore } from '../repository';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';
+import { projectRow } from '../testing/project-fixture';
 import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -14,18 +15,11 @@ let service: WorkItemService;
 let projectId: string;
 
 async function newProject(name: string): Promise<string> {
-  const project: Project = {
+  const project: Project = projectRow({
     id: crypto.randomUUID(),
     name,
     ownerId: OWNER,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   // Seeded with the step the estimates below name. The service refuses a step
   // the project does not hold, and production's foreign key refuses it harder.
   await projects.create(
@@ -151,16 +145,7 @@ describe('review finding: between() across a digit-width boundary', () => {
     expect(() =>
       deriveNumbers([
         { id: 'a', parentId: null, position: 10, frozenNumber: '010' },
-        {
-          id: 'mid',
-          parentId: null,
-          position: 15,
-          frozenNumber: null,
-          priority: null,
-          startNoEarlierThan: null,
-          serviceTeamId: null,
-          serviceId: null,
-        },
+        { id: 'mid', parentId: null, position: 15, frozenNumber: null },
         { id: 'b', parentId: null, position: 20, frozenNumber: '0100' },
       ]),
     ).toThrow(/no label sorts between/);

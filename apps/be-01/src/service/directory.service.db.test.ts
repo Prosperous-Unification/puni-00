@@ -15,6 +15,8 @@ import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { directoryWith } from '../testing/directory-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import { DirectoryService } from './directory.service';
 import { ProjectService } from './project.service';
 
@@ -54,21 +56,13 @@ let qaId: string;
  */
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
-const newItem = (id: string, position: number, name: string, inProject = projectId): WorkItem => ({
-  id,
-  projectId: inProject,
-  parentId: null,
-  position,
-  name,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-});
+const newItem = (id: string, position: number, name: string, inProject = projectId): WorkItem =>
+  workItemRow({
+    id,
+    projectId: inProject,
+    position,
+    name,
+  });
 
 const stepNamed = async (name: string, inProject = projectId): Promise<Step> => {
   const found = (await stepStore.listByProject(inProject)).find((each) => each.name === name);
@@ -457,8 +451,8 @@ describe('directory events', () => {
 
     expect([...broadcast.published].sort((a, b) => a.projectId.localeCompare(b.projectId))).toEqual(
       [
-        { projectId: projectId, event: { type: 'directory_changed' } },
-        { projectId: roof.projectOf, event: { type: 'directory_changed' } },
+        { projectId: projectId, event: { type: 'directory_changed' } } as const,
+        { projectId: roof.projectOf, event: { type: 'directory_changed' } } as const,
       ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
     );
 
@@ -555,28 +549,9 @@ describe('directory events', () => {
 /**
  * The real store with some methods wrapped, so a test can put somebody else's
  * write in the gap between two of the service's calls.
- *
- * Written out rather than spread from the repository: `DirectoryRepository`'s
- * methods live on its prototype, and `{ ...store }` copies its connection and
- * none of them.
  */
 function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
-  return {
-    listTeams: () => store.listTeams(),
-    addTeam: (team, stamp) => store.addTeam(team, stamp),
-    patchTeam: (teamId, patch, stamp) => store.patchTeam(teamId, patch, stamp),
-    listPeople: () => store.listPeople(),
-    addPerson: (toAdd, teamIds, stamp) => store.addPerson(toAdd, teamIds, stamp),
-    patchPerson: (personId, patch, stamp) => store.patchPerson(personId, patch, stamp),
-    usageOfPerson: (personId) => store.usageOfPerson(personId),
-    usageOfTeam: (teamId) => store.usageOfTeam(teamId),
-    removePerson: (personId, cascade, stamp) => store.removePerson(personId, cascade, stamp),
-    removeTeam: (teamId, cascade, stamp) => store.removeTeam(teamId, cascade, stamp),
-    assignmentsOf: (ids) => store.assignmentsOf(ids),
-    assign: (workItemId, stepId, personId, stamp) =>
-      store.assign(workItemId, stepId, personId, stamp),
-    ...overrides,
-  };
+  return directoryWith(store, overrides);
 }
 
 describe('the directory usage a removal is refused with', () => {

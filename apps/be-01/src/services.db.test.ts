@@ -11,6 +11,7 @@ import { runMigrations } from './repository/migrate';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
 import { buildServices } from './services';
+import { projectRow } from './testing/project-fixture';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
@@ -28,7 +29,7 @@ function bootstrap() {
   const db = openDrizzle(path);
   const services = buildServices({
     db,
-    logger: createLogger({ service: 'test' }),
+    logger: createLogger({ service: 'be-01' }),
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
@@ -52,18 +53,10 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
   );
   const projectId = crypto.randomUUID();
   const project = await new ProjectRepository(db).create(
-    {
+    projectRow({
       id: projectId,
-      name: 'Rewire the shed',
       ownerId,
-      restricted: false,
-      estimateMethod: 'pert',
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-      startDate: null,
-      revision: 0,
-      createdAt: 1,
-    },
+    }),
     [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
     { at: 1, by: ownerId },
   );

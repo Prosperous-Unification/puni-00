@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { personAdded } from '../testing/directory-fixture';
+import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
@@ -58,18 +59,10 @@ beforeEach(async () => {
   projectId = crypto.randomUUID();
   stepId = crypto.randomUUID();
   await new ProjectRepository(db).create(
-    {
+    projectRow({
       id: projectId,
-      name: 'Rewire the shed',
       ownerId,
-      restricted: false,
-      estimateMethod: 'pert',
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-      startDate: null,
-      revision: 0,
-      createdAt: 1,
-    },
+    }),
     [{ id: stepId, projectId, name: 'Dev', position: 10 }],
     wrote(),
   );

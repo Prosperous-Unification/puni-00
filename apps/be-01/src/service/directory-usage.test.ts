@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { DirectoryUsageRows, LabelledWorkItem } from '../repository';
+import { labelledRow } from '../testing/work-item-fixture';
 import { directoryUsageOfTeam } from './directory-usage';
 
 /**
@@ -10,21 +11,14 @@ import { directoryUsageOfTeam } from './directory-usage';
  * SQLite in `directory.service.test.ts`; what is here is the arity.
  */
 function labelled(id: string, parentId: string | null, ...teamIds: string[]): LabelledWorkItem {
-  return {
+  return labelledRow({
     id,
-    projectId: 'p1',
     parentId,
-    position: 10,
     name: id,
-    notes: '',
-    frozenNumber: null,
-    startNoEarlierThan: null,
-    priority: null,
+    projectId: 'p1',
     serviceTeamId: teamIds.at(0) ?? null,
-    maxParallel: 1,
-    revision: 0,
     teamIds,
-  };
+  });
 }
 
 function rowsOf(

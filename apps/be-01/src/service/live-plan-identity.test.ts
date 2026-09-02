@@ -5,6 +5,8 @@ import { describe, expect, it } from 'bun:test';
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { inMemoryServices } from '../testing/harness';
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/live-plan-2026-08-09.json';
 
 /**
@@ -85,13 +87,11 @@ async function replay(extraSteps: readonly string[]) {
     stores: { projects, workItems, estimates, dependencies },
   } = inMemoryServices();
 
-  const project: Project = {
+  const project: Project = projectRow({
     id: PROJECT_ID,
     name: 'The captured plan',
     ownerId: 'owner',
-    restricted: false,
     estimateMethod: plan.estimateMethod,
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
     // The arithmetic this capture was taken under: a step's figure reached the
     // schedule as the fraction the method produced. `estimate-weights-and-rounding`
     // made `ceil` the default for every project and left `exact` as the arm an
@@ -99,8 +99,7 @@ async function replay(extraSteps: readonly string[]) {
     estimateRounding: 'exact',
     startDate: plan.startDate,
     revision: plan.projectRevision,
-    createdAt: 1,
-  };
+  });
   const steps: Step[] = [...stepsInPlan(), ...extraSteps].map((id, place) => ({
     id,
     projectId: PROJECT_ID,
@@ -110,15 +109,13 @@ async function replay(extraSteps: readonly string[]) {
   await projects.create(project, steps, STAMP);
 
   for (const row of capturedRows) {
-    const stored: WorkItem = {
+    const stored: WorkItem = workItemRow({
       id: row.id,
       projectId: PROJECT_ID,
       parentId: row.parentId,
       position: row.position,
       name: row.name,
       notes: row.notes,
-      frozenNumber: null,
-      priority: null,
       // The capture predates the column, and `DEFAULT 1` is what every row on
       // the live server got when the migration ran — so 1 here is the captured
       // plan's own state, not a convenience.
@@ -126,7 +123,7 @@ async function replay(extraSteps: readonly string[]) {
       startNoEarlierThan: row.startNoEarlierThan,
       serviceTeamId: row.serviceTeamId,
       revision: row.revision,
-    };
+    });
     await workItems.insert(stored, [], STAMP);
   }
   // After the rows, so an estimate is never written against a work item that is

@@ -4,6 +4,7 @@ import { schedule, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
+import { workItemRow } from '../testing/work-item-fixture';
 import { rollUp } from './roll-up';
 
 /**
@@ -26,22 +27,14 @@ let position = 0;
 const item = (
   id: string,
   overrides: Partial<Pick<WorkItem, 'parentId' | 'maxParallel' | 'serviceTeamId'>> = {},
-): WorkItem => ({
-  id,
-  projectId: 'p1',
-  parentId: null,
-  position: (position += 10),
-  name: id,
-  notes: '',
-  frozenNumber: null,
-  priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
-  ...overrides,
-});
+): WorkItem =>
+  workItemRow({
+    id,
+    projectId: 'p1',
+    position: (position += 10),
+    name: id,
+    ...overrides,
+  });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
   predecessorId,

@@ -1,9 +1,20 @@
 import type { InternalPushRequest } from '@wbs/contracts';
 
+/**
+ * The slice of `fetch` this client calls, so a test can hand it a stub.
+ *
+ * Narrower than `typeof fetch` on purpose: nothing here calls
+ * `fetch.preconnect`, and demanding it made all four stubs in
+ * `push-client.test.ts` type errors — invisible, because no `typecheck` target
+ * compiled a test file in this repository until 2026-09-02.
+ * `globalThis.fetch` still satisfies it.
+ */
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+
 export interface PushClientOptions {
   gwUrl: string;
   secret: string;
-  fetchImpl?: typeof fetch;
+  fetchImpl?: FetchLike;
   sleep?: (ms: number) => Promise<void>;
   maxRetries?: number;
 }
@@ -13,7 +24,7 @@ export class PushFailed extends Error {
 }
 
 export class PushClient {
-  private readonly fetch: typeof fetch;
+  private readonly fetch: FetchLike;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly maxRetries: number;
 

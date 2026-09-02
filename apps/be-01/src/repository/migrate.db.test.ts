@@ -3972,7 +3972,7 @@ describe('the role -> step rename', () => {
           sqlite
             .query<
               { sql: string },
-              [string]
+              [string, string]
             >('SELECT sql FROM sqlite_master WHERE type = ? AND name = ?')
             .get('table', table)?.sql ?? '';
         for (const table of ['estimate', 'actual', 'assignment', 'step_progress', 'step_measure']) {

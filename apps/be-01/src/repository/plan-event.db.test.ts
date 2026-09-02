@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
 import type { PlanEvent, Project, WriteStamp } from './index';
 import { runMigrations } from './migrate';
@@ -32,18 +33,12 @@ describe('the plan’s history, against a real database', () => {
   let sqlite: Database;
   let events: PlanEventRepository;
 
-  const project = (id: string, name: string): Project => ({
-    id,
-    name,
-    ownerId: 'owner',
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  });
+  const project = (id: string, name: string): Project =>
+    projectRow({
+      id,
+      name,
+      ownerId: 'owner',
+    });
 
   /** One recorded command, written the way `record` writes it. */
   function write(

@@ -10,6 +10,18 @@ import { bootBe01, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/auth.controller';
 import { runMigrations } from './repository/migrate';
 
+/**
+ * What `/health` answers, as this suite reads it.
+ *
+ * Both keys, because both are asserted: the three casts here named one field
+ * each and `toEqual` was then comparing an object against a type that did not
+ * declare half of it — which is a type error nothing compiled until 2026-09-02.
+ */
+interface HealthAnswer {
+  status: string;
+  commit: string | null;
+}
+
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
 const dirs: string[] = [];
@@ -42,7 +54,7 @@ function boot(commitDir: string = tempDir('wbs-boot-nogit-'), oidc?: OidcRouteOp
   running = bootBe01({
     dbPath,
     port: 0,
-    logger: createLogger({ service: 'test' }),
+    logger: createLogger({ service: 'be-01' }),
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
@@ -80,7 +92,7 @@ describe('bootBe01', () => {
     running = bootBe01({
       dbPath: join(dir, 'test.db'),
       port: 0,
-      logger: createLogger({ service: 'test' }),
+      logger: createLogger({ service: 'be-01' }),
       jwtKey: 'k'.repeat(32),
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
@@ -123,7 +135,7 @@ describe('bootBe01', () => {
     const res = await fetch(`http://localhost:${String(be.port)}/health`);
 
     expect(res.status).toBe(200);
-    expect((await res.json()) as { status: string }).toEqual({ status: 'ok', commit: null });
+    expect((await res.json()) as HealthAnswer).toEqual({ status: 'ok', commit: null });
   });
 
   it('names the commit its checkout is at, not one captured at startup', async () => {
@@ -141,14 +153,14 @@ describe('bootBe01', () => {
     const be = boot(repo);
 
     const first = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await first.json()) as { commit: string }).toEqual({ status: 'ok', commit: sha });
+    expect((await first.json()) as HealthAnswer).toEqual({ status: 'ok', commit: sha });
 
     // The deploy this exists for moves the checkout under a process that is
     // never restarted, so the second read has to see the move.
     const moved = 'd'.repeat(39) + '4';
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
     const second = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await second.json()) as { commit: string }).toEqual({ status: 'ok', commit: moved });
+    expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
   });
 
   it('answers a resume from the log it opened', async () => {

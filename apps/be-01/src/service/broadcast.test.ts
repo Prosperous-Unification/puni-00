@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { Project, ProjectStore } from '../repository';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';
+import { projectRow } from '../testing/project-fixture';
 import type { ProjectEvent } from './broadcast';
 import type { WorkItemService } from './work-item.service';
 
@@ -18,18 +19,10 @@ beforeEach(async () => {
   ({ projects } = harness.stores);
   broadcast = harness.broadcast;
   service = harness.service;
-  const project: Project = {
+  const project: Project = projectRow({
     id: crypto.randomUUID(),
-    name: 'Rewire the shed',
     ownerId: OWNER,
-    restricted: false,
-    estimateMethod: 'pert',
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-    estimateRounding: 'ceil',
-    startDate: null,
-    revision: 0,
-    createdAt: 1,
-  };
+  });
   // Seeded with the step the estimates below name — the service refuses one
   // the project does not hold.
   await projects.create(

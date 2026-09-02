@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { projectRow } from '../testing/project-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import type { Drizzle } from './db';
 import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
@@ -45,18 +47,10 @@ beforeEach(async () => {
   );
   projectId = crypto.randomUUID();
   await new ProjectRepository(db).create(
-    {
+    projectRow({
       id: projectId,
-      name: 'Rewire the shed',
       ownerId,
-      restricted: false,
-      estimateMethod: 'pert',
-      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-      estimateRounding: 'ceil',
-      startDate: null,
-      revision: 0,
-      createdAt: 1,
-    },
+    }),
     [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
     wrote(),
   );
@@ -69,21 +63,12 @@ afterEach(() => {
 async function addWorkItem(name: string): Promise<string> {
   const id = crypto.randomUUID();
   await workItems.insert(
-    {
+    workItemRow({
       id,
       projectId,
-      parentId: null,
       position: 10,
       name,
-      notes: '',
-      frozenNumber: null,
-      priority: null,
-      startNoEarlierThan: null,
-      serviceTeamId: null,
-      serviceId: null,
-      maxParallel: 1,
-      revision: 0,
-    },
+    }),
     [],
     wrote(),
   );

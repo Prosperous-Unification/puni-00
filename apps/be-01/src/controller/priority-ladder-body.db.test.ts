@@ -18,6 +18,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
+import { projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
@@ -117,18 +118,12 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       ['vault', true],
     ] as const) {
       await projectStore.create(
-        {
+        projectRow({
           id,
           name: `Plan ${id}`,
           ownerId: who.id,
           restricted,
-          estimateMethod: 'pert',
-          pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-          estimateRounding: 'ceil',
-          startDate: null,
-          revision: 0,
-          createdAt: 1,
-        },
+        }),
         [],
         { at: 1, by: who.id },
       );
