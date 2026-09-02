@@ -130,7 +130,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | W1-1 | **Recorders done, the six fakes refused, 2026-09-02** — see §18 and §62. The rich fake is in `src/testing/` and typechecks, which found 11 divergences from `ProjectApi`. The record-and-delegate monkey patch — **45 copies across nine test files**, not the eight `watchX` the row counted — is one typed `recordCalls(api, method, of?)`, with the delegation's own negative. Folding the six other fakes into it is **refused with the files' own words**: each is that file's spec and says so. | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                                                                                                                                                                                                                                                                                                     | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
 | W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                                                                                                                                                                                                                 | new; 24 test files                                       | 2d     | —     |
-| W1-4 | **Mostly done, 2026-09-02** — see §23. be-01 has guarded T0/T1 tiers and there is a root `test:unit` at 17s. fe-01's half needs a 55-file rename; lefthook is left alone, measured.                                                                                                                                                                                                                                                                                                                   | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
+| W1-4 | **Done, 2026-09-02** — see §23, §23.1 and §64. be-01 has guarded T0/T1 tiers and there is a root `test:unit` at 17s. fe-01's half is done **without the 55-file rename the row asked for**: `fe-01:test:unit` runs the DOM-free suites under `node` in **1.9s for 344 tests**, selected by a list that `src/test-tiers.test.ts` refuses to let drift. lefthook is still left alone, measured.                                                                                                         | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
 | W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                                                                                                                                                                                                 | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | **Investigated, not done, 2026-09-02** — see §24. The duplication is smaller than reported and the API-seeding idea conflicts with one spec's stated intent.                                                                                                                                                                                                                                                                                                                                          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
@@ -2389,3 +2389,57 @@ meant. Its own change, with the count re-measured at the start because it moves.
 One thing worth doing before that change, and cheap: have `fe-01:typecheck` and the other two
 **name** the spec project in a non-blocking second command, so the number is on screen in every
 run instead of being discovered by accident twice a month.
+
+## 64 · W1-4's fe-01 half — a list with a guard, not a rename of 55 files
+
+§23.1 deferred this half for one reason: selecting the DOM-free suites needed a `*.dom.test.tsx`
+suffix across **55 files**, "the same class of mechanical rename that took three attempts in W1-2".
+The deferral was right about the rename and wrong about it being the only mechanism.
+
+`fe-01:test:unit` runs `vitest.node.config.ts` — the base config spread, `environment: 'node'`,
+`setupFiles: []`, and `include` from a nineteen-entry `NODE_SUITES` list: **19 files, 344 tests,
+1.9s**, against 69s for the whole jsdom suite. Nothing is renamed and every one of those files
+still runs in the full `test` target under jsdom, exactly as before.
+
+The objection to a list is that it goes stale, and the answer is be-01's own: **a guard that walks
+the directory rather than trusting the list**. `src/test-tiers.test.ts` classifies every suite by
+the evidence in it — a `.tsx` extension, a testing-library import, or a browser global — and
+asserts the list is exactly the DOM-free set, plus the arithmetic that the two tiers partition the
+78 suites. Both directions watched: a `document.title` read added to the listed
+`short-date.test.ts` failed on `…(18) to deeply equal …(17)`, and `pointed-row-store.test.ts` taken
+off the list failed the other way; the partition case failed with each, on `80 to be 79` and `78 to
+be 79`.
+
+Three things the writing of it found, each worth more than the tier:
+
+- **`mergeConfig` concatenates arrays.** The first cut merged `{ include: NODE_SUITES }` onto the
+  base config and the tier collected all 78 files under `node` — 11 failed on `document is not
+defined`, which reads as a broken tier rather than as a config that had ignored its own list. A
+  spread replaces; `mergeConfig` appends.
+- **The detector cannot see an indirect need, and only the run can.** `api.test.ts` names no DOM
+  global; `websocketUrl` reads `location` in `api.ts`, one import away. It arrived as
+  `ReferenceError: location is not defined` on the tier's first run and is now in a two-line
+  `INDIRECT_DOM_SUITES` list with that sentence on it. The plan's own measurement had named this
+  file as one of the two exceptions — a reader would have had to trust that; now the tier fails
+  without it.
+- **The guard matches itself**, because it quotes the DOM globals in its own rule — the same trap
+  be-01's guard fell into and excludes itself for.
+- **A guard on the base config's shape was written and then deleted**, which is the rule applying
+  to itself. `defineConfig`'s return type widens to "object, promise, or factory", and spreading a
+  promise is an empty config and therefore a tier that runs nothing — so the shape was checked
+  before the spread. TypeScript resolves that import to a plain `UserConfig`, so every arm was
+  unreachable: `no-unnecessary-condition` on the null test, `no-unnecessary-type-assertion` on the
+  cast behind it. One annotation does the work, and the reasoning is written where the guard was.
+- **And it has to run in both tiers, which is where `import.meta.url` stops being a path.** Under
+  jsdom Vite serves the module from a `/@fs/…` URL, so `new URL('..', import.meta.url).pathname`
+  gave `ENOENT: … scandir '/@fs/Users/…/apps/fe-01/src'` — three failures in the full suite from a
+  file that passed under `node` minutes earlier. It reads `process.cwd()` now, which both configs
+  set to the same place.
+
+Two root-level files were added, so both are named in `fe-01:lint`'s explicit input list and in
+`tsconfig.spec.json`'s `include` **in the same change** — §-recorded landmine: a lint target scoped
+to a place the fault is not is a gate that cannot fail. Without the tsconfig entry the lint
+refused them outright (`was not found by the project service`), which is the loud version.
+
+`bun run test:unit` is deliberately **not** widened to include this tier in the same change: it is
+a root script and one more thing to argue about, and the tier stands on its own.
