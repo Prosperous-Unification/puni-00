@@ -72,8 +72,20 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
              * is merely revealed` failed on `expected "spy" to not be called at
              * all, but actually been called 1 times`. Watched 2026-09-02.
              */}
+            {/*
+             * Styled through `buttonVariants` rather than by hand, because this
+             * app's reset leaves `<button>` its platform box on purpose (see
+             * `buttonVariants`' own note): a bare one here drew the grey chrome
+             * box and the browser's focus outline over the field's right edge.
+             * `ghost` brings `border-0 bg-transparent` and the ring the rest of
+             * the chrome focuses with.
+             */}
             <button
-              className="text-muted-foreground hover:text-foreground absolute right-0 bottom-0 h-11 px-3 text-sm font-normal"
+              className={buttonVariants({
+                variant: 'ghost',
+                className:
+                  'text-muted-foreground hover:text-foreground absolute right-1 bottom-1 h-9 px-2.5 font-normal',
+              })}
               type="button"
               aria-pressed={passwordShown}
               onClick={() => {

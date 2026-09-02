@@ -12,6 +12,7 @@ import {
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
+import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { PriorityBandView } from '@/lib/wbs-api';
 
@@ -449,6 +450,60 @@ const NOT_BEFORE_CLEARANCE = 0.03;
  * decision made in pixels in the first place and has no other honest unit.
  */
 const BAR_RADIUS_PX = 3;
+
+/**
+ * One chip on the chart's own toolbar — `Names`, `Detail`, `Full`, `⇩`.
+ *
+ * Through `buttonVariants` rather than a hand-rolled border, for the reason
+ * that table's own note gives: this app's reset leaves every `<button>` its
+ * platform box, so a chrome control that does not go through the variants gets
+ * the platform's idea of one. Three things were measured wrong before this
+ * existed, at 900px in Chromium:
+ *
+ * - keyboard focus drew the **browser's** ring, not the app's. A chip with the
+ *   old class string, appended to this same bar and arrived at by `Tab`, read
+ *   `outline: auto 1px rgb(0, 95, 204)` with no ring in its `box-shadow`;
+ *   every other focusable control in this app answers with `ring-ring`. That
+ *   blue `auto` outline is what Dany called ugly on the sign-in form's reveal,
+ *   which had the same cause.
+ * - `⇩` stood 19px tall where its four neighbours and the scale `<select>`
+ *   stood 16px, because the glyph's line box is taller than the words'.
+ *   `leading-none` and a stated height are what make the row one row.
+ * - every chip carried `ml-1` **and** sat in a `gap-1` row, so the gaps were
+ *   8px between chips and 4px after the caption.
+ *
+ * The ring is `ring-1 ring-offset-1` rather than the variants' `ring-2
+ * ring-offset-2`: on a 16px chip in a 21px bar the wider ring is clipped by
+ * the panel's own top border, which reads as a broken box rather than focus.
+ *
+ * `cn` wraps the variants rather than `buttonVariants({ className })` taking
+ * the overrides, and that is not a style choice. `cva` **appends** `className`
+ * without merging it, so `size: 'default'`'s `h-9` and the base's `ring-2`
+ * both survived alongside `h-4` and `ring-1`, and the stylesheet's order
+ * decided: the first cut drew four 36px chips beside a 16px `<select>`. `cn`
+ * is `tailwind-merge`, which drops the losing half — but only where the two
+ * halves collide, which is why `py-0` is spelled out below. Every number here
+ * was read off `getBoundingClientRect` in Chromium at 900px, and two guesses
+ * at this paragraph were wrong before it: `h-9` was blamed for a height
+ * `py-2` was making, and `box-border` was added for a `box-sizing` that was
+ * already `border-box`.
+ */
+const chartChip = (extra?: string): string =>
+  cn(
+    buttonVariants({ variant: 'outline' }),
+    // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
+    // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
+    // put 8px above and below a 10px word, and the chips measured 18px against
+    // the scale `<select>`'s 16px. `border-border` for the same reason in the
+    // other direction: `variant: 'outline'` brings `border-input`, and this
+    // bar's border is `border-border`.
+    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    'focus-visible:ring-1 focus-visible:ring-offset-1',
+    extra,
+  );
+
+/** What a chart chip looks like when the thing it names is switched off. */
+const CHART_CHIP_OFF = 'border-dashed text-muted-foreground/60 line-through';
 
 /**
  * How wide the priority cap at a bar's left edge is drawn, in px.
@@ -4088,11 +4143,7 @@ function GanttChart({
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
           }
-          className={
-            labelsShown
-              ? 'border-border hover:bg-accent ml-1 rounded border px-1 normal-case'
-              : 'border-border hover:bg-accent text-muted-foreground/60 ml-1 rounded border border-dashed px-1 normal-case line-through'
-          }
+          className={labelsShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
           onClick={() => {
             onPickLabelsShown(!labelsShown);
           }}
@@ -4123,11 +4174,7 @@ function GanttChart({
               ? 'Hide the arrows, the parent bars and the unestimated slices'
               : 'Show the arrows, the parent bars and the unestimated slices'
           }
-          className={
-            detailShown
-              ? 'border-border hover:bg-accent rounded border px-1 normal-case'
-              : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
-          }
+          className={detailShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
           onClick={() => {
             // The next answer worked out here, beside the write, and the
             // setter given a value rather than a function: a state updater
@@ -4165,7 +4212,12 @@ function GanttChart({
           data-gantt-day-scale
           aria-label="Day scale — how wide one day is drawn"
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
-          className="border-border hover:bg-accent ml-1 rounded border bg-transparent px-1 normal-case"
+          // The chips' look without their element: `buttonVariants` is for
+          // `<button>`, and a `<select>` put through it loses the platform
+          // chevron this corner has no room to redraw. So the four classes the
+          // bar is made of are stated here instead, and the height is the same
+          // `h-4` the chips take.
+          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);
@@ -4215,7 +4267,7 @@ function GanttChart({
               ? 'Leave full screen and put the chart back under the plan (Escape)'
               : 'Draw the chart on the whole screen — the page padding is about 47px of it'
           }
-          className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+          className={chartChip()}
           onClick={() => {
             setFullScreen(!fullScreen);
           }}
@@ -4227,7 +4279,7 @@ function GanttChart({
           data-gantt-svg-download
           aria-label="Download this chart as a standalone SVG"
           data-hint="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
-          className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+          className={chartChip()}
           onClick={downloadGanttSvg}
         >
           ⇩
