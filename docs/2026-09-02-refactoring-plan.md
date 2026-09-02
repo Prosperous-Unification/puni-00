@@ -145,7 +145,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-1  | **Half done, 2026-09-02** — see §25. Concurrent identical reads now share one request. Narrowing _which_ reads a write triggers is not done, and the reason is recorded.                                                                                                                                                                                                                                                           | `lib/wbs-api.ts`, `lib/project-stream.ts:113`, `wbs-table.tsx:3671–3775`, `directory-page.tsx:256,342` | 1d     | "a peer edit costs 2 requests, not 8" — fails today                                |
 | W2-2  | **Done, 2026-09-02** — see §28. All three memoised, with the label closures stabilised first, and a layout-count probe that took three attempts to stop being vacuous.                                                                                                                                                                                                                                                             | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
-| W2-4  | **Half done, 2026-09-02** — see §27. `dependsOn` and `topological` are linear now; the differential and both oracles are unmoved. `eventAt` and `projectOntoWorkItems` are not done.                                                                                                                                                                                                                                               | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
+| W2-4  | **Done as far as it should be, 2026-09-02** — see §27 and §29. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**; `projectOntoWorkItems` is open.                                                                                                                                                                                                                                                    | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
 | W2-5  | **Started, 2026-09-02** — see §26. A freeze is one statement instead of one per row. `remove`'s batching and the dependency N+1 are not done.                                                                                                                                                                                                                                                                                      | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
 | W2-6  | **Gantt mark memos lose their per-gesture deps**: `open?.sliceId` and `fullScreen` out of the 23-entry list via refs; one `Set` of drawn slice ids for the two link filters, the flag filter and `openBar`; `routeArrow` indexes obstacles by row.                                                                                                                                                                                 | `gantt-panel.tsx:3504–3527, :2611, :2638, :2652`, `gantt-geometry.ts:1372`                             | 1d     | "opening a bar's facts re-renders no Gantt mark" — the D4 probe, new gesture       |
 | W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
@@ -1241,3 +1241,32 @@ reading lives in an external store and does not render the table at all. All thr
 written into the test, so the next reader does not repeat them.
 
 **Green:** `fe-01` 2047 pass across 75 files, lint, typecheck; `format:check --all`.
+
+## 29 · Measured and refused — `eventAt`, 2026-09-02
+
+The review called `pool.events.splice()` an O(E²) profile build and estimated ~4 million element
+moves on a 2,000-slice single-pool plan. **Measured, it is not.** Instrumenting the splice to count
+elements shifted, across every fixture the repo has:
+
+| Fixture                                   | Inserts | Elements shifted | Shifted per insert | Longest pool list |
+| ----------------------------------------- | ------- | ---------------- | ------------------ | ----------------- |
+| `schedule-identity`'s thousand-seed sweep | 9,485   | 8,306            | **0.88**           | 17                |
+| the captured capacity oracle              | 167     | 29               | **0.17**           | 12                |
+
+Placement runs forward in time, so almost every new event belongs at or near the end and `splice`
+does nothing. And `E` is small by construction: events are **aggregated by timestamp**, so a pool
+holds one entry per distinct instant rather than one per slice — seventeen, at the widest this
+repo's fixtures reach.
+
+So the rewrite is refused, and that is the finding. It would add a `Map` and a lazily-sorted array
+for no measured gain, and it would put the aggregation-by-timestamp invariant — which carries its
+own watched proof at `schedule.ts:605–621` — at risk to buy nothing. A sorted-array insert is the
+right structure for seventeen entries.
+
+What would change this: a plan whose pool holds thousands of distinct instants. Nothing in the
+product produces one today, and if one appears the measurement above is the thing to re-run rather
+than a reason to have rewritten it in advance.
+
+`projectOntoWorkItems` is **not** refused — it is O(parents × leaves) and spreads into
+`Math.min`/`Math.max`, so a plan with ~10⁵ leaves under one root throws a `RangeError` no branch
+handles. That is a correctness cliff rather than a constant factor, and it is still worth doing.
