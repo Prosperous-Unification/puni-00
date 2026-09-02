@@ -1,5 +1,5 @@
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -710,20 +710,45 @@ export class WorkItemRepository implements WorkItemStore {
     });
   }
 
+  /**
+   * Freezes every number in one statement, not one per row.
+   *
+   * A freeze names **every** work item in the project, so the loop this replaces
+   * issued 2,000 `UPDATE`s for a 2,000-row plan — inside the outer transaction
+   * and therefore inside the process-wide write lock (ADR 0007), which is the
+   * cost that ADR names as the first thing to revisit.
+   *
+   * `CASE id WHEN … THEN …` with one `IN` list is the whole of it: the numbers
+   * differ per row and everything else does not, so one statement can carry all
+   * of them. Built with `sql.join` rather than by concatenation — every id and
+   * every number goes in as a parameter, which is what keeps a work item id from
+   * being anything but a value.
+   *
+   * Proof: `freezes every number in a single statement` counts the statements
+   * drizzle logs for a three-row freeze. With the loop restored it failed on
+   * `expect(received).toHaveLength(expected)` — three where one is owed
+   * (2026-09-02).
+   */
   async setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp): Promise<void> {
     await Promise.resolve();
     if (updates.length === 0) return;
+    const arms = updates.map(
+      (update) => sql`when ${workItem.id} = ${update.id} then ${update.frozenNumber}`,
+    );
     this.db.transaction((tx) => {
-      for (const update of updates) {
-        tx.update(workItem)
-          .set({
-            frozenNumber: update.frozenNumber,
-            revision: bumpedWorkItem,
-            ...auditOnUpdate(stamp),
-          })
-          .where(eq(workItem.id, update.id))
-          .run();
-      }
+      tx.update(workItem)
+        .set({
+          frozenNumber: sql`case ${sql.join(arms, sql` `)} end`,
+          revision: bumpedWorkItem,
+          ...auditOnUpdate(stamp),
+        })
+        .where(
+          inArray(
+            workItem.id,
+            updates.map((update) => update.id),
+          ),
+        )
+        .run();
     });
   }
 

@@ -861,3 +861,44 @@ describe('WorkItemRepository', () => {
     expect(remaining[0]?.parentId).toBeNull();
   });
 });
+
+describe('freezing every number', () => {
+  /**
+   * A freeze names **every** work item in the project, so a loop of `UPDATE`s
+   * costs one statement per row — inside the outer transaction, and therefore
+   * inside the process-wide write lock (ADR 0007). Three rows here rather than
+   * two, so "one statement" and "one per row" differ by more than the setup.
+   *
+   * Proof: with the per-row loop restored, watched failing on
+   * `expect(received).toHaveLength(expected)` at this assertion — three
+   * statements where one is owed (2026-09-02).
+   */
+  it('freezes every number in a single statement', async () => {
+    const rows = [row(null, 10, 'Strip'), row(null, 20, 'Sockets'), row(null, 30, 'Boxes')];
+    for (const each of rows) await repo.insert(each, [], wrote());
+
+    const statements: string[] = [];
+    const counted = new WorkItemRepository(
+      openDrizzle(dbPath, {
+        logQuery(query) {
+          statements.push(query);
+        },
+      }),
+    );
+
+    await counted.setFrozenNumbers(
+      // Strings, because a frozen number is one: `frozen_number` is a text
+      // column and `FrozenNumber.frozenNumber` says `string | null`. The first
+      // draft passed numbers, which the spec project does not typecheck and
+      // SQLite stored as text anyway — the read is what said so.
+      rows.map((each, at) => ({ id: each.id, frozenNumber: String((at + 1) * 10) })),
+      wrote(),
+    );
+
+    expect(statements).toHaveLength(1);
+    // The precondition: one statement that wrote nothing would also count one,
+    // and each row must get **its own** number rather than all of them one.
+    const frozen = await repo.listByProject(projectId);
+    expect(frozen.map((each) => each.frozenNumber).sort()).toEqual(['10', '20', '30']);
+  });
+});

@@ -146,7 +146,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-2  | **Memoise `shownRows`, `ganttPlan`, `startFloor`** on their real inputs (`todayIso`, not `new Date()`), as `pointed-row-render-cost/design.md` D3 said and the code did not do. Every keystroke currently re-runs `layOutGantt` through `GanttPanel`'s `useMemo(…, [plan])` and `startFloorByRow` chart open or closed.                                                                                                            | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
 | W2-4  | **Engine hot spots**, gated by `schedule-identity.test.ts`'s thousand-seed differential and the two captured oracles: `dependsOn` reuses the id `Set` built at `:1302` (5 min); `topological` head index instead of `shift()`; `eventAt` batches inserts instead of `splice` (O(E²) → O(E log E)); `projectOntoWorkItems` one reduce per parent, no spread into `Math.min`.                                                        | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
-| W2-5  | **Batch writes and the N+1** (ADR 0007's own "first thing to revisit"): `setFrozenNumbers` one `UPDATE … CASE`; `remove` batched per depth level (the reverse order is load-bearing — keep it); `DependencyStore.removeAllForMany(ids, stamp)` replaces the per-item transaction loop at two call sites.                                                                                                                           | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
+| W2-5  | **Started, 2026-09-02** — see §26. A freeze is one statement instead of one per row. `remove`'s batching and the dependency N+1 are not done.                                                                                                                                                                                                                                                                                      | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
 | W2-6  | **Gantt mark memos lose their per-gesture deps**: `open?.sliceId` and `fullScreen` out of the 23-entry list via refs; one `Set` of drawn slice ids for the two link filters, the flag filter and `openBar`; `routeArrow` indexes obstacles by row.                                                                                                                                                                                 | `gantt-panel.tsx:3504–3527, :2611, :2638, :2652`, `gantt-geometry.ts:1372`                             | 1d     | "opening a bar's facts re-renders no Gantt mark" — the D4 probe, new gesture       |
 | W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
 | W2-8  | **Layout reads off the pointer and scroll paths**: `depends-card.tsx:196–212` reads every card line's rect per `pointermove`; `plan-scroll-link.ts:243` ~10 rects per scroll event; the Gantt `onScroll` four reads + three state updates; `plan-cards.tsx:1237` a 600-frame rAF poll on a phone. One rAF per frame, node lists cached per layout generation, `transitionend` instead of the poll. Keep `alignmentMove` untouched. | as named                                                                                               | 1d     | `getBoundingClientRect` spy per pointer event; Chromium for the linked scroll      |
@@ -1148,3 +1148,32 @@ be narrowed at all today: `SubscriptionHandlers.onChange` takes no arguments, so
 discards it. Both are real changes with real tests to write, and neither is a tail end of this one.
 
 **Green:** `fe-01` 2046 pass across 75 files, lint, typecheck; `format:check --all`.
+
+## 26 · Verify — W2-5 (the freeze), 2026-09-02
+
+`setFrozenNumbers` wrote one `UPDATE` per row. A freeze names **every** work item in the project,
+so a 2,000-row plan cost 2,000 statements — inside the outer transaction and therefore inside the
+process-wide write lock, which is the cost ADR 0007 names as the first thing to revisit.
+
+It is one statement now: `CASE id WHEN … THEN …` over one `IN` list. The numbers differ per row and
+nothing else does, so one statement carries all of them. Built with `sql.join` rather than by
+concatenation, so every id and every number goes in as a parameter.
+
+**The proof counts statements, through drizzle's own `logQuery` hook** — the same seam
+`project.db.test.ts`'s `costs one statement however many projects there are` uses. Three rows, so
+"one" and "one per row" differ by more than the setup. With the loop restored it failed on
+`expect(received).toHaveLength(expected)`, three where one is owed. The case also asserts each row
+got **its own** number, because one statement that wrote nothing — or wrote the same number
+everywhere — would count one too.
+
+**The test's first draft was wrong in a way the repo cannot catch.** It passed `frozenNumber` as a
+number, where `FrozenNumber.frozenNumber` says `string | null` and the column is `text`. The spec
+project is outside be-01's typecheck target, so nothing objected; SQLite stored it as text and the
+read is what said so. That is the same blind spot W1-1 found in fe-01's fixture, in a different app.
+
+**Not done in W2-5:** `remove`'s per-row `DELETE` (its reverse ordering is load-bearing for
+`parent_id`, so only the levels where that argument does not apply can batch) and
+`DependencyStore.removeAllForMany`, which needs the `dependency(successor_id)` index W0-4 added and
+a change at two service call sites.
+
+**Green:** `be-01` 1270 pass across 93 files, lint, typecheck; `format:check --all`.
