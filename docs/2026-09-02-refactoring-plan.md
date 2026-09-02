@@ -169,9 +169,9 @@ nothing else in the repo changes. Where the copy carries a comment saying "line 
 | W3-2  | **`remembered<T>(key, isValid, fallback)`** → `{ read, readAndDrop, write, forget }`, taking `lib/theme.ts:60–120` as the reference shape (it is the only copy that gets read-in-render vs read-and-drop right). Migrate the other ten: `gantt-panel.tsx:663`, `project-settings-modal.tsx:63`, `project-page.tsx:65`, the eight in `wbs-table.tsx:743–1412`. Preserve the asymmetry that expansion, Mermaid lanes and saved views have no `forget` (Layout reset does not forget them) as a per-family flag.                                                                                                                                                                                     | `lib/remembered.ts` new; 11 sites                                                                                                         | 1d     | ~350    |
 | W3-3  | **Reference set at three tiers, one adapter each**: `referenceColumn(kind, …)` from the `ReferenceSetAdapter` that already exists for the four table columns (`wbs-table.tsx:8511–8773`, 263 LOC, 8 writers, 12 `live` keys); `<ReferenceField kind>` for the three card components (`plan-cards.tsx:615–915`); `<DirectoryCard kind>` over `directory-page.tsx:290`'s `writesFor` table for the three directory cards (`:1079–1330`); one `EffectiveLabel<'replaced' \| 'accumulated'>` for the three label unions (`gantt-geometry.ts:176–283`). The accumulate-vs-replace distinction stays in the mode, per ADR 0008; there is deliberately no type dimension in `effective-*` (ADR 0009).    | as named, `reference-set-field.tsx`                                                                                                       | 3d     | ~750    |
 | W3-4  | **Directory triple → one `namedEntity(kind, store)`** across the six layers audit R2 names: `repository/directory.ts`, `directory.service.ts:240–428` (nine methods, three bodies), `plan-commands.ts:512–658` (five triples "line for line", says the comment), `directory-usage.ts:221–285` (three identical one-line lambdas under 90 lines of JSDoc), `wbs-api.ts:743–782`. Lands naturally as descriptors when W4-3 exists; do the service and store halves now.                                                                                                                                                                                                                             | as named                                                                                                                                  | 2d     | ~450    |
-| W3-5  | **One identity guard** (audit R5): an Elysia macro `signedIn(auth)` resolving the identity once and handing the handler a non-null `user`; the 23 five-line 401 blocks go; the `read`-scope check that exists at two arbitrary routes becomes one rule with a stated reason; `cookieValue` (`middleware/authenticated.ts:24`) and `cookiesOf` (`auth.controller.ts:315`) become one parser. `directory.controller.ts` 69 → ~25 lines.                                                                                                                                                                                                                                                             | `app.ts`, `middleware/`, all controllers                                                                                                  | 0.5d   | ~150    |
+| W3-5  | **Done, 2026-09-02** — see §38. An Elysia macro `caller` resolving the identity once and handing the handler a non-null `user`; 23 five-line 401 blocks and the two scope checks are gone, the two cookie parsers are one, and `directory.controller.ts` is 69 → 40 lines. The injected fault found five of the six directory reads had **no** 401 negative; one case over all six now, watched.                                                                                                                                                                                                                                                                                                  |
 | W3-6  | **One refusal table, one fault boundary (fe-01)**: `refusalSentence(code, scope)` with the shared arms (`not_found`, `forbidden`, `unexpected_response`, 5xx) once — six sites today, three 5xx behaviours (`estimating-panel.tsx:139` has no 5xx arm; `directoryRefusalSentence` has none); the prefix-code idea (`SIZE_CEILING_CODE` reading be-01's constant) generalised. `lib/fault-words.ts` + one `FaultBoundary({ resetKey, fallback })` for `app-fault.tsx`/`gantt-fault.tsx`'s byte-identical helper. Pin the current strings first. Be-01's five refusal→status tables (`work-item.controller.ts:799, :493`, `step.controller.ts:14`, `project.controller.ts:123`, inline) become one. | `lib/wbs-api.ts:1839–1954`, `estimating-panel.tsx`, `wbs-table.tsx:294`, `chrome/app-fault.tsx`, `wbs/gantt-fault.tsx`; be-01 controllers | 1d     | ~250    |
-| W3-7  | **One clock, one stamp** (ADR 0012's new cluster): a `Clock` collaborator with `stampFor(actorId)` built once in `services.ts`; the seven `private stampFor`, nine `this.now = opts.now ?? …` and six `this.newId = …` go; `event-sequencer.ts` (a pure pass-through that exists to inject a clock) deletes. Add one consequence line to ADR 0012 saying the stamp is still an argument at every store call — this does not weaken the ADR, and without the sentence it reads as re-litigating it.                                                                                                                                                                                                | 7 services, `services.ts`, `event-sequencer.ts`, `docs/adr/0012`                                                                          | 0.5d   | ~80     |
+| W3-7  | **Done, 2026-09-02** — see §37. One `Clock` with `stampFor`, built once in `services.ts`; the seven `private stampFor`, nine `now?` and six `newId?` are gone, `EventSequencer` is deleted, ADR 0012 gains its consequence line, and `clock.test.ts` guards the shape with both faults watched.                                                                                                                                                                                                                                                                                                                                                                                                   |
 | W3-8  | **One deploy contract**: widen the `@wbs/tool-env` alias (which `deploy.ts:9` already imports — the "no `@wbs/*` entry point" comment justifying five duplications is false in the file that states it) into a small index exporting `Tier`, `Color`, `PORT`, `IMAGE_NAME`, `BUNDLE_FILES`, `sha256File`, `parseSha256sumOutput`, `assertCleanTree`. Give `install.ts` the `--env` flag it lacks — `deploy.ts`'s own error message today tells a dev operator to install into prod's root.                                                                                                                                                                                                        | `tools/tool-remote-scripts/src/lib/*`, `tools/tool-deploy/src/*`, `tool-dagger/src/lib/publish.ts`, `tool-smoke/src/health.ts`            | 1d     | ~200    |
 | W3-9  | **One realtime envelope** (N6): `libs/contracts/src/ws.ts` becomes the single frame vocabulary (add `'unavailable'`, `presence`, `subscribe`, `unsubscribe`, `who`); gw-01 builds every outbound frame through it and parses inbound through `WsControlFrame`; `project-stream.ts`'s **rules** (backoff, `settle()`, the no-advance-on-frame seq rule) move into `libs/realtime` and the dead `reconnecting-ws.ts` seq handling that contradicts them goes, with `tanstack-adapter.ts` and `fixtures/frame.ts`. The stream must not learn about routes or the gate (ADR 0004).                                                                                                                    | `libs/realtime/**`, `libs/contracts/src/ws.ts`, `gw-01/ws.controller.ts`, `fe-01/src/lib/project-stream.ts`                               | 1.5d   | ~200    |
 | W3-10 | **mcp-01 OAuth reuses `libs/auth`** (N8): its transaction store → `InMemoryOidcTransactionStore` extended with the PKCE payload (two intentional hardenings, each with a watched negative); extract `DynamicClientRegistry` and `LocalTokenIssuer` (injected keypair); `upstreamTokenFor` accepts the claims its caller passes. `oauth.test.ts`'s 24 capacity cases move to the registry's suite.                                                                                                                                                                                                                                                                                                 | `apps/mcp-01/src/oauth.ts`, `caller-auth.ts`, `libs/auth/src/oidc-store.ts`                                                               | 2d     | ~150    |
@@ -1677,3 +1677,64 @@ delegation lines the item was counting are gone anyway, via the spread.
 
 **Green:** be-01 616 store / 654 unit, fe-01 2047 across 75 files, domain 321, lint and typecheck
 on all three, `prettier --check .`.
+
+## 37 · W3-7 — one clock behind seven identical stamps
+
+ADR 0012's sentence — an act reads the clock once, and every row it writes and every event it
+records carries that one reading — was **seven** identical `private stampFor(actorId)` methods
+over seven injected `now`s. Seven copies of a rule about reading a clock once is seven places
+for a second reading to appear.
+
+`service/clock.ts` holds it once: `Clock` with `now`, `newId` and `stampFor`, built by
+`clockOf()` **once** in `services.ts` and handed to all seven services. `stampFor` is derived
+from that `now` rather than injectable beside it, because a stamp whose instant came from
+somewhere else is the drift the type exists to stop. `ReplayBuffer`, `RetentionTimer` and
+`LoginThrottle` keep their own `now`, and the reason is written down: they age their own entries,
+write no row, and in their suites the passage of time is the subject rather than a detail to hold
+still.
+
+`EventSequencer` is **deleted**. It was a pass-through that added a clock read — which is what a
+`Clock` is — and the sequence numbers were always the log's own, assigned in one statement by
+`DrizzleEventLogRepo.recordEvent`. `GatewayBroadcaster` takes the `EventLogRepo` and a clock. Its
+two assertions moved to `event-log.db.test.ts`, where the behaviour actually lives.
+
+`clock.test.ts` guards the collapse in `audit.test.ts`'s shape — a text read, because what has to
+be refused is a shape no type can state — plus one case pinning the rule itself: one `stampFor`
+costs exactly one reading of `now`. Both source cases watched: `now?: () => number` put back on
+`CapacityServiceOptions` fails on `+ ["capacity.service.ts"]`, and so does a `stampFor` restored
+there.
+
+One test changed and it is an API change: `project.controller.test.ts`'s monotonic tick is
+`clock: clockOf({ now })`. Test counts: 493 unit + 619 store, 1107 before and 1107 after — the two
+moved.
+
+## 38 · W3-5 — one identity guard, and the guard nobody could see break
+
+Twenty-three handlers opened with the same five lines, and two then repeated a scope check.
+`middleware/caller.ts` is the rule once, as an Elysia **macro**: `{ caller: 'signed-in' }` or
+`{ caller: 'read-scope' }` per route, and the handler is handed a `user` already narrowed to
+non-null — there is no `null` left to forget. A macro rather than a wrapper function because a
+wrapper has to name the context type and would cost Elysia's inference of `params`, `query` and
+`body` at every route; unnamed on purpose, because the suite builds many apps in one process with
+their own `AuthService` and Elysia dedupes named plugins. `directory.controller.ts` went 69 → 40
+lines with more prose in it than before.
+
+**The injected fault found an untested guard.** With `{ caller: 'signed-in' }` taken off
+`GET /api/teams`, all 30 cases in `directory.controller.db.test.ts` passed: five of the six
+directory reads had no 401 negative at all (`GET /api/services` was covered only incidentally, by
+a service-command case), so six identical guards could never be seen to break. One case over all
+six now — the claim is "no read in this controller answers an anonymous caller", and a per-route
+test is a list somebody has to remember to extend — watched failing on
+`- "/api/teams": 401 · + "/api/teams": 200` with one guard off, and on all six with all of them
+off. The `read-scope` half was watched too: weakened to `signed-in`, `refuses project exports
+without read scope` fails on `Expected: 403 · Received: 404`.
+
+The two cookie parsers became one, and it deliberately does **not** decode: the two readers want
+different things of a malformed value — `tokenFromHeaders` treats an undecodable cookie as absent
+so a Bearer header still gets its chance, while the origin check only asks whether a session
+cookie is there. The copy in `auth.controller.ts` decoded every value to read none of them, so one
+stray `%` threw a `URIError` out of `onRequest`: a 500 about a malformed request, which is the one
+thing R5 says an Elysia route must not answer.
+
+`openapi.json` was re-emitted after both changes and is byte-identical, which is the evidence that
+no route or annotation moved.
