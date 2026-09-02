@@ -801,11 +801,24 @@ what be-01 now holds. Ends at the next refetch that lands, whichever asked for i
 _Avoid_: out of date, dirty, unsynced, desynced
 
 **Plan export**:
-One project written out as a document somebody reads elsewhere — a Markdown table or a CSV
-file — headed by what the table alone cannot say: the estimate method by name, whether the
-dates are dates or day offsets, and when the figures were taken. Always the whole project,
-never the view of it.
+One project written out as a document somebody reads elsewhere — a Markdown table, a CSV
+file, or a plan document — headed, in the two prose formats, by what the table alone cannot
+say: the estimate method by name, whether the dates are dates or day offsets, and when the
+figures were taken. Always the whole project, never the view of it.
 _Avoid_: report, download, dump, extract
+
+**Plan document**:
+The one plan export the tool can read back: a JSON file carrying the project's settings,
+steps, priority ladder, capacity, every work item with everything typed on it, and the names
+behind every directory id it uses, under a format name and version. Derived figures ride
+along for readers and are never restored.
+_Avoid_: backup, dump, snapshot, JSON export (as a term)
+
+**Import**:
+Making a new project from a plan document, whole or not at all: the importer owns it, every
+id is minted afresh, directory entries are found by name and created when absent. Never a
+change to a project that already exists.
+_Avoid_: restore, load, upload, merge
 
 **Revision**:
 A count of how many times one work item or one project has been written to, starting at
