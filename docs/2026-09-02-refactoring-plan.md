@@ -146,7 +146,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-2  | **Done, 2026-09-02** — see §28. All three memoised, with the label closures stabilised first, and a layout-count probe that took three attempts to stop being vacuous.                                                                                                                                                                                                                                                             | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
 | W2-4  | **Done, 2026-09-02** — see §27, §29 and §33. `dependsOn` and `topological` are linear. `eventAt` is **measured and refused**. `projectOntoWorkItems` is two loops instead of fourteen array allocations: ~8% faster, its `RangeError` cliff measured out of reach, and three defaults that read a broken index as a legal plan are now throws with all three faults watched.                                                       | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
-| W2-5  | **Started, 2026-09-02** — see §26. A freeze is one statement instead of one per row. `remove`'s batching and the dependency N+1 are not done.                                                                                                                                                                                                                                                                                      | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
+| W2-5  | **Done, 2026-09-02** — see §26 and §34. A freeze is one statement instead of one per row; a subtree delete is one `DELETE` rather than one per row, because SQLite checks an immediate foreign key at the end of the **statement**; and `removeAllFor` takes the whole doomed set, which also fixed a bump landing on a row already on its way out. Roughly `3N + 1` statements across `N + 1` transactions became 5.              | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
 | W2-6  | **Gantt mark memos lose their per-gesture deps**: `open?.sliceId` and `fullScreen` out of the 23-entry list via refs; one `Set` of drawn slice ids for the two link filters, the flag filter and `openBar`; `routeArrow` indexes obstacles by row.                                                                                                                                                                                 | `gantt-panel.tsx:3504–3527, :2611, :2638, :2652`, `gantt-geometry.ts:1372`                             | 1d     | "opening a bar's facts re-renders no Gantt mark" — the D4 probe, new gesture       |
 | W2-7  | **`PointedCell` store** for `hoveredCell`/`focusedCell`/`openCard`, `depHover`/`depFocus`/`depLit`, in `pointed-row-store.ts`'s shape; a thin per-cell shell subscribes; the card re-renders, not the table. Then the same for `dropHint`, `widthOverrides`, `ganttHeightPx` (per `pointermove` of a drag).                                                                                                                        | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
 | W2-8  | **Layout reads off the pointer and scroll paths**: `depends-card.tsx:196–212` reads every card line's rect per `pointermove`; `plan-scroll-link.ts:243` ~10 rects per scroll event; the Gantt `onScroll` four reads + three state updates; `plan-cards.tsx:1237` a 600-frame rAF poll on a phone. One rAF per frame, node lists cached per layout generation, `transitionend` instead of the poll. Keep `alignmentMove` untouched. | as named                                                                                               | 1d     | `getBoundingClientRect` spy per pointer event; Chromium for the linked scroll      |
@@ -1505,3 +1505,56 @@ Under the defaults these replaced, all three faults were silent.
 
 **Green:** `domain` 316 pass, 0 fail, 34,575 assertions — the thousand-seed differential and
 both captured oracles among them. Lint and typecheck clean.
+
+## 34 · W2-5 — the subtree delete, and a bump that landed on a doomed row
+
+Both halves done. A subtree delete of N rows used to cost roughly **3N + 1** statements
+across N + 1 transactions; it now costs **5**, whatever N is.
+
+### The dependency N+1, and the wrongness inside it
+
+`removeAllFor` took one work item id, and a subtree delete called it once per doomed row —
+a transaction, a read and a write each, inside the outer transaction and therefore inside
+the process-wide write lock (ADR 0007).
+
+The interface now takes the whole doomed set, which is **smaller**, not larger: three call
+sites, two of which were loops, and the third passes `[id]`.
+
+**It was also answering wrongly.** The method's own contract says it bumps the surviving ends
+and not the row on its way out, because moving a counter onto a row about to stop existing is
+meaningless. From inside a single-id call a **doomed sibling is indistinguishable from a
+survivor**, so an edge between two rows both being deleted bumped the far end anyway. Reading
+the set is what makes that answerable.
+
+The test is four rows: `a` and `b` doomed and joined to each other, `c` a survivor that loses
+an edge, `d` untouched. It asserts revision **deltas**, not absolutes — adding an edge already
+bumps both of its ends, so `b` and `c` do not start at zero and what the claim is about is
+what the _removal_ moves.
+
+**Proofs, both watched 2026-09-02** with the per-row loop restored:
+
+| Half                                     | Failure observed                            |
+| ---------------------------------------- | ------------------------------------------- |
+| statement count                          | `Expected length: 3` · `Received length: 6` |
+| survivor rule (count assertion silenced) | `Expected: 0` · `Received: 1` at `moved(b)` |
+
+### The per-row DELETE, and the constraint that was not one
+
+`remove` deleted one row per statement, deepest first, on the reasoning that
+`work_item.parent_id` references `work_item.id` and so a parent cannot go before its child.
+
+That is true statement by statement and **irrelevant inside one**. SQLite checks an immediate
+foreign key at the **end of the statement**, not after each row, so a single
+`DELETE … WHERE id IN (…)` naming a parent and its child is legal however SQLite visits them.
+Measured against a self-referencing table before the change was written: ancestors-first,
+leaves-first, and with `defer_foreign_keys` all succeeded. A 2,000-row plan is one statement
+rather than 2,000.
+
+The test hands the ids in **ancestors-first** order, exactly as `subtreeOf` produces them —
+the arrangement the reversal existed for.
+
+**Proof, watched 2026-09-02** with the per-row loop restored:
+`expect(received).toHaveLength(expected)` · `Expected length: 2` · `Received length: 4`.
+
+**Green:** `be-01` 1,101 pass across 83 files (two new), `domain` 316 pass, lint and typecheck
+on both.

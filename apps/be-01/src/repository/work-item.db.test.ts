@@ -862,6 +862,52 @@ describe('WorkItemRepository', () => {
   });
 });
 
+describe('deleting a subtree', () => {
+  /**
+   * A subtree delete used to cost one `DELETE` per row, deepest first, because
+   * `work_item.parent_id` references `work_item.id` and a parent cannot outlive
+   * its child. That constraint is real statement by statement and absent inside
+   * one: SQLite checks an immediate foreign key at the **end of the statement**,
+   * so a parent and its child may go in the same `IN` list. A 2,000-row plan
+   * costs one statement rather than 2,000, inside the process-wide write lock
+   * (ADR 0007).
+   *
+   * Three generations, so "one statement" and "one per row" differ by more than
+   * the setup — and the deepest-first order is genuinely reversed here, which is
+   * the arrangement the old loop existed for.
+   *
+   * Proof: with the per-row loop restored, watched failing on
+   * `expect(received).toHaveLength(expected)` · `Expected length: 2` ·
+   * `Received length: 4` (2026-09-02).
+   */
+  it('deletes a whole subtree in one statement', async () => {
+    const parent = row(null, 10, 'Shed');
+    await repo.insert(parent, [], wrote());
+    const child = row(parent.id, 10, 'Wall');
+    await repo.insert(child, [], wrote());
+    const grandchild = row(child.id, 10, 'Stud');
+    await repo.insert(grandchild, [], wrote());
+
+    const statements: string[] = [];
+    const counted = new WorkItemRepository(
+      openDrizzle(dbPath, {
+        logQuery(query) {
+          statements.push(query);
+        },
+      }),
+    );
+
+    // Ancestors first, exactly as `subtreeOf` hands them over — the order the
+    // old loop reversed before it could delete anything.
+    await counted.remove([parent.id, child.id, grandchild.id], [], wrote());
+
+    // One delete of the estimates, one of the rows. A loop is one per row on
+    // top of the estimates.
+    expect(statements).toHaveLength(2);
+    expect(await repo.listByProject(projectId)).toEqual([]);
+  });
+});
+
 describe('freezing every number', () => {
   /**
    * A freeze names **every** work item in the project, so a loop of `UPDATE`s

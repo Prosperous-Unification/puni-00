@@ -1091,8 +1091,17 @@ export interface DependencyStore {
    */
   add(dependency: StoredDependency, stamp: WriteStamp): Promise<void>;
   remove(predecessorId: string, successorId: string, stamp: WriteStamp): Promise<void>;
-  /** Every edge touching a work item, so deleting the row can take them with it. */
-  removeAllFor(workItemId: string, stamp: WriteStamp): Promise<void>;
+  /**
+   * Every edge touching any of these work items, so deleting the rows can take
+   * them along.
+   *
+   * Takes the whole doomed set rather than one id at a time. A subtree delete
+   * knows every row it is about to remove, and calling this once per row cost
+   * one transaction, one read and one write **each** — and bumped rows that
+   * were themselves on the way out, because from inside a single-id call a
+   * doomed sibling is indistinguishable from a survivor.
+   */
+  removeAllFor(workItemIds: readonly string[], stamp: WriteStamp): Promise<void>;
 }
 
 /**

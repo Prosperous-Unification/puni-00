@@ -2261,7 +2261,7 @@ export class WorkItemService {
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
       // with a constraint error the caller cannot act on.
-      for (const gone of doomed) await this.opts.dependencies.removeAllFor(gone, stamp);
+      await this.opts.dependencies.removeAllFor(doomed, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
@@ -2351,7 +2351,7 @@ export class WorkItemService {
     // The same reason as the cascade branch above: an edge to a row that is
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
-    await this.opts.dependencies.removeAllFor(id, stamp);
+    await this.opts.dependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
@@ -3523,7 +3523,7 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
-    for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone, stamp);
+    await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put

@@ -753,14 +753,29 @@ export class WorkItemRepository implements WorkItemStore {
   }
 
   /**
-   * `promoted` is applied *before* the deletion, and `ids` are deleted in
-   * reverse of the order given.
+   * `promoted` is applied *before* the deletion, and the whole subtree goes in
+   * one `DELETE`.
    *
-   * Both are forced by the foreign keys. A child still pointing at a parent
-   * being deleted fails the constraint, so promotions have to land first; and
-   * `ids` arrive ancestors-first from `subtreeOf`, so reversing them removes
-   * leaves before the parents they hang from. Estimates go first for the same
-   * reason — they reference the work items about to disappear.
+   * The promotions are forced by the foreign keys: a child still pointing at a
+   * parent being deleted fails the constraint, so they have to land first.
+   * Estimates go first for the same reason — they reference the work items
+   * about to disappear.
+   *
+   * **The order within `ids` is not.** This used to delete one row per
+   * statement, deepest first, on the reasoning that `work_item.parent_id`
+   * references `work_item.id` and so a parent cannot go before its child.
+   * That is true statement by statement and irrelevant inside one: SQLite
+   * checks an *immediate* foreign key at the **end of the statement**, not
+   * after each row, so a single `DELETE … WHERE id IN (…)` naming a parent and
+   * its child is legal however SQLite happens to visit them. Measured directly
+   * against a self-referencing table before this was written — ancestors-first,
+   * leaves-first and with `defer_foreign_keys` all succeeded. So a subtree of
+   * 2,000 rows costs one statement rather than 2,000, inside the outer
+   * transaction and therefore inside the process-wide write lock (ADR 0007).
+   *
+   * Proof: `deletes a whole subtree in one statement` with the per-row loop
+   * restored, watched failing on `expect(received).toHaveLength(expected)` ·
+   * `Expected length: 2` · `Received length: 4` (2026-09-02).
    */
   async remove(
     ids: readonly string[],
@@ -769,7 +784,6 @@ export class WorkItemRepository implements WorkItemStore {
   ): Promise<void> {
     await Promise.resolve();
     if (ids.length === 0) return;
-    const deepestFirst = [...ids].reverse();
     this.db.transaction((tx) => {
       for (const child of promoted) {
         // A promoted child gained a new parent, which is a change to its own
@@ -785,10 +799,8 @@ export class WorkItemRepository implements WorkItemStore {
           .where(eq(workItem.id, child.id))
           .run();
       }
-      tx.delete(estimate).where(inArray(estimate.workItemId, deepestFirst)).run();
-      for (const id of deepestFirst) {
-        tx.delete(workItem).where(eq(workItem.id, id)).run();
-      }
+      tx.delete(estimate).where(inArray(estimate.workItemId, ids)).run();
+      tx.delete(workItem).where(inArray(workItem.id, ids)).run();
     });
   }
 }
