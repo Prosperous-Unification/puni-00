@@ -14,6 +14,7 @@ export interface AuthFormProps {
 export function AuthForm({ onSignedIn }: AuthFormProps) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [passwordShown, setPasswordShown] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,16 +47,42 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
             Username
             <Input className="h-11" name="username" autoComplete="username" required />
           </Label>
-          <Label>
-            Password
-            <Input
-              className="h-11"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </Label>
+          {/*
+           * The reveal sits outside the `Label` on purpose: `Label` documents
+           * that every caller nests its control, and a `<button>` nested in a
+           * `<label>` would take the caption's own clicks as well as its own.
+           */}
+          <div className="relative grid gap-1.5">
+            <Label>
+              Password
+              <Input
+                className="h-11 pr-16"
+                name="password"
+                type={passwordShown ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+              />
+            </Label>
+            {/*
+             * `type="button"` is load-bearing, not decoration: a bare `<button>`
+             * inside a `<form>` submits it, so revealing the password would post
+             * the half-typed credentials as a sign-in attempt.
+             *
+             * Proof: with this line deleted, `does not sign in when the password
+             * is merely revealed` failed on `expected "spy" to not be called at
+             * all, but actually been called 1 times`. Watched 2026-09-02.
+             */}
+            <button
+              className="text-muted-foreground hover:text-foreground absolute right-0 bottom-0 h-11 px-3 text-sm font-normal"
+              type="button"
+              aria-pressed={passwordShown}
+              onClick={() => {
+                setPasswordShown((shown) => !shown);
+              }}
+            >
+              {passwordShown ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <p className="text-destructive min-h-5 text-sm" role="status" aria-live="polite">
             {error}
           </p>
