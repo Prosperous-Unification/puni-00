@@ -30,7 +30,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository } from '../repository/work-item';
 import { WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import type { Broadcaster } from './broadcast';
+import { type Broadcaster, DeferringBroadcaster } from './broadcast';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
 import type { PlanCommand } from './plan-command';
@@ -116,13 +116,27 @@ beforeEach(async () => {
     broadcast,
   };
   workItems = new WorkItemService(serviceOptions);
+  // The wrapper the composition root builds, and the same object the three
+  // services below publish through: a batch holds their announcements until it
+  // has committed and let go of the lock, and a second wrapper would hold
+  // nothing while they published straight past it.
+  const announcements = new DeferringBroadcaster(broadcast);
   runnerOptions = {
     workItems,
-    directory: new DirectoryService({ directory: directoryStore, broadcast }),
-    capacity: new CapacityService({ projects: projectStore, capacity: capacityStore, broadcast }),
-    priorityBands: new PriorityBandService({ projects: projectStore, bands: bandStore, broadcast }),
+    directory: new DirectoryService({ directory: directoryStore, broadcast: announcements }),
+    capacity: new CapacityService({
+      projects: projectStore,
+      capacity: capacityStore,
+      broadcast: announcements,
+    }),
+    priorityBands: new PriorityBandService({
+      projects: projectStore,
+      bands: bandStore,
+      broadcast: announcements,
+    }),
     transactions: drizzleOuterTransaction(db),
     lock: new WriteLock(),
+    announcements,
   };
   runner = new PlanCommandRunner(runnerOptions);
   const created = await new ProjectService({ projects: projectStore }).create(
@@ -421,19 +435,22 @@ describe('a command batch', () => {
     // until CI's `pixels` job stalled on a first create), batch B never got the
     // lock and this test timed out at 5000ms. Watched, 2026-08-29.
     let releaseA: () => void = () => undefined;
-    let pushes = 0;
     const held = new Promise<void>((resume) => {
       releaseA = resume;
     });
+    // Two runners over one lock and one set of stores, rather than one runner
+    // and "whichever publish happens to be first". The held batch is the one
+    // driven through `slowRunner`, by construction — counting pushes made this
+    // depend on the number of microtask turns before each announce, and a change
+    // that added one `await` between the lock and the broadcast silently swapped
+    // which batch was held while proving nothing about the lock.
     const slow: Broadcaster = {
-      publish: () => {
-        pushes += 1;
-        return pushes === 1 ? held : Promise.resolve();
-      },
+      publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
     const slowItems = new WorkItemService({ ...serviceOptions, broadcast: slow });
     const slowRunner = new PlanCommandRunner({ ...runnerOptions, workItems: slowItems });
+    const fastRunner = new PlanCommandRunner(runnerOptions);
 
     let a: 'pending' | 'applied' = 'pending';
     const first = slowRunner
@@ -443,7 +460,7 @@ describe('a command batch', () => {
       .then(() => {
         a = 'applied';
       });
-    const second = await slowRunner.run(projectId, ownerId, [
+    const second = await fastRunner.run(projectId, ownerId, [
       { kind: 'createWorkItem', parentId: null, afterId: null, name: 'B' },
     ]);
     expect(second.ok).toBe(true);
@@ -452,6 +469,73 @@ describe('a command batch', () => {
     releaseA();
     await first;
     expect(a).toBe('applied');
+  });
+
+  it('holds a directory command\u2019s announcement until the lock is let go', async () => {
+    // The case the rule was stated for and never covered. `execute` keeps its
+    // own broadcast outside `lock.run`; `DirectoryService.announce`,
+    // `CapacityService.set` and `PriorityBandService.set` published from inside
+    // `applyAll`, which is inside both the lock and the outer transaction. A tag
+    // rename across forty projects made forty gateway pushes with the write lock
+    // held, and `PushClient` retries a failing one for about a minute.
+    //
+    // Held by construction rather than by call order, for the reason the case
+    // above gives: the runner that publishes slowly is the one driven here.
+    //
+    // Proof: with `DirectoryService`'s `broadcast` given the raw broadcaster
+    // instead of the shared `DeferringBroadcaster` — the shape this shipped in —
+    // watched failing on `this test timed out after 5000ms`, batch B never
+    // reaching the lock (2026-09-02).
+    let releaseTag: () => void = () => undefined;
+    const held = new Promise<void>((resume) => {
+      releaseTag = resume;
+    });
+    const slowPushes: Broadcaster = {
+      publish: () => held,
+      latestSeq: () => Promise.resolve(0),
+    };
+    const slowAnnouncements = new DeferringBroadcaster(slowPushes);
+    const tagRunner = new PlanCommandRunner({
+      ...runnerOptions,
+      directory: new DirectoryService({
+        directory: directoryStore,
+        broadcast: slowAnnouncements,
+      }),
+      announcements: slowAnnouncements,
+    });
+
+    // The tag has to be **on** something for its rename to touch a project:
+    // `DirectoryService.announce` publishes one event per project the write
+    // touched, and a tag nobody uses touches none. A rename of an unused tag
+    // queues nothing and would pass this whatever the runner did with the lock.
+    const seeded = await run([
+      { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Strip' },
+      { kind: 'createTag', ref: 't', name: 'urgent' },
+      { kind: 'patchWorkItem', workItemRef: 'w', patch: { tagRefs: ['t'] } },
+    ]);
+    expect(seeded.ok).toBe(true);
+    const tagged = await directoryStore.listTags();
+    const tagId = tagged.at(0)?.id;
+    expect(tagId).toBeDefined();
+
+    let renamed: 'pending' | 'applied' = 'pending';
+    const first = tagRunner
+      .runDirectory(ownerId, [{ kind: 'patchTag', tagId: tagId ?? '', name: 'critical' }])
+      .then(() => {
+        renamed = 'applied';
+      });
+
+    // The plan batch has to get through while that directory push is held open.
+    const second = await run([
+      { kind: 'createWorkItem', parentId: null, afterId: null, name: 'A' },
+    ]);
+
+    expect(second.ok).toBe(true);
+    expect(renamed).toBe('pending');
+    expect(await names()).toEqual(['A', 'Strip']);
+    releaseTag();
+    await first;
+    expect(renamed).toBe('applied');
   });
 
   it('refuses two hundred and one commands before applying any', async () => {

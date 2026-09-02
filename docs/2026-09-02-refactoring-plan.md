@@ -113,7 +113,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-3  | **Done, 2026-09-02** — see §8. Deleted. The waste was larger than N1 said: a read route resolved the caller twice, not once.                                                                                                                                                             | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
 | W0-4  | **Done, 2026-09-02** — see §16. Seven indexes declared, four created by an additive migration, and a diff test that would have caught the drift.                                                                                                                                         | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
 | W0-5  | **Done, 2026-09-02** — see §15. All three closed; the leak was measured on the wire first, and one column list now serves two readers.                                                                                                                                                   | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
-| W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
+| W0-6  | **Done, 2026-09-02** — see §17. One `DeferringBroadcaster` the runner holds; the negative it needed did not exist and now does.                                                                                                                                                          | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
 | W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                       | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
 | W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                         | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
 | W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                        | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
@@ -781,3 +781,51 @@ because two empty lists are equal and a `getTableConfig` that threw for every ex
 sides empty for the same wrong reason.
 
 **Green:** `be-01` 1266 pass, 0 fail; lint; typecheck; build (the migration lint); `format --all`.
+
+## 17 · Verify — W0-6, 2026-09-02
+
+`PlanCommandRunner` states the rule: the lock covers the transaction and nothing after it, because a
+push to gw-01 is a network call and `PushClient` retries a failing one for about a minute. Three
+services it calls broke that rule from inside `applyAll` — `CapacityService.set`,
+`PriorityBandService.set`, and `DirectoryService.announce` once per touched project, in sequence.
+
+It was unsound as well as slow. Under ADR 0007 a batch runs in one outer transaction, so those
+event-log inserts were savepoints inside it: a command refused at step nine rolled back the recorded
+events for pushes that had already left the process.
+
+**The fix is one mechanism instead of four conventions.** `DeferringBroadcaster` wraps the real
+broadcaster; `buildServices` constructs it once and every service publishes through it, so there is
+exactly one broadcaster object in the process and a batch cannot hold one while a service publishes
+through another. The runner holds it for the length of the transaction and drains after the commit
+_and_ after the lock — or drops the queue when it rolls back. Announcements carrying nothing but a
+`type` are deduplicated, which turns forty `directory_changed` for one tag rename into one per
+project.
+
+**The hold sits inside `lock.run`, not around it, and an existing test found that.** `execute` runs
+concurrently for every queued batch; only the lock makes one-at-a-time true. Held around the lock, a
+second batch opened a hold while the first still waited for it:
+
+```
+error: a batch is already holding announcements
+```
+
+**An order-sensitive test had to be made deterministic first.** `lets go of the write lock before
+the broadcast leaves` identified the held batch by counting pushes — `pushes === 1` — so it depended
+on how many microtask turns each batch took to reach its announce. Adding one `await` between the
+lock and the broadcast silently swapped which batch was held, and the test failed while proving
+nothing about the lock. It now drives the held batch through its own runner, so the subject is fixed
+by construction. Re-watched against its original fault, `announceTreeNow` moved back inside
+`lock.run`: `this test timed out after 5000ms`.
+
+**The new negative did not exist and is the point of the change.** `holds a directory command's
+announcement until the lock is let go` renames a tag that is **on** a work item — a tag nobody uses
+touches no project, queues nothing, and would pass whatever the runner did — and asserts a plan
+batch gets through while that directory push is held open. Watched failing with `DirectoryService`
+given the raw broadcaster, which is the shape that shipped: `this test timed out after 5000ms`.
+
+`directory.service.ts`'s doc argued the opposite of what happened: "`recordEvent` opens a
+transaction of its own, so it cannot be nested inside the write's". True of a directory route, false
+of every directory command in a batch. It now says both, and says which one the code does.
+
+**Green:** `be-01` 1267 pass, `gw-01` 59, `mcp-01` 106 — test, lint, typecheck, build;
+`format:check --all`.

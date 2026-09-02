@@ -655,6 +655,21 @@ export class DirectoryService {
    * reason — `recordEvent` opens a transaction of its own, so it cannot be
    * nested inside the write's.
    *
+   * **That reason was true of a directory route and false of a directory
+   * command**, and this comment asserted it either way until 2026-09-02. In a
+   * batch, `PlanCommandRunner` holds one outer transaction over the whole run
+   * (ADR 0007), so every publish here *was* nested inside it — as a savepoint, so
+   * a command refused at step nine rolled back the recorded events for pushes
+   * that had already left. And this loop ran inside the process-wide write lock,
+   * one push per project in sequence, each retried for about a minute by
+   * `PushClient` before it gives up.
+   *
+   * The broadcaster injected here is a {@link DeferringBroadcaster}, and the
+   * runner holds it for the length of the transaction: these publishes now queue
+   * and leave after the commit *and* after the lock, or are dropped with the
+   * rollback. Nothing about this method changed — what changed is what it
+   * publishes into.
+   *
    * Proof: with either publish moved ahead of its write, `records the event
    * after the write, never before it` fails — the directory read from inside
    * `publish` still held `Kat`; watched 2026-08-09.

@@ -103,3 +103,91 @@ export interface Broadcaster {
    */
   latestSeq(projectId: string): Promise<number>;
 }
+
+/** One announcement waiting for its batch to commit and let go of the lock. */
+export interface HeldAnnouncement {
+  projectId: string;
+  event: ProjectEvent;
+}
+
+/**
+ * A {@link Broadcaster} that can hold a batch's announcements back.
+ *
+ * `PlanCommandRunner` states the rule its own broadcast follows: the lock covers
+ * the transaction and nothing after it, because a push to gw-01 is a network
+ * call and a lock held across it lets one slow gateway stall every write in the
+ * process. `PushClient` retries six times with a 500ms→30s backoff, so the worst
+ * case is about a minute **per push**.
+ *
+ * Three services broke that rule by publishing from inside `applyAll`:
+ * `CapacityService.set`, `PriorityBandService.set` and
+ * `DirectoryService.announce`, the last of them once per touched project, in
+ * sequence. A tag rename across forty projects made forty event-log inserts and
+ * forty gateway pushes with the process-wide write lock held.
+ *
+ * It was also unsound, not merely slow. Under ADR 0007 the batch runs in one
+ * outer transaction, so those event-log inserts were savepoints inside it: a
+ * command refused at step nine rolled back the recorded events for pushes that
+ * had already left the process. `directory.service.ts`'s own doc argued the
+ * opposite — "`recordEvent` opens a transaction of its own, so it cannot be
+ * nested inside the write's" — which is true of a single directory route and
+ * false of every directory command in a batch.
+ *
+ * So a held batch keeps its announcements until the runner has committed *and*
+ * released the lock, and drops them entirely when it rolls back. Held events are
+ * deduplicated when they carry nothing but a `type`, which is what makes forty
+ * `directory_changed` for one rename into one per project.
+ */
+export class DeferringBroadcaster implements Broadcaster {
+  private held: HeldAnnouncement[] | null = null;
+
+  constructor(private readonly inner: Broadcaster) {}
+
+  /**
+   * Run `step` with every announcement held, and hand back what it queued.
+   *
+   * The caller decides whether they leave: {@link send} them after a commit,
+   * drop them after a rollback.
+   *
+   * @throws when a hold is already open. Two batches sharing one queue would let
+   * the outer one send events the inner one's rollback disowned.
+   */
+  async hold<T>(step: () => Promise<T>): Promise<{ result: T; pending: HeldAnnouncement[] }> {
+    if (this.held !== null) throw new Error('a batch is already holding announcements');
+    const held: HeldAnnouncement[] = [];
+    this.held = held;
+    try {
+      return { result: await step(), pending: held };
+    } finally {
+      this.held = null;
+    }
+  }
+
+  /** Publish what a hold queued, in the order it was queued. */
+  async send(pending: readonly HeldAnnouncement[]): Promise<void> {
+    for (const each of pending) await this.inner.publish(each.projectId, each.event);
+  }
+
+  async publish(projectId: string, event: ProjectEvent): Promise<void> {
+    const held = this.held;
+    if (held === null) {
+      await this.inner.publish(projectId, event);
+      return;
+    }
+    // Only an event that carries nothing but its type can be deduplicated: two
+    // `directory_changed` for one project say the same thing, and two
+    // `step_renamed` do not.
+    const saysOnlyItsType = Object.keys(event).length === 1;
+    if (
+      saysOnlyItsType &&
+      held.some((each) => each.projectId === projectId && each.event.type === event.type)
+    ) {
+      return;
+    }
+    held.push({ projectId, event });
+  }
+
+  latestSeq(projectId: string): Promise<number> {
+    return this.inner.latestSeq(projectId);
+  }
+}

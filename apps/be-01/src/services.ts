@@ -18,6 +18,7 @@ import { StepProgressRepository } from './repository/step-progress';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService, type AuthServiceOptions } from './service/auth.service';
+import { DeferringBroadcaster } from './service/broadcast';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
@@ -58,6 +59,13 @@ export interface ServicesOptions {
 }
 
 export interface BeServices {
+  /**
+   * The one broadcaster every service publishes through, wrapped so a command
+   * batch can hold its announcements until it has committed and released the
+   * write lock. `boot.ts` hands it to `buildApp` as `writes.announcements`; it
+   * must be this object and not a second wrapper.
+   */
+  announcements: DeferringBroadcaster;
   auth: AuthService;
   projects: ProjectService;
   capacity: CapacityService;
@@ -116,7 +124,14 @@ export function buildServices(opts: ServicesOptions): BeServices {
     },
   });
 
+  // Every service publishes through this wrapper, and only `PlanCommandRunner`
+  // ever holds it. Wrapping here rather than at the runner is the point: there
+  // is exactly one broadcaster object in the process, so a batch cannot hold one
+  // while a service publishes through another. See {@link DeferringBroadcaster}.
+  const announcements = new DeferringBroadcaster(broadcast);
+
   return {
+    announcements,
     auth: new AuthService({
       users: userStore,
       identities: userStore,
@@ -132,7 +147,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
     capacity: new CapacityService({
       projects: projectStore,
       capacity: capacityStore,
-      broadcast,
+      broadcast: announcements,
     }),
     // The same broadcaster again, for the capacity service's reason: a ladder
     // event takes its place in the project's one sequence, so a client resuming
@@ -140,18 +155,18 @@ export function buildServices(opts: ServicesOptions): BeServices {
     priorityBands: new PriorityBandService({
       projects: projectStore,
       bands: priorityBandStore,
-      broadcast,
+      broadcast: announcements,
     }),
     steps: new StepService({
       projects: projectStore,
       steps: new StepRepository(opts.db),
-      broadcast,
+      broadcast: announcements,
     }),
     // The same broadcaster the steps and the work items use, so a directory
     // event takes its place in the project's one sequence — a client resuming
     // from a work item's sequence must not be replayed a rename it has seen,
     // or miss one it has not.
-    directory: new DirectoryService({ directory: directoryStore, broadcast }),
+    directory: new DirectoryService({ directory: directoryStore, broadcast: announcements }),
     workItems: new WorkItemService({
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
@@ -182,7 +197,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // what writes the plan's history, in the same transaction, because a
       // journalled command and a recorded one are the same act.
       journal: new CommandJournalRepository(opts.db),
-      broadcast,
+      broadcast: announcements,
     }),
     history: new HistoryService({ projects: projectStore, events: planEventStore }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),
