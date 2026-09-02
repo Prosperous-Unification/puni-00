@@ -209,15 +209,19 @@ const namesOnScreen = (): string[] =>
 describe('duplicating a branch', () => {
   /** A one-row project, already loaded, so the button has something to copy. */
   async function shownRow(api: ProjectApi): Promise<void> {
-    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
   }
 
   itDom('copies the branch and lands the caret in the copy’s name', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    await api.create('p1', { parentId: api.rows[0]?.id ?? null, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', {
+      parentId: api.rows[0]?.id ?? null,
+      afterId: null,
+      name: 'Sockets',
+    });
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
 
@@ -259,7 +263,7 @@ describe('duplicating a branch', () => {
     const api = fakeApi();
     await shownRow({
       ...api,
-      duplicate: () => Promise.reject(new Error('too_large')),
+      duplicateWorkItem: () => Promise.reject(new Error('too_large')),
     });
 
     takeRowAction('010', 'Duplicate');
@@ -275,7 +279,7 @@ describe('the row actions menu', () => {
   /** Three root rows, named, already on screen. */
   async function threeRows(api: ProjectApi): Promise<void> {
     for (const name of ['Strip', 'Sand', 'Paint']) {
-      await api.create('p1', { parentId: null, afterId: null, name });
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
     }
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 030');
@@ -321,12 +325,20 @@ describe('the row actions menu', () => {
 
   itDom('promotes the children of a parent it deletes', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    await api.create('p1', { parentId: api.rows[0]?.id ?? null, afterId: null, name: 'Sockets' });
-    await api.create('p1', { parentId: null, afterId: api.rows[0]?.id ?? null, name: 'Sand' });
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', {
+      parentId: api.rows[0]?.id ?? null,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: api.rows[0]?.id ?? null,
+      name: 'Sand',
+    });
     const removed: [string, unknown][] = [];
-    const real = api.remove.bind(api);
-    api.remove = (id, options) => {
+    const real = api.removeWorkItem.bind(api);
+    api.removeWorkItem = (id, options) => {
       removed.push([id, options]);
       return real(id, options);
     };
@@ -346,8 +358,8 @@ describe('the row actions menu', () => {
   itDom('sends no strategy for a leaf, which has nothing to promote', async () => {
     const api = fakeApi();
     const removed: unknown[] = [];
-    const real = api.remove.bind(api);
-    api.remove = (id, options) => {
+    const real = api.removeWorkItem.bind(api);
+    api.removeWorkItem = (id, options) => {
       removed.push(options);
       return real(id, options);
     };
@@ -403,7 +415,7 @@ describe('the row actions menu', () => {
 
   itDom('says why a delete was refused, moves the focus nowhere and deletes nothing', async () => {
     const api = fakeApi();
-    await threeRows({ ...api, remove: () => Promise.reject(new Error('forbidden')) });
+    await threeRows({ ...api, removeWorkItem: () => Promise.reject(new Error('forbidden')) });
 
     takeRowAction('020', 'Delete');
 
@@ -558,7 +570,7 @@ describe('dragging a row', () => {
       expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
     });
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -584,7 +596,7 @@ describe('dragging a row', () => {
     });
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -599,7 +611,7 @@ describe('dragging a row', () => {
   itDom('sends nothing when a row is dropped where it already is', async () => {
     const api = await threeRoots();
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -708,7 +720,7 @@ describe('a drag interrupted by someone else', () => {
     });
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };

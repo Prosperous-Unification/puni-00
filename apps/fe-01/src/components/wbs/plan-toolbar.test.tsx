@@ -156,7 +156,7 @@ describe('the plan toolbar’s controls', () => {
     // and this one says the menu is wired to the two calls at all.
     const api = fakeApi();
     const asked: string[] = [];
-    api.freeze = () => {
+    api.freezeProject = () => {
       asked.push('freeze');
       return Promise.resolve();
     };

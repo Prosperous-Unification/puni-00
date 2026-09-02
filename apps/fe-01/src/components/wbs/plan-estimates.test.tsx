@@ -560,7 +560,7 @@ describe('assigning from a folded step’s cell with @', () => {
     // Every request from here on, so "no request on hover" is a fact about
     // this hover rather than about a component that never talks to be-01.
     const asked: string[] = [];
-    for (const method of ['tree', 'listPeople', 'setEstimate', 'assign'] as const) {
+    for (const method of ['tree', 'listPeople', 'setEstimate', 'assignPerson'] as const) {
       const real = api[method].bind(api) as (...args: never[]) => unknown;
       (api as unknown as Record<string, unknown>)[method] = (...args: never[]) => {
         asked.push(method);

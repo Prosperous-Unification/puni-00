@@ -201,7 +201,7 @@ describe('live edits from other people', () => {
     });
 
     // Somebody else's edit, arriving through the socket rather than this client.
-    await api.create('p1', { parentId: null, afterId: null, name: 'Theirs' });
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Theirs' });
     notify();
 
     await waitFor(() => {
@@ -378,7 +378,7 @@ describe('someone else editing while you are typing', () => {
     });
 
     const patched: unknown[] = [];
-    api.patch = (...args: unknown[]) => {
+    api.patchWorkItem = (...args: unknown[]) => {
       patched.push(args);
       return Promise.resolve();
     };
@@ -428,8 +428,8 @@ describe('someone else editing while you are typing', () => {
     });
 
     const patched: [string, Record<string, string>][] = [];
-    const real = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, string>) => {
+    const real = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
       patched.push([id, patch]);
       return real(id, patch);
     };
@@ -521,7 +521,7 @@ describe('someone else editing while you are typing', () => {
     const { api, cell, theirEdit } = await peerAndMe('Strip', 'measure twice');
     // Refused for a reason retyping cannot fix, so what is in the box is all
     // there is of this edit anywhere.
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     cell.focus();
     fireEvent.change(cell, { target: { value: 'Strip the wiring\nmeasure twice, cut once' } });
@@ -561,7 +561,7 @@ describe('failures you can see', () => {
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
-    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual([]);
     });
@@ -575,7 +575,7 @@ describe('failures you can see', () => {
 
   itDom('says a refused rename in a toast, and puts nothing above the table', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -597,8 +597,8 @@ describe('failures you can see', () => {
     // rename was refused disappeared the moment anything else worked. A toast
     // owns its own lifecycle: only its ✕ takes it off.
     const api = await threeRoots();
-    const realPatch = api.patch.bind(api);
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -608,7 +608,7 @@ describe('failures you can see', () => {
       ]);
     });
 
-    api.patch = realPatch;
+    api.patchWorkItem = realPatch;
     typeName('020', 'Sanded');
     fireEvent.blur(screen.getByLabelText('Name of 020'));
     await waitFor(() => {
@@ -622,7 +622,7 @@ describe('failures you can see', () => {
 
   itDom('takes a failure off when its ✕ is pressed', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -649,8 +649,8 @@ describe('failures you can see', () => {
     // `expected [ '010', '020', '030' ] to deeply equal [ '010', '020' ]` — a
     // sentence saying a row is gone above the row, still there.
     const api = await threeRoots();
-    const realRemove = api.remove.bind(api);
-    api.remove = async (id: string) => {
+    const realRemove = api.removeWorkItem.bind(api);
+    api.removeWorkItem = async (id: string) => {
       // The peer's delete, renumbering and all, and then be-01's answer to
       // ours: there is no such row any more.
       await realRemove(id);
@@ -677,7 +677,7 @@ describe('failures you can see', () => {
     // include 'The server could not complete that change. Try again.'`.
     // Watched, 2026-08-09.
     const api = await threeRoots();
-    api.remove = () => Promise.reject(new Error('http_500'));
+    api.removeWorkItem = () => Promise.reject(new Error('http_500'));
 
     takeRowAction('020', 'Delete');
 
@@ -704,7 +704,7 @@ describe('failures you can see', () => {
       reads += 1;
       return realTree(projectId);
     };
-    api.patch = () => Promise.reject(new Error('http_422'));
+    api.patchWorkItem = () => Promise.reject(new Error('http_422'));
 
     fireEvent.change(screen.getByLabelText('Name of 020'), { target: { value: 'Sand it' } });
     fireEvent.blur(screen.getByLabelText('Name of 020'));
@@ -732,7 +732,7 @@ describe('failures you can see', () => {
     // [ 'unknown_strategy' ] to include 'That change could not be completed
     // (unknown_strategy).'`. Watched, 2026-08-09.
     const api = await threeRoots();
-    api.remove = () => Promise.reject(new Error('unknown_strategy'));
+    api.removeWorkItem = () => Promise.reject(new Error('unknown_strategy'));
 
     takeRowAction('020', 'Delete');
 
@@ -868,7 +868,7 @@ describe('a click made while a save is in flight', () => {
     // Both watched, 2026-08-09.
     const api = await threeRoots();
     const finish: (() => void)[] = [];
-    api.patch = () => new Promise<void>((resolve) => finish.push(resolve));
+    api.patchWorkItem = () => new Promise<void>((resolve) => finish.push(resolve));
 
     const toolbar = document.querySelector('[data-toolbar]');
     if (toolbar === null) throw new Error('the table rendered no toolbar');
@@ -1224,7 +1224,7 @@ describe('a step changing, and what the table does about it', () => {
     // nowhere else, and `CellInput`'s rule 4 held it in a ref that dies with
     // the component.
     const api = await oneRow();
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
     const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
     fireEvent.change(name, { target: { value: 'Strip the wiring' } });
     fireEvent.blur(name);

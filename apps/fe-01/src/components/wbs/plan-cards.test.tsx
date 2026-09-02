@@ -255,7 +255,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
     listExternalSystems: () => Promise.resolve([]),
     listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
-    create: (_projectId: string, input: { parentId: string | null; name?: string }) => {
+    createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
       next += 1;
       const id = `w${String(next)}`;
       rows.push({
@@ -295,7 +295,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       });
       return Promise.resolve({ id });
     },
-    patch: (
+    patchWorkItem: (
       id: string,
       patch: {
         name?: string;
@@ -356,7 +356,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
       return Promise.resolve();
     },
-    assign: (workItemId: string, stepId: string, personId: string | null) => {
+    assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
       assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
       if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
       else assigned.set(`${workItemId}::${stepId}`, personId);
@@ -404,13 +404,13 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       return Promise.resolve({ ...service });
     },
     addPerson: () => notImplemented('addPerson'),
-    move: () => notImplemented('move'),
+    moveWorkItem: () => notImplemented('move'),
     /**
      * A copy beside the original, numbered as {@link create} numbers, because
      * a card that duplicated nothing and a card that duplicated something both
      * look the same until a second row is on screen.
      */
-    duplicate: (id: string) => {
+    duplicateWorkItem: (id: string) => {
       rowActionCalls.push(`duplicate:${id}`);
       const original = rows.find((each) => each.id === id);
       if (original === undefined) return Promise.reject(new Error('not_found'));
@@ -427,7 +427,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       rows.push(copy);
       return Promise.resolve({ id: copy.id });
     },
-    remove: (id: string) => {
+    removeWorkItem: (id: string) => {
       rowActionCalls.push(`remove:${id}`);
       const at = rows.findIndex((each) => each.id === id);
       if (at === -1) return Promise.reject(new Error('not_found'));
@@ -451,9 +451,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
       return Promise.resolve();
     },
-    freeze: () => notImplemented('freeze'),
+    freezeProject: () => notImplemented('freeze'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
-    unfreeze: (id: string) => {
+    unfreezeWorkItem: (id: string) => {
       rowActionCalls.push(`unfreeze:${id}`);
       const row = rows.find((each) => each.id === id);
       if (row === undefined) return Promise.reject(new Error('not_found'));
@@ -529,16 +529,20 @@ afterEach(() => {
 describe('the plan-card ProjectApi fake', () => {
   it('round trips whole team sets and retains the legacy scalar arm', async () => {
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const created = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
 
-    await api.patch(created.id, { teamIds: ['team-b', 'team-a'] });
+    await api.patchWorkItem(created.id, { teamIds: ['team-b', 'team-a'] });
 
     expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
       teamIds: ['team-b', 'team-a'],
       serviceTeamId: 'team-a',
     });
 
-    await api.patch(created.id, { serviceTeamId: 'team-c' });
+    await api.patchWorkItem(created.id, { serviceTeamId: 'team-c' });
 
     expect(api.rows.find((row) => row.id === created.id)).toMatchObject({
       teamIds: ['team-c'],
@@ -556,9 +560,9 @@ describe('the plan on a phone', () => {
     // eight rows, each the child of the one before, so the deepest is depth 7
     // — one past the cards' stated cap.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     for (let parent = 1; parent <= 7; parent += 1) {
-      await api.create('p1', { parentId: `w${String(parent)}` });
+      await api.createWorkItem('p1', { parentId: `w${String(parent)}` });
     }
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1424,7 +1428,7 @@ describe('what a card says about capacity', () => {
     howMany = 1,
   ): Promise<void> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams, api);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1619,7 +1623,7 @@ describe('what a card says about capacity', () => {
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1'];
       rows[0].serviceIds = ['s1'];
-      void api.assign(rows[0].id, DEV.id, 'p1');
+      void api.assignPerson(rows[0].id, DEV.id, 'p1');
     }, howMany);
   };
 
@@ -1688,7 +1692,7 @@ describe('what a card says about capacity', () => {
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1'];
       rows[0].serviceIds = ['s1'];
-      void api.assign(rows[0].id, DEV.id, 'p1');
+      void api.assignPerson(rows[0].id, DEV.id, 'p1');
     });
 
     expect(document.querySelector('[data-card-mismatches]')).toBeNull();
@@ -1780,7 +1784,7 @@ describe('what a card says about capacity', () => {
       // Through the write path, because the fake derives both `assignees` and
       // `doesEveryStep` from the assignments it holds — a row object with an
       // `assignees` written straight onto it is a shape the tree never sends.
-      void api.assign(row.id, DEV.id, 'p1');
+      void api.assignPerson(row.id, DEV.id, 'p1');
     });
 
     expect(parallelOnCard()?.textContent).toBe('3 at once (not applied)');
@@ -1806,7 +1810,7 @@ describe('what a card says about the schedule', () => {
   /** A plan on a phone, arranged before the first render — the capacity block’s own pattern. */
   async function aPlan(arrange: (rows: WorkItemView[]) => void, howMany = 1): Promise<void> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1950,7 +1954,7 @@ describe('the trio behind a step’s figure, on a card', () => {
       // `folded-step-card.tsx`'s own points make, and for the same reason:
       // a card is what the fold left behind, not what somebody is mid-typing.
       const api = fakeApi();
-      const created = await api.create('p1', { parentId: null });
+      const created = await api.createWorkItem('p1', { parentId: null });
       await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
       widthIs(PHONE);
       render(<WbsTable projectId="p1" api={api} />);
@@ -1972,7 +1976,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     // `combinedValue` put back to the final figure: on `expected '3.7' to be
     // '2/3/8'`.
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -1986,7 +1990,7 @@ describe('the trio behind a step’s figure, on a card', () => {
     // `5` stores `5/5/5` and every estimate method answers `5`; a card that
     // printed both would read `5 · 5` beside a step name.
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2042,7 +2046,7 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
    */
   const aPhonePlan = async (days: Days | null = null): Promise<ReturnType<typeof fakeApi>> => {
     const api = fakeApi();
-    const created = await api.create('p1', { parentId: null });
+    const created = await api.createWorkItem('p1', { parentId: null });
     if (days !== null) await api.setEstimate(created.id, DEV.id, days);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2153,7 +2157,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
 
   itDom('duplicates a row through the table’s own handler', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByRole('article', { name: 'Work item 010' });
@@ -2171,8 +2175,8 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
 
   itDom('deletes a row through the table’s own handler', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByRole('article', { name: 'Work item 020' });
@@ -2192,7 +2196,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     'unfreezes a frozen row, and refuses to delete one, with the table’s own words',
     async () => {
       const api = fakeApi();
-      await api.create('p1', { parentId: null });
+      await api.createWorkItem('p1', { parentId: null });
       // Arranged on the row rather than through a write path: this fake has no
       // `freeze`, and what is under test is what the menu does with a frozen row,
       // not how it came to be frozen.
@@ -2505,8 +2509,8 @@ describe('a filter on a phone', () => {
    */
   async function aFilterablePlan(): Promise<void> {
     const api = fakeApi();
-    const { id } = await api.create('p1', { parentId: null, name: 'Strip the hull' });
-    await api.create('p1', { parentId: null, name: 'Paint' });
+    const { id } = await api.createWorkItem('p1', { parentId: null, name: 'Strip the hull' });
+    await api.createWorkItem('p1', { parentId: null, name: 'Paint' });
     api.teams.push({ id: 't1', name: 'Billing' });
     // By the id `create` answered with rather than by position: a fake whose
     // first row is not the row this labels is a fixture quietly filtering on
@@ -2576,7 +2580,7 @@ describe('setting a card’s team', () => {
     options: { refusePatch?: boolean } = {},
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi(options);
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2647,11 +2651,11 @@ describe('setting a card’s team', () => {
 
   itDom('blocks a pending team double tap and closes after it lands', async () => {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     api.teams.push({ id: 't1', name: 'Billing' });
     let patchCalls = 0;
     let land: (() => void) | undefined;
-    api.patch = async () => {
+    api.patchWorkItem = async () => {
       patchCalls += 1;
       await new Promise<void>((resolve) => {
         land = resolve;
@@ -2775,7 +2779,7 @@ describe('setting a card’s tags and services', () => {
     // Proof: with CardSetField rendered unconditionally, h2puni failed here on
     // the first selector (received a button instead of null), 103/104 passed.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
@@ -2788,7 +2792,7 @@ describe('setting a card’s tags and services', () => {
     arrange: (rows: WorkItemView[]) => void = () => undefined,
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     api.tags.push({ id: 'tag-seed', name: 'seed tag' });
     api.services.push({ id: 'service-seed', name: 'seed service' });
     arrange(api.rows);
@@ -2864,7 +2868,7 @@ describe('setting a card’s earliest start', () => {
     },
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi({ dated: true });
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -2967,7 +2971,7 @@ describe('setting a card’s earliest start', () => {
     // nothing would be worse than a field that will not take one: be-01 ignores
     // the constraint entirely without a day zero to count from.
     const api = fakeApi();
-    await api.create('p1', { parentId: null });
+    await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
@@ -3022,7 +3026,7 @@ describe('setting a card’s priority', () => {
     howMany = 1,
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -3223,7 +3227,7 @@ describe('setting what a card waits for', () => {
     },
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);

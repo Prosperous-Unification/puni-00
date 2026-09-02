@@ -359,11 +359,11 @@ describe('the WBS table', () => {
     // window is exactly one call wide and nothing else in the table is slowed.
     const slow: ProjectApi = {
       ...api,
-      create: async (projectId, input) => {
+      createWorkItem: async (projectId, input) => {
         await new Promise<void>((resolve) => {
           inFlight.push(resolve);
         });
-        return api.create(projectId, input);
+        return api.createWorkItem(projectId, input);
       },
     };
     render(<WbsTable projectId="p1" api={slow} />);
@@ -406,10 +406,10 @@ describe('the WBS table', () => {
       ...first,
       tree: (projectId) => forProject(projectId).tree(projectId),
       steps: (projectId) => forProject(projectId).steps(projectId),
-      create: async (projectId, input) => {
+      createWorkItem: async (projectId, input) => {
         calls.push(projectId);
         if (projectId === 'p1') await heldFirst;
-        return forProject(projectId).create(projectId, input);
+        return forProject(projectId).createWorkItem(projectId, input);
       },
     };
     const { rerender } = render(<WbsTable projectId="p1" api={api} />);
@@ -585,7 +585,7 @@ describe('the WBS table', () => {
     typeName('010.1', 'Sockets');
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -635,7 +635,7 @@ describe('the WBS table', () => {
     await screen.findByLabelText('Name of 010.1');
 
     const removed: unknown[] = [];
-    api.remove = (...args: unknown[]) => {
+    api.removeWorkItem = (...args: unknown[]) => {
       removed.push(args);
       return Promise.resolve();
     };
@@ -690,7 +690,7 @@ describe('the WBS table', () => {
     expect(screen.getByLabelText('Name of 030')).toHaveValue('\nmeasure twice');
 
     const removed: unknown[] = [];
-    api.remove = (...args: unknown[]) => {
+    api.removeWorkItem = (...args: unknown[]) => {
       removed.push(args);
       return Promise.resolve();
     };
@@ -729,7 +729,7 @@ describe('the WBS table', () => {
     });
 
     const removed: unknown[] = [];
-    api.remove = (...args: unknown[]) => {
+    api.removeWorkItem = (...args: unknown[]) => {
       removed.push(args);
       return Promise.resolve();
     };
@@ -762,7 +762,7 @@ describe('the WBS table', () => {
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -795,7 +795,7 @@ describe('the WBS table', () => {
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -828,7 +828,7 @@ describe('the WBS table', () => {
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -851,7 +851,7 @@ describe('the WBS table', () => {
     await screen.findByLabelText('Name of 010');
 
     const moved: unknown[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -1067,12 +1067,12 @@ describe('the plan on a calendar', () => {
     // The affordance must follow the explanation rather than the column name:
     // making either style unconditional falsely advertises hidden help.
     const api = fakeApi();
-    const parent = await api.create('p1', {
+    const parent = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Parent',
     });
-    await api.create('p1', { parentId: parent.id, afterId: null, name: 'Child' });
+    await api.createWorkItem('p1', { parentId: parent.id, afterId: null, name: 'Child' });
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
 
@@ -1092,8 +1092,12 @@ describe('the plan on a calendar', () => {
     // Built through the api before the render, the way the picker's fixtures
     // are: the shape is the fixture here, not the thing under test.
     const api = fakeApi();
-    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
     await api.addDependency(paint.id, strip.id);
     // Five days on `Strip`'s Dev and a **Tuesday** start, so the day this cell
     // names is neither the plan's start date nor a count of calendar days: the
@@ -1247,8 +1251,8 @@ describe('the plan on a calendar', () => {
       );
     });
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push(patch);
       return realPatch(id, patch);
     };
@@ -1303,8 +1307,8 @@ describe('the plan on a calendar', () => {
       );
     });
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push(patch);
       return realPatch(id, patch);
     };
@@ -1359,8 +1363,8 @@ describe('the plan on a calendar', () => {
     });
 
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push(patch);
       return realPatch(id, patch);
     };
@@ -1389,8 +1393,8 @@ describe('the plan on a calendar', () => {
       );
     });
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push(patch);
       return realPatch(id, patch);
     };
@@ -1436,8 +1440,8 @@ describe('the plan on a calendar', () => {
     });
 
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push(patch);
       return realPatch(id, patch);
     };

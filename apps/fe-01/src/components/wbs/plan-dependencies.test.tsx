@@ -997,9 +997,17 @@ describe('picking dependencies from a list', () => {
 
   itDom('the highlight follows its row when a peer edit reshuffles the list', async () => {
     const api = fakeApi();
-    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    const sand = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
-    const paint = await api.create('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sand = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Sand',
+    });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: sand.id,
+      name: 'Paint',
+    });
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
@@ -1018,7 +1026,7 @@ describe('picking dependencies from a list', () => {
 
     // A peer inserts a row between Strip and Sand. By index the highlight
     // would now sit on the newcomer; it must stay on Paint.
-    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Wedge' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Wedge' });
     notify();
     await waitFor(() => {
       expect(optionTexts()).toHaveLength(3);
@@ -1063,9 +1071,17 @@ describe('the picker marks what be-01 would refuse', () => {
     edges: readonly (readonly ['strip' | 'sand' | 'paint', 'strip' | 'sand' | 'paint'])[] = [],
   ) => {
     const api = fakeApi();
-    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
-    const sand = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sand' });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sand = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sand',
+    });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
     const idOf = { strip: strip.id, sand: sand.id, paint: paint.id };
     for (const [predecessor, successor] of edges) {
       await api.addDependency(idOf[successor], idOf[predecessor]);

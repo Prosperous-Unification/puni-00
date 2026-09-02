@@ -4809,7 +4809,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         while (queue.queued > 0 && activeProject.current === queue.projectId) {
           queue.queued -= 1;
           const outcome = await run(async () => {
-            const created = await api.create(projectId, { parentId: null, afterId, name: '' });
+            const created = await api.createWorkItem(projectId, {
+              parentId: null,
+              afterId,
+              name: '',
+            });
             afterId = created.id;
             focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
           });
@@ -5285,7 +5289,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
 
       if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
-      void run(() => api.move(draggedId, plan.parentId, plan.afterId));
+      void run(() => api.moveWorkItem(draggedId, plan.parentId, plan.afterId));
     },
     [api, dragging, flat, pushToast, run],
   );
@@ -5293,7 +5297,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const addSibling = useCallback(
     (after: TreeRow) =>
       run(async () => {
-        const created = await api.create(projectId, {
+        const created = await api.createWorkItem(projectId, {
           parentId: after.parentId,
           afterId: after.id,
           name: '',
@@ -5321,7 +5325,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         const newParent = index > 0 ? siblings[index - 1] : undefined;
         if (newParent === undefined) return;
         const lastChild = newParent.subRows.at(-1) ?? null;
-        await api.move(row.id, newParent.id, lastChild?.id ?? null);
+        await api.moveWorkItem(row.id, newParent.id, lastChild?.id ?? null);
         // After the move, not before: a refused request then leaves the focus
         // where the person left it rather than sending it after a row that
         // never went anywhere.
@@ -5337,7 +5341,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         if (row.parentId === null) return;
         const parent = flat.find((w) => w.id === row.parentId);
         if (parent === undefined) return;
-        await api.move(row.id, parent.parentId, parent.id);
+        await api.moveWorkItem(row.id, parent.parentId, parent.id);
         // After the move, for the reason `indent` gives.
         focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       }),
@@ -5380,7 +5384,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           ? (siblings[swapWith]?.id ?? null)
           : (siblings[swapWith - 1]?.id ?? null);
       void run(async () => {
-        await api.move(row.id, row.parentId, afterId);
+        await api.moveWorkItem(row.id, row.parentId, afterId);
         // Asked for only once be-01 has taken the move: a refused request leaves
         // the focus where the person left it rather than chasing a row that did
         // not go anywhere.
@@ -5406,7 +5410,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const duplicateRow = useCallback(
     (id: string) =>
       run(async () => {
-        const copy = await api.duplicate(id);
+        const copy = await api.duplicateWorkItem(id);
         focusIntent.current.wants({ rowId: copy.id, columnId: 'name' });
       }),
     [api, run],
@@ -5452,7 +5456,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // has no row above, and `.at(-1)` would send the focus to the last one.
         const above = flatAt > 0 ? flat[flatAt - 1] : undefined;
         const landsOn = nextSibling ?? above;
-        await api.remove(row.id, {
+        await api.removeWorkItem(row.id, {
           strategy: row.subRows.length > 0 ? 'promote' : undefined,
         });
         focusIntent.current.wants(
@@ -5510,7 +5514,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // mean the same thing, so there is nothing unsaved for the cell to hold
       // and nothing for be-01 to have refused.
       if (Object.keys(patch).length === 0) return unsent();
-      return run(() => api.patch(rowId, patch));
+      return run(() => api.patchWorkItem(rowId, patch));
     },
     [api, run],
   );
@@ -5526,7 +5530,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         focusIntent.current.wants(
           above === undefined ? null : { rowId: above.id, columnId: 'name' },
         );
-        await api.remove(row.id);
+        await api.removeWorkItem(row.id);
       }),
     [api, flat, run],
   );
@@ -6409,7 +6413,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setNotBefore = useCallback(
     (id: string, day: string | null, reason?: string | null) => {
       void run(() =>
-        api.patch(
+        api.patchWorkItem(
           id,
           day === null
             ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
@@ -6449,7 +6453,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setNotBeforeReason = useCallback(
     (id: string, typed: string) => {
       const said = typed.trim();
-      void run(() => api.patch(id, { startNoEarlierThanReason: said === '' ? null : said }));
+      void run(() =>
+        api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
+      );
     },
     [api, run],
   );
@@ -6478,7 +6484,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // typed name and a typed number all become one `patch`, one journal entry
       // and one undo. `priorityTyped` owns the rule and the order in it.
       const trimmed = priorityTyped(priorityBands, typed).trim();
-      if (trimmed === '') return run(() => api.patch(id, { priority: null }));
+      if (trimmed === '') return run(() => api.patchWorkItem(id, { priority: null }));
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
       // `Number` answers `NaN` for either.
@@ -6504,7 +6510,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pushToast({ kind: 'error', text: 'A priority is a whole number from 1 upward.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patch(id, { priority: asNumber }));
+      return run(() => api.patchWorkItem(id, { priority: asNumber }));
     },
     [api, priorityBands, pushToast, run],
   );
@@ -6527,7 +6533,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const setParallelism = useCallback(
     (id: string, typed: string): Promise<CommitOutcome> => {
       const trimmed = typed.trim();
-      if (trimmed === '') return run(() => api.patch(id, { maxParallel: null }));
+      if (trimmed === '') return run(() => api.patchWorkItem(id, { maxParallel: null }));
       const asNumber = Number(trimmed);
       // {@link setPriority}'s refusal, for its reason: JSON has no literal for
       // `NaN` or `Infinity`, so either would arrive as `null` — which here is
@@ -6537,7 +6543,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pushToast({ kind: 'error', text: 'People at once is a whole number from 1 to 1000.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patch(id, { maxParallel: asNumber }));
+      return run(() => api.patchWorkItem(id, { maxParallel: asNumber }));
     },
     [api, pushToast, run],
   );
@@ -6615,7 +6621,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /** Replaces a work item's own team set, whole. */
   const setTeamOf = useCallback(
     (id: string, teamIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { teamIds: [...teamIds] })),
+      run(() => api.patchWorkItem(id, { teamIds: [...teamIds] })),
     [api, run],
   );
 
@@ -6637,7 +6643,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setServicesOf = useCallback(
     (id: string, serviceIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { serviceIds: [...serviceIds] })),
+      run(() => api.patchWorkItem(id, { serviceIds: [...serviceIds] })),
     [api, run],
   );
 
@@ -6651,7 +6657,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setTagsOf = useCallback(
     (id: string, tagIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { tagIds: [...tagIds] })),
+      run(() => api.patchWorkItem(id, { tagIds: [...tagIds] })),
     [api, run],
   );
 
@@ -6662,7 +6668,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // be-01 is idempotent by name, so two browsers typing `Platform` at
         // once end up on one team rather than two.
         const team = await api.addTeam(name);
-        await api.patch(id, { teamIds: [...current, team.id] });
+        await api.patchWorkItem(id, { teamIds: [...current, team.id] });
       }),
     [api, run],
   );
@@ -6672,7 +6678,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async () => {
         const service = await api.addService(name);
-        await api.patch(id, { serviceIds: [...current, service.id] });
+        await api.patchWorkItem(id, { serviceIds: [...current, service.id] });
       }),
     [api, run],
   );
@@ -6693,14 +6699,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setExternalRefsOf = useCallback(
     (id: string, refs: readonly ExternalRefDraft[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { externalRefs: refs.map((ref) => ({ ...ref })) })),
+      run(() => api.patchWorkItem(id, { externalRefs: refs.map((ref) => ({ ...ref })) })),
     [api, run],
   );
 
   /** The whole type set, replaced — `setTagsOf`'s shape and signature. */
   const setTypesOf = useCallback(
     (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
-      run(() => api.patch(id, { typeIds: [...typeIds] })),
+      run(() => api.patchWorkItem(id, { typeIds: [...typeIds] })),
     [api, run],
   );
 
@@ -6718,7 +6724,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // be-01 is idempotent by name, so two browsers typing `Bug` at once end
         // up on one type rather than two.
         const workItemType = await api.addWorkItemType(name);
-        await api.patch(id, { typeIds: [...current, workItemType.id] });
+        await api.patchWorkItem(id, { typeIds: [...current, workItemType.id] });
       }),
     [api, run],
   );
@@ -6728,14 +6734,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async () => {
         const tag = await api.addTag(name);
-        await api.patch(id, { tagIds: [...current, tag.id] });
+        await api.patchWorkItem(id, { tagIds: [...current, tag.id] });
       }),
     [api, run],
   );
 
   const assignTo = useCallback(
     (id: string, stepId: string, personId: string | null) => {
-      void run(() => api.assign(id, stepId, personId));
+      void run(() => api.assignPerson(id, stepId, personId));
     },
     [api, run],
   );
@@ -6753,7 +6759,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (row: TreeRow, stepId: string, name: string) => {
       void run(async () => {
         const person = await api.addPerson(name, row.teamIds);
-        await api.assign(row.id, stepId, person.id);
+        await api.assignPerson(row.id, stepId, person.id);
       });
     },
     [api, run],
@@ -10174,7 +10180,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         id: 'unfreeze',
                         label: 'Unfreeze',
                         run: () => {
-                          void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                          void live.current.run(() =>
+                            live.current.api.unfreezeWorkItem(row.original.id),
+                          );
                         },
                       },
                     ]),
@@ -10870,7 +10878,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () => void run(() => api.freeze(projectId)),
+            run: () => void run(() => api.freezeProject(projectId)),
           },
           {
             id: 'unfreeze-all',
@@ -11842,7 +11850,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               void duplicateRow(rowId);
             },
             unfreeze: (rowId) => {
-              void run(() => api.unfreeze(rowId));
+              void run(() => api.unfreezeWorkItem(rowId));
             },
             remove: (row) => {
               void deleteRow(row);

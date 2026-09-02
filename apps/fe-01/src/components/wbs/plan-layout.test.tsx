@@ -1640,7 +1640,7 @@ describe('the columns a reader has hidden', () => {
 
   itDom('hides a step whole and leaves Days and the dates alone', async () => {
     const api = fakeApi();
-    const row = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.setEstimate(row.id, 'step-qa', { optimistic: 2, realistic: 3, pessimistic: 4 });
     render(<WbsTable projectId="p1" api={api} />);
     await waitFor(() => {

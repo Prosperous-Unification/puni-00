@@ -356,7 +356,7 @@ describe('teams and assignees', () => {
   itDom('joins a new person to the work item’s team', async () => {
     const api = await oneRow();
     const team = await api.addTeam('Billing');
-    await api.patch('w1', { serviceTeamId: team.id });
+    await api.patchWorkItem('w1', { serviceTeamId: team.id });
     // The tree has to come back carrying the team before the assignee picker
     // can act on it.
     const teamPicker = screen.getByLabelText('Service or team for 010');
@@ -414,8 +414,8 @@ describe('the priority cell', () => {
   /** Every PATCH the table sends, still performed. */
   const watchPatches = (api: ProjectApi): unknown[] => {
     const seen: unknown[] = [];
-    const perform = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const perform = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       seen.push(patch);
       return perform(id, patch);
     };
@@ -536,8 +536,8 @@ describe('the priority cell', () => {
       // test watching the object alone cannot see the loss.
       const api = await twoRows();
       const onTheWire: unknown[] = [];
-      const perform = api.patch.bind(api);
-      api.patch = (id: string, patch: Record<string, unknown>) => {
+      const perform = api.patchWorkItem.bind(api);
+      api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
         onTheWire.push(JSON.parse(JSON.stringify(patch)));
         return perform(id, patch);
       };
@@ -791,8 +791,8 @@ describe('the In-parallel cell', () => {
   /** Every PATCH the table sends, still performed. */
   const watchPatches = (api: ProjectApi): unknown[] => {
     const seen: unknown[] = [];
-    const perform = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const perform = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       seen.push(patch);
       return perform(id, patch);
     };
@@ -888,8 +888,8 @@ describe('the In-parallel cell', () => {
    */
   async function twoRowsRefusing(code: string): Promise<void> {
     const api = fakeApi();
-    const perform = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) =>
+    const perform = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) =>
       'maxParallel' in patch ? Promise.reject(new Error(code)) : perform(id, patch);
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
@@ -1507,8 +1507,8 @@ describe('names wrap and notes carry markdown', () => {
     });
 
     const patched: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       patched.push([id, patch]);
       return realPatch(id, patch);
     };
@@ -1747,7 +1747,7 @@ describe('names wrap and notes carry markdown', () => {
     await screen.findByRole('tooltip');
 
     // Somebody else renames the other row. Nothing moved, so the card stays.
-    await api.patch(api.rows[0]?.id ?? '', { name: 'Renamed by a peer' });
+    await api.patchWorkItem(api.rows[0]?.id ?? '', { name: 'Renamed by a peer' });
     await act(async () => {
       notify();
       await Promise.resolve();
@@ -1755,7 +1755,7 @@ describe('names wrap and notes carry markdown', () => {
     expect(screen.queryByRole('tooltip'), 'a plain refresh took the card away').not.toBeNull();
 
     // And now they move the hovered row to the top of the plan.
-    await api.move(api.rows[1]?.id ?? '', null, null);
+    await api.moveWorkItem(api.rows[1]?.id ?? '', null, null);
     await act(async () => {
       notify();
       await Promise.resolve();
@@ -1809,7 +1809,7 @@ describe('names wrap and notes carry markdown', () => {
     const last = api.rows[2]?.id ?? '';
 
     // 020 goes under 010, so the hovered row has an ancestor to be moved.
-    await api.move(inside, branch, null);
+    await api.moveWorkItem(inside, branch, null);
     await act(async () => {
       notify();
       await Promise.resolve();
@@ -1822,7 +1822,7 @@ describe('names wrap and notes carry markdown', () => {
 
     // The branch moves to the end of the plan. The hovered row is still the
     // first child of the same parent — and it is drawn two lines further down.
-    await api.move(branch, null, last);
+    await api.moveWorkItem(branch, null, last);
     await act(async () => {
       notify();
       await Promise.resolve();
@@ -1898,8 +1898,8 @@ describe('a name and its notes in one box', () => {
     expect(api.rows[0]?.notes).toBe(notes);
 
     const patched: [string, Record<string, string>][] = [];
-    const real = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, string>) => {
+    const real = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
       patched.push([id, patch]);
       return real(id, patch);
     };
@@ -1987,7 +1987,7 @@ describe('a name and its notes in one box', () => {
     });
 
     const patched: [string, Record<string, string>][] = [];
-    api.patch = (id: string, patch: Record<string, string>) => {
+    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
       patched.push([id, patch]);
       return Promise.resolve();
     };
@@ -2056,7 +2056,7 @@ describe('a name and its notes in one box', () => {
     let land: () => void = () => {
       throw new Error('nothing is in flight');
     };
-    api.patch = (id: string, patch: Record<string, string>) => {
+    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
       patched.push([id, patch]);
       return new Promise<void>((resolve) => {
         land = resolve;
@@ -2095,7 +2095,7 @@ describe('a name and its notes in one box', () => {
     // silently dropped as a duplicate of a request that never landed.
     // Watched, 2026-08-08.
     const { api, patched, cell } = await noted('Strip', 'measure twice');
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     retype('Strip the wiring\nmeasure twice, cut once');
     await waitFor(() => {
@@ -2104,7 +2104,7 @@ describe('a name and its notes in one box', () => {
       );
     });
 
-    api.patch = (id: string, patch: Record<string, string>) => {
+    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
       patched.push([id, patch]);
       return Promise.resolve();
     };
@@ -2122,7 +2122,7 @@ describe('a name and its notes in one box', () => {
     // Atomicity is the whole reason the two fields travel in one request: a
     // refusal has to leave the row as it was, not half written.
     const { api } = await noted('Strip', 'measure twice');
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     retype('Strip the wiring\nmeasure twice, cut once');
 
@@ -2156,12 +2156,12 @@ describe('the tag cell', () => {
    */
   async function aTaggedPlan(): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const sockets = await api.create('p1', {
+    const sockets = await api.createWorkItem('p1', {
       parentId: strip.id,
       afterId: null,
       name: 'Sockets',
@@ -2234,12 +2234,12 @@ describe('the service cell', () => {
    */
   async function aServicedPlan(): Promise<ReturnType<typeof fakeApi> & { checkout: string }> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
     const checkout = await api.addService('Checkout');
     await api.addService('Ledger');
     api.labelWithService(strip.id, [checkout.id]);
@@ -2308,12 +2308,12 @@ describe('the service cell', () => {
     // that one back — the second was invisible on screen and lost on the next
     // choice.
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
     const checkout = await api.addService('Checkout');
     // `addService` is idempotent by name, so this is the same `Ledger` the
     // shared fixture makes rather than a second one.
@@ -2323,9 +2323,9 @@ describe('the service cell', () => {
     const patches: unknown[] = [];
     const watched: ProjectApi = {
       ...api,
-      patch: async (id, patch) => {
+      patchWorkItem: async (id, patch) => {
         patches.push({ id, patch });
-        return api.patch(id, patch);
+        return api.patchWorkItem(id, patch);
       },
     };
     await drawn(watched);
@@ -2354,9 +2354,9 @@ describe('the service cell', () => {
       const patches: unknown[] = [];
       const watched: ProjectApi = {
         ...api,
-        patch: async (id, patch) => {
+        patchWorkItem: async (id, patch) => {
           patches.push({ id, patch });
-          return api.patch(id, patch);
+          return api.patchWorkItem(id, patch);
         },
       };
       await drawn(watched);
@@ -2402,12 +2402,12 @@ describe('the links column', () => {
   /** Two rows: `010` for the links, `020` deliberately with none. */
   async function twoRows(): Promise<ReturnType<typeof fakeApi> & { first: string }> {
     const api = fakeApi();
-    const first = await api.create('p1', {
+    const first = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    await api.create('p1', { parentId: null, afterId: first.id, name: 'Paint' });
+    await api.createWorkItem('p1', { parentId: null, afterId: first.id, name: 'Paint' });
     return Object.assign(api, { first: first.id });
   }
 
@@ -2614,9 +2614,9 @@ describe('the links column', () => {
     const patches: unknown[] = [];
     const watched: ProjectApi = {
       ...api,
-      patch: async (id, patch) => {
+      patchWorkItem: async (id, patch) => {
         patches.push({ id, patch });
-        return api.patch(id, patch);
+        return api.patchWorkItem(id, patch);
       },
     };
     await drawn(watched);
@@ -2664,9 +2664,9 @@ describe('the links column', () => {
     const patches: { patch: unknown }[] = [];
     const watched: ProjectApi = {
       ...api,
-      patch: async (id, patch) => {
+      patchWorkItem: async (id, patch) => {
         patches.push({ patch });
-        return api.patch(id, patch);
+        return api.patchWorkItem(id, patch);
       },
     };
     await drawn(watched);
@@ -2694,9 +2694,9 @@ describe('the links column', () => {
     const patches: { patch: unknown }[] = [];
     const watched: ProjectApi = {
       ...api,
-      patch: async (id, patch) => {
+      patchWorkItem: async (id, patch) => {
         patches.push({ patch });
-        return api.patch(id, patch);
+        return api.patchWorkItem(id, patch);
       },
     };
     await drawn(watched);

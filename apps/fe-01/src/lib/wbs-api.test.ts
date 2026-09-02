@@ -215,7 +215,7 @@ describe('patching a work item team set', () => {
     );
     const api = httpProjectApi('t');
     await api.tree('p1');
-    await api.patch('w1', { teamIds: ['team-b', 'team-a'] });
+    await api.patchWorkItem('w1', { teamIds: ['team-b', 'team-a'] });
 
     expect(fetched).toHaveBeenCalledTimes(2);
     expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
@@ -562,7 +562,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
     vi.stubGlobal('fetch', fetched);
     const api = httpProjectApi('t');
     await api.tree('p1');
-    await api.patch('w1', { name: 'Strip it' });
+    await api.patchWorkItem('w1', { name: 'Strip it' });
 
     const [, write] = fetched.mock.calls as [unknown, [string, RequestInit]];
     expect(write[0]).toBe('/api/projects/p1/commands');
@@ -577,7 +577,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
     // this failed on `expected …rejects.toThrow('unknown_work_item')`. Watched,
     // 2026-08-29.
     stubbed(200, APPLIED);
-    await expect(httpProjectApi('t').patch('nobody', { name: 'X' })).rejects.toThrow(
+    await expect(httpProjectApi('t').patchWorkItem('nobody', { name: 'X' })).rejects.toThrow(
       'unknown_work_item',
     );
   });
@@ -602,19 +602,22 @@ describe('the browser writes through command batches (plan-commands)', () => {
     await api.tree('p1');
     const days = { optimistic: 1, realistic: 2, pessimistic: 3 };
     const writes: [() => Promise<unknown>, string][] = [
-      [() => api.create('p1', { parentId: null, afterId: null, name: 'A' }), 'createWorkItem'],
-      [() => api.patch('w1', { notes: 'n' }), 'patchWorkItem'],
-      [() => api.move('w1', null, 'w2'), 'moveWorkItem'],
-      [() => api.duplicate('w1'), 'duplicateWorkItem'],
-      [() => api.remove('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
+      [
+        () => api.createWorkItem('p1', { parentId: null, afterId: null, name: 'A' }),
+        'createWorkItem',
+      ],
+      [() => api.patchWorkItem('w1', { notes: 'n' }), 'patchWorkItem'],
+      [() => api.moveWorkItem('w1', null, 'w2'), 'moveWorkItem'],
+      [() => api.duplicateWorkItem('w1'), 'duplicateWorkItem'],
+      [() => api.removeWorkItem('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
       [() => api.setEstimate('w1', 'r1', days), 'setEstimate'],
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
-      [() => api.assign('w1', 'r1', 'k'), 'setAssignee'],
+      [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
-      [() => api.freeze('p1'), 'freezeProject'],
+      [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
-      [() => api.unfreeze('w1'), 'unfreezeWorkItem'],
+      [() => api.unfreezeWorkItem('w1'), 'unfreezeWorkItem'],
       [() => api.setTeamCapacity('p1', 'team1', 3), 'setCapacity'],
       [() => api.setPriorityBands('p1', []), 'setPriorityBands'],
     ];
@@ -633,7 +636,9 @@ describe('the browser writes through command batches (plan-commands)', () => {
       ).toEqual([kind]);
     }
     // And the create answers the id the batch minted, as the route did.
-    await expect(api.create('p1', { parentId: null, afterId: null, name: 'B' })).resolves.toEqual({
+    await expect(
+      api.createWorkItem('p1', { parentId: null, afterId: null, name: 'B' }),
+    ).resolves.toEqual({
       id: 'new',
     });
   });

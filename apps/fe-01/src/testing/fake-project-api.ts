@@ -515,7 +515,7 @@ export function fakeProjectApi(): ProjectApi & {
       people.push(person);
       return Promise.resolve({ ...person, kind: 'person' as const });
     },
-    assign(workItemId: string, stepId: string, personId: string | null) {
+    assignPerson(workItemId: string, stepId: string, personId: string | null) {
       const key = `${workItemId}::${stepId}`;
       if (personId === null) assigned.delete(key);
       else assigned.set(key, personId);
@@ -577,7 +577,7 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve({ ok: true as const });
     },
-    create(_projectId, input) {
+    createWorkItem(_projectId, input) {
       next += 1;
       const id = `w${String(next)}`;
       const at =
@@ -629,7 +629,7 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve({ id });
     },
-    patch(id, patch) {
+    patchWorkItem(id, patch) {
       const row = rows.find((r) => r.id === id);
       // `maxParallel: null` is a **reset to 1** and not a clear, which is
       // be-01's own normalisation (`capacity-write-paths`, slice 1.3) rather
@@ -664,7 +664,7 @@ export function fakeProjectApi(): ProjectApi & {
       }
       return Promise.resolve();
     },
-    move(id, parentId, afterId) {
+    moveWorkItem(id, parentId, afterId) {
       const index = rows.findIndex((r) => r.id === id);
       const row = rows.splice(index, 1).at(0);
       if (row === undefined) return Promise.resolve();
@@ -674,7 +674,7 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    duplicate(id) {
+    duplicateWorkItem(id) {
       const source = rows.find((r) => r.id === id);
       if (source === undefined) return Promise.reject(new Error('not_found'));
       // be-01's rules in miniature, because the table is asserted against
@@ -725,7 +725,7 @@ export function fakeProjectApi(): ProjectApi & {
       if (root === undefined) throw new Error('a duplication copied nothing');
       return Promise.resolve({ id: root.id });
     },
-    remove(id) {
+    removeWorkItem(id) {
       const index = rows.findIndex((r) => r.id === id);
       if (index >= 0) rows.splice(index, 1);
       renumber();
@@ -747,7 +747,7 @@ export function fakeProjectApi(): ProjectApi & {
       }
       return Promise.resolve();
     },
-    freeze() {
+    freezeProject() {
       for (const row of rows) row.frozenNumber ??= row.number;
       return Promise.resolve();
     },
@@ -755,7 +755,7 @@ export function fakeProjectApi(): ProjectApi & {
       for (const row of rows) row.frozenNumber = null;
       return Promise.resolve();
     },
-    unfreeze(id) {
+    unfreezeWorkItem(id) {
       const row = rows.find((r) => r.id === id);
       if (row !== undefined) row.frozenNumber = null;
       return Promise.resolve();

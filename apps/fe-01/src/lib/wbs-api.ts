@@ -1236,11 +1236,11 @@ export interface ProjectApi {
    * caller saying it has shown those counts to somebody and been told to go on.
    */
   removeStep(projectId: string, stepId: string, cascade: boolean): Promise<StepRemoval>;
-  create(
+  createWorkItem(
     projectId: string,
     input: { parentId: string | null; afterId: string | null; name?: string },
   ): Promise<{ id: string }>;
-  patch(
+  patchWorkItem(
     id: string,
     patch: {
       name?: string;
@@ -1390,8 +1390,8 @@ export interface ProjectApi {
   /** Adds a person; no teams means a free agent. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
   /** Sets or (with `null`) clears who does one work item's work for one step. */
-  assign(workItemId: string, stepId: string, personId: string | null): Promise<void>;
-  move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
+  assignPerson(workItemId: string, stepId: string, personId: string | null): Promise<void>;
+  moveWorkItem(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   /**
    * Copies a work item and everything under it, as the next sibling of the
    * original, answering the copy's id.
@@ -1402,8 +1402,8 @@ export interface ProjectApi {
    * frozen numbers, no edges leaving the branch — is be-01's rule, stated in
    * `openspec/changes/duplicate-subtree/`.
    */
-  duplicate(id: string): Promise<{ id: string }>;
-  remove(id: string, options?: DeleteOptions): Promise<void>;
+  duplicateWorkItem(id: string): Promise<{ id: string }>;
+  removeWorkItem(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, stepId: string, days: Days): Promise<void>;
   /**
    * Takes one work item's stored trio for one step back off.
@@ -1413,9 +1413,9 @@ export interface ProjectApi {
    * there is anything there to remove.
    */
   clearEstimate(id: string, stepId: string): Promise<void>;
-  freeze(projectId: string): Promise<void>;
+  freezeProject(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
-  unfreeze(id: string): Promise<void>;
+  unfreezeWorkItem(id: string): Promise<void>;
   /**
    * Records "`predecessorId`'s **anchor** must finish before this starts" —
    * its first step somebody estimated, not the whole of it. The steps behind
@@ -2117,7 +2117,7 @@ export function httpProjectApi(token: string): ProjectApi {
     redo(projectId) {
       return stepStack(`/api/projects/${projectId}/redo`, token);
     },
-    async assign(workItemId, stepId, personId) {
+    async assignPerson(workItemId, stepId, personId) {
       await onRow(workItemId, { kind: 'setAssignee', stepId, personId });
     },
     async setStartDate(projectId, startDate) {
@@ -2175,19 +2175,19 @@ export function httpProjectApi(token: string): ProjectApi {
         token,
       );
     },
-    async create(projectId, input) {
+    async createWorkItem(projectId, input) {
       const made = onlyResult(await command(projectId, { kind: 'createWorkItem', ...input }));
       if (made.id === undefined) throw new Error('unexpected_response');
       projectOf.set(made.id, projectId);
       return { id: made.id };
     },
-    async patch(id, patch) {
+    async patchWorkItem(id, patch) {
       await onRow(id, { kind: 'patchWorkItem', patch });
     },
-    async move(id, parentId, afterId) {
+    async moveWorkItem(id, parentId, afterId) {
       await onRow(id, { kind: 'moveWorkItem', parentId, afterId });
     },
-    async duplicate(id) {
+    async duplicateWorkItem(id) {
       const projectId = projectFor(id);
       const copy = onlyResult(
         await command(projectId, { kind: 'duplicateWorkItem', workItemId: id }),
@@ -2196,7 +2196,7 @@ export function httpProjectApi(token: string): ProjectApi {
       projectOf.set(copy.id, projectId);
       return { id: copy.id };
     },
-    async remove(id, options) {
+    async removeWorkItem(id, options) {
       await onRow(id, {
         kind: 'deleteWorkItem',
         ...(options?.strategy === undefined ? {} : { strategy: options.strategy }),
@@ -2208,13 +2208,13 @@ export function httpProjectApi(token: string): ProjectApi {
     async clearEstimate(id, stepId) {
       await onRow(id, { kind: 'clearEstimate', stepId });
     },
-    async freeze(projectId) {
+    async freezeProject(projectId) {
       await command(projectId, { kind: 'freezeProject' });
     },
     async unfreezeProject(projectId) {
       await command(projectId, { kind: 'unfreezeProject' });
     },
-    async unfreeze(id) {
+    async unfreezeWorkItem(id) {
       await onRow(id, { kind: 'unfreezeWorkItem' });
     },
     async addDependency(id, predecessorId) {

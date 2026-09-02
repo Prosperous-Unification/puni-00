@@ -811,7 +811,7 @@ describe('moving rows with alt and the arrows', () => {
   /** Records every move asked for, and makes none of them happen. */
   const watchMoves = (api: ProjectApi): unknown[][] => {
     const moved: unknown[][] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       moved.push(args);
       return Promise.resolve();
     };
@@ -1000,7 +1000,7 @@ describe('moving rows with alt and the arrows', () => {
     const api = await threeRoots();
     const asked: unknown[][] = [];
     const finish: (() => void)[] = [];
-    api.move = (...args: unknown[]) => {
+    api.moveWorkItem = (...args: unknown[]) => {
       asked.push(args);
       return new Promise<void>((resolve) => finish.push(resolve));
     };
@@ -1252,14 +1252,14 @@ describe('the command chords', () => {
     const held = new Promise<void>((resolve) => {
       letThePatchLand = resolve;
     });
-    const realPatch = api.patch.bind(api);
-    api.patch = async (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = async (id: string, patch: Record<string, unknown>) => {
       asked.push('patch');
       await held;
       return realPatch(id, patch);
     };
-    const realCreate = api.create.bind(api);
-    api.create = (
+    const realCreate = api.createWorkItem.bind(api);
+    api.createWorkItem = (
       projectId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
@@ -1292,7 +1292,7 @@ describe('the command chords', () => {
 
   itDom('a refused save leaves the caret where it was and makes no row', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('forbidden'));
+    api.patchWorkItem = () => Promise.reject(new Error('forbidden'));
 
     const cell = nameOf('030');
     cell.focus();
@@ -1330,8 +1330,8 @@ describe('the command chords', () => {
     let refuseThePatch: () => void = () => {
       throw new Error('the patch was never sent');
     };
-    const realPatch = api.patch.bind(api);
-    api.patch = (id: string, patch: Record<string, unknown>) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
       asked.push('patch');
       return new Promise<void>((resolve, reject) => {
         landThePatch = () => {
@@ -1342,8 +1342,8 @@ describe('the command chords', () => {
         };
       });
     };
-    const realCreate = api.create.bind(api);
-    api.create = (
+    const realCreate = api.createWorkItem.bind(api);
+    api.createWorkItem = (
       projectId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
@@ -1775,8 +1775,12 @@ describe('the command chords', () => {
     });
 
     // Their new row, moved above the armed one, which renumbers it to 030.
-    const theirs = await api.create('p1', { parentId: null, afterId: null, name: 'Theirs' });
-    await api.move(theirs.id, null, null);
+    const theirs = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Theirs',
+    });
+    await api.moveWorkItem(theirs.id, null, null);
     await act(async () => {
       notify();
       await Promise.resolve();
@@ -1828,8 +1832,8 @@ describe('the command chords', () => {
     let letTheCreateLand: () => void = () => {
       throw new Error('nothing was ever created');
     };
-    const realCreate = api.create.bind(api);
-    api.create = async (
+    const realCreate = api.createWorkItem.bind(api);
+    api.createWorkItem = async (
       projectId: string,
       input: { parentId: string | null; afterId: string | null },
     ) => {
@@ -1988,8 +1992,8 @@ describe('the command chords', () => {
   /** Every `assign` and `addPerson` the table asked for, in order. */
   const watchPeopleWrites = (api: ProjectApi): string[] => {
     const written: string[] = [];
-    const realAssign = api.assign.bind(api);
-    api.assign = (id: string, stepId: string, personId: string | null) => {
+    const realAssign = api.assignPerson.bind(api);
+    api.assignPerson = (id: string, stepId: string, personId: string | null) => {
       written.push(`assign ${id} ${stepId} ${String(personId)}`);
       return realAssign(id, stepId, personId);
     };
@@ -2043,8 +2047,8 @@ describe('the command chords', () => {
   itDom('creating a second team sends and reloads the whole team set', async () => {
     const api = await threeRoots();
     const patches: unknown[] = [];
-    const realPatch = api.patch.bind(api);
-    api.patch = async (id, patch) => {
+    const realPatch = api.patchWorkItem.bind(api);
+    api.patchWorkItem = async (id, patch) => {
       patches.push({ id, patch });
       return realPatch(id, patch);
     };

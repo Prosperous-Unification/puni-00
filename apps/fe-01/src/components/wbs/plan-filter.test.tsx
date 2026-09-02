@@ -113,20 +113,24 @@ describe('finding a work item in the tree', () => {
    */
   async function decorating(): Promise<ProjectApi & { rows: WorkItemView[] }> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const sockets = await api.create('p1', {
+    const sockets = await api.createWorkItem('p1', {
       parentId: strip.id,
       afterId: null,
       name: 'Sockets',
     });
-    await api.create('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
-    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
-    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+    await api.createWorkItem('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
+    await api.createWorkItem('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
     return api;
   }
 
@@ -354,30 +358,38 @@ describe('narrowing the plan by facet', () => {
   // would hide it from the tag facet's case.
   async function aFacetedPlan(): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
-    const back = await api.create('p1', {
+    const sockets = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    const back = await api.createWorkItem('p1', {
       parentId: sockets.id,
       afterId: null,
       name: 'Back boxes',
     });
-    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
-    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
+    await api.createWorkItem('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
 
     const billing = await api.addTeam('Billing');
     const wiring = await api.addTeam('Wiring');
     // Only one of the two is on the plan, which is what the control must offer.
-    await api.patch(strip.id, { serviceTeamId: billing.id });
-    await api.patch(back.id, { serviceTeamId: wiring.id });
+    await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
+    await api.patchWorkItem(back.id, { serviceTeamId: wiring.id });
     const ada = await api.addPerson('Ada', []);
     await api.addPerson('Bo', []);
-    await api.assign(strip.id, DEV.id, ada.id);
-    await api.patch(strip.id, { priority: 10 });
+    await api.assignPerson(strip.id, DEV.id, ada.id);
+    await api.patchWorkItem(strip.id, { priority: 10 });
     await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.setEstimate(paint.id, QA.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
 
@@ -467,17 +479,17 @@ describe('narrowing the plan by facet', () => {
     // group appearing in the panel would change what every other case in this
     // describe is counting.
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const sockets = await api.create('p1', {
+    const sockets = await api.createWorkItem('p1', {
       parentId: strip.id,
       afterId: null,
       name: 'Sockets',
     });
-    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
     const risk = await api.addTag('Risk');
     const ready = await api.addTag('Ready');
     api.labelWithTag(strip.id, [risk.id]);
@@ -692,25 +704,33 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     }
   > {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
-    const back = await api.create('p1', {
+    const sockets = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    const back = await api.createWorkItem('p1', {
       parentId: sockets.id,
       afterId: null,
       name: 'Back boxes',
     });
-    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
-    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
+    await api.createWorkItem('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
 
     const billing = await api.addTeam('Billing');
     const wiring = await api.addTeam('Wiring');
-    await api.patch(strip.id, { serviceTeamId: billing.id });
-    await api.patch(back.id, { serviceTeamId: wiring.id });
+    await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
+    await api.patchWorkItem(back.id, { serviceTeamId: wiring.id });
 
     const checkout = await api.addService('Checkout');
     // In the directory and on no row — what the facet must not offer. One case
@@ -721,7 +741,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
     api.labelWithService(strip.id, [checkout.id]);
 
     const ada = await api.addPerson('Ada', [wiring.id]);
-    await api.assign(strip.id, DEV.id, ada.id);
+    await api.assignPerson(strip.id, DEV.id, ada.id);
 
     return Object.assign(api, {
       checkout: checkout.id,
@@ -812,7 +832,7 @@ describe('narrowing the plan by service, and by the two mismatch signals', () =>
       // enabled box answering the second question is how a reader concludes the
       // feature is broken.
       const api = fakeApi();
-      await api.create('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
       render(<WbsTable projectId="p1" api={api} />);
       await waitFor(() => {
         expect(numbersOnScreen()).toEqual(['010']);
@@ -1137,14 +1157,14 @@ describe('saved views, per browser', () => {
    */
   async function aPlanWithATeam(): Promise<ProjectApi & { rows: WorkItemView[] }> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
     const billing = await api.addTeam('Billing');
-    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
 
     render(<WbsTable projectId="p1" api={api} />);
     await waitFor(() => {
@@ -1481,16 +1501,20 @@ describe('what the filter says it dropped, and what it exports', () => {
    */
   async function twoTeamsOneEdge(): Promise<ProjectApi> {
     const api = fakeApi();
-    const strip = await api.create('p1', {
+    const strip = await api.createWorkItem('p1', {
       parentId: null,
       afterId: null,
       name: 'Strip the walls',
     });
-    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
     const billing = await api.addTeam('Billing');
     const wiring = await api.addTeam('Wiring');
-    await api.patch(strip.id, { serviceTeamId: billing.id });
-    await api.patch(paint.id, { serviceTeamId: wiring.id });
+    await api.patchWorkItem(strip.id, { serviceTeamId: billing.id });
+    await api.patchWorkItem(paint.id, { serviceTeamId: wiring.id });
     await api.setEstimate(strip.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await api.addDependency(paint.id, strip.id);
