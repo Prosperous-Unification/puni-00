@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import fc from 'fast-check';
 
 import { Presence } from './presence';
 
@@ -177,5 +178,82 @@ describe('a roster is a project’s, not the gateway’s', () => {
     p.leaveProject('c1', HULL);
 
     expect(p.list(KEEL)).toEqual(['grace']);
+  });
+});
+
+/**
+ * The per-project index and a full scan agree, whatever happens to a socket.
+ *
+ * `list()` filtered every connection the gateway holds until 2026-09-02, and
+ * `broadcast()` calls it once per distinct project — so a join, a subscribe or a
+ * leave cost O(connections × projects) on the one class that runs on every
+ * socket event. It is a `Map<projectId, Set<connectionId>>` now, which means
+ * **two indexes over one fact**, and the fault that shape has is drift: a
+ * connection left in a project's set, or taken out of the wrong one.
+ *
+ * So this is a differential rather than a set of examples: a thousand random
+ * sequences of join, subscribe, move, unsubscribe and leave, comparing every
+ * project's roster against the scan the class used to do.
+ *
+ * Proof, both watched 2026-09-02 and both caught by an **existing** case as
+ * well as by this one. The set removal taken out of `leave` fails `keeps a user
+ * online while any of their connections remains` on `presence: c1 is in
+ * project-hull but is not connected` — the throw `list` keeps for exactly this
+ * drift. Taken out of `enterProject`, it fails `moves a connection when it
+ * switches project` on `+ Received + 3` and the differential below: a
+ * connection that moved still counted in the project it left.
+ */
+describe('the two indexes never disagree', () => {
+  const PROJECTS = ['p1', 'p2', 'p3'];
+
+  it('over a thousand random socket sequences', () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            connection: fc.integer({ min: 0, max: 5 }),
+            project: fc.integer({ min: 0, max: 2 }),
+            what: fc.constantFrom('join', 'subscribe', 'unsubscribe', 'leave'),
+          }),
+          { minLength: 1, maxLength: 40 },
+        ),
+        (steps) => {
+          const presence = new Presence();
+          /** What the class did before the index existed. */
+          const byScanning = (projectId: string): string[] =>
+            [
+              ...new Set(
+                [...seen.entries()]
+                  .filter(([, at]) => at === projectId)
+                  .map(([connectionId]) => `u${connectionId.slice(1)}`),
+              ),
+            ].sort();
+          const seen = new Map<string, string | null>();
+
+          for (const step of steps) {
+            const connectionId = `c${String(step.connection)}`;
+            const projectId = PROJECTS[step.project] ?? 'p1';
+            if (step.what === 'join') {
+              presence.join(connectionId, `u${String(step.connection)}`, { send: () => undefined });
+              seen.set(connectionId, null);
+            } else if (step.what === 'subscribe') {
+              presence.enterProject(connectionId, projectId);
+              if (seen.has(connectionId)) seen.set(connectionId, projectId);
+            } else if (step.what === 'unsubscribe') {
+              presence.leaveProject(connectionId, projectId);
+              if (seen.get(connectionId) === projectId) seen.set(connectionId, null);
+            } else {
+              presence.leave(connectionId);
+              seen.delete(connectionId);
+            }
+          }
+
+          for (const projectId of PROJECTS) {
+            expect(presence.list(projectId)).toEqual(byScanning(projectId));
+          }
+        },
+      ),
+      { numRuns: 1_000, seed: 20_260_902 },
+    );
   });
 });

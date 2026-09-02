@@ -10,6 +10,7 @@ import { ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { Presence } from './service/presence';
+import { socketWriter } from './service/socket-writer';
 import { SubscriptionMap } from './service/subscription-map';
 
 /** Short: `/health` is polled, and a slow answer is as useless as no answer. */
@@ -146,6 +147,13 @@ export function buildApp(opts: AppOptions) {
         }
         return { status: 'ok' as const };
       })
+      // **Not deleted, and W2-14 asked for it to be.** The blue/green swap
+      // polls this endpoint's `activeConnections` to drain WebSockets before it
+      // stops the old colour (`tools/tool-remote-scripts/src/swap.ts`), so it
+      // is part of the deploy contract rather than a debugging leftover. The
+      // OpenTelemetry counters beside it (see {@link socketWriter}) are an
+      // addition, not a replacement: a `Counter` cannot be read back in-process,
+      // and the drain has to read a number here and now.
       .get('/metrics/snapshot', () => metrics.counters)
       .ws('/ws', {
         async beforeHandle({ query, request, set }) {
@@ -194,7 +202,13 @@ export function buildApp(opts: AppOptions) {
           // allocated per inbound message, so the object `subscribe` stored was
           // one no later code could produce again — leaving every disconnected
           // socket in the map forever, counted in the fan-out and sent to.
-          conn.socket = { send: (payload) => ws.send(payload) };
+          // One writer per connection, and the only place a frame reaches the
+          // socket: the object the subscription map holds, the object the
+          // presence roster holds, and the object every control answer is sent
+          // through are this one. See {@link socketWriter} — twelve call sites
+          // wrote to a socket and none of them read what Bun answered.
+          const writer = socketWriter(ws, metrics);
+          conn.socket = { send: (payload) => void writer.send(payload) };
           // Assigned before this handler's first `await`, which is the only
           // point at which `message` and `close` can start. See {@link
           // WsConnection.joined} for what happened when they did not wait.
@@ -212,7 +226,7 @@ export function buildApp(opts: AppOptions) {
               // nothing (see {@link Presence}). The broadcast is what hands the
               // newcomer its own empty roster; every other socket's is unchanged
               // by a join, and only `onSubscribed` below moves anybody's.
-              presence.join(conn.connectionId, username, { send: (s) => ws.send(s) });
+              presence.join(conn.connectionId, username, conn.socket);
               presence.broadcast();
             } catch {
               // beforeHandle already rejected invalid tokens; nothing to add.
