@@ -937,11 +937,32 @@ export function calendarScale(startDate: IsoDate): CalendarScale {
   // read a drifted whole finish as a fraction — each standing a mark almost a
   // calendar day away from the dates be-01 prints beside it. The fraction that
   // survives the snap is real work and rides inside its workday untouched.
+  /**
+   * The calendar offset of each **whole** workday this scale has been asked
+   * for, remembered for the rest of the placement.
+   *
+   * A chart asks for the same days over and over — every bar, bracket, arrow
+   * and person link on a row reads that row's start, and rows share start days
+   * — so a 40-row plan spanning ten distinct start days made 113 `addWorkdays`
+   * calls to answer fourteen questions. The map is per scale, and a scale is
+   * built once per {@link placeOnCalendar}, so it cannot outlive the placement
+   * it is about or grow past the days in it.
+   *
+   * Keyed on the **whole** part alone, which is what makes it worth having:
+   * the fraction is added afterwards, so two marks a third of a day apart share
+   * one entry. `Map.get` and an `undefined` check rather than `??`, because a
+   * remembered offset of `0` is the answer for day zero.
+   */
+  const calendarDaysOf = new Map<number, number>();
   const startOf = (workday: number): number => {
     if (workday <= 0) return workday;
     const snapped = snapWorkdays(workday);
     const whole = firstWorkdayOf(snapped);
-    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (snapped - whole);
+    const remembered = calendarDaysOf.get(whole);
+    if (remembered !== undefined) return remembered + (snapped - whole);
+    const days = calendarDaysBetween(origin, addWorkdays(origin, whole));
+    calendarDaysOf.set(whole, days);
+    return days + (snapped - whole);
   };
   return {
     startOf,

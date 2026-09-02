@@ -150,7 +150,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-6  | **Done, 2026-09-02** — see §53. `open?.sliceId` and `fullScreen` out of the 23-entry list via a mirror ref, behind the D4 probe on the new gesture; one `drawn` index for the four "is this bar drawn?" readers (**3.9×**) and for an arrow's obstacles by row (**3.1×**).                                                                                                                                                                                                                                                                                                                                                                                                         |
 | W2-7  | **Half done, 2026-09-02** — see §56. `depHover` and `depFocus` are out of `WbsTable`'s state and in `dep-light-store.ts`: each `<tr>` asks "am I lit", an open card asks which entry is emphasised, and moving one row's light re-renders one row instead of the table (**4 → 1** row-equivalents, watched). The `hoveredCell`/`focusedCell`/`openCard` half is **deferred into W4-4**: its two remaining reads are `<td>` attributes (`aria-describedby`, the popover `zIndex`), so it needs the per-cell shell W4-4's restructure introduces, not a store on its own. `dropHint`/`widthOverrides`/`ganttHeightPx` untouched.                                                     | `wbs-table.tsx:3038–3067, :3248, :3284, :3309, :2845, :2857`, seven writer cells                       | 2d     | `flexibleCellStyle` call count across a hover: 0 delta                             |
 | W2-8  | **One done, three refused with measurements, 2026-09-02** — see §54. A chart scroll reads **no** rect (the content width is the observers' job). The other three are already efficient, unsafe to cache, or bounded — each measured rather than assumed.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| W2-9  | **Half done, 2026-09-02** — see §47. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). The fe-01 memoisation half is not done.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| W2-9  | **Done, 2026-09-02** — see §47 and §60. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). And `calendarScale` now remembers each whole workday's calendar offset for the life of one placement: **113 conversions became 12** on a 40-row plan, watched.                                                                                                                                                                                                                                                                                     |
 | W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
 | W2-11 | **Done bar a refusal, 2026-09-02** — see §57. The ⋯ menu's open id and the phone toolbar's open state are both out of the render path: opening `Plan actions` cost **5 card renders and now costs 0**, watched. The `PlanCard` shell itself is **refused with measurements**: at rest nothing else re-renders the list — a keystroke, a focus move and a field sheet are 0 renders each — and every prop the call site hands `PlanCards` is a fresh identity per render, so a `memo` shell would be a check that cannot fail until W4-4 stabilises them.                                                                                                                           | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
 | W2-12 | **Started, 2026-09-02** — see §24. Three done: the push retry's re-serialisation, the throttle's whole-map prune, and the two exporters' `nameOf`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
@@ -2222,3 +2222,86 @@ it. The row asked for all three; the argument for the vocabulary does not extend
 
 **Green:** the four deploy projects' lint, test and typecheck (`tool-deploy` 65, `tool-remote-scripts`
 178 with the three new cases, `tool-dagger` 33, `tool-smoke` 47).
+
+## 60 · W2-1 — the socket half, and the mapping's safety is be-01's
+
+The row's other half: **narrowing which reads a socket frame triggers.** §25 left it with two
+reasons, and only one of them was still true.
+
+The blocker §25 recorded — "`SubscriptionHandlers.onChange` takes no arguments, so fe-01 cannot
+tell a `directory_changed` from a `tree_replaced`" — was about this side's contract, not about the
+wire. gw-01 forwards be-01's `ProjectEvent` **verbatim** as the frame's `message`
+(`internal.controller.ts`, and `wsData` for every other frame), so the type was already arriving
+and `project-stream.ts` was discarding it. `onChange` now carries it: `(changed: string | null)`,
+with `null` for the two control frames that mean "read again" and for a `message` this side cannot
+read.
+
+`refresh` took eight requests for every event — the tree, the project's steps, and six global
+vocabularies. It takes a `PlanReadScope` now, and `readScopeFor` maps the frame to one:
+
+| frame said                                 | reads                  |
+| ------------------------------------------ | ---------------------- |
+| `tree_replaced`                            | the tree               |
+| `step_added` `step_renamed` `step_removed` | the tree and the steps |
+| anything else, or nothing                  | all eight              |
+
+**The two narrow scopes are sound because of something be-01 does, not because of anything here.**
+A plan batch can mint a person or a tag — `createPerson` and `createTag` are command kinds, and the
+`@`-assignment flow mints a person — which is exactly why §25 refused to narrow on the _path_. What
+makes narrowing on the _event_ safe is that such a batch holds the directory service's own
+announcement and sends it after the commit (`plan-commands.ts`: `announcements.hold`, then
+`send(pending)`), then announces the tree separately. Every fact that moved announces itself, so a
+`tree_replaced` reader is not missing a directory change. `DirectoryService` is the only
+`directory_changed` publisher in be-01.
+
+`directory_changed` and the capacity events are deliberately **not** narrowed: a removed team takes
+its assignments and its labels out of the tree with it.
+
+Four cases in `plan-read-and-write.test.tsx`, counting requests through a wrapper around
+`fakeProjectApi` so no other test's fixture changes. Each watched failing against the fault it
+names:
+
+| Injected fault                                           | Observed                                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| the narrowing removed — `readScopeFor` always says `all` | `expected [ 'tree', 'steps', 'listTeams', …(5) ] to deeply equal [ 'tree' ]`      |
+| `directory_changed` narrowed to the tree as well         | `expected [ 'tree' ] to include 'listPeople'`                                     |
+| unknown treated as OK — the fallback returns `'tree'`    | `expected [ 'tree' ] to include 'listPeople'`, twice: the unknown kind and `null` |
+
+The third is the R5 case and the reason the fallback is `'all'`: an event kind added to be-01 after
+this build reads everything without anybody editing fe-01.
+
+**Still not done, and still for §25's reason:** the _write_ path. A write knows its own scope, but
+the scope is a property of the individual write rather than of the path, so narrowing it means
+auditing every call site of the write wrapper. Unchanged by this.
+
+**Left on the floor deliberately:** `internal.controller.ts` builds its data frame as an inline
+literal instead of calling `wsData` — the sixteenth of the fifteen literals `ws-frames.ts` exists to
+end. It is gw-01's file and one line, and it belongs with whoever is next in that app.
+
+## 60 · W2-9's other half — the calendar is asked once per day, not once per mark
+
+`calendarScale.startOf` converted a workday to a calendar offset on every call, and a chart calls
+it for every bar's start, every bar's stop, every bracket's two ends, every arrow's two ends and
+every person link's two ends. Rows share start days, so the marks outnumber the distinct questions
+by an order of magnitude: **113 `addWorkdays` calls to answer fourteen questions** on a 40-row plan
+spanning ten start days.
+
+The scale keeps a `Map` from **whole** workday to calendar offset, built once per
+`placeOnCalendar` and therefore incapable of outliving the placement it describes or growing past
+the days in it. The whole part alone is the key, which is what makes it worth having — two marks a
+third of a day apart share one entry and the fraction is added after the lookup. `Map.get` with an
+`undefined` check rather than `??`, because a remembered offset of `0` is the right answer for day
+zero.
+
+Three cases, and the bound is the chart's own span rather than a figure — asserting `<= 113` would
+be a statement about the fixture's size:
+
+- `asks the calendar once per workday it draws on, not once per mark`, watched failing on `expected
+113 to be less than or equal to 14` with the map removed.
+- `places every mark exactly where an unremembered scale would` — the memo's only defence is being
+  invisible in the answers.
+- `remembers a fraction’s whole day without rounding the fraction away`, which is the one way a
+  key on the whole part could go wrong: two marks inside day 3, two different `x`.
+
+**Green:** the geometry's own 130 cases and `plan-mermaid`'s 50 (the other `calendarScale`
+caller), fe-01 typecheck and lint.

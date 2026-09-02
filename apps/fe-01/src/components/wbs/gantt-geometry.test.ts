@@ -1,6 +1,7 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { describe, expect, it } from 'vitest';
+import type * as WorkdayModule from '@wbs/domain/workday';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   type BarColor,
@@ -26,6 +27,29 @@ import {
   type TagLabel,
   UNASSIGNED_BAR_COLOR,
 } from './gantt-geometry';
+
+/**
+ * How many times the calendar has been asked to convert a workday.
+ *
+ * `calendarScale` remembers each whole workday's offset for the life of one
+ * placement, and this is the only way to see that from outside: the numbers a
+ * memoised scale answers are the numbers it answered before, which is the whole
+ * point. Read by `asks the calendar once per workday it draws on` below.
+ *
+ * The mock is call-through: every other case in this file sees the real module.
+ */
+const workdayCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('@wbs/domain/workday', async (importOriginal) => {
+  const real = await importOriginal<typeof WorkdayModule>();
+  return {
+    ...real,
+    addWorkdays: (...args: Parameters<typeof real.addWorkdays>) => {
+      workdayCalls.count += 1;
+      return real.addWorkdays(...args);
+    },
+  };
+});
 
 /** A shown row: a leaf over these workdays, unless `extras` says otherwise. */
 const rowAt = (
@@ -3070,5 +3094,81 @@ describe('what holds a row’s start, for the table', () => {
 
     expect(floors.has('020')).toBe(false);
     expect(floors.get('010')).toBe('Starts with the project');
+  });
+});
+
+describe('what a placement costs the calendar', () => {
+  /** Forty rows over ten distinct start days, which is a plan somebody has. */
+  const fortyRowsOverTenDays = (): GanttGeometry =>
+    layOutGantt(
+      planOf({
+        rows: Array.from({ length: 40 }, (_, at) =>
+          rowAt(`r${String(at)}`, at % 10, (at % 10) + 3),
+        ),
+        slices: Array.from({ length: 40 }, (_, at) =>
+          sliceAt(`r${String(at)}-dev`, `r${String(at)}`, at % 10, (at % 10) + 3),
+        ),
+      }),
+    );
+
+  it('asks the calendar once per workday it draws on, not once per mark', () => {
+    // Every bar, bracket, arrow and person link on a row reads that row's own
+    // start, and rows share start days — so the marks outnumber the questions
+    // by an order of magnitude on any plan with rows in it: 113 conversions to
+    // answer fourteen questions, on this fixture, before the memo.
+    //
+    // The bound is the days, not a figure: thirteen whole workdays are reachable
+    // here (0–12, the last row's finish) plus the origin, and asserting the
+    // count against **the days the chart spans** is what makes this a statement
+    // about the rule rather than about this fixture's size.
+    //
+    // Proof: `calendarDaysOf` removed from `calendarScale`, this failed on
+    // `expected 113 to be less than or equal to 14`. Watched 2026-09-02.
+    const chart = fortyRowsOverTenDays();
+    const spans = chart.bars.flatMap((bar) => [bar.start, bar.start + bar.drawnSpan]);
+    const wholeDays = new Set(spans.map((workday) => Math.floor(workday)));
+
+    workdayCalls.count = 0;
+    placeOnCalendar(chart, '2026-09-01');
+
+    // The oracle is on the production path before anything is asserted about
+    // its silence (R5): a scale that asked nothing at all would pass a `<=`.
+    expect(workdayCalls.count).toBeGreaterThan(0);
+    expect(workdayCalls.count).toBeLessThanOrEqual(wholeDays.size + 1);
+  });
+
+  it('places every mark exactly where an unremembered scale would', () => {
+    // The memo's only defence: it must be invisible in the answers. A fresh
+    // scale per call is what the rest of this file measures, and this compares
+    // one placement against a second scale built for the same chart — the same
+    // numbers, mark for mark, or the memo has changed the drawing.
+    const chart = fortyRowsOverTenDays();
+
+    expect(placeOnCalendar(chart, '2026-09-01')).toEqual(placeOnCalendar(chart, '2026-09-01'));
+  });
+
+  it('remembers a fraction’s whole day without rounding the fraction away', () => {
+    // Two marks a third of a day apart share one entry, and the fraction is
+    // added after the lookup — so the second must not be handed the first's.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3.3333333333333335, 5)],
+        slices: [
+          sliceAt('sand-dev', 'sand', 3.3333333333333335, 4, { duration: 0.6666666666666665 }),
+          sliceAt('sand-qa', 'sand', 3.6666666666666665, 5, {
+            stepId: 'qa',
+            duration: 1.3333333333333335,
+          }),
+        ],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, '2026-09-01');
+
+    // Different x, both inside day 3 — the same remembered whole day, two
+    // different fractions of it.
+    const xs = placed.bars.map((bar) => bar.x);
+    expect(new Set(xs).size).toBe(2);
+    for (const x of xs) expect(Math.floor(x)).toBe(3);
   });
 });
