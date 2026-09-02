@@ -1,9 +1,9 @@
+import { deriveNumbers } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore } from '../repository';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { deriveNumbers } from './derive-numbers';
 import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';

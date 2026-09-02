@@ -1,7 +1,11 @@
-import { ASSUMED_SLICE_WORKDAYS, type DependencyReach, snapWorkdays } from '@wbs/domain';
+import {
+  ASSUMED_SLICE_WORKDAYS,
+  type DependencyReach,
+  deriveNumbers,
+  snapWorkdays,
+} from '@wbs/domain';
 
 import type { WorkItem } from '../repository';
-import { deriveNumbers } from './derive-numbers';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
 export interface DependencyEdge {

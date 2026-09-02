@@ -1,8 +1,7 @@
-import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain';
+import { deriveNumbers, type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain';
 
 import type { Assignment, DirectoryUsageRows, LabelledWorkItem } from '../repository';
 import { assumedAssignee } from './assumed-assignee';
-import { deriveNumbers } from './derive-numbers';
 
 /**
  * What removing a directory entry would do to one work item.

@@ -1,6 +1,7 @@
 import {
   addWorkdays,
   type DependencyReach,
+  deriveNumbers,
   effectiveTeamsOf,
   type EstimateMethod,
   type EstimateRounding,
@@ -12,7 +13,10 @@ import {
   NOT_STARTED,
   ORDINARY_BAND_RANK,
   type PertWeights,
+  placeAfter,
+  POSITION_STEP,
   type PriorityBand,
+  type Sibling,
   type StepState,
   workdaysBetween,
 } from '@wbs/domain';
@@ -61,8 +65,6 @@ import {
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
-import { deriveNumbers } from './derive-numbers';
-import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import {
   type Days,
