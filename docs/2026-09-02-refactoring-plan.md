@@ -127,7 +127,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 
 | Id   | Change                                                                                                                                                                                                                                                                                                                     | Files                                                    | Effort | Needs |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
-| W1-1 | `apps/fe-01/src/testing/fake-project-api.ts` (+ `fakeDirectoryApi`) with a recorded call log; the seven fakes (~1,400 LOC) and eight `watchX` wrappers go. **Before** any split of `wbs-table.test.tsx`.                                                                                                                   | new; 7 test files                                        | 1.5d   | —     |
+| W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                         | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | Split `wbs-table.test.tsx` by its 63 `describe` blocks into the eleven files sweep C maps (`plan-layout`, `plan-filter`, `plan-keyboard`, `plan-dependencies`, `plan-estimates`, `plan-toolbar`, `plan-cells`, `plan-structure`, `plan-read-and-write`, `plan-chart-seam`, `plan-table`). 585 serial cases → four workers. | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
 | W1-3 | `apps/be-01/src/testing/harness.ts`: `inMemoryServices(overrides?)` returning `BeServices`, composed from the 19 in-memory fixtures that exist and are never composed; `buildServices()` stays the T1 twin. 24 hand-wired files use it; `undo.test.ts:122`'s leaked real repository goes.                                  | new; 24 test files                                       | 2d     | —     |
 | W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                                  | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
@@ -829,3 +829,43 @@ of every directory command in a batch. It now says both, and says which one the 
 
 **Green:** `be-01` 1267 pass, `gw-01` 59, `mcp-01` 106 — test, lint, typecheck, build;
 `format:check --all`.
+
+## 18 · Verify — W1-1 (first half), 2026-09-02
+
+`apps/fe-01/src/testing/fake-project-api.ts` exists, holding the 674-line fake that lived inside
+`wbs-table.test.tsx`. It is moved, not rewritten: it is a **model** of be-01's answers — it
+renumbers on every write, accumulates tags down the tree, resolves assumed assignees, and refuses
+what be-01 refuses — and that is why it is the one worth sharing.
+
+**Moving it into `src/` put it inside `tsconfig.app.json`, and a compiler read it for the first
+time.** A spec project is outside fe-01's typecheck target, so a fake could stop satisfying
+`ProjectApi` and nothing would say so. It had, in eleven places:
+
+| Divergence                                                                                                                                         | Count |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `ProjectApi` methods absent outright — `addWorkItemType`, `renameTag`, `removeTag`, `setEstimateArithmetic`, `setTeamCapacity`, `setPriorityBands` | 6     |
+| required wire fields missing — `ProjectListEntry.startDate`, `SliceView.capacityTeamId`, `PersonView.kind`, `WorkItemView.dates`                   | 4     |
+| a duplicated object key (`startNoEarlierThanReason`)                                                                                               | 1     |
+
+The duplicate is the one to remember. The fixture carried a comment saying _"A duplicate `teamIds`
+sat here until 2026-08-18 — harmless, and only because nothing typechecks this file"_ — and had
+since re-acquired the same fault on a different key. A file that documents its own blind spot still
+has the blind spot.
+
+**Three tests were asserting a person be-01 never sends.** Adding `kind` to the fixture broke
+`expected [ Array(1) ] to deeply equal [ Array(1) ]` in three cases whose literal person object had
+no `kind`. Those assertions described the fake rather than the wire, and are corrected.
+
+`listWorkItemTypes` answered a fresh `[]`, so a type added through the API vanished on the next
+read. It reads a directory now, like tags and services.
+
+**Green:** `fe-01` 2043 tests across 65 files, lint, typecheck; `format:check --all`. The one lint
+warning in `wbs-table.tsx:4583` is pre-existing.
+
+**Still open in W1-1:** the other six fakes (`gantt-panel`, `plan-cards`, `project-page`,
+`wbs-api`, `page-shortcuts`, `app-router`) are not migrated. They are not copies of this one — they
+have different signatures for different needs (`fakeApi(startDate, skew)`,
+`fakeApi({refusePatch, dated})`) — so folding them in is a design job rather than a move, and the
+two trivial ones may be right to leave alone. The recorded call log subsuming the eight `watchX`
+wrappers is also still to do. What is done is the precondition for W1-2: the split files can import
+one fixture instead of inheriting eleven copies of it.
