@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { User, UserStore, WriteStamp } from './index';
 import { users } from './schema';
 
@@ -91,12 +92,7 @@ export class UserRepository implements UserStore {
       await this.db.insert(users).values({ ...user, ...auditOnCreateBesidesCreatedAt(stamp) });
       return user;
     } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.includes('UNIQUE constraint failed: users.username')
-      ) {
-        return null;
-      }
+      if (isUniqueViolation(err, UNIQUE_INDEXES.username)) return null;
       throw err;
     }
   }

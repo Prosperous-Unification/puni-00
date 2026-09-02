@@ -2,6 +2,7 @@ import { and, eq, inArray, max } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type {
   Assignment,
   NewStep,
@@ -15,36 +16,6 @@ import type {
 import { STEP_POSITION_STEP } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
 import { actual, assignment, estimate, step, stepMeasure, stepProgress, workItem } from './schema';
-
-/**
- * Whether a thrown error is SQLite refusing a second step of the same name in
- * one project.
- *
- * The message rather than a typed error, because `bun:sqlite` has no typed
- * one — the same translation `UserRepository.create` makes for usernames. It
- * names the index's columns so that a different constraint failing here is
- * still an unknown, and still throws.
- *
- * The columns are spelled the way SQLite quotes them, which is the **physical**
- * index — `step.project_id, step.name` since
- * `20260831120000_rename_role_to_step`. This string and the migration have to
- * move together: a stale spelling here takes every duplicate step name from a
- * 409 `taken` to an uncaught 500, silently, because the message simply stops
- * matching.
- *
- * Proof: `refuses a name the project already holds, and leaves the steps as
- * they were` and `refuses a rename onto a name already in use, leaving both
- * alone` in `step.test.ts` — both watched failing with this string left at the
- * pre-rename spelling against the renamed schema, on
- * `SQLiteError: UNIQUE constraint failed: step.project_id, step.name` escaping
- * the repository instead of becoming a `taken`. Observed 2026-08-31.
- */
-function isDuplicateName(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    err.message.includes('UNIQUE constraint failed: step.project_id, step.name')
-  );
-}
 
 /**
  * Every assignment in one project, read through the work items that hold them.
@@ -175,7 +146,7 @@ export class StepRepository implements StepStore {
    * at the same moment cannot both be told the same last position — one of them
    * would then sort by id, which is a UUID, which is no order at all.
    *
-   * Proof: with the `isDuplicateName` branch removed, `refuses a name the
+   * Proof: with the `stepNameInProject` unique-violation branch removed, `refuses a name the
    * project already holds, and leaves the steps as they were` fails with the
    * raw `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this
    * translation exists to prevent. With `bumpProject` removed, `adds a step and
@@ -202,7 +173,8 @@ export class StepRepository implements StepStore {
         return { ok: true, step: written };
       });
     } catch (err) {
-      if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject))
+        return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -241,7 +213,8 @@ export class StepRepository implements StepStore {
         return { ok: true, step: renamed };
       });
     } catch (err) {
-      if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
+      if (isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject))
+        return { ok: false, reason: 'taken' };
       throw err;
     }
   }
