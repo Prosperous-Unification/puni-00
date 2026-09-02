@@ -2,36 +2,9 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
-import { buildApp } from '../app';
-import { testAuthService } from '../testing/auth-fixture';
-import { testCapacityService } from '../testing/capacity-fixture';
-import { testDirectoryService } from '../testing/directory-fixture';
-import { testHistoryService } from '../testing/history-fixture';
-import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { testReplay } from '../testing/replay-fixture';
-import { testStepService } from '../testing/step-fixture';
-import { testWorkItemService } from '../testing/work-item-fixture';
-import { testWrites } from '../testing/writes-fixture';
+import { testApp } from '../testing/app-fixture';
 import { documentFromApp, OPENAPI_DOCUMENT_FILE, serialiseDocument } from './document-from-app';
 import { OPENAPI_SPEC_PATH } from './openapi-plugin';
-
-const app = () =>
-  buildApp({
-    auth: testAuthService(),
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
-    steps: testStepService(),
-    directory: testDirectoryService(),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
-    replay: testReplay().replay,
-    probeDatabase: () => 'ok',
-    internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
-    migrationsApplied: true,
-  });
 
 const REGENERATE = 'bun apps/be-01/src/openapi/emit-openapi-cli.ts';
 
@@ -55,7 +28,7 @@ describe('the committed OpenAPI document', () => {
    * 2026-08-17; the run is in `verify.md`.
    */
   it('is what the app serves right now', async () => {
-    const served = serialiseDocument(await documentFromApp(app()));
+    const served = serialiseDocument(await documentFromApp(testApp()));
     const committed = readFileSync(OPENAPI_DOCUMENT_FILE, 'utf8');
     // Compared as text rather than with `toEqual` on the objects: the file is
     // read by prettier and by humans, so its formatting is part of what must
@@ -73,7 +46,7 @@ describe('the committed OpenAPI document', () => {
    * read", which reads as a broken test. This says which of the two is wrong.
    */
   it('is served as JSON at its own path', async () => {
-    const res = await app().handle(new Request(`http://localhost${OPENAPI_SPEC_PATH}`));
+    const res = await testApp().handle(new Request(`http://localhost${OPENAPI_SPEC_PATH}`));
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
   });
@@ -103,7 +76,7 @@ describe('the committed OpenAPI document', () => {
    * only thing that notices the guard being switched off.
    */
   it('describes every hand-parsed body without declaring it', async () => {
-    const document = await documentFromApp(app());
+    const document = await documentFromApp(testApp());
     // Since `plan-commands` the hand-parsed bodies are the two batch routes:
     // every plan and directory write arrives as a command inside one of them,
     // parsed by the same guards the single routes had.

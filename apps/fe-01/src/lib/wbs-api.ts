@@ -1025,6 +1025,114 @@ export interface CreatedProject {
 }
 
 /**
+ * The project's work items, and the event sequence they were read at.
+ *
+ * The sequence is what a socket resumes from, so it belongs to the read that
+ * produced the rows: taken separately it would describe a different moment
+ * than the tree on screen.
+ */
+export interface PlanRead {
+  workItems: WorkItemView[];
+  seq: number;
+  scheduleError: 'cycle' | null;
+  /**
+   * Every slice the schedule placed, in be-01's own order — what the chart
+   * draws, where the rows carry the spans the columns show.
+   *
+   * Empty when `scheduleError` says the plan could not be scheduled at all,
+   * exactly as the rows' dates go: bars from a plan that no longer computes
+   * would be the same stale lie in a different shape.
+   */
+  slices: SliceView[];
+  /**
+   * The steps the slices above were placed under, in the engine's own order.
+   *
+   * The same list {@link ProjectApi.steps} answers with, carried here so that
+   * a chart drawn from this read never has to pair it with another one. Both
+   * are needed and they are not the same fact: this one describes **these**
+   * slices, and the separate read is what the column headers and the steps
+   * dialog edit.
+   */
+  steps: StepView[];
+  /**
+   * The names of everybody an assignment on these rows points at.
+   *
+   * Not the directory — {@link ProjectApi.listPeople} is that, and the
+   * pickers offer from it. This is who is on the plan that just arrived, so a
+   * bar can be painted and labelled from one moment's answer.
+   */
+  assignedPeople: AssignedPersonView[];
+  /**
+   * How many of each team this plan may have at work at once, for the teams it
+   * has stated a number about.
+   *
+   * Carried on the tree rather than fetched separately, and for a stronger
+   * reason than `steps` has: the dates and bars in this very payload were
+   * computed **from** these numbers, so a second request at a second moment
+   * could put a capacity on screen that does not explain the bars beside it.
+   *
+   * A team with no entry is _unstated_ and bounds nothing. Which teams the plan
+   * is labelled with is a different question, answered by the rows — see
+   * `effectiveTeamOf`.
+   */
+  teamCapacities: TeamCapacityView[];
+  /**
+   * What this project calls its priority numbers — five rungs, most important
+   * first.
+   *
+   * Always five and never empty: a project that has never been configured reads
+   * as be-01's `DEFAULT_PRIORITY_BANDS`, so every priority on this plan resolves
+   * to exactly one label without this client holding a fallback of its own.
+   *
+   * **No date in this payload was computed from it.** The ladder names the
+   * numbers; the leveller orders on the numbers. What it does drive is every
+   * face — the Prio cell, the chart's bars, the cards and the export all read
+   * their label and their colour through the one resolution in
+   * `priority-band-style.ts`.
+   */
+  priorityBands: PriorityBandView[];
+  estimateMethod: EstimateMethod;
+  /**
+   * The arithmetic every figure in this payload came out of: the coefficients
+   * the PERT numbers were weighed by, and the rounding each step's figure was
+   * charged at.
+   *
+   * Reported for {@link depReach}'s reason — a client that guessed would
+   * describe the numbers in front of it with a formula they did not come from
+   * — and written through {@link ProjectApi.setEstimateArithmetic}.
+   */
+  pertWeights: PertWeightsView;
+  estimateRounding: EstimateRoundingView;
+  /**
+   * How far into a predecessor this plan's dependencies reach.
+   *
+   * **Every date in this payload was computed from it**, on be-01, and the
+   * chart draws a dependency arrow out of the slice it names — so it rides
+   * with the slices rather than being read separately. It is reported here
+   * and written through {@link ProjectApi.setDepReach}; nothing sends it with
+   * a read.
+   */
+  depReach: DependencyReach;
+  startDate: string | null;
+  /**
+   * The project row's own revision: its name, restriction, estimate method,
+   * start date and steps. It does not move when a work item does — each
+   * carries its own.
+   */
+  projectRevision: number;
+  /**
+   * Whether **this account** has anything to undo or redo on this project.
+   *
+   * Carried on the tree rather than asked for separately: the tree is
+   * already reread after every change this client makes and every event from
+   * anybody else, which is exactly when these can have moved. A second
+   * endpoint would be a second round trip at the same moments.
+   */
+  undoable: boolean;
+  redoable: boolean;
+}
+
+/**
  * Everything the table does to a project.
  *
  * An interface rather than bare functions so the table can be driven by a fake
@@ -1044,113 +1152,8 @@ export interface ProjectApi {
   openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
   renameProject(id: string, name: string): Promise<void>;
-  /**
-   * The project's work items, and the event sequence they were read at.
-   *
-   * The sequence is what a socket resumes from, so it belongs to the read that
-   * produced the rows: taken separately it would describe a different moment
-   * than the tree on screen.
-   */
-  tree(projectId: string): Promise<{
-    workItems: WorkItemView[];
-    seq: number;
-    scheduleError: 'cycle' | null;
-    /**
-     * Every slice the schedule placed, in be-01's own order — what the chart
-     * draws, where the rows carry the spans the columns show.
-     *
-     * Empty when `scheduleError` says the plan could not be scheduled at all,
-     * exactly as the rows' dates go: bars from a plan that no longer computes
-     * would be the same stale lie in a different shape.
-     */
-    slices: SliceView[];
-    /**
-     * The steps the slices above were placed under, in the engine's own order.
-     *
-     * The same list {@link ProjectApi.steps} answers with, carried here so that
-     * a chart drawn from this read never has to pair it with another one. Both
-     * are needed and they are not the same fact: this one describes **these**
-     * slices, and the separate read is what the column headers and the steps
-     * dialog edit.
-     */
-    steps: StepView[];
-    /**
-     * The names of everybody an assignment on these rows points at.
-     *
-     * Not the directory — {@link ProjectApi.listPeople} is that, and the
-     * pickers offer from it. This is who is on the plan that just arrived, so a
-     * bar can be painted and labelled from one moment's answer.
-     */
-    assignedPeople: AssignedPersonView[];
-    /**
-     * How many of each team this plan may have at work at once, for the teams it
-     * has stated a number about.
-     *
-     * Carried on the tree rather than fetched separately, and for a stronger
-     * reason than `steps` has: the dates and bars in this very payload were
-     * computed **from** these numbers, so a second request at a second moment
-     * could put a capacity on screen that does not explain the bars beside it.
-     *
-     * A team with no entry is _unstated_ and bounds nothing. Which teams the plan
-     * is labelled with is a different question, answered by the rows — see
-     * `effectiveTeamOf`.
-     */
-    teamCapacities: TeamCapacityView[];
-    /**
-     * What this project calls its priority numbers — five rungs, most important
-     * first.
-     *
-     * Always five and never empty: a project that has never been configured reads
-     * as be-01's `DEFAULT_PRIORITY_BANDS`, so every priority on this plan resolves
-     * to exactly one label without this client holding a fallback of its own.
-     *
-     * **No date in this payload was computed from it.** The ladder names the
-     * numbers; the leveller orders on the numbers. What it does drive is every
-     * face — the Prio cell, the chart's bars, the cards and the export all read
-     * their label and their colour through the one resolution in
-     * `priority-band-style.ts`.
-     */
-    priorityBands: PriorityBandView[];
-    estimateMethod: EstimateMethod;
-    /**
-     * The arithmetic every figure in this payload came out of: the coefficients
-     * the PERT numbers were weighed by, and the rounding each step's figure was
-     * charged at.
-     *
-     * Reported for {@link depReach}'s reason — a client that guessed would
-     * describe the numbers in front of it with a formula they did not come from
-     * — and written through {@link ProjectApi.setEstimateArithmetic}.
-     */
-    pertWeights: PertWeightsView;
-    estimateRounding: EstimateRoundingView;
-    /**
-     * How far into a predecessor this plan's dependencies reach.
-     *
-     * **Every date in this payload was computed from it**, on be-01, and the
-     * chart draws a dependency arrow out of the slice it names — so it rides
-     * with the slices rather than being read separately. It is reported here
-     * and written through {@link ProjectApi.setDepReach}; nothing sends it with
-     * a read.
-     */
-    depReach: DependencyReach;
-    startDate: string | null;
-    /**
-     * The project row's own revision: its name, restriction, estimate method,
-     * start date and steps. It does not move when a work item does — each
-     * carries its own.
-     */
-    projectRevision: number;
-    /**
-     * Whether **this account** has anything to undo or redo on this project.
-     *
-     * Carried on the tree rather than asked for separately: the tree is
-     * already reread after every change this client makes and every event from
-     * anybody else, which is exactly when these can have moved. A second
-     * endpoint would be a second round trip at the same moments.
-     */
-    undoable: boolean;
-    redoable: boolean;
-  }>;
+  /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
+  tree(projectId: string): Promise<PlanRead>;
   /**
    * Reverses this account's last change to the project, **if nothing it
    * touched has been written to since**.
@@ -2040,6 +2043,18 @@ export function httpDirectoryApi(token: string): DirectoryApi {
 }
 
 export function httpProjectApi(token: string): ProjectApi {
+  /**
+   * The directory client, spread into the answer below rather than delegated
+   * method by method: the thirteen vocabulary members {@link ProjectApi} shares
+   * with {@link DirectoryApi} were thirteen one-line forwards until 2026-09-02,
+   * and each of them was a chance to forward the wrong argument. Spread, they
+   * are the same functions the directory page calls.
+   *
+   * `DirectoryApi`'s other eight members (the renames and removals the
+   * directory page owns) come along at runtime and are not on `ProjectApi`, so
+   * nothing typed can reach them from a plan. Segregating them would mean a
+   * third interface for no caller.
+   */
   const directory = httpDirectoryApi(token);
   /**
    * Which project each work item this client has seen belongs to — learned
@@ -2061,6 +2076,7 @@ export function httpProjectApi(token: string): ProjectApi {
     command(projectFor(workItemId), { ...step, workItemId });
 
   return {
+    ...directory,
     async listProjects() {
       const body = await send<{ projects: ProjectListEntry[] }>('/api/projects', token);
       return body.projects;
@@ -2082,24 +2098,7 @@ export function httpProjectApi(token: string): ProjectApi {
       });
     },
     async tree(projectId) {
-      const tree = await send<{
-        workItems: WorkItemView[];
-        seq: number;
-        scheduleError: 'cycle' | null;
-        slices: SliceView[];
-        steps: StepView[];
-        assignedPeople: AssignedPersonView[];
-        teamCapacities: TeamCapacityView[];
-        priorityBands: PriorityBandView[];
-        estimateMethod: EstimateMethod;
-        pertWeights: PertWeightsView;
-        estimateRounding: EstimateRoundingView;
-        depReach: DependencyReach;
-        startDate: string | null;
-        projectRevision: number;
-        undoable: boolean;
-        redoable: boolean;
-      }>(`/api/projects/${projectId}/work-items`, token);
+      const tree = await send<PlanRead>(`/api/projects/${projectId}/work-items`, token);
       for (const row of tree.workItems) projectOf.set(row.id, projectId);
       return tree;
     },
@@ -2109,19 +2108,6 @@ export function httpProjectApi(token: string): ProjectApi {
     redo(projectId) {
       return stepStack(`/api/projects/${projectId}/redo`, token);
     },
-    listTeams: () => directory.listTeams(),
-    addTeam: (name) => directory.addTeam(name),
-    listTags: () => directory.listTags(),
-    listServices: () => directory.listServices(),
-    addService: (name) => directory.addService(name),
-    listWorkItemTypes: () => directory.listWorkItemTypes(),
-    listExternalSystems: () => directory.listExternalSystems(),
-    addWorkItemType: (name) => directory.addWorkItemType(name),
-    addTag: (name) => directory.addTag(name),
-    renameTag: (tagId, name) => directory.renameTag(tagId, name),
-    removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),
-    listPeople: () => directory.listPeople(),
-    addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
     async assign(workItemId, stepId, personId) {
       await onRow(workItemId, { kind: 'setAssignee', stepId, personId });
     },
