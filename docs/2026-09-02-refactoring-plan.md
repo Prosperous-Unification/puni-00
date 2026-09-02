@@ -129,7 +129,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
 | W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                         | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | Split `wbs-table.test.tsx` by its 63 `describe` blocks into the eleven files sweep C maps (`plan-layout`, `plan-filter`, `plan-keyboard`, `plan-dependencies`, `plan-estimates`, `plan-toolbar`, `plan-cells`, `plan-structure`, `plan-read-and-write`, `plan-chart-seam`, `plan-table`). 585 serial cases → four workers. | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
-| W1-3 | **Started, 2026-09-02** — see §20. `inMemoryServices()` exists and seven suites use it, 335 lines lighter. The other seventeen are not migrated.                                                                                                                                                                           | new; 24 test files                                       | 2d     | —     |
+| W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                                      | new; 24 test files                                       | 2d     | —     |
 | W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                                  | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
 | W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                      | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec.          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
@@ -948,3 +948,33 @@ by the harness.
 `service-empty-diff` — are T1 suites over real repositories and this harness does not apply; the
 rest are in-memory and should follow. `undo.test.ts` is the one worth doing next, since it is the
 file the audit named and the one with the leaked real repository.
+
+## 21 · Verify — W1-3 finished, and two corrections, 2026-09-02
+
+Every remaining in-memory suite is migrated: `live-plan-identity`, `work-item.service`,
+`project.controller` and `work-item.controller`. Inside `work-item.service.test.ts`, three cases
+built a second service to drive a store that fails on purpose — a rejecting `dependencies`, a
+`projects` that answers differently on the second read, a short priority ladder. Two of them
+re-derived the whole graph to change one port; all three are now
+`new WorkItemService({ ...serviceOptions, <the one store> })`, which says what the case is about.
+
+Around 500 lines are gone across fourteen files, and `be-01` holds at 1267 passing.
+
+**Correction 1 — the audit's "24 test files hand-build `WorkItemService`" is misleading, and I
+repeated it.** Counting real repositories per file: **twelve of the sixteen** remaining were
+SQLite-backed suites wiring real repositories on purpose. An in-memory harness is the wrong tool for
+those, and the honest figure for this item was never 24. What they want is a _T1_ harness over a
+real `Drizzle` — which `buildServices()` nearly is, and which is a separate piece of work.
+
+**Correction 2 — `undo.test.ts:122` does not leak a real repository into an in-memory graph.** The
+review said it did, I put that in the harness's own JSDoc, and it is false. That suite wires real
+repositories throughout and takes in-memory fixtures for exactly two ports, `capacity` and
+`priorityBands`, which its cases never drive. It is a coherent T1 suite. The JSDoc now says so,
+because a comment that cites a false example is worse than one that cites none — the next reader
+would have gone looking for a bug that is not there.
+
+The wiring rules the harness exists to hold are still real, and are stated without the false
+example: get one wrong and nothing says so — the graph still constructs, the suite still runs, and
+a label or a figure is simply never there to assert on.
+
+**Green:** `be-01` 1267 pass, 0 fail; lint; typecheck; `format:check --all`.

@@ -3,36 +3,20 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
-import { WorkItemService } from '../service/work-item.service';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { testCapacityService } from '../testing/capacity-fixture';
+import { testDirectoryService } from '../testing/directory-fixture';
+import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
+import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testStepService } from '../testing/step-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 function buildHarness() {
   const writes = testWrites();
-  const projectStore = inMemoryProjects();
-  const directoryStore = inMemoryDirectory();
-  const workItemStore = inMemoryWorkItems(directoryStore);
-  const estimateStore = inMemoryEstimates(workItemStore);
-  const actualStore = inMemoryActuals(workItemStore);
-  const measureStore = inMemoryMeasures(workItemStore);
-  const progressStore = inMemoryProgress(workItemStore);
-  const dependencyStore = inMemoryDependencies();
+  const plan = inMemoryServices();
+  const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
   const app = buildApp({
     // **One** directory, shared with the work item service below. Two would
     // both look healthy while a person created through a `createPerson`
@@ -46,29 +30,7 @@ function buildHarness() {
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
     steps: testStepService(projectStore),
-    workItems: new WorkItemService({
-      workItems: workItemStore,
-      projects: projectStore,
-      estimates: estimateStore,
-      actuals: actualStore,
-      measures: measureStore,
-      progress: progressStore,
-      dependencies: dependencyStore,
-      directory: directoryStore,
-      capacity: inMemoryCapacity(),
-      priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({
-        workItems: workItemStore,
-        estimates: estimateStore,
-        actuals: actualStore,
-        measures: measureStore,
-        progress: progressStore,
-        dependencies: dependencyStore,
-        directory: directoryStore,
-      }),
-      journal: inMemoryCommandJournal(),
-      broadcast: recordingBroadcaster(),
-    }),
+    workItems: plan.service,
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),

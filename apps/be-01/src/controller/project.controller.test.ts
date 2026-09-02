@@ -3,41 +3,22 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
-import { WorkItemService } from '../service/work-item.service';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { testCapacityService } from '../testing/capacity-fixture';
+import { testDirectoryService } from '../testing/directory-fixture';
+import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
+import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testStepService } from '../testing/step-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
-  const workItemStore = inMemoryWorkItems();
-  return new WorkItemService({
-    workItems: workItemStore,
-    projects: projectStore,
-    estimates: inMemoryEstimates(workItemStore),
-    actuals: inMemoryActuals(workItemStore),
-    measures: inMemoryMeasures(workItemStore),
-    progress: inMemoryProgress(workItemStore),
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    journal: inMemoryCommandJournal(),
-    broadcast: recordingBroadcaster(),
-  });
+  // The project store is this suite's own — the list route resolves each
+  // project's owner name through it, so it has to be the one the harness above
+  // seeded. Everything else the harness builds.
+  return inMemoryServices({ projects: projectStore }).service;
 }
 
 function buildHarness(options: { writeOnly?: boolean } = {}) {

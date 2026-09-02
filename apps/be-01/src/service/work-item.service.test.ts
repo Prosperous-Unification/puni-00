@@ -2,29 +2,18 @@ import { workdaysBetween } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
-  ActualStore,
   CapacityStore,
-  EstimateStore,
-  MeasureStore,
   Project,
   ProjectStore,
-  StepProgressStore,
   WorkItemStore,
   WriteStamp,
 } from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
+import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import type { inMemoryDependencies } from '../testing/dependency-fixture';
+import type { inMemoryDirectory } from '../testing/directory-fixture';
+import { personAdded } from '../testing/directory-fixture';
+import { inMemoryServices } from '../testing/harness';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { poolsFor, WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -51,47 +40,17 @@ let directory: ReturnType<typeof inMemoryDirectory>;
  * anything: the global number is read by nothing.
  */
 let capacity: CapacityStore;
-let estimates: EstimateStore;
-let actuals: ActualStore;
-let measures: MeasureStore;
-let progress: StepProgressStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  dependencies = inMemoryDependencies();
-  directory = inMemoryDirectory();
-  workItems = inMemoryWorkItems(directory);
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  broadcast = recordingBroadcaster();
-  capacity = inMemoryCapacity();
-  serviceOptions = {
-    priorityBands: inMemoryPriorityBands(),
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies,
-    directory,
-    capacity,
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-    }),
-    journal: inMemoryCommandJournal(),
-    broadcast,
-  };
-  service = new WorkItemService(serviceOptions);
+  const harness = inMemoryServices();
+  ({ projects, dependencies, directory, workItems, capacity } = harness.stores);
+  broadcast = harness.broadcast;
+  // Kept whole: three cases below build a second service from these options with
+  // one store swapped for a broken one, which is how they drive a failure the
+  // real stores cannot produce.
+  serviceOptions = { ...harness.stores, broadcast };
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
@@ -493,18 +452,7 @@ describe('dependencies', () => {
       ...dependencies,
       listByProject: () => Promise.reject(new Error('the dependency table is on fire')),
     };
-    const service2 = new WorkItemService({
-      priorityBands: inMemoryPriorityBands(),
-      workItems,
-      projects,
-      estimates: inMemoryEstimates(workItems),
-      actuals: inMemoryActuals(workItems),
-      measures: inMemoryMeasures(workItems),
-      progress: inMemoryProgress(workItems),
-      dependencies: broken,
-      journal: inMemoryCommandJournal(),
-      broadcast: recordingBroadcaster(),
-    });
+    const service2 = new WorkItemService({ ...serviceOptions, dependencies: broken });
 
     expect(service2.tree(projectId)).rejects.toThrow(/on fire/);
     expect(a).toBeDefined();
@@ -2126,29 +2074,7 @@ describe('the slices the schedule placed, on the wire', () => {
         return reads === 1 ? all : all.filter((step) => step.name !== 'QA');
       },
     };
-    const readingOnce = new WorkItemService({
-      workItems,
-      projects: shifting,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-      capacity: inMemoryCapacity(),
-      priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({
-        workItems,
-        estimates,
-        actuals,
-        measures,
-        progress,
-        dependencies,
-        directory,
-      }),
-      journal: inMemoryCommandJournal(),
-      broadcast,
-    });
+    const readingOnce = new WorkItemService({ ...serviceOptions, projects: shifting });
 
     const tree = await readingOnce.tree(plan.id);
 

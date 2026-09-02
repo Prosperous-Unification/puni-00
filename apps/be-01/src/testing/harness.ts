@@ -35,9 +35,14 @@ import { inMemoryWorkItems } from './work-item-fixture';
  * - `inMemorySubtrees` takes **all seven**, because a subtree write is the one
  *   act that touches every table at once.
  *
- * `undo.test.ts:122` is what happens without one place that knows this: it
- * passed a real `SubtreeRepository(db)` into an otherwise in-memory graph, so
- * one store spoke to SQLite while the rest spoke to a Map.
+ * Get one of those wrong and nothing says so: the graph still constructs, the
+ * suite still runs, and a label or a figure is simply never there to assert on.
+ *
+ * (The 2026-09-02 review claimed `undo.test.ts:122` mixed a real
+ * `SubtreeRepository(db)` into an in-memory graph. It does not. That suite wires
+ * **real** repositories throughout and takes in-memory fixtures for exactly two
+ * ports, `capacity` and `priorityBands`, which its cases never drive. It is a
+ * T1 suite and this harness does not apply to it.)
  *
  * Every port can be overridden, because the variation between suites is real: a
  * test that reads the plan's history wraps the journal, and one that drives two
