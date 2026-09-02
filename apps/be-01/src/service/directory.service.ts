@@ -1,5 +1,7 @@
 import type {
+  DirectoryRemoved,
   DirectoryStore,
+  DirectoryUsageRows,
   ExternalSystem,
   Person,
   PersonKind,
@@ -12,6 +14,7 @@ import type {
   TeamWithServices,
   TouchedProjects,
   WorkItemType,
+  WriteStamp,
 } from '../repository';
 // The constant from `schema.ts`, not from `repository/index.ts`: that module is
 // type-only on purpose, and a value re-export there would pull drizzle into
@@ -113,6 +116,47 @@ export type RemoveDirectoryOutcome =
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
+ * One **named vocabulary** of the directory — a tag, a work item type, a
+ * service — as its three writes see it.
+ *
+ * The three dimensions had the same three method bodies each, nine in all, and
+ * the copies agreed: clean the name, refuse a blank one, mint an id, ask the
+ * store, turn `taken` into a refusal carrying the name, announce to the
+ * projects the store named. A fourth dimension is where that agreement stops
+ * being a fact about the code and becomes something somebody has to keep true
+ * in nine places — the argument `directory-page.tsx`'s `writesFor` table
+ * already settled on the other tier.
+ *
+ * The store's own three answers differ in one thing only: the field the written
+ * row arrives under (`tag`, `workItemType`, `service`). Each descriptor's
+ * `rename` reads that field, which is why this is a descriptor rather than a
+ * shared base class.
+ *
+ * **The store half of the same triple is not collapsed**, deliberately:
+ * `repository/directory.ts` writes `addTag`/`addService`/`addWorkItemType` and
+ * their three renames as near-copies too, but parameterising them means handing
+ * drizzle a table whose shape a generic does not know — `.values()` and
+ * `.returning()` would need a cast, and a cast is what the types are for.
+ * `plan-commands.ts`'s five triples are left for W4-3's command registry, which
+ * is where a per-kind descriptor already has to exist.
+ */
+interface NamedVocabulary<T> {
+  /** What the dimension is called in a refusal nobody has worded. */
+  add(row: { id: string; name: string }, stamp: WriteStamp): Promise<T>;
+  rename(id: string, name: string, stamp: WriteStamp): Promise<NamedRenamed<T>>;
+  /** The fast path's read, before the store's own count inside its transaction. */
+  usageOf(id: string): Promise<DirectoryUsageRows>;
+  remove(id: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  /** Those rows as the refusal reports them, for this dimension. */
+  usageIn(rows: DirectoryUsageRows, id: string): DirectoryUsage;
+}
+
+/** What a rename of a named vocabulary answered, whatever it calls the row. */
+type NamedRenamed<T> =
+  | { ok: true; projectIds: readonly string[]; entity: T }
+  | { ok: false; reason: 'taken' | 'not_found' };
+
+/**
  * The global directory of teams and people.
  *
  * Global on purpose, and it is the decision worth arguing with: the same teams
@@ -141,6 +185,116 @@ export class DirectoryService {
   constructor(private readonly opts: DirectoryServiceOptions) {
     this.clock = opts.clock ?? clockOf();
   }
+
+  /**
+   * Adds one named row to a vocabulary, or refuses a name that is only
+   * whitespace — an unnamed anything helps nobody find anything.
+   *
+   * `null` rather than a throw: a blank name is a modeled refusal the
+   * controller answers as a 400.
+   */
+  private async addNamed<T>(
+    vocabulary: NamedVocabulary<T>,
+    actorId: string,
+    name: string,
+  ): Promise<T | null> {
+    const clean = cleanName(name);
+    if (clean === null) return null;
+    return vocabulary.add({ id: this.clock.newId(), name: clean }, this.clock.stampFor(actorId));
+  }
+
+  /**
+   * Renames one named row, keeping the name unique across the deployment.
+   *
+   * The name is cleaned **before** the row is read, because a row called
+   * nothing would sit in every picker with no way to tell it from the next one.
+   * A `taken` refusal carries the clean name rather than what was typed: be-01
+   * trims, so a `‹space›Kat` typed against a held `Kat` collides with `Kat`.
+   */
+  private async renameNamed<T>(
+    vocabulary: NamedVocabulary<T>,
+    id: string,
+    actorId: string,
+    name: string,
+  ): Promise<DirectoryOutcome<T>> {
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const written = await vocabulary.rename(id, clean, this.clock.stampFor(actorId));
+    if (!written.ok) {
+      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.announce(written.projectIds);
+    return { ok: true, result: written.entity };
+  }
+
+  /**
+   * Removes one named row, refusing an unconfirmed removal that would unlabel
+   * anything.
+   *
+   * The unconfirmed read is only a **fast path**. What decides is the count
+   * inside the store's own transaction, which is why a labelling written
+   * between the two refuses rather than being deleted.
+   *
+   * The refusal turns on the projects alone for all three of these dimensions:
+   * nobody belongs to a tag, a type or a service, so there are no members to
+   * count — and for a service the teams that *own* it are deliberately not
+   * counted either (design.md D7).
+   */
+  private async removeNamed<T>(
+    vocabulary: NamedVocabulary<T>,
+    id: string,
+    actorId: string,
+    cascade: boolean,
+  ): Promise<RemoveDirectoryOutcome> {
+    if (!cascade) {
+      const seen = vocabulary.usageIn(await vocabulary.usageOf(id), id);
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+    }
+    const removed = await vocabulary.remove(id, cascade, this.clock.stampFor(actorId));
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', usage: vocabulary.usageIn(removed.usage, id) };
+    }
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
+  }
+
+  /** The tag vocabulary — see {@link NamedVocabulary}. */
+  private readonly tags: NamedVocabulary<Tag> = {
+    add: (row, stamp) => this.opts.directory.addTag(row, stamp),
+    rename: async (id, name, stamp) => {
+      const written = await this.opts.directory.renameTag(id, name, stamp);
+      return written.ok ? { ...written, entity: written.tag } : written;
+    },
+    usageOf: (id) => this.opts.directory.usageOfTag(id),
+    remove: (id, cascade, stamp) => this.opts.directory.removeTag(id, cascade, stamp),
+    usageIn: directoryUsageOfTag,
+  };
+
+  /** The work item type vocabulary — see {@link NamedVocabulary}. */
+  private readonly workItemTypes: NamedVocabulary<WorkItemType> = {
+    add: (row, stamp) => this.opts.directory.addWorkItemType(row, stamp),
+    rename: async (id, name, stamp) => {
+      const written = await this.opts.directory.renameWorkItemType(id, name, stamp);
+      return written.ok ? { ...written, entity: written.workItemType } : written;
+    },
+    usageOf: (id) => this.opts.directory.usageOfWorkItemType(id),
+    remove: (id, cascade, stamp) => this.opts.directory.removeWorkItemType(id, cascade, stamp),
+    usageIn: directoryUsageOfWorkItemType,
+  };
+
+  /** The service vocabulary — see {@link NamedVocabulary}. */
+  private readonly services: NamedVocabulary<Service> = {
+    add: (row, stamp) => this.opts.directory.addService(row, stamp),
+    rename: async (id, name, stamp) => {
+      const written = await this.opts.directory.renameService(id, name, stamp);
+      return written.ok ? { ...written, entity: written.service } : written;
+    },
+    usageOf: (id) => this.opts.directory.usageOfService(id),
+    remove: (id, cascade, stamp) => this.opts.directory.removeService(id, cascade, stamp),
+    usageIn: directoryUsageOfService,
+  };
 
   /** Every team **with the services it owns** — the map ships whole, design D4. */
   listTeams(): Promise<TeamWithServices[]> {
@@ -228,25 +382,12 @@ export class DirectoryService {
    * column to leave — it never had a pool to be unstated about.
    */
   async addTag(actorId: string, name: string): Promise<Tag | null> {
-    const clean = cleanName(name);
-    if (clean === null) return null;
-    return this.opts.directory.addTag(
-      { id: this.clock.newId(), name: clean },
-      this.clock.stampFor(actorId),
-    );
+    return this.addNamed(this.tags, actorId, name);
   }
 
   /** Renames a tag, keeping the name unique across the deployment — `renameTeam`'s rules. */
   async renameTag(tagId: string, actorId: string, name: string): Promise<DirectoryOutcome<Tag>> {
-    const clean = cleanName(name);
-    if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameTag(tagId, clean, this.clock.stampFor(actorId));
-    if (!written.ok) {
-      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
-      return { ok: false, reason: 'not_found' };
-    }
-    await this.announce(written.projectIds);
-    return { ok: true, result: written.tag };
+    return this.renameNamed(this.tags, tagId, actorId, name);
   }
 
   /**
@@ -265,21 +406,7 @@ export class DirectoryService {
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveDirectoryOutcome> {
-    if (!cascade) {
-      const seen = directoryUsageOfTag(await this.opts.directory.usageOfTag(tagId), tagId);
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
-    }
-    const removed = await this.opts.directory.removeTag(
-      tagId,
-      cascade,
-      this.clock.stampFor(actorId),
-    );
-    if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
-      return { ok: false, reason: 'in_use', usage: directoryUsageOfTag(removed.usage, tagId) };
-    }
-    await this.announce(removed.removal.projectIds);
-    return { ok: true };
+    return this.removeNamed(this.tags, tagId, actorId, cascade);
   }
 
   listWorkItemTypes(): Promise<WorkItemType[]> {
@@ -292,12 +419,7 @@ export class DirectoryService {
    * no pool to be unstated about.
    */
   async addWorkItemType(actorId: string, name: string): Promise<WorkItemType | null> {
-    const clean = cleanName(name);
-    if (clean === null) return null;
-    return this.opts.directory.addWorkItemType(
-      { id: this.clock.newId(), name: clean },
-      this.clock.stampFor(actorId),
-    );
+    return this.addNamed(this.workItemTypes, actorId, name);
   }
 
   /**
@@ -309,19 +431,7 @@ export class DirectoryService {
     actorId: string,
     name: string,
   ): Promise<DirectoryOutcome<WorkItemType>> {
-    const clean = cleanName(name);
-    if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameWorkItemType(
-      typeId,
-      clean,
-      this.clock.stampFor(actorId),
-    );
-    if (!written.ok) {
-      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
-      return { ok: false, reason: 'not_found' };
-    }
-    await this.announce(written.projectIds);
-    return { ok: true, result: written.workItemType };
+    return this.renameNamed(this.workItemTypes, typeId, actorId, name);
   }
 
   /**
@@ -338,28 +448,7 @@ export class DirectoryService {
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveDirectoryOutcome> {
-    if (!cascade) {
-      const seen = directoryUsageOfWorkItemType(
-        await this.opts.directory.usageOfWorkItemType(typeId),
-        typeId,
-      );
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
-    }
-    const removed = await this.opts.directory.removeWorkItemType(
-      typeId,
-      cascade,
-      this.clock.stampFor(actorId),
-    );
-    if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
-      return {
-        ok: false,
-        reason: 'in_use',
-        usage: directoryUsageOfWorkItemType(removed.usage, typeId),
-      };
-    }
-    await this.announce(removed.removal.projectIds);
-    return { ok: true };
+    return this.removeNamed(this.workItemTypes, typeId, actorId, cascade);
   }
 
   listExternalSystems(): Promise<ExternalSystem[]> {
@@ -379,12 +468,7 @@ export class DirectoryService {
    * 2026-08-20: _"Let service and teams be independent."_).
    */
   async addService(actorId: string, name: string): Promise<Service | null> {
-    const clean = cleanName(name);
-    if (clean === null) return null;
-    return this.opts.directory.addService(
-      { id: this.clock.newId(), name: clean },
-      this.clock.stampFor(actorId),
-    );
+    return this.addNamed(this.services, actorId, name);
   }
 
   /** Renames a service, keeping the name unique across the deployment — {@link renameTag}'s rules. */
@@ -393,19 +477,7 @@ export class DirectoryService {
     actorId: string,
     name: string,
   ): Promise<DirectoryOutcome<Service>> {
-    const clean = cleanName(name);
-    if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameService(
-      serviceId,
-      clean,
-      this.clock.stampFor(actorId),
-    );
-    if (!written.ok) {
-      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
-      return { ok: false, reason: 'not_found' };
-    }
-    await this.announce(written.projectIds);
-    return { ok: true, result: written.service };
+    return this.renameNamed(this.services, serviceId, actorId, name);
   }
 
   /**
@@ -427,28 +499,7 @@ export class DirectoryService {
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveDirectoryOutcome> {
-    if (!cascade) {
-      const seen = directoryUsageOfService(
-        await this.opts.directory.usageOfService(serviceId),
-        serviceId,
-      );
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
-    }
-    const removed = await this.opts.directory.removeService(
-      serviceId,
-      cascade,
-      this.clock.stampFor(actorId),
-    );
-    if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
-      return {
-        ok: false,
-        reason: 'in_use',
-        usage: directoryUsageOfService(removed.usage, serviceId),
-      };
-    }
-    await this.announce(removed.removal.projectIds);
-    return { ok: true };
+    return this.removeNamed(this.services, serviceId, actorId, cascade);
   }
 
   listPeople(): Promise<PersonWithTeams[]> {
