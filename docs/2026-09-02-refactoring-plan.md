@@ -125,14 +125,14 @@ until the type checks compile files and the cache reads the right inputs.
 
 The audit's L2/L3 with what the sweeps added. Zero production change in this wave.
 
-| Id   | Change                                                                                                                                                                                                                                                                                                                     | Files                                                    | Effort | Needs |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
-| W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                         | new; 7 test files                                        | 1.5d   | —     |
-| W1-2 | Split `wbs-table.test.tsx` by its 63 `describe` blocks into the eleven files sweep C maps (`plan-layout`, `plan-filter`, `plan-keyboard`, `plan-dependencies`, `plan-estimates`, `plan-toolbar`, `plan-cells`, `plan-structure`, `plan-read-and-write`, `plan-chart-seam`, `plan-table`). 585 serial cases → four workers. | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
-| W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                                      | new; 24 test files                                       | 2d     | —     |
-| W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                                  | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
-| W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                      | `project.json` ×N, `.gitignore`                          | 1h     | —     |
-| W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec.          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
+| Id   | Change                                                                                                                                                                                                                                                                                                            | Files                                                    | Effort | Needs |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
+| W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                | new; 7 test files                                        | 1.5d   | —     |
+| W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                                                                                                                 | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
+| W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                             | new; 24 test files                                       | 2d     | —     |
+| W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                         | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
+| W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                             | `project.json` ×N, `.gitignore`                          | 1h     | —     |
+| W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec. | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
 ### Wave 2 — performance (≈ 10 days)
 
@@ -978,3 +978,43 @@ example: get one wrong and nothing says so — the graph still constructs, the s
 a label or a figure is simply never there to assert on.
 
 **Green:** `be-01` 1267 pass, 0 fail; lint; typecheck; `format:check --all`.
+
+## 22 · Verify — W1-2, 2026-09-02
+
+`wbs-table.test.tsx` — 16,164 lines, 62 top-level `describe` blocks, 585 cases, run serially — is
+eleven files named for what they are about: `plan-table`, `plan-structure`, `plan-cells`,
+`plan-estimates`, `plan-keyboard`, `plan-dependencies`, `plan-chart-seam`, `plan-layout`,
+`plan-filter`, `plan-toolbar`, `plan-read-and-write`.
+
+| Measure             | Before | After   |
+| ------------------- | ------ | ------- |
+| whole `fe-01` suite | ~180s  | **69s** |
+| test files          | 65     | 75      |
+| tests               | 2043   | 2043    |
+
+Zero production change, and all 585 cases still run — counted, not assumed.
+
+**Three attempts, and the two failures are the point.**
+
+The first split took "the header" to be everything above the first `describe`. It is not:
+thirteen module-scope helpers, `rowFor` among them, are declared **between** describes, around line
+5,070. Files that needed them got a `ReferenceError`.
+
+The second pruned unused declarations with a regex for "a `const` up to a line starting `};`". Test
+sources are full of brackets inside strings, so that regex ran past a declaration's end and ate
+whole `describe` blocks — 8 of 62 vanished, and the only reason it was caught is that the counts
+were checked after every step.
+
+What worked: split on **top-level statement starts** rather than bracket counting, share every
+module-scope statement with every file, then remove unused declarations **one at a time, located by
+ESLint's own line numbers**, re-parsing after each removal and reverting any that breaks the file.
+Slow — one ESLint run per removal — and it cannot eat a block it cannot see.
+
+**Two couplings the split had to honour.** `keyboard-cheat-sheet.test.tsx` reads the behaviour
+tests' _source text_ to prove every chord on the cheat sheet has a test, and it read
+`wbs-table.test.tsx` by name; it names the eleven now, individually rather than by glob, for the
+reason its own comment gives — a file that moves must throw, and a glob would quietly read ten of
+eleven. And `POPOVER_ROW_LAYER` was pruned from `plan-cells` while still used in a case body; the
+compiler named it (`TS2304`), which is the check that says a split lost something.
+
+**Green:** `fe-01` 2043 pass across 75 files, lint, typecheck, build; `format:check --all`.
