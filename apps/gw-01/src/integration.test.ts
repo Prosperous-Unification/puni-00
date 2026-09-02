@@ -24,8 +24,7 @@ describe('gw-01 /health', () => {
     // it talks to be-01 directly.
     const app = buildApp({
       ...OPTS,
-      fetchImpl: (() =>
-        Promise.reject(new Error('connect ECONNREFUSED'))) as unknown as typeof fetch,
+      fetchImpl: () => Promise.reject(new Error('connect ECONNREFUSED')),
     });
 
     const res = await app.handle(new Request('http://localhost/health'));
@@ -39,10 +38,8 @@ describe('gw-01 /health', () => {
   it('is unhealthy when be-01 answers but is not itself healthy', async () => {
     const app = buildApp({
       ...OPTS,
-      fetchImpl: (() =>
-        Promise.resolve(
-          new Response('{"status":"schema_missing"}', { status: 503 }),
-        )) as unknown as typeof fetch,
+      fetchImpl: () =>
+        Promise.resolve(new Response('{"status":"schema_missing"}', { status: 503 })),
     });
 
     const res = await app.handle(new Request('http://localhost/health'));

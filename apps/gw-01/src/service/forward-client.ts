@@ -1,11 +1,21 @@
+/**
+ * The slice of `fetch` gw-01 calls, so a test can hand it a stub.
+ *
+ * Narrower than `typeof fetch` on purpose: nothing in gw-01 calls
+ * `fetch.preconnect`, and demanding it made every stub in gw-01's own tests a
+ * type error — invisible, because no `typecheck` target compiled a test file
+ * here until 2026-09-02. `globalThis.fetch` still satisfies it.
+ */
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+
 export interface ForwardClientOptions {
   beUrl: string;
   secret: string;
-  fetchImpl?: typeof fetch;
+  fetchImpl?: FetchLike;
 }
 
 export class ForwardClient {
-  private readonly fetch: typeof fetch;
+  private readonly fetch: FetchLike;
   constructor(private readonly opts: ForwardClientOptions) {
     this.fetch = opts.fetchImpl ?? globalThis.fetch;
   }

@@ -6,7 +6,7 @@ import { Elysia } from 'elysia';
 
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
-import { ForwardClient } from './service/forward-client';
+import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { Presence } from './service/presence';
@@ -72,7 +72,7 @@ export interface AppOptions {
   jwtKey: string;
   previousJwtKey?: string;
   version?: string;
-  fetchImpl?: typeof fetch;
+  fetchImpl?: FetchLike;
   /**
    * The browser origin allowed to open an OIDC cookie-authenticated socket.
    *
