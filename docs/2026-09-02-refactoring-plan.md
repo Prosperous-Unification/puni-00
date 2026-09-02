@@ -175,7 +175,7 @@ nothing else in the repo changes. Where the copy carries a comment saying "line 
 | W3-8  | **One deploy contract**: widen the `@wbs/tool-env` alias (which `deploy.ts:9` already imports — the "no `@wbs/*` entry point" comment justifying five duplications is false in the file that states it) into a small index exporting `Tier`, `Color`, `PORT`, `IMAGE_NAME`, `BUNDLE_FILES`, `sha256File`, `parseSha256sumOutput`, `assertCleanTree`. Give `install.ts` the `--env` flag it lacks — `deploy.ts`'s own error message today tells a dev operator to install into prod's root.                                                                                                                                                                                                        | `tools/tool-remote-scripts/src/lib/*`, `tools/tool-deploy/src/*`, `tool-dagger/src/lib/publish.ts`, `tool-smoke/src/health.ts`            | 1d     | ~200    |
 | W3-9  | **One realtime envelope** (N6): `libs/contracts/src/ws.ts` becomes the single frame vocabulary (add `'unavailable'`, `presence`, `subscribe`, `unsubscribe`, `who`); gw-01 builds every outbound frame through it and parses inbound through `WsControlFrame`; `project-stream.ts`'s **rules** (backoff, `settle()`, the no-advance-on-frame seq rule) move into `libs/realtime` and the dead `reconnecting-ws.ts` seq handling that contradicts them goes, with `tanstack-adapter.ts` and `fixtures/frame.ts`. The stream must not learn about routes or the gate (ADR 0004).                                                                                                                    | `libs/realtime/**`, `libs/contracts/src/ws.ts`, `gw-01/ws.controller.ts`, `fe-01/src/lib/project-stream.ts`                               | 1.5d   | ~200    |
 | W3-10 | **mcp-01 OAuth reuses `libs/auth`** (N8): its transaction store → `InMemoryOidcTransactionStore` extended with the PKCE payload (two intentional hardenings, each with a watched negative); extract `DynamicClientRegistry` and `LocalTokenIssuer` (injected keypair); `upstreamTokenFor` accepts the claims its caller passes. `oauth.test.ts`'s 24 capacity cases move to the registry's suite.                                                                                                                                                                                                                                                                                                 | `apps/mcp-01/src/oauth.ts`, `caller-auth.ts`, `libs/auth/src/oidc-store.ts`                                                               | 2d     | ~150    |
-| W3-11 | **Small collapses**: `isUniqueViolation(err, index)` beside `isForeignKeyViolation` for the seven constraint-message literals (the `role`→`step` rename already broke one silently, `step.ts:28–40`) plus a test that every named index exists in the schema; `stepsOf` deleted from `ProjectRepository` (four callers hold a `StepStore`); `cleanName` ×2 → one; `descendsFrom`/`isWithin` → one; `emit-openapi-cli.ts:44–58`'s ten test doubles shared with `openapi-document.test.ts:20–34`; `forgetDraft`/`forgetNameDraft` → one; `ProjectApi extends DirectoryApi` deletes 13 delegation lines; the 17-field `tree` shape written twice in `wbs-api.ts`.                                    | as named                                                                                                                                  | 1d     | ~250    |
+| W3-11 | **Six done, two refused, 2026-09-02** — see §36. `isUniqueViolation` + `UNIQUE_INDEXES` with a pragma-and-live test the `role` rename would have failed, one `isWithin` where four copies stood, one `cleanName`, `STEP_COLUMNS` (whose "the type checks the list" comment could not fail and is now a test), one app fixture for the OpenAPI pair, one `forgetDraft`, a spread instead of 13 delegations, and `PlanRead` written once. Deleting `stepsOf` and `ProjectApi extends DirectoryApi` are **refused**, with reasons.                                                                                                                                                                   |
 
 ### Wave 4 — readability and DDD: knowledge lives with what it describes (≈ 18 days)
 
@@ -1607,3 +1607,73 @@ loop, updated in place by the mutators, is the fix.
 It touches 44 `listByProject` call sites and changes how the service is composed, which
 `CLAUDE.md` R4 puts behind an **OpenSpec change**: intent, one design interview, delta specs,
 `tasks.md`, `verify.md`. **Not started** rather than half-done inline.
+
+## 36 · W3-11 — the small collapses, and two of its premises refused
+
+Eight sub-items were named. **Six done, two refused**, and one of the six turned out to be a
+check that could not fail rather than a duplication.
+
+**`isUniqueViolation(err, index)`.** Seven `err.message.includes('UNIQUE constraint failed: …')`
+literals — five in `repository/directory.ts`, one in `step.ts`, one written inline in `user.ts` —
+became one function plus `UNIQUE_INDEXES`, which names the seven indexes a repository translates
+into a modeled refusal. The point is the check that did not exist: `constraint.db.test.ts` walks
+every entry against a migrated database's `PRAGMA index_list`, **and** writes a real duplicate
+through a one-column and a two-column index, so the message _format_ is asserted too. The
+`role` → `step` rename broke exactly this once, silently, taking every duplicate step name from a
+409 to an uncaught 500. Both faults watched: the pre-rename spelling fails the pragma case on
+`Received: []` (a pragma on a table SQLite does not have answers an empty list rather than
+throwing — which is why the assertion is `toContainEqual` and not a length) and the live case on
+`expected false to be true`; the join narrowed from `', '` to `','` fails **only** the two-column
+live case, with every pragma case green.
+
+**`isWithin`.** `descendsFrom` in `work-item.service.ts` and `isWithin` in `dependency.ts` were
+byte-identical under two names; `drag-drop.ts` held a third copy and `dep-graph.ts` a fourth over
+a pre-built parent map. One `libs/domain/src/is-within.ts`, with `parentIndexOf` split out —
+`canDepend` asked the question twice and built the index twice. Two semantics that were only in
+one copy's JSDoc are now stated where the code is: the root counts as within itself (that is how
+a drag into itself and an edge onto itself are refused) and an unknown id ends the walk as
+`false` (that is how a cross-project id arrives at `canDepend`). fe-01 imports it as
+`@wbs/domain/is-within` — seven config files, because the barrel would pull `schedule.ts` into
+the browser bundle.
+
+**`cleanName`.** Two identical copies, one `service/clean-name.ts`. The third rule with the same
+tail (`work-item.controller.ts`) stays: it also enforces a length ceiling and belongs at the
+request boundary.
+
+**`STEP_COLUMNS`** replaces the four-column projection written five times (`listByProject`,
+`findById`, `rename`'s `returning`, `ProjectRepository.stepsOf`), in the shape
+`WORK_ITEM_COLUMNS` already set. And the comment all of them carried was a claim that cannot
+fail: "the declared return type checks the list is complete" is true of a **missing** column and
+false of an extra one, because a row with three extra properties is structurally assignable to
+`Step`. A bare `select()` typechecks and publishes `created_by`. `what a step read publishes`
+now asserts all four reads against the keys of the `Step` literal `add` builds, watched failing
+on `- Expected - 0 · + Received + 3` with `.select()` put back — and taking a second, unrelated
+assertion down with it.
+
+**One app fixture.** `emit-openapi-cli.ts` and `openapi-document.test.ts` held byte-identical
+thirteen-double `buildApp` literals, and they are the pair that must agree exactly: one writes
+the committed document, the other fails until it is rewritten. `testing/app-fixture.ts` is the
+one list, overrides spread last. Proof it is the same app: re-running the CLI leaves
+`openapi.json` byte-identical.
+
+**Three fe-01 collapses.** `forgetDraft`/`forgetNameDraft` were the same two lines under two
+names, left over from when a team's size box lived on the directory page. `httpProjectApi`
+spreads the directory client instead of forwarding thirteen methods one line at a time. And the
+16-field `tree` payload was written twice — documented on `ProjectApi.tree`, bare as
+`send<{…}>` — and is `PlanRead` once; the two field sets were verified identical before the
+merge.
+
+**Refused: deleting `stepsOf` from `ProjectRepository`.** The plan says four callers hold a
+`StepStore`. None does — `ProjectService` takes only `projects: ProjectStore` and
+`WorkItemService` has no step store either — so the change is a constructor widening across
+every fixture plus `work-item.service.test.ts`'s deliberate `stepsOf` override, which is a test
+about two reads answering differently. The duplication was the column list, and that is what got
+collapsed.
+
+**Refused: `ProjectApi extends DirectoryApi`.** The 13 shared members are real, but
+`DirectoryApi` has eight more (the renames and removals the directory page owns), and extending
+would put all eight on every `ProjectApi` fake — a wider port than any plan caller wants. The 13
+delegation lines the item was counting are gone anyway, via the spread.
+
+**Green:** be-01 616 store / 654 unit, fe-01 2047 across 75 files, domain 321, lint and typecheck
+on all three, `prettier --check .`.
