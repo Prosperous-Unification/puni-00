@@ -16,7 +16,7 @@ const target: Record<string, Schema> = {
   workItemId: id('The work item this command is aimed at.'),
   workItemRef: ref('The work item this command is aimed at'),
 };
-const step = { stepId: id('The step (step) this figure belongs to.') };
+const step = { stepId: id('The step this figure belongs to.') };
 const DAYS: Schema = {
   type: 'object',
   description: 'A three-point estimate in workdays.',

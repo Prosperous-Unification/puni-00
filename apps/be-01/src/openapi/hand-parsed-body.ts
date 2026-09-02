@@ -8,9 +8,17 @@ type BodySchema = NonNullable<
 /**
  * The sentence every hand-parsed body in this API needs, written once.
  *
- * Eight routes parse their own bodies — the six work-item writes, the capacity
- * PUT and the priority-band PUT. The reason is on each parse function and it is
- * the same reason: Elysia strips unknown properties before a handler runs, so a
+ * Two routes parse their own bodies: `POST /api/projects/{id}/commands` and
+ * `POST /api/directory/commands`. Since `plan-commands` every plan and directory
+ * write arrives as a command inside one of them, parsed by the guards the single
+ * routes used to hold — this comment named those six work-item writes, the
+ * capacity PUT and the priority-band PUT for three releases after the last of
+ * them was retired. `openapi-document.test.ts`'s `describes every hand-parsed
+ * body without declaring it` is the list that cannot go stale, because it reads
+ * the document.
+ *
+ * The reason is on each parse function and it is the same reason: Elysia strips
+ * unknown properties before a handler runs, so a
  * guard written after `{ body: t.Object(...) }` never sees the field it refuses
  * and reads as though it works. `number_is_derived`, the priority floor and the
  * parallelism range are all guards this repo has watched fail under injection;

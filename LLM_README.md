@@ -14,7 +14,7 @@ Three facts explain most decisions:
   presence, projects, a nested table you type into and drag rows around, arrow keys between
   cells, derived numbers with a freeze, three-point estimates by step that roll up, a branch you
   duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
-  socket that reconnects and replays. Tables: `user`, `project`, `role`, `work_item`,
+  socket that reconnects and replays. Tables: `user`, `project`, `step`, `work_item`,
   `estimate`, `command_journal`, `event_log`, `event_sequencer`.
 - Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 

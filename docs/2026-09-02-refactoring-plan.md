@@ -117,7 +117,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
 | W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                                       | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
 | W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                                      | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
-| W0-10 | Fix every stale sentence in N13, from the code, and make two of them tests: the mcp-01 README's tool count asserted against the derived list; `openapi-tools.ts:199` replaced by a computed figure.                                                                                                    | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
+| W0-10 | **Done, 2026-09-02** — see §14. Five sentences corrected from the code; the README's tool count is now a test, watched failing two ways.                                                                                                                                                               | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
 | W0-11 | **Mostly done, 2026-09-02** — see §13. Nine modules and one whole library deleted. Two of N14's entries are **not** dead and were kept, with reasons.                                                                                                                                                  | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
 | W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                                        | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
 
@@ -639,3 +639,41 @@ One thing the removal caught: `git rm -r libs/scripts` left the directory on dis
 untracked `coverage/` was in it — and `tool-devsync`'s `RESTART_PATHS coverage` failed on
 `Expected to contain: "libs/scripts/project.json"`, reading the directory that still existed. The
 test that walks the repo rather than trusting a list is what noticed.
+
+## 14 · Verify — W0-10, 2026-09-02
+
+Five sentences named things that do not exist. Each is corrected from the code rather than from
+memory, and the two that carry a number are now checked or carry none.
+
+| Sentence                    | Was                                                                                   | Is                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `hand-parsed-body.ts:13`    | "Eight routes … the six work-item writes, the capacity PUT and the priority-band PUT" | the two batch routes, plus a pointer to the test that reads the document |
+| `plan-command-schema.ts:19` | `The step (step) this figure belongs to.`                                             | `The step this figure belongs to.`                                       |
+| `openapi-tools.ts:199`      | "40 of be-01's 51 operations"                                                         | no count at all — see below                                              |
+| `apps/mcp-01/README.md:15`  | "Twenty tools in all"                                                                 | "22 tools in all", asserted                                              |
+| `LLM_README.md:17`          | table `role`                                                                          | table `step`                                                             |
+
+**The counts were measured, not guessed.** The committed document holds **30** operations, **27** of
+them without prose. The comment claimed 40 of 51 — wrong in both numbers, and describing an API two
+renames ago. It carries no figure now, and says why: a number nothing checks is a number that goes
+stale, and it was never the point of the sentence.
+
+**`plan-command-schema.ts` was the costly one.** That string is the description an MCP client shows
+a model for every one of the twelve step-carrying command kinds, and `(step)` is what the
+`role → step` rename left where `(phase)` had been. `apps/be-01/openapi.json` is regenerated, since
+it is committed and diffed against the app.
+
+**The README's count is a test now.** `openapi-tools.test.ts` already asserted the tool names
+against the derived list — which is why that README is the repo's good example — and the _count_
+sat unchecked beside them at "Twenty" while this file asserted 22. Two tools could be added and the
+sentence stay put. Watched failing two ways:
+
+| Injected fault        | Observed                                           |
+| --------------------- | -------------------------------------------------- |
+| "Twenty tools in all" | `expect(received).not.toBeNull() · Received: null` |
+| "20 tools in all"     | `Expected: 22 · Received: 20`                      |
+
+The first failure is the interesting one: writing the number as a word is itself the drift, because
+it takes the claim out of reach of anything that could check it.
+
+**Green:** `be-01`, `mcp-01` — test, lint, typecheck; `format:check --all`.
