@@ -3,29 +3,14 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type {
   ActualStore,
   CommandJournalStore,
-  EstimateStore,
-  MeasureStore,
   Project,
   ProjectStore,
-  StepProgressStore,
   StoredActual,
-  WorkItemStore,
 } from '../repository';
-import { inMemoryActuals } from '../testing/actual-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import { inMemoryServices } from '../testing/harness';
 import type { Days } from './roll-up';
-import { WorkItemService } from './work-item.service';
+import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
@@ -33,24 +18,12 @@ const DEV = 'step-dev';
 const QA = 'step-qa';
 
 let projects: ProjectStore;
-let workItems: WorkItemStore;
-let estimates: EstimateStore;
 let actuals: ActualStore;
-let measures: MeasureStore;
-let progress: StepProgressStore;
 let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
 
 beforeEach(async () => {
-  projects = inMemoryProjects();
-  const directory = inMemoryDirectory();
-  workItems = inMemoryWorkItems(directory);
-  estimates = inMemoryEstimates(workItems);
-  actuals = inMemoryActuals(workItems);
-  measures = inMemoryMeasures(workItems);
-  progress = inMemoryProgress(workItems);
-  const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
   const recorded: { kind: string; stepId: string | null }[] = [];
   // The journal, with the history rows it is handed kept where a test can read
@@ -64,29 +37,11 @@ beforeEach(async () => {
       await store.append(entry, event);
     },
   };
-  service = new WorkItemService({
-    workItems,
-    projects,
-    estimates,
-    actuals,
-    measures,
-    progress,
-    dependencies,
-    directory,
-    capacity: inMemoryCapacity(),
-    priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-    }),
-    journal,
-    broadcast: recordingBroadcaster(),
-  });
+  // Only the journal is this suite's own: it wraps the real one to keep the
+  // history rows where a case can read them.
+  const harness = inMemoryServices({ journal });
+  ({ projects, actuals } = harness.stores);
+  service = harness.service;
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',

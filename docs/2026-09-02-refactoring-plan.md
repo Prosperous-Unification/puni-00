@@ -129,7 +129,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
 | W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                         | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | Split `wbs-table.test.tsx` by its 63 `describe` blocks into the eleven files sweep C maps (`plan-layout`, `plan-filter`, `plan-keyboard`, `plan-dependencies`, `plan-estimates`, `plan-toolbar`, `plan-cells`, `plan-structure`, `plan-read-and-write`, `plan-chart-seam`, `plan-table`). 585 serial cases → four workers. | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
-| W1-3 | `apps/be-01/src/testing/harness.ts`: `inMemoryServices(overrides?)` returning `BeServices`, composed from the 19 in-memory fixtures that exist and are never composed; `buildServices()` stays the T1 twin. 24 hand-wired files use it; `undo.test.ts:122`'s leaked real repository goes.                                  | new; 24 test files                                       | 2d     | —     |
+| W1-3 | **Started, 2026-09-02** — see §20. `inMemoryServices()` exists and seven suites use it, 335 lines lighter. The other seventeen are not migrated.                                                                                                                                                                           | new; 24 test files                                       | 2d     | —     |
 | W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                                  | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
 | W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                      | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec.          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
@@ -908,3 +908,43 @@ mcp-01's README as "20 tools", the number that file no longer claims. It names n
 
 **Green:** `lint:fast` across all 22 projects; `lint` on be-01 and fe-01 unchanged;
 `format:check --all`; `doc-caps`.
+
+## 20 · Verify — W1-3 (started), 2026-09-02
+
+`apps/be-01/src/testing/harness.ts` exports `inMemoryServices(overrides?)`, returning the
+`WorkItemService`, **its stores**, and the recording broadcaster.
+
+Handing the stores back is the whole difference from `testWorkItemService()`, which composed the
+same graph and then discarded them — which is exactly why twenty-four files re-derived it by hand
+instead of using it. A suite that seeds a plan or asserts on a row needs the store.
+
+The graph is thirteen ports with three wiring rules that are easy to get subtly wrong, and the
+harness is now the one place that knows them: the work-item store takes the **directory** so labels
+resolve, the four satellite stores take the **work-item store** so figures follow a row through a
+move, and `inMemorySubtrees` takes **all seven** because a subtree write touches every table at
+once. `undo.test.ts:122` is what happens without one place that knows this — it passed a real
+`SubtreeRepository(db)` into an otherwise in-memory graph, so one store spoke to SQLite while the
+rest spoke to a Map.
+
+Seven suites migrated, and `testWorkItemService()` now delegates rather than duplicating:
+
+| File                                                                                                                                                    | Lines            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `estimate.test.ts`                                                                                                                                      | −38              |
+| `actual.test.ts`                                                                                                                                        | −45              |
+| `measure.test.ts`, `progress.test.ts`, `freeze.test.ts`, `broadcast.test.ts`, `plan-history.test.ts`, `review-findings.test.ts`, `work-item-fixture.ts` | the rest of −335 |
+
+**Every one of them was wiring stores it never read.** `estimate.test.ts` declared and constructed
+five it never touched; the others the same. That is what a hand-derived graph costs: nobody trims
+it, because trimming means understanding the wiring again.
+
+Overrides carry the real variation. Four suites wrap the command journal to keep the plan's history
+rows where a case can read them, and pass `inMemoryServices({ journal })`; everything else is built
+by the harness.
+
+**Green:** `be-01` 1267 pass, 0 fail across 92 files; lint; typecheck; `format:check --all`.
+
+**Still open:** seventeen files still build the graph by hand. Two of them — `tag-empty-diff` and
+`service-empty-diff` — are T1 suites over real repositories and this harness does not apply; the
+rest are in-memory and should follow. `undo.test.ts` is the one worth doing next, since it is the
+file the audit named and the one with the leaked real repository.
