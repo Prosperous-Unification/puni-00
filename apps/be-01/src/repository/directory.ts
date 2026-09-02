@@ -47,6 +47,7 @@ import {
   workItemType,
   workItemWorkItemType,
 } from './schema';
+import { WORK_ITEM_COLUMNS } from './work-item';
 
 /**
  * Whether a thrown error is SQLite refusing a second team of the same name.
@@ -124,7 +125,15 @@ function usageRowsIn(
   // The rows and the teams they are joined to, because the usage is computed
   // through `effectiveTeamsOf` — the join is the read since `team-sets`, and
   // rows handed over without their sets would report no effect at all.
-  const rows = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
+  // Named rather than bare, which is this folder's rule and is argued at
+  // `DirectoryRepository`'s own doc: a bare `select()` reads every column
+  // drizzle knows about, and these rows are folded into the usage preview a
+  // person is shown before consenting to a removal.
+  const rows = reader
+    .select(WORK_ITEM_COLUMNS)
+    .from(workItem)
+    .where(inArray(workItem.projectId, ids))
+    .all();
   const joined = reader
     .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
     .from(workItemTeam)

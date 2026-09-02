@@ -485,3 +485,31 @@ describe('ProjectRepository', () => {
     );
   });
 });
+
+describe('what a project read publishes', () => {
+  /**
+   * The audit columns are recorded and not published (ADR 0012), and this is
+   * the read that decides it for `GET /api/projects/{id}` and `PATCH` — neither
+   * declares a response schema, so whatever the store hands back is the body.
+   *
+   * `toProject` spread the rest of the row until 2026-09-02, so `createdBy` — a
+   * user id — and `updatedAt` were on the wire, while the JSDoc on `stepsOf`
+   * cited this mapper as the reason they could not be. Asserted against the
+   * declared type's own keys rather than a second hand-written list, so a
+   * column added to `Project` is not a column this test forgets.
+   *
+   * Proof: with `withoutAuditColumns(rest)` in `toProject` put back to `...rest`,
+   * watched failing on
+   * `expect(received).toEqual(expected) · + "createdBy" · + "updatedAt"`
+   * (2026-09-02).
+   */
+  it('carries the columns the Project type declares and no others', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+    const read = await repo.findById(made.id);
+
+    expect(read).not.toBeNull();
+    expect(Object.keys(read ?? {}).sort()).toEqual(Object.keys(made).sort());
+    expect(Object.keys(read ?? {})).not.toContain('createdBy');
+    expect(Object.keys(read ?? {})).not.toContain('updatedAt');
+  });
+});

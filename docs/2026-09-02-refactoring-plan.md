@@ -106,20 +106,20 @@ restore an already-precise spec and need none.
 The cheapest wave and the one every later wave depends on: nothing below can be verified
 until the type checks compile files and the cache reads the right inputs.
 
-| Id    | Change                                                                                                                                                                                                                                                                                                 | Files                                                                | Effort | R5 negative                                                                                                          |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| W0-1  | **Done, 2026-09-02** — see §6. `tsc --noEmit -p <solution>` → `tsc --build --force` in the 18 vacuous `typecheck` targets, and `libs/auth` unified onto the same form so all 23 read one way. 12 latent type errors fixed, `@types/node` bumped 18.16.9 → 22.18.0, one guard test added.               | 19 `project.json`; 7 source files; `package.json`                    | 1h + ? | `const x: number = 'no'` in `tools/tool-remote-scripts/src/swap.ts`, watched red                                     |
-| W0-2  | **Done, 2026-09-02** — see §7. Nine targets across six projects read files outside their own project and declared none. Declared precisely, per target. `--skip-nx-cache` **kept** in the release gate, deliberately; see §7.                                                                          | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
-| W0-3  | **Done, 2026-09-02** — see §8. Deleted. The waste was larger than N1 said: a read route resolved the caller twice, not once.                                                                                                                                                                           | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
-| W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                                       | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
-| W0-5  | Close the three column leaks (N3): `toProject` names its fields; `work-item.ts:547` and `directory.ts:127` take column lists; promote `WORK_ITEM_COLUMNS`/`USER_COLUMNS` beside their tables; a source-reading test in `audit.test.ts`'s shape fails on a bare `select()`/`returning()` in the folder. | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
-| W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                              | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
-| W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                                     | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
-| W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                                       | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
-| W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                                      | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
-| W0-10 | **Done, 2026-09-02** — see §14. Five sentences corrected from the code; the README's tool count is now a test, watched failing two ways.                                                                                                                                                               | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
-| W0-11 | **Mostly done, 2026-09-02** — see §13. Nine modules and one whole library deleted. Two of N14's entries are **not** dead and were kept, with reasons.                                                                                                                                                  | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
-| W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                                        | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
+| Id    | Change                                                                                                                                                                                                                                                                                   | Files                                                                | Effort | R5 negative                                                                                                          |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| W0-1  | **Done, 2026-09-02** — see §6. `tsc --noEmit -p <solution>` → `tsc --build --force` in the 18 vacuous `typecheck` targets, and `libs/auth` unified onto the same form so all 23 read one way. 12 latent type errors fixed, `@types/node` bumped 18.16.9 → 22.18.0, one guard test added. | 19 `project.json`; 7 source files; `package.json`                    | 1h + ? | `const x: number = 'no'` in `tools/tool-remote-scripts/src/swap.ts`, watched red                                     |
+| W0-2  | **Done, 2026-09-02** — see §7. Nine targets across six projects read files outside their own project and declared none. Declared precisely, per target. `--skip-nx-cache` **kept** in the release gate, deliberately; see §7.                                                            | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
+| W0-3  | **Done, 2026-09-02** — see §8. Deleted. The waste was larger than N1 said: a read route resolved the caller twice, not once.                                                                                                                                                             | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
+| W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                         | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
+| W0-5  | **Done, 2026-09-02** — see §15. All three closed; the leak was measured on the wire first, and one column list now serves two readers.                                                                                                                                                   | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
+| W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
+| W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                       | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
+| W0-8  | **Done, 2026-09-02** — see §12. `parseOrThrow` stops echoing the input; a new `parseSecretsOrThrow` names paths only and `defineConfig` uses it.                                                                                                                                         | `libs/validation/src/core.ts`                                        | 2h     | watched failing against today's `core.ts:15`                                                                         |
+| W0-9  | **Done, 2026-09-02** — see §11. One exported `stepIsInUse`, both callers route through it, two negatives watched.                                                                                                                                                                        | `step.service.ts`, `repository/step.ts`                              | 2h     | a step holding only actuals refused by the fast path                                                                 |
+| W0-10 | **Done, 2026-09-02** — see §14. Five sentences corrected from the code; the README's tool count is now a test, watched failing two ways.                                                                                                                                                 | as named in N13                                                      | 2h     | the README test fails when a tool is added                                                                           |
+| W0-11 | **Mostly done, 2026-09-02** — see §13. Nine modules and one whole library deleted. Two of N14's entries are **not** dead and were kept, with reasons.                                                                                                                                    | as named in N14                                                      | 3h     | deletion tests pass by construction; `tsc --build` (post W0-1) names any survivor                                    |
+| W0-12 | **Done, 2026-09-02** — see §9. Both renamed with their tests, every reference rewritten, the orphan comments deleted, and `middleware/validate.ts` inlined into its one caller.                                                                                                          | `apps/be-01/src/controller/`, `middleware/`                          | 1h     | `openapi-document.test.ts` already guards the route table                                                            |
 
 ### Wave 1 — the test infrastructure that makes every later wave verifiable in seconds (≈ 6 days)
 
@@ -677,3 +677,54 @@ The first failure is the interesting one: writing the number as a word is itself
 it takes the claim out of reach of anything that could check it.
 
 **Green:** `be-01`, `mcp-01` — test, lint, typecheck; `format:check --all`.
+
+## 15 · Verify — W0-5, 2026-09-02
+
+**The leak was measured before it was fixed.** A throwaway probe against real SQLite compared the
+keys a project goes in with to the keys it comes back with:
+
+```
+CREATE KEYS: createdAt,depReach,estimateMethod,estimateRounding,id,name,ownerId,
+             pertWeights,restricted,revision,solutionRef,startDate
+READ   KEYS: …same… + createdBy + updatedAt
+```
+
+`createdBy` is a user id, and `GET /api/projects/{id}` and `PATCH /api/projects/{id}` return that
+row with no response schema, so both were on the wire. ADR 0012 says the audit columns are recorded
+and not published; this is what made that true.
+
+Three reads are fixed, and the third is a reuse win:
+
+| Read                     | Was                              | Is                                           |
+| ------------------------ | -------------------------------- | -------------------------------------------- |
+| `project.ts` `toProject` | `...rest` spread the whole row   | `withoutAuditColumns(rest)`                  |
+| `work-item.ts:547`       | a bare `.returning()`            | `.returning(WORK_ITEM_COLUMNS)`              |
+| `directory.ts:127`       | a bare `select().from(workItem)` | `.select(WORK_ITEM_COLUMNS)` — the same list |
+
+`WORK_ITEM_COLUMNS` is exported now and has two readers instead of one, which is what the folder's
+convention wanted all along: the declared return type checks the projection is complete, and there
+is one list to keep complete.
+
+`toProject` is the read that could not name its columns — it is generic over the row it maps — so
+`withoutAuditColumns` in `audit.ts` states the drop instead, beside the helpers that write those
+columns. It rebuilds the object rather than copying and deleting, because a computed-key `delete` is
+banned here and because building the answer states what it publishes.
+
+**Two things the fix ran into, both worth knowing.** ESLint here does not set `ignoreRestSiblings`,
+so the tidy "destructure the unwanted keys into `_`-prefixed names" idiom is an error — hence the
+helper. And TypeScript will not prove `Omit<Omit<T, A>, B>` equals `Omit<T, A | B>` for a generic
+`T`, so the declared return type is nested exactly as the body produces it, with a comment saying
+why.
+
+**The negative.** `project.test.ts` gains `carries the columns the Project type declares and no
+others`, asserted against the created row's own keys rather than a second hand-written list — so a
+column added to `Project` is not a column the test forgets. With `withoutAuditColumns(rest)` put
+back to `...rest`, watched failing on `expect(received).toEqual(expected) · + "createdBy" ·
+
+- "updatedAt"`.
+
+The JSDoc on `stepsOf` cited `toProject` as the reason the audit columns could not reach a `Step`.
+It was wrong about the mapper for as long as those columns have existed; it now says so, and says
+what the mapper does today.
+
+**Green:** `be-01` 1264 pass, 0 fail; lint; typecheck; `format:check --all`.

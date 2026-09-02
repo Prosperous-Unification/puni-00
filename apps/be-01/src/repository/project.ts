@@ -11,7 +11,12 @@ import { type } from '@wbs/validation';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import {
+  auditOnCreate,
+  auditOnCreateBesidesCreatedAt,
+  auditOnUpdate,
+  withoutAuditColumns,
+} from './audit';
 import type {
   Project,
   ProjectPatch,
@@ -84,16 +89,22 @@ function toProject<
   },
 >(
   row: T,
+  // Nested rather than one union of keys, because that is what the body
+  // produces and TypeScript does not prove `Omit<Omit<T, A>, B>` equals
+  // `Omit<T, A | B>` for a generic `T`.
 ): Omit<
-  T,
-  | 'estimateMethod'
-  | 'depReach'
-  | 'estimateRounding'
-  | 'pertWeightOptimistic'
-  | 'pertWeightRealistic'
-  | 'pertWeightPessimistic'
-  | 'solutionSlug'
-  | 'solutionUrl'
+  Omit<
+    T,
+    | 'estimateMethod'
+    | 'depReach'
+    | 'estimateRounding'
+    | 'pertWeightOptimistic'
+    | 'pertWeightRealistic'
+    | 'pertWeightPessimistic'
+    | 'solutionSlug'
+    | 'solutionUrl'
+  >,
+  'createdBy' | 'updatedAt' | 'updatedBy'
 > & {
   estimateMethod: EstimateMethod;
   depReach: DependencyReach;
@@ -133,7 +144,10 @@ function toProject<
     throw new Error('project has a partial solution reference');
   }
   return {
-    ...rest,
+    // Named by {@link withoutAuditColumns} rather than spread whole: this
+    // mapper is generic over its row, so it has no column list of its own, and
+    // `...rest` published `createdBy` and `updatedAt` until 2026-09-02.
+    ...withoutAuditColumns(rest),
     estimateMethod,
     depReach,
     estimateRounding,
@@ -371,9 +385,12 @@ export class ProjectRepository implements ProjectStore {
     return (
       this.db
         // Projected, unlike the project reads above it, and the difference is
-        // `toProject`: those pass every row through a mapper that names the
-        // fields, so the audit columns fall off there. This has no mapper, so a
-        // bare `select()` would put them into `Step`.
+        // `toProject`: those pass every row through a mapper that drops the
+        // audit columns by name. It did not until 2026-09-02 — it spread the
+        // rest of the row — so `createdBy` and `updatedAt` reached
+        // `GET /api/projects/{id}` for as long as those columns existed, with
+        // this comment asserting they did not. This read has no mapper at all,
+        // so a bare `select()` would put them straight into `Step`.
         .select({
           id: step.id,
           projectId: step.projectId,

@@ -93,7 +93,7 @@ function joinRowsFor(
  * into its answer — and from there into the plan payload. The declared return
  * types check the list is complete.
  */
-const WORK_ITEM_COLUMNS = {
+export const WORK_ITEM_COLUMNS = {
   id: workItem.id,
   projectId: workItem.projectId,
   parentId: workItem.parentId,
@@ -544,7 +544,11 @@ export class WorkItemRepository implements WorkItemStore {
           ...auditOnUpdate(stamp),
         })
         .where(eq(workItem.id, id))
-        .returning()
+        // Named, like every read in this file and for the same reason: a bare
+        // `.returning()` answers every column drizzle knows about, and this row
+        // is handed back as `{ ok: true, workItem }` — so the audit columns
+        // would ride a patch out to the caller. See {@link WORK_ITEM_COLUMNS}.
+        .returning(WORK_ITEM_COLUMNS)
         .all();
       const updated = rows.at(0);
       if (updated === undefined) return { ok: false, reason: 'not_found' };
