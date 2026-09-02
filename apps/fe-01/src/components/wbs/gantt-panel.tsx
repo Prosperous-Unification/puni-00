@@ -12,6 +12,7 @@ import {
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
+import { remembered } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
 import type { PriorityBandView } from '@/lib/wbs-api';
 
@@ -627,6 +628,12 @@ function arrowRoute(
  */
 const DETAIL_KEY = 'wbs.ganttDetail';
 
+/** The detail switch as stored — a boolean and nothing else; see {@link remembered}. */
+const storedDetail = remembered(
+  DETAIL_KEY,
+  (claimed): claimed is boolean => typeof claimed === 'boolean',
+);
+
 /**
  * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
  * and `declutter-one-button`.
@@ -678,10 +685,11 @@ function rememberedDetail(): boolean {
   // all, and drops the key` on `expected '{not json' to be null`, the unreadable
   // key left in storage to be read again next time. Watched 2026-08-11, and
   // again over the renamed key 2026-08-12.
-  const stored = localStorage.getItem(DETAIL_KEY);
-  if (stored !== null && typeof claimedDetail(stored) !== 'boolean') {
-    localStorage.removeItem(DETAIL_KEY);
-  }
+  //
+  // The answer is thrown away and the **drop** is the point: `readAndDrop`
+  // removes a key whose contents this panel refuses, and `readDetail` below
+  // then reads the same three states without writing.
+  storedDetail.readAndDrop();
   return readDetail();
 }
 
@@ -703,25 +711,20 @@ function rememberedDetail(): boolean {
  * a rule kept, not a defect fixed. Cross-review, 2026-08-12.
  */
 function readDetail(hasEdges = false): boolean {
-  const stored = localStorage.getItem(DETAIL_KEY);
+  const claimed = storedDetail.claim();
+  if (claimed.status === 'held') return claimed.value;
   // Nothing stored: the chart opens with the detail on for a plan that has
   // dependency edges — a first-time reader sees the arrows without hunting for
-  // the toggle — and off for a plan with nothing to hide. A stored answer,
-  // either way, wins.
-  if (stored === null) return hasEdges;
-  const claimed = claimedDetail(stored);
-  return typeof claimed === 'boolean' ? claimed : false;
-}
-
-/** Stored bytes parsed as they were written, or `undefined` if they will not. */
-function claimedDetail(stored: string): unknown {
-  try {
-    return JSON.parse(stored);
-  } catch {
-    // Nothing but this panel writes the key, so the only way here is a
-    // hand-edited store. Recovered from above rather than rethrown.
-    return undefined;
-  }
+  // the toggle — and off for a plan with nothing to hide. A **refused** answer
+  // is not the same state and does not read as one: somebody has said
+  // something here, and it is not "show me the arrows". That is the third
+  // state {@link Claim} exists for.
+  //
+  // Proof: the two collapsed into `return hasEdges`, watched failing on
+  // `expected 'true' to be 'false'` in `refuses a stored answer that is not a
+  // boolean, and drops the key` and in `refuses storage that is not JSON at
+  // all, and drops the key` — `2 failed | 159 passed`. Observed 2026-09-02.
+  return claimed.status === 'absent' ? hasEdges : false;
 }
 
 /**
@@ -4201,7 +4204,7 @@ function GanttChart({
             // 'false' to be 'true'` — the switch back off on the next
             // mount. Watched 2026-08-11 over the arrows key, and again
             // 2026-08-12 over this one.
-            localStorage.setItem(DETAIL_KEY, JSON.stringify(asked));
+            storedDetail.write(asked);
             setDetailShown(asked);
           }}
         >

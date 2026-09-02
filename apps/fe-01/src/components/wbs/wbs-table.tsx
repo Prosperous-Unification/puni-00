@@ -32,6 +32,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
+import { type Remembered, remembered } from '@/lib/remembered';
 import type {
   AssignedPersonView,
   ExternalSystemView,
@@ -749,6 +750,10 @@ const MATCH_TINT = 'var(--grid-match)';
  */
 const expansionKey = (projectId: string): string => `wbs.expanded.${projectId}`;
 
+/** One project's expansion, judged by {@link isExpansion} — see {@link remembered}. */
+const storedExpansion = (projectId: string): Remembered<ExpandedState> =>
+  remembered(expansionKey(projectId), isExpansion);
+
 /**
  * Whether a value read back out of storage is an expansion this table can use.
  *
@@ -760,18 +765,6 @@ function isExpansion(value: unknown): value is ExpandedState {
   if (value === true) return true;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   return Object.values(value).every((open) => typeof open === 'boolean');
-}
-
-/** `stored` as JSON, or nothing at all when it is not JSON. */
-function parsedOrNothing(stored: string): unknown {
-  try {
-    const claimed: unknown = JSON.parse(stored);
-    return claimed;
-  } catch {
-    // Nothing but this component writes the key, so the only way here is a
-    // hand-edited store. Recovered from below rather than rethrown.
-    return undefined;
-  }
 }
 
 /**
@@ -798,16 +791,11 @@ function parsedOrNothing(stored: string): unknown {
  *   three.
  */
 function rememberedExpansion(projectId: string): ExpandedState {
-  const stored = localStorage.getItem(expansionKey(projectId));
-  if (stored === null) return true;
-  const claimed = parsedOrNothing(stored);
-  if (isExpansion(claimed)) return claimed;
-  localStorage.removeItem(expansionKey(projectId));
-  return true;
+  return storedExpansion(projectId).readAndDrop() ?? true;
 }
 
 function rememberExpansion(projectId: string, expanded: ExpandedState): void {
-  localStorage.setItem(expansionKey(projectId), JSON.stringify(expanded));
+  storedExpansion(projectId).write(expanded);
 }
 
 /**
@@ -820,6 +808,14 @@ function rememberExpansion(projectId: string, expanded: ExpandedState): void {
 const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${projectId}`;
 
 /**
+ * One project's dragged widths, as **stored** — a record, not the `Map` the
+ * table holds, because the two are different shapes and only one of them is
+ * JSON. Per-entry sanitising is {@link rememberedWidthOverrides}'s.
+ */
+const storedWidthOverrides = (projectId: string): Remembered<Record<string, number>> =>
+  remembered(widthOverridesKey(projectId), isWidthOverrides);
+
+/**
  * Where this browser remembers how tall one project's Gantt panel was dragged.
  *
  * Per project and per browser for {@link widthOverridesKey}'s reason: the
@@ -827,6 +823,21 @@ const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${pro
  * about it.
  */
 const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${projectId}`;
+
+/**
+ * One project's panel height, in bounds or not stored at all.
+ *
+ * The range is part of the guard rather than a check after it, for the reason
+ * {@link remembered} states: a height outside the bounds a drag can reach is
+ * not a height this app wrote, and `1e999` parses to an `Infinity` above every
+ * ceiling.
+ */
+const storedGanttHeight = (projectId: string): Remembered<number> =>
+  remembered(
+    ganttHeightKey(projectId),
+    (claimed): claimed is number =>
+      typeof claimed === 'number' && claimed >= GANTT_MIN_PX && claimed <= GANTT_CEILING_PX,
+  );
 
 /**
  * The panel height this browser last saved for `projectId`, or none where it
@@ -846,18 +857,15 @@ const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${project
  * open until they clear storage by hand, over a preference about its height.
  */
 function rememberedGanttHeight(projectId: string): number | null {
-  const stored = localStorage.getItem(ganttHeightKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  // Proof: with this refusal deleted, `refuses storage that is not a number,
-  // and drops the key`, `refuses a height below the floor…` and `refuses a
-  // height above the ceiling…` (wbs-table.test.tsx) all failed — the panel
-  // drawn at the claimed height, the key still there. Watched, 2026-08-10.
-  if (typeof claimed !== 'number' || claimed < GANTT_MIN_PX || claimed > GANTT_CEILING_PX) {
-    localStorage.removeItem(ganttHeightKey(projectId));
-    return null;
-  }
-  return claimed;
+  // Proof: the range dropped from `storedGanttHeight`'s guard, leaving
+  // `typeof claimed === 'number'`. `refuses a height below the floor, and drops
+  // the key` failed on `expected '10px' to be ''` and `refuses a height above
+  // the ceiling, and drops the key` on `expected '99999px' to be ''` — the
+  // panel drawn at the claimed height, the key still there. `refuses storage
+  // that is not a number` stays green under that fault, which is why the range
+  // is in the guard rather than beside it. Observed 2026-09-02; the original
+  // watch of these two was 2026-08-10.
+  return storedGanttHeight(projectId).readAndDrop();
 }
 
 /**
@@ -868,7 +876,7 @@ function rememberedGanttHeight(projectId: string): number | null {
  * remembered about it.
  */
 function rememberGanttHeight(projectId: string, heightPx: number): void {
-  localStorage.setItem(ganttHeightKey(projectId), JSON.stringify(heightPx));
+  storedGanttHeight(projectId).write(heightPx);
 }
 
 /**
@@ -882,6 +890,10 @@ function rememberGanttHeight(projectId: string, heightPx: number): void {
  * sixty elbows off is a statement about elbows.
  */
 const ganttDayPxKey = (projectId: string): string => `wbs.ganttDayPx.${projectId}`;
+
+/** One project's day scale, judged against the same `DAY_SCALES` the control offers. */
+const storedGanttDayPx = (projectId: string): Remembered<DayPx> =>
+  remembered(ganttDayPxKey(projectId), isDayPx);
 
 /**
  * The day scale this browser last picked for `projectId`, or none where it has
@@ -899,14 +911,7 @@ const ganttDayPxKey = (projectId: string): string => `wbs.ganttDayPx.${projectId
  * open until they clear storage by hand, over a preference about its zoom.
  */
 function rememberedGanttDayPx(projectId: string): DayPx | null {
-  const stored = localStorage.getItem(ganttDayPxKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  if (!isDayPx(claimed)) {
-    localStorage.removeItem(ganttDayPxKey(projectId));
-    return null;
-  }
-  return claimed;
+  return storedGanttDayPx(projectId).readAndDrop();
 }
 
 /**
@@ -917,12 +922,12 @@ function rememberedGanttDayPx(projectId: string): DayPx | null {
  * is remembered about it.
  */
 function rememberGanttDayPx(projectId: string, dayPx: DayPx): void {
-  localStorage.setItem(ganttDayPxKey(projectId), JSON.stringify(dayPx));
+  storedGanttDayPx(projectId).write(dayPx);
 }
 
 /** Forgets the remembered day scale for `projectId` — the third part of a {@link Layout reset}. */
 function forgetGanttDayPx(projectId: string): void {
-  localStorage.removeItem(ganttDayPxKey(projectId));
+  storedGanttDayPx(projectId).forget();
 }
 
 /**
@@ -938,6 +943,19 @@ function forgetGanttDayPx(projectId: string): void {
 const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${projectId}`;
 
 /**
+ * Whether one project's chart draws its name column.
+ *
+ * A boolean and nothing else to check: unlike a height there is no range, and
+ * `false` is a real stored answer that a `??` would eat — which is why the
+ * caller keeps the `boolean | null` this answers with.
+ */
+const storedGanttLabels = (projectId: string): Remembered<boolean> =>
+  remembered(
+    ganttLabelsKey(projectId),
+    (claimed): claimed is boolean => typeof claimed === 'boolean',
+  );
+
+/**
  * Whether this browser last left `projectId`'s row names shown, or none where
  * it has never said — which opens the chart with them shown.
  *
@@ -950,14 +968,7 @@ const ganttLabelsKey = (projectId: string): string => `wbs.ganttLabels.${project
  * {@link rememberedGanttHeight}'s reason.
  */
 function rememberedGanttLabels(projectId: string): boolean | null {
-  const stored = localStorage.getItem(ganttLabelsKey(projectId));
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  if (typeof claimed !== 'boolean') {
-    localStorage.removeItem(ganttLabelsKey(projectId));
-    return null;
-  }
-  return claimed;
+  return storedGanttLabels(projectId).readAndDrop();
 }
 
 /**
@@ -967,12 +978,12 @@ function rememberedGanttLabels(projectId: string): boolean | null {
  * {@link rememberGanttDayPx}'s reason.
  */
 function rememberGanttLabels(projectId: string, labelsShown: boolean): void {
-  localStorage.setItem(ganttLabelsKey(projectId), JSON.stringify(labelsShown));
+  storedGanttLabels(projectId).write(labelsShown);
 }
 
 /** Forgets the remembered name column for `projectId` — the fourth part of a {@link Layout reset}. */
 function forgetGanttLabels(projectId: string): void {
-  localStorage.removeItem(ganttLabelsKey(projectId));
+  storedGanttLabels(projectId).forget();
 }
 
 /**
@@ -988,6 +999,9 @@ function forgetGanttLabels(projectId: string): void {
  * again in the next one is the fault this remembers away.
  */
 const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
+
+/** The Mermaid lane, judged against the modes `sectionOf` has a branch for. */
+const storedMermaidSectionMode = remembered(MERMAID_SECTION_MODE_KEY, isSectionMode);
 
 /**
  * The grouping this browser last picked for the Mermaid exports, or none where
@@ -1007,23 +1021,16 @@ const MERMAID_SECTION_MODE_KEY = 'wbs.mermaidSectionMode';
  * line.
  */
 function rememberedMermaidSectionMode(): SectionMode | null {
-  const stored = localStorage.getItem(MERMAID_SECTION_MODE_KEY);
-  if (stored === null) return null;
-  const claimed = parsedOrNothing(stored);
-  // Proof: this refusal replaced by `return claimed as SectionMode`.
-  // `refuses a remembered lane this app does not offer, and drops the key`
-  // failed on `expected '"assignees"' to be null` and `refuses remembered
-  // lanes that are not JSON at all, and drops the key` on `expected '{not
-  // json' to be null` — `2 failed | 6 passed`, the refused answer left in
-  // storage to be read again next time. Note what did **not** fail: the
-  // picker still read `outline`, because a `<select>` whose value matches no
-  // option falls back to its first. The dropped key is the observable half.
-  // Watched 2026-08-30.
-  if (!isSectionMode(claimed)) {
-    localStorage.removeItem(MERMAID_SECTION_MODE_KEY);
-    return null;
-  }
-  return claimed;
+  // Proof: `readAndDrop` replaced by `read`, which is what "read the claim,
+  // drop nothing" comes to. `refuses a remembered lane this app does not offer,
+  // and drops the key` failed on `expected '"assignees"' to be null` and
+  // `refuses remembered lanes that are not JSON at all, and drops the key` on
+  // `expected '{not json' to be null` — `2 failed | 6 passed`, the refused
+  // answer left in storage to be read again next time. Note what did **not**
+  // fail: the picker still read `outline`, because a `<select>` whose value
+  // matches no option falls back to its first. The dropped key is the
+  // observable half. Watched 2026-08-30.
+  return storedMermaidSectionMode.readAndDrop();
 }
 
 /**
@@ -1034,7 +1041,7 @@ function rememberedMermaidSectionMode(): SectionMode | null {
  * is remembered about it.
  */
 function rememberMermaidSectionMode(sectionMode: SectionMode): void {
-  localStorage.setItem(MERMAID_SECTION_MODE_KEY, JSON.stringify(sectionMode));
+  storedMermaidSectionMode.write(sectionMode);
 }
 
 /**
@@ -1046,7 +1053,7 @@ function rememberMermaidSectionMode(sectionMode: SectionMode): void {
  * the frame layout resolves now.
  */
 function forgetGanttHeight(projectId: string): void {
-  localStorage.removeItem(ganttHeightKey(projectId));
+  storedGanttHeight(projectId).forget();
 }
 
 /**
@@ -1112,13 +1119,8 @@ function isWidthOverrides(value: unknown): value is Record<string, number> {
  * until they clear storage by hand, over a preference about a column.
  */
 function rememberedWidthOverrides(projectId: string): Map<string, number> {
-  const stored = localStorage.getItem(widthOverridesKey(projectId));
-  if (stored === null) return new Map();
-  const claimed = parsedOrNothing(stored);
-  if (!isWidthOverrides(claimed)) {
-    localStorage.removeItem(widthOverridesKey(projectId));
-    return new Map();
-  }
+  const claimed = storedWidthOverrides(projectId).readAndDrop();
+  if (claimed === null) return new Map();
   const kept = new Map<string, number>();
   for (const [columnId, width] of Object.entries(claimed)) {
     if (!sizableColumn(columnId, STATE_AT_MOUNT)) continue;
@@ -1145,7 +1147,7 @@ function rememberedWidthOverrides(projectId: string): Map<string, number> {
  * the entry for a step that is only temporarily absent.
  */
 function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string, number>): void {
-  localStorage.setItem(widthOverridesKey(projectId), JSON.stringify(Object.fromEntries(overrides)));
+  storedWidthOverrides(projectId).write(Object.fromEntries(overrides));
 }
 
 /**
@@ -1158,7 +1160,7 @@ function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string
  * the drag would come back to the old one.
  */
 function forgetWidthOverrides(projectId: string): void {
-  localStorage.removeItem(widthOverridesKey(projectId));
+  storedWidthOverrides(projectId).forget();
 }
 
 /**
@@ -1171,6 +1173,10 @@ function forgetWidthOverrides(projectId: string): void {
  * told about it.
  */
 const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${projectId}`;
+
+/** One project's hide-list, judged by {@link isStringArray}. */
+const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
+  remembered(hiddenColumnsKey(projectId), isStringArray);
 
 /**
  * The hide-list this browser last saved for `projectId`, or the default hidden
@@ -1203,14 +1209,7 @@ const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${pro
  * be null`. Watched, 2026-08-28.
  */
 function rememberedHiddenColumns(projectId: string): readonly string[] {
-  const stored = localStorage.getItem(hiddenColumnsKey(projectId));
-  if (stored === null) return DEFAULT_HIDDEN_COLUMNS;
-  const claimed = parsedOrNothing(stored);
-  if (!isStringArray(claimed)) {
-    localStorage.removeItem(hiddenColumnsKey(projectId));
-    return DEFAULT_HIDDEN_COLUMNS;
-  }
-  return claimed;
+  return storedHiddenColumns(projectId).readAndDrop() ?? DEFAULT_HIDDEN_COLUMNS;
 }
 
 /**
@@ -1221,7 +1220,7 @@ function rememberedHiddenColumns(projectId: string): readonly string[] {
  * {@link rememberedHiddenColumns} for why not on read.
  */
 function rememberHiddenColumns(projectId: string, hidden: readonly string[]): void {
-  localStorage.setItem(hiddenColumnsKey(projectId), JSON.stringify(hidden));
+  storedHiddenColumns(projectId).write(hidden);
 }
 
 /**
@@ -1233,7 +1232,7 @@ function rememberHiddenColumns(projectId: string, hidden: readonly string[]): vo
  * here is that promise broken the day the default moves.
  */
 function forgetHiddenColumns(projectId: string): void {
-  localStorage.removeItem(hiddenColumnsKey(projectId));
+  storedHiddenColumns(projectId).forget();
 }
 
 /**
@@ -1266,6 +1265,14 @@ interface SavedView {
  * plan on their own machine.
  */
 const savedViewsKey = (projectId: string): string => `wbs.views.${projectId}`;
+
+/**
+ * One project's saved views, as a **list of anything** — each entry is judged
+ * by {@link isSavedView} in {@link rememberedSavedViews}, which keeps the ones
+ * that are views rather than dropping the whole key over one bad entry.
+ */
+const storedSavedViews = (projectId: string): Remembered<readonly unknown[]> =>
+  remembered(savedViewsKey(projectId), (claimed): claimed is unknown[] => Array.isArray(claimed));
 
 /** Whether a claimed value is a list of strings — a facet's chosen ids. */
 function isStringArray(value: unknown): value is string[] {
@@ -1387,13 +1394,8 @@ function isSavedView(value: unknown): value is SavedView {
  * view on the reader's behalf.
  */
 function rememberedSavedViews(projectId: string): SavedView[] {
-  const stored = localStorage.getItem(savedViewsKey(projectId));
-  if (stored === null) return [];
-  const claimed = parsedOrNothing(stored);
-  if (!Array.isArray(claimed)) {
-    localStorage.removeItem(savedViewsKey(projectId));
-    return [];
-  }
+  const claimed = storedSavedViews(projectId).readAndDrop();
+  if (claimed === null) return [];
   return claimed
     .filter(isSavedView)
     .map((view) => ({ ...view, criteria: everyFacetOf(view.criteria) }));
@@ -1408,7 +1410,7 @@ function rememberedSavedViews(projectId: string): SavedView[] {
  * is never written back on a read.
  */
 function rememberSavedViews(projectId: string, views: readonly SavedView[]): void {
-  localStorage.setItem(savedViewsKey(projectId), JSON.stringify(views));
+  storedSavedViews(projectId).write(views);
 }
 
 /**

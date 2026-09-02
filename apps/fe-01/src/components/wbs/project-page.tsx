@@ -62,6 +62,18 @@ const PROJECT_KEY = 'wbs.project';
  */
 const PLACEHOLDER_PROJECT_NAME = 'New project';
 
+/**
+ * Writes, or forgets, which project this browser was last in.
+ *
+ * Deliberately **not** through `lib/remembered.ts`, and this is the one store
+ * that stays hand-written: its claim is judged against the project list this
+ * load just fetched, not against a shape, so there is nothing to hand a guard
+ * built once at module scope — `found.some(...)` is the whole validity rule and
+ * it is different on every load. What it shares with the other ten is
+ * `getItem`, `removeItem` and the reading that a disproved claim is dropped
+ * rather than left to be re-offered; what it does not share is the part
+ * `remembered` exists to hold.
+ */
 function rememberProject(id: string | null): void {
   if (id === null) localStorage.removeItem(PROJECT_KEY);
   else localStorage.setItem(PROJECT_KEY, id);
