@@ -2287,11 +2287,22 @@ function renderCards(
   /** The rows that answered a filter themselves, which is what the tint marks. */
   matchedIds: readonly string[] = [],
   /**
+   * Counted by the render-isolation probe below: every card's render calls it
+   * once for its total and once per step through `cardTrioOf`, so it is a
+   * per-card render counter the list itself does not know about.
+   */
+  /**
    * What holds each row's start, defaulting to the answer a payload the
    * geometry could not explain produces — which is also what every row of this
    * suite's stub tree honestly is, since none of them came from a plan.
    */
   startFloor: (row: TreeRow) => string | null = () => null,
+  /**
+   * Counted by the render-isolation probe below: every card's render calls it
+   * once for its total and once per step through `cardTrioOf`, so it is a
+   * per-card render counter the list itself does not know about.
+   */
+  countShowDay: () => void = () => undefined,
 ) {
   return render(
     <PlanCards
@@ -2344,7 +2355,10 @@ function renderCards(
       createService={() => undefined}
       nonOwner={() => null}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
-      showDay={(days) => String(days)}
+      showDay={(days) => {
+        countShowDay();
+        return String(days);
+      }}
       rowActions={rowActions}
     />,
   );
@@ -2457,6 +2471,54 @@ describe('the ⋯ row-actions menu on a card', () => {
     const button = screen.getByRole('button', { name: 'Actions for 010' });
     expect(button.style.minHeight).toBe('44px');
     expect(button.style.minWidth).toBe('44px');
+  });
+
+  /**
+   * Opening a menu re-renders that card and the one that closed, not the list.
+   *
+   * The open id was a `useState` in `PlanCards` until 2026-09-02, so one write
+   * re-rendered **every** card — and a card's render runs `cardTrioOf` per
+   * step plus `cardSlackOf`, `cardMismatchesOf`, three label reads and a span
+   * read. On a twenty-row plan with two steps that is around a thousand reader
+   * calls to draw a three-item popup. The id lives in an external store now
+   * (`pointed-row-store.ts`'s shape) and each `CardActions` subscribes on its
+   * own.
+   *
+   * `showDay` is the oracle because it is a **prop**: every card calls it once
+   * for its total and once per step through `cardTrioOf`, and the list has no
+   * idea the test is counting. Five rows, so the fault is five cards' worth of
+   * calls rather than one — at one row a store and a `useState` are
+   * indistinguishable.
+   *
+   * Proof: the store swapped back for `useState(openActionsRowId)` in
+   * `PlanCards`, watched failing on `expected 10 to be +0` — two calls per card
+   * across five cards, for a menu on one of them. Observed 2026-09-02.
+   */
+  itDom('opening a card’s menu re-renders no other card', () => {
+    let calls = 0;
+    const rows = ['010', '020', '030', '040', '050'].map((number) =>
+      aTreeRow({ id: `row-${number}`, number }),
+    );
+    renderCards(
+      rows,
+      doNothingActions(),
+      [],
+      () => null,
+      () => {
+        calls += 1;
+      },
+    );
+    // The oracle is on the cards' own render path before anything is asserted
+    // about its silence (R5).
+    expect(calls).toBeGreaterThan(0);
+
+    const before = calls;
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 030' }));
+
+    // The menu really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    expect(screen.getByRole('menu', { name: 'Actions for 030' })).toBeDefined();
+    expect(calls - before).toBe(0);
   });
 
   itDom('keeps at most one card’s menu open at a time — the table’s own rule', () => {

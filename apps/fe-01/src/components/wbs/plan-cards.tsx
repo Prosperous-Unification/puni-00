@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   Modal,
@@ -565,6 +565,99 @@ const cardTrioOf = (
     final: trioFinal(row.finalDays[stepId], showDay),
   };
 };
+
+/**
+ * Which card's ⋯ menu is open, held **outside React state** so that opening one
+ * costs a render of that card and not of the list.
+ *
+ * `PlanCards` held the id in a `useState` until 2026-09-02, and that address
+ * was the whole of the cost: one write re-rendered every card, and a card's
+ * render runs `cardTrioOf` per step plus `cardSlackOf`, `cardMismatchesOf`, the
+ * three label reads and the span read. On a twenty-row plan with two steps that
+ * is around a thousand reader calls to draw a three-item popup.
+ *
+ * **One id, not a flag per card**, and deliberately: at most one menu is open
+ * because there is one variable holding which. `ActionsMenu` also closes itself
+ * on any `mousedown` outside its wrapper, so in a browser both mechanisms agree
+ * — but a synthetic `click` in jsdom sends no `mousedown`, so the one-at-a-time
+ * rule would have become untestable outside a browser if this had been
+ * per-card state. `pointed-row-store.ts` is the shape (`useSyncExternalStore`,
+ * one subscription per row shell); the difference is that this store's
+ * snapshot is per subscriber, so only the two cards whose answer changed
+ * re-render.
+ */
+interface OpenCardMenu {
+  subscribe: (onChange: () => void) => () => void;
+  isOpen: (rowId: string) => boolean;
+  open: (rowId: string) => void;
+  /** Closes `rowId`'s menu if it is the open one — a stale close is a no-op. */
+  close: (rowId: string) => void;
+}
+
+function createOpenCardMenu(): OpenCardMenu {
+  let openId: string | null = null;
+  const listeners = new Set<() => void>();
+  const tell = (): void => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    subscribe: (onChange) => {
+      listeners.add(onChange);
+      return () => listeners.delete(onChange);
+    },
+    isOpen: (rowId) => openId === rowId,
+    open: (rowId) => {
+      if (openId === rowId) return;
+      openId = rowId;
+      tell();
+    },
+    close: (rowId) => {
+      if (openId !== rowId) return;
+      openId = null;
+      tell();
+    },
+  };
+}
+
+/**
+ * One card's ⋯ menu, subscribed to {@link OpenCardMenu} on its own.
+ *
+ * This is the only part of a card that is its own component so far, and it is
+ * the one that had to be: the open menu is the one piece of card state that
+ * changes without the plan changing. The **fields** are not in here — making a
+ * whole card memoisable needs the ~40 props it takes to be stable, which is
+ * `WbsTable`'s `live` discipline (W2-7 / W4-4) rather than this file's.
+ */
+function CardActions({
+  row,
+  handlers,
+  menu,
+}: {
+  row: TreeRow;
+  handlers: CardRowActionHandlers & { busy?: boolean };
+  menu: OpenCardMenu;
+}) {
+  const open = useSyncExternalStore(
+    menu.subscribe,
+    () => menu.isOpen(row.id),
+    () => false,
+  );
+  return (
+    <ActionsMenu
+      number={row.number}
+      open={open}
+      busy={handlers.busy ?? false}
+      touchSized
+      onOpen={() => {
+        menu.open(row.id);
+      }}
+      onClose={() => {
+        menu.close(row.id);
+      }}
+      actions={cardRowActions(row, handlers)}
+    />
+  );
+}
 
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
@@ -2026,12 +2119,11 @@ export function PlanCards({
   showDay,
   rowActions,
 }: PlanCardsProps) {
-  /**
-   * Which row's ⋯ menu is open, held here rather than threaded through a prop:
-   * cards and the table are never both on screen (`plan-renderer.ts`), so
-   * there is no second menu anywhere to keep this one in step with.
-   */
-  const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
+  // One store per mounted list, and never a module-level one: two lists are
+  // never on screen together today (`plan-renderer.ts`), and a shared store
+  // would make that a fact somebody has to keep true rather than one the
+  // structure states.
+  const menu = useRef(createOpenCardMenu());
   return (
     /*
       `data-grid` for the same two reasons the `<table>` carries it: it scopes
@@ -2116,19 +2208,7 @@ export function PlanCards({
                 {showDay(row.finalTotal)} d
               </span>
               {rowActions !== undefined && (
-                <ActionsMenu
-                  number={row.number}
-                  open={openActionsRowId === row.id}
-                  busy={rowActions.busy ?? false}
-                  touchSized
-                  onOpen={() => {
-                    setOpenActionsRowId(row.id);
-                  }}
-                  onClose={() => {
-                    setOpenActionsRowId((current) => (current === row.id ? null : current));
-                  }}
-                  actions={cardRowActions(row, rowActions)}
-                />
+                <CardActions row={row} handlers={rowActions} menu={menu.current} />
               )}
             </header>
 
