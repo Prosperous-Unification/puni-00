@@ -7012,89 +7012,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const startFloor = useRef<ReadonlyMap<string, string>>(new Map());
 
-  const live = useRef({
-    api,
-    projectId,
-    run,
-    busy,
-    duplicateRow,
-    deleteRow,
-    commitNameCell,
-    onKeyDown,
-    onTabKey,
-    onArrowKey,
-    onAltMove,
-    onCommandKey,
-    armedDelete,
-    setDragging,
-    setDropHint,
-    dependenciesOf,
-    dependOn,
-    hasSchedule,
-    showSchedule,
-    depPicker,
-    setDepPicker,
-    depLights,
-    openMenuRowId,
-    setOpenMenuRowId,
-    depEntriesFor,
-    pickDependency,
-    moveDepHighlight,
-    estimateValue,
-    trioProblemFor,
-    commitEstimate,
-    combinedValue,
-    combinedProblem,
-    commitCombinedEstimate,
-    mention,
-    enterFoldedCell,
-    readFoldedCell,
-    closeMention,
-    leaveFoldedCell,
-    mentionOptions,
-    openCard,
-    setHoveredCell,
-    setFocusedCell,
-    setNotBefore,
-    setNotBeforeReason,
-    setPriority,
-    priorityBands,
-    setParallelism,
-    effectiveTeamLabelOf,
-    effectiveTagLabelOf,
-    effectiveServiceLabelOf,
-    editingNotBefore,
-    openNotBefore,
-    closeNotBefore,
-    startDate,
-    teams,
-    tags,
-    services,
-    workItemTypes,
-    externalSystems,
-    setRefsEditing,
-    people,
-    setTeamOf,
-    setTagsOf,
-    setServicesOf,
-    setTypesOf,
-    setExternalRefsOf,
-    createTeamFor,
-    createServiceFor,
-    createTagFor,
-    createTypeFor,
-    assignTo,
-    createPersonFor,
-    toggleStep,
-    spanOf,
-    assigneeOn,
-    anyAssigneeOn,
-    nonOwnerNoteOf,
-    waitsFor,
-    matchIds: search.matchIds,
-    filtering,
-  });
-  live.current = {
+  /**
+   * The 80 fields above, built once.
+   *
+   * They used to be written twice — the `useRef` initialiser and the
+   * assignment under it were the same literal, so every render allocated two
+   * identical 80-key objects and every new field had to be added in both
+   * places or read `undefined` through one of them. Nothing enforced the
+   * pairing; the second copy was a transcription.
+   *
+   * The initialiser still runs on later renders (an argument is evaluated
+   * whether `useRef` keeps it or not), so this is the same work once rather
+   * than a saving that depends on the first render. `live.current` is
+   * reassigned every render exactly as before, and holds the same object the
+   * initialiser saw on the first one.
+   */
+  const liveNow = {
     api,
     projectId,
     run,
@@ -7176,6 +7109,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     matchIds: search.matchIds,
     filtering,
   };
+
+  const live = useRef(liveNow);
+  live.current = liveNow;
 
   const columns = useMemo(
     () =>
