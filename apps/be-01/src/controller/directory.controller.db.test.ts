@@ -793,3 +793,42 @@ describe('the service commands', () => {
     expect(await store.listServices()).toEqual([{ id: payments, name: 'Payments' }]);
   });
 });
+
+describe('the six directory reads', () => {
+  /**
+   * Every one of them refuses a request with no token.
+   *
+   * This gap was found by injecting the fault, not by reading: on 2026-09-02
+   * `{ caller: 'signed-in' }` was taken off `GET /api/teams` and **all 30 cases
+   * in this file passed**. Five of the six reads had no negative at all —
+   * `GET /api/services` was covered only incidentally, by the service-command
+   * case above — so the six identical 401 blocks they carried were a guard
+   * nothing could see break.
+   *
+   * One case over all six rather than six cases, because what has to hold is
+   * "no read in this controller answers an anonymous caller", and a per-route
+   * test is a list somebody has to remember to extend.
+   *
+   * Proof: `{ caller: 'signed-in' }` removed from `/teams`, watched failing on
+   * `expect(received).toEqual(expected) · - 401 · + 200` for that path;
+   * `callerGuard` left registered and the option dropped from all six, watched
+   * failing on all six. Observed 2026-09-02.
+   */
+  it('refuse a caller with no token', async () => {
+    const paths = [
+      '/api/teams',
+      '/api/people',
+      '/api/tags',
+      '/api/services',
+      '/api/work-item-types',
+      '/api/external-systems',
+    ];
+    const statuses = await Promise.all(
+      paths.map(async (path) => (await app.handle(new Request(`http://localhost${path}`))).status),
+    );
+
+    expect(Object.fromEntries(paths.map((path, at) => [path, statuses[at]]))).toEqual(
+      Object.fromEntries(paths.map((path) => [path, 401])),
+    );
+  });
+});

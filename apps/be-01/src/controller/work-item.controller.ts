@@ -10,7 +10,7 @@ import {
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { callerGuard } from '../middleware/caller';
 import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import {
@@ -814,7 +814,9 @@ export function workItemController(
   workItems: WorkItemService,
   commands: PlanCommandRunner,
 ) {
+  const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api' })
+    .use(callerGuard(auth))
     .onError(({ error, set }) => {
       if (error instanceof BadRequest) {
         set.status = 400;
@@ -832,34 +834,28 @@ export function workItemController(
       }
       return undefined;
     })
-    .get('/projects/:id/work-items', async ({ params, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const tree = await workItems.tree(params.id);
-      if (tree === null) {
-        set.status = 404;
-        return { error: 'not_found' };
-      }
-      // Carried on the tree rather than fetched from a route of its own. The
-      // tree is already read after every change this client makes and after
-      // every event from anybody else, which is exactly when the answer can
-      // have changed — a second endpoint would be a second round trip asking
-      // the same question at the same moments. It is per **account**, which is
-      // why it is added here and not inside `tree`: the broadcast reuses that
-      // read and has nobody to answer for.
-      return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
-    })
+    .get(
+      '/projects/:id/work-items',
+      async ({ params, user, set }) => {
+        const tree = await workItems.tree(params.id);
+        if (tree === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        // Carried on the tree rather than fetched from a route of its own. The
+        // tree is already read after every change this client makes and after
+        // every event from anybody else, which is exactly when the answer can
+        // have changed — a second endpoint would be a second round trip asking
+        // the same question at the same moments. It is per **account**, which is
+        // why it is added here and not inside `tree`: the broadcast reuses that
+        // read and has nobody to answer for.
+        return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
+      },
+      signedIn,
+    )
     .post(
       '/projects/:id/commands',
-      async ({ params, body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
-        }
+      async ({ params, body, user, set }) => {
         const outcome = await commands.run(params.id, user.id, parseBatch(body));
         if (!outcome.ok) {
           set.status = statusForBatch(outcome.reason);
@@ -870,6 +866,7 @@ export function workItemController(
         return { results: outcome.results, undoable: outcome.undoable, redoable: outcome.redoable };
       },
       {
+        ...signedIn,
         detail: {
           summary: 'Apply a batch of commands to a project, all or none',
           description: `**The one way to write to a plan.** An ordered list of up to 200 commands — every
@@ -898,12 +895,7 @@ beside the code, as its route did: \`taken\` the surviving \`name\`, \`in_use\` 
     )
     .post(
       '/directory/commands',
-      async ({ body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
-        }
+      async ({ body, user, set }) => {
         const outcome = await commands.runDirectory(user.id, parseBatch(body));
         if (!outcome.ok) {
           set.status = statusForBatch(outcome.reason);
@@ -912,6 +904,7 @@ beside the code, as its route did: \`taken\` the surviving \`name\`, \`in_use\` 
         return { results: outcome.results };
       },
       {
+        ...signedIn,
         detail: {
           summary: 'Apply a batch of directory commands, all or none',
           description: `The directory — teams, people, tags, services — has no project, so its batches
@@ -926,20 +919,14 @@ index. Answers \`{ results: [{ index, ref?, id?, entity? }] }\`.`,
         },
       },
     )
-    .post('/projects/:id/undo', async ({ params, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return answerUndo(await commands.undo(params.id, user.id), set);
-    })
-    .post('/projects/:id/redo', async ({ params, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return answerUndo(await commands.redo(params.id, user.id), set);
-    });
+    .post(
+      '/projects/:id/undo',
+      async ({ params, user, set }) => answerUndo(await commands.undo(params.id, user.id), set),
+      signedIn,
+    )
+    .post(
+      '/projects/:id/redo',
+      async ({ params, user, set }) => answerUndo(await commands.redo(params.id, user.id), set),
+      signedIn,
+    );
 }

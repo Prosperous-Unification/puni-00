@@ -13,7 +13,7 @@ import {
 } from '@wbs/auth';
 import { Elysia, t } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { cookiesIn, cookieValue, userFromHeaders } from '../middleware/authenticated';
 import { type AuthService, TOKEN_TTL_SECONDS } from '../service/auth.service';
 import { LoginThrottle } from '../service/login-throttle';
 
@@ -211,9 +211,8 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
     })
     .get('/okta/callback', async ({ request }) => {
       const state = new URL(request.url).searchParams.get('state');
-      const binding = cookiesOf(request).get('__Host-wbs_oidc');
-      if (state === null || binding === undefined)
-        return emptyResponse(400, [clear('__Host-wbs_oidc')]);
+      const binding = cookieOf(request, '__Host-wbs_oidc');
+      if (state === null || binding === null) return emptyResponse(400, [clear('__Host-wbs_oidc')]);
       const transaction = oidc.transactions.consume(binding, state);
       if (transaction === null) return emptyResponse(400, [clear('__Host-wbs_oidc')]);
 
@@ -261,9 +260,9 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
       );
     })
     .post('/refresh', async ({ request }) => {
-      const correlation = cookiesOf(request).get('__Host-wbs_session');
-      const current = correlation === undefined ? null : oidc.tokens.read(correlation);
-      if (correlation === undefined || current === null) return emptyResponse(401, clearSession());
+      const correlation = cookieOf(request, '__Host-wbs_session');
+      const current = correlation === null ? null : oidc.tokens.read(correlation);
+      if (correlation === null || current === null) return emptyResponse(401, clearSession());
 
       const next = await oidc.client.refresh(current.refreshToken);
       const refreshToken = next.refreshToken ?? current.refreshToken;
@@ -282,9 +281,9 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
       return emptyResponse(204, [cookie('__Host-wbs_access', next.accessToken, next.expiresIn)]);
     })
     .post('/logout', async ({ request }) => {
-      const correlation = cookiesOf(request).get('__Host-wbs_session');
-      const record = correlation === undefined ? null : oidc.tokens.read(correlation);
-      if (correlation !== undefined) oidc.tokens.delete(correlation);
+      const correlation = cookieOf(request, '__Host-wbs_session');
+      const record = correlation === null ? null : oidc.tokens.read(correlation);
+      if (correlation !== null) oidc.tokens.delete(correlation);
       if (record !== null) await oidc.client.revoke(record.refreshToken);
       return emptyResponse(204, clearSession());
     });
@@ -302,24 +301,19 @@ function clientIpOf(request: Request): string | null {
   return forwarded ?? null;
 }
 
+/** One cookie off the request, decoded — see {@link cookieValue}. */
+function cookieOf(request: Request, name: string): string | null {
+  return cookieValue(request.headers.get('cookie') ?? undefined, name);
+}
+
 export function hasInvalidCookieOrigin(request: Request, appOrigin: string): boolean {
   if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')
     return false;
-  const cookies = cookiesOf(request);
+  const cookies = cookiesIn(request.headers.get('cookie') ?? undefined);
   return (
     (cookies.has('__Host-wbs_access') || cookies.has('__Host-wbs_session')) &&
     request.headers.get('origin') !== appOrigin
   );
-}
-
-function cookiesOf(request: Request): Map<string, string> {
-  const parsed = new Map<string, string>();
-  for (const part of (request.headers.get('cookie') ?? '').split(';')) {
-    const separator = part.indexOf('=');
-    if (separator > 0)
-      parsed.set(part.slice(0, separator).trim(), decodeURIComponent(part.slice(separator + 1)));
-  }
-  return parsed;
 }
 
 function cookie(name: string, value: string, maxAge: number): string {

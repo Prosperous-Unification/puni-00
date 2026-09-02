@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 
-import { userFromHeaders } from '../middleware/authenticated';
+import { callerGuard } from '../middleware/caller';
 import type { PlanEventFilter } from '../repository';
 import type { AuthService } from '../service/auth.service';
 import type { HistoryService } from '../service/history.service';
@@ -54,14 +54,9 @@ function filterFrom(query: Record<string, string | undefined>): PlanEventFilter 
  * owns the absent-project answer so there is one copy of the rule.
  */
 export function historyController(auth: AuthService, history: HistoryService) {
-  return new Elysia({ prefix: '/api/projects' }).get(
+  return new Elysia({ prefix: '/api/projects' }).use(callerGuard(auth)).get(
     '/:id/history',
-    async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
+    async ({ params, query, set }) => {
       const outcome = await history.read(params.id, filterFrom(query));
       if (!outcome.ok) {
         set.status = 404;
@@ -70,6 +65,7 @@ export function historyController(auth: AuthService, history: HistoryService) {
       return { events: outcome.result };
     },
     {
+      caller: 'signed-in',
       // Declared as a schema rather than left to the handler's raw `query`, which
       // is how `?cascade=true` is read two controllers over. The reason is the
       // committed document: Elysia derives a route's parameters from the route
