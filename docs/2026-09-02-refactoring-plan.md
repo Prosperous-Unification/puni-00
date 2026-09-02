@@ -130,7 +130,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                                                                                                                 | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
 | W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                             | new; 24 test files                                       | 2d     | —     |
-| W1-4 | **Started, 2026-09-02** — see §23. be-01 has T0/T1 tiers behind a suffix, guarded: 12.7s instead of 56s. fe-01's `projects` and the lefthook wiring are still open.                                                                                                                                               | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
+| W1-4 | **Mostly done, 2026-09-02** — see §23. be-01 has guarded T0/T1 tiers and there is a root `test:unit` at 17s. fe-01's half needs a 55-file rename; lefthook is left alone, measured.                                                                                                                               | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
 | W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                             | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec. | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
@@ -1054,3 +1054,24 @@ the opener names in its own regex; it excludes itself now, and says so.
 **Still open in W1-4:** fe-01's `vitest` `projects` so its pure suites run without jsdom, a root
 `test:unit`, and lefthook running it. The eleven-file split from W1-2 is what makes fe-01's half
 worth doing.
+
+### 23.1 · The rest of W1-4, and two deviations
+
+`bun run test:unit` is the inner-loop command: be-01's fast tier plus every lib, **17.2s** for 815
+tests. `LLM_README.md` names it. fe-01 is deliberately **not** in it — a 69s jsdom suite is not a
+fast tier, and putting it there would make this the command people stop running.
+
+**Deviation 1 — fe-01's `vitest` `projects` is not done, and the reason is a measurement.** 18 of
+its 73 suites import no DOM, and 16 of those run under `--environment node` in **1.8s** for 359
+tests. The other two (`api.test.ts`, `project-stream.test.ts`) need `WebSocket` and `window`
+despite touching no component. So the tier is real and worth having — but selecting it needs the
+`*.dom.test.tsx` suffix across **55** files, which is the same class of mechanical rename that took
+three attempts in W1-2. It is a change of its own, not a tail end of this one.
+
+**Deviation 2 — lefthook does not run `test:unit`.** The plan said it should. Measured, the hook
+currently costs about 7s (lint and format on staged files) and this would add 17s to every commit.
+CLAUDE.md already records that lefthook is the bypassable half and CI is the gate, so the trade is
+17s on every commit against a check the agent should be running before it commits anyway. Left out
+on purpose rather than by omission.
+
+**Green:** `bun run test:unit` 815 pass; `format:check --all`; `doc-caps`.

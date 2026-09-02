@@ -8,6 +8,7 @@
     "deploy": "nx run tool-deploy:deploy",
     "build": "nx run-many -t build",
     "test": "nx run-many -t test",
+    "test:unit": "nx run be-01:test:unit && nx run-many -t test --projects=domain,auth,config,contracts,observability,realtime,validation",
     "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",
     "lint": "nx run-many -t lint",
     "format": "nx format:write",
