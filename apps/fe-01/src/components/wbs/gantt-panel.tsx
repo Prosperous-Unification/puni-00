@@ -2509,8 +2509,27 @@ function GanttChart({
    *
    * It has to sit here, under `drawnBars`, rather than up beside `chart`.
    */
+  /**
+   * The slices and the rows that have a bar on the chart, indexed once.
+   *
+   * Four readers asked "is this drawn?" with a `some` or a `find` over every
+   * drawn bar — the two link filters, the flag filter and `openBar` — so a plan
+   * of 200 bars with 100 links cost 40,000 comparisons per re-render of the
+   * chart shell, for a question a `Set` answers in one. The rows are here too,
+   * because the flag filter asks by row rather than by slice: a not-before
+   * holds the work item, not one of its steps.
+   */
+  const drawn = useMemo(
+    () => ({
+      sliceIds: new Set(drawnBars.map(({ bar }) => bar.sliceId)),
+      rowIndexes: new Set(drawnBars.map(({ bar }) => bar.rowIndex)),
+    }),
+    [drawnBars],
+  );
   const openBar =
-    open === null ? null : (drawnBars.find(({ bar }) => bar.sliceId === open.sliceId)?.bar ?? null);
+    open === null || !drawn.sliceIds.has(open.sliceId)
+      ? null
+      : (drawnBars.find(({ bar }) => bar.sliceId === open.sliceId)?.bar ?? null);
 
   // The anchor has gone: its row was collapsed away, narrowed off by a search,
   // or is simply no longer drawn. A surface pointing at a mark that is not on
@@ -2540,11 +2559,9 @@ function GanttChart({
   const drawnLinks = useMemo(
     () =>
       placed.personLinks.filter(
-        (link) =>
-          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+        (link) => drawn.sliceIds.has(link.fromSliceId) && drawn.sliceIds.has(link.toSliceId),
       ),
-    [drawnBars, placed],
+    [drawn, placed],
   );
   /**
    * The pool waits whose both ends are on the chart — {@link drawnLinks}' rule,
@@ -2554,11 +2571,9 @@ function GanttChart({
   const drawnPoolWaits = useMemo(
     () =>
       placed.capacityLinks.filter(
-        (link) =>
-          drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
-          drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+        (link) => drawn.sliceIds.has(link.fromSliceId) && drawn.sliceIds.has(link.toSliceId),
       ),
-    [drawnBars, placed],
+    [drawn, placed],
   );
   /**
    * The not-before carets that have something to stand over.
@@ -2592,10 +2607,8 @@ function GanttChart({
     () =>
       detailShown
         ? placed.notBeforeFlags
-        : placed.notBeforeFlags.filter((flag) =>
-            drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
-          ),
-    [detailShown, drawnBars, placed],
+        : placed.notBeforeFlags.filter((flag) => drawn.rowIndexes.has(flag.rowIndex)),
+    [detailShown, drawn, placed],
   );
   const axis = useMemo(
     () =>
