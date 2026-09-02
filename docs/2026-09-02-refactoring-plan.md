@@ -153,7 +153,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-9  | **Done, 2026-09-02** — see §47 and §60. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). And `calendarScale` now remembers each whole workday's calendar offset for the life of one placement: **113 conversions became 12** on a 40-row plan, watched.                                                                                                                                                                                                                                                                                     |
 | W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
 | W2-11 | **Done bar a refusal, 2026-09-02** — see §57. The ⋯ menu's open id and the phone toolbar's open state are both out of the render path: opening `Plan actions` cost **5 card renders and now costs 0**, watched. The `PlanCard` shell itself is **refused with measurements**: at rest nothing else re-renders the list — a keystroke, a focus move and a field sheet are 0 renders each — and every prop the call site hands `PlanCards` is a fresh identity per render, so a `memo` shell would be a check that cannot fail until W4-4 stabilises them.                                                                                                                           | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
-| W2-12 | **Started, 2026-09-02** — see §24. Three done: the push retry's re-serialisation, the throttle's whole-map prune, and the two exporters' `nameOf`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
+| W2-12 | **Five done, 2026-09-02** — see §24 and §65. The push retry's re-serialisation, the throttle's whole-map prune, the two exporters' `nameOf`, `findEstimateGaps`' O(steps² × leaves) count, and the replay buffer holding an abandoned project's thousand plans **forever** — lazy eviction means never for a key nobody touches again.                                                                                                                                                                                                                                                                                                                                             | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
 | W2-13 | **Done, 2026-09-02** — see §48. The roster rides the plan's own stream; the panel opens nothing and is presentational. It also fixes the caveat that panel documented — a dropped connection used to freeze the roster until a reload.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | W2-14 | **Done bar one refusal, 2026-09-02** — see §49. `socketWriter` reads what Bun's `send` answers (nothing did), counts drops and backpressure into `libs/observability`'s first-ever `Counter` callers, and presence is a per-project index behind a thousand-sequence differential. `/metrics/snapshot` is **kept**: the swap's drain polls it.                                                                                                                                                                                                                                                                                                                                     |
 
@@ -2443,3 +2443,36 @@ refused them outright (`was not found by the project service`), which is the lou
 
 `bun run test:unit` is deliberately **not** widened to include this tier in the same change: it is
 a root script and one more thing to argue about, and the tier stands on its own.
+
+## 65 · W2-12, two more — and one of them was a leak, not a cost
+
+**`findEstimateGaps`' per-step counts were O(steps² × leaves)**: a `flatMap` over the steps, each
+filtering every leaf, each of those calling `includes` on a list whose length is the step count. It
+is one counting pass into a `Map` now, and the answer is the same list in the same order — `steps`
+still decides the order and a step nothing is missing is still dropped. The readiness badge calls
+this per render of the toolbar.
+
+**The replay buffer was holding whole plans forever, and "lazy eviction" is why.** `record`,
+`since` and `covers` each evict the subscription they are **about**. So a project edited a thousand
+times and then closed keeps a thousand `tree_replaced` entries — whole plans, hundreds of rows each
+— every one long past `maxAgeMs`, with nothing left that would ever ask about them again, and the
+map keeps the name too. Nothing in the process sweeps a key nobody touches.
+
+`sweepOneOther` evicts one **other** subscription per write and drops it when nothing is left,
+rotating **by name** rather than by index because the key list moves as subscriptions come and go.
+That is `login-throttle.ts`'s bargain from §24, applied to the same class of fault: bounded work
+per operation, and a sweep that visits every subscription once per K writes across K live ones, so
+an abandoned project drains within one lap of whatever traffic is left rather than never.
+
+It changes no answer — `since` and `covers` evict before answering, and `oldestSeq` has no
+production caller — so what it releases is memory no reader could reach. Which is also what makes
+the check awkward: the store is private and every read path evicts, so the only public window into
+retained state is `oldestSeq`. Three cases: the abandoned project swept by one write to a live one
+(watched failing on `expected 0 to be null` with the sweep removed — the entry still held two
+thousand seconds after it expired), the project being written to left alone (a write and the
+`since` after it are one exchange), and the lap continuing when the key it swept last has been
+deleted.
+
+One `if (next === undefined)` was written and deleted in the same sitting: `noUncheckedIndexedAccess`
+is off here, the index is in range by the check above it, and the branch was unreachable —
+`no-unnecessary-condition` said so. The reasoning is where the branch was.

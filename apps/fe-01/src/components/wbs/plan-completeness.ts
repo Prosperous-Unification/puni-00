@@ -82,8 +82,21 @@ export function findEstimateGaps(
       .map((step) => step.id);
     return missingStepIds.length === 0 ? [] : [{ rowId: workItem.id, missingStepIds }];
   });
+  // One counting pass rather than a filter per step. It was `steps.flatMap`
+  // over `leaves.filter` over `missingStepIds.includes` — O(steps² × leaves),
+  // because the inner `includes` walks a list whose length is the step count.
+  // The answer is the same list in the same order: `steps` still decides the
+  // order and a step nothing is missing is still dropped.
+  const missingPerStep = new Map<string, number>();
+  for (const leaf of leaves) {
+    for (const stepId of leaf.missingStepIds) {
+      // A step absent from the map has been missed by nobody yet, which is a
+      // count of zero rather than an unknown.
+      missingPerStep.set(stepId, (missingPerStep.get(stepId) ?? 0) + 1);
+    }
+  }
   const perStep = steps.flatMap((step) => {
-    const count = leaves.filter((leaf) => leaf.missingStepIds.includes(step.id)).length;
+    const count = missingPerStep.get(step.id) ?? 0;
     return count === 0 ? [] : [{ stepId: step.id, stepName: step.name, count }];
   });
   return { leaves, perStep };
