@@ -243,17 +243,47 @@ export function nextWorkday(date: IsoDate): IsoDate {
  * plan happens before its own start, and silently walking into last week is
  * the kind of answer that reads as deliberate.
  */
+/**
+ * Which workday a **weekday** is, counted from an arbitrary fixed origin.
+ *
+ * The whole of what makes {@link addWorkdays} and {@link workdaysBetween}
+ * closed-form rather than loops: a weekday's position in the sequence
+ * Mon, Tue, … Fri, Mon, … is `5 · weeks + weekday`, so two of these subtract to
+ * a workday count and one of them inverts back to a date.
+ *
+ * `+ 3` because 1970-01-01 was a **Thursday**, and the arithmetic wants a week
+ * that begins on Monday. Only ever called on a date {@link nextWorkday} has
+ * already moved off a weekend, and that precondition is load-bearing: a
+ * Saturday would answer an index of `…5` that {@link dateOfWorkdayIndex} cannot
+ * invert. It is also why a `Math.min(…, 4)` clamp here is indistinguishable —
+ * `workday.property.test.ts` records that, because a reader who adds one should
+ * know the tests cannot tell them apart.
+ */
+function workdayIndexOf(at: Date): number {
+  const days = Math.floor(at.getTime() / DAY_MS) + 3;
+  return Math.floor(days / 7) * 5 + (days % 7);
+}
+
+/** {@link workdayIndexOf} inverted: the weekday that many workdays along. */
+function dateOfWorkdayIndex(index: number): Date {
+  const days = Math.floor(index / 5) * 7 + (index % 5) - 3;
+  return new Date(days * DAY_MS);
+}
+
 export function addWorkdays(from: IsoDate, workdays: number): IsoDate {
   if (!Number.isFinite(workdays) || workdays < 0) {
     throw new Error(`workdays must be zero or more, got ${String(workdays)}`);
   }
-  let at = toUtc(nextWorkday(from));
-  for (let moved = 0; moved < Math.floor(snapWorkdays(workdays)); moved += 1) {
-    do {
-      at = new Date(at.getTime() + DAY_MS);
-    } while (at.getUTCDay() === 0 || at.getUTCDay() === 6);
-  }
-  return asIso(at);
+  // Closed form since 2026-09-02, where this walked a day at a time and built a
+  // `Date` for each one — including the weekend days it then skipped. The
+  // scheduler calls it per slice per read and the chart calls it per bar, so a
+  // 250-workday plan was a quarter of a million allocations a read.
+  //
+  // Proof that it is the same function: `workday.property.test.ts` equates it
+  // with the loop it replaced for every offset 0..500 from every weekday and
+  // both weekend days, plus a thousand fast-check cases.
+  const start = toUtc(nextWorkday(from));
+  return asIso(dateOfWorkdayIndex(workdayIndexOf(start) + Math.floor(snapWorkdays(workdays))));
 }
 
 /**
@@ -268,12 +298,10 @@ export function addWorkdays(from: IsoDate, workdays: number): IsoDate {
 export function workdaysBetween(from: IsoDate, to: IsoDate): number {
   const start = toUtc(nextWorkday(from));
   const end = toUtc(nextWorkday(to));
+  // Closed form, for {@link addWorkdays}' reason and behind the same property
+  // test. The clamp stays exactly where it was: a date before `from` is 0
+  // rather than a negative, because a negative offset would drag the whole tree
+  // backwards through a constraint meant only ever to push it later.
   if (end.getTime() <= start.getTime()) return 0;
-  let count = 0;
-  let at = start;
-  while (at.getTime() < end.getTime()) {
-    at = new Date(at.getTime() + DAY_MS);
-    if (at.getUTCDay() !== 0 && at.getUTCDay() !== 6) count += 1;
-  }
-  return count;
+  return workdayIndexOf(end) - workdayIndexOf(start);
 }
