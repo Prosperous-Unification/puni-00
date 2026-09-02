@@ -70,8 +70,18 @@ export class PlanEventRepository implements PlanEventStore {
    * have.
    */
   async pruneOlderThan(cutoff: number): Promise<number> {
-    await this.db.delete(planEvent).where(lt(planEvent.createdAt, cutoff));
-    return rowsChanged(this.db, 'deleting from plan_event');
+    await Promise.resolve();
+    // **One transaction over the delete and its count**, which is the whole
+    // point of the pairing: `changes()` answers about the last statement this
+    // connection ran, and this method used to `await` between the two. Nothing
+    // else in be-01 writes without the write lock — but the retention sweep
+    // does not hold it, so a plan command landing in that window would have
+    // handed its own row count to the sweep's log line. The four satellite
+    // stores already did it this way; these two did not.
+    return this.db.transaction((tx) => {
+      tx.delete(planEvent).where(lt(planEvent.createdAt, cutoff)).run();
+      return rowsChanged(tx, 'deleting from plan_event');
+    });
   }
 }
 

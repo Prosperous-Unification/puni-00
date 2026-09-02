@@ -93,8 +93,13 @@ export class DrizzleEventLogRepo implements EventLogRepo {
 
   async pruneBeyond(maxPerSubscription: number): Promise<number> {
     await Promise.resolve();
-    this.db.run(
-      sql`DELETE FROM event_log
+    // One transaction over the delete and its count, for the reason
+    // `PlanEventRepository.pruneOlderThan` states: `changes()` answers about
+    // the last statement **this connection** ran, and the retention sweep does
+    // not hold the write lock.
+    return this.db.transaction((tx) => {
+      tx.run(
+        sql`DELETE FROM event_log
           WHERE id IN (
             SELECT id FROM (
               SELECT id, ROW_NUMBER() OVER (PARTITION BY subscription ORDER BY seq DESC) AS rn
@@ -102,11 +107,12 @@ export class DrizzleEventLogRepo implements EventLogRepo {
             )
             WHERE rn > ${maxPerSubscription}
           )`,
-    );
-    // The count is what the retention sweep reports, so no row back throws
-    // rather than reading as zero: `?? 0` stood here until 2026-09-02, which is
-    // a default for an unknown in the one place a caller acts on the number.
-    // See {@link rowsChanged}, which `plan-event.ts` already argued for.
-    return rowsChanged(this.db, 'pruning event_log');
+      );
+      // The count is what the retention sweep reports, so no row back throws
+      // rather than reading as zero: `?? 0` stood here until 2026-09-02, which
+      // is a default for an unknown in the one place a caller acts on the
+      // number. See {@link rowsChanged}.
+      return rowsChanged(tx, 'pruning event_log');
+    });
   }
 }
