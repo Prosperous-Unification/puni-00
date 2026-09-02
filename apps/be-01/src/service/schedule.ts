@@ -2,10 +2,9 @@ import {
   ASSUMED_SLICE_WORKDAYS,
   type DependencyReach,
   deriveNumbers,
+  type PlannedRow,
   snapWorkdays,
 } from '@wbs/domain';
-
-import type { WorkItem } from '../repository';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
 export interface DependencyEdge {
@@ -303,8 +302,8 @@ export interface TreeIndex {
   leavesUnder: Map<string, string[]>;
 }
 
-export function indexTree(rows: readonly WorkItem[]): TreeIndex {
-  const childrenOf = new Map<string, WorkItem[]>();
+export function indexTree(rows: readonly PlannedRow[]): TreeIndex {
+  const childrenOf = new Map<string, PlannedRow[]>();
   for (const row of rows) {
     if (row.parentId === null) continue;
     const group = childrenOf.get(row.parentId);
@@ -1458,7 +1457,7 @@ function placeSlices(
  * and `gives the nearer ancestor's priority to a leaf between two` on the same
  * inversion; watched 2026-08-11.
  */
-function priorityByLeaf(rows: readonly WorkItem[], index: TreeIndex): Map<string, number> {
+function priorityByLeaf(rows: readonly PlannedRow[], index: TreeIndex): Map<string, number> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
   const ownPriority = new Map(rows.map((row) => [row.id, row.priority]));
   const found = new Map<string, number>();
@@ -1752,7 +1751,7 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[])
  * itself in numbers means weekends are counted in exactly one place.
  */
 export function schedule(
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   slices: readonly Slice[],
   /**
@@ -2140,7 +2139,7 @@ export function schedule(
  * two independent children of 3 and 4 days are 7 days of work in a 4-day branch.
  */
 function projectOntoWorkItems(
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   index: TreeIndex,
   slicesOf: (workItemId: string) => WorkItemSlices,
   scheduleOf: (key: string) => ScheduledSlice,

@@ -172,3 +172,27 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
 
   return numbers;
 }
+
+/**
+ * What the scheduler reads off a work item: where it sits, and how it ranks.
+ *
+ * `apps/be-01/src/service/schedule.ts` is 2,200 lines of pure planning that
+ * imported one type from the storage barrel and used it for this and nothing
+ * else. Declaring what it needs — rather than the row it happened to be handed —
+ * is what lets the engine live beside the rules it already shares
+ * (`snapWorkdays`, `ASSUMED_SLICE_WORKDAYS`, `DependencyReach`) instead of on
+ * the far side of a repository.
+ *
+ * **Extends {@link WorkItemPlacement} rather than restating three fields.** The
+ * engine numbers the rows it schedules — `schedule.ts` calls
+ * {@link deriveNumbers} on the way past — so it needs everything numbering
+ * needs, plus the priority the leveller ranks by. The first draft named `id`,
+ * `parentId` and `priority` alone and the compiler refused it on exactly that
+ * call.
+ *
+ * `WorkItem` satisfies this structurally, so every caller keeps passing the rows
+ * it already has and nothing maps anything.
+ */
+export interface PlannedRow extends WorkItemPlacement {
+  priority: number | null;
+}
