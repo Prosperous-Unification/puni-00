@@ -1329,7 +1329,32 @@ export function flexibleCellStyle(
   // itself, and leaves its <col> silent` (wbs-table.test.tsx) failed on
   // `expected '200px' to be '300px'`, the header Name cell's own min-width.
   // Both watched, 2026-08-10.
-  return { minWidth: state.columnWidthOverrides?.get(columnId) ?? FLEXIBLE_FLOOR };
+  const floor = state.columnWidthOverrides?.get(columnId) ?? FLEXIBLE_FLOOR;
+  return internedFloor(floor);
+}
+
+/**
+ * The `{ minWidth }` objects handed to the flexible cells, one per width.
+ *
+ * A fresh object per cell per render was ~900 allocations on a 78-row plan for
+ * a value that takes one of a handful of numbers, and it made the `style` prop
+ * a new identity every time — so nothing downstream can ever tell the layout
+ * held still.
+ *
+ * Keyed on the **resolved** number rather than on the column, which is what
+ * makes staleness impossible: a dragged width is a different key, so an entry
+ * can never describe a layout that has moved. The map is bounded by the widths
+ * a reader drags to, which is why it is not a `WeakMap` — a number has no
+ * identity to hang one on.
+ */
+const flexibleFloors = new Map<number, CSSProperties>();
+
+function internedFloor(minWidth: number): CSSProperties {
+  const already = flexibleFloors.get(minWidth);
+  if (already !== undefined) return already;
+  const style: CSSProperties = { minWidth };
+  flexibleFloors.set(minWidth, style);
+  return style;
 }
 
 /**

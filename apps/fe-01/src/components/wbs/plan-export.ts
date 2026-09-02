@@ -348,6 +348,31 @@ export function nameOf(entries: readonly NamedEntry[], id: string): string {
   return byId.get(id) ?? UNKNOWN_NAME;
 }
 
+/** Per-plan id→row indexes, keyed by the row list itself — {@link namesByList}'s shape. */
+const rowsByList = new WeakMap<readonly ExportRow[], Map<string, ExportRow>>();
+
+/**
+ * The row `id` names, or `undefined` for an id this document does not carry.
+ *
+ * It was a `find` over `plan.rows` at three places, each called **per cell**:
+ * the inherited-label note on every labelled cell of every row, the tag cell's
+ * note per tag, and the `Depends on` cell per edge. So printing a document was
+ * O(rows²) in the row count, three times over, for a lookup.
+ *
+ * `undefined` is a state and not a fault: a row outside the document is exactly
+ * what the three callers each have their own sentence for — `(inherited)` with
+ * no source named, and a dropped predecessor number. Throwing here would turn a
+ * copy button into a broken one over a row nobody asked about.
+ */
+function rowById(rows: readonly ExportRow[], id: string): ExportRow | undefined {
+  let byId = rowsByList.get(rows);
+  if (byId === undefined) {
+    byId = new Map(rows.map((row) => [row.id, row]));
+    rowsByList.set(rows, byId);
+  }
+  return byId.get(id);
+}
+
 /**
  * The header fields both formats carry, in one place so they cannot drift.
  *
@@ -519,7 +544,7 @@ function labelCell(
   if (effective === undefined) return '';
   const name = effective.ids.map((id) => nameOf(vocabulary, id)).join('; ');
   if (effective.fromId === row.id) return name;
-  const from = plan.rows.find((each) => each.id === effective.fromId);
+  const from = rowById(plan.rows, effective.fromId);
   return from === undefined
     ? `${name} (inherited)`
     : `${name} (inherited from ${from.number} ${from.name})`;
@@ -569,7 +594,7 @@ function tagCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTags>, 
     .map((each) => {
       const name = nameOf(plan.tags, each.tagId);
       if (each.fromId === row.id) return name;
-      const from = plan.rows.find((candidate) => candidate.id === each.fromId);
+      const from = rowById(plan.rows, each.fromId);
       return from === undefined
         ? `${name} (inherited)`
         : `${name} (inherited from ${from.number} ${from.name})`;
@@ -716,7 +741,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
       cell: (row) =>
         row.dependsOn
           .flatMap((id) => {
-            const predecessor = plan.rows.find((each) => each.id === id);
+            const predecessor = rowById(plan.rows, id);
             return predecessor === undefined ? [] : [predecessor.number];
           })
           .join(', '),

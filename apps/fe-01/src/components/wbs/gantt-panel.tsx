@@ -2602,6 +2602,28 @@ function GanttChart({
       barsByRow,
     };
   }, [drawnBars]);
+  /**
+   * The rows this chart can light, by id.
+   *
+   * The pointed band read `chart.labels.filter((label) => label.id ===
+   * pointedRow)` — a scan of every row to draw **one** rectangle, and it sits on
+   * the path a pointer moves along, so it ran per row per pointer move. In the
+   * memo rather than beside it because `chart.labels` is what it indexes and
+   * that is what the memo is keyed on.
+   */
+  const labelsById = useMemo(
+    () => new Map(chart.labels.map((label) => [label.id, label])),
+    [chart.labels],
+  );
+  /**
+   * The row the band is drawn on, or nothing at all.
+   *
+   * `undefined` is the answer for an id the chart does not hold — a row a
+   * search has narrowed away or a collapse has taken — and drawing nothing is
+   * what that should do, which is what the `filter` this replaced achieved by
+   * finding no match.
+   */
+  const pointedLabel = pointedRow === null ? undefined : labelsById.get(pointedRow);
   const openBar =
     open === null || !drawn.sliceIds.has(open.sliceId)
       ? null
@@ -3955,19 +3977,17 @@ function GanttChart({
                 no row and draws nothing, which is what a row a search has
                 narrowed away should do.
               */}
-                {chart.labels
-                  .filter((label) => label.id === pointedRow)
-                  .map((label) => (
-                    <rect
-                      key={`${label.id}-pointed`}
-                      data-gantt-row-lit={label.rowIndex}
-                      x={0}
-                      y={label.rowIndex}
-                      width={days}
-                      height={1}
-                      className="fill-(--grid-dep-lit)"
-                    />
-                  ))}
+                {pointedLabel === undefined ? null : (
+                  <rect
+                    key={`${pointedLabel.id}-pointed`}
+                    data-gantt-row-lit={pointedLabel.rowIndex}
+                    x={0}
+                    y={pointedLabel.rowIndex}
+                    width={days}
+                    height={1}
+                    className="fill-(--grid-dep-lit)"
+                  />
+                )}
 
                 {marksOverLight}
               </svg>

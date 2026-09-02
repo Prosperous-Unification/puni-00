@@ -138,8 +138,12 @@ export function PrioritiesPanel({
    * re-cut that happens to match what was typed reads as clean rather than as
    * an edit to lose. A write in flight is {@link useSettingsSection}'s to add.
    */
+  // Built once, not once per band: it was inside the predicate, so a
+  // twelve-rung ladder rebuilt twelve copies of itself to answer one question,
+  // on every render of the panel.
+  const savedDrafts = draftsOf(bands);
   const dirty = drafts.some((draft, at) => {
-    const saved = draftsOf(bands).at(at);
+    const saved = savedDrafts.at(at);
     return (
       saved?.label !== draft.label ||
       saved.startsAt !== draft.startsAt ||

@@ -153,7 +153,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | W2-9  | **Done, 2026-09-02** — see §47 and §60. `addWorkdays` and `workdaysBetween` are closed form: **16.1× measured** at offset 250, behind a differential against the walk they replaced (3,500 exhaustive pairs plus 1,500 random). And `calendarScale` now remembers each whole workday's calendar offset for the life of one placement: **113 conversions became 12** on a 40-row plan, watched.                                                                                                                                                                                                                                                                                     |
 | W2-10 | **Half done, 2026-09-02** — see §55. `/directory` and a vendor chunk are out of the first bundle: 796.82 kB became 511.85 + 269.37 + 15.43, with the `manualChunks` rule asserted both ways. `GanttPanel`/`PlanCards` are **refused** — a `lazy()` boundary there turns 2,063 synchronous assertions into `waitFor`s.                                                                                                                                                                                                                                                                                                                                                              |
 | W2-11 | **Done bar a refusal, 2026-09-02** — see §57. The ⋯ menu's open id and the phone toolbar's open state are both out of the render path: opening `Plan actions` cost **5 card renders and now costs 0**, watched. The `PlanCard` shell itself is **refused with measurements**: at rest nothing else re-renders the list — a keystroke, a focus move and a field sheet are 0 renders each — and every prop the call site hands `PlanCards` is a fresh identity per render, so a `memo` shell would be a check that cannot fail until W4-4 stabilises them.                                                                                                                           | `plan-cards.tsx:1988–2557`                                                                             | 1.5d   | `cardTrioOf` spy delta when one menu opens                                         |
-| W2-12 | **Five done, 2026-09-02** — see §24 and §65. The push retry's re-serialisation, the throttle's whole-map prune, the two exporters' `nameOf`, `findEstimateGaps`' O(steps² × leaves) count, and the replay buffer holding an abandoned project's thousand plans **forever** — lazy eviction means never for a key nobody touches again.                                                                                                                                                                                                                                                                                                                                             | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
+| W2-12 | **Done, 2026-09-02** — see §24, §65 and §66. Ten of the twelve are in; the remaining two are **refused with the code as evidence** (one of them was not the fault the review described) and the `<td>` transition is left to Dany's eye, which is not a refactor's call.                                                                                                                                                                                                                                                                                                                                                                                                           | as named                                                                                               | 1d     | each a one-line spy or count                                                       |
 | W2-13 | **Done, 2026-09-02** — see §48. The roster rides the plan's own stream; the panel opens nothing and is presentational. It also fixes the caveat that panel documented — a dropped connection used to freeze the roster until a reload.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | W2-14 | **Done bar one refusal, 2026-09-02** — see §49. `socketWriter` reads what Bun's `send` answers (nothing did), counts drops and backpressure into `libs/observability`'s first-ever `Counter` callers, and presence is a per-project index behind a thousand-sequence differential. `/metrics/snapshot` is **kept**: the swap's drain polls it.                                                                                                                                                                                                                                                                                                                                     |
 
@@ -2476,3 +2476,49 @@ deleted.
 One `if (next === undefined)` was written and deleted in the same sitting: `noUncheckedIndexedAccess`
 is off here, the index is in range by the check above it, and the branch was unreachable —
 `no-unnecessary-condition` said so. The reasoning is where the branch was.
+
+## 66 · W2-12's last five, and the two that were not there
+
+**`plan-export.ts` printed a document in O(rows²), three times over.** A `find` over `plan.rows`
+at three places, each called **per cell**: the inherited-label note on every labelled cell of every
+row, the tag cell's note per tag, and `Depends on` per edge. `rowById` is `nameOf`'s own shape — a
+`WeakMap` keyed on the row list — so the callers read the same way and the index is built once per
+export. `undefined` stays a state rather than a fault: a row outside the document is exactly what
+each of the three callers already has a sentence for.
+
+**The mermaid comparator resolved each slice's section twice per comparison**, and in `outline`
+mode `sectionOf` walks the row's ancestors — so an N log N sort did 2 N log N tree walks, and the
+label pass did one more per slice. It is resolved once per slice before the sort now, and the same
+value is reused for the label; the function is pure over the arguments the call site gives it.
+
+**`priorities-panel.tsx` rebuilt the whole saved ladder inside its `.some()`** — a twelve-rung
+ladder made twelve copies of itself to answer one question, on every render of the panel. Hoisted.
+
+**The Gantt's pointed band scanned every row to draw one rectangle**, on the path a pointer moves
+along. `labelsById` joins the `drawn` memo and the band is a conditional; `undefined` draws nothing,
+which is what the `filter` achieved by finding no match — a row a search has narrowed away.
+
+**The flexible cells' `{ minWidth }` was a fresh object per cell per render** — around 900
+allocations on a 78-row plan for a value that takes one of a handful of numbers, and a new
+identity every time, so nothing downstream could tell the layout had held still. Interned on the
+**resolved number**, which is what makes staleness impossible: a dragged width is a different key
+rather than an entry to invalidate. Watched failing on `expected { minWidth: 200 } to be
+{ minWidth: 200 } // Object.is equality` with the interning removed, and a second case says a
+dragged width gets its own object.
+
+**Two of the twelve were not the fault the review described, and the code is the evidence:**
+
+- `estimating-panel.tsx`'s `draftOfWeights(pertWeights)` is **not** computed inside a `.some()`.
+  It is the receiver of `Object.entries(...)`, evaluated once before the predicate runs. Nothing to
+  hoist. Its sibling in `priorities-panel.tsx` genuinely was inside the predicate, which is
+  probably how the pair got written down together.
+- `ReplayOrchestrator.replay`'s serial loop parallelises to **nothing**. Every `EventLogRepo` read
+  is `await Promise.resolve()` followed by a synchronous `db.all(...)` on be-01's single
+  connection, so `Promise.all` would run the same synchronous reads back to back with no
+  concurrency at all — only a different microtask interleaving.
+
+**Left to Dany:** `styles.css`'s 100ms `background-color` transition on every `<td>`. The review
+asks for it shortened, dropped on the pinned columns, and behind `prefers-reduced-motion`. That is
+a motion change, this repository's own record says settled rules get reversed once they are drawn,
+and the palette browser cases measure computed colours that a transition moves mid-animation. It
+wants his eye and a browser gate, not a refactor's judgement.
