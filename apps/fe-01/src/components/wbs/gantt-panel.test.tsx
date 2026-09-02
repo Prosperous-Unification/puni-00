@@ -178,8 +178,6 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise.
   depReach: 'whole-item',
-  pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-  estimateRounding: 'ceil',
   ...parts,
 });
 
@@ -2672,6 +2670,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 5, finish: 6, duration: 1 })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -2696,6 +2695,7 @@ describe('the words on the bars are HTML over the chart', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -3071,6 +3071,7 @@ const sliceOf = (workItemId: string, start: number, finish: number): SliceView =
   resourcePredecessorId: null,
   width: 1,
   effort: finish - start,
+  capacityTeamId: null,
   capacityPredecessorIds: [],
 });
 
@@ -3151,6 +3152,15 @@ interface ReadSkew {
  * branch, type in the Find box and click a bar, and every one of those is
  * answered from the tree that arrived. `plan-cards.test.tsx`'s fake writes, and
  * borrowing it would mean importing a file whose own tests would run again.
+ *
+ * **Every writer on the interface is listed**, and the list is only true
+ * because it is typechecked. It had drifted: seven names this fake stubbed —
+ * `assign`, `patch`, `move` and four more — had been renamed on `ProjectApi`,
+ * and nine real ones were missing. A stub under the wrong name is worse than no
+ * stub: the method the code actually calls is `undefined`, so a chart test that
+ * reached a writer crashed on "not a function" instead of naming what it asked
+ * for. `nx typecheck` does not read this project (see AGENTS.md), so the drift
+ * was invisible until `tsc -p tsconfig.spec.json` was pointed at it.
  */
 function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
   const people: PersonView[] = [{ id: 'kat', name: 'Kat', kind: 'person', teamIds: [] }];
@@ -3181,7 +3191,10 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
-        priorityBands: DEFAULT_PRIORITY_BANDS,
+        // Copied rather than handed over: `PlanRead`'s ladder is a mutable
+        // array and the domain's default is `readonly`, and a fake that
+        // narrowed the payload's type would be describing a different read.
+        priorityBands: [...DEFAULT_PRIORITY_BANDS],
         estimateMethod: 'pert' as const,
         depReach: 'whole-item' as const,
         pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
@@ -3213,19 +3226,28 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
     addPerson: () => notImplemented('addPerson'),
-    create: () => notImplemented('create'),
-    patch: () => notImplemented('patch'),
+    createWorkItem: () => notImplemented('createWorkItem'),
+    patchWorkItem: () => notImplemented('patchWorkItem'),
     setEstimate: () => notImplemented('setEstimate'),
-    assign: () => notImplemented('assign'),
-    move: () => notImplemented('move'),
-    duplicate: () => notImplemented('duplicate'),
-    remove: () => notImplemented('remove'),
+    assignPerson: () => notImplemented('assignPerson'),
+    moveWorkItem: () => notImplemented('moveWorkItem'),
+    duplicateWorkItem: () => notImplemented('duplicateWorkItem'),
+    removeWorkItem: () => notImplemented('removeWorkItem'),
     clearEstimate: () => notImplemented('clearEstimate'),
-    freeze: () => notImplemented('freeze'),
+    freezeProject: () => notImplemented('freezeProject'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
-    unfreeze: () => notImplemented('unfreeze'),
+    unfreezeWorkItem: () => notImplemented('unfreezeWorkItem'),
     addDependency: () => notImplemented('addDependency'),
     removeDependency: () => notImplemented('removeDependency'),
+    addService: () => notImplemented('addService'),
+    addTag: () => notImplemented('addTag'),
+    addWorkItemType: () => notImplemented('addWorkItemType'),
+    removeTag: () => notImplemented('removeTag'),
+    renameTag: () => notImplemented('renameTag'),
+    setDepReach: () => notImplemented('setDepReach'),
+    setEstimateArithmetic: () => notImplemented('setEstimateArithmetic'),
+    setPriorityBands: () => notImplemented('setPriorityBands'),
+    setTeamCapacity: () => notImplemented('setTeamCapacity'),
   };
 }
 
