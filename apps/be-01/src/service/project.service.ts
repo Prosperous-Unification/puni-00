@@ -18,7 +18,7 @@ export interface ProjectWithSteps {
 }
 
 export type UpdateOutcome =
-  | { ok: true; result: Project }
+  | { ok: true; value: Project }
   | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' | 'bad_pert_weights' };
 
 export interface ProjectServiceOptions {
@@ -175,6 +175,6 @@ export class ProjectService {
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
-    return { ok: true, result: updated };
+    return { ok: true, value: updated };
   }
 }

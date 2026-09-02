@@ -90,7 +90,7 @@ beforeEach(async () => {
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -108,7 +108,7 @@ async function unranked(name: string, parentId: string | null = null) {
     priority: null,
   });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -347,7 +347,7 @@ describe('dependencies', () => {
     const a = await add('Strip');
     const b = await add('Sand');
 
-    expect(await service.addDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
+    expect(await service.addDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([a]);
@@ -389,8 +389,8 @@ describe('dependencies', () => {
     const b = await add('Sand');
     await service.addDependency(b, OWNER, a);
 
-    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
-    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
+    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
+    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
@@ -403,7 +403,7 @@ describe('dependencies', () => {
     const b = await add('Sand');
     await service.addDependency(b, OWNER, a);
 
-    expect(await service.remove(a, OWNER, null)).toEqual({ ok: true, result: null });
+    expect(await service.remove(a, OWNER, null)).toEqual({ ok: true, value: null });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
@@ -418,7 +418,7 @@ describe('dependencies', () => {
     const other = await add('Sand');
     await service.addDependency(other, OWNER, parent);
 
-    expect(await service.remove(parent, OWNER, 'promote')).toEqual({ ok: true, result: null });
+    expect(await service.remove(parent, OWNER, 'promote')).toEqual({ ok: true, value: null });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === other)?.dependsOn).toEqual([]);
@@ -638,17 +638,17 @@ describe('the plan waits for the people in it', () => {
       parentId: null,
       afterId: null,
       name: 'Rewire',
-    })) as { ok: true; result: { id: string } };
+    })) as { ok: true; value: { id: string } };
     const next = (await service.create(two.projectId, OWNER, {
       parentId: null,
-      afterId: covered.result.id,
+      afterId: covered.value.id,
       name: 'Test the rewire',
-    })) as { ok: true; result: { id: string } };
-    await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
-    await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
-    await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
-    await directory.assign(covered.result.id, two.dev, 'ada', WROTE);
-    await directory.assign(next.result.id, two.dev, 'ada', WROTE);
+    })) as { ok: true; value: { id: string } };
+    await service.setEstimate(covered.value.id, OWNER, two.dev, flat(2));
+    await service.setEstimate(covered.value.id, OWNER, two.qa, flat(1));
+    await service.setEstimate(next.value.id, OWNER, two.dev, flat(1));
+    await directory.assign(covered.value.id, two.dev, 'ada', WROTE);
+    await directory.assign(next.value.id, two.dev, 'ada', WROTE);
 
     const tree = await service.tree(two.projectId);
 
@@ -663,11 +663,11 @@ describe('the plan waits for the people in it', () => {
     // `ada`'s day, in order: `Rewire` Dev 0→2, `Test the rewire` Dev 2→3, that
     // row's assumed QA 3→5, and `Rewire`'s own QA 5→6. Both rows are still
     // pulled apart by the one person on them, which is what this test is about.
-    expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
+    expect(tree?.workItems.find((w) => w.id === next.value.id)?.schedule).toMatchObject({
       earliestStart: 2,
       earliestFinish: 5,
     });
-    expect(tree?.workItems.find((w) => w.id === covered.result.id)?.schedule).toMatchObject({
+    expect(tree?.workItems.find((w) => w.id === covered.value.id)?.schedule).toMatchObject({
       earliestStart: 0,
       earliestFinish: 6,
     });
@@ -688,22 +688,22 @@ describe('the plan waits for the people in it', () => {
       parentId: null,
       afterId: null,
       name: 'Rewire',
-    })) as { ok: true; result: { id: string } };
+    })) as { ok: true; value: { id: string } };
     const next = (await service.create(two.projectId, OWNER, {
       parentId: null,
-      afterId: covered.result.id,
+      afterId: covered.value.id,
       name: 'Test the rewire',
-    })) as { ok: true; result: { id: string } };
-    await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
-    await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
-    await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
-    await directory.assign(covered.result.id, two.dev, 'ada', WROTE);
-    await directory.assign(covered.result.id, two.qa, 'grace', WROTE);
-    await directory.assign(next.result.id, two.dev, 'ada', WROTE);
+    })) as { ok: true; value: { id: string } };
+    await service.setEstimate(covered.value.id, OWNER, two.dev, flat(2));
+    await service.setEstimate(covered.value.id, OWNER, two.qa, flat(1));
+    await service.setEstimate(next.value.id, OWNER, two.dev, flat(1));
+    await directory.assign(covered.value.id, two.dev, 'ada', WROTE);
+    await directory.assign(covered.value.id, two.qa, 'grace', WROTE);
+    await directory.assign(next.value.id, two.dev, 'ada', WROTE);
 
     const tree = await service.tree(two.projectId);
 
-    expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
+    expect(tree?.workItems.find((w) => w.id === next.value.id)?.schedule).toMatchObject({
       earliestStart: 2,
       earliestFinish: 5,
     });
@@ -818,7 +818,7 @@ describe('duplicating a subtree', () => {
   async function duplicate(id: string, actorId = OWNER): Promise<string> {
     const outcome = await service.duplicate(id, actorId);
     if (!outcome.ok) throw new Error(`duplicate failed: ${outcome.reason}`);
-    return outcome.result.id;
+    return outcome.value.id;
   }
 
   /** The project's rows, by id, as a reader sees them. */
@@ -1380,7 +1380,7 @@ describe('the project’s dependency reach', () => {
     const made = async (name: string) => {
       const outcome = await service.create(id, OWNER, { parentId: null, afterId: null, name });
       if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-      return outcome.result.id;
+      return outcome.value.id;
     };
     const a = await made('A');
     const b = await made('B');
@@ -1548,10 +1548,10 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
       name: 'Sand',
     });
     if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-    await service.setEstimate(outcome.result.id, OWNER, devId, half);
-    await service.setEstimate(outcome.result.id, OWNER, qaId, half);
+    await service.setEstimate(outcome.value.id, OWNER, devId, half);
+    await service.setEstimate(outcome.value.id, OWNER, qaId, half);
 
-    const row = await rowOf(id, outcome.result.id);
+    const row = await rowOf(id, outcome.value.id);
 
     expect(row.finalDays[devId]).toBe(1);
     expect(row.finalDays[qaId]).toBe(1);
@@ -1575,9 +1575,9 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
         name: 'Sand',
       });
       if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-      await service.setEstimate(outcome.result.id, OWNER, devId, half);
+      await service.setEstimate(outcome.value.id, OWNER, devId, half);
 
-      expect((await rowOf(id, outcome.result.id)).finalDays[devId]).toBe(owed);
+      expect((await rowOf(id, outcome.value.id)).finalDays[devId]).toBe(owed);
     }
   });
 
@@ -1594,13 +1594,13 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
       name: 'Sand',
     });
     if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-    await service.setEstimate(outcome.result.id, OWNER, devId, {
+    await service.setEstimate(outcome.value.id, OWNER, devId, {
       optimistic: 2,
       realistic: 3,
       pessimistic: 10,
     });
 
-    const row = await rowOf(id, outcome.result.id);
+    const row = await rowOf(id, outcome.value.id);
 
     expect(row.finalDays[devId]).toBe(5);
     const tree = await service.tree(id);
@@ -1630,17 +1630,17 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     const children: string[] = [];
     for (const name of ['Strip', 'Sand']) {
       const child = await service.create(id, OWNER, {
-        parentId: parent.result.id,
+        parentId: parent.value.id,
         afterId: null,
         name,
       });
       if (!child.ok) throw new Error(`create failed: ${child.reason}`);
-      await service.setEstimate(child.result.id, OWNER, devId, half);
-      children.push(child.result.id);
+      await service.setEstimate(child.value.id, OWNER, devId, half);
+      children.push(child.value.id);
     }
 
     const tree = await service.tree(id);
-    const parentRow = await rowOf(id, parent.result.id);
+    const parentRow = await rowOf(id, parent.value.id);
 
     expect(parentRow.rolledUp).toBe(true);
     expect(parentRow.finalDays[devId]).toBe(2);
@@ -1670,11 +1670,11 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
       name: 'Sand',
     });
     if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-    await service.setEstimate(outcome.result.id, OWNER, devId, half);
-    await service.setEstimate(outcome.result.id, OWNER, qaId, half);
+    await service.setEstimate(outcome.value.id, OWNER, devId, half);
+    await service.setEstimate(outcome.value.id, OWNER, qaId, half);
     await projects.update(id, { startDate: '2026-08-06' }, WROTE);
 
-    const row = await rowOf(id, outcome.result.id);
+    const row = await rowOf(id, outcome.value.id);
 
     expect(row.finalTotal).toBe(2);
     expect(row.schedule.duration).toBe(2);
@@ -1997,7 +1997,7 @@ describe('the slices the schedule placed, on the wire', () => {
       name: 'Hull',
     });
     if (!created.ok) throw new Error(`create failed: ${created.reason}`);
-    const hull = created.result.id;
+    const hull = created.value.id;
     await service.setEstimate(hull, OWNER, devId, flat(3));
     await service.setEstimate(hull, OWNER, qaId, flat(2));
     const kat = await personAdded(
@@ -2311,6 +2311,6 @@ describe('the priority a create stamps', () => {
       priority: null,
     });
     if (!stamped.ok || !blank.ok) throw new Error('a create was refused');
-    expect([stamped.result.priority, blank.result.priority]).toEqual([7, null]);
+    expect([stamped.value.priority, blank.value.priority]).toEqual([7, null]);
   });
 });

@@ -148,13 +148,13 @@ async function projectRevision(): Promise<number> {
 async function root(name: string, afterId: string | null = null): Promise<string> {
   const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 async function child(parentId: string, name: string): Promise<string> {
   const outcome = await workItems.create(projectId, ownerId, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 describe('what a create starts at', () => {
@@ -481,7 +481,7 @@ describe('what a duplicate does not move', () => {
     const outcome = await workItems.duplicate(strip, ownerId);
 
     if (!outcome.ok) throw new Error(`duplicate refused: ${outcome.reason}`);
-    expect(await revisionOf(outcome.result.id)).toBe(0);
+    expect(await revisionOf(outcome.value.id)).toBe(0);
     // A copy does not change what it was copied from. This is the assertion
     // that keeps `duplicate` from defeating a precondition somebody else holds
     // on the original.
@@ -543,7 +543,7 @@ describe('what a step write moves', () => {
     if (!added.ok) throw new Error(`add refused: ${added.reason}`);
     expect(await projectRevision()).toBe(1);
 
-    const renamed = await stepService.rename(projectId, added.result.id, ownerId, 'Drawing');
+    const renamed = await stepService.rename(projectId, added.value.id, ownerId, 'Drawing');
     if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
     expect(await projectRevision()).toBe(2);
 

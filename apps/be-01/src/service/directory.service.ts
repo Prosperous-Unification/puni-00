@@ -99,7 +99,7 @@ export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
  * name unable to say which of the two spellings is now on screen.
  */
 export type DirectoryOutcome<T> =
-  | { ok: true; result: T }
+  | { ok: true; value: T }
   | { ok: false; reason: DirectoryRefusal }
   | { ok: false; reason: 'taken'; name: string };
 
@@ -225,7 +225,7 @@ export class DirectoryService {
       return { ok: false, reason: 'not_found' };
     }
     await this.announce(written.projectIds);
-    return { ok: true, result: written.entity };
+    return { ok: true, value: written.entity };
   }
 
   /**
@@ -367,7 +367,7 @@ export class DirectoryService {
       };
     }
     if (clean !== undefined) await this.announce(written.projectIds);
-    return { ok: true, result: written.team };
+    return { ok: true, value: written.team };
   }
 
   listTags(): Promise<Tag[]> {
@@ -531,7 +531,7 @@ export class DirectoryService {
     // The whole create, or none of it: a person made without the membership
     // that was asked for is a row somebody would have to notice was wrong.
     if (!written.ok) return { ok: false, reason: written.reason };
-    return { ok: true, result: written.person };
+    return { ok: true, value: written.person };
   }
 
   /**
@@ -596,7 +596,7 @@ export class DirectoryService {
     // day a badge appears beside an assignee in the tree, this becomes a rename
     // and gets announced with one.
     if (clean !== undefined) await this.announce(written.projectIds);
-    return { ok: true, result: written.person };
+    return { ok: true, value: written.person };
   }
 
   /**

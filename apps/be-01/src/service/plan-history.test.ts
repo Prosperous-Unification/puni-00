@@ -47,7 +47,7 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 async function add(name: string): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**

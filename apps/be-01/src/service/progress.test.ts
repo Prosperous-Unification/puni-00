@@ -1,4 +1,4 @@
-import type { ItemState } from '@wbs/domain';
+import type { WorkItemState } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -86,7 +86,7 @@ function stored(
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -103,7 +103,7 @@ async function shown(): Promise<Map<string, Record<string, string>>> {
 }
 
 /** The derived item state by work item name — the field nothing stores. */
-async function states(): Promise<Map<string, ItemState>> {
+async function states(): Promise<Map<string, WorkItemState>> {
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.state]));
@@ -259,13 +259,13 @@ describe('stating where the work has got to', () => {
     const strip = await add('Strip');
     await service.setProgress(strip, OWNER, DEV, 'in_progress');
 
-    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
     // Back to the absence of a row, which is "nobody has said" — not "the work
     // was undone", and not a stored `not_started`.
     expect(await progress.listByProject(projectId)).toEqual([]);
     expect((await states()).get('Strip')).toBe('not_started');
 
-    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearProgress(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
     expect(await service.clearProgress(crypto.randomUUID(), OWNER, DEV)).toEqual({
       ok: false,
       reason: 'not_found',
@@ -435,7 +435,7 @@ describe('states through the structural commands', () => {
     if (!copied.ok) throw new Error('duplicate failed');
 
     const tree = await service.tree(projectId);
-    const copy = tree?.workItems.find((row) => row.id === copied.result.id);
+    const copy = tree?.workItems.find((row) => row.id === copied.value.id);
     expect(copy?.estimates).toEqual({ [DEV]: days(1, 2, 3) });
     expect(copy?.progress).toEqual({});
     expect(copy?.state).toBe('not_started');

@@ -34,7 +34,7 @@ beforeEach(async () => {
 async function add(name: string, afterId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 async function numbered(): Promise<Record<string, string>> {

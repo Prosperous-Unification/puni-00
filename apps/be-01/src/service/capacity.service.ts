@@ -15,7 +15,7 @@ export interface CapacityServiceOptions {
 export type CapacityRefusal = 'not_found' | 'forbidden';
 
 export type CapacityOutcome =
-  | { ok: true; result: TeamCapacity[] }
+  | { ok: true; value: TeamCapacity[] }
   | { ok: false; reason: CapacityRefusal };
 
 /**
@@ -90,6 +90,6 @@ export class CapacityService {
     // already answered above.
     if (!written.ok) return { ok: false, reason: 'not_found' };
     await this.opts.broadcast.publish(projectId, { type: 'capacity_changed' });
-    return { ok: true, result: await this.opts.capacity.listFor(projectId) };
+    return { ok: true, value: await this.opts.capacity.listFor(projectId) };
   }
 }

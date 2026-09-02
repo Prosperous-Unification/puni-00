@@ -75,7 +75,7 @@ const dev = (): string => {
 async function root(name: string, afterId: string | null = null): Promise<string> {
   const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /** Every row's name beside its dates — what "no date moved" is asserted over. */

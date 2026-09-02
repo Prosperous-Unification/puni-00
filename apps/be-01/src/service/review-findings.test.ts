@@ -47,7 +47,7 @@ beforeEach(async () => {
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 async function numbersByName(): Promise<Record<string, string>> {
@@ -121,7 +121,7 @@ describe('review finding: a parent must belong to the same project', () => {
     if (!foreign.ok) throw new Error('setup failed');
 
     const outcome = await service.create(projectId, OWNER, {
-      parentId: foreign.result.id,
+      parentId: foreign.value.id,
       afterId: null,
       name: 'Smuggled',
     });

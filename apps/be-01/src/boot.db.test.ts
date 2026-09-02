@@ -184,7 +184,7 @@ describe('OIDC boot wiring', () => {
     if (!registered.ok) throw new Error('password fixture was not registered');
 
     const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
-      headers: { cookie: `__Host-wbs_access=${registered.result.token}` },
+      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
     });
 
     expect(me.status).toBe(401);
@@ -196,7 +196,7 @@ describe('OIDC boot wiring', () => {
     if (!registered.ok) throw new Error('password fixture was not registered');
 
     const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
-      headers: { cookie: `__Host-wbs_access=${registered.result.token}` },
+      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
     });
 
     expect(me.status).toBe(200);

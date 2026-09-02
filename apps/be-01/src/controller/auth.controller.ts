@@ -132,12 +132,12 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
         if (oidc !== undefined) {
           set.headers['set-cookie'] = cookie(
             '__Host-wbs_access',
-            outcome.result.token,
+            outcome.value.token,
             TOKEN_TTL_SECONDS,
           );
-          return { token: '', user: outcome.result.user };
+          return { token: '', user: outcome.value.user };
         }
-        return outcome.result;
+        return outcome.value;
       },
       { body: credentials },
     )
@@ -172,12 +172,12 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
         if (oidc !== undefined) {
           set.headers['set-cookie'] = cookie(
             '__Host-wbs_access',
-            outcome.result.token,
+            outcome.value.token,
             TOKEN_TTL_SECONDS,
           );
-          return { token: '', user: outcome.result.user };
+          return { token: '', user: outcome.value.user };
         }
-        return outcome.result;
+        return outcome.value;
       },
       { body: credentials },
     )

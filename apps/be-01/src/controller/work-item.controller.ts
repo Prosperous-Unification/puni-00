@@ -492,7 +492,7 @@ function parsePatch(body: unknown): {
  * change is that a refusal says why out loud.
  */
 function answerUndo(outcome: UndoOutcome, set: { status?: number | string }) {
-  if (outcome.ok) return { done: outcome.result.done, detail: outcome.result.detail };
+  if (outcome.ok) return { done: outcome.value.done, detail: outcome.value.detail };
   // 409 is the default here, which is the sentence above made an argument:
   // `nothing_to_undo` and `stale_undo` are both states of the plan.
   set.status = statusForRefusal(outcome.reason, 409);

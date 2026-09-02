@@ -136,7 +136,7 @@ afterEach(() => {
 async function root(name: string, afterId: string | null = null): Promise<string> {
   const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -155,7 +155,7 @@ async function unranked(name: string): Promise<string> {
     priority: null,
   });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /** `afterId` is which sibling it lands after; null means first, as the API means it. */
@@ -166,7 +166,7 @@ async function child(
 ): Promise<string> {
   const outcome = await workItems.create(projectId, ownerId, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -205,11 +205,11 @@ async function undone(): Promise<UndoOutcome> {
 
 function expectDone(outcome: UndoOutcome): string {
   if (!outcome.ok) throw new Error(`refused: ${outcome.reason} — ${outcome.detail ?? ''}`);
-  return outcome.result.done;
+  return outcome.value.done;
 }
 
 function expectStale(outcome: UndoOutcome): string {
-  if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.result.done}`);
+  if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.value.done}`);
   expect(outcome.reason).toBe('stale_undo');
   if (outcome.detail === null) throw new Error('a stale refusal said nothing about why');
   return outcome.detail;
@@ -899,7 +899,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('duplicate “Strip”');
 
     expect(await namesByPosition(null)).toEqual(['Strip']);
-    expect(await found(copy.result.id)).toBeNull();
+    expect(await found(copy.value.id)).toBeNull();
   });
 
   it('restores every team membership when a duplicate is redone', async () => {
@@ -917,13 +917,13 @@ describe('undoing each kind of change', () => {
 
     const copy = await workItems.duplicate(strip, ownerId);
     if (!copy.ok) throw new Error('duplicate refused');
-    expect(await teamIdsOf(copy.result.id)).toEqual(expected);
+    expect(await teamIdsOf(copy.value.id)).toEqual(expected);
 
     expect(expectDone(await undone())).toBe('duplicate “Strip”');
-    expect(await found(copy.result.id)).toBeNull();
+    expect(await found(copy.value.id)).toBeNull();
 
     expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('duplicate “Strip”');
-    expect(await teamIdsOf(copy.result.id)).toEqual(expected);
+    expect(await teamIdsOf(copy.value.id)).toEqual(expected);
   });
 });
 
@@ -940,7 +940,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
 
     const outcome = await workItems.redo(projectId, ownerId);
 
-    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.result.done}`);
+    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.value.done}`);
     expect(outcome.reason).toBe('stale_undo');
     expect(outcome.detail).toBe('that person is no longer in the directory.');
     expect(await directoryStore.assignmentsOf([strip])).toEqual([]);
@@ -960,7 +960,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
     // fail — it would quietly write the dead id back and leave it there.
     const outcome = await undone();
 
-    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.result.done}`);
+    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.value.done}`);
     expect(outcome.detail).toBe('that service team is no longer in the directory.');
     expect((await found(strip))?.serviceTeamId).toBeNull();
   });
@@ -1106,7 +1106,7 @@ describe('an undo refuses when what it touched has moved', () => {
     expect(sockets).not.toBe('');
     const copy = await workItems.duplicate(strip, ownerId);
     if (!copy.ok) throw new Error('duplicate refused');
-    const copiedChild = (await rows()).find((row) => row.parentId === copy.result.id);
+    const copiedChild = (await rows()).find((row) => row.parentId === copy.value.id);
     if (copiedChild === undefined) throw new Error('the copy has no child');
     await workItems.patch(copiedChild.id, strangerId, { name: 'Sockets, revised' });
 
@@ -1319,7 +1319,7 @@ describe('restoring the edges that left the branch', () => {
     const outcome = await undone();
     expect(expectDone(outcome)).toBe('delete “Strip”');
     if (!outcome.ok) throw new Error('unreachable');
-    expect(outcome.result.detail).toBeNull();
+    expect(outcome.value.detail).toBeNull();
     expect(await edges()).toEqual([[strip, cable]]);
   });
 
@@ -1345,7 +1345,7 @@ describe('restoring the edges that left the branch', () => {
     if (!outcome.ok) throw new Error('unreachable');
     expect(await namesByPosition(null)).toEqual(['Strip']);
     expect(await edges()).toEqual([]);
-    expect(outcome.result.detail).toContain('without 1 dependency');
+    expect(outcome.value.detail).toContain('without 1 dependency');
   });
 });
 

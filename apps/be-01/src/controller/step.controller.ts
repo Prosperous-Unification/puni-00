@@ -38,7 +38,7 @@ export function stepController(auth: AuthService, steps: StepService) {
           set.status = statusFor(outcome.reason);
           return { error: outcome.reason };
         }
-        return { step: outcome.result };
+        return { step: outcome.value };
       },
       { ...signedIn, body: named },
     )
@@ -50,7 +50,7 @@ export function stepController(auth: AuthService, steps: StepService) {
           set.status = statusFor(outcome.reason);
           return { error: outcome.reason };
         }
-        return { step: outcome.result };
+        return { step: outcome.value };
       },
       { ...signedIn, body: named },
     )

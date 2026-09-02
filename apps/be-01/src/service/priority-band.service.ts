@@ -17,7 +17,7 @@ export interface PriorityBandServiceOptions {
 export type PriorityBandRefusal = 'not_found' | 'forbidden';
 
 export type PriorityBandOutcome =
-  | { ok: true; result: PriorityBand[] }
+  | { ok: true; value: PriorityBand[] }
   | { ok: false; reason: PriorityBandRefusal };
 
 /**
@@ -78,6 +78,6 @@ export class PriorityBandService {
     // either way.
     if (!written.ok) return { ok: false, reason: 'not_found' };
     await this.opts.broadcast.publish(projectId, { type: 'priority_bands_changed' });
-    return { ok: true, result: await this.opts.bands.listFor(projectId) };
+    return { ok: true, value: await this.opts.bands.listFor(projectId) };
   }
 }

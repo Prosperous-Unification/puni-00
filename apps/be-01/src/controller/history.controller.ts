@@ -62,7 +62,7 @@ export function historyController(auth: AuthService, history: HistoryService) {
         set.status = 404;
         return { error: outcome.reason };
       }
-      return { events: outcome.result };
+      return { events: outcome.value };
     },
     {
       caller: 'signed-in',

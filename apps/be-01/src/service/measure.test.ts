@@ -68,7 +68,7 @@ beforeEach(async () => {
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**

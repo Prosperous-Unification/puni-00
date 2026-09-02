@@ -41,7 +41,7 @@ export type StepState = 'in_progress' | 'done';
  * stored, for the reason every derived figure in this tool is: two spellings of
  * one fact is how "the item says done and a step has no actual" happens.
  */
-export type ItemState = 'not_started' | StepState;
+export type WorkItemState = 'not_started' | StepState;
 
 /** The two states a step may be stored in, in the order a face should offer them. */
 export const STEP_STATES: readonly StepState[] = ['in_progress', 'done'];
@@ -74,7 +74,7 @@ export function isStepState(value: unknown): value is StepState {
  * both routes reach the same answer, so there is no ordering of the tree that
  * changes what a branch reads as.
  */
-export function agree(a: ItemState, b: ItemState): ItemState {
+export function agree(a: WorkItemState, b: WorkItemState): WorkItemState {
   return a === b ? a : 'in_progress';
 }
 
@@ -88,8 +88,8 @@ export function agree(a: ItemState, b: ItemState): ItemState {
  * unestimated step absent instead of zero: an empty statement is not a
  * statement.
  */
-export function stateOf(states: Iterable<ItemState>): ItemState {
-  let answer: ItemState | null = null;
+export function stateOf(states: Iterable<WorkItemState>): WorkItemState {
+  let answer: WorkItemState | null = null;
   for (const state of states) answer = answer === null ? state : agree(answer, state);
   return answer ?? NOT_STARTED;
 }

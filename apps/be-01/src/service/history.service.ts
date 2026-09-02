@@ -5,7 +5,7 @@ export interface HistoryServiceOptions {
   events: PlanEventStore;
 }
 
-export type HistoryOutcome = { ok: true; result: PlanEvent[] } | { ok: false; reason: 'not_found' };
+export type HistoryOutcome = { ok: true; value: PlanEvent[] } | { ok: false; reason: 'not_found' };
 
 /**
  * The plan's history, read.
@@ -34,6 +34,6 @@ export class HistoryService {
   async read(projectId: string, filter: PlanEventFilter): Promise<HistoryOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    return { ok: true, result: await this.opts.events.listFor(projectId, filter) };
+    return { ok: true, value: await this.opts.events.listFor(projectId, filter) };
   }
 }

@@ -174,7 +174,7 @@ export function projectController(
           set.status = statusForRefusal(outcome.reason, 422);
           return { error: outcome.reason };
         }
-        return { project: outcome.result };
+        return { project: outcome.value };
       },
       { ...signedIn, body: projectPatch },
     );

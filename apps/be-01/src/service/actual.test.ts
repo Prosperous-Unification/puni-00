@@ -85,7 +85,7 @@ function stored(
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -196,8 +196,8 @@ describe('recording actual days', () => {
     const strip = await add('Strip');
     await service.setActual(strip, OWNER, DEV, 8);
 
-    expect(await service.clearActual(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
-    expect(await service.clearActual(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearActual(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
+    expect(await service.clearActual(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
 
     // Back to absence, which is the state the request asked for — never a zero.
     expect((await shown()).get('Strip')).toEqual({});

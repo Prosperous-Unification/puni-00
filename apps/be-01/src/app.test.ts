@@ -51,7 +51,7 @@ async function signedInProbe(): Promise<{
 
   counts.authenticated = 0;
   counts.lookedUp = 0;
-  return { auth, token: session.result.token, counts };
+  return { auth, token: session.value.token, counts };
 }
 
 function appWith(auth: AuthService): ReturnType<typeof buildApp> {

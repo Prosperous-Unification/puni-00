@@ -27,7 +27,7 @@ export interface StepServiceOptions {
 /** Why a step could not be added or renamed. All four are states, not faults. */
 export type StepRefusal = 'not_found' | 'forbidden' | 'name_required' | 'taken';
 
-export type StepOutcome = { ok: true; result: Step } | { ok: false; reason: StepRefusal };
+export type StepOutcome = { ok: true; value: Step } | { ok: false; reason: StepRefusal };
 
 /** What a removal would take with it, as the refusal reports it. */
 export interface StepInUse {
@@ -142,7 +142,7 @@ export class StepService {
     );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
-    return { ok: true, result: written.step };
+    return { ok: true, value: written.step };
   }
 
   async rename(
@@ -159,7 +159,7 @@ export class StepService {
     const written = await this.opts.steps.rename(stepId, clean, this.clock.stampFor(actorId));
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
-    return { ok: true, result: written.step };
+    return { ok: true, value: written.step };
   }
 
   /**

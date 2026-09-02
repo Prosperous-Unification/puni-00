@@ -80,7 +80,7 @@ const stepNamed = async (name: string, inProject = projectId): Promise<Step> => 
 const added = async (name: string, teamIds: readonly string[]): Promise<Person> => {
   const outcome = await directory.addPerson(ownerId, name, teamIds);
   if (!outcome.ok) throw new Error(`the fixture person was refused: ${outcome.reason}`);
-  return outcome.result;
+  return outcome.value;
 };
 
 /** A second project with one work item, so a team can be held in two at once. */
@@ -150,7 +150,7 @@ describe('DirectoryService.patchTeam', () => {
     // the retired column would show up.
     expect(outcome).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Payments', serviceIds: [] },
+      value: { id: platform.id, name: 'Payments', serviceIds: [] },
     });
     expect(await store.listTeams()).toEqual([
       { id: platform.id, name: 'Payments', serviceIds: [] },
@@ -192,7 +192,7 @@ describe('DirectoryService.patchTeam', () => {
 
     expect(await directory.patchTeam(platform.id, ownerId, { name: 'Platform' })).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Platform', serviceIds: [] },
+      value: { id: platform.id, name: 'Platform', serviceIds: [] },
     });
   });
 
@@ -228,7 +228,7 @@ describe('DirectoryService.patchTeam', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      result: {
+      value: {
         id: platform.id,
         name: 'Platform',
         serviceIds: [auth.id, payments.id].sort(),
@@ -305,7 +305,7 @@ describe('DirectoryService.patchPerson', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      result: { id: katId, name: 'Katrin', kind: 'person', teamIds: [platformId] },
+      value: { id: katId, name: 'Katrin', kind: 'person', teamIds: [platformId] },
     });
     expect(await store.assignmentsOf(['design'])).toEqual([
       { workItemId: 'design', stepId: devId, personId: katId },
@@ -336,7 +336,7 @@ describe('DirectoryService.patchPerson', () => {
     });
 
     if (!outcome.ok) throw new Error(`the patch was refused: ${outcome.reason}`);
-    expect([...outcome.result.teamIds].sort()).toEqual([payments.id, support.id].sort());
+    expect([...outcome.value.teamIds].sort()).toEqual([payments.id, support.id].sort());
     // In full: `Platform` is gone rather than kept alongside the two named.
     const stored = (await store.listPeople()).find((each) => each.id === katId);
     expect([...(stored?.teamIds ?? [])].sort()).toEqual([payments.id, support.id].sort());
@@ -353,7 +353,7 @@ describe('DirectoryService.patchPerson', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      result: { id: katId, name: 'Kat', kind: 'person', teamIds: [payments.id] },
+      value: { id: katId, name: 'Kat', kind: 'person', teamIds: [payments.id] },
     });
   });
 
@@ -362,7 +362,7 @@ describe('DirectoryService.patchPerson', () => {
 
     expect(await directory.patchPerson(katId, ownerId, { teamIds: [] })).toEqual({
       ok: true,
-      result: { id: katId, name: 'Kat', kind: 'person', teamIds: [] },
+      value: { id: katId, name: 'Kat', kind: 'person', teamIds: [] },
     });
   });
 
@@ -398,13 +398,13 @@ describe('DirectoryService.patchPerson', () => {
 
     expect(await directory.patchPerson(katId, ownerId, { kind: 'agent' })).toEqual({
       ok: true,
-      result: { id: katId, name: 'Kat', kind: 'agent', teamIds: [platformId] },
+      value: { id: katId, name: 'Kat', kind: 'agent', teamIds: [platformId] },
     });
     // A kind alone is a whole patch: it is not `nothing_to_change`, and the
     // memberships it did not name survive it.
     expect(await directory.patchPerson(katId, ownerId, { kind: 'person' })).toEqual({
       ok: true,
-      result: { id: katId, name: 'Kat', kind: 'person', teamIds: [platformId] },
+      value: { id: katId, name: 'Kat', kind: 'person', teamIds: [platformId] },
     });
   });
 

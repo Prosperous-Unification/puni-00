@@ -57,7 +57,7 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
-  return outcome.result.id;
+  return outcome.value.id;
 }
 
 /**
@@ -187,7 +187,7 @@ describe('clearing estimates', () => {
 
     const outcome = await service.clearEstimate(strip, OWNER, DEV);
 
-    expect(outcome).toEqual({ ok: true, result: null });
+    expect(outcome).toEqual({ ok: true, value: null });
     expect((await shown()).get('Strip')).toEqual({ [QA]: days(4, 5, 6) });
   });
 
@@ -196,7 +196,7 @@ describe('clearing estimates', () => {
     // three boxes must not turn the second one into an error on screen.
     const strip = await add('Strip');
 
-    expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+    expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, value: null });
   });
 
   it('refuses a stranger on a restricted project, and clears nothing', async () => {

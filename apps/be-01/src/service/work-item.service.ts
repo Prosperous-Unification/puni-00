@@ -82,9 +82,9 @@ import {
   rollUp,
   rollUpActuals,
   rollUpFinals,
-  rollUpItemStates,
   rollUpMeasures,
   rollUpProgress,
+  rollUpWorkItemStates,
   workedStepsOf,
 } from './roll-up';
 
@@ -623,7 +623,7 @@ export type WorkItemRefusal =
    */
   | 'not_before_reason_needs_a_date';
 
-export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
+export type WorkItemOutcome<T> = { ok: true; value: T } | { ok: false; reason: WorkItemRefusal };
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -779,7 +779,7 @@ export interface UndoDone {
  * supplies its opening.
  */
 export type UndoOutcome =
-  | { ok: true; result: UndoDone }
+  | { ok: true; value: UndoDone }
   | {
       ok: false;
       reason: UndoRefusal;
@@ -1321,9 +1321,9 @@ export class WorkItemService {
     // the estimate to put it here. See `rollUpProgress`.
     const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
     // The row's own reading, folded over its **children** rather than over its
-    // rolled-up steps — see `rollUpItemStates` for why the two differ and which
+    // rolled-up steps — see `rollUpWorkItemStates` for why the two differ and which
     // one is true.
-    const itemStates = rollUpItemStates(rows, statedTotals);
+    const itemStates = rollUpWorkItemStates(rows, statedTotals);
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
     // graph as they read it. If one ever lands, every read of this project must
@@ -1727,7 +1727,7 @@ export class WorkItemService {
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
     });
-    return { ok: true, result: workItem };
+    return { ok: true, value: workItem };
   }
 
   async patch(
@@ -1743,7 +1743,7 @@ export class WorkItemService {
     // tag off" for a row that had some — an undo that loses exactly the data
     // this field's whole design is about — so a row the plan read cannot see is
     // `not_found` instead, which is what it is.
-    const before = context.result.rows.find((row) => row.id === id);
+    const before = context.value.rows.find((row) => row.id === id);
     if (before === undefined) return { ok: false, reason: 'not_found' };
     // A row with children has no slices of its own — `slicesOf` skips it — so a
     // parallelism stored there would be a number on screen that decides
@@ -1759,7 +1759,7 @@ export class WorkItemService {
     // children` failed on `Expected: 400, Received: 200` — the parent took the
     // write and came back carrying a number no slice of that plan reads;
     // watched 2026-08-12.
-    if (patch.maxParallel !== undefined && context.result.rows.some((row) => row.parentId === id)) {
+    if (patch.maxParallel !== undefined && context.value.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
     }
     const stamp = this.clock.stampFor(actorId);
@@ -1782,11 +1782,11 @@ export class WorkItemService {
           forward: { do: 'patch', workItemId: id, patch },
           inverse: { do: 'patch', workItemId: id, patch: revertTo(before, patch) },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: updated };
+    return { ok: true, value: updated };
   }
 
   /**
@@ -1806,7 +1806,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before =
@@ -1830,16 +1830,16 @@ export class WorkItemService {
         forward: { do: 'assign', workItemId: id, stepId, personId },
         inverse: { do: 'assign', workItemId: id, stepId, personId: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     // A frozen number has left the tool — it is in someone's ticket. Moving the
     // row would either break that reference or quietly stop it meaning what it
@@ -1883,7 +1883,7 @@ export class WorkItemService {
       touched: [id],
       before: rows,
     });
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -1914,7 +1914,7 @@ export class WorkItemService {
   async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     // Ancestors-first, which is the order the copies have to be written in:
     // `parent_id` references a row that must already be there.
@@ -2088,7 +2088,7 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, result: { id: copyOf(id) } };
+    return { ok: true, value: { id: copyOf(id) } };
   }
 
   async remove(
@@ -2098,7 +2098,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const children = rows
       .filter((row) => row.parentId === id)
@@ -2309,7 +2309,7 @@ export class WorkItemService {
         touched: handedUp.map((each) => each.workItemId),
         before: rows,
       });
-      return { ok: true, result: null };
+      return { ok: true, value: null };
     }
 
     const formerGroup = rows
@@ -2388,7 +2388,7 @@ export class WorkItemService {
       touched: promoted.map((each) => each.id),
       before: rows,
     });
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2425,14 +2425,14 @@ export class WorkItemService {
         before: rows,
       });
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Returns one work item to deriving, which is what lets it move again. */
   async unfreeze(id: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }], stamp);
     await this.announceTree(workItem.projectId);
@@ -2448,10 +2448,10 @@ export class WorkItemService {
           updates: [{ id, frozenNumber: workItem.frozenNumber }],
         },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
@@ -2486,7 +2486,7 @@ export class WorkItemService {
         before: rows,
       });
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2504,7 +2504,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -2527,10 +2527,10 @@ export class WorkItemService {
             ? { do: 'clear_estimate', workItemId: id, stepId }
             : { do: 'set_estimate', workItemId: id, stepId, days: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2556,7 +2556,7 @@ export class WorkItemService {
   async clearEstimate(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedTrio(workItem.projectId, id, stepId);
     // A delete has no column to stamp, so this stamp is the journal entry's
     // alone — built here rather than beside the {@link record} call because the
@@ -2576,11 +2576,11 @@ export class WorkItemService {
           forward: { do: 'clear_estimate', workItemId: id, stepId },
           inverse: { do: 'set_estimate', workItemId: id, stepId, days: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2612,7 +2612,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -2642,10 +2642,10 @@ export class WorkItemService {
             ? { do: 'clear_actual', workItemId: id, stepId }
             : { do: 'set_actual', workItemId: id, stepId, days: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2661,7 +2661,7 @@ export class WorkItemService {
   async clearActual(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedActual(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.actuals.remove(id, stepId, stamp);
@@ -2679,11 +2679,11 @@ export class WorkItemService {
           forward: { do: 'clear_actual', workItemId: id, stepId },
           inverse: { do: 'set_actual', workItemId: id, stepId, days: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2725,7 +2725,7 @@ export class WorkItemService {
     if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -2757,10 +2757,10 @@ export class WorkItemService {
             ? { do: 'clear_measure', workItemId: id, stepId, metric }
             : { do: 'set_measure', workItemId: id, stepId, metric, value: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2784,7 +2784,7 @@ export class WorkItemService {
     if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
@@ -2801,11 +2801,11 @@ export class WorkItemService {
           forward: { do: 'clear_measure', workItemId: id, stepId, metric },
           inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2843,7 +2843,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows, workItem } = context.result;
+    const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -2872,10 +2872,10 @@ export class WorkItemService {
             ? { do: 'clear_progress', workItemId: id, stepId }
             : { do: 'set_progress', workItemId: id, stepId, state: before },
         touched: [id],
-        before: context.result.rows,
+        before: context.value.rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -2894,7 +2894,7 @@ export class WorkItemService {
   async clearProgress(id: string, actorId: string, stepId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem } = context.result;
+    const { workItem } = context.value;
     const before = await this.storedProgress(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.progress.remove(id, stepId, stamp);
@@ -2912,11 +2912,11 @@ export class WorkItemService {
           forward: { do: 'clear_progress', workItemId: id, stepId },
           inverse: { do: 'set_progress', workItemId: id, stepId, state: before },
           touched: [id],
-          before: context.result.rows,
+          before: context.value.rows,
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
@@ -2935,7 +2935,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const existing = await this.opts.dependencies.listByProject(workItem.projectId);
     // `rows` is this project's only, so a predecessor from another project is
@@ -2967,7 +2967,7 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /** Removing an edge that was not there is not an error; the state asked for is the state left. */
@@ -2978,7 +2978,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { workItem, rows } = context.result;
+    const { workItem, rows } = context.value;
 
     const existed = (await this.opts.dependencies.listByProject(workItem.projectId)).some(
       (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
@@ -3002,7 +3002,7 @@ export class WorkItemService {
         },
       );
     }
-    return { ok: true, result: null };
+    return { ok: true, value: null };
   }
 
   /**
@@ -3103,7 +3103,7 @@ export class WorkItemService {
     });
     await this.rebase(stack, entry, direction, preconditions.from, now);
     await this.announceTree(projectId);
-    return { ok: true, result: { done: payload.label, detail: applied.detail } };
+    return { ok: true, value: { done: payload.label, detail: applied.detail } };
   }
 
   /**
@@ -3971,6 +3971,6 @@ export class WorkItemService {
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
     const rows = await this.opts.workItems.listByProject(workItem.projectId);
-    return { ok: true, result: { workItem, project, rows } };
+    return { ok: true, value: { workItem, project, rows } };
   }
 }

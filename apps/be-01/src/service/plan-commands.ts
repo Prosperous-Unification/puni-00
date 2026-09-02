@@ -13,7 +13,7 @@ import type { WriteLock } from './write-lock';
  * the browser's `addTeam`/`renameTag` answer with the row, and a second read
  * for what the batch just wrote would be the round trip this route removes.
  */
-export interface BatchResult {
+export interface AppliedCommand {
   index: number;
   ref?: string;
   id?: string;
@@ -34,7 +34,7 @@ export interface BatchRefusal {
 }
 
 export type BatchOutcome =
-  | { ok: true; results: BatchResult[]; undoable: boolean; redoable: boolean }
+  | { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean }
   | BatchRefusal;
 
 export interface PlanCommandRunnerOptions {
@@ -144,7 +144,7 @@ export class PlanCommandRunner {
     const { announcements } = this.opts;
     const done = await this.opts.lock.run(
       async (): Promise<{
-        applied: BatchOutcome | Collected<BatchResult[]>;
+        applied: BatchOutcome | Collected<AppliedCommand[]>;
         pending: HeldAnnouncement[];
       }> => {
         const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
@@ -162,7 +162,7 @@ export class PlanCommandRunner {
         const { workItems, transactions } = this.opts;
         transactions.begin();
         const held = await announcements.hold(
-          async (): Promise<BatchOutcome | Collected<BatchResult[]>> => {
+          async (): Promise<BatchOutcome | Collected<AppliedCommand[]>> => {
             try {
               const collected = await workItems.collect(() =>
                 this.applyAll(projectId, actorId, commands),
@@ -250,9 +250,9 @@ export class PlanCommandRunner {
     scope: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
-  ): Promise<BatchResult[]> {
+  ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
-    const results: BatchResult[] = [];
+    const results: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
       // A plan command in a batch with no project has nowhere to land.
       const projectId: string = (() => {
@@ -284,14 +284,14 @@ export class PlanCommandRunner {
         ...(given ?? []),
         ...(named ?? []).map((ref) => required(undefined, ref)),
       ];
-      const mint = (ref: string | undefined, created: string): BatchResult => {
+      const mint = (ref: string | undefined, created: string): AppliedCommand => {
         if (ref !== undefined) {
           if (refs.has(ref)) refuse('duplicate_ref');
           refs.set(ref, created);
         }
         return { index, ref, id: created };
       };
-      const plain = (): BatchResult => ({ index });
+      const plain = (): AppliedCommand => ({ index });
       const { workItems, directory, capacity, priorityBands } = this.opts;
       // A refusal's own fields ride along: `{ ok: false, reason: 'taken', name }`
       // becomes `detail: { name }`, `in_use`'s `usage` the same way.
@@ -304,13 +304,13 @@ export class PlanCommandRunner {
         delete rest['reason'];
         return Object.keys(rest).length === 0 ? undefined : rest;
       };
-      const reasonOf = <T>(outcome: { ok: true; result: T } | { ok: false; reason: string }): T =>
-        outcome.ok ? outcome.result : refuse(outcome.reason, detailOf(outcome));
-      const done = (outcome: { ok: true } | { ok: false; reason: string }): BatchResult => {
+      const reasonOf = <T>(outcome: { ok: true; value: T } | { ok: false; reason: string }): T =>
+        outcome.ok ? outcome.value : refuse(outcome.reason, detailOf(outcome));
+      const done = (outcome: { ok: true } | { ok: false; reason: string }): AppliedCommand => {
         if (!outcome.ok) refuse(outcome.reason, detailOf(outcome));
         return plain();
       };
-      const entity = (result: BatchResult, value: unknown): BatchResult => ({
+      const entity = (result: AppliedCommand, value: unknown): AppliedCommand => ({
         ...result,
         entity: value,
       });

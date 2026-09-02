@@ -12,16 +12,16 @@ import { type Clock, clockOf } from './clock';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
-export interface AuthResult {
+export interface SignedIn {
   token: string;
   user: { id: string; username: string };
 }
 
 export type RegisterOutcome =
-  | { ok: true; result: AuthResult }
+  | { ok: true; value: SignedIn }
   | { ok: false; reason: 'taken' | 'invalid' };
 
-export type LoginOutcome = { ok: true; result: AuthResult } | { ok: false; reason: 'invalid' };
+export type LoginOutcome = { ok: true; value: SignedIn } | { ok: false; reason: 'invalid' };
 
 export interface AuthServiceOptions {
   users: UserStore;
@@ -90,7 +90,7 @@ export class AuthService {
     const user: User = { id, username, passwordHash, createdAt: stamp.at };
     const created = await this.opts.users.create(user, stamp);
     if (created === null) return { ok: false, reason: 'taken' };
-    return { ok: true, result: await this.issue(created) };
+    return { ok: true, value: await this.issue(created) };
   }
 
   async login(username: string, password: string): Promise<LoginOutcome> {
@@ -104,7 +104,7 @@ export class AuthService {
     if (!matches || user === null || passwordHash === null || password.length > MAX_PASSWORD) {
       return { ok: false, reason: 'invalid' };
     }
-    return { ok: true, result: await this.issue(user) };
+    return { ok: true, value: await this.issue(user) };
   }
 
   /** Verifies a bearer token and resolves the user it names. */
@@ -162,7 +162,7 @@ export class AuthService {
     return this.opts.identities.resolveOidcIdentity(identity, { id }, stamp);
   }
 
-  private async issue(user: User): Promise<AuthResult> {
+  private async issue(user: User): Promise<SignedIn> {
     const issuedAt = Math.floor(this.clock.now() / 1000);
     const token = await new SignJWT({ username: user.username })
       .setProtectedHeader({ alg: 'HS256' })

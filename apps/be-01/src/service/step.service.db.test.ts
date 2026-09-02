@@ -144,19 +144,19 @@ describe('StepService.add', () => {
     const outcome = await steps.add(projectId, ownerId, 'Design');
 
     if (!outcome.ok) throw new Error(`add refused: ${outcome.reason}`);
-    expect(outcome.result.name).toBe('Design');
-    expect(outcome.result.projectId).toBe(projectId);
+    expect(outcome.value.name).toBe('Design');
+    expect(outcome.value.projectId).toBe(projectId);
     // The very row that was written, not a shape that resembles it: the event
     // carrying a different id from the answer is the failure worth catching.
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'step_added', step: outcome.result } },
+      { projectId, event: { type: 'step_added', step: outcome.value } },
     ]);
   });
 
   it('trims the name, and refuses one that is only spaces', async () => {
     const trimmed = await steps.add(projectId, ownerId, '  Design  ');
     if (!trimmed.ok) throw new Error(`add refused: ${trimmed.reason}`);
-    expect(trimmed.result.name).toBe('Design');
+    expect(trimmed.value.name).toBe('Design');
     expect(await steps.add(projectId, ownerId, '   ')).toEqual({
       ok: false,
       reason: 'name_required',
@@ -192,7 +192,7 @@ describe('StepService.rename', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      result: { id: qaId, projectId, name: 'Review', position: 20 },
+      value: { id: qaId, projectId, name: 'Review', position: 20 },
     });
     expect(broadcast.published).toEqual([
       {
