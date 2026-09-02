@@ -1,13 +1,14 @@
-import type { CapacityStore, ProjectStore, TeamCapacity, WriteStamp } from '../repository';
+import type { CapacityStore, ProjectStore, TeamCapacity } from '../repository';
 import type { Broadcaster } from './broadcast';
+import { type Clock, clockOf } from './clock';
 import { canEdit } from './project.service';
 
 export interface CapacityServiceOptions {
   projects: ProjectStore;
   capacity: CapacityStore;
   broadcast: Broadcaster;
-  /** The clock every {@link WriteStamp} this service builds is dated from. */
-  now?: () => number;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /** Why a capacity write did not happen. */
@@ -27,15 +28,10 @@ export type CapacityOutcome =
  * and this one is not (see {@link CapacityService.set}).
  */
 export class CapacityService {
-  private readonly now: () => number;
+  private readonly clock: Clock;
 
   constructor(private readonly opts: CapacityServiceOptions) {
-    this.now = opts.now ?? (() => Date.now());
-  }
-
-  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   listFor(projectId: string): Promise<TeamCapacity[]> {
@@ -86,7 +82,7 @@ export class CapacityService {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.capacity.set(projectId, serviceTeamId, size, stamp);
     // The store read both ids inside its own transaction, so this is the team
     // having gone between the two reads above and that write — or an id nothing

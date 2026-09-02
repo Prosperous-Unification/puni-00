@@ -12,7 +12,6 @@ import type {
   TeamWithServices,
   TouchedProjects,
   WorkItemType,
-  WriteStamp,
 } from '../repository';
 // The constant from `schema.ts`, not from `repository/index.ts`: that module is
 // type-only on purpose, and a value re-export there would pull drizzle into
@@ -21,6 +20,7 @@ import type {
 import { PERSON_KINDS } from '../repository/schema';
 import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
+import { type Clock, clockOf } from './clock';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
@@ -39,9 +39,8 @@ export interface DirectoryServiceOptions {
    * reloaded.
    */
   broadcast: Broadcaster;
-  newId?: () => string;
-  /** The clock every {@link WriteStamp} this service builds is dated from. */
-  now?: () => number;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /**
@@ -137,17 +136,10 @@ export type RemoveDirectoryOutcome =
  * directory is the case Dany asked for by name — see ADR 0012.
  */
 export class DirectoryService {
-  private readonly newId: () => string;
-  private readonly now: () => number;
+  private readonly clock: Clock;
 
   constructor(private readonly opts: DirectoryServiceOptions) {
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-    this.now = opts.now ?? (() => Date.now());
-  }
-
-  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   /** Every team **with the services it owns** — the map ships whole, design D4. */
@@ -163,7 +155,10 @@ export class DirectoryService {
     // every plan, and how many of them are at work at once is said per project
     // afterwards. The retired column is left at its default `NULL` by the
     // insert, which is what `capacity-per-project` D4 leaves it as.
-    return this.opts.directory.addTeam({ id: this.newId(), name: clean }, this.stampFor(actorId));
+    return this.opts.directory.addTeam(
+      { id: this.clock.newId(), name: clean },
+      this.clock.stampFor(actorId),
+    );
   }
 
   /**
@@ -204,7 +199,7 @@ export class DirectoryService {
         ...(clean === undefined ? {} : { name: clean }),
         ...(patch.serviceIds === undefined ? {} : { serviceIds: patch.serviceIds }),
       },
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!written.ok) {
       // `clean` is defined on this branch — `taken` is the name index refusing,
@@ -235,14 +230,17 @@ export class DirectoryService {
   async addTag(actorId: string, name: string): Promise<Tag | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    return this.opts.directory.addTag({ id: this.newId(), name: clean }, this.stampFor(actorId));
+    return this.opts.directory.addTag(
+      { id: this.clock.newId(), name: clean },
+      this.clock.stampFor(actorId),
+    );
   }
 
   /** Renames a tag, keeping the name unique across the deployment — `renameTeam`'s rules. */
   async renameTag(tagId: string, actorId: string, name: string): Promise<DirectoryOutcome<Tag>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const written = await this.opts.directory.renameTag(tagId, clean, this.stampFor(actorId));
+    const written = await this.opts.directory.renameTag(tagId, clean, this.clock.stampFor(actorId));
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
@@ -271,7 +269,11 @@ export class DirectoryService {
       const seen = directoryUsageOfTag(await this.opts.directory.usageOfTag(tagId), tagId);
       if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
-    const removed = await this.opts.directory.removeTag(tagId, cascade, this.stampFor(actorId));
+    const removed = await this.opts.directory.removeTag(
+      tagId,
+      cascade,
+      this.clock.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTag(removed.usage, tagId) };
@@ -293,8 +295,8 @@ export class DirectoryService {
     const clean = cleanName(name);
     if (clean === null) return null;
     return this.opts.directory.addWorkItemType(
-      { id: this.newId(), name: clean },
-      this.stampFor(actorId),
+      { id: this.clock.newId(), name: clean },
+      this.clock.stampFor(actorId),
     );
   }
 
@@ -312,7 +314,7 @@ export class DirectoryService {
     const written = await this.opts.directory.renameWorkItemType(
       typeId,
       clean,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
@@ -346,7 +348,7 @@ export class DirectoryService {
     const removed = await this.opts.directory.removeWorkItemType(
       typeId,
       cascade,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
@@ -380,8 +382,8 @@ export class DirectoryService {
     const clean = cleanName(name);
     if (clean === null) return null;
     return this.opts.directory.addService(
-      { id: this.newId(), name: clean },
-      this.stampFor(actorId),
+      { id: this.clock.newId(), name: clean },
+      this.clock.stampFor(actorId),
     );
   }
 
@@ -396,7 +398,7 @@ export class DirectoryService {
     const written = await this.opts.directory.renameService(
       serviceId,
       clean,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
@@ -435,7 +437,7 @@ export class DirectoryService {
     const removed = await this.opts.directory.removeService(
       serviceId,
       cascade,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
@@ -471,9 +473,9 @@ export class DirectoryService {
     // One stamp for the person and the memberships alike: they are one create in
     // one transaction, as the comment below says, so they are one instant too.
     const written = await this.opts.directory.addPerson(
-      { id: this.newId(), name: clean },
+      { id: this.clock.newId(), name: clean },
       teamIds,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     // The whole create, or none of it: a person made without the membership
     // that was asked for is a row somebody would have to notice was wrong.
@@ -519,7 +521,7 @@ export class DirectoryService {
         ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
         ...(patch.kind === undefined ? {} : { kind: patch.kind }),
       },
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!written.ok) {
       // `clean` is defined on this branch — `taken` is the name index refusing,
@@ -581,7 +583,7 @@ export class DirectoryService {
     const removed = await this.opts.directory.removePerson(
       personId,
       cascade,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
@@ -625,7 +627,11 @@ export class DirectoryService {
     }
     // After the unconfirmed refusal, which writes nothing: the act is the
     // removal, and a request that only reported what would be lost is not one.
-    const removed = await this.opts.directory.removeTeam(teamId, cascade, this.stampFor(actorId));
+    const removed = await this.opts.directory.removeTeam(
+      teamId,
+      cascade,
+      this.clock.stampFor(actorId),
+    );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTeam(removed.usage, teamId) };

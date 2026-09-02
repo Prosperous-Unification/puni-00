@@ -1,10 +1,22 @@
+import type { EventLogRepo } from '../repository/event-log';
 import { type Broadcaster, type ProjectEvent, subscriptionFor } from './broadcast';
-import type { EventSequencer } from './event-sequencer';
+import { type Clock, clockOf } from './clock';
 import type { PushClient } from './push-client';
 import type { ReplayBuffer } from './replay-buffer';
 
 export interface GatewayBroadcasterOptions {
-  sequencer: EventSequencer;
+  /**
+   * The durable log, written straight rather than through a wrapper.
+   *
+   * `EventSequencer` stood here until 2026-09-02 and did nothing but pass the
+   * two calls through, reading a clock on the way — which is what a
+   * {@link Clock} is for. The sequence numbers were always the log's own, out of
+   * `event_sequencer` in one statement (see `DrizzleEventLogRepo.recordEvent`);
+   * nothing about them was ever this layer's.
+   */
+  eventLog: EventLogRepo;
+  /** The instant each event is recorded at — see {@link Clock}. */
+  clock?: Clock;
   push: PushClient;
   /**
    * The same buffer the replay orchestrator reads. Required: a broadcaster that
@@ -27,15 +39,19 @@ export interface GatewayBroadcasterOptions {
  * the caller their edit did not happen when it did.
  */
 export class GatewayBroadcaster implements Broadcaster {
-  constructor(private readonly opts: GatewayBroadcasterOptions) {}
+  private readonly clock: Clock;
+
+  constructor(private readonly opts: GatewayBroadcasterOptions) {
+    this.clock = opts.clock ?? clockOf();
+  }
 
   latestSeq(projectId: string): Promise<number> {
-    return this.opts.sequencer.latestSeq(subscriptionFor(projectId));
+    return this.opts.eventLog.latestSeq(subscriptionFor(projectId));
   }
 
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     const subscription = subscriptionFor(projectId);
-    const recorded = await this.opts.sequencer.recordEvent(subscription, event);
+    const recorded = await this.opts.eventLog.recordEvent(subscription, event, this.clock.now());
     this.opts.buffer.record(subscription, recorded.seq, event);
     try {
       await this.opts.push.push({ subscription, seq: recorded.seq, message: event });

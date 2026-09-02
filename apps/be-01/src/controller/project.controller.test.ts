@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { AuthService } from '../service/auth.service';
+import { clockOf } from '../service/clock';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
@@ -43,10 +44,12 @@ function buildHarness(options: { writeOnly?: boolean } = {}) {
   let tick = 0;
   const projects = new ProjectService({
     projects: projectStore,
-    now: () => {
-      tick += 1;
-      return tick;
-    },
+    clock: clockOf({
+      now: () => {
+        tick += 1;
+        return tick;
+      },
+    }),
   });
   const app = buildApp({
     directory: testDirectoryService(),

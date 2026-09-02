@@ -62,3 +62,13 @@ The audit columns are nullable forever. Additive-only forward migrations forbid
 `NOT NULL` without a default on a populated table, and a default would record an
 author who did not write the row — R5's "never convert an unknown into a
 default". A row from before the migration has no author, and its type says so.
+
+The stamp is still an **argument** at every store call, and it is built by one
+collaborator rather than by each service. Seven services held an identical
+`private stampFor(actorId)` over an injected `now()`; since 2026-09-02 there is
+one `Clock` in `apps/be-01/src/service/clock.ts`, built once in `services.ts`
+and handed to all seven. This does not weaken anything above: the compiler still
+refuses a store method whose actor is unnamed, the value still comes from an
+injected clock rather than from SQLite or from drizzle, and "one act, one
+instant" is now one implementation instead of seven promises about seven
+objects. What changed is only where the sentence lives.

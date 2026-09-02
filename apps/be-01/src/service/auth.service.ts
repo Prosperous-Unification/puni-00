@@ -7,7 +7,8 @@ import {
 } from '@wbs/auth';
 import { jwtVerify, SignJWT } from 'jose';
 
-import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../repository';
+import type { OidcIdentityStore, User, UserStore } from '../repository';
+import { type Clock, clockOf } from './clock';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
@@ -37,8 +38,8 @@ export interface AuthServiceOptions {
    * a gateway bug rather than a configuration mismatch.
    */
   jwtKey: string;
-  now?: () => number;
-  newId?: () => string;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
   verifyPassword?: (password: string, hash: string) => Promise<boolean>;
 }
 
@@ -55,29 +56,24 @@ const MIN_PASSWORD = 8;
 // to make registration expensive for everyone else.
 const MAX_PASSWORD = 200;
 
+/**
+ * Registration and sign-in.
+ *
+ * The only service whose acts create the account they are the act **of**: both
+ * `register` and the first OIDC login pass the id they are about to mint as the
+ * stamp's actor, so the account is its own author. Every other service is
+ * handed an actor by its controller.
+ */
 export class AuthService {
   private readonly key: Uint8Array;
-  private readonly now: () => number;
-  private readonly newId: () => string;
+  private readonly clock: Clock;
   private readonly verifyPassword: (password: string, hash: string) => Promise<boolean>;
 
   constructor(private readonly opts: AuthServiceOptions) {
     this.key = new TextEncoder().encode(opts.jwtKey);
-    this.now = opts.now ?? (() => Date.now());
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
+    this.clock = opts.clock ?? clockOf();
     this.verifyPassword =
       opts.verifyPassword ?? ((password, hash) => Bun.password.verify(password, hash));
-  }
-
-  /**
-   * The one stamp an act carries — see {@link WriteStamp}; built once per act.
-   *
-   * Both of this service's acts create the account they are the act of, so the
-   * `actorId` they pass is the id they are about to mint: the account is its own
-   * author. Every other service is handed an actor by its controller.
-   */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
   }
 
   async register(username: string, password: string): Promise<RegisterOutcome> {
@@ -89,8 +85,8 @@ export class AuthService {
     // The act begins here, after every refusal and after the hash: argon2id
     // takes long enough that a stamp taken before it would date the row from
     // when the request arrived rather than from when the row was made.
-    const id = this.newId();
-    const stamp = this.stampFor(id);
+    const id = this.clock.newId();
+    const stamp = this.clock.stampFor(id);
     const user: User = { id, username, passwordHash, createdAt: stamp.at };
     const created = await this.opts.users.create(user, stamp);
     if (created === null) return { ok: false, reason: 'taken' };
@@ -161,13 +157,13 @@ export class AuthService {
     if (this.opts.identities === undefined) {
       throw new Error('OIDC identity store is not configured');
     }
-    const id = this.newId();
-    const stamp = this.stampFor(id);
+    const id = this.clock.newId();
+    const stamp = this.clock.stampFor(id);
     return this.opts.identities.resolveOidcIdentity(identity, { id }, stamp);
   }
 
   private async issue(user: User): Promise<AuthResult> {
-    const issuedAt = Math.floor(this.now() / 1000);
+    const issuedAt = Math.floor(this.clock.now() / 1000);
     const token = await new SignJWT({ username: user.username })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(user.id)

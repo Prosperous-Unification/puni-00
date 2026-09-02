@@ -31,7 +31,6 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import type { Broadcaster } from './broadcast';
-import { EventSequencer } from './event-sequencer';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ProjectService } from './project.service';
 import { PushClient } from './push-client';
@@ -603,7 +602,7 @@ describe('step events', () => {
       projects: projectStore,
       steps: stepStore,
       broadcast: new GatewayBroadcaster({
-        sequencer: new EventSequencer(eventLog),
+        eventLog,
         buffer,
         // Nowhere to push, deliberately: the replay must come from what was
         // recorded, not from a delivery that happened to succeed.

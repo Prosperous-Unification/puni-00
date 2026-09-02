@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { inMemoryEventLog } from '../testing/replay-fixture';
 import type { ProjectEvent } from './broadcast';
-import { EventSequencer } from './event-sequencer';
+import { clockOf } from './clock';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { type PushClient, PushFailed } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
@@ -29,7 +29,8 @@ function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
   const { pushed, client } = fakePush(mode);
   const failures: string[] = [];
   const broadcaster = new GatewayBroadcaster({
-    sequencer: new EventSequencer(log, () => 1_000),
+    eventLog: log,
+    clock: clockOf({ now: () => 1_000 }),
     buffer,
     push: client,
     onPushFailed: (_err, subscription) => failures.push(subscription),

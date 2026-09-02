@@ -1,4 +1,4 @@
-import type { ProjectStore, Step, StepStore, StepUsageRows, WriteStamp } from '../repository';
+import type { ProjectStore, Step, StepStore, StepUsageRows } from '../repository';
 // Imported from the module that owns the rule rather than through the barrel:
 // the transaction in that file is the other caller, and the two must not drift
 // again. `event-log.ts` and `migrate-down.ts` already keep their own exports
@@ -7,6 +7,7 @@ import { stepIsInUse } from '../repository/step';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
+import { type Clock, clockOf } from './clock';
 import { canEdit } from './project.service';
 
 export interface StepServiceOptions {
@@ -19,9 +20,8 @@ export interface StepServiceOptions {
    * somebody reloaded.
    */
   broadcast: Broadcaster;
-  newId?: () => string;
-  /** The clock every {@link WriteStamp} this service builds is dated from. */
-  now?: () => number;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -121,17 +121,10 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
  * from inside the publish were still `Dev, QA`; watched 2026-08-08.
  */
 export class StepService {
-  private readonly newId: () => string;
-  private readonly now: () => number;
+  private readonly clock: Clock;
 
   constructor(private readonly opts: StepServiceOptions) {
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-    this.now = opts.now ?? (() => Date.now());
-  }
-
-  /** The one stamp an act carries — see {@link WriteStamp}; built once per act. */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   async add(projectId: string, actorId: string, name: string): Promise<StepOutcome> {
@@ -144,8 +137,8 @@ export class StepService {
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
-      { id: this.newId(), projectId, name: clean },
-      this.stampFor(actorId),
+      { id: this.clock.newId(), projectId, name: clean },
+      this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
@@ -163,7 +156,7 @@ export class StepService {
     const gate = await this.gate(projectId, stepId, actorId);
     if (!gate.ok) return gate;
 
-    const written = await this.opts.steps.rename(stepId, clean, this.stampFor(actorId));
+    const written = await this.opts.steps.rename(stepId, clean, this.clock.stampFor(actorId));
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, result: written.step };
@@ -217,7 +210,7 @@ export class StepService {
       projectId,
       stepId,
       cascade,
-      this.stampFor(actorId),
+      this.clock.stampFor(actorId),
     );
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };

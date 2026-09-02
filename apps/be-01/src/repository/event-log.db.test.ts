@@ -56,3 +56,28 @@ describe('DrizzleEventLogRepo.latestSeq', () => {
     expect(await repo.oldestSeq('project:a')).toBe(1);
   });
 });
+
+/**
+ * The two claims `EventSequencer`'s own suite made until 2026-09-02, moved
+ * here with the class deleted: they were always this repository's, asserted
+ * through a pass-through that added a clock read and nothing else.
+ */
+describe('DrizzleEventLogRepo.recordEvent', () => {
+  it('numbers each subscription from its own zero', async () => {
+    const a1 = await repo.recordEvent('project:a', { v: 1 }, 1_000);
+    const a2 = await repo.recordEvent('project:a', { v: 2 }, 1_000);
+    const b1 = await repo.recordEvent('project:b', { v: 1 }, 1_000);
+
+    expect(a1.seq).toBe(0);
+    expect(a2.seq).toBe(1);
+    expect(b1.seq).toBe(0);
+  });
+
+  it('stores the message and the instant it was handed', async () => {
+    await repo.recordEvent('project:a', { hello: 'world' }, 5_000);
+
+    expect(await repo.rangeSince('project:a', -1)).toEqual([
+      { subscription: 'project:a', seq: 0, message: { hello: 'world' }, createdAt: 5_000 },
+    ]);
+  });
+});

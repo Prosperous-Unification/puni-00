@@ -64,6 +64,7 @@ import { isForeignKeyViolation } from '../repository/constraint';
 import { MEASURE_METRICS } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
+import { type Clock, clockOf } from './clock';
 import {
   type CompensatingCommand,
   quoteName,
@@ -742,8 +743,8 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
-  newId?: () => string;
-  now?: () => number;
+  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
+  clock?: Clock;
 }
 
 /** Why an undo or a redo did not happen. */
@@ -1087,28 +1088,13 @@ export interface Recording {
 }
 
 export class WorkItemService {
-  private readonly newId: () => string;
-  private readonly now: () => number;
+  private readonly clock: Clock;
 
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
 
   constructor(private readonly opts: WorkItemServiceOptions) {
-    this.newId = opts.newId ?? (() => crypto.randomUUID());
-    this.now = opts.now ?? (() => Date.now());
-  }
-
-  /**
-   * The one stamp an act carries — see {@link WriteStamp}; built once per act.
-   *
-   * This service is where the discipline was already kept by hand: {@link record}
-   * read `this.now()` once for the journal entry and the plan event, "because two
-   * `now()` calls would let one act carry two timestamps". The stamp is that
-   * sentence made the type system's, and it now covers the rows the act wrote as
-   * well as the two it recorded.
-   */
-  private stampFor(actorId: string): WriteStamp {
-    return { at: this.now(), by: actorId };
+    this.clock = opts.clock ?? clockOf();
   }
 
   /**
@@ -1593,9 +1579,9 @@ export class WorkItemService {
     // Past every refusal, so nothing is stamped for a request that wrote
     // nothing. One stamp for the row, for the four hand-downs below it and for
     // the journal entry: a create and the estimates it moves are one act.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const workItem: WorkItem = {
-      id: this.newId(),
+      id: this.clock.newId(),
       projectId,
       parentId: input.parentId,
       position: placed.position,
@@ -1776,7 +1762,7 @@ export class WorkItemService {
     if (patch.maxParallel !== undefined && context.result.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
     }
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.workItems.patch(id, patch, stamp);
     if (!written.ok) return { ok: false, reason: written.reason };
     const updated = written.workItem;
@@ -1826,7 +1812,7 @@ export class WorkItemService {
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.stepId === stepId)
         ?.personId ?? null;
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const assigned = await this.writeNamingStep(workItem.projectId, stepId, () =>
       this.opts.directory.assign(id, stepId, personId, stamp),
     );
@@ -1883,7 +1869,7 @@ export class WorkItemService {
 
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
@@ -1935,7 +1921,7 @@ export class WorkItemService {
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
 
-    const newIds = new Map(originals.map((originalId) => [originalId, this.newId()]));
+    const newIds = new Map(originals.map((originalId) => [originalId, this.clock.newId()]));
     /**
      * The copy of one original. Throws rather than defaulting: an id that was
      * not copied means the map and the subtree disagree, and carrying the
@@ -2010,7 +1996,7 @@ export class WorkItemService {
     const copiedEdges = edges
       .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
       .map((edge) => ({
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId: edge.projectId,
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
@@ -2019,7 +2005,7 @@ export class WorkItemService {
     // One stamp for six tables: the copy is one transaction and one act, so
     // every row it writes — work items, estimates, measures, assignments, edges
     // and the respacing of the originals' siblings — carries one instant.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.subtrees.insertSubtree(
       {
         rows: copies,
@@ -2124,7 +2110,7 @@ export class WorkItemService {
     // Before the branch rather than inside each of them: whichever of the two a
     // delete takes, it is one act, and the hand-ups it writes on the surviving
     // parent belong to the same instant as the removal itself.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const label = `delete ${quoteName(workItem.name)}`;
     const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
     // Read before anything is deleted, exactly like the estimates and the
@@ -2423,7 +2409,7 @@ export class WorkItemService {
     const updates = rows
       .filter((row) => row.frozenNumber === null)
       .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(updates, stamp);
     await this.announceTree(projectId);
     // A freeze that pinned nothing — every number was already written down —
@@ -2447,7 +2433,7 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }], stamp);
     await this.announceTree(workItem.projectId);
     await this.record(
@@ -2475,7 +2461,7 @@ export class WorkItemService {
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.workItems.setFrozenNumbers(
       frozen.map((row) => ({
         id: row.id,
@@ -2523,7 +2509,7 @@ export class WorkItemService {
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp),
     );
@@ -2575,7 +2561,7 @@ export class WorkItemService {
     // A delete has no column to stamp, so this stamp is the journal entry's
     // alone — built here rather than beside the {@link record} call because the
     // act begins at the write, not at the recording of it.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.estimates.remove(id, stepId, stamp);
     await this.announceTree(workItem.projectId);
     // Clearing a trio that was not there changed nothing — the call is
@@ -2631,7 +2617,7 @@ export class WorkItemService {
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedActual(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `recordedAt` off the act's own stamp: the day this was recorded and the
       // day the row was written are the same day, and reading the clock twice
@@ -2677,7 +2663,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.result;
     const before = await this.storedActual(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.actuals.remove(id, stepId, stamp);
     await this.announceTree(workItem.projectId);
     // Nothing was stored, so nothing changed and there is nothing to put back —
@@ -2744,7 +2730,7 @@ export class WorkItemService {
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
       this.opts.measures.set(
@@ -2800,7 +2786,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.result;
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
     await this.announceTree(workItem.projectId);
     // Nothing was stored in this metric, so nothing changed and there is
@@ -2862,7 +2848,7 @@ export class WorkItemService {
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedProgress(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
       // `statedAt` off the act's own stamp — {@link setActual}'s reading of
       // `recordedAt`, in this method's tense.
@@ -2910,7 +2896,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.result;
     const before = await this.storedProgress(workItem.projectId, id, stepId);
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.progress.remove(id, stepId, stamp);
     await this.announceTree(workItem.projectId);
     // Nothing was stated, so nothing changed and there is nothing to put back —
@@ -2958,10 +2944,10 @@ export class WorkItemService {
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
 
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.add(
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId: workItem.projectId,
         predecessorId,
         successorId: id,
@@ -2997,7 +2983,7 @@ export class WorkItemService {
     const existed = (await this.opts.dependencies.listByProject(workItem.projectId)).some(
       (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
     );
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.remove(predecessorId, id, stamp);
     await this.announceTree(workItem.projectId);
     // The removal is idempotent, so a request for an edge that was not there
@@ -3099,7 +3085,7 @@ export class WorkItemService {
     // discarded and never stamped. Nothing is appended to the journal here — an
     // undo is not itself journalled — so this stamp is spent only on the rows
     // {@link apply} rewrites.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const applied = await this.apply(projectId, command, stamp);
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
@@ -3415,7 +3401,7 @@ export class WorkItemService {
         }
         await this.opts.dependencies.add(
           {
-            id: this.newId(),
+            id: this.clock.newId(),
             projectId,
             predecessorId: command.predecessorId,
             successorId: command.successorId,
@@ -3614,7 +3600,7 @@ export class WorkItemService {
       }
       await this.opts.dependencies.add(
         {
-          id: this.newId(),
+          id: this.clock.newId(),
           projectId,
           predecessorId: edge.predecessorId,
           successorId: edge.successorId,
@@ -3706,7 +3692,7 @@ export class WorkItemService {
     // The batch's own act, and its own stamp: the steps it gathered each dated
     // their rows when they ran, and this is the one entry and one event standing
     // for all of them.
-    const stamp = this.stampFor(actorId);
+    const stamp = this.clock.stampFor(actorId);
     const [only] = recordings;
     if (recordings.length === 1) {
       await this.record(projectId, stamp, only.kind, only.label, only.recording);
@@ -3756,7 +3742,7 @@ export class WorkItemService {
     const subject = subjectOf(recording.forward);
     await this.opts.journal.append(
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId,
         userId: stamp.by,
         kind,
@@ -3773,7 +3759,7 @@ export class WorkItemService {
         createdAt: stamp.at,
       },
       {
-        id: this.newId(),
+        id: this.clock.newId(),
         projectId,
         userId: stamp.by,
         kind,
