@@ -10,6 +10,7 @@ import { type ReactNode, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
 import { DirectoryPage } from '@/components/directory/directory-page';
+import type { Roster } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { DirectoryApi, ProjectApi } from '@/lib/wbs-api';
 
@@ -25,7 +26,7 @@ import type { DirectoryApi, ProjectApi } from '@/lib/wbs-api';
  */
 export interface SignedInRegion {
   token: string;
-  presence: (projectId: string | null) => ReactNode;
+  presence: (roster: Roster) => ReactNode;
   account: ReactNode;
   /**
    * Injected in tests. Production leaves them out and each page builds the real

@@ -1,4 +1,4 @@
-import { wsResume, wsSubscribe } from '@wbs/contracts/ws-frames';
+import { wsResume, wsSubscribe, wsWho } from '@wbs/contracts/ws-frames';
 
 import { websocketUrl } from './api';
 
@@ -37,6 +37,21 @@ export interface ProjectStreamOptions {
   onChange: () => void;
   /** Whether a socket is currently open, so the caller can say so on screen. */
   onConnectionChange?: (connected: boolean) => void;
+  /**
+   * Who else is in this project, whenever gw-01 says.
+   *
+   * **On this socket, which is the point.** The presence panel opened a second
+   * WebSocket per project until 2026-09-02 — two connections per browser, two
+   * `subscribe` frames, two entries in the gateway's fan-out — to be told the
+   * same thing by the same gateway. The roster arrives on the frames this
+   * socket is already receiving.
+   *
+   * It also fixes what that panel's own JSDoc called a caveat: its socket did
+   * not reconnect, so a dropped connection froze the roster at whoever was
+   * there and only a reload started another. This one reconnects, resubscribes
+   * and asks again, so the roster comes back.
+   */
+  onPresence?: (users: readonly string[]) => void;
 }
 
 export interface ProjectStream {
@@ -135,12 +150,21 @@ export function subscribeToProject(
       seq?: number;
       type?: string;
       replayed?: Record<string, number>;
+      users?: string[];
     };
     try {
       frame = JSON.parse(raw) as typeof frame;
     } catch {
       // gw-01 also carries presence and control frames; anything unparseable is
       // not this subscription's business.
+      return;
+    }
+
+    // Push-only after the first frame: gw-01 broadcasts the roster whenever
+    // anybody joins or leaves, and the `who` sent on open is what a client
+    // entering a quiet room is answered with.
+    if (frame.type === 'presence') {
+      if (Array.isArray(frame.users)) options.onPresence?.(frame.users);
       return;
     }
 
@@ -196,6 +220,12 @@ export function subscribeToProject(
     socket = deps.openSocket(websocketUrl(), {
       onOpen: () => {
         socket?.send(wsSubscribe(subscription));
+        // Subscribe first, then ask: `who` is answered with **this
+        // connection's** project, so a `who` that overtook the subscribe would
+        // be answered with nobody and the roster would sit empty until the next
+        // join. Asked only when somebody is listening, so a page with no
+        // presence on screen sends one frame fewer.
+        if (options.onPresence !== undefined) socket?.send(wsWho());
 
         // Nothing to resume from. Resuming at -1 asks for the whole stream, and
         // on a project with any history that is either a refusal or a frame per

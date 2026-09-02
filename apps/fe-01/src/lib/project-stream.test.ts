@@ -523,3 +523,108 @@ describe('subscribeToProject — the first connection', () => {
     ]);
   });
 });
+
+/**
+ * The roster rides this socket, which is what makes it the only one.
+ *
+ * The presence panel opened a WebSocket of its own per project until
+ * 2026-09-02 — two connections per browser, two `subscribe` frames, two entries
+ * in the gateway's fan-out, to be told the same thing by the same gateway. The
+ * four cases below are that panel's, moved to where the socket is; the panel's
+ * own suite now renders props.
+ *
+ * The `who` is sent **after** the subscribe and only when somebody is
+ * listening. Both halves matter: `who` is answered with this connection's own
+ * project, so the other order is answered with nobody (F4, observed live
+ * 2026-08-09 as a one-second-old project listing accounts that had never opened
+ * it); and a page with no presence on screen has no reason to ask.
+ *
+ * Proof: `if (options.onPresence !== undefined)` removed, watched failing on
+ * `expected [ { type: "subscribe" … }, { type: "who" }, { type: "resume" … } ]
+ * to deeply equal [ { type: "subscribe" … }, { type: "resume" … } ]` in
+ * `asks nothing about the roster when nobody is listening`; and the `wsWho()`
+ * send moved above the subscribe, on the frame order in `asks who is there once
+ * the subscription is registered`. Observed 2026-09-02.
+ */
+describe('subscribeToProject — the roster', () => {
+  it('asks who is there once the subscription is registered', () => {
+    const h = harness();
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, onChange: ignore, onPresence: ignore },
+      h.deps,
+    );
+
+    h.latest().handlers.onOpen();
+
+    expect(h.frames(h.latest())).toEqual([
+      { type: 'subscribe', subscription: SUBSCRIPTION },
+      { type: 'who' },
+    ]);
+  });
+
+  it('asks nothing about the roster when nobody is listening', () => {
+    const h = harness();
+    subscribeToProject({ projectId: PROJECT, sinceSeq: 3, onChange: ignore }, h.deps);
+
+    h.latest().handlers.onOpen();
+
+    expect(h.frames(h.latest())).toEqual([
+      { type: 'subscribe', subscription: SUBSCRIPTION },
+      { type: 'resume', resume_points: { [SUBSCRIPTION]: 3 } },
+    ]);
+  });
+
+  it('hands on every roster the gateway sends, and refetches nothing for it', () => {
+    // A roster is not a plan edit: it must not cost a read of the tree.
+    const rosters: readonly string[][] = [];
+    const seen: string[][] = [];
+    let refetches = 0;
+    const h = harness();
+    subscribeToProject(
+      {
+        projectId: PROJECT,
+        sinceSeq: -1,
+        onChange: () => {
+          refetches += 1;
+        },
+        onPresence: (users) => {
+          seen.push([...users]);
+        },
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    h.latest().handlers.onMessage(JSON.stringify({ type: 'presence', users: ['kat', 'sam'] }));
+    h.latest().handlers.onMessage(JSON.stringify({ type: 'presence', users: ['kat'] }));
+    // A malformed one is not a reason to tear anything down, and not a roster.
+    h.latest().handlers.onMessage(JSON.stringify({ type: 'presence' }));
+
+    expect(seen).toEqual([['kat', 'sam'], ['kat']]);
+    expect(refetches).toBe(0);
+    expect(rosters).toEqual([]);
+  });
+
+  it('asks who is there again on a reconnect', () => {
+    // The caveat the old panel pinned rather than fixed: its socket did not
+    // reconnect, so a dropped connection froze the roster at whoever was there
+    // and only a reload started another. This socket comes back, resubscribes,
+    // and asks again.
+    const h = harness();
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, onChange: ignore, onPresence: ignore },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    h.latest().handlers.onClose();
+    h.runNextTimer();
+
+    h.latest().handlers.onOpen();
+
+    expect(h.sockets).toHaveLength(2);
+    expect(h.frames(h.latest())).toEqual([
+      { type: 'subscribe', subscription: SUBSCRIPTION },
+      { type: 'who' },
+    ]);
+  });
+});
