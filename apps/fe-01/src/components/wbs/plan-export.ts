@@ -274,7 +274,7 @@ const NOT_ON_A_CALENDAR = 'not on a calendar';
 const NO_SCHEDULE = '—';
 
 /** What an id that names nobody prints as, in the table's own words. */
-const UNKNOWN_NAME = '(unknown)';
+export const UNKNOWN_NAME = '(unknown)';
 
 /** RFC 4180's record separator. Both writers of a CSV field agree on this one. */
 const CRLF = '\r\n';
@@ -320,8 +320,32 @@ function markdownCell(value: string): string {
 const showFigure = (days: number): string => String(days);
 
 /** `entries`' name for `id`, or the table's word for an id that names nobody. */
-function nameOf(entries: readonly NamedEntry[], id: string): string {
-  return entries.find((entry) => entry.id === id)?.name ?? UNKNOWN_NAME;
+/**
+ * Per-list id→name indexes, keyed by the list itself.
+ *
+ * A `WeakMap` rather than a parameter, so the callers keep reading
+ * `nameOf(plan.people, id)` and the index is built once per export instead of
+ * once per call. A plan's `steps` and `people` arrays come straight off one tree
+ * read and do not change during an export, and when the read is replaced the old
+ * arrays — and their indexes — are collected with it.
+ */
+const namesByList = new WeakMap<readonly NamedEntry[], Map<string, string>>();
+
+/**
+ * `entries`' name for `id`, or the export's word for an id that names nobody.
+ *
+ * It was `entries.find(...)` in **both** exporters, and both call it per cell of
+ * every row: naming the steps and the people in a plan was O(rows × entries)
+ * twice over, in two copies of one function that had to agree about what an
+ * unknown id reads as. One copy now, and it is a lookup.
+ */
+export function nameOf(entries: readonly NamedEntry[], id: string): string {
+  let byId = namesByList.get(entries);
+  if (byId === undefined) {
+    byId = new Map(entries.map((entry) => [entry.id, entry.name]));
+    namesByList.set(entries, byId);
+  }
+  return byId.get(id) ?? UNKNOWN_NAME;
 }
 
 /**

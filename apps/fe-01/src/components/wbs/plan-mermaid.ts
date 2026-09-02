@@ -6,7 +6,7 @@ import {
   type ExportSlice,
   markdownHeaderLines,
   markdownTableLines,
-  type NamedEntry,
+  nameOf,
   type PlanExport,
 } from './plan-export';
 
@@ -57,9 +57,6 @@ const NO_STEP = 'no step';
 
 /** What a slice nobody is named on is called, under `assignee` sectioning. */
 const UNASSIGNED = 'unassigned';
-
-/** What an id naming nobody prints as, in the table export's own word for it. */
-const UNKNOWN_NAME = '(unknown)';
 
 /**
  * What a `section` line groups tasks by — M3 of the R7 brief.
@@ -145,11 +142,6 @@ function mermaidPhrase(value: string): string {
 /** One line of comment prose, with the one thing that would end it early removed. */
 function mermaidComment(value: string): string {
   return value.replaceAll(/[\r\n]+/g, ' ').trim();
-}
-
-/** `entries`' name for `id`, or the export's word for an id that names nobody. */
-function nameOf(entries: readonly NamedEntry[], id: string): string {
-  return entries.find((entry) => entry.id === id)?.name ?? UNKNOWN_NAME;
 }
 
 /** `010.1 Strip cables`, the way every cross reference in an export names a row. */

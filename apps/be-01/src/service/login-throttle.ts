@@ -22,8 +22,8 @@ export class LoginThrottle {
 
   canAttempt(username: string, clientIp: string): boolean {
     const now = this.now();
-    this.prune(now);
     const keys = this.keys(username, clientIp);
+    this.prune(now, keys);
     const withinFailureLimit = keys.every((key) => {
       const window = this.attempts.get(key);
       return window === undefined || window.failures < FAILURE_LIMIT;
@@ -35,8 +35,9 @@ export class LoginThrottle {
 
   recordFailure(username: string, clientIp: string): void {
     const now = this.now();
-    this.prune(now);
-    for (const key of this.keys(username, clientIp)) {
+    const keys = this.keys(username, clientIp);
+    this.prune(now, keys);
+    for (const key of keys) {
       const current = this.attempts.get(key);
       if (current === undefined) {
         if (this.attempts.size >= MAX_ENTRIES) continue;
@@ -59,9 +60,30 @@ export class LoginThrottle {
     return `username:${username.trim().toLowerCase().slice(0, 32)}`;
   }
 
-  private prune(now: number): void {
+  /**
+   * Drops the expired windows for **these two keys**, plus one older entry.
+   *
+   * It walked the whole map on every call, which is `MAX_ENTRIES` iterations per
+   * login attempt — so under the load this class exists to survive, the throttle
+   * was itself the O(n) cost.
+   *
+   * The single extra step is what keeps the map from filling with windows nobody
+   * asks about again: an entry expires in `WINDOW_MS`, and one eviction per
+   * attempt drains faster than attempts can arrive while the map is full,
+   * because a full map is exactly the state that produces attempts. `canAttempt`
+   * still refuses at the ceiling, so the bound is enforced whatever this drops.
+   */
+  private prune(now: number, keys: readonly string[]): void {
+    for (const key of keys) {
+      const window = this.attempts.get(key);
+      if (window !== undefined && window.expiresAt <= now) this.attempts.delete(key);
+    }
+    if (this.attempts.size < MAX_ENTRIES) return;
     for (const [key, window] of this.attempts) {
-      if (window.expiresAt <= now) this.attempts.delete(key);
+      if (window.expiresAt <= now) {
+        this.attempts.delete(key);
+        return;
+      }
     }
   }
 }
