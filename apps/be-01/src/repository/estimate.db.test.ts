@@ -215,4 +215,48 @@ describe('EstimateRepository', () => {
 
     expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
+
+  it('reads a project’s estimates in one statement, with no parameter per row', async () => {
+    // The four satellite reads were two statements each until 2026-09-02: every
+    // work item id, then `IN (…)` over the lot. Twenty work items rather than
+    // two, because the fault is a bound parameter per row and at two rows "one
+    // parameter" and "one per row" differ by one.
+    //
+    // Both halves matter. The count rules out the second query coming back, and
+    // the SQL check rules out an `IN` list wearing a join's clothes: a plan of
+    // 33,000 rows would exceed SQLite's parameter ceiling and refuse the read
+    // outright, and the ceiling is not something a test on this machine can
+    // reach.
+    //
+    // Proof: the join replaced by the two-query shape it had before, watched
+    // failing on `expect(received).toHaveLength(expected) · Expected length: 1
+    // · Received length: 2`; and with the project's own `where` written as
+    // `inArray(workItem.projectId, [projectId])` — one statement, an `IN` list
+    // of one — on `Expected to not contain: "in ("`. Observed 2026-09-02.
+    const workItems = new WorkItemRepository(openDrizzle(join(dir, 'test.db')));
+    for (let made = 0; made < 20; made += 1) {
+      const id = `row-${String(made)}`;
+      await insertItem(workItems, id, 100 + made, `Row ${String(made)}`);
+      await repo.set(
+        { workItemId: id, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        wrote(),
+      );
+    }
+    const statements: string[] = [];
+    const counted = new EstimateRepository(
+      openDrizzle(join(dir, 'test.db'), {
+        logQuery(query) {
+          statements.push(query);
+        },
+      }),
+    );
+
+    const held = await counted.listByProject(projectId);
+
+    // The precondition: a read that answered nothing would also cost one
+    // statement, and the count would prove nothing about the join.
+    expect(held).toHaveLength(20);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).not.toContain('in (');
+  });
 });

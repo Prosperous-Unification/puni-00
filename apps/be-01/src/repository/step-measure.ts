@@ -1,7 +1,8 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { rowsChanged } from './changes';
 import type { MeasureStore, StoredMeasure, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { type MeasureMetric, step, stepMeasure, workItem } from './schema';
@@ -46,11 +47,7 @@ export class StepMeasureRepository implements MeasureStore {
    * `metric` breaks that tie by its stored text, which is arbitrary but fixed.
    */
   async listByProject(projectId: string): Promise<StoredMeasure[]> {
-    const ids = await this.db
-      .select({ id: workItem.id })
-      .from(workItem)
-      .where(eq(workItem.projectId, projectId));
-    if (ids.length === 0) return [];
+    await Promise.resolve();
     return (
       this.db
         .select({
@@ -65,12 +62,13 @@ export class StepMeasureRepository implements MeasureStore {
         // measure whose step is gone cannot exist — `StepRepository.remove`
         // deletes them in the same transaction as the step (task 6.3).
         .innerJoin(step, eq(stepMeasure.stepId, step.id))
-        .where(
-          inArray(
-            stepMeasure.workItemId,
-            ids.map((row) => row.id),
-          ),
-        )
+        // And the work item, so the project is asked for in the statement that
+        // reads the rows. This was two queries until 2026-09-02 — every work item
+        // id, then `IN (…)` over the lot — which put one bound parameter per row
+        // into the read, four times over per plan read. Inner again, and for the
+        // same reason: `workItemId` is a foreign key.
+        .innerJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
+        .where(eq(workItem.projectId, projectId))
         .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric)
     );
   }
@@ -153,11 +151,7 @@ export class StepMeasureRepository implements MeasureStore {
         .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
         .where(eq(stepMeasure.workItemId, fromWorkItemId))
         .run();
-      const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
-      if (changed === undefined) {
-        throw new Error('SELECT changes() answered no row after moving measures');
-      }
-      if (changed.n === 0) return;
+      if (rowsChanged(tx, 'moving measures') === 0) return;
       bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
     });
   }
