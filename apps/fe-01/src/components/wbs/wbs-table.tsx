@@ -4184,7 +4184,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * words the Depends on chips carry. An unnamed row keeps the number it does
    * have, which is why the empty name has words rather than a trailing space.
    */
-  const namedInTheTree = new Map(flat.map((row) => [row.id, rowWords(row.number, row.name)]));
+  const namedInTheTree = useMemo(
+    () => new Map(flat.map((row) => [row.id, rowWords(row.number, row.name)])),
+    [flat],
+  );
+
+  /**
+   * The three directory vocabularies as lookups.
+   *
+   * The label readings below asked `teams.find(...)`, `tags.find(...)` and
+   * `services.find(...)` **per row**, and the chart's input calls all three for
+   * every row it draws — so naming a plan's labels was O(rows × directory) three
+   * times over. They change when a directory read lands, which is rarely.
+   */
+  const teamsById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
+  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
+  const servicesById = useMemo(
+    () => new Map(services.map((service) => [service.id, service])),
+    [services],
+  );
 
   /**
    * The service team a work item is labelled with, resolved against the
@@ -4195,11 +4213,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * lookup and says so, rather than rendering a blank label or throwing the
    * chart away. See {@link ServiceTeamLabel}.
    */
-  const teamLabelOf = (serviceTeamId: string | null): ServiceTeamLabel => {
-    if (serviceTeamId === null) return { state: 'none' };
-    const named = teams.find((team) => team.id === serviceTeamId);
-    return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
-  };
+  const teamLabelOf = useCallback(
+    (serviceTeamId: string | null): ServiceTeamLabel => {
+      if (serviceTeamId === null) return { state: 'none' };
+      const named = teamsById.get(serviceTeamId);
+      return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
+    },
+    [teamsById],
+  );
 
   /**
    * Which team's work each row is, the leaf's own label or the nearest
@@ -4348,23 +4369,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * out of a pool, and "why did this row move when somebody edited a team's
    * number" has no answer anywhere in the tool.
    */
-  const effectiveTeamLabelOf = (row: TreeRow): ServiceTeamLabel => {
-    // The row's own set first, and `at(0)` because a set of more than one is
-    // unwritable until R2-4 — R2-3 is the change that gives every member a
-    // chip. Empty is *unstated* and inherits, which is the whole of the rule
-    // this cell shares with the scheduler.
-    const own = row.teamIds.at(0);
-    if (own !== undefined) return teamLabelOf(own);
-    const inherited = effectiveTeams.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const named = teams.find((team) => team.id === inherited.teamIds.at(0));
-    if (named === undefined) return { state: 'unresolved' };
-    return {
-      state: 'inherited',
-      name: named.name,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
-  };
+  const effectiveTeamLabelOf = useCallback(
+    (row: TreeRow): ServiceTeamLabel => {
+      // The row's own set first, and `at(0)` because a set of more than one is
+      // unwritable until R2-4 — R2-3 is the change that gives every member a
+      // chip. Empty is *unstated* and inherits, which is the whole of the rule
+      // this cell shares with the scheduler.
+      const own = row.teamIds.at(0);
+      if (own !== undefined) return teamLabelOf(own);
+      const inherited = effectiveTeams.get(row.id);
+      if (inherited === undefined) return { state: 'none' };
+      const first = inherited.teamIds.at(0);
+      const named = first === undefined ? undefined : teamsById.get(first);
+      if (named === undefined) return { state: 'unresolved' };
+      return {
+        state: 'inherited',
+        name: named.name,
+        fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+      };
+    },
+    [teamLabelOf, effectiveTeams, teamsById, namedInTheTree],
+  );
 
   /**
    * A row's tags as a cell or a card can state them: what it says itself, and
@@ -4380,22 +4405,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * A name the directory read has not caught up with is simply left out — see
    * {@link TagLabel} for why there is no `unresolved` arm.
    */
-  const effectiveTagLabelOf = (row: TreeRow): TagLabel => {
-    const own: string[] = [];
-    const inherited: InheritedTagLabel[] = [];
-    for (const each of effectiveTags.get(row.id) ?? []) {
-      const found = tags.find((entry) => entry.id === each.tagId);
-      if (found === undefined) continue;
-      if (each.fromId === row.id) own.push(found.name);
-      else
-        inherited.push({
-          id: found.id,
-          name: found.name,
-          fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
-        });
-    }
-    return { own, inherited };
-  };
+  const effectiveTagLabelOf = useCallback(
+    (row: TreeRow): TagLabel => {
+      const own: string[] = [];
+      const inherited: InheritedTagLabel[] = [];
+      for (const each of effectiveTags.get(row.id) ?? []) {
+        const found = tagsById.get(each.tagId);
+        if (found === undefined) continue;
+        if (each.fromId === row.id) own.push(found.name);
+        else
+          inherited.push({
+            id: found.id,
+            name: found.name,
+            fromRow: namedInTheTree.get(each.fromId) ?? 'a row that is not shown',
+          });
+      }
+      return { own, inherited };
+    },
+    [effectiveTags, tagsById, namedInTheTree],
+  );
 
   /**
    * A row's service as a cell or a card can state it: its own, or the one it
@@ -4412,34 +4440,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * `effectiveTagLabelOf` with different names, which is what the domain walk
    * underneath has been since chunk 12.
    */
-  const effectiveServiceLabelOf = (row: TreeRow): ServiceLabel => {
-    // Unnamed ids are dropped rather than carried, which is `effectiveTagLabelOf`'s
-    // rule and the reason `ServiceLabel` lost its `unresolved` arm: this function
-    // feeds the *placeholder*, and the chips beside it show every stated id with
-    // the id itself as the fallback. A service the directory has not caught up
-    // with is therefore on screen in the cell, not silently absent from it.
-    const namesFor = (ids: readonly string[]): string[] =>
-      ids.flatMap((id) => {
-        const found = services.find((each) => each.id === id);
-        return found === undefined ? [] : [found.name];
-      });
-    // Its own set, which is what makes the row's answer its own rather than an
-    // inherited one — the emptiness below is `effectiveServicesOf`'s question,
-    // not this one's.
-    if (row.serviceIds.length > 0) {
-      const names = namesFor(row.serviceIds);
-      return names.length === 0 ? { state: 'none' } : { state: 'named', names };
-    }
-    const inherited = effectiveServices.get(row.id);
-    if (inherited === undefined) return { state: 'none' };
-    const names = namesFor(inherited.serviceIds);
-    if (names.length === 0) return { state: 'none' };
-    return {
-      state: 'inherited',
-      names,
-      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
-    };
-  };
+  const effectiveServiceLabelOf = useCallback(
+    (row: TreeRow): ServiceLabel => {
+      // Unnamed ids are dropped rather than carried, which is `effectiveTagLabelOf`'s
+      // rule and the reason `ServiceLabel` lost its `unresolved` arm: this function
+      // feeds the *placeholder*, and the chips beside it show every stated id with
+      // the id itself as the fallback. A service the directory has not caught up
+      // with is therefore on screen in the cell, not silently absent from it.
+      const namesFor = (ids: readonly string[]): string[] =>
+        ids.flatMap((id) => {
+          const found = servicesById.get(id);
+          return found === undefined ? [] : [found.name];
+        });
+      // Its own set, which is what makes the row's answer its own rather than an
+      // inherited one — the emptiness below is `effectiveServicesOf`'s question,
+      // not this one's.
+      if (row.serviceIds.length > 0) {
+        const names = namesFor(row.serviceIds);
+        return names.length === 0 ? { state: 'none' } : { state: 'named', names };
+      }
+      const inherited = effectiveServices.get(row.id);
+      if (inherited === undefined) return { state: 'none' };
+      const names = namesFor(inherited.serviceIds);
+      if (names.length === 0) return { state: 'none' };
+      return {
+        state: 'inherited',
+        names,
+        fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+      };
+    },
+    [servicesById, effectiveServices, namedInTheTree],
+  );
 
   /**
    * A pending Ctrl+D whose row the tree no longer holds — or no longer holds
@@ -10230,7 +10261,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * are open branches' children and so still in the row model. With nothing
    * typed the kept set is every row and this filters nothing out.
    */
-  const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
+  const rowModel = table.getRowModel().rows;
+  // Memoised because it is the chart's own key: `GanttPanel` lays the whole
+  // chart out in a `useMemo` on `plan`, and a fresh array here made every render
+  // of this table — every keystroke in the Find box, every hover card, every
+  // `busy` toggle — re-lay-out every bar.
+  const shownRows = useMemo(
+    () => rowModel.filter((row) => search.visibleIds.has(row.id)),
+    [rowModel, search.visibleIds],
+  );
 
   /**
    * The rows the dependency hover lights, by id — the read row's whole
@@ -10516,91 +10555,109 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * depends on `steps` alone, and anything added to it remounts every cell in
    * the table and eats the focus (LLM_README landmine #1).
    */
-  const ganttPlan: GanttPlan = {
-    rows: shownRows.map((row) => ({
-      id: row.id,
-      // The Number column's own number, not a second derivation of it: the
-      // chart's labels read `010 - Strip` because that is how the plan is
-      // spoken about.
-      number: row.original.number,
-      name: row.original.name,
-      depth: row.depth,
-      // A leaf of the plan as drawn, which is a row with nothing under it —
-      // the same question `getSubRows` answers for the table model.
-      leaf: row.subRows.length === 0,
-      schedule: {
-        earliestStart: row.original.schedule.earliestStart,
-        earliestFinish: row.original.schedule.earliestFinish,
-      },
-      notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
-      // The words about that date, for the floor sentence to append where the
-      // not-before is the floor that actually binds this bar. Read on **every**
-      // row rather than only the floored ones: which floor binds is
-      // `floorWordsOf`'s answer, computed from the schedule, and a chart row
-      // that carried the reason only where this side already thought it
-      // mattered would be two places deciding one thing.
-      notBeforeReason: row.original.startNoEarlierThanReason,
-      // Straight off the tree read, like the trio beside it: what a bar says is
-      // a fact about the plan the chart was drawn from, not about a draft
-      // somebody is half-way through typing into the column.
-      priority: row.original.priority,
-      maxParallel: row.original.maxParallel,
-      // The **effective** team, which is the pool be-01 scheduled this row's
-      // slices against — not the label the row carries, which may be none at
-      // all. A chart drawn from the stored label alone cannot say whose people
-      // a bar is waiting for.
-      team: effectiveTeamLabelOf(row.original),
-      // The **effective** tags, for the team's reason one line up and for none
-      // of its consequences: an inherited tag has to be sayable on the bar of a
-      // row that names no tag, and that is the whole of what this field does.
-      // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
-      tags: effectiveTagLabelOf(row.original),
-      // The trio the plan holds for each step on this row, straight off the
-      // tree read — the drafts a reader is half-way through typing are not
-      // facts about the schedule the chart was drawn from.
-      trioByStep: new Map(Object.entries(row.original.estimates)),
-      waitsFor: row.original.dependsOn.map(
-        // A predecessor the tree does not hold at all is the same modeled
-        // absence `personFloorWords` already has words for, and it is said the
-        // same way rather than left as a bare id.
-        (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
+  const ganttPlan: GanttPlan = useMemo<GanttPlan>(
+    () => ({
+      rows: shownRows.map((row) => ({
+        id: row.id,
+        // The Number column's own number, not a second derivation of it: the
+        // chart's labels read `010 - Strip` because that is how the plan is
+        // spoken about.
+        number: row.original.number,
+        name: row.original.name,
+        depth: row.depth,
+        // A leaf of the plan as drawn, which is a row with nothing under it —
+        // the same question `getSubRows` answers for the table model.
+        leaf: row.subRows.length === 0,
+        schedule: {
+          earliestStart: row.original.schedule.earliestStart,
+          earliestFinish: row.original.schedule.earliestFinish,
+        },
+        notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+        // The words about that date, for the floor sentence to append where the
+        // not-before is the floor that actually binds this bar. Read on **every**
+        // row rather than only the floored ones: which floor binds is
+        // `floorWordsOf`'s answer, computed from the schedule, and a chart row
+        // that carried the reason only where this side already thought it
+        // mattered would be two places deciding one thing.
+        notBeforeReason: row.original.startNoEarlierThanReason,
+        // Straight off the tree read, like the trio beside it: what a bar says is
+        // a fact about the plan the chart was drawn from, not about a draft
+        // somebody is half-way through typing into the column.
+        priority: row.original.priority,
+        maxParallel: row.original.maxParallel,
+        // The **effective** team, which is the pool be-01 scheduled this row's
+        // slices against — not the label the row carries, which may be none at
+        // all. A chart drawn from the stored label alone cannot say whose people
+        // a bar is waiting for.
+        team: effectiveTeamLabelOf(row.original),
+        // The **effective** tags, for the team's reason one line up and for none
+        // of its consequences: an inherited tag has to be sayable on the bar of a
+        // row that names no tag, and that is the whole of what this field does.
+        // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
+        tags: effectiveTagLabelOf(row.original),
+        // The trio the plan holds for each step on this row, straight off the
+        // tree read — the drafts a reader is half-way through typing are not
+        // facts about the schedule the chart was drawn from.
+        trioByStep: new Map(Object.entries(row.original.estimates)),
+        waitsFor: row.original.dependsOn.map(
+          // A predecessor the tree does not hold at all is the same modeled
+          // absence `personFloorWords` already has words for, and it is said the
+          // same way rather than left as a bare id.
+          (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
+        ),
+      })),
+      slices: chartRead.slices,
+      // The full tree, ids and parents alone — `flat` and not `shownRows`, for
+      // `namedInTheTree`'s reason: a dependency arrow's anchor is selected from
+      // the predecessor's leaves' slices, and a collapsed branch's leaves are
+      // exactly the rows the shown set has dropped (design.md D6).
+      tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
+      // Why the rows above are the length they are, which the list itself cannot
+      // say: `isFiltering`'s one answer, the same one the count beside the Find
+      // box and the empty-answer sentence read, so the chart's account of what it
+      // did not draw cannot disagree with the table's account of what it kept.
+      narrowedByFilter: filtering,
+      // **Every** stored dependency of the plan, `flat` and not `shownRows` since
+      // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
+      // and counted there, so the arrows drawn are the same ones as before — what
+      // the widening adds is the edge that leaves a shown row for a hidden one,
+      // which never reached the loop while this list was built from the
+      // successors on screen, and so could not be counted or said.
+      dependencies: flat.flatMap((row) =>
+        row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
       ),
-    })),
-    slices: chartRead.slices,
-    // The full tree, ids and parents alone — `flat` and not `shownRows`, for
-    // `namedInTheTree`'s reason: a dependency arrow's anchor is selected from
-    // the predecessor's leaves' slices, and a collapsed branch's leaves are
-    // exactly the rows the shown set has dropped (design.md D6).
-    tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
-    // Why the rows above are the length they are, which the list itself cannot
-    // say: `isFiltering`'s one answer, the same one the count beside the Find
-    // box and the empty-answer sentence read, so the chart's account of what it
-    // did not draw cannot disagree with the table's account of what it kept.
-    narrowedByFilter: filtering,
-    // **Every** stored dependency of the plan, `flat` and not `shownRows` since
-    // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
-    // and counted there, so the arrows drawn are the same ones as before — what
-    // the widening adds is the edge that leaves a shown row for a hidden one,
-    // which never reached the loop while this list was built from the
-    // successors on screen, and so could not be counted or said.
-    dependencies: flat.flatMap((row) =>
-      row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
-    ),
-    // All three off {@link chartRead}, which is one payload. **Not** `steps`
-    // and `people`: those are the separate reads the pickers and the steps
-    // dialog are about, and a slice checked against a step list from another
-    // moment is the skew `layOutGantt` throws on.
-    steps: chartRead.steps,
-    personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
-    teamNames: new Map(teams.map((team) => [team.id, team.name])),
-    // The ladder the chart names its priorities with. Off the same state the
-    // table's cells read, so a bar's cap and its row's digits are one colour.
-    priorityBands,
-    // Off the chart read for `roles`' reason exactly: the arrow leaves the
-    // slice this names, and a reach out of step with the slices beside it
-    // draws an arrow the engine never placed.
-    depReach: chartRead.depReach,
-  };
+      // All three off {@link chartRead}, which is one payload. **Not** `steps`
+      // and `people`: those are the separate reads the pickers and the steps
+      // dialog are about, and a slice checked against a step list from another
+      // moment is the skew `layOutGantt` throws on.
+      steps: chartRead.steps,
+      personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+      teamNames: new Map(teams.map((team) => [team.id, team.name])),
+      // The ladder the chart names its priorities with. Off the same state the
+      // table's cells read, so a bar's cap and its row's digits are one colour.
+      priorityBands,
+      // Off the chart read for `roles`' reason exactly: the arrow leaves the
+      // slice this names, and a reach out of step with the slices beside it
+      // draws an arrow the engine never placed.
+      depReach: chartRead.depReach,
+    }),
+    // Every value the object above reads. The three label readings and
+    // `namedInTheTree` are `useCallback`/`useMemo` now precisely so this list can
+    // hold: a closure rebuilt each render would make this memo a fresh object
+    // every time and buy nothing.
+    [
+      shownRows,
+      flat,
+      chartRead,
+      startDate,
+      teams,
+      priorityBands,
+      filtering,
+      namedInTheTree,
+      effectiveTeamLabelOf,
+      effectiveTagLabelOf,
+    ],
+  );
 
   // The `Start` column's sentences, off the same payload the chart is drawn
   // from and therefore off the same rows: a row narrowed away by the search has
@@ -10614,9 +10671,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   // start date has no day to say — `null` is that plan, stated rather than
   // defaulted into silence. `today` is the browser's, and it decides only
   // whether the year is printed (`shortIsoDate`).
-  startFloor.current = startFloorByRow(
-    ganttPlan,
-    startDate === null ? null : { startDate, today: new Date() },
+  //
+  // Memoised on the plan it reads. It ran on **every** render — six index builds
+  // and a walk of every leaf, whether or not the chart was open — to supply one
+  // hover sentence. `today` is taken as a day rather than a `Date` so it can be
+  // a dependency at all: it decides only whether the year is printed, and a
+  // fresh `Date` each render would make this memo a no-op.
+  // The browser's own day as a plain `YYYY-MM-DD`, which is all the floor
+  // sentence uses it for.
+  const todayForFloor = new Date().toISOString().slice(0, 10);
+  startFloor.current = useMemo(
+    () =>
+      startFloorByRow(
+        ganttPlan,
+        startDate === null ? null : { startDate, today: new Date(todayForFloor) },
+      ),
+    [ganttPlan, startDate, todayForFloor],
   );
 
   /**

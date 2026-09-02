@@ -143,7 +143,7 @@ shipped, or a request counter on the fake API. **Inject the fault the check is a
 | Id    | Change                                                                                                                                                                                                                                                                                                                                                                                                                             | Files                                                                                                  | Effort | Probe                                                                              |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------------- |
 | W2-1  | **Half done, 2026-09-02** — see §25. Concurrent identical reads now share one request. Narrowing _which_ reads a write triggers is not done, and the reason is recorded.                                                                                                                                                                                                                                                           | `lib/wbs-api.ts`, `lib/project-stream.ts:113`, `wbs-table.tsx:3671–3775`, `directory-page.tsx:256,342` | 1d     | "a peer edit costs 2 requests, not 8" — fails today                                |
-| W2-2  | **Memoise `shownRows`, `ganttPlan`, `startFloor`** on their real inputs (`todayIso`, not `new Date()`), as `pointed-row-render-cost/design.md` D3 said and the code did not do. Every keystroke currently re-runs `layOutGantt` through `GanttPanel`'s `useMemo(…, [plan])` and `startFloorByRow` chart open or closed.                                                                                                            | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
+| W2-2  | **Done, 2026-09-02** — see §28. All three memoised, with the label closures stabilised first, and a layout-count probe that took three attempts to stop being vacuous.                                                                                                                                                                                                                                                             | `wbs-table.tsx:10233, :10519, :10617`                                                                  | 0.5d   | `layOutGantt` call count across a keystroke: unchanged                             |
 | W2-3  | **Batch gets one read of the plan (be-01).** `PlanCommandRunner.execute` opens a plan snapshot before the loop; `contextFor`, `holdsStep`, the four `storedX` read it; mutators update it in place; the forward guards become pure functions of the snapshot. Also `tree()`'s 13 sequential awaits → `Promise.all`, and `schedule()` stops calling `deriveNumbers` a second time.                                                  | `work-item.service.ts` (44 `listByProject` sites), `plan-commands.ts:118–166`, `schedule.ts:1967`      | 4d     | statement count for a 200-command batch: ~1,200 → ~20                              |
 | W2-4  | **Half done, 2026-09-02** — see §27. `dependsOn` and `topological` are linear now; the differential and both oracles are unmoved. `eventAt` and `projectOntoWorkItems` are not done.                                                                                                                                                                                                                                               | `work-item.service.ts:1531`, `schedule.ts:377–409, :729–735, :2130–2212`                               | 1.5d   | differential unchanged; `eventsVisited` bound now also counts moves                |
 | W2-5  | **Started, 2026-09-02** — see §26. A freeze is one statement instead of one per row. `remove`'s batching and the dependency N+1 are not done.                                                                                                                                                                                                                                                                                      | `repository/work-item.ts:713–762`, `dependency.ts:90–111`, `work-item.service.ts:2258, :3520`          | 0.5d   | "a freeze costs one statement" via `db.ts`'s logger, as `project.test.ts:259` does |
@@ -1207,3 +1207,37 @@ plan with ~10⁵ leaves under one root would hit the argument-count limit and th
 branch handles. Both are real; both want their own change with the differential re-watched.
 
 **Green:** `be-01` 1270 pass across 93 files, lint, typecheck; `format:check --all`.
+
+## 28 · Verify — W2-2, 2026-09-02
+
+`shownRows`, `ganttPlan` and `startFloor` are memoised. `GanttPanel` lays the whole chart out in
+`useMemo(() => layOutGantt(plan), [plan])`, so an unmemoised `ganttPlan` meant every render of the
+table re-laid-out every bar.
+
+**Three things had to be stabilised first, and they were quadratic anyway.** `effectiveTeamLabelOf`,
+`effectiveTagLabelOf` and `effectiveServiceLabelOf` were rebuilt on every render, so putting them in
+a dependency list would have bought nothing. They are `useCallback`s now, and each did
+`teams.find(...)` / `tags.find(...)` / `services.find(...)` **per row** while the chart's input calls
+all three for every row it draws — naming a plan's labels was O(rows × directory), three times over.
+They read `Map`s built once per directory read. `namedInTheTree` was a fresh `Map` per render too.
+
+`startFloor` ran on **every** render — six index builds and a walk of every leaf — whether or not
+the chart was open, to supply one hover sentence. It takes today as a plain `YYYY-MM-DD` so it can
+be a dependency at all: a fresh `Date` each render would make the memo a no-op.
+
+**The probe took three attempts, and the two failures are the useful part.**
+
+1. A **Find** keystroke. It failed at 4 of 4 — correctly. Typing there narrows the shown rows, so
+   the chart is entitled to be laid out again, and `search.visibleIds` is a fresh `Set` each time
+   regardless. Wrong subject, not a wrong memo.
+2. A keystroke in a **Name** cell. It passed — and **also passed with the memo removed**. That box
+   is uncontrolled, so typing into it re-renders nothing at all, and the probe could not see the
+   fault it was written for. This is the repo's own recorded failure mode: a check that cannot fail.
+3. Opening a row's **⋯ menu** — `openMenuRowId` is a state of `WbsTable`, so the table renders, and
+   no menu can move a bar. Watched failing on `expected 1 to be +0` with the memo taken back off.
+
+A pointer on a bar was also considered and is not usable: since `pointed-row-render-cost` that
+reading lives in an external store and does not render the table at all. All three rejections are
+written into the test, so the next reader does not repeat them.
+
+**Green:** `fe-01` 2047 pass across 75 files, lint, typecheck; `format:check --all`.

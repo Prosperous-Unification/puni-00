@@ -6,6 +6,7 @@ import type { ProjectApi } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 
+import type * as GanttGeometryModule from './gantt-geometry';
 import type * as TableFrameModule from './table-frame';
 import { WbsTable } from './wbs-table';
 
@@ -13,6 +14,29 @@ import { WbsTable } from './wbs-table';
 const hasDom = typeof document !== 'undefined';
 
 const itDom = hasDom ? it : it.skip;
+
+/**
+ * How many times the chart has been laid out.
+ *
+ * `GanttPanel` computes its whole geometry in `useMemo(() => layOutGantt(plan),
+ * [plan])`, so this counts the times `plan` arrived as a new object. It is the
+ * only thing that distinguishes "the table memoised its chart input" from "the
+ * table rebuilt it and React re-ran the layout" — the drawn bars are identical
+ * either way, which is exactly why a rendering assertion cannot see this.
+ *
+ * The mock is call-through: every other case sees the real module.
+ */
+const layoutCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./gantt-geometry', async (importOriginal) => {
+  const real = await importOriginal<typeof GanttGeometryModule>();
+  return {
+    ...real,
+    layOutGantt: (...args: Parameters<typeof real.layOutGantt>) => {
+      layoutCalls.count += 1;
+      return real.layOutGantt(...args);
+    },
+  };
+});
 
 /**
  * How many `<td>`/`<th>` renders the table has performed, counted through
@@ -124,6 +148,38 @@ async function threeRoots() {
   return api;
 }
 
+/**
+ * Three estimated roots with the chart open beneath them.
+ *
+ * The chart is opened rather than left shut, because what is under test is the
+ * wiring **between** the two faces: a suite that only hovered rows in the
+ * table would be asserting the absence of a light with nothing to light.
+ */
+async function planWithTheChartOpen() {
+  const api = await threeRoots();
+  // `threeRoots` unfolds Dev, so the three points are three boxes rather than
+  // the folded cell's one.
+  for (const number of ['010', '020', '030']) {
+    for (const [point, days] of [
+      ['optimistic', '2'],
+      ['realistic', '3'],
+      ['pessimistic', '4'],
+    ]) {
+      const box = screen.getByLabelText(`Dev ${point} for ${number}`);
+      fireEvent.change(box, { target: { value: days } });
+      fireEvent.blur(box);
+    }
+    await waitFor(() => {
+      expect(screen.getByLabelText(`Dev realistic for ${number}`)).toHaveProperty('value', '3');
+    });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+  await waitFor(() => {
+    expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
+  });
+  return api;
+}
+
 describe('the pointed row', () => {
   /**
    * A pointer event of one kind or the other, built by hand.
@@ -182,38 +238,6 @@ describe('the pointed row', () => {
     [...document.querySelectorAll('[data-gantt-row-lit]')].map(
       (rect) => rect.getAttribute('data-gantt-row-lit') ?? '(none)',
     );
-
-  /**
-   * Three estimated roots with the chart open beneath them.
-   *
-   * The chart is opened rather than left shut, because what is under test is the
-   * wiring **between** the two faces: a suite that only hovered rows in the
-   * table would be asserting the absence of a light with nothing to light.
-   */
-  async function planWithTheChartOpen() {
-    const api = await threeRoots();
-    // `threeRoots` unfolds Dev, so the three points are three boxes rather than
-    // the folded cell's one.
-    for (const number of ['010', '020', '030']) {
-      for (const [point, days] of [
-        ['optimistic', '2'],
-        ['realistic', '3'],
-        ['pessimistic', '4'],
-      ]) {
-        const box = screen.getByLabelText(`Dev ${point} for ${number}`);
-        fireEvent.change(box, { target: { value: days } });
-        fireEvent.blur(box);
-      }
-      await waitFor(() => {
-        expect(screen.getByLabelText(`Dev realistic for ${number}`)).toHaveProperty('value', '3');
-      });
-    }
-    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
-    await waitFor(() => {
-      expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
-    });
-    return api;
-  }
 
   itDom('lights the table row from a bar, and clears when the pointer leaves', async () => {
     await planWithTheChartOpen();
@@ -591,6 +615,48 @@ describe('the chart under a plan being edited', () => {
         'Held by its start-no-earlier-than date — waiting on client sign-off',
       );
     });
+  });
+});
+
+describe('what a keystroke costs the chart', () => {
+  /**
+   * Opening a row's menu changes `openMenuRowId` and nothing the chart reads.
+   * The bars are placed from the tree be-01 last sent, which no menu touches.
+   *
+   * Before this was memoised the chart was laid out again anyway: `ganttPlan`
+   * was an object literal rebuilt on every render, so `GanttPanel`'s
+   * `useMemo(..., [plan])` saw a new object on every render of the table. The drawn bars are identical either way, which is exactly why no
+   * rendering assertion can see this and a call count can.
+   *
+   * Counted around the gesture itself: the fault is a layout per render, and a
+   * count read after a settle would be satisfied by any number at all.
+   *
+   * A Find keystroke is deliberately not the subject. That one narrows the shown
+   * rows, so the chart is entitled to be laid out again — and `search.visibleIds`
+   * is a fresh `Set` each time regardless, so the memo cannot hold across it.
+   *
+   * Proof: with `ganttPlan`'s `useMemo` taken back off — the object literal
+   * built inline, as it was — watched failing on `expected 1 to be +0`
+   * (2026-09-02).
+   */
+  itDom('does not lay the chart out again for a gesture that changes no bar', async () => {
+    await planWithTheChartOpen();
+
+    layoutCalls.count = 0;
+    // Opening a row's ⋯ menu, which is `openMenuRowId` — a state of `WbsTable`,
+    // so the whole table renders — and which cannot move a bar.
+    //
+    // Deliberately not a keystroke in a Name cell: that box is uncontrolled, so
+    // typing into it re-renders nothing, and a probe built on it would pass with
+    // the memo removed. Deliberately not a pointer on a bar either: since
+    // `pointed-row-render-cost` that reading lives in an external store and does
+    // not render the table at all. Both were tried.
+    click('Actions for 010');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    expect(layoutCalls.count).toBe(0);
+    // The precondition: a chart that had gone would also lay out zero times.
+    expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
   });
 });
 
