@@ -130,7 +130,7 @@ The audit's L2/L3 with what the sweeps added. Zero production change in this wav
 | W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open.                                                                                                | new; 7 test files                                        | 1.5d   | —     |
 | W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                                                                                                                 | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
 | W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                             | new; 24 test files                                       | 2d     | —     |
-| W1-4 | Test tiers: suffix convention (`*.test.ts` T0, `*.db.test.ts` T1, `*.http.test.ts` T2, `*.dom.test.tsx` T3), per-project `test:unit`/`test:store`/`test:http`/`test:dom` targets, vitest `projects` so fe-01's pure suites run without jsdom, root `bun run test:unit`, lefthook runs it.                         | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
+| W1-4 | **Started, 2026-09-02** — see §23. be-01 has T0/T1 tiers behind a suffix, guarded: 12.7s instead of 56s. fe-01's `projects` and the lefthook wiring are still open.                                                                                                                                               | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
 | W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                             | `project.json` ×N, `.gitignore`                          | 1h     | —     |
 | W1-6 | Playwright: one API-seeded `seedPlan(page, shape)` in `e2e/` replacing seven diverged copies (also `chooseTheme` ×6, `settled` ×4, `accountTrigger` ×5); then `workers: 4`, proven against one SQLite file under WAL. Keep `retries: 0`. Honour `layout.spec.ts`'s "not seeded behind the table's back" per spec. | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
@@ -1018,3 +1018,39 @@ eleven. And `POPOVER_ROW_LAYER` was pruned from `plan-cells` while still used in
 compiler named it (`TS2304`), which is the check that says a split lost something.
 
 **Green:** `fe-01` 2043 pass across 75 files, lint, typecheck, build; `format:check --all`.
+
+## 23 · Verify — W1-4 (be-01's half), 2026-09-02
+
+be-01's 93 suites are two tiers, decided by a suffix. 43 suites that open SQLite became
+`*.db.test.ts`; the rest keep `*.test.ts`.
+
+| Target              | Suites | Tests | Time      |
+| ------------------- | ------ | ----- | --------- |
+| `be-01:test:unit`   | 51     | 662   | **12.7s** |
+| `be-01:test:store`  | 42     | 607   | 43.3s     |
+| `be-01:test` (both) | 93     | 1269  | 56.0s     |
+
+662 + 607 = 1269 and 51 + 42 = 93, so the two tiers **partition** the suite rather than
+overlapping or dropping anything. That arithmetic is the check that the split is honest.
+
+An agent editing a service now has a 12.7s answer instead of a 56s one. Not the audit's "< 3s"
+target, and it is worth saying why: bun spends roughly 0.25s starting each of the 49 files, so 12s
+is close to the floor for this many files under this runner. Opening SQLite is what the tier
+actually removes — `mkdtemp` plus a migration run is about 0.7s a file.
+
+**The guard is `src/test-tiers.test.ts`**, which walks the directory rather than trusting a list: a
+suite is named `.db.test.ts` when it opens a database and only then. Watched failing on
+`Received: [ "repository/db.test.ts opens a database and is not named .db.test.ts" ]`.
+
+**It caught its own first draft.** The detector originally counted `mkdtemp` as evidence of a
+database, and on that evidence 43 files were renamed — including `deployed-commit.test.ts`, which
+makes a temp directory to write a `HEAD` file into and never touches SQLite. The guard reported it
+immediately (`is named .db.test.ts and opens no database`), the rule narrowed to the three real
+openers, and that file is back in the fast tier. The check also matched _itself_, because it quotes
+the opener names in its own regex; it excludes itself now, and says so.
+
+**Green:** `be-01` 1269 pass across 93 files, lint, typecheck; `format:check --all`.
+
+**Still open in W1-4:** fe-01's `vitest` `projects` so its pure suites run without jsdom, a root
+`test:unit`, and lefthook running it. The eleven-file split from W1-2 is what makes fe-01's half
+worth doing.
