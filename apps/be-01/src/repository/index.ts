@@ -68,7 +68,7 @@ export interface UserStore {
   findById(id: string): Promise<User | null>;
 }
 
-export interface OidcAccountIdentity {
+interface OidcAccountIdentity {
   issuer: string;
   subject: string;
   email: string | null;
@@ -171,7 +171,7 @@ export type NewStep = Omit<Step, 'position'>;
 export const STEP_POSITION_STEP = 10;
 
 /** Why a step could not be added or renamed. Both are states of the project, not faults. */
-export type StepWriteRefusal = 'taken' | 'not_found';
+type StepWriteRefusal = 'taken' | 'not_found';
 
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
 
@@ -717,7 +717,7 @@ export interface WorkItemPatch {
 }
 
 /** A ref as a caller states it — no `id`, because the store mints one per row. */
-export interface ExternalRefWrite {
+interface ExternalRefWrite {
   systemId: string;
   url: string;
 }
@@ -1207,7 +1207,7 @@ export interface Assignment {
  * race, not a fault. `not_found` is an id the directory no longer holds, which
  * is the loser of two removals and a client working from a stale picker.
  */
-export type DirectoryWriteRefusal = 'not_found' | 'taken';
+type DirectoryWriteRefusal = 'not_found' | 'taken';
 
 /**
  * Every project a directory write touched, collected **inside the write's own

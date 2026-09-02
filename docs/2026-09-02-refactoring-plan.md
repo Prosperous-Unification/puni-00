@@ -183,7 +183,7 @@ The structural moves. Each one turns a read set from "the file" into "the concep
 
 | Id   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Files                                                                                                                                                     | Effort | Needs                        |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------- |
-| W4-1 | **Rows out of the barrel** (audit D2, now 2,017 lines with 72 importers): each store's outcome types beside its implementation, as `event-log.ts:4–26` and `migrate-down.ts:14–26` already do; `index.ts` keeps exactly the store ports and the row types the service layer names. Nine exports have one consumer (seven their own file), five have none — delete those first as the deletion test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `repository/index.ts`, every store                                                                                                                        | 2d     | W0-11                        |
+| W4-1 | **Measured and mostly refused, 2026-09-02** — see §30. The barrel is 70% JSDoc and 68 of its 76 types are store-port vocabulary. Four needless public names removed; the split is not warranted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `repository/index.ts`, every store                                                                                                                        | 2d     | W0-11                        |
 | W4-2 | **Schedule engine into `libs/domain`** behind one `PlannedRow { id; parentId; priority }` and one `StepAssignment { workItemId; stepId; personId }`: `schedule.ts` reads three fields of `WorkItem`; `derive-numbers.ts` and `place-sibling.ts` import nothing; `assumed-assignee.ts` and `dependency.ts` ride along. `roll-up.ts` needs five named types; `directory-usage.ts` needs `DirectoryUsageRows` decomposed; `compensating.ts` stays — it is the journal. fe-01's Gantt gains an engine it can preview with. Add `@wbs/domain/schedule` subpaths; `schedule*.test.ts` (~3,800 lines) become library tests with no fixtures. Also `bumpedWorkItemOnReparent`'s predicate extracted from the SQL at `revision.ts:51` — the audit's named reason `undo.test.ts` wires twelve repositories — keeping the SQL as the writer.                                                                                   | `apps/be-01/src/service/{schedule,dependency,derive-numbers,place-sibling,assumed-assignee}.ts` → `libs/domain/src/`, `revision.ts`                       | 2d     | W4-1                         |
 | W4-3 | **Command registry** (audit §4, sharpened): one descriptor `{ kind, schema, scope, parse, apply, describe }` per kind in `libs/contracts`; `PlanCommand`, `PLAN_COMMAND_KINDS`, `DIRECTORY_KINDS`, `VARIANTS`, `parseKind` (214 lines, 36 arms, the `…Ref` pairing hand-written 36 times), `applyAll` (381 lines) all derive. `compensating.COMMANDS` stays separate — 17 compensating kinds are a different vocabulary. ArkType `'+': 'reject'` replaces the hand parsers; verify Elysia 1.4's Standard Schema → JSON Schema export first. mcp-01 derives one tool per kind with glossary verbs and prose. A `runDirectory` that never enters the project arms replaces `projectId === ''` standing for "no project". One negative per kind on the production path, watched with `'+': 'reject'` removed.                                                                                                          | `libs/contracts/`, `plan-command.ts`, `plan-command-schema.ts`, `work-item.controller.ts:564–778`, `plan-commands.ts`, `apps/mcp-01/src/openapi-tools.ts` | 5d     | W3-4                         |
 | W4-4 | **`WbsTable` concept split** into the fourteen modules sweep C maps with line ranges (`remembered-layout`, `use-plan-layout`, `use-column-set`, `use-plan-read`, `use-plan-filter`, `plan-toolbar`, `plan-export-actions`, `use-plan-keyboard`, `use-plan-structure`, `use-estimate-drafts`, `use-reference-sets`, `plan-columns/*` one file per column family with `columns` a 40-line registry, `plan-cell-props`, `plan-chart-input`), leaving ~1,000 lines of composition. Three things stay exactly as they are: `live` (the cells' contract), `PlanRow` and the pointed store, and the `columns` dep list — every extracted hook returns values read through `live`, never closed over in a cell. Give `live` an exported type so the "three deps" rule restated ten times becomes one declaration. Also: the 82-key `live` literal written twice (`:7070–7236`) becomes one local — 15 minutes, do it first. | `wbs-table.tsx`, 14 new modules                                                                                                                           | 4d     | W1-2, W2-2, W2-7, W3-2, W3-3 |
@@ -1270,3 +1270,44 @@ than a reason to have rewritten it in advance.
 `projectOntoWorkItems` is **not** refused — it is O(parents × leaves) and spreads into
 `Math.min`/`Math.max`, so a plan with ~10⁵ leaves under one root throws a `RangeError` no branch
 handles. That is a correctness cliff rather than a constant factor, and it is still worth doing.
+
+## 30 · Measured and mostly refused — the repository barrel, 2026-09-02
+
+W4-1 proposed moving each store's own types next to its implementation, on the reading that
+`index.ts` is 2,017 lines with nine single-consumer exports and five with none. Measured, that
+reading does not hold.
+
+| Measure                             | Value                       |
+| ----------------------------------- | --------------------------- |
+| lines                               | 2,006                       |
+| **comment lines**                   | **1,403** (70%)             |
+| blank                               | 85                          |
+| declarations                        | ~518 lines                  |
+| store ports                         | 16                          |
+| exported types                      | 76                          |
+| of those, **named by a store port** | **68**                      |
+| the other 8                         | all have external consumers |
+
+So the file is not a bag of stray types. It is sixteen store ports and the vocabulary they are
+declared in, plus the JSDoc that explains it — which is R3 working exactly as intended and is what
+the audit's own C7 calls the best documentation in the repo.
+
+**The five "exports with no consumer at all" each have one:** `StepRemoval` is used by the port
+union two lines below it (and fe-01 has a _different_ type of the same name, which is what made the
+grep look empty), and the other four are referenced two or three times inside the barrel itself.
+None was dead. What four of them were is **needlessly public** — used only within `index.ts` — so
+`DirectoryWriteRefusal`, `ExternalRefWrite`, `OidcAccountIdentity` and `StepWriteRefusal` lost their
+`export` keyword. `tsc --build` on both the lib and the spec project confirms nothing outside wanted
+them.
+
+**And moving the rest out would invert the dependency.** `TagWritten` is `DirectoryStore.renameTag`'s
+return type: the barrel declares the port, the store implements it, so a barrel importing the type
+from the store it defines the contract for is backwards.
+
+**What is real about W4-1 is the caching, not the contents.** Seventy-two files import this module,
+so touching it invalidates their typecheck — an ordinary cost of a shared contract, and one that
+splitting per-store would not remove because the ports would still be shared. The other real cost,
+the read set, is 70% prose: an agent pays 2,006 lines to reach one type, and the fix for that is
+`W4-9`'s module README pointing into the file, not a split.
+
+**Green:** `be-01` 1270 pass across 93 files, lint, typecheck; `format:check --all`.
