@@ -5192,6 +5192,74 @@ describe('the pointed row', () => {
     // …and neither did the svg's own marks.
     expect(shortDateCalls.count - beforeMarks).toBe(0);
   });
+
+  /**
+   * The same silence for the other per-gesture state: opening a bar's facts.
+   *
+   * `open?.sliceId` and `fullScreen` were entries 15 and 28 of
+   * `marksOverLight`'s twenty-three-deep dependency list, and neither is
+   * **drawn** by a mark — both are read in `onClick`, `onPointerLeave` and
+   * `onFocus`. So opening one bar's card re-rendered every bar, every arrow,
+   * every flag and every tick in the chart, to change nothing about any of
+   * them. They are read through a mirror ref now, in `wbs-table.tsx`'s `live`
+   * shape.
+   *
+   * The oracle is the **card's own** four `shortIsoDate` calls, and the number
+   * matters: the marks cost two per bar and there are two of them, so a
+   * re-render of the marks turns 4 into 8. `initialsOf` is the second oracle
+   * and is on the bar-words' path alone, which is why it stays at zero either
+   * way.
+   *
+   * Proof: `open?.sliceId` put back into the dependency list, watched failing
+   * on `expected 8 to be 4` — the card opening re-rendering both bars' labels
+   * on top of its own facts. Observed 2026-09-02.
+   */
+  itDom('opening a bar’s facts re-renders no Gantt mark', () => {
+    const pointed = createPointedRows();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { number: '010', name: 'Strip' }),
+            rowAt('sand', 3, 5, { number: '020', name: 'Sand' }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 3, 5, { personId: 'kat' }),
+          ],
+          personNames: new Map([['kat', 'Kat Holmes']]),
+        })}
+        startDate={MONDAY}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />,
+    );
+    // Both oracles are on the marks' render path before anything is asserted
+    // about their silence (R5).
+    expect(initialsCalls.count).toBeGreaterThan(0);
+    expect(shortDateCalls.count).toBeGreaterThan(0);
+
+    const bar = document.querySelector('[data-gantt-bar="strip-dev"]');
+    if (!(bar instanceof Element)) throw new Error('the chart drew no bar to open');
+    const beforeWords = initialsCalls.count;
+    const beforeMarks = shortDateCalls.count;
+    fireEvent.focus(bar);
+
+    // The card really opened — a delta of zero over a gesture that did nothing
+    // would prove nothing at all.
+    expect(screen.getByRole('tooltip', { name: 'Facts for 010' })).toBeDefined();
+    // The words on the bars did not re-render at all…
+    expect(initialsCalls.count - beforeWords).toBe(0);
+    // …and the only new date words are the **card's own**: `barFacts` runs
+    // four `shortIsoDate`s for the bar it is describing. The marks cost two per
+    // bar and there are two of them, so a re-render of the marks makes this 8
+    // rather than 4 — which is exactly what the injected fault produces.
+    expect(shortDateCalls.count - beforeMarks).toBe(4);
+  });
 });
 
 describe('downloading the chart as a standalone .svg', () => {

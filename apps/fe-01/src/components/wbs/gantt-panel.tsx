@@ -2396,6 +2396,23 @@ function GanttChart({
   // Memoized against the one read it is a pure layout of, so a pointed-row
   // render of this shell re-draws no geometry (`pointed-row-render-cost`).
   const chart = useMemo(() => layOutGantt(plan), [plan]);
+
+  /**
+   * The two per-gesture facts the marks' **handlers** read, mirrored so the
+   * marks themselves do not depend on them.
+   *
+   * `fullScreen` and the open card's slice id are read in `onClick`,
+   * `onPointerLeave` and `onFocus` and drawn nowhere, but they were entries 15
+   * and 28 of `marksOverLight`'s dependency list — so opening one bar's facts,
+   * or going full screen, re-rendered **every mark in the chart**: every bar,
+   * every arrow, every flag, every tick.
+   *
+   * `wbs-table.tsx`'s `live` ref is the pattern, and its rule holds here too:
+   * anything a mark *draws* stays in the dependency list. These two are only
+   * ever asked "what is true now" by a handler the reader has just fired.
+   */
+  const gesture = useRef({ fullScreen: false, openSliceId: undefined as string | undefined });
+  gesture.current = { fullScreen, openSliceId: open?.sliceId };
   /**
    * The sentence about the waits this chart could not draw, or null where it
    * drew every one — {@link droppedLinkWords}, whose count comes from the three
@@ -3235,9 +3252,9 @@ function GanttChart({
               // nothing to do about it but leave the click alone.
               const touchPress = pressedWithTouch.current;
               pressedWithTouch.current = false;
-              if (fullScreen && touchPress) {
+              if (gesture.current.fullScreen && touchPress) {
                 cancelOpening();
-                if (open?.sliceId !== bar.sliceId) {
+                if (gesture.current.openSliceId !== bar.sliceId) {
                   showSurface(bar.sliceId, click.currentTarget);
                   return;
                 }
@@ -3296,7 +3313,7 @@ function GanttChart({
               // A touch leaves the mark before its synthesized click.
               // In full screen that click owns the surface: first tap
               // opens it, and a second tap on the same bar navigates.
-              if (fullScreen && pointer.pointerType === 'touch') return;
+              if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
               dismiss();
             }}
             // No delay on the keyboard: focus is deliberate, and there is
@@ -3305,7 +3322,7 @@ function GanttChart({
               // A touch focuses before its click. Let that click decide
               // between opening the facts and deliberate navigation;
               // keyboard focus keeps the immediate surface below.
-              if (fullScreen && pressedWithTouch.current) return;
+              if (gesture.current.fullScreen && pressedWithTouch.current) return;
               pointRow(bar.rowIndex, 'focus');
               cancelOpening();
               showSurface(bar.sliceId, focus.currentTarget);
@@ -3402,9 +3419,7 @@ function GanttChart({
       pad,
       placed,
       plan,
-      fullScreen,
       onPointRow,
-      open?.sliceId,
       pointRow,
       rowCount,
       rowIdAt,
