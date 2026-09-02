@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import type * as TableFrameModule from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -336,12 +337,7 @@ describe('the row actions menu', () => {
       afterId: api.rows[0]?.id ?? null,
       name: 'Sand',
     });
-    const removed: [string, unknown][] = [];
-    const real = api.removeWorkItem.bind(api);
-    api.removeWorkItem = (id, options) => {
-      removed.push([id, options]);
-      return real(id, options);
-    };
+    const removed = recordCalls(api, 'removeWorkItem');
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010.1');
 
@@ -357,12 +353,7 @@ describe('the row actions menu', () => {
 
   itDom('sends no strategy for a leaf, which has nothing to promote', async () => {
     const api = fakeApi();
-    const removed: unknown[] = [];
-    const real = api.removeWorkItem.bind(api);
-    api.removeWorkItem = (id, options) => {
-      removed.push(options);
-      return real(id, options);
-    };
+    const removed = recordCalls(api, 'removeWorkItem', (_id, options) => options);
     await threeRows(api);
 
     takeRowAction('020', 'Delete');

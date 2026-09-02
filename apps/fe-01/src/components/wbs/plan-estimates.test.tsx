@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Days, ProjectApi } from '@/lib/wbs-api';
+import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { STEP_FINAL_HINT } from './column-hints';
 import { initialsOf } from './initials';
@@ -326,15 +327,7 @@ describe('assigning from a folded step’s cell with @', () => {
   };
 
   /** Records every estimate written, and still performs it. */
-  const watchEstimates = (api: ProjectApi): unknown[][] => {
-    const written: unknown[][] = [];
-    const perform = api.setEstimate.bind(api);
-    api.setEstimate = (id: string, stepId: string, days: Days) => {
-      written.push([id, stepId, days]);
-      return perform(id, stepId, days);
-    };
-    return written;
-  };
+  const watchEstimates = (api: ProjectApi) => recordCalls(api, 'setEstimate');
 
   /** What a folded step's cell says about who is doing the work, or null. */
   const assigneeShown = (step = 'step-dev'): string | null =>
@@ -559,13 +552,13 @@ describe('assigning from a folded step’s cell with @', () => {
 
     // Every request from here on, so "no request on hover" is a fact about
     // this hover rather than about a component that never talks to be-01.
+    // One array across four methods, so the assertion below is about the
+    // requests **in order** rather than four separate silences. The projection
+    // is what does the recording here; each method's own returned array is not
+    // read.
     const asked: string[] = [];
     for (const method of ['tree', 'listPeople', 'setEstimate', 'assignPerson'] as const) {
-      const real = api[method].bind(api) as (...args: never[]) => unknown;
-      (api as unknown as Record<string, unknown>)[method] = (...args: never[]) => {
-        asked.push(method);
-        return real(...args);
-      };
+      recordCalls(api, method, () => asked.push(method));
     }
 
     fireEvent.mouseEnter(foldedWrapper());
@@ -851,15 +844,7 @@ describe('one cell for the whole trio', () => {
   };
 
   /** Records every estimate written, and still performs it. */
-  const watchWrites = (api: ProjectApi): unknown[][] => {
-    const written: unknown[][] = [];
-    const perform = api.setEstimate.bind(api);
-    api.setEstimate = (id: string, stepId: string, days: Days) => {
-      written.push([id, stepId, days]);
-      return perform(id, stepId, days);
-    };
-    return written;
-  };
+  const watchWrites = (api: ProjectApi) => recordCalls(api, 'setEstimate');
 
   /** One row, steps left folded — which is where a person starts. */
   async function oneRow() {
@@ -1189,12 +1174,7 @@ describe('one cell for the whole trio', () => {
     await waitFor(() => {
       expect(api.rows[0]?.estimates['step-dev']).toBeDefined();
     });
-    const cleared: [string, string][] = [];
-    const perform = api.clearEstimate.bind(api);
-    api.clearEstimate = (id: string, stepId: string) => {
-      cleared.push([id, stepId]);
-      return perform(id, stepId);
-    };
+    const cleared = recordCalls(api, 'clearEstimate');
 
     typeCombined('010', '');
 
@@ -1513,15 +1493,7 @@ describe('estimates are never edited for you', () => {
   });
 
   /** Records every clear the table asks for, and still performs it. */
-  const watchClears = (api: ProjectApi): [string, string][] => {
-    const cleared: [string, string][] = [];
-    const perform = api.clearEstimate.bind(api);
-    api.clearEstimate = (id: string, stepId: string) => {
-      cleared.push([id, stepId]);
-      return perform(id, stepId);
-    };
-    return cleared;
-  };
+  const watchClears = (api: ProjectApi) => recordCalls(api, 'clearEstimate');
 
   /** Types a stored `2 / 3 / 10` for Dev on `010` and waits for be-01 to hold it. */
   async function estimated() {

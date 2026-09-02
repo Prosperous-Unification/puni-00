@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { refusedDraftFor } from './live-editing';
 import type * as TableFrameModule from './table-frame';
@@ -412,15 +413,8 @@ describe('the priority cell', () => {
   }
 
   /** Every PATCH the table sends, still performed. */
-  const watchPatches = (api: ProjectApi): unknown[] => {
-    const seen: unknown[] = [];
-    const perform = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      seen.push(patch);
-      return perform(id, patch);
-    };
-    return seen;
-  };
+  const watchPatches = (api: ProjectApi): unknown[] =>
+    recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
   const priorityCell = (number: string): HTMLInputElement =>
     screen.getByLabelText<HTMLInputElement>(`Priority for ${number}`);
@@ -535,12 +529,11 @@ describe('the priority cell', () => {
       // because `Infinity` in a JS object is not the value that arrives, and a
       // test watching the object alone cannot see the loss.
       const api = await twoRows();
-      const onTheWire: unknown[] = [];
-      const perform = api.patchWorkItem.bind(api);
-      api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-        onTheWire.push(JSON.parse(JSON.stringify(patch)));
-        return perform(id, patch);
-      };
+      // Copied on the way past, because the fake is free to mutate the object
+      // it was handed and the assertion below is about what left the browser.
+      const onTheWire = recordCalls(api, 'patchWorkItem', (_id, patch): unknown =>
+        JSON.parse(JSON.stringify(patch)),
+      );
 
       typeIntoPriority('010', '1e999');
 
@@ -789,15 +782,8 @@ describe('the In-parallel cell', () => {
   }
 
   /** Every PATCH the table sends, still performed. */
-  const watchPatches = (api: ProjectApi): unknown[] => {
-    const seen: unknown[] = [];
-    const perform = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      seen.push(patch);
-      return perform(id, patch);
-    };
-    return seen;
-  };
+  const watchPatches = (api: ProjectApi): unknown[] =>
+    recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
   const parallelCell = (number: string): HTMLInputElement =>
     screen.getByLabelText<HTMLInputElement>(`People at once for ${number}`);
@@ -1506,12 +1492,7 @@ describe('names wrap and notes carry markdown', () => {
       expect(api.rows[0]?.notes).toBe('measure twice');
     });
 
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push([id, patch]);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem');
 
     // A look, not an edit: in and straight out again.
     name.focus();
@@ -1897,12 +1878,7 @@ describe('a name and its notes in one box', () => {
     });
     expect(api.rows[0]?.notes).toBe(notes);
 
-    const patched: [string, Record<string, string>][] = [];
-    const real = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
-      patched.push([id, patch]);
-      return real(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem');
     return { api, patched, cell };
   }
 

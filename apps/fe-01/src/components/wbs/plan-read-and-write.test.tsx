@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { refusedDraftFor } from './live-editing';
 import type * as TableFrameModule from './table-frame';
@@ -218,6 +219,24 @@ describe('live edits from other people', () => {
   });
 
   /**
+   * Every read one refresh makes, in the order `refresh` issues them.
+   *
+   * Named here rather than inline so a read added to `refresh` and forgotten
+   * here shows up as a count these cases disagree with, rather than as one they
+   * silently stop counting.
+   */
+  const READS_ONE_REFRESH_MAKES = [
+    'tree',
+    'steps',
+    'listTeams',
+    'listTags',
+    'listServices',
+    'listWorkItemTypes',
+    'listExternalSystems',
+    'listPeople',
+  ] as const;
+
+  /**
    * Counts the requests one read makes, by path.
    *
    * Wraps the fake rather than changing it: every other test in the repository
@@ -225,43 +244,15 @@ describe('live edits from other people', () => {
    */
   const countingApi = () => {
     const api = fakeApi();
+    // One array across the eight reads, because what these cases are about is
+    // **how many** of them a frame or a write starts — a per-method array
+    // cannot tell "one read" from "eight". The projections do the recording;
+    // the arrays `recordCalls` hands back are not read.
     const reads: string[] = [];
-    const counted = {
-      ...api,
-      tree: (id: string) => {
-        reads.push('tree');
-        return api.tree(id);
-      },
-      steps: (id: string) => {
-        reads.push('steps');
-        return api.steps(id);
-      },
-      listTeams: () => {
-        reads.push('listTeams');
-        return api.listTeams();
-      },
-      listTags: () => {
-        reads.push('listTags');
-        return api.listTags();
-      },
-      listServices: () => {
-        reads.push('listServices');
-        return api.listServices();
-      },
-      listWorkItemTypes: () => {
-        reads.push('listWorkItemTypes');
-        return api.listWorkItemTypes();
-      },
-      listExternalSystems: () => {
-        reads.push('listExternalSystems');
-        return api.listExternalSystems();
-      },
-      listPeople: () => {
-        reads.push('listPeople');
-        return api.listPeople();
-      },
-    };
-    return { api: counted, reads };
+    for (const method of READS_ONE_REFRESH_MAKES) {
+      recordCalls(api, method, () => reads.push(method));
+    }
+    return { api, reads };
   };
 
   /** Mounts, waits for the first read to land, then forgets what it cost. */
@@ -566,12 +557,7 @@ describe('someone else editing while you are typing', () => {
       expect(api.rows[0]?.notes).toBe(notes);
     });
 
-    const patched: [string, Record<string, string>][] = [];
-    const real = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, string>) => {
-      patched.push([id, patch]);
-      return real(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem');
     /** Their edit, landing while this client is mid-word. */
     const theirEdit = async (change: (row: WorkItemView) => void) => {
       change(api.rows[0]);
@@ -837,6 +823,9 @@ describe('failures you can see', () => {
     // so nothing…'`; and the `INVALID_REQUEST` half of the reread condition
     // removed, it failed on `expected +0 to be 1`. Both watched, 2026-08-09.
     const api = await threeRoots();
+    // A count rather than a `recordCalls` array, and deliberately: the proof
+    // above quotes `expected +0 to be 1`, and this is one number rather than
+    // one of the forty-five recorders.
     let reads = 0;
     const realTree = api.tree.bind(api);
     api.tree = (projectId: string) => {

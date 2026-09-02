@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { hintFor } from './column-hints';
 import type * as TableFrameModule from './table-frame';
@@ -1217,12 +1218,7 @@ describe('the plan on a calendar', () => {
     // and its `Not before` twin on `expected [ …(4) ] to deeply equal []`.
     // Watched, 2026-08-09.
     const api = await oneRow();
-    const sent: (string | null)[] = [];
-    const realSet = api.setStartDate.bind(api);
-    api.setStartDate = (projectId: string, day: string | null) => {
-      sent.push(day);
-      return realSet(projectId, day);
-    };
+    const sent = recordCalls(api, 'setStartDate', (_projectId, day) => day);
 
     const box = screen.getByLabelText<HTMLInputElement>('Project start date');
     box.focus();
@@ -1250,12 +1246,7 @@ describe('the plan on a calendar', () => {
         false,
       );
     });
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push(patch);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
     const box = openNotBefore('010');
     box.focus();
@@ -1276,12 +1267,7 @@ describe('the plan on a calendar', () => {
     // Proof: the `Enter` branch removed from `DateField`, this failed on
     // `expected [] to deeply equal [ '2026-08-17' ]`. Watched, 2026-08-09.
     const api = await oneRow();
-    const sent: (string | null)[] = [];
-    const realSet = api.setStartDate.bind(api);
-    api.setStartDate = (projectId: string, day: string | null) => {
-      sent.push(day);
-      return realSet(projectId, day);
-    };
+    const sent = recordCalls(api, 'setStartDate', (_projectId, day) => day);
 
     const box = screen.getByLabelText<HTMLInputElement>('Project start date');
     box.focus();
@@ -1306,12 +1292,7 @@ describe('the plan on a calendar', () => {
         false,
       );
     });
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push(patch);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
     typeIntoNotBefore('010', '2026-08-12');
     await waitFor(() => {
@@ -1362,12 +1343,7 @@ describe('the plan on a calendar', () => {
       );
     });
 
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push(patch);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
     typeIntoNotBefore('010', '');
 
@@ -1392,12 +1368,7 @@ describe('the plan on a calendar', () => {
         false,
       );
     });
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push(patch);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
     const editor = openNotBefore('010');
     const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');
@@ -1439,12 +1410,7 @@ describe('the plan on a calendar', () => {
       );
     });
 
-    const patched: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = (id: string, patch: Record<string, unknown>) => {
-      patched.push(patch);
-      return realPatch(id, patch);
-    };
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
 
     openNotBefore('010');
     const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');

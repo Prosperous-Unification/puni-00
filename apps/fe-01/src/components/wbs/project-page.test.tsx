@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { ProjectPage } from './project-page';
 
@@ -358,12 +359,7 @@ describe('the chosen project survives a refresh', () => {
     const api = fakeProjects(TWO);
     // What the guard prevents is the table asking be-01 for the deleted
     // project's tree.
-    const asked: string[] = [];
-    const realTree = api.tree.bind(api);
-    api.tree = (projectId) => {
-      asked.push(projectId);
-      return realTree(projectId);
-    };
+    const asked = recordCalls(api, 'tree', (projectId) => projectId);
     pageWith(api);
 
     await waitFor(() => {
@@ -473,12 +469,7 @@ describe('the picker searches', () => {
 
   itDom('chooses with the keyboard alone, and shows that project’s table', async () => {
     const api = fakeProjects(TWO);
-    const asked: string[] = [];
-    const realTree = api.tree.bind(api);
-    api.tree = (projectId) => {
-      asked.push(projectId);
-      return realTree(projectId);
-    };
+    const asked = recordCalls(api, 'tree', (projectId) => projectId);
     pageWith(api);
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();

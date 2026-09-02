@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import type * as TableFrameModule from './table-frame';
 import { WbsTable } from './wbs-table';
@@ -563,12 +564,7 @@ describe('Tab moves between the fields, from every cell', () => {
     'Tab from the depends input closes the picker, discards the typed search, and moves once',
     async () => {
       const api = await threeRoots();
-      const added: unknown[] = [];
-      const realAdd = api.addDependency.bind(api);
-      api.addDependency = (id: string, predecessorId: string) => {
-        added.push([id, predecessorId]);
-        return realAdd(id, predecessorId);
-      };
+      const added = recordCalls(api, 'addDependency');
 
       const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
       box.focus();
@@ -1991,17 +1987,14 @@ describe('the command chords', () => {
 
   /** Every `assign` and `addPerson` the table asked for, in order. */
   const watchPeopleWrites = (api: ProjectApi): string[] => {
+    // One array across two methods, because what this is about is the **order**
+    // the two arrive in; the projections do the recording and each method's own
+    // returned array is not read.
     const written: string[] = [];
-    const realAssign = api.assignPerson.bind(api);
-    api.assignPerson = (id: string, stepId: string, personId: string | null) => {
-      written.push(`assign ${id} ${stepId} ${String(personId)}`);
-      return realAssign(id, stepId, personId);
-    };
-    const realAdd = api.addPerson.bind(api);
-    api.addPerson = (name: string, teamIds: readonly string[]) => {
-      written.push(`addPerson ${name}`);
-      return realAdd(name, teamIds);
-    };
+    recordCalls(api, 'assignPerson', (id, stepId, personId) =>
+      written.push(`assign ${id} ${stepId} ${String(personId)}`),
+    );
+    recordCalls(api, 'addPerson', (name) => written.push(`addPerson ${name}`));
     return written;
   };
 
@@ -2046,12 +2039,7 @@ describe('the command chords', () => {
 
   itDom('creating a second team sends and reloads the whole team set', async () => {
     const api = await threeRoots();
-    const patches: unknown[] = [];
-    const realPatch = api.patchWorkItem.bind(api);
-    api.patchWorkItem = async (id, patch) => {
-      patches.push({ id, patch });
-      return realPatch(id, patch);
-    };
+    const patches = recordCalls(api, 'patchWorkItem', (id, patch) => ({ id, patch }));
 
     const createTeam = async (name: string, expected: readonly string[]): Promise<void> => {
       const box = screen.getByRole('combobox', { name: 'Service or team for 020' });

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import { cellKey } from './editable-grid';
 import type * as TableFrameModule from './table-frame';
@@ -1118,15 +1119,7 @@ describe('the picker marks what be-01 would refuse', () => {
   };
 
   /** Every call to `addDependency`, so "nothing was picked" is an observation. */
-  const watchAdds = (api: ProjectApi) => {
-    const added: [string, string][] = [];
-    const real = api.addDependency.bind(api);
-    api.addDependency = (id: string, predecessorId: string) => {
-      added.push([id, predecessorId]);
-      return real(id, predecessorId);
-    };
-    return added;
-  };
+  const watchAdds = (api: ProjectApi) => recordCalls(api, 'addDependency');
 
   itDom('greys the row this one sits inside, and says so', async () => {
     await nested();
@@ -1891,12 +1884,7 @@ describe('adding several dependencies at once', () => {
     // A row that waits for three things is ordinary. Typing it three times was
     // not. Asked for on 2026-08-06.
     const api = await threeRoots();
-    const added: [string, string][] = [];
-    const real = api.addDependency.bind(api);
-    api.addDependency = (id: string, predecessorId: string) => {
-      added.push([id, predecessorId]);
-      return real(id, predecessorId);
-    };
+    const added = recordCalls(api, 'addDependency');
 
     typeDeps('030', '010, 020');
 

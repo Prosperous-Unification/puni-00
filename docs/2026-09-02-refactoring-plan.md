@@ -125,14 +125,14 @@ until the type checks compile files and the cache reads the right inputs.
 
 The audit's L2/L3 with what the sweeps added. Zero production change in this wave.
 
-| Id   | Change                                                                                                                                                                                                             | Files                                                    | Effort | Needs |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | ------ | ----- |
-| W1-1 | **Half done, 2026-09-02** — see §18. The rich fake is extracted to `src/testing/` and now typechecks, which found 11 divergences from `ProjectApi`. Migrating the other six fakes and the call log are still open. | new; 7 test files                                        | 1.5d   | —     |
-| W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                  | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
-| W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.              | new; 24 test files                                       | 2d     | —     |
-| W1-4 | **Mostly done, 2026-09-02** — see §23. be-01 has guarded T0/T1 tiers and there is a root `test:unit` at 17s. fe-01's half needs a 55-file rename; lefthook is left alone, measured.                                | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
-| W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                              | `project.json` ×N, `.gitignore`                          | 1h     | —     |
-| W1-6 | **Investigated, not done, 2026-09-02** — see §24. The duplication is smaller than reported and the API-seeding idea conflicts with one spec's stated intent.                                                       | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
+| Id   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Files                                                    | Effort | Needs |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----- |
+| W1-1 | **Recorders done, the six fakes refused, 2026-09-02** — see §18 and §62. The rich fake is in `src/testing/` and typechecks, which found 11 divergences from `ProjectApi`. The record-and-delegate monkey patch — **45 copies across nine test files**, not the eight `watchX` the row counted — is one typed `recordCalls(api, method, of?)`, with the delegation's own negative. Folding the six other fakes into it is **refused with the files' own words**: each is that file's spec and says so. | new; 7 test files                                        | 1.5d   | —     |
+| W1-2 | **Done, 2026-09-02** — see §22. Eleven files, all 585 cases; the fe-01 suite goes 180s → **69s**.                                                                                                                                                                                                                                                                                                                                                                                                     | `apps/fe-01/src/components/wbs/*.test.tsx`               | 0.5d   | W1-1  |
+| W1-3 | **Done, 2026-09-02** — see §20 and §21. `inMemoryServices()` exists and **every in-memory suite** uses it, ~500 lines lighter. The audit's "24 files" was mostly T1 suites this harness cannot serve.                                                                                                                                                                                                                                                                                                 | new; 24 test files                                       | 2d     | —     |
+| W1-4 | **Mostly done, 2026-09-02** — see §23. be-01 has guarded T0/T1 tiers and there is a root `test:unit` at 17s. fe-01's half needs a 55-file rename; lefthook is left alone, measured.                                                                                                                                                                                                                                                                                                                   | every `project.json`, `vitest.config.ts`, `lefthook.yml` | 1d     | W1-2  |
+| W1-5 | **Done, 2026-09-02** — see §19. A cached `lint:fast` on all 22 projects: 15.1s → 4.1s. The plan's lefthook half is **withdrawn**, measured worthless.                                                                                                                                                                                                                                                                                                                                                 | `project.json` ×N, `.gitignore`                          | 1h     | —     |
+| W1-6 | **Investigated, not done, 2026-09-02** — see §24. The duplication is smaller than reported and the API-seeding idea conflicts with one spec's stated intent.                                                                                                                                                                                                                                                                                                                                          | `apps/fe-01/e2e/*`, `playwright.config.ts:165`           | 1.5d   | —     |
 
 ### Wave 2 — performance (≈ 10 days)
 
@@ -2305,3 +2305,87 @@ be a statement about the fixture's size:
 
 **Green:** the geometry's own 130 cases and `plan-mermaid`'s 50 (the other `calendarScale`
 caller), fe-01 typecheck and lint.
+
+## 62 · W1-1's remainder — one recorder, and six fakes that are not copies
+
+The row asked for two more things. One was worth more than it looked; the other is refused, and by
+the test files' own reasoning rather than mine.
+
+**The recorded call log: 45 copies, not eight.** The plan counted the eight `watchX` wrappers. The
+same five lines — bind the real method, replace it with a closure that pushes its arguments and
+delegates, hand back the array — appear **45 times across nine test files**, most of them inline in
+the case that needs them. `apps/fe-01/src/testing/record-calls.ts` is one typed
+`recordCalls(api, method, of?)`: without `of` the entry is the whole argument tuple, **typed**,
+where a hand-rolled `unknown[][]` was not; with it, every call site keeps the array shape it had, so
+not one assertion changed. Seven files converted (`plan-table`, `plan-cells`, `plan-estimates`,
+`plan-dependencies`, `plan-structure`, `plan-keyboard`, `project-page`) — 18 recorders gone.
+
+The **delegation** is why this belongs in one place. A recorder that pushed and returned without
+`perform(...)` makes every assertion built on it vacuous in the most expensive way: the request is
+recorded, the assertion about it passes, the fake's plan never changes, and every later assertion
+describes a screen nothing wrote to. All 45 got it right; the 46th is the one to worry about.
+`records what it was asked and still performs it` is the negative, watched failing on `expected ''
+to be 'Strip'` with the delegation removed.
+
+`plan-read-and-write.test.tsx` is swept too, including the **eighth** copy of the pattern — the
+`countingApi` written for W2-1's negatives, which wrapped all eight reads of one refresh and pushed
+a name onto one shared array. Those eight names are a tuple now and the array is unchanged, so the
+four assertions still tell one read from eight, which is the whole of what they are for.
+
+Thirteen `.bind(api)` sites are **left**, and they are not recorders: they hold a promise open to
+make a window, refuse one write kind, or delay a create. One `let reads = 0` counter is left too,
+and for a reason worth writing down — its own `Proof:` quotes `expected +0 to be 1`, and a recorded
+array would change that output and make a watched comment wrong for no gain.
+
+**Refused: folding the six fakes into one.** `gantt-panel`'s is read-only over a fixed plan and
+skews its reads on purpose; `plan-cards`' writes and refuses on demand; `project-page`'s is a list
+of projects, not a plan. Two of the three say so in their own JSDoc — `plan-cards.test.tsx`'s reads
+"Deliberately **not** `wbs-table.test.tsx`'s: that one is four hundred lines modelling renumbering,
+undo stacks, step removal and assumed-assignee flips, and it is that file's spec." A shared fake
+that served all three would have to model everything all three model, and every test in the
+repository would then depend on a fixture whose behaviour is nobody's subject. What the shared one
+is for is the files that want a **model of be-01** — and those already have it.
+
+What the six do share is the risk `gantt-panel.test.tsx` was just caught by: a fake in a spec
+project satisfies `ProjectApi` only as long as somebody runs `tsc -p tsconfig.spec.json` by hand.
+Seven names had drifted there. That gate — the spec projects in `nx typecheck` — is its own change,
+named in AGENTS.md, and it is worth more than one fixture.
+
+## 63 · The spec projects are outside the typecheck gate — 218 errors nobody compiles
+
+Found while clearing the five errors `d4b62a30` fixed: those five were not five, they were the
+visible corner of a much larger number, and the gate cannot see any of it.
+
+Measured on 2026-09-02, `tsc -p apps/<app>/tsconfig.spec.json --noEmit`:
+
+| project | errors | what `nx typecheck` actually compiles                                        |
+| ------- | ------ | ---------------------------------------------------------------------------- |
+| be-01   | 107    | `tsc --build --force apps/be-01/tsconfig.lib.json`                           |
+| fe-01   | 97     | `tsc --build --force apps/fe-01/tsconfig.app.json`, then `tsconfig.e2e.json` |
+| gw-01   | 14     | `tsc --build --force apps/gw-01/tsconfig.lib.json`                           |
+
+**Not one of those commands names a `tsconfig.spec.json`.** CI runs `run-many -t typecheck`, so CI
+never compiles a test file either. The tests still pass — vitest strips types through esbuild
+without checking them — which is why 218 errors can sit in the suite while every gate is green.
+fe-01's count moved 94 → 97 during a single afternoon's work, so this grows on its own.
+
+CLAUDE.md records this as a known and bounded exception: "The test projects are not in the gate
+yet: 10 pre-existing errors, named in `teams-and-assignees/verify.md`, are their own change." Ten
+was true when it was written. It is 218, which makes the sentence a claim rather than a
+measurement, and the note in CLAUDE.md should be corrected to say so whoever reads it next starts
+from the real figure — the same overstatement-in-reverse that §24 found in W1-6's `seedPlan ×6`.
+
+This is the branch's own fault class wearing a fourth hat: a gate scoped to a place the fault is
+not. `nx typecheck` was fixed twice for compiling **nothing** (be-01 and fe-01 on 2026-08-06,
+gw-01 on 2026-08-09) by pointing it at `tsc --build --force` on a real project — and the project
+it was pointed at was the source one, so the test files stayed uncompiled the whole time.
+
+**Not attempted here, and it is not a tail end of anything.** Turning the spec projects on means
+fixing 218 errors across roughly forty files first, or the gate goes red on its first run; and some
+of them are the drift `d4b62a30` describes, where a fake's method names no longer match the
+interface — real bugs in the tests' own scaffolding, each needing a reader who knows what the test
+meant. Its own change, with the count re-measured at the start because it moves.
+
+One thing worth doing before that change, and cheap: have `fe-01:typecheck` and the other two
+**name** the spec project in a non-blocking second command, so the number is on screen in every
+run instead of being discovered by accident twice a month.
