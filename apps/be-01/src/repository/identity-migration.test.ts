@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const PERSON_KIND = '20260821150000_add_person_kind';
@@ -25,6 +25,7 @@ const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 /** The newest, and the first thing every rollback below reverses. */
 const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
 /** The newest: the audit columns, so it heads every descending reversal below. */
+const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -40,6 +41,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    LOOKUP_INDEXES,
     AUDIT_COLUMNS,
     RENAME_ROLE_TO_STEP,
     WEIGHTS_AND_ROUNDING,
@@ -132,6 +134,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
@@ -188,6 +191,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
@@ -260,12 +264,14 @@ describe('the OIDC identity migration', () => {
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-          // 34 folders on disk, and this figure moves with every migration added
-          // — 32 until 20260831120000_rename_role_to_step, 33 until
-          // 20260901120000_add_audit_columns. What it is asserting is that a
-          // re-apply leaves the ledger complete rather than short, so the
-          // literal has to be the real count.
-        ).toEqual({ users: 2, projects: 2, migrations: 34 });
+          // Counted off disk rather than written down. What this asserts is
+          // that a re-apply leaves the ledger **complete rather than short**,
+          // and a literal states that badly: it was 32 until
+          // 20260831120000_rename_role_to_step, 33 until
+          // 20260901120000_add_audit_columns, 34 until
+          // 20260902120000_add_lookup_indexes, and every one of those changes
+          // broke this line in a way that said nothing about identity.
+        ).toEqual({ users: 2, projects: 2, migrations: readMigrationFolders(FOLDER).length });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

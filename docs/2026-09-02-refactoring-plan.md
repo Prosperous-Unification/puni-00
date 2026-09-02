@@ -111,7 +111,7 @@ until the type checks compile files and the cache reads the right inputs.
 | W0-1  | **Done, 2026-09-02** — see §6. `tsc --noEmit -p <solution>` → `tsc --build --force` in the 18 vacuous `typecheck` targets, and `libs/auth` unified onto the same form so all 23 read one way. 12 latent type errors fixed, `@types/node` bumped 18.16.9 → 22.18.0, one guard test added. | 19 `project.json`; 7 source files; `package.json`                    | 1h + ? | `const x: number = 'no'` in `tools/tool-remote-scripts/src/swap.ts`, watched red                                     |
 | W0-2  | **Done, 2026-09-02** — see §7. Nine targets across six projects read files outside their own project and declared none. Declared precisely, per target. `--skip-nx-cache` **kept** in the release gate, deliberately; see §7.                                                            | `nx.json` or 7 `project.json`; `bin/h2puni-gate.sh`                  | 2h     | edit `bin/dev-deploy.sh`, assert the shellcheck target re-runs                                                       |
 | W0-3  | **Done, 2026-09-02** — see §8. Deleted. The waste was larger than N1 said: a read route resolved the caller twice, not once.                                                                                                                                                             | `app.ts:171–173`                                                     | 15m    | a counter on `AuthService.authenticate` per `/health`: 1 → 0                                                         |
-| W0-4  | Declare the three phantom indexes; add `assignment(person_id)`, `assignment(step_id)`, `estimate(step_id)`, `dependency(successor_id)` in one additive migration with its `down.sql`; add a test diffing `sqlite_master` against `schema.ts` on a fresh DB (N2).                         | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
+| W0-4  | **Done, 2026-09-02** — see §16. Seven indexes declared, four created by an additive migration, and a diff test that would have caught the drift.                                                                                                                                         | `schema.ts`, `drizzle/`, new `schema-indexes.test.ts`                | 4h     | remove one declared index, watch the diff test name it                                                               |
 | W0-5  | **Done, 2026-09-02** — see §15. All three closed; the leak was measured on the wire first, and one column list now serves two readers.                                                                                                                                                   | `repository/project.ts`, `work-item.ts`, `directory.ts`, `schema.ts` | 6h     | `created_by` asserted absent from `GET /api/projects/:id` body                                                       |
 | W0-6  | Move the three stray broadcasts out of the lock (N4): a runner-owned pending-announcement set drained after `commit()` and after `lock.run`; dedupe by `(projectId, type)`. Fix `directory.service.ts:653–657`'s comment from the output.                                                | `plan-commands.ts`, the three services                               | 1.5d   | extend "lets go of the write lock before the broadcast leaves" to a directory command; today it proves nothing there |
 | W0-7  | **Done, 2026-09-02** — see §10. Ten call sites moved to the surviving shape; `announceWorkItem`, `withAncestors` and `work_items_changed` deleted.                                                                                                                                       | `work-item.service.ts`, `broadcast.ts`                               | 4h     | deletion test — grep confirms one non-test reference each                                                            |
@@ -728,3 +728,56 @@ It was wrong about the mapper for as long as those columns have existed; it now 
 what the mapper does today.
 
 **Green:** `be-01` 1264 pass, 0 fail; lint; typecheck; `format:check --all`.
+
+## 16 · Verify — W0-4, 2026-09-02
+
+**The drift, measured.** A freshly migrated database holds 28 indexes; `schema.ts` declared 25. The
+three it did not know about are `actual_by_step`, `step_progress_by_step` and
+`step_measure_by_step`, created under their new names by `20260831120000_rename_role_to_step` and
+never written back. Three reads in `step.ts` name them in comments as the reason they are fast, and
+`drizzle-kit generate` diffs against `schema.ts` — so the next generate would have dropped all
+three.
+
+**The four new indexes were chosen from query plans, not from guesses.** `EXPLAIN QUERY PLAN` on a
+migrated database, before the migration:
+
+| Clause                           | Plan                                                               |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `assignment` by `person_id`      | `SCAN assignment`                                                  |
+| `assignment` by `step_id`        | `SCAN assignment`                                                  |
+| `estimate` by `step_id`          | `SCAN estimate`                                                    |
+| `dependency` by `successor_id`   | `SCAN dependency`                                                  |
+| `dependency` by `predecessor_id` | `SEARCH … USING INDEX dependency_pair` — the control               |
+| `assignment` by `work_item_id`   | `SEARCH … USING INDEX sqlite_autoindex_assignment_1` — the control |
+
+The two controls matter: they say the read is the problem rather than the table. `step_id` and
+`person_id` are not prefixes of their primary keys, and `dependency_pair` is
+`(predecessor_id, successor_id)`, so it answers one direction and not the one a subtree delete uses
+once per work item. `work_item(service_team_id)` was on the review's list and is **not** added — the
+column is marked for removal, and indexing a dying column buys a plan for one release.
+
+`20260902120000_add_lookup_indexes` is additive (`CREATE INDEX` only, so both colours run against
+one file through a swap) and ships its `down.sql`. The migration lint passes; `nx run be-01:build`,
+which runs it, is green.
+
+**Adding a migration means four ledgers, and they do not all run the same way.** Fifteen descending
+lists in `migrate.test.ts`, three in each of `migrate-down.test.ts` and `identity-migration.test.ts`,
+one in `project.test.ts` — plus **three ascending** lists in `migrate-down.test.ts`
+(`readMigrationFolders` and `appliedNames` answer oldest-first). Two more assertions were hard-coded
+against "which migration is newest" and "how many exist", and each is now derived:
+
+- `does nothing when the target is already the newest applied` read the newest off disk instead of
+  naming `AUDIT_COLUMNS`. It had named the role → step rename before that.
+- `locks OIDC-only accounts during downgrade…` counted `migrations: 34`, with a comment saying the
+  figure moves with every migration. It counts `readMigrationFolders(FOLDER).length` now. What it
+  asserts is that a re-apply leaves the ledger complete rather than short, and a literal states that
+  badly.
+
+**The guard.** `schema-indexes.test.ts` diffs every index `schema.ts` declares against every index a
+migrated database holds. Watched failing on exactly the 2026-09-02 state — with
+`index('actual_by_step')` taken back out, `expect(received).toEqual(expected) · - "actual_by_step"`.
+It carries a second case asserting the declared list is over twenty names and contains a known one,
+because two empty lists are equal and a `getTableConfig` that threw for every export would make both
+sides empty for the same wrong reason.
+
+**Green:** `be-01` 1266 pass, 0 fail; lint; typecheck; build (the migration lint); `format --all`.

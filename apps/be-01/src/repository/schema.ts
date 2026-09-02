@@ -550,7 +550,13 @@ export const estimate = sqliteTable(
     pessimistic: real('pessimistic').notNull(),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
+    // `step_id` is not a prefix of the primary key, so a read by step alone
+    // scans. `StepRepository.remove` counts this table by step on every removal.
+    // Measured 2026-09-02: `SCAN estimate` before, `SEARCH` after.
+    index('estimate_by_step').on(t.stepId),
+  ],
 );
 
 export type EstimateRow = typeof estimate.$inferSelect;
@@ -619,7 +625,15 @@ export const actual = sqliteTable(
     recordedAt: integer('recorded_at').notNull(),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
+    // Declared here and created by `20260831120000_rename_role_to_step`, which is
+    // the awkward half of that rename: the index was rebuilt under its new name
+    // in SQL and never written back into this file, so the next
+    // `drizzle-kit generate` would have dropped an index three reads depend on.
+    // Measured 2026-09-02: it was in the database and not in this schema.
+    index('actual_by_step').on(t.stepId),
+  ],
 );
 
 export type ActualRow = typeof actual.$inferSelect;
@@ -695,6 +709,12 @@ export const stepProgress = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId] }),
+    // Declared here and created by `20260831120000_rename_role_to_step`, which is
+    // the awkward half of that rename: the index was rebuilt under its new name
+    // in SQL and never written back into this file, so the next
+    // `drizzle-kit generate` would have dropped an index three reads depend on.
+    // Measured 2026-09-02: it was in the database and not in this schema.
+    index('step_progress_by_step').on(t.stepId),
     // `role_progress_state`, not `step_progress_state`: this is the name SQLite
     // has stored for the constraint since 20260818010000, and
     // 20260831120000_rename_role_to_step could not change it. SQLite renames
@@ -804,6 +824,12 @@ export const stepMeasure = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
+    // Declared here and created by `20260831120000_rename_role_to_step`, which is
+    // the awkward half of that rename: the index was rebuilt under its new name
+    // in SQL and never written back into this file, so the next
+    // `drizzle-kit generate` would have dropped an index three reads depend on.
+    // Measured 2026-09-02: it was in the database and not in this schema.
+    index('step_measure_by_step').on(t.stepId),
     check(
       // `role_measure_metric` for {@link stepProgress}'s reason: the constraint
       // name is what SQLite stored in 20260821140000 and a rename cannot reach
@@ -1559,7 +1585,14 @@ export const assignment = sqliteTable(
       .references(() => person.id, { onDelete: 'cascade' }),
     ...auditColumns(),
   },
-  (t) => [primaryKey({ columns: [t.workItemId, t.stepId] })],
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
+    // Neither column is a prefix of the primary key. A person's directory usage
+    // reads by person and a step removal reads by step, and both scanned.
+    // Measured 2026-09-02: `SCAN assignment` before, `SEARCH` after.
+    index('assignment_by_person').on(t.personId),
+    index('assignment_by_step').on(t.stepId),
+  ],
 );
 
 export type AssignmentRow = typeof assignment.$inferSelect;
@@ -1615,6 +1648,11 @@ export const dependency = sqliteTable(
   (t) => [
     index('dependency_project').on(t.projectId),
     uniqueIndex('dependency_pair').on(t.predecessorId, t.successorId),
+    // `dependency_pair` covers a read by predecessor, because it is that index's
+    // first column, and does nothing for a read by successor.
+    // `removeAllFor` reads by successor once per work item in a subtree delete.
+    // Measured 2026-09-02: `SCAN dependency` before, `SEARCH` after.
+    index('dependency_by_successor').on(t.successorId),
   ],
 );
 

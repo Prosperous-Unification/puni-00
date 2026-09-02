@@ -212,6 +212,7 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * Additive forward and dropped whole on the way back, so it heads the folder
  * order and every descending reversal list below.
  */
+const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -480,6 +481,7 @@ describe('readMigrationFolders', () => {
       WEIGHTS_AND_ROUNDING,
       RENAME_ROLE_TO_STEP,
       AUDIT_COLUMNS,
+      LOOKUP_INDEXES,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -587,11 +589,13 @@ describe('rollbackTo, against a real database', () => {
         WEIGHTS_AND_ROUNDING,
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
+        LOOKUP_INDEXES,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
@@ -682,6 +686,7 @@ describe('rollbackTo, against a real database', () => {
         WEIGHTS_AND_ROUNDING,
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
+        LOOKUP_INDEXES,
       ]);
     } finally {
       db.cleanup();
@@ -752,6 +757,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
         WEIGHTS_AND_ROUNDING,
@@ -820,10 +826,17 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      // The newest applied is the role -> step rename, so rolling back *to* it
-      // reverses nothing. Each step down names everything newer than its target,
-      // newest first — which is the half a shared stamp would silently empty.
-      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([]);
+      // Rolling back *to* the newest applied reverses nothing. Each step down
+      // names everything newer than its target, newest first — which is the half
+      // a shared stamp would silently empty.
+      //
+      // The newest is read off disk rather than named: this line asserted
+      // `AUDIT_COLUMNS` and before that the role → step rename, and each new
+      // migration broke it in a way that says nothing about rollback.
+      const newest = readMigrationFolders(FOLDER).at(-1)?.name;
+      expect(newest).toBeDefined();
+      expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([LOOKUP_INDEXES]);
       expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
@@ -887,6 +900,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
       ]);
