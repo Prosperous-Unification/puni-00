@@ -6,10 +6,9 @@ import {
   type RouterHistory,
   RouterProvider,
 } from '@tanstack/react-router';
-import { type ReactNode, useMemo, useState } from 'react';
+import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
-import { DirectoryPage } from '@/components/directory/directory-page';
 import type { Roster } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { DirectoryApi, ProjectApi } from '@/lib/wbs-api';
@@ -63,13 +62,43 @@ const projectRoute = createRoute({
   },
 });
 
+/**
+ * The directory page, fetched when somebody asks for it.
+ *
+ * **Its own chunk**, and it is the one route that can have one honestly: it is
+ * a whole page — six vocabularies, their cards, their pickers — that a reader
+ * who came to look at a plan never opens, and it was in the single 797 kB
+ * bundle the sign-in form waits for. `app.tsx` blocks on `fetchMe()` before it
+ * draws anything, so every byte in that bundle is a byte in front of the login
+ * box.
+ *
+ * The plan's own big components — `GanttPanel`, `PlanCards` — are **not** split
+ * here, and the reason is not bundle size: they are rendered inside `WbsTable`,
+ * which 2,061 jsdom tests render synchronously and then assert on. A `lazy()`
+ * boundary there turns every one of those assertions into a `waitFor`, which is
+ * a decision about the shape of the whole suite rather than a chunk boundary,
+ * and it belongs to a change that says so.
+ */
+const DirectoryPage = lazy(async () => ({
+  default: (await import('@/components/directory/directory-page')).DirectoryPage,
+}));
+
 /** The directory, at `/directory`. No project controls: see {@link DirectoryPage}. */
 const directoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/directory',
   component: function DirectoryRoute() {
     const { token, account, nav, directoryApi } = directoryRoute.useRouteContext();
-    return <DirectoryPage token={token} api={directoryApi} nav={nav} account={account} />;
+    return (
+      // Nothing rather than a spinner: the chunk is fetched from the same
+      // origin that just served the document, and a flash of "loading…"
+      // between two paints is worse than the paint arriving a frame later. The
+      // page reads on arrival anyway, so its own empty states are what a reader
+      // sees first.
+      <Suspense fallback={null}>
+        <DirectoryPage token={token} api={directoryApi} nav={nav} account={account} />
+      </Suspense>
+    );
   },
 });
 

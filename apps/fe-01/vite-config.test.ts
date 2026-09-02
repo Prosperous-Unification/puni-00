@@ -195,3 +195,55 @@ describe('the app and the run resolve the same modules', () => {
     expect(Object.keys(suiteAliases).sort()).toEqual(Object.keys(appAliases).sort());
   });
 });
+
+/**
+ * The two chunks a deploy wants, and the one thing they must not swallow.
+ *
+ * There was one 796.82 kB file until 2026-09-02, and `app.tsx` blocks on
+ * `fetchMe()` before it draws anything — so every byte of it was a byte in
+ * front of the login box, and every deploy invalidated all of it. Splitting
+ * React and the router out means a release that touches neither leaves 269 kB
+ * in the reader's cache.
+ *
+ * The rule is asserted rather than the output, because asserting the output
+ * means running a 30-second build in a unit suite. What can go wrong here is
+ * the **regex**: too greedy and the app's own code lands in `vendor`, which
+ * puts the app back in the chunk that was meant never to change; too narrow and
+ * React comes back into the app's chunk and nothing is cached.
+ *
+ * Proof: the pattern widened to `/node_modules\//`, watched failing on
+ * `expected "vendor" to be undefined` for `arktype` — a dependency the app's
+ * own code drags in, which would then invalidate the vendor chunk on every
+ * change to it. And narrowed to `/node_modules\/react\//`, on `expected
+ * undefined to be "vendor"` for `react-dom`. Observed 2026-09-02.
+ */
+describe('the built chunks', () => {
+  const chunkOf = (id: string): string | undefined => {
+    const build = config({ command: 'build', mode: 'production' });
+    const output = build.build?.rollupOptions?.output;
+    if (output === undefined || Array.isArray(output)) {
+      throw new Error('the build config has no single rollup output to assert on');
+    }
+    const { manualChunks } = output;
+    if (typeof manualChunks !== 'function') {
+      throw new Error('manualChunks is not the function this test is about');
+    }
+    // Rollup hands the hook a second argument this rule never reads.
+    return manualChunks(id, undefined as never) as string | undefined;
+  };
+
+  it('puts React and the router in vendor', () => {
+    expect(chunkOf('/repo/node_modules/react/index.js')).toBe('vendor');
+    expect(chunkOf('/repo/node_modules/react-dom/client.js')).toBe('vendor');
+    expect(chunkOf('/repo/node_modules/scheduler/index.js')).toBe('vendor');
+    expect(chunkOf('/repo/node_modules/@tanstack/react-router/dist/index.js')).toBe('vendor');
+  });
+
+  it('leaves the app and everything else where Rollup would put it', () => {
+    expect(chunkOf('/repo/apps/fe-01/src/components/wbs/wbs-table.tsx')).toBeUndefined();
+    expect(chunkOf('/repo/libs/domain/src/workday.ts')).toBeUndefined();
+    // A dependency the app's own code drags in: in `vendor` it would invalidate
+    // the cached half on every change to the app.
+    expect(chunkOf('/repo/node_modules/arktype/out/index.js')).toBeUndefined();
+  });
+});
