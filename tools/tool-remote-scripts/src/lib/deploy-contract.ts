@@ -59,3 +59,44 @@ export const IMAGE_NAME: Record<Tier, string> = {
  * numbers.
  */
 export const PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
+
+/** One file the server executes, as the installer and the deploy both name it. */
+export interface BundleFile {
+  /** Local `dist/` path, relative to the repo root — the build host's cwd. */
+  local: string;
+  /**
+   * Where it goes on the server, **relative to the environment root**.
+   *
+   * Relative and never absolute, because each environment executes its own
+   * copy: dev's bundle is updated without reinstalling prod's underneath a
+   * running prod swap. {@link bundleFilesFor} is what makes it a path.
+   */
+  remote: string;
+}
+
+/**
+ * The two files the server actually executes: `swap.js`, run directly by the
+ * host's bun for every tier's swap, and `smoke.js`, run in an ephemeral
+ * container after every deploy.
+ *
+ * **One copy since 2026-09-02**, and the two it replaced disagreed about the
+ * shape of `remote`: `tool-deploy` held them root-relative and made them
+ * absolute per environment, while `tool-remote-scripts`'s installer held them
+ * absolute from its own `WBS_ENV`-derived root and offered no way to say which
+ * environment it meant. So the deploy checked dev's bundle and told the
+ * operator to run an installer that would write prod's — see
+ * `install.ts`'s `--env`.
+ *
+ * The comment justifying that duplication said no `@wbs/*` entry point existed
+ * for this project. It was already false when it was written: `deploy.ts:9`
+ * imports one.
+ */
+export const BUNDLE_FILES: readonly BundleFile[] = [
+  { local: 'dist/tool-remote-scripts/swap.js', remote: '/bin/swap.js' },
+  { local: 'dist/tool-smoke/smoke.js', remote: '/bin/smoke.js' },
+];
+
+/** {@link BUNDLE_FILES} with their `remote` resolved against one environment's root. */
+export function bundleFilesFor(root: string): BundleFile[] {
+  return BUNDLE_FILES.map((file) => ({ local: file.local, remote: `${root}${file.remote}` }));
+}

@@ -6,7 +6,7 @@
 // (Task 4) is a separate, explicit step that writes `release.json`. This CLI
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
-import { APP_NAME, type Color, PORT } from '@wbs/deploy-contract';
+import { APP_NAME, bundleFilesFor, type Color, PORT } from '@wbs/deploy-contract';
 import { type EnvLayout } from '@wbs/tool-env';
 
 import { materialize, parseDeployArgs, type Tier } from './affected';
@@ -382,25 +382,6 @@ export function buildSmokeCommand(
   );
 }
 
-// The two files the server actually executes: swap.js (run directly by
-// host bun for every tier's swap) and smoke.js (run in a container after
-// every deploy). Duplicated from tool-remote-scripts/src/install.ts's
-// BUNDLE_FILES rather than imported — see this file's own TIER_APP/PORT
-// comment above for why a small cross-project constant is duplicated
-// instead of wired through an @wbs/* barrel that doesn't exist for that
-// project.
-function bundleFiles(layout: EnvLayout): { local: string; remote: string }[] {
-  return BUNDLE_FILES.map((f) => ({ local: f.local, remote: `${layout.root}${f.remote}` }));
-}
-
-const BUNDLE_FILES: { local: string; remote: string }[] = [
-  // `remote` is relative to the environment root, not absolute: each
-  // environment executes its OWN copy of these two files, so dev can be
-  // updated without reinstalling prod's bundle underneath a running swap.
-  { local: 'dist/tool-remote-scripts/swap.js', remote: '/bin/swap.js' },
-  { local: 'dist/tool-smoke/smoke.js', remote: '/bin/smoke.js' },
-];
-
 async function sha256File(path: string): Promise<string> {
   const buf = await Bun.file(path).arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buf);
@@ -421,6 +402,23 @@ export function parseSha256sumOutput(out: string): Record<string, string> {
 }
 
 /**
+ * The exact installer invocation to hand an operator whose bundle is stale.
+ *
+ * **`--env` is the whole reason this is a function.** Both messages below used
+ * to say `install --host=<host> --execute`, with no environment on it — and the
+ * installer takes the environment from `WBS_ENV`, which is unset in an
+ * operator's shell. So a deploy of **dev** told its operator to run a command
+ * that overwrites **prod**'s `swap.js` and `smoke.js` underneath a running prod
+ * deploy, while the dev bundle it was complaining about stayed exactly as stale
+ * as it was. The deploy knew which environment it meant the whole time.
+ *
+ * Quoted, because it is meant to be pasted.
+ */
+export function installCommandFor(host: string, layout: EnvLayout): string {
+  return `"nx run tool-remote-scripts:install --host=${host} --env=${layout.env} --execute"`;
+}
+
+/**
  * Finding-driven (retire-systemd): `bin/swap.js` and `bin/smoke.js` are
  * ordinary files on the server, installed by a separate, explicit
  * `nx run tool-remote-scripts:install --execute` — this CLI does not run
@@ -434,7 +432,7 @@ export function parseSha256sumOutput(out: string): Record<string, string> {
  * running last week's swap.js against this week's images.
  */
 export async function assertBundleInstalled(host: string, layout: EnvLayout): Promise<void> {
-  const files = bundleFiles(layout);
+  const files = bundleFilesFor(layout.root);
   for (const f of files) {
     if (!(await Bun.file(f.local).exists())) {
       throw new Error(
@@ -454,7 +452,7 @@ export async function assertBundleInstalled(host: string, layout: EnvLayout): Pr
     const err = await new Response(p.stderr).text();
     throw new Error(
       `cannot read installed-bundle checksums from ${host} (${err.trim() || `exit ${String(code)}`}) — ` +
-        'has "nx run tool-remote-scripts:install --execute" ever been run against this host?',
+        `has ${installCommandFor(host, layout)} ever been run against this host?`,
     );
   }
   const remoteHashes = parseSha256sumOutput(out);
@@ -470,7 +468,7 @@ export async function assertBundleInstalled(host: string, layout: EnvLayout): Pr
       throw new Error(
         `${f.remote} on ${host} does not match the local build of ${f.local} (missing or mismatched) — ` +
           'the installed executor/smoke bundle is stale or missing. Run ' +
-          `"nx run tool-remote-scripts:install --host=${host} --execute" first, then retry.`,
+          `${installCommandFor(host, layout)} first, then retry.`,
       );
     }
   }

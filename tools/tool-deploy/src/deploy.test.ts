@@ -6,6 +6,7 @@ import {
   buildDeployPlan,
   buildSmokeCommand,
   type DeployPlanDeps,
+  installCommandFor,
   parseSha256sumOutput,
   type ReleaseRecord,
 } from './deploy';
@@ -689,5 +690,28 @@ describe('buildSmokeCommand across environments', () => {
     expect(cmd).toContain('SMOKE_FE_URL=http://dev-fe-01-blue:80/');
     expect(cmd).toContain('SMOKE_INTERNAL_URL=http://dev-be-01-blue:3100/internal/forward');
     expect(cmd).not.toContain('http://be-01-blue');
+  });
+});
+
+describe('the installer command a stale bundle tells an operator to run', () => {
+  it('names the environment the deploy is for, not the one WBS_ENV happens to be', () => {
+    // The fault: both stale-bundle messages said `install --host=<host>
+    // --execute`, and the installer takes its environment from `WBS_ENV` —
+    // unset in an operator's shell, which resolves to prod. A dev deploy's own
+    // error message therefore told the operator to overwrite **prod**'s
+    // `swap.js` and `smoke.js` underneath a running prod deploy, and to leave
+    // dev's bundle exactly as stale as it was.
+    //
+    // Proof: `--env=${layout.env}` dropped from `installCommandFor`, this
+    // failed on `expect(received).toContain(expected) · Expected:
+    // "--env=dev"`. Watched 2026-09-02.
+    expect(installCommandFor('h2puni', envLayout('dev'))).toContain('--env=dev');
+    expect(installCommandFor('h2puni', envLayout('prod'))).toContain('--env=prod');
+  });
+
+  it('is quoted and pasteable, host first', () => {
+    expect(installCommandFor('h2puni', envLayout('prod'))).toBe(
+      '"nx run tool-remote-scripts:install --host=h2puni --env=prod --execute"',
+    );
   });
 });

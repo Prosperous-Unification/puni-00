@@ -17,16 +17,34 @@
 // the real scp + atomic rename + chmod + checksum verification. Same
 // dry-run-by-default shape as tool-bootstrap's push.ts and tool-deploy's
 // deploy.ts.
-import { ROOT } from './lib/docker';
+import { type BundleFile, bundleFilesFor } from './lib/deploy-contract';
+import { CURRENT_ENV, type EnvLayout, envLayout } from './lib/env';
 
 export interface InstallArgs {
   host: string;
   execute: boolean;
+  /**
+   * Which environment's `bin/` to write, as a flag rather than only as
+   * `WBS_ENV`.
+   *
+   * **The fault it was added for.** The installer read the environment from
+   * `WBS_ENV` alone, and `deploy.ts`'s own message for a stale bundle told the
+   * operator to run `install --host=<host> --execute` — no environment on it.
+   * Following that while deploying dev installs into **prod's** root: prod's
+   * `swap.js` and `smoke.js` overwritten underneath a running prod deploy,
+   * while the dev bundle the deploy was complaining about stays stale. Both
+   * messages name `--env` now.
+   *
+   * `WBS_ENV` remains the default, so every invocation that predates the flag
+   * keeps its exact behaviour.
+   */
+  layout: EnvLayout;
 }
 
 export function parseInstallArgs(argv: string[], defaults?: Partial<InstallArgs>): InstallArgs {
   let host = defaults?.host ?? 'h2puni';
   let execute = defaults?.execute ?? false;
+  let layout = defaults?.layout ?? CURRENT_ENV;
 
   for (const raw of argv) {
     const m = /^--([^=]+)(?:=(.*))?$/.exec(raw);
@@ -36,28 +54,18 @@ export function parseInstallArgs(argv: string[], defaults?: Partial<InstallArgs>
     if (key === 'host') host = val;
     else if (key === 'execute') execute = true;
     else if (key === 'dry-run') execute = false;
+    // `envLayout` throws on anything it does not know, which is the whole
+    // point of routing the flag through it rather than indexing a table here:
+    // a typo must not install into prod (R5, and `envLayout`'s own contract).
+    else if (key === 'env') layout = envLayout(val);
   }
 
-  return { host, execute };
+  return { host, execute, layout };
 }
 
-export interface BundleFile {
-  /** Local dist/ path, relative to the repo root — this process's cwd. */
-  local: string;
-  /** Final path on the server. */
-  remote: string;
-}
-
-// Not imported from tool-smoke, and that stands: these are the paths **this**
-// installer writes, and tool-smoke names its own bundle for its own reasons.
-// The reasoning that used to be here — that no `@wbs/*` entry point exists —
-// was already false and is now gone: `@wbs/deploy-contract` is this project's,
-// and it carries the vocabulary four projects have to agree about. These two
-// path strings are not that: nothing else reads them.
-export const BUNDLE_FILES: BundleFile[] = [
-  { local: 'dist/tool-remote-scripts/swap.js', remote: `${ROOT}/bin/swap.js` },
-  { local: 'dist/tool-smoke/smoke.js', remote: `${ROOT}/bin/smoke.js` },
-];
+// The paths themselves are `@wbs/deploy-contract`'s: `tool-deploy` hashes the
+// same two files before every swap, and the two copies disagreed about whether
+// `remote` was absolute. See `BUNDLE_FILES` there.
 
 export interface InstallStep {
   description: string;
@@ -71,7 +79,7 @@ export interface InstallStep {
  * partially-written file. Mirrors this project's own writeAtomic (see
  * lib/atomic.ts) for the same reason, one level up (remote FS, not local).
  */
-export function buildInstallPlan(host: string, files: BundleFile[] = BUNDLE_FILES): InstallStep[] {
+export function buildInstallPlan(host: string, files: readonly BundleFile[]): InstallStep[] {
   const steps: InstallStep[] = [];
   for (const f of files) {
     const tmp = `${f.remote}.tmp`;
@@ -129,10 +137,7 @@ async function sha256Remote(host: string, paths: string[]): Promise<Record<strin
  * own exit code, but this also catches "installed the wrong build" and
  * "the remote file was touched by something else after install".
  */
-export async function verifyInstalled(
-  host: string,
-  files: BundleFile[] = BUNDLE_FILES,
-): Promise<void> {
+export async function verifyInstalled(host: string, files: readonly BundleFile[]): Promise<void> {
   const remoteHashes = await sha256Remote(
     host,
     files.map((f) => f.remote),
@@ -153,8 +158,9 @@ export async function verifyInstalled(
 
 async function main(): Promise<void> {
   const args = parseInstallArgs(process.argv.slice(2));
+  const files = bundleFilesFor(args.layout.root);
 
-  for (const f of BUNDLE_FILES) {
+  for (const f of files) {
     if (!(await Bun.file(f.local).exists())) {
       throw new Error(
         `${f.local} not found — build it first ` +
@@ -163,8 +169,12 @@ async function main(): Promise<void> {
     }
   }
 
-  const steps = buildInstallPlan(args.host);
-  console.log(`[tool-remote-scripts] install host=${args.host} execute=${String(args.execute)}`);
+  const steps = buildInstallPlan(args.host, files);
+  // The environment is on the line, because it decides which `bin/` is
+  // overwritten and a dry run is where an operator finds out.
+  console.log(
+    `[tool-remote-scripts] install host=${args.host} env=${args.layout.env} execute=${String(args.execute)}`,
+  );
   for (const s of steps) console.log(`  ${s.description}`);
 
   if (!args.execute) {
@@ -180,7 +190,7 @@ async function main(): Promise<void> {
     }
   }
 
-  await verifyInstalled(args.host);
+  await verifyInstalled(args.host, files);
   console.log('[tool-remote-scripts] install ok — checksums verified against the local build.');
 }
 

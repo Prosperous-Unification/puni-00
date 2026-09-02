@@ -1,12 +1,49 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildInstallPlan, BUNDLE_FILES, parseInstallArgs, parseSha256sumOutput } from './install';
+import { buildInstallPlan, parseInstallArgs, parseSha256sumOutput } from './install';
+import { BUNDLE_FILES, bundleFilesFor } from './lib/deploy-contract';
+import { envLayout } from './lib/env';
+
+/** Prod's absolute bundle paths, which is what `WBS_ENV` unset resolves to. */
+const prodFiles = bundleFilesFor(envLayout('prod').root);
 
 describe('parseInstallArgs', () => {
-  it('defaults to h2puni and dry-run', () => {
+  it('defaults to h2puni, dry-run, and the environment WBS_ENV names', () => {
     const a = parseInstallArgs([]);
     expect(a.host).toBe('h2puni');
     expect(a.execute).toBe(false);
+    // Unset in a test run, and `envLayout` resolves that to prod — so the
+    // default is exactly what every invocation predating `--env` did.
+    expect(a.layout.env).toBe('prod');
+  });
+
+  it('writes the environment --env names, not the one WBS_ENV does', () => {
+    // The fault this flag exists for: `deploy.ts`'s stale-bundle message told
+    // an operator deploying dev to run the installer with no environment on
+    // it, which installs into **prod's** root — prod's `swap.js` overwritten
+    // underneath a running prod deploy, dev's left as stale as it was.
+    //
+    // Proof: the `--env` arm removed from `parseInstallArgs`, this failed on
+    // `expect(received).toBe(expected) · Expected: "dev" · Received: "prod"`,
+    // and the plan below on the two prod paths. Watched 2026-09-02.
+    const a = parseInstallArgs(['--env=dev']);
+
+    expect(a.layout.env).toBe('dev');
+    expect(a.layout.root).toBe('/home/puni1/wbs-dev');
+    expect(
+      buildInstallPlan(a.host, bundleFilesFor(a.layout.root)).map((s) => s.description),
+    ).toEqual([
+      'scp dist/tool-remote-scripts/swap.js -> h2puni:/home/puni1/wbs-dev/bin/swap.js.tmp',
+      'install /home/puni1/wbs-dev/bin/swap.js (chmod 0755 + atomic rename)',
+      'scp dist/tool-smoke/smoke.js -> h2puni:/home/puni1/wbs-dev/bin/smoke.js.tmp',
+      'install /home/puni1/wbs-dev/bin/smoke.js (chmod 0755 + atomic rename)',
+    ]);
+  });
+
+  it('refuses an environment nobody provisioned rather than taking prod', () => {
+    // `envLayout`'s contract, reached through the flag: a typo must not install
+    // into the live site's `bin/`.
+    expect(() => parseInstallArgs(['--env=prd'])).toThrow(/unknown WBS_ENV "prd"/);
   });
 
   it('accepts --host and --execute', () => {
@@ -36,15 +73,15 @@ describe('buildInstallPlan', () => {
   });
 
   it('never leaves a step that writes directly to the final path', () => {
-    for (const step of buildInstallPlan('h2puni')) {
+    for (const step of buildInstallPlan('h2puni', prodFiles)) {
       if (step.argv[0] === 'scp') {
         expect(step.argv[2]).toMatch(/\.tmp$/);
       }
     }
   });
 
-  it('covers both the swap executor and the smoke bundle by default', () => {
-    expect(BUNDLE_FILES.map((f) => f.remote)).toEqual([
+  it('covers both the swap executor and the smoke bundle', () => {
+    expect(prodFiles.map((file) => file.remote)).toEqual([
       '/home/puni1/wbs/bin/swap.js',
       '/home/puni1/wbs/bin/smoke.js',
     ]);
@@ -85,7 +122,7 @@ describe('the install target must build what it ships', () => {
     // smoke.js comes from a different project, so `^build` would not cover it.
     expect(dependsOn).toContain('tool-smoke:build');
     // Every file the installer ships must be produced by one of those builds.
-    expect(BUNDLE_FILES.map((f) => f.local).sort()).toEqual([
+    expect(BUNDLE_FILES.map((file) => file.local).sort()).toEqual([
       'dist/tool-remote-scripts/swap.js',
       'dist/tool-smoke/smoke.js',
     ]);
