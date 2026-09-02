@@ -46,7 +46,7 @@ export interface DepGraph {
  * The rows and their `dependsOn`, turned into the graph be-01 judges an edge
  * against.
  *
- * A port of `indexTree` + `expandToLeaves` in `apps/be-01/src/service/schedule.ts`,
+ * A port of `indexTree` + `expandToLeaves` in `apps/libs/domain/src/schedule.ts`,
  * down to what it does with an id it has no row for: `expandToLeaves` reads that
  * end as no leaves and contributes nothing, so this does too. Refusing more than
  * be-01 refuses would grey out a row the server would have accepted, which is

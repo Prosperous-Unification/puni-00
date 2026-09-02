@@ -176,7 +176,7 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
 /**
  * What the scheduler reads off a work item: where it sits, and how it ranks.
  *
- * `apps/be-01/src/service/schedule.ts` is 2,200 lines of pure planning that
+ * `apps/libs/domain/src/schedule.ts` is 2,200 lines of pure planning that
  * imported one type from the storage barrel and used it for this and nothing
  * else. Declaring what it needs — rather than the row it happened to be handed —
  * is what lets the engine live beside the rules it already shares

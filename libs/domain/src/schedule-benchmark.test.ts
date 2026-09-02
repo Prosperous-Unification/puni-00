@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
 import type { DependencyEdge, Slice } from './schedule';
 import { schedule } from './schedule';
 
@@ -26,26 +26,18 @@ import { schedule } from './schedule';
  * 2026-08-30, re-measured against `assumed-duration-schedules`' figure. It read
  * 175 against 173 when the fault was first found.
  */
-function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice[] } {
+function buildPlan(): { rows: PlannedRow[]; edges: DependencyEdge[]; slices: Slice[] } {
   const stepIds = ['step-dev', 'step-qa', 'step-doc'];
   const people = Array.from({ length: 8 }, (_, i) => `person-${String(i)}`);
-  const rows: WorkItem[] = [];
+  const rows: PlannedRow[] = [];
   const slices: Slice[] = [];
   const edges: DependencyEdge[] = [];
-  const newRow = (id: string, parentId: string | null, position: number): WorkItem => ({
+  const newRow = (id: string, parentId: string | null, position: number): PlannedRow => ({
     id,
-    projectId: 'p1',
     parentId,
     position,
-    name: id,
-    notes: '',
     frozenNumber: null,
     priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
   });
 
   for (let parent = 0; parent < 20; parent += 1) {

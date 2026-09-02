@@ -1,7 +1,7 @@
-import type { DependencyReach } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
+import type { DependencyReach } from './index';
 import type { DependencyEdge, Slice } from './schedule';
 import { schedule, sliceKey } from './schedule';
 
@@ -18,20 +18,12 @@ const QA = 'step-qa';
 const DESIGN = 'step-design';
 
 let position = 0;
-const item = (id: string, parentId: string | null = null): WorkItem => ({
+const item = (id: string, parentId: string | null = null): PlannedRow => ({
   id,
-  projectId: 'p1',
   parentId,
   position: (position += 10),
-  name: id,
-  notes: '',
   frozenNumber: null,
   priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
@@ -41,7 +33,7 @@ const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
 
 /** One unassigned slice per leaf, from a `days` record; a missing id is unestimated. */
 const plan = (
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   days: Record<string, number>,
   notBefore?: ReadonlyMap<string, number>,
@@ -167,7 +159,7 @@ describe('shapes — a dependency between two nested branches', () => {
  * arm's oracle rather than deleted (`dep-reach-whole-item`, tasks 3.1).
  */
 const steppedPlan = (
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   days: Record<string, [number | null, number | null]>,
   reach: DependencyReach,
@@ -203,7 +195,7 @@ const steppedPlan = (
  * of `Dev` that a plan may well leave unestimated.
  */
 const threeStepPlan = (
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   days: Record<string, [number | null, number | null, number | null]>,
   reach: DependencyReach,
@@ -968,7 +960,7 @@ describe('shapes — arithmetic over a long chain', () => {
   it('keeps a forty-day chain of whole days exactly whole', () => {
     // Whole days must never acquire a fraction, however many additions they go
     // through: `toBe`, not `toBeCloseTo`, is the assertion.
-    const rows: WorkItem[] = [];
+    const rows: PlannedRow[] = [];
     const edges: DependencyEdge[] = [];
     const days: Record<string, number> = {};
     for (let at = 0; at < 40; at += 1) {

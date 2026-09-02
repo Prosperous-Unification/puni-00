@@ -2172,7 +2172,7 @@ describe('what a not-before reason does not do', () => {
     // Proof: the engine wired to read the reason — `notBefore` set from
     // `row.startNoEarlierThanReason !== null ? …` so an explained row is pushed
     // a day — and this fails with every date downstream moved; watched
-    // 2026-08-18. `service/schedule.ts` has an empty diff on this branch and
+    // 2026-08-18. `libs/domain/src/schedule.ts` has an empty diff on this branch and
     // this is the behavioural half of that claim.
     // **The project needs a start date and the floor has to bind.** Without a
     // start date the engine never builds the not-before map at all — the

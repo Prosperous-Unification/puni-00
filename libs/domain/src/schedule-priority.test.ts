@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
 import type { DependencyEdge, Schedule, ScheduledSlice, Slice } from './schedule';
 import { schedule, sliceKey } from './schedule';
 
@@ -22,20 +22,12 @@ const item = (
   id: string,
   parentId: string | null = null,
   priority: number | null = null,
-): WorkItem => ({
+): PlannedRow => ({
   id,
-  projectId: 'p1',
   parentId,
   position: (position += 10),
-  name: id,
-  notes: '',
   frozenNumber: null,
-  startNoEarlierThan: null,
   priority,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
@@ -309,7 +301,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * What moved is who waits behind whom, which is exactly what a reach decides —
  * and the pin is here so that a change to *priority* cannot move it silently.
  */
-const CONTENTION_ROWS: readonly WorkItem[] = [
+const CONTENTION_ROWS: readonly PlannedRow[] = [
   item('c-a'),
   item('c-b'),
   item('c-parent'),

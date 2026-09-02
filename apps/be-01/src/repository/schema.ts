@@ -319,7 +319,7 @@ export const workItem = sqliteTable(
      * At most `LONGEST_NOT_BEFORE_REASON` (200) characters, checked at the
      * controller — the width of the hover card and the cell that read it.
      *
-     * **Read by no scheduling code.** `service/schedule.ts` does not select it,
+     * **Read by no scheduling code.** `libs/domain/src/schedule.ts` does not select it,
      * has an empty diff in the change that added it, and schedules a plan
      * identically with and without it.
      */
@@ -332,7 +332,7 @@ export const workItem = sqliteTable(
      * competing for the same person is placed first, and it decides nothing at
      * all in a plan where nothing competes: it cannot move a work item in front
      * of its own dependencies, its floor or its earlier steps. See `goesFirst`
-     * in `service/schedule.ts` for where it is asked.
+     * in `libs/domain/src/schedule.ts` for where it is asked.
      *
      * Nullable with no default, because null is a real state here and not a
      * missing 1: a plan where nobody has set a priority is scheduled exactly as
@@ -412,7 +412,7 @@ export const workItem = sqliteTable(
      * no service takes its nearest ancestor's, and a row with one overrides it.
      * There is no third "deliberately none" state.
      *
-     * **Nothing a date reads.** `service/schedule.ts` has an empty diff in the
+     * **Nothing a date reads.** `libs/domain/src/schedule.ts` has an empty diff in the
      * change that adds this column: a service is a grouping and reporting fact,
      * with no pool and no size anywhere beside it.
      */
@@ -789,7 +789,7 @@ export type MeasureMetric = (typeof MEASURE_METRICS)[number];
  * fact is not evidence about a date — a row that burned four million tokens may
  * be finished or may still be running, and the model's only completion state
  * ({@link stepProgress}) is silent about tokens. Design D3, and the change that
- * adds this table has an empty diff on `service/schedule.ts` and `libs/domain`.
+ * adds this table has an empty diff on `libs/domain/src/schedule.ts` and `libs/domain`.
  *
  * `metric` is a Drizzle enum **and** a `CHECK`, the pair {@link stepProgress}
  * uses and for the identical reason: the enum is erased at runtime, and a fourth
@@ -949,7 +949,7 @@ export type WorkItemTeamRow = typeof workItemTeam.$inferSelect;
  * ask how many of a tag may be at work at once. Not a size. **Not anything a
  * date reads** — {@link serviceTeam} answers _who does the work_ and the
  * scheduler spends its capacity; a tag answers _what kind of thing this is_ and
- * `service/schedule.ts` has an empty diff in the change that adds it, watched by
+ * `libs/domain/src/schedule.ts` has an empty diff in the change that adds it, watched by
  * a test that wires the scheduler to a tag and shows every downstream date
  * moving. The directory page renders these with no capacity column and no
  * membership chips for the same reason: a reader who sees no capacity column
@@ -1209,7 +1209,7 @@ export type WorkItemExternalRefRow = typeof workItemExternalRef.$inferSelect;
  * ask how many of a service may be at work at once — {@link serviceTeam} is
  * where capacity lives, because capacity is spent by the people doing the work
  * and not by the thing the work is for. **Not anything a date reads**:
- * `service/schedule.ts` has an empty diff in the change that adds this, watched
+ * `libs/domain/src/schedule.ts` has an empty diff in the change that adds this, watched
  * by a test that wires the scheduler to a service and shows every downstream
  * date move. Not a tag either — {@link tag} stayed general-purpose, and what
  * makes a service more than a label is {@link teamService} below.
@@ -1514,7 +1514,7 @@ export type PersonKind = (typeof PERSON_KINDS)[number];
  *
  * Nothing about scheduling changes. An agent is assigned, and appears in
  * capacity, exactly as a person is — the classification is what the reports and
- * the future SDLC integration read, and `service/schedule.ts` has an empty diff
+ * the future SDLC integration read, and `libs/domain/src/schedule.ts` has an empty diff
  * in the change that adds it.
  */
 export const person = sqliteTable(
@@ -1602,7 +1602,7 @@ export type AssignmentRow = typeof assignment.$inferSelect;
  * `predecessor` slice the project's {@link project.depReach} names has
  * finished — its **last** step under `whole-item`, its **anchor slice** under
  * `anchor-slice`, where the steps behind that anchor then run in parallel with
- * the successor (`service/schedule.ts`'s `reachedSliceOf`). The reach is stored
+ * the successor (`libs/domain/src/schedule.ts`'s `reachedSliceOf`). The reach is stored
  * on the project and nothing about it is stored here: an edge is the same edge
  * either way, and which slice it leaves is decided when the schedule is
  * computed.

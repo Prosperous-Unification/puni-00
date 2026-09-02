@@ -184,7 +184,7 @@ The structural moves. Each one turns a read set from "the file" into "the concep
 | Id   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Files                                                                                                                                                     | Effort | Needs                        |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------- |
 | W4-1 | **Measured and mostly refused, 2026-09-02** — see §30. The barrel is 70% JSDoc and 68 of its 76 types are store-port vocabulary. Four needless public names removed; the split is not warranted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `repository/index.ts`, every store                                                                                                                        | 2d     | W0-11                        |
-| W4-2 | **Started, 2026-09-02** — see §31 and §32. `derive-numbers` and `place-sibling` moved; `schedule.ts` now imports **nothing** from the repository. The physical move of the engine is the next slice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `apps/be-01/src/service/{schedule,dependency,derive-numbers,place-sibling,assumed-assignee}.ts` → `libs/domain/src/`, `revision.ts`                       | 2d     | W4-1                         |
+| W4-2 | **Done, 2026-09-02** — see §31, §31.1 and §32. `derive-numbers`, `place-sibling` and the **schedule engine** are in `libs/domain`, with eight of its nine suites. `assumed-assignee.ts` and `roll-up.ts` still take repository types and did not move; `compensating.ts` stays by design.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `apps/be-01/src/service/{schedule,dependency,derive-numbers,place-sibling,assumed-assignee}.ts` → `libs/domain/src/`, `revision.ts`                       | 2d     | W4-1                         |
 | W4-3 | **Command registry** (audit §4, sharpened): one descriptor `{ kind, schema, scope, parse, apply, describe }` per kind in `libs/contracts`; `PlanCommand`, `PLAN_COMMAND_KINDS`, `DIRECTORY_KINDS`, `VARIANTS`, `parseKind` (214 lines, 36 arms, the `…Ref` pairing hand-written 36 times), `applyAll` (381 lines) all derive. `compensating.COMMANDS` stays separate — 17 compensating kinds are a different vocabulary. ArkType `'+': 'reject'` replaces the hand parsers; verify Elysia 1.4's Standard Schema → JSON Schema export first. mcp-01 derives one tool per kind with glossary verbs and prose. A `runDirectory` that never enters the project arms replaces `projectId === ''` standing for "no project". One negative per kind on the production path, watched with `'+': 'reject'` removed.                                                                                                          | `libs/contracts/`, `plan-command.ts`, `plan-command-schema.ts`, `work-item.controller.ts:564–778`, `plan-commands.ts`, `apps/mcp-01/src/openapi-tools.ts` | 5d     | W3-4                         |
 | W4-4 | **`WbsTable` concept split** into the fourteen modules sweep C maps with line ranges (`remembered-layout`, `use-plan-layout`, `use-column-set`, `use-plan-read`, `use-plan-filter`, `plan-toolbar`, `plan-export-actions`, `use-plan-keyboard`, `use-plan-structure`, `use-estimate-drafts`, `use-reference-sets`, `plan-columns/*` one file per column family with `columns` a 40-line registry, `plan-cell-props`, `plan-chart-input`), leaving ~1,000 lines of composition. Three things stay exactly as they are: `live` (the cells' contract), `PlanRow` and the pointed store, and the `columns` dep list — every extracted hook returns values read through `live`, never closed over in a cell. Give `live` an exported type so the "three deps" rule restated ten times becomes one declaration. Also: the 82-key `live` literal written twice (`:7070–7236`) becomes one local — 15 minutes, do it first. | `wbs-table.tsx`, 14 new modules                                                                                                                           | 4d     | W1-2, W2-2, W2-7, W3-2, W3-3 |
 | W4-5 | **The four settings panels get their template**: one `SettingsSection` owning the two `onDirtyChange` effects, `busy`/`problem`, `attempt`, the refusal sentence with a 5xx arm, and reporter registration in `project-settings-modal.tsx:198`. Adding a fifth panel stops being "copy `estimating-panel.tsx` and remember five things".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `components/wbs/{estimating,priorities,steps,teams}-panel.tsx`, `project-settings-modal.tsx`                                                              | 1d     | W3-6                         |
@@ -1367,3 +1367,78 @@ already gone.
 
 **Green:** `libs/domain` 167 pass, `be-01` 1248 pass across 91 files, lint and typecheck on both;
 `format:check --all`.
+
+## 32 · W4-2 — the schedule engine moves into `libs/domain`
+
+`schedule.ts` and eight of its nine suites are now `libs/domain/src/`. 7,559 lines, one
+`git mv`, and no behaviour change: **1,415 tests before and 1,415 after**, redistributed
+167 → 316 in `domain` and 1,248 → 1,099 in `be-01`.
+
+The ninth, `schedule-assumed-duration.test.ts`, stays in be-01 because it also drives
+`rollUp`, which still takes five repository types. It imports `schedule` across the seam
+like any other caller.
+
+### What made it a `git mv` rather than a design question
+
+§31.1's decoupling. The engine imported one type from storage; once `PlannedRow` said what
+it actually read, the file imported four sibling modules and nothing else. Everything in
+this section is consequence.
+
+### The engine reads five fields, and the suites were claiming eleven
+
+Counted directly in the engine: `parentId` twice, `priority` twice, and **zero** reads of
+`maxParallel`, `serviceTeamId`, `serviceId`, `startNoEarlierThan`, `projectId`, `revision`,
+`name`, `notes`. `position` and `frozenNumber` are read one layer down, by the
+`deriveNumbers` the engine calls.
+
+The row factories built all fifteen. Switching their annotation to `PlannedRow` turned
+TypeScript's excess-property check into the audit: ten errors, one per factory. Trimming
+them to five surfaced the real finding.
+
+**35 call sites passed a cause that had no effect.** `item('a', { maxParallel: 3 })` and
+`item(id, { serviceTeamId: PLATFORM })` read as the setup for the assertion under them.
+They are not: the engine learns width and pool membership from the **slice**
+(`slice('a', DEV, 6, { width: 3 })`, `poolIds: [PLATFORM]`), which the suite's own comment
+already said was "the adapter's reading". An agent changing `maxParallel: 3` to `1` would
+expect the test to move and would watch nothing happen.
+
+All 35 are deleted and all 149 engine cases stayed green, which is what proves they were
+decorative. They cannot return: `Partial<Pick<PlannedRow, 'parentId' | 'priority'>>` makes
+naming `maxParallel` a compile error.
+
+### What keeps the engine here
+
+`@nx/enforce-module-boundaries`. `domain` is tagged `runtime:isomorphic` and may depend
+only on isomorphic libs, so a storage type cannot come back quietly.
+
+**Proof, watched:** `import { verifyToken } from '@wbs/auth'` (auth is `runtime:bun`) failed
+on `A project tagged with "runtime:isomorphic" can only depend on libs tagged with
+"runtime:isomorphic"`, clean with it removed.
+
+**And a defect found while proving it.** The same rule fires on a relative reach —
+`import type { WorkItem } from '../../../apps/be-01/src/repository'` — but reports it as
+`Error: ENOENT: no such file or directory, open '.../apps/be-01/src/index.ts'` with a stack,
+because Nx's autofix tries to rewrite the path against a barrel an app does not have. Lint
+still exits non-zero, so CI still blocks and the guarantee holds. Only the message is
+useless. Recorded on `schedule()` so the next reader does not diagnose it as broken tooling.
+
+### Green
+
+| Target               | Result                              |
+| -------------------- | ----------------------------------- |
+| `domain` test        | 316 pass, 0 fail, 34,575 assertions |
+| `be-01` test         | 1,099 pass, 0 fail across 83 files  |
+| lint, typecheck      | both projects clean                 |
+| `format:check --all` | clean                               |
+| workspace `run-many` | green except `tool-bootstrap:test`  |
+
+Fourteen JSDoc references to `service/schedule.ts` across `schema.ts` and the services now
+name the new path.
+
+**`tool-bootstrap:test` did not pass, and it is not this change.** It dies in
+`configure-caddy-merge.test.ts` — a Caddy config merge, nothing to do with scheduling — and
+run on its own against this same working tree it did not finish inside 500s either. This
+change touches **zero** files under `tools/` (`git diff --name-only` says so), and
+`tool-bootstrap` names neither `@wbs/domain` nor anything that moved. It is the pre-existing
+failure already in the plan's landmines, unchanged. Stated rather than skipped: the whole
+workspace gate was not green, and this is why.

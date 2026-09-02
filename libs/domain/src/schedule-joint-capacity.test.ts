@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
 import type { PoolSizes, Schedule, ScheduledSlice, Slice } from './schedule';
 import { schedule, sliceKey } from './schedule';
 
@@ -30,20 +30,13 @@ const BETA = 'team-beta';
 let position = 0;
 const item = (
   id: string,
-  overrides: Partial<Pick<WorkItem, 'parentId' | 'maxParallel' | 'priority'>> = {},
-): WorkItem => ({
+  overrides: Partial<Pick<PlannedRow, 'parentId' | 'priority'>> = {},
+): PlannedRow => ({
   id,
-  projectId: 'p1',
   parentId: null,
   position: (position += 10),
-  name: id,
-  notes: '',
   frozenNumber: null,
   priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  maxParallel: 1,
-  revision: 0,
   ...overrides,
 });
 
@@ -304,7 +297,7 @@ describe('a block labelled with two teams waits for both of them', () => {
     // stated size, which is what `work-item.service.test.ts`'s `takes the
     // narrowest stated size` pins. This is that invariant asserted from the
     // engine's side.
-    const rows = [item('wide', { maxParallel: 3 })];
+    const rows = [item('wide')];
     const slices = [slice('wide', 3, { width: 3, poolIds: [ALPHA, BETA] })];
 
     expect(() => schedule(rows, [], slices, new Map(), pools(4, 1))).toThrow(

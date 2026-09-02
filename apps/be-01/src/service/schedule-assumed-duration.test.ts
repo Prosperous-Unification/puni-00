@@ -1,10 +1,10 @@
+import type { DependencyEdge, PoolSizes, Schedule, ScheduledSlice, Slice } from '@wbs/domain';
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
+import { schedule, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
 import { rollUp } from './roll-up';
-import type { DependencyEdge, PoolSizes, Schedule, ScheduledSlice, Slice } from './schedule';
-import { schedule, sliceKey } from './schedule';
 
 /**
  * What a slice nobody has estimated occupies, and what it still reports.

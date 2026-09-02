@@ -1,7 +1,7 @@
-import { ASSUMED_SLICE_WORKDAYS, type DependencyReach } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
+import { ASSUMED_SLICE_WORKDAYS, type DependencyReach } from './index';
 import {
   type DependencyEdge,
   expandToLeaves,
@@ -27,7 +27,7 @@ import {
  * against a tree the real one no longer builds.
  */
 function previousSchedule(
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   durations: OracleDurations,
   notBefore: ReadonlyMap<string, number> = new Map(),
@@ -174,7 +174,7 @@ interface EstimateRow {
 }
 
 interface GeneratedPlan {
-  rows: WorkItem[];
+  rows: PlannedRow[];
   edges: DependencyEdge[];
   /** In step order, which is the order both the repository and the adapter hand them over in. */
   estimates: EstimateRow[];
@@ -214,21 +214,13 @@ function generatePlan(
   const pick = <T>(from: readonly T[]): T => from[Math.floor(random() * from.length)];
   const stepIds = Array.from({ length: stepCount }, (_, i) => `step-${String(i)}`);
 
-  const rows: WorkItem[] = [];
-  const newRow = (id: string, parentId: string | null): WorkItem => ({
+  const rows: PlannedRow[] = [];
+  const newRow = (id: string, parentId: string | null): PlannedRow => ({
     id,
-    projectId: 'p1',
     parentId,
     position: rows.length * 10,
-    name: id,
-    notes: '',
     frozenNumber: null,
     priority: null,
-    startNoEarlierThan: null,
-    serviceTeamId: null,
-    serviceId: null,
-    maxParallel: 1,
-    revision: 0,
   });
   const roots = 2 + Math.floor(random() * 4);
   for (let r = 0; r < roots; r += 1) {
@@ -606,7 +598,7 @@ describe('the slice engine against the one it replaced', () => {
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, RELEASED_STEPS);
       const bare = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore);
-      const labelled = plan.rows.map((row) => ({ ...row, serviceTeamId: PLATFORM }));
+      const labelled = plan.rows.map((row) => ({ ...row }));
       const pooled = schedule(
         labelled,
         [],

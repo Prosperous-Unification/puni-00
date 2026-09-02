@@ -20,6 +20,14 @@ import {
   type StepState,
   workdaysBetween,
 } from '@wbs/domain';
+import {
+  schedule,
+  ScheduleCycleError,
+  type Scheduled,
+  type ScheduledSlice,
+  type Slice,
+  sliceKey,
+} from '@wbs/domain';
 
 import type {
   ActualStore,
@@ -76,14 +84,6 @@ import {
   rollUpProgress,
   workedStepsOf,
 } from './roll-up';
-import {
-  schedule,
-  ScheduleCycleError,
-  type Scheduled,
-  type ScheduledSlice,
-  type Slice,
-  sliceKey,
-} from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -2841,7 +2841,7 @@ export class WorkItemService {
    * does not hold is `unknown_step`.
    *
    * **Nothing about this reaches the schedule.** Recording that a step is done
-   * moves no date, no bar and no critical path — `service/schedule.ts` has an
+   * moves no date, no bar and no critical path — `libs/domain/src/schedule.ts` has an
    * empty diff in the change that adds this. What it buys is that the number
    * beside it becomes readable: 8 days spent against 5 estimated, **finished**,
    * is a variance somebody can act on, and 8 days spent against 5 estimated,

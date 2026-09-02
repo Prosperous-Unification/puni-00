@@ -451,7 +451,7 @@ describe('what stating progress does not do', () => {
     // Proof: the engine wired to skip a finished step's slice — the obvious
     // reading of "done" and the one the next change has to argue for
     // deliberately — and this fails with every date downstream moved; watched
-    // 2026-08-18. `service/schedule.ts` has an empty diff on this branch, and
+    // 2026-08-18. `libs/domain/src/schedule.ts` has an empty diff on this branch, and
     // this is the behavioural half of that claim.
     const first = await add('Strip');
     const second = await add('Sand');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
 import type { DependencyEdge, Schedule, ScheduledSlice, Slice } from './schedule';
 import { schedule, sliceKey } from './schedule';
 
@@ -8,20 +8,12 @@ const DEV = 'step-dev';
 const QA = 'step-qa';
 
 let position = 0;
-const item = (id: string, parentId: string | null = null): WorkItem => ({
+const item = (id: string, parentId: string | null = null): PlannedRow => ({
   id,
-  projectId: 'p1',
   parentId,
   position: (position += 10),
-  name: id,
-  notes: '',
   frozenNumber: null,
   priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({

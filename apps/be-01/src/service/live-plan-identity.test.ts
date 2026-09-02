@@ -1,3 +1,4 @@
+import type { Scheduled } from '@wbs/domain';
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -5,7 +6,6 @@ import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../r
 import { STEP_POSITION_STEP } from '../repository';
 import { inMemoryServices } from '../testing/harness';
 import captured from './fixtures/live-plan-2026-08-09.json';
-import type { Scheduled } from './schedule';
 
 /**
  * A real project's `/work-items` response, captured from a running be-01 on

@@ -538,7 +538,7 @@ per row per render whenever a picker is open. — DDD: good; the "ported
 judgement, be-01 still decides" argument is precise.
 
 **`dep-graph.ts`** | 187 | the ported cycle/ancestor rule. — reuse: an explicit
-port of `be-01/src/service/schedule.ts`'s `indexTree` + `expandToLeaves` — the
+port of `libs/domain/src/schedule.ts`'s `indexTree` + `expandToLeaves` — the
 one deliberate duplication in the cluster, argued at `:45–54`. — performance:
 `indexDepGraph` is O(rows + edges) with memoized `leavesUnder`; `refusalFor`
 runs Kahn over the whole leaf graph **per candidate row**, so an open picker on

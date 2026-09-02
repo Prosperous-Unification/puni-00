@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { WorkItem } from '../repository';
+import type { PlannedRow } from './derive-numbers';
 import type { DependencyEdge, Scheduled, ScheduledSlice, Slice } from './schedule';
 import { schedule as planSlices, sliceKey } from './schedule';
 
@@ -18,7 +18,7 @@ const ONLY_STEP = 'step-dev';
  * nothing else in this file.
  */
 const schedule = (
-  rows: readonly WorkItem[],
+  rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
   durations: ReadonlyMap<string, number>,
   notBefore?: ReadonlyMap<string, number>,
@@ -38,20 +38,12 @@ const schedule = (
 };
 
 let position = 0;
-const item = (id: string, parentId: string | null = null): WorkItem => ({
+const item = (id: string, parentId: string | null = null): PlannedRow => ({
   id,
-  projectId: 'p1',
   parentId,
   position: (position += 10),
-  name: id,
-  notes: '',
   frozenNumber: null,
   priority: null,
-  startNoEarlierThan: null,
-  serviceTeamId: null,
-  serviceId: null,
-  maxParallel: 1,
-  revision: 0,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({
@@ -243,7 +235,7 @@ describe('schedule — what it refuses and what it admits', () => {
 describe('schedule — on a graph the size of a real plan', () => {
   /** `branches` parents of `perBranch` leaves each, chained one branch to the next. */
   const bigPlan = (branches: number, perBranch: number) => {
-    const rows: WorkItem[] = [];
+    const rows: PlannedRow[] = [];
     const edges: DependencyEdge[] = [];
     const durations = new Map<string, number>();
     for (let b = 0; b < branches; b++) {

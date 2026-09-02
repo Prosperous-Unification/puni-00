@@ -18,4 +18,9 @@ export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';
 export * from './progress';
+// Moved out of `apps/be-01/src/service/` on 2026-09-02, once its last storage
+// type was gone. 2,212 lines of pure planning that read five fields of a row
+// and answer a question about a plan's shape — which is what everything else in
+// here is. It reads four of its neighbours and no repository.
+export * from './schedule';
 export * from './workday';

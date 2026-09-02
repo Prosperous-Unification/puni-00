@@ -92,7 +92,7 @@ export class ServiceAncestryCycleError extends Error {
  * three fields and none of them reads another.
  *
  * **What a service is not:** it is not a pool and it is not a size. Nothing
- * below `slicesOf` reads it, `service/schedule.ts` has an empty diff in the
+ * below `slicesOf` reads it, `libs/domain/src/schedule.ts` has an empty diff in the
  * change that adds it, and a test wires the scheduler to read a service and
  * watches every downstream date move to keep it that way. A team answers _who
  * does the work_ and the engine spends its capacity; a service answers _what is

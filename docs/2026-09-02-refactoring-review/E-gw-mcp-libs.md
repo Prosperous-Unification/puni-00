@@ -689,10 +689,10 @@ Nothing blocks these but the decision.
 
 **Move after naming one domain row type (2,272 LOC — the big win):**
 
-| file                    | LOC   | needs                                                                                                           | mapping                                                                                                                                                                                                                                                                      |
-| ----------------------- | ----- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `service/schedule.ts`   | 2,212 | `WorkItem` — but reads only **`.id` (9), `.parentId` (4), `.priority` (5)** (measured)                          | declare `PlannedRow { id: string; parentId: string \| null; priority: number \| null }`. That is the **whole** mapping for the 2,212-line engine. Everything else it needs (`Slice`, `DependencyEdge`, `PoolSizes`, `ScheduleFloor`) it already declares itself at `:7–281`. |
-| `service/dependency.ts` | 60    | `StoredDependency` (4 fields) + `WorkItem` (`.id`/`.parentId` only) + `hasCycle`/`indexTree` from `schedule.ts` | moves **with** `schedule.ts`, or takes `TreeIndex` as an argument. `DependencyEdge` (`schedule.ts:7`) is already the domain shape; `StoredDependency` adds only `id`/`projectId`.                                                                                            |
+| file                          | LOC   | needs                                                                                                           | mapping                                                                                                                                                                                                                                                                      |
+| ----------------------------- | ----- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `libs/domain/src/schedule.ts` | 2,212 | `WorkItem` — but reads only **`.id` (9), `.parentId` (4), `.priority` (5)** (measured)                          | declare `PlannedRow { id: string; parentId: string \| null; priority: number \| null }`. That is the **whole** mapping for the 2,212-line engine. Everything else it needs (`Slice`, `DependencyEdge`, `PoolSizes`, `ScheduleFloor`) it already declares itself at `:7–281`. |
+| `service/dependency.ts`       | 60    | `StoredDependency` (4 fields) + `WorkItem` (`.id`/`.parentId` only) + `hasCycle`/`indexTree` from `schedule.ts` | moves **with** `schedule.ts`, or takes `TreeIndex` as an argument. `DependencyEdge` (`schedule.ts:7`) is already the domain shape; `StoredDependency` adds only `id`/`projectId`.                                                                                            |
 
 `schedule.ts` is the single highest-leverage move in the repo: 2,212 lines of pure rules whose
 entire coupling to storage is three field names. CONTEXT.md already carries the whole vocabulary
@@ -813,7 +813,7 @@ verbatim binding key instead of a digest, `!==` instead of `timingSafeEqual`.
 
 ### 1 — Move the schedule engine into `libs/domain` behind one row type
 
-- **Files**: `apps/be-01/src/service/schedule.ts` (2,212), `dependency.ts` (60),
+- **Files**: `apps/libs/domain/src/schedule.ts` (2,212), `dependency.ts` (60),
   `derive-numbers.ts` (174), `place-sibling.ts` (65), `assumed-assignee.ts` (76) →
   `libs/domain/src/`; new `libs/domain/src/planned-row.ts`.
 - **Problem**: 2,587 lines of pure planning rules sit under `service/` behind an

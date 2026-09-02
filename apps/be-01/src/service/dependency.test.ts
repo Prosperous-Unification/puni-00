@@ -1,8 +1,8 @@
+import { schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredDependency, WorkItem } from '../repository';
 import { canDepend, type DependencyRefusal } from './dependency';
-import { schedule } from './schedule';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({

@@ -1,10 +1,7 @@
-import {
-  ASSUMED_SLICE_WORKDAYS,
-  type DependencyReach,
-  deriveNumbers,
-  type PlannedRow,
-  snapWorkdays,
-} from '@wbs/domain';
+import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
+import type { DependencyReach } from './dependency-reach';
+import { deriveNumbers, type PlannedRow } from './derive-numbers';
+import { snapWorkdays } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
 export interface DependencyEdge {
@@ -1749,6 +1746,27 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[])
  * these offsets into dates with `addWorkdays`, and turns a manual "start no
  * earlier than" date back into the `notBefore` offsets below. Keeping the pass
  * itself in numbers means weekends are counted in exactly one place.
+ *
+ * **This lived in `apps/be-01/src/service/` until 2026-09-02**, held there by a
+ * single `import type { WorkItem } from '../repository'` — a storage row read
+ * for five of its fields. {@link PlannedRow} names those five instead, and
+ * `WorkItem` satisfies it structurally, so nothing maps anything. The engine
+ * now sits beside the rules it always shared: {@link snapWorkdays},
+ * {@link ASSUMED_SLICE_WORKDAYS}, {@link DependencyReach},
+ * {@link deriveNumbers}. It reads those four modules and no others.
+ *
+ * What keeps it that way is `@nx/enforce-module-boundaries`: `domain` is tagged
+ * `runtime:isomorphic` and may depend only on other isomorphic libs, so a
+ * storage type cannot come back without lint failing.
+ *
+ * Proof: `import { verifyToken } from '@wbs/auth'` (auth is `runtime:bun`)
+ * watched failing on `A project tagged with "runtime:isomorphic" can only
+ * depend on libs tagged with "runtime:isomorphic"`, and clean with it removed
+ * (2026-09-02). The same rule also fires on a relative reach into
+ * `'../../../apps/be-01/src/repository'`, but reports it as an ENOENT stack out
+ * of its own autofix — be-01 is an app with no `src/index.ts` for the fixer to
+ * rewrite against. Lint still exits non-zero there, so CI still blocks; only
+ * the message is an upstream Nx bug rather than a sentence.
  */
 export function schedule(
   rows: readonly PlannedRow[],

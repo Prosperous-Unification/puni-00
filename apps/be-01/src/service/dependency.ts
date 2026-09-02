@@ -1,5 +1,6 @@
+import { hasCycle, indexTree } from '@wbs/domain';
+
 import type { StoredDependency, WorkItem } from '../repository';
-import { hasCycle, indexTree } from './schedule';
 
 export type DependencyRefusal = 'not_found' | 'ancestor' | 'cycle';
 
