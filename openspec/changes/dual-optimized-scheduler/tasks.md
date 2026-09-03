@@ -1083,6 +1083,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       for the bind verdict — or drop the `lifecycle='starting'` predicate
       from the CAS — and the paused-owner case must show two live
       `wbs-solver` processes against one reclaimed slot.
+      **Second case, the verdict that never arrives:** the test above proves
+      only the *zero-row* path, where a live coordinator writes `abort`. Add a
+      case whose coordinator neither binds nor aborts and stays alive, so
+      `PR_SET_PDEATHSIG` never fires: assert the launcher exits on its own
+      after `BIND_TIMEOUT_MS = 5000` with stdin still open, that no
+      `wbs-solver` process is created for that token, and that the `starting`
+      row is reclaimed by `admittedDeadlineAt` and not by a live holder.
+      **Watched red:** remove the timeout and let the launcher block on read —
+      the launcher must still be alive when the assertion runs.
 - [ ] 6.5 Restart: nothing resumed, no queue rebuilt. Orphan handling is not a
       PID search — 5.1's `PR_SET_PDEATHSIG` kills the child, slot expiry
       restores capacity, and the container/cgroup boundary is recorded as a

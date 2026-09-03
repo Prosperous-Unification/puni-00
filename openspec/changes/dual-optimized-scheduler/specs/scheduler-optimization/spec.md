@@ -314,13 +314,19 @@ The cache row and a durable `event_log` record SHALL be written in one SQLite tr
 
 ### Requirement: The solver is a versioned package behind one entrypoint
 
-The solver SHALL ship as its own version-pinned Python package exposing exactly one **solve** entrypoint over stdin/stdout, invoked as a short-lived child process. There SHALL be no import from Bun, no daemon, no listening port, and no sidecar. The same distribution SHALL also ship the **lifecycle launcher** as a second, non-solving console script `wbs-solver-launcher`, which SHALL NOT import CP-SAT and SHALL NOT read the request before its bind verdict; "exactly one entrypoint" scopes the *solve contract*, and does not forbid the launcher the process ceiling depends on (Fable r14 Important 3, which found the launcher specified everywhere and homed nowhere). Production SHALL reach `wbs-solver` only through that launcher, and the built image SHALL be proved to carry both scripts.
+The solver SHALL ship as its own version-pinned Python package exposing exactly one **solve** entrypoint over stdin/stdout, invoked as a short-lived child process. There SHALL be no import from Bun, no daemon, no listening port, and no sidecar. The same distribution SHALL also ship the **lifecycle launcher** as a second, non-solving console script `wbs-solver-launcher`, which SHALL NOT import CP-SAT and SHALL NOT read the request before its bind verdict; "exactly one entrypoint" scopes the *solve contract*, and does not forbid the launcher the process ceiling depends on (Fable r14 Important 3, which found the launcher specified everywhere and homed nowhere). Production SHALL reach `wbs-solver` only through that launcher, and the built image SHALL be proved to carry both scripts. The launcher SHALL exit **without `exec`ing** on any of three triggers — an `abort` verdict, a closed stdin, or `BIND_TIMEOUT_MS = 5000` elapsing with no verdict at all — so that a coordinator which is wedged or dies inside the spawn window cannot leave a launcher blocked forever against a `starting` row it will never release; `PR_SET_PDEATHSIG` covers only the parent-death case, and the timeout is the defence for a live-but-silent coordinator.
 
 #### Scenario: the coordinator invokes the solver only as a child process
 
 - **GIVEN** a solver run
 - **WHEN** the coordinator starts it
 - **THEN** it spawns `wbs-solver-launcher`, which after a `bound` verdict `exec`s the package's solve entrypoint in place, one JSON line is written to stdin, one JSON line is read from stdout, and the process exits
+
+#### Scenario: a verdict that never arrives releases the launcher
+
+- **GIVEN** a launcher spawned with its argv and blocked for a bind verdict, and a coordinator that neither binds nor aborts — wedged, not dead, so `PR_SET_PDEATHSIG` does not fire
+- **WHEN** `BIND_TIMEOUT_MS = 5000` elapses with stdin still open and no verdict written
+- **THEN** the launcher exits without `exec`ing, no `wbs-solver` process is ever created for that token, and the `starting` row is left to ordinary `admittedDeadlineAt` reclaim rather than to a live process holding it
 
 #### Scenario: the package's solve entrypoint is also directly spawnable as a smoke test
 
