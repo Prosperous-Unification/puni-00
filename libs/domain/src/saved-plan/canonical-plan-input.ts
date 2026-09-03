@@ -195,9 +195,12 @@ export interface CanonicalCapacity {
 /**
  * The already-read rows `canonicalisePlanInput` folds into one canonical value.
  *
- * Every collection is accepted in **any** order — the caller is thirteen
- * separate reads out of one SQLite read snapshot, and neither the rows' arrival
- * order nor a query's `ORDER BY` may reach the hash.
+ * Every collection is accepted in **any** order — the caller is seventeen
+ * separate reads out of one SQLite read snapshot
+ * (`apps/be-01/src/repository/saved-plan-capture.ts`), and neither the rows'
+ * arrival order nor a query's `ORDER BY` may reach the hash. It said thirteen
+ * until the caller existed and could be counted: twelve of the projection's own
+ * reads, minus its refresh cursor, plus five that only a capture makes.
  */
 export interface PlanInputRows {
   readonly project: CanonicalProject;

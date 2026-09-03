@@ -4,10 +4,11 @@ import { join } from 'node:path';
 
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { projectRow } from '../testing/project-fixture';
 import { CapacityRepository } from './capacity';
-import type { Connection } from './db';
+import type { Connection, Drizzle } from './db';
 import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import type { WriteStamp } from './index';
@@ -39,12 +40,29 @@ const rendered = (statement: unknown): string => JSON.stringify(statement);
  * `BEGIN` and the `COMMIT` — and rendering seventeen queries would assert their
  * text instead, which is the store's business and not this class's.
  */
+interface TracingOptions {
+  /** Throw from this read, counting from one, so the capture unwinds. */
+  readonly failReadNumber?: number;
+  /**
+   * A statement some *other* caller issues just before this read, on
+   * `writeOn`. It stands in for an in-flight request resuming across one of the
+   * capture's `await Promise.resolve()` boundaries.
+   */
+  readonly foreignWrite?: { readonly atRead: number; readonly on: Drizzle; readonly sql: string };
+  /**
+   * The connection the capture is handed. Given one, `close` is a no-op record
+   * — the process handle is nobody's to close, which is itself part of what the
+   * shared-handle shape gets wrong.
+   */
+  readonly reuse?: Connection;
+}
+
 const tracing = (
   path: string,
   trace: { statements: string[]; closes: number },
-  failReadNumber?: number,
+  options: TracingOptions = {},
 ): Connection => {
-  const real = openConnection(path);
+  const real = options.reuse ?? openConnection(path);
   let reads = 0;
   const db = new Proxy(real.db, {
     get(target, prop, receiver): unknown {
@@ -58,7 +76,11 @@ const tracing = (
         return (...args: unknown[]): unknown => {
           reads += 1;
           trace.statements.push('read');
-          if (failReadNumber !== undefined && reads === failReadNumber) {
+          const foreign = options.foreignWrite;
+          if (foreign !== undefined && reads === foreign.atRead) {
+            foreign.on.run(sql.raw(foreign.sql));
+          }
+          if (options.failReadNumber !== undefined && reads === options.failReadNumber) {
             throw new Error('the store fell over mid-capture');
           }
           return (target.select as (...a: unknown[]) => unknown).apply(target, args);
@@ -71,7 +93,7 @@ const tracing = (
     db,
     close: () => {
       trace.closes += 1;
-      real.close();
+      if (options.reuse === undefined) real.close();
     },
   };
 };
@@ -125,10 +147,23 @@ describe('capturing a project’s plan input', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const capture = (failReadNumber?: number): SavedPlanCaptureRepository =>
+  const capture = (options: TracingOptions = {}): SavedPlanCaptureRepository =>
     new SavedPlanCaptureRepository({
-      openConnection: () => tracing(path, trace, failReadNumber),
+      openConnection: () => tracing(path, trace, options),
     });
+
+  /** The tag name as a connection outside the capture can see it. */
+  const tagNameNow = (): string => {
+    const seen = openConnection(path);
+    try {
+      return (
+        seen.db.all<{ name: string }>(sql.raw("SELECT name FROM tag WHERE id = 'tag-1'"))[0]
+          ?.name ?? 'gone'
+      );
+    } finally {
+      seen.close();
+    }
+  };
 
   it('reads everything inside one deferred transaction and closes its connection', async () => {
     // Proof, watched 2026-09-03: with `tx.begin()` moved after the first read —
@@ -181,7 +216,7 @@ describe('capturing a project’s plan input', () => {
     // and shows up nowhere near this test.
     let thrown: unknown;
     try {
-      await capture(3).readPlanInput('p1');
+      await capture({ failReadNumber: 3 }).readPlanInput('p1');
     } catch (err) {
       thrown = err;
     }
@@ -189,5 +224,67 @@ describe('capturing a project’s plan input', () => {
     expect((thrown as Error | undefined)?.message).toContain('fell over mid-capture');
     expect(trace.statements.at(-1)).toContain('ROLLBACK');
     expect(trace.closes).toBe(1);
+  });
+
+  it('does not enclose a stranger’s write, because the snapshot is on its own connection', async () => {
+    // The positive half of the pair below, and the reason the dedicated
+    // connection is worth its one extra open: a write another caller commits on
+    // the process handle mid-capture is that caller's, and the capture's
+    // rollback leaves it exactly where it landed.
+    const elsewhere = openConnection(path);
+    try {
+      let thrown: unknown;
+      try {
+        await capture({
+          failReadNumber: 4,
+          foreignWrite: {
+            atRead: 2,
+            on: elsewhere.db,
+            sql: "UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'",
+          },
+        }).readPlanInput('p1');
+      } catch (err) {
+        thrown = err;
+      }
+
+      expect((thrown as Error | undefined)?.message).toContain('fell over mid-capture');
+      expect(tagNameNow()).toBe('renamed');
+    } finally {
+      elsewhere.close();
+    }
+  });
+
+  it('encloses that same write when the capture is run on the shared process handle', async () => {
+    // **3.2's first negative, and what settles design.md's hypothesis.** Run the
+    // identical scenario on the handle `boot.ts:64` opens for the whole process
+    // — the shape `readPlanInput` refuses — and the stranger's write is inside
+    // the capture's transaction: the capture unwinds and takes a committed-
+    // looking rename with it. Nothing in the writing request can see that
+    // happen; it was told its edit succeeded.
+    //
+    // Watched 2026-09-03: this is the same assertion as the test above with one
+    // thing changed, the connection the capture is handed, and it inverts.
+    const shared = openConnection(path);
+    try {
+      let thrown: unknown;
+      try {
+        await capture({
+          reuse: shared,
+          failReadNumber: 4,
+          foreignWrite: {
+            atRead: 2,
+            on: shared.db,
+            sql: "UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'",
+          },
+        }).readPlanInput('p1');
+      } catch (err) {
+        thrown = err;
+      }
+
+      expect((thrown as Error | undefined)?.message).toContain('fell over mid-capture');
+      expect(tagNameNow()).toBe('urgent');
+    } finally {
+      shared.close();
+    }
   });
 });
