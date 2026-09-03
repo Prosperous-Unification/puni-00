@@ -81,10 +81,29 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
  * them here too would give the front end two different failures ("422" and
  * `{error:'invalid'}`) for one mistake.
  */
-const credentials = t.Object({
-  username: t.String(),
-  password: t.String(),
-});
+/**
+ * The register/login body, built **per controller** rather than once per module.
+ *
+ * Elysia writes to the schema object it is handed: the body validator is
+ * compiled lazily on the route's first request, and it injects
+ * `additionalProperties: !normalize` — `false`, since `normalize` defaults on —
+ * into *this* object. A module-level schema is therefore shared mutable state
+ * across every app built in the process, and one app serving a POST changes the
+ * document a **different**, freshly built app then serves.
+ *
+ * That is not hypothetical: it turned `main` red on 2026-09-03 on a commit that
+ * added one test file and no production code. Bun runs a project's tests in one
+ * process in directory order, Linux and macOS enumerate differently, and on the
+ * runner an auth test logged in before `openapi-document.test.ts` read the
+ * document — so the document gained six `additionalProperties: false` the
+ * committed file does not have. `the committed OpenAPI document is what the app
+ * serves right now` is order-dependent unless the schema belongs to one app.
+ */
+const credentials = () =>
+  t.Object({
+    username: t.String(),
+    password: t.String(),
+  });
 
 /**
  * Registration and login return one session shape. OIDC mode keeps its JWT in
@@ -139,7 +158,7 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
         }
         return outcome.value;
       },
-      { body: credentials },
+      { body: credentials() },
     )
     .post(
       '/login',
@@ -179,7 +198,7 @@ export function authController(auth: AuthService, oidc?: OidcRouteOptions) {
         }
         return outcome.value;
       },
-      { body: credentials },
+      { body: credentials() },
     )
     .get('/me', async ({ headers, set }) => {
       const user = await userFromHeaders(auth, headers);
