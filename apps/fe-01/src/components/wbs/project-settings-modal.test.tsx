@@ -10,7 +10,7 @@ import {
   type ProjectSettingsModalProps,
   rememberedSettingsSection,
 } from './project-settings-modal';
-import { DEFAULT_HIDDEN_COLUMNS } from './table-frame';
+import { INITIAL_HIDDEN_COLUMNS } from './table-frame';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -66,7 +66,7 @@ function mounted(overrides: Partial<ProjectSettingsModalProps> = {}) {
         { id: 'step-qa', name: 'QA' },
       ],
       frameState: { hasAnyNotBefore: false },
-      hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
+      hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
       numberOf: () => null,
       nameOf: () => null,
       // The reach and its writer, stubbed rather than omitted: the panel draws
@@ -274,7 +274,7 @@ describe('closing over an edit', () => {
       steps: {
         steps: [{ id: 'step-qa', name: 'QA' }],
         frameState: { hasAnyNotBefore: false },
-        hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
+        hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
         numberOf: () => null,
         nameOf: () => null,
         depReach: 'whole-item',

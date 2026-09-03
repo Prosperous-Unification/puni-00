@@ -1559,6 +1559,7 @@ describe('the order of the columns', () => {
     // thing a plan is read by while scrolling out to the dates, meant Name had
     // to come third rather than fourth. Deliberate reversal, written down in
     // `openspec/changes/sticky-table-frame/proposal.md`.
+    localStorage.setItem('wbs.hiddenColumns.p1', JSON.stringify(['team', 'service', 'type']));
     await threeRoots();
 
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());

@@ -241,7 +241,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // frame at 1280 (measured in Chromium, 2026-08-31) — 17px of slack against a
   // 40px column. `external-refs`'s design D5 budgeted it against "the 240px
   // `configurable-columns` freed", an arithmetic that does not survive contact
-  // with {@link DEFAULT_HIDDEN_COLUMNS}: teams off paid for tags on, to the
+  // with {@link INITIAL_HIDDEN_COLUMNS}: teams off paid for tags on, to the
   // pixel, and freed nothing.
   //
   // Dany's answer, asked directly: "make # column and title column a bit
@@ -341,7 +341,7 @@ const COLUMN_WIDTHS = new Map<string, number>([
   ['service', 120],
   // The type cell, 120 like the three label dimensions beside it, and the first
   // of them that costs the folded budget **nothing**: it is in
-  // {@link DEFAULT_HIDDEN_COLUMNS}, so the default table is the table it was to
+  // {@link INITIAL_HIDDEN_COLUMNS}, so the default table is the table it was to
   // the pixel and a reader who wants the dimension turns it on in `Columns`.
   //
   // That is the answer to the sentence three entries up — "a fourth dimension
@@ -460,7 +460,14 @@ export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLA
  * 1259`; `team` struck from here, on `expected 1187 to be 1067`. Watched,
  * 2026-08-28.
  */
-export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service', 'type'];
+export const INITIAL_HIDDEN_COLUMNS: readonly string[] = ['refs', 'team', 'service', 'type'];
+
+/** The one-time column target chosen by the full-table Reset layout action. */
+export function resetHiddenColumns(hasAnyExternalRefs: boolean): readonly string[] {
+  return hasAnyExternalRefs
+    ? INITIAL_HIDDEN_COLUMNS.filter((id) => id !== 'refs')
+    : INITIAL_HIDDEN_COLUMNS;
+}
 
 /**
  * The columns a project's table shows before anybody has hidden or shown one —
@@ -468,7 +475,7 @@ export const DEFAULT_HIDDEN_COLUMNS: readonly string[] = ['team', 'service', 'ty
  * set the folded-width budget is measured over.
  */
 export const DEFAULT_COLUMN_SET: readonly string[] = FIXED_COLUMNS.filter(
-  (id) => !DEFAULT_HIDDEN_COLUMNS.includes(id),
+  (id) => !INITIAL_HIDDEN_COLUMNS.includes(id),
 );
 
 /**
@@ -961,7 +968,7 @@ export function pinnedGeometryFor(
  * The floor is every declared column in {@link FIXED_COLUMNS} less
  * `hiddenColumnIds`, plus Name's {@link FLEXIBLE_FLOOR}, plus one folded column
  * per step that is not itself hidden. The hidden list defaults to
- * {@link DEFAULT_HIDDEN_COLUMNS}, so a caller with no reader in front of it —
+ * {@link INITIAL_HIDDEN_COLUMNS}, so a caller with no reader in front of it —
  * the budget test, a fresh project — gets the default column set's figure, and
  * the Steps dialog passes the reader's own list to quote the table actually on
  * screen. A hidden step's id is passed bare (`step-qa`, not `step-qa-final`),
@@ -983,7 +990,7 @@ export function pinnedGeometryFor(
 export function foldedTableMinWidth(
   stepIds: readonly string[],
   state: FrameLayoutState,
-  hiddenColumnIds: readonly string[] = DEFAULT_HIDDEN_COLUMNS,
+  hiddenColumnIds: readonly string[] = INITIAL_HIDDEN_COLUMNS,
 ): number {
   for (const id of hiddenColumnIds) {
     if (!FIXED_COLUMNS.includes(id) && !stepIds.includes(id)) throw new UnknownColumnError(id);

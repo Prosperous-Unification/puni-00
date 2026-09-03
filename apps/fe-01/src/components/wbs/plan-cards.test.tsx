@@ -1406,6 +1406,8 @@ describe('the toolbar sheet', () => {
       localStorage.setItem('wbs.ganttHeight.p1', '500');
       localStorage.setItem('wbs.ganttDayPx.p1', '12');
       localStorage.setItem('wbs.ganttLabels.p1', JSON.stringify(false));
+      localStorage.setItem('wbs.hiddenColumns.p1', JSON.stringify(['priority']));
+      localStorage.setItem('wbs.linksResetShown.p1', 'true');
       const api = fakeApi();
       widthIs(PHONE);
       render(<WbsTable projectId="p1" api={api} />);
@@ -1418,6 +1420,8 @@ describe('the toolbar sheet', () => {
       expect(localStorage.getItem('wbs.ganttHeight.p1')).toBeNull();
       expect(localStorage.getItem('wbs.ganttDayPx.p1')).toBeNull();
       expect(localStorage.getItem('wbs.ganttLabels.p1')).toBeNull();
+      expect(localStorage.getItem('wbs.hiddenColumns.p1')).toBe(JSON.stringify(['priority']));
+      expect(localStorage.getItem('wbs.linksResetShown.p1')).toBe('true');
 
       // The click closed the sheet — every button inside it does — so the
       // absence below would be vacuous without reopening it. Reopen, confirm
