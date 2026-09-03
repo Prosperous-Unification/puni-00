@@ -39,11 +39,11 @@ comparison UI) and start only after slice 6 is merged.
       `ON DELETE CASCADE` header→project and body→header. `created_by` is a
       **value**, not a reference — the JSDoc says why (an account deletion must
       not orphan a permanent record).
-- [ ] 2.2 One additive migration folder plus a `down.sql` that drops both
+- [x] 2.2 One additive migration folder plus a `down.sql` that drops both
       tables. Watched: `readMigrationFolders` refuses an empty `down.sql`, so the
       down file is proved by running the rollback and reading `pragma table_info`
       back, not by an exit code.
-- [ ] 2.3 **The cascade is enforced, not merely declared.** `steps-schema-rename`
+- [x] 2.3 **The cascade is enforced, not merely declared.** `steps-schema-rename`
       shipped a `REFERENCES` clause SQLite had not applied and the check written
       for it passed against the broken database. So: write a header and a body,
       delete the project, and assert both rows are gone by reading the tables —
