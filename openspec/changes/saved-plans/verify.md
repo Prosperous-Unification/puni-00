@@ -46,6 +46,9 @@ until it has been.
 | Capture is one read snapshot (3.2) | the shared read transaction replaced with a connection per read | |
 | Every capture-only read rides that snapshot too (3.2) | the registry and junction reads moved outside the transaction with the twelve left inside, then a `tag.name` rename interleaved — the registry-rename case must fail while every projection-boundary assertion still passes | |
 | The compare route carries the project read rule (7.3b) | the route mounted without the read rule — 6.2's anonymous and third-party cases must fail | |
+| The diff names every differing canonical field (7.2b) | `frozen_number`, then a tag id, dropped from `diffPlans`' comparison | |
+| The diff names every differing schedule field (7.2c) | `diffPlans` built over the plan inputs alone — every schedule mutation must report "no change" | |
+| A successful retry captures a new read snapshot (4.5) | the retry reuses the refused attempt's detached values — the interleaved live edit must be missing from the stored input | |
 | Immutability, asserted by hash (4.2) | one captured field dropped from the writer — the hash must move even though every asserted field is still present | |
 | Save writes nothing on failure (4.3) | a throw injected between the header and the input body | |
 | Quota refuses before any write (4.6) | the quota check moved after the header insert | |
@@ -70,3 +73,11 @@ Both outputs are pasted here verbatim when the slices land.
 | OpenSpec validation | `@fission-ai/openspec validate --all --json`, h2puni | 1 | recorded in the task log |
 | Peer | `openai/gpt-5.6-sol` | 2 | recorded in the task log |
 | Gemini | per AGENTS.md seat order | 2 | recorded in the task log |
+| Peer | `anthropic/claude-fable-5` (Sol seat unavailable) | 2, 4, 5, 6 | recorded in the task log |
+| Gemini | `openrouter/google/gemini-3.1-pro-preview` (agy and direct google failed) | 3, 4, 5, 6 | recorded in the task log |
+
+Every round's full verdict is a verified artifact under `queue/reviews/` in the
+ops workspace, with its byte length and SHA-256 recorded in the task log beside
+the findings it produced and their dispositions. Rounds 3 and later are listed
+here so a reader at archive time does not take the gate to have stopped at
+round 2.

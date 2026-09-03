@@ -85,7 +85,15 @@ comparison UI) and start only after slice 6 is merged.
       the work-item/type reference (`typeId`, `:1131`),
       `work_item_external_ref` (`:1170`), `work_item_team` (`:921`),
       `work_item_service` (`:1343`), `person_team` (`:1546`), `team_service`
-      (`:1273`), and the team and service rows those junctions name.
+      (`:1273`), and **the team, service and person rows named by those junctions
+      or by the capacity map**. The last clause is not a flourish: `slotsFor`
+      (`work-item.service.ts:1381`) is keyed by team id, so a team with stated
+      capacity and no junction row at all — ordinary in early planning, which is
+      this feature's target window — has no captured name; and the projection's
+      people read is filtered to *assigned* ids (`:1309-1311`), so a
+      `person_team` row for an unassigned person names someone captured nowhere.
+      Either leaves a stored id whose label needs a live read the first
+      requirement forbids, and is unrecoverable once the row is deleted.
       **All of them, both halves, run sequentially on one explicitly held
       connection inside a single transaction block.** A pooled handle checked out
       per `await` gives each read its own connection and therefore its own
@@ -172,7 +180,13 @@ comparison UI) and start only after slice 6 is merged.
       after that transaction committed is a fresh save over a new read snapshot,
       which spec allows explicitly. Second test: let the rival commit inside the
       5 s window and assert the retry succeeds and the project holds two
-      records with different `created_at` values.
+      records with different `created_at` values. **Interleave a live edit
+      between the refusal and the retry's acquisition and assert the retry's
+      stored input contains it** — two records with different `created_at` is
+      also what a retry reusing the *refused* attempt's already-detached values
+      produces, so without this the "fresh save over a new read snapshot" SHALL
+      stays green while unimplemented and a user's retry stores the plan as of
+      the attempt that failed.
 - [ ] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
@@ -236,8 +250,11 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 7. The diff
 
-- [ ] 7.1 `diffPlans(left, right)` in `libs/domain` over two `CanonicalPlanInput`
-      values. One function, both directions.
+- [ ] 7.1 `diffPlans(left, right)` in `libs/domain`. Each side is a
+      `CanonicalPlanInput` **and its stored schedule body** (or the recorded
+      absent reason), because spec requires schedule-side differences to be
+      reported and a schedule is not a field of the input: a signature taking
+      only the inputs cannot see a date at all. One function, both directions.
 - [ ] 7.2 Property test: added, removed, renamed, reparented and reordered items;
       changed uncertainty, effort, actuals, progress, measures, ownership,
       dependencies, settings, dates, **and freeze** (`frozen_number` set, cleared
@@ -254,13 +271,34 @@ comparison UI) and start only after slice 6 is merged.
       "no change" while being faithfully stored. Negative: drop `frozen_number`
       and then a tag id from `diffPlans`' comparison and watch the property name
       each missing field.
+- [ ] 7.2c **The schedule-side analogue of 7.2b.** Mutate any single field of the
+      stored schedule body in turn — dates, offsets, every `Scheduled` /
+      `ScheduledSlice` key, the top-level counts, the absent reason and
+      `scheduler_algorithm_id` — and assert the diff is non-empty and names it,
+      with the field set derived from the stored value rather than written out,
+      as 3.4 does for the writer. The case that motivates it: two saves whose
+      input bodies are **byte-identical** and whose schedules differ because
+      `schedule()`'s semantics changed between them. Negative: build `diffPlans`
+      over the inputs alone and watch every schedule mutation report "no change"
+      — which is what the pre-6056baf2 signature would have shipped.
 - [ ] 7.3 `projectCurrentPlan()` materialises the live plan through
-      `canonicalisePlanInput`, writes nothing, and consumes no quota. Test:
-      compare against `current` and assert no row was written.
+      `canonicalisePlanInput`, writes nothing, and consumes no quota. **It reuses
+      `SavedPlanCaptureRepository.readPlanInput` — 3.1's read set, both halves,
+      inside one `BEGIN DEFERRED` snapshot — rather than reads of its own.** Spec
+      requires `current` to come through the same canonical function the save
+      uses, so a `current` built from the projection's twelve reads lacks the
+      registry and junction rows by value and every saved-vs-current comparison
+      reports the saved side's tags, types and external systems as removed;
+      7.2b never catches it, because it mutates `CanonicalPlanInput` values
+      directly and never runs this path. Reuse also gives `current` the one read
+      snapshot, without which a torn `current` renders a comparison against a
+      live plan that never existed — the display-side twin of the defect 3.2
+      exists to catch. Test: compare against `current`, assert no row was
+      written, and assert the `current` value carries the registry rows by value.
 - [ ] 7.3b **The compare route**, on `savedPlanController` under the project's
       read rule: two sides, each a saved-plan id or `current`. It has to be a
-      route — `current` needs the twelve-read server-side capture of 7.3, so the
-      diff cannot run client-side. Extend 6.2's permission matrix to this sixth
+      route — `current` needs 7.3's server-side capture over 3.1's read set, so
+      the diff cannot run client-side. Extend 6.2's permission matrix to this sixth
       route, including the case where one side is a saved plan the caller may read
       and the other is `current` on a restricted project. Negative: mount the
       compare route without the read rule and watch the matrix's anonymous and

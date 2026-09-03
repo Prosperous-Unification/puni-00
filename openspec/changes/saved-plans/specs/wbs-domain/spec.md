@@ -22,8 +22,11 @@ The **plan input** body SHALL hold:
 - the steps, and per (work item, step) the three-point estimate, the derived
   number, the actual and the progress;
 - the token and hour measures;
-- ownership — assignments, people, teams, services, `work_item_team`,
-  `work_item_service`, `person_team` and `team_service`;
+- ownership — assignments, teams, services, `work_item_team`,
+  `work_item_service`, `person_team` and `team_service`, and **people: every
+  assigned person plus every person a captured `person_team` row names**, since
+  the live projection reads only assigned people and an unassigned member of a
+  captured team would otherwise be a stored id with no name;
 - the dependencies, the priority bands and the team capacity;
 - **the referenced registry rows, by value** — for every tag id, work-item-type
   id and external-system id the captured items use, that row's id **and name**
@@ -294,6 +297,26 @@ tags, external references, notes, `priority`, `max_parallel`, service assignment
 priority bands, team capacity, and the registry rows a label resolves through. A
 differing field with no listed category SHALL still be reported, under a
 catch-all group naming the field.
+
+**The schedule side is covered on the same terms and is normative, not
+presentational.** The schedule body is not a field of the canonical plan input,
+so the rule above does not reach it. A comparison SHALL report any difference
+between the two sides' stored schedules — the ISO dates, the working-day
+offsets, the whole `Scheduled`/`ScheduledSlice` field set, the top-level counts,
+the presence or absence of a schedule with its reason, and the
+`scheduler_algorithm_id` — bounded by the stored schedule field set rather than
+by a list written here. Without this a change to `schedule()`'s semantics, which
+is exactly what `scheduler_algorithm_id` exists to record, moves every date
+between two saves whose inputs are byte-identical while the comparison reports
+no change: the feature's motivating question answered wrongly.
+
+#### Scenario: the dates moved but the input did not
+
+- **WHEN** two saved plans of one project hold byte-identical plan input bodies
+  and schedule bodies that differ, because the scheduling algorithm changed
+  between them and their `scheduler_algorithm_id` values differ with it
+- **THEN** the comparison reports the changed dates and offsets and the changed
+  algorithm identity, and does not report the plan as unchanged
 
 #### Scenario: a captured field the category list does not name
 
