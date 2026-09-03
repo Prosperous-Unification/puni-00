@@ -94,6 +94,23 @@ comparison UI) and start only after slice 6 is merged.
       `person_team` row for an unassigned person names someone captured nowhere.
       Either leaves a stored id whose label needs a live read the first
       requirement forbids, and is unrecoverable once the row is deleted.
+      **The inventory behind that list, taken 2026-09-03 — every table cited
+      above is real at the line given, but they are not ten reads.** Five of them
+      are already inside the projection's own `workItems.listByProject`
+      (`:1288`): `LabelledWorkItem` (`repository/index.ts:404`) carries
+      `teamIds`, `tagIds`, `serviceIds`, `typeIds` and `externalRefs`, so
+      `work_item_team`, `work_item_tag`, `work_item_service`, the type reference
+      and `work_item_external_ref` need no read of their own. What is genuinely
+      capture-only is **six calls on the directory store**, each already written:
+      `listTags()` (`directory.ts:323`), `listWorkItemTypes()` (`:809`),
+      `listExternalSystems()` (`:798`) for the three registries;
+      `listTeams()` (`:282`), which folds `team_service` in through a second
+      query of its own; `listServices()` (`:356`); and `listPeople()` (`:538`),
+      which folds `person_team` in the same way. `listPeople()` is the one that
+      earns its place twice over — it is **unfiltered**, where the projection's
+      use of it at `:1310` is narrowed to assigned ids, which is exactly the
+      unassigned-member hole named above. So 3.1 writes no new SQL: it is six
+      existing reads plus the thirteen, ordered on one held connection.
       **All of them, both halves, run sequentially on one explicitly held
       connection inside a single transaction block** — and that connection is a
       **dedicated** one from `openConnection(dbPath)`, not the process handle.
