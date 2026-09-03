@@ -270,9 +270,9 @@ That union is declared **the one authority** and is enumerated in five places. A
 | 2 | `dual-optimized-scheduler/specs/scheduler-optimization/spec.md`, the plan-read requirement | the normative "SHALL be one of" |
 | 3 | `dual-optimized-scheduler/tasks.md` 7.10 | "one of six", **and** its proof-state list |
 | 4 | `dual-optimized-scheduler/tasks.md` 8.3–8.4 | the UI rendered-states list |
-| 5 | `notes/wbs-dual-optimized-scheduler-design.md` | the same DTO paragraph |
+| 5 | `notes/wbs-dual-optimized-scheduler-design.md` §3.2 | the event/state table that section declares authoritative — **not** its review-ledger rows, which are protected history |
 
-This is not a caution. Adding `corrupt` updated location 2 and left 1, 3 and 4 at five members, which shipped as a Critical; the two rounds before it found the same divergence in other fields. A partial amendment here repeats it a third time, and the count word "six" in location 3 is what makes a text search for the union miss the sites that do not spell it.
+This is not a caution. Adding `corrupt` updated location 2 and left 1, 3 and 4 at five members, which shipped as a Critical; the two rounds before it found the same divergence in other fields. A partial amendment here repeats it a third time, and the count word "six" occurs in only two of the five — locations 1 and 3 — so a text search for it misses three sites, including two an implementer edits. Search for the member names.
 
 `plan-infeasible` SHALL also be added to the Retry endpoint's refusal path. Retry accepts `failed` or `corrupt`; every other state returns one code, `409 not-retryable`, naming the state. `plan-infeasible` SHALL take that path rather than being accepted, because re-solving an unchanged input is guaranteed to return the same proof — the UI showing no Retry affordance is not sufficient, since the route is reachable without the UI.
 

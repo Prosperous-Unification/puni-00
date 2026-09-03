@@ -19,13 +19,20 @@ starts.** It changes the canonical input, the cache identity, the solver wire an
 the failure state machine — all four of TASK-219's subjects.
 
 **Who executes what, because half of this cannot be executed here.** Verified at
-this head: `libs/contracts/solver/` exists but holds **no `solver-wire.v1.json`**,
-there is no cache table and no CP-SAT model. TASK-219 creates all three. So:
+this head with `git ls-tree`: **neither `libs/contracts/solver/` nor the wire
+schema exists** — `libs/contracts/` holds only `README.md`, `project.json`,
+`src/` and its tsconfigs, and a tree-wide search finds zero `solver*` directories
+and zero `solver-wire*` files. There is no cache table and no CP-SAT model
+either. TASK-219 creates all of it. (An earlier revision of this paragraph said
+the directory existed; that came from reading `libs/contracts/`'s own listing and
+attributing it to a child. Corrected here rather than left standing, because
+"verified at this head" is the sentence TASK-219 reads first.) So:
 
 | Slices | Owner | Why |
 |---|---|---|
 | 1–6, 9, 10.1–10.3 | **this change's own queue tasks** | column, converter, fold, `schedule()`'s seventh argument, Fast ordering, API, UI — all against code that exists |
 | 7, 8 | **TASK-219 absorbs them** | they assert cache-key columns (7.4), hash behaviour (7.1, 7.6) and a wire schema (8.1) belonging to artifacts TASK-219 has not created yet |
+| 10.4 | **both owners, each at its own terminal gate** | AGENTS.md's cross-provider review binds whoever ships a diff; it is not one task's checkbox |
 
 Consequently **W1, W3 and W4 are watched here; W2, W5 and W6 are watched inside
 TASK-219**, and 10.1's "all six recorded failing" spans both tasks rather than
@@ -266,13 +273,18 @@ here.
       (3) `.../tasks.md` 7.10 — both the words "one of six" **and** its
       proof-state list;
       (4) `.../tasks.md` 8.3–8.4, the UI rendered-states list;
-      (5) `notes/wbs-dual-optimized-scheduler-design.md`'s DTO paragraph
-      (workspace file, not in the wbs checkout).
+      (5) `notes/wbs-dual-optimized-scheduler-design.md` **§3.2's
+      event/state table** — the section that declares itself authoritative — which
+      enumerates outcomes by row and needs `plan-infeasible` rows. It is a
+      workspace file, not in the wbs checkout. **Do not amend that note's review
+      ledger rows**, which are the only other place its variant states appear
+      and are protected history under 7.2b.
       **This has already gone wrong twice.** Adding `corrupt` updated (2) and
       left (1), (3) and (4) at five members, which shipped as a Critical, and
-      the two rounds before it found the same divergence in other fields. The
-      count word "six" appears in (3) only, so searching for it finds one site
-      of five — search for the member names.
+      the two rounds before it found the same divergence in other fields.
+      **Search for the member names, not for "six":** the count word appears in
+      (1) ("a tagged union of **six** members") and (3), so it finds two sites of
+      five and both misses are in the files an implementer edits.
 - [ ] 8.7c The stored row status and the DTO union are **different layers** and
       both get a value. `plan-infeasible` is a row status beside `ok` and
       `failed`, and is **not** an `ok` row carrying an infeasible payload:
