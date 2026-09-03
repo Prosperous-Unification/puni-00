@@ -120,16 +120,44 @@ h2puni is green — no build or autotest runs on the workspace box.
       a consumer that accepts a message the schema rejects, or rejects one it
       accepts, fails the contract test; and a TypeScript type that drifts from
       the schema fails it too. **A repository check enforces the "descriptive
-      only" claim (Sol r8 Critical 4):** the contract suite scans design.md,
-      tasks.md, spec.md and the long-form note for a per-term
-      `objectiveValues` field list or a request/response field list that is
-      not the schema's, and fails naming the file — three rounds running, an
-      obsolete prose schema in one of those four files was an implementation
-      instruction contradicting the real one.
+      only" claim (Sol r8 Critical 4, restated Sol r9 Critical 1):** three
+      rounds running, an obsolete prose schema in one of those four files was
+      an implementation instruction contradicting the real one. The check is
+      **set equality, not a ban on prose**, because a planning artifact that
+      may not name a field cannot say what the schema must contain, and the
+      earlier "no field list outside the schema" wording rejected design.md,
+      spec.md and this file on the round it was written. Definitions: an
+      **enumeration** is a maximal run of three or more backticked
+      identifiers joined only by commas, `and` or `/`; a **vocabulary** is one
+      named tuple this change defines. The check knows eight vocabularies —
+      the four wire sets parsed from `solver-wire.v1.json`'s `required`
+      arrays (`request`, `response`, `slice`, `objective-term`), the cache
+      composite key, the plan-read `optimization` block, the
+      `optimization_generation` row and the `solver_queue` row — because a
+      check that does not name its vocabularies misattributes every table
+      tuple to the wire and is unrunnable. Then: (a) an enumeration inside a
+      `<!-- wire-fields:<set> -->` span (the span runs from the tag to the end
+      of its sentence or to the next tag) SHALL equal that set exactly,
+      failing with file, line and symmetric difference; (b) an untagged
+      enumeration is attributed to the vocabulary it overlaps most and, when
+      that overlap is two or more, SHALL be a **subset** of it — a partial
+      mention is legal, a run mixing two vocabularies or naming a
+      non-member is not; (c) `OptimizedResult` and `StoredObjectiveValue` are
+      the stored shapes, have their own authority in the codec requirement,
+      and are excluded by name. **Watched red:** the superseded sentence
+      "Each slice SHALL carry its `sliceKey`, an integer `durationUnits`,
+      `width`, `personId`, set-valued `poolIds`, a resolved `priorityWeight`,
+      and a resolved `notBeforeUnits`." is kept as a negative fixture; the
+      check SHALL reject it naming `sliceKey`, and a check that passes it is
+      not implementing rule (b). That sentence was live in spec.md until Sol
+      r9 Critical 1, against design.md's and 2.2's `key` — set comparison is
+      what catches it, and the banned-prose wording would have deleted the
+      evidence instead. A prototype of rules (a)–(c) was run over the four
+      files at this head and reported no divergent enumeration.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
-      Each slice carries `key` (`sliceKey`), an **integer** `durationUnits` (2.8)
+      <!-- wire-fields:slice -->Each slice carries `key` (`sliceKey()`'s result), an **integer** `durationUnits` (2.8)
       computed exactly as Fast computes it — `ASSUMED_SLICE_WORKDAYS` for a
       null `days` **without** dividing by `width`, `days / width` otherwise
       **without** `snapWorkdays`, then `× SOLVER_QUANTUM` and rounded **up**
@@ -649,8 +677,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       `invalid-output` **at every stage**, not only at stage 1, since Fast
       placed the same input and every later stage only adds inequalities to a
       feasible model. The published result is the last stage's incumbent,
-      feasible by construction. `objectiveValues` reports the **four**-field
-      per-term shape `{ value, stageValue, bound, status }` exactly as
+      feasible by construction. <!-- wire-fields:objective-term -->`objectiveValues` reports the
+      **four**-field per-term shape `{ value, stageValue, bound, status }` exactly as
       `solver-wire.v1.json` and design.md's matrix define it; `value` is the
       term on the published offsets (2.4), `stageValue`/`bound`/`status`
       describe the stage. **This task previously wrote a three-field shape and

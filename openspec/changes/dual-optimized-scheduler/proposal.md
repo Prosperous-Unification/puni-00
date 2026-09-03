@@ -58,7 +58,7 @@ The scheduler is one deterministic millisecond pass (Fast) with no notion of opt
 
 ## Domain Terms
 
-- `Engine`, `Objective`, `Input hash`, `Baseline schedule` — added to CONTEXT.md.
+- Fifteen glossary terms added to CONTEXT.md; `design.md` names each.
 
 ## Decisions Recorded
 
