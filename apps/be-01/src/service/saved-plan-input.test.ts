@@ -53,7 +53,24 @@ const reads = {
       tagIds: ['tag-a'],
       serviceIds: ['svc-1'],
       typeIds: ['t-task', 't-spike'],
-      externalRefs: [{ id: 'x1', systemId: 'jira', url: 'https://jira/SHED-2', position: 20 }],
+      /**
+       * Two refs, in the order the read hands them over, and **no `position`
+       * field** — `ExternalRef` is `{ id, systemId, url }`
+       * (`repository/index.ts:481-485`) and a fixture that invents one describes
+       * a row the store cannot produce. It did carry `position: 20` until
+       * A-7 was settled, which the `as unknown as PlanInputReads` below let
+       * through; the fold read it, and `be-01:typecheck` was the only thing that
+       * ever said so.
+       *
+       * `jira` is second alphabetically and first here on purpose: the shown
+       * order is the array's, and `canonicalisePlanInput` re-sorts by
+       * `(externalSystemId, url)`, so a rank that tracked the sort rather than
+       * the read would still look right on a one-ref item.
+       */
+      externalRefs: [
+        { id: 'x1', systemId: 'jira', url: 'https://jira/SHED-2' },
+        { id: 'x2', systemId: 'github', url: 'https://gh/shed/9' },
+      ],
     },
   ],
   estimates: [{ workItemId: 'w1', stepId: 's1', optimistic: 1, realistic: 2, pessimistic: 5 }],
@@ -149,9 +166,16 @@ describe('planInputRowsOf', () => {
     });
   });
 
-  it('turns an external ref row into the canonical link, url and shown order kept', () => {
+  /**
+   * The shown order survives as a **rank over the read's own array**, dense from
+   * 0. The read carries no position to copy and does not need one: both readers
+   * order by the column and the only writer numbers the deduplicated list it
+   * inserts from 0 (`work-item.ts:641-658`), so the index is that column.
+   */
+  it('turns external ref rows into canonical links, ranked in the order they were read', () => {
     expect(planInputRowsOf(reads).workItems[0]?.externalRefs).toEqual([
-      { externalSystemId: 'jira', url: 'https://jira/SHED-2', position: 20 },
+      { externalSystemId: 'jira', url: 'https://jira/SHED-2', position: 0 },
+      { externalSystemId: 'github', url: 'https://gh/shed/9', position: 1 },
     ]);
   });
 

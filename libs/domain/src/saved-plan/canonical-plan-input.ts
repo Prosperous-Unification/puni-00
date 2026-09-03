@@ -156,6 +156,21 @@ export interface CanonicalWorkItem {
  * **not** the sort key — two refs that tie on it would then order by arrival —
  * so the ordering is by `externalSystemId` then `url`, and `position` rides as
  * an ordinary value.
+ *
+ * **It is a rank, not the column** (assumption A-7, settled 2026-09-03). The
+ * repository's read type is `{ id, systemId, url }`
+ * (`apps/be-01/src/repository/index.ts:481-485`) and carries no position, which
+ * is why the fold first written against this field did not typecheck. Widening
+ * that read was the obvious repair and is the wrong one: both readers already
+ * `ORDER BY position` (`work-item.ts:220`, `directory.ts:171`), and the only
+ * writer deletes every row for the item and reinserts the deduplicated list
+ * with `position: at` (`work-item.ts:641-658`). The stored numbers are
+ * therefore dense from 0 in exactly the order the array arrives in, so the
+ * column and the index are one fact and a widened read would be a second
+ * spelling of it that only ever gets to disagree. The fold ranks the ordered
+ * array instead. That is also the stabler value of the two: were a row ever
+ * spaced in gaps, two plans identical in every visible way would hash apart on
+ * the spacing, and this field exists to record what a reader sees.
  */
 export interface CanonicalExternalRef {
   readonly externalSystemId: string;
