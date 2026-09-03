@@ -146,7 +146,7 @@ check-that-cannot-fail failure R5 names.
 
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
-- [ ] 2.0 **Publish the priority resolver before anything imports it.** Add
+- [x] 2.0 **Publish the priority resolver before anything imports it.** Add
       `export` to `function priorityByLeaf` in `libs/domain/src/schedule.ts`
       and re-export it from `libs/domain/src/index.ts`. Nothing else moves: it
       keeps its signature `(rows: readonly PlannedRow[], index: TreeIndex) =>
@@ -155,6 +155,20 @@ check-that-cannot-fail failure R5 names.
       This slice exists because 2.2's named seam is an import of a symbol
       `libs/domain` does not currently publish, and an ordered plan that
       reaches 2.2 first cannot proceed (deepseek r9 Important 1).
+      **Landed** at `6863752d`. The re-export needed no edit — `index.ts`
+      already carries `export * from './schedule'`, so the missing half was
+      always the `export` keyword alone, and the code diff across 2.0 and 2.8
+      together is exactly two of them (`priorityByLeaf`, `durationOf`); every
+      doc line beside them is comment. **The seam is now asserted from the
+      BARREL** in `solver-seams.test.ts`, not from `schedule.ts`, and the
+      watched red is why that distinction is the whole slice: with `export`
+      removed from `priorityByLeaf` again — the exact pre-2.0 state — `tsc
+      --build --force` exits **0 with a zero-byte log** and the entire
+      pre-existing 327-test domain suite passes. Only the barrel test fails,
+      335/1. The defect is invisible from inside the module, because the symbol
+      is right there and its own tests pass; it is only visible from where the
+      consumer stands. Second red: the barrel's `export * from
+      './solver-quantum'` commented out, 335/1 on the quantum case alone.
 - [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
