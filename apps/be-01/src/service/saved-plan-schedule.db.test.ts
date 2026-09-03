@@ -110,16 +110,19 @@ describe('scheduling a captured plan', () => {
     new SavedPlanCaptureRepository({ openConnection: counting });
 
   it('holds no connection open while the plan is scheduled', async () => {
-    let liveDuringSchedule: number | null = null;
+    // Pushed rather than assigned to a `number | null`: the assignment happens
+    // inside a callback, and the reading has to distinguish "sampled 0" from
+    // "never sampled", which an initial value cannot.
+    const sampled: number[] = [];
     const result = await captureAndSchedulePlan(capture(), 'p1', (reads: PlanInputReads) => {
-      liveDuringSchedule = live;
+      sampled.push(live);
       return schedulePlanInput(reads);
     });
 
     expect(result).not.toBeNull();
-    // `null` rather than 0 would mean the scheduler never ran and the
-    // assertion below was reading its own initial value.
-    expect(liveDuringSchedule).toBe(0);
+    // One sample, and it is zero. An empty array would mean the scheduler never
+    // ran and the count below was nobody's observation.
+    expect(sampled).toEqual([0]);
     // The capture did open one, so the zero above is a release rather than a
     // capture that never happened.
     expect(opened).toBe(1);
