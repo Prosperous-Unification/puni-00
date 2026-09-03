@@ -96,7 +96,7 @@
       }
     },
 
-    "objectiveTerm": {
+    "objective-term": {
       "type": "object",
       "additionalProperties": false,
       "required": ["value", "stageValue", "bound", "status"],
@@ -125,9 +125,9 @@
       "additionalProperties": false,
       "required": ["makespan", "priority", "movement"],
       "properties": {
-        "makespan": { "$ref": "#/$defs/objectiveTerm" },
-        "priority": { "$ref": "#/$defs/objectiveTerm" },
-        "movement": { "$ref": "#/$defs/objectiveTerm" }
+        "makespan": { "$ref": "#/$defs/objective-term" },
+        "priority": { "$ref": "#/$defs/objective-term" },
+        "movement": { "$ref": "#/$defs/objective-term" }
       },
       "$comment": "All three terms are always present; a stage that never ran reports status 'unknown' with null stageValue and bound rather than omitting its term. TERM KEYS ARE LOWERCASE, derived rather than invented: tasks.md 4.12b spells the stored shape Record<'makespan'|'priority'|'movement', ObjectiveValue>, and it is the only artifact that writes the keys at all. MAKESPAN, PRIORITY and MOVEMENT in design.md are the mathematical term NAMES, not JSON keys. FALSIFIER: any artifact that pins a different wire spelling, or a codec step that case-converts between wire and stored — either would mean this file chose wrong and a translation nobody specified exists."
     },
