@@ -76,9 +76,26 @@ export function durationRoundedUp(slice: Slice): boolean {
 /**
  * The single multiplication and the single drift window both exported readers
  * above are answers about.
+ *
+ * **Throws on a width the engine would have refused at its own door.** Until
+ * 2026-09-03 `durationOf` was private, and the only way to reach it was through
+ * `groupByWorkItem`, which refuses `width < 1` precisely because `durationOf`
+ * divides by it: a width of 0 is `Infinity` days for a slice with effort and
+ * `NaN` for one without. Publishing `durationOf` for the solver put a caller
+ * outside that door, and `Math.ceil(Infinity)` is `Infinity` — so an
+ * unrefused width would have reached the wire as a duration rather than as an
+ * error, and been diagnosed there as a schema violation of the request the
+ * builder itself wrote. The guard belongs at the last point that can still name
+ * the cause. Throwing rather than returning a code is `groupByWorkItem`'s own
+ * choice for the same input: this is malformed input, not a missing default.
  */
 function quantise(slice: Slice): { units: number; rounded: boolean } {
   const exact = snapWorkdays(durationOf(slice) * SOLVER_QUANTUM);
+  if (!Number.isFinite(exact) || exact < 0) {
+    throw new Error(
+      `slice ${slice.workItemId} has no finite duration in solver units: width ${slice.width}, days ${String(slice.days)}`,
+    );
+  }
   const units = Math.ceil(exact);
   return { units, rounded: units !== exact };
 }

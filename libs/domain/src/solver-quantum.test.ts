@@ -62,4 +62,20 @@ describe('durationUnits', () => {
     expect(durationUnits(slice(0, 4))).toBe(0);
     expect(durationRoundedUp(slice(0, 4))).toBe(false);
   });
+
+  it('refuses a width the engine would have refused at its own door', () => {
+    // `durationOf` was private until this change and the only route to it was
+    // `groupByWorkItem`, which refuses `width < 1` for exactly this reason.
+    // Publishing it put the solver outside that door, and `Math.ceil(Infinity)`
+    // is `Infinity` — so without this guard a width of 0 reaches the wire as a
+    // *duration*, and is diagnosed there as the builder's own request violating
+    // the schema rather than as the width nobody refused.
+    expect(() => durationUnits(slice(5, 0))).toThrow(/no finite duration/);
+    expect(() => durationUnits(slice(5, -2))).toThrow(/no finite duration/);
+    expect(() => durationRoundedUp(slice(5, 0))).toThrow(/no finite duration/);
+
+    // A null estimate never divides, so it is finite at every width and stays
+    // an answer rather than becoming an error.
+    expect(durationUnits(slice(null, 0))).toBe(ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM);
+  });
 });
