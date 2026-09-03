@@ -81,8 +81,10 @@ function scalarOf(dbPath: string, sql: string): unknown {
   const sqlite = openDatabase(dbPath);
   try {
     const row = sqlite.query<Record<string, unknown>, []>(sql).get();
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- .get() returns undefined when no row is found, but the type is non-nullable
-    if (row === undefined) return null;
+    // .get() returns null (not undefined) when no row matches, and its declared
+    // return type is `Record<string, unknown> | null`, so a `=== undefined` guard
+    // leaves `row` nullable and fails the db-tier typecheck.
+    if (row === null) return null;
     const keys = Object.keys(row);
     return keys.length ? row[keys[0]] : null;
   } finally {
