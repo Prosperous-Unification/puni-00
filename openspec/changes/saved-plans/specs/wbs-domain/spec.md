@@ -202,7 +202,12 @@ A schedule body whose stored plan-input SHA-256 does not equal the plan input
 body's SHA-256 SHALL be refused rather than rendered.
 
 A saved plan MAY have no schedule body, and SHALL then record why —
-`pending`, `infeasible` or `unavailable`. A comparison SHALL report that no
+`pending`, `infeasible` or `unavailable`. A plan whose dependencies form a cycle
+SHALL be saved with the reason `infeasible`: `scheduleError` is derived at read
+time from a `ScheduleCycleError` thrown by `schedule()`
+(`apps/be-01/src/service/work-item.service.ts:1413`, `:1474`) and is not a stored
+column, so it is a property of the scheduling attempt, captured as the absent
+reason, and never a field of the plan input. A comparison SHALL report that no
 schedule was saved for that side, and SHALL NOT substitute the live schedule.
 
 #### Scenario: an older algorithm's numbers

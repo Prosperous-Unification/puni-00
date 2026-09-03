@@ -63,6 +63,11 @@ comparison UI) and start only after slice 6 is merged.
       `apps/be-01/src/service/work-item.service.ts:1285-1312`, three at
       `:1364-1385`, minus `broadcast.latestSeq`, which is a refresh cursor and is
       not captured), and why a revision counter cannot substitute.
+      **All twelve run sequentially on one explicitly held connection inside a
+      single transaction block.** A pooled handle checked out per `await` gives
+      each read its own connection and therefore its own snapshot, and the
+      transaction is torn while every line still reads as if it were not — 3.2's
+      test would then be measuring the pool's luck. The JSDoc says this.
 - [ ] 3.2 **The torn-read test, which is the Critical this design exists for.**
       Pause the capture at **each** read boundary in turn; commit a work-item
       rename, a directory cascade, a step edit and a setting change in the gap;
@@ -88,10 +93,16 @@ comparison UI) and start only after slice 6 is merged.
 ## 4. The write path
 
 - [ ] 4.0 Establish the connection topology before writing any of 4.x: read how
-      be-01 hands out write connections and record it in design.md. If a save
-      would share the live-edit write handle, give it its own — 4.5's guarantee
-      that a live edit completes during a save is silently void otherwise, and no
-      `busy_timeout` value repairs it.
+      be-01 hands out write connections and record it in design.md. Three
+      distinct requirements come out of it. (i) The save's write connection is
+      not the live-edit write handle — otherwise 4.5's guarantee that a live edit
+      completes during a save is silently void, whatever `busy_timeout` says.
+      (ii) The read snapshot of slice 3 and this write are on **different**
+      connections, and the read transaction is committed and released before
+      `BEGIN IMMEDIATE` opens; a `DEFERRED` read transaction promoted in place can
+      fail `SQLITE_BUSY` under WAL once any other reader has touched the file.
+      (iii) The captured values are already detached by then, so releasing the
+      read early costs nothing.
 - [ ] 4.1 `SavedPlanService.save` — per-body byte checks, then `BEGIN IMMEDIATE`,
       then the count and total quota checks **inside** that transaction, header,
       input body, schedule body, commit. Test: a save writes one header and the

@@ -112,6 +112,13 @@ no window in which a second save waits. The 5-second bound applies to the save's
 *total* attempt including a bounded retry the caller may make, never to a single
 blocking acquire.
 
+Three connections are in play and none of them may be the same one: the capture's
+read snapshot, the save's write connection, and whatever handle live edits use.
+The read transaction is committed and released before `BEGIN IMMEDIATE` opens —
+promoting a `DEFERRED` read transaction in place can fail `SQLITE_BUSY` under WAL
+once another reader has touched the file, and by then the captured values are
+already detached, so releasing it early costs nothing.
+
 **The save's write connection is its own**, not the one live edits use. That is
 the whole reason live editing keeps working: if a save shared the request
 connection's write handle, edits would queue behind the body write regardless of
