@@ -25,7 +25,11 @@ import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
 import { captureAndSchedulePlan } from './saved-plan-schedule';
-import { buildScheduleBody, SCHEDULE_BODY_SCHEMA_VERSION } from './saved-plan-schedule-body';
+import {
+  buildScheduleBody,
+  SCHEDULE_BODY_SCHEMA_VERSION,
+  serialiseScheduleBody,
+} from './saved-plan-schedule-body';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -209,6 +213,51 @@ describe('the stored schedule body', () => {
     expect(slices.some((each) => each.boundBy === 'person')).toBe(true);
     expect(slices.some((each) => each.resourcePredecessorId !== null)).toBe(true);
     expect(planned.waitingForPerson).toBeGreaterThan(0);
+  });
+
+  /**
+   * The same schedule with every iteration order reversed.
+   *
+   * A `Map` iterates in insertion order and `JSON.stringify` emits an object's
+   * keys in theirs, so this is the whole class of difference that is about how
+   * the value was assembled rather than about the plan.
+   */
+  const reversed = (timings: ReadonlyMap<string, Scheduled>): Map<string, Scheduled> => {
+    const out = new Map<string, Scheduled>();
+    for (const [id, timing] of [...timings].reverse()) {
+      const flipped: Record<string, unknown> = {};
+      for (const key of Object.keys(timing).reverse()) {
+        flipped[key] = (timing as unknown as Record<string, unknown>)[key];
+      }
+      out.set(id, flipped as unknown as Scheduled);
+    }
+    return out;
+  };
+
+  /**
+   * The bytes are a fact about the plan, not about how the value was walked.
+   *
+   * The SHA-256 the header stores is taken over exactly these bytes, so a body
+   * whose serialization depended on `Map` insertion order or on the engine's
+   * field declaration order would hash differently after a refactor that
+   * changed no dates at all — and an immutability check built on that hash
+   * would report a plan as changed for a reason the plan knows nothing about.
+   */
+  it('serializes to the same bytes whatever order the value was assembled in', async () => {
+    await seedProject(START);
+    const result = await captureAndSchedulePlan(capture(), 'p1');
+    const { planned } = result!;
+    const bytes = serialiseScheduleBody(buildScheduleBody(planned, START));
+
+    const flipped: Schedule = {
+      ...planned,
+      slices: reversed(planned.slices),
+      workItems: reversed(planned.workItems),
+    };
+    expect(serialiseScheduleBody(buildScheduleBody(flipped, START))).toBe(bytes);
+    // And the sorting is real rather than the two walks coinciding: a plain
+    // stringify of the flipped maps must differ from one of the originals.
+    expect(JSON.stringify([...flipped.slices])).not.toBe(JSON.stringify([...planned.slices]));
   });
 
   it('carries the version and the algorithm identity', async () => {

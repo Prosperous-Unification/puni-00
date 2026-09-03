@@ -89,15 +89,45 @@ function datesOf(timing: Scheduled, startDate: IsoDate | null): SpanDates {
   };
 }
 
-/** One of the engine's maps, as a record, with each value's dates merged in. */
+/**
+ * One value with its own keys in sorted order.
+ *
+ * `JSON.stringify` emits an object's keys in insertion order, so a body whose
+ * keys arrive in the engine's declaration order hashes differently the day
+ * somebody reorders two fields of `ScheduledSlice` — a byte change, and
+ * therefore a SHA-256 change, with no change to the plan or to the algorithm.
+ * Sorting here is the canonicaliser's half of the contract that
+ * `serialiseCanonicalPlanInput` states for the input body: **the builder makes
+ * the value stable and the serializer adds nothing**, so a canonicaliser that
+ * stopped doing its half cannot be hidden by a key-sorting stringify later.
+ *
+ * One level deep is the whole of it: every value in a timing is a number, a
+ * boolean, a string, `null`, or `capacityPredecessorIds`, whose order is the
+ * engine's answer rather than an accident of iteration.
+ */
+function withSortedKeys(value: Record<string, unknown>): Record<string, unknown> {
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort()) sorted[key] = value[key];
+  return sorted;
+}
+
+/**
+ * One of the engine's maps, as a record, with each value's dates merged in.
+ *
+ * The record's own keys are sorted too, for {@link withSortedKeys}'s reason one
+ * level up: a `Map` iterates in insertion order, and the engine's placement
+ * order is a fact about the levelling pass rather than about the plan.
+ */
 function datedRecordOf(
   timings: ReadonlyMap<string, Scheduled>,
   startDate: IsoDate | null,
 ): Record<string, DatedTiming> {
   const stored: Record<string, DatedTiming> = {};
-  for (const [key, timing] of timings) {
+  for (const key of [...timings.keys()].sort()) {
+    const timing = timings.get(key);
+    if (timing === undefined) continue;
     // Spread rather than a field list: see `buildScheduleBody`.
-    stored[key] = { ...timing, ...datesOf(timing, startDate) };
+    stored[key] = withSortedKeys({ ...timing, ...datesOf(timing, startDate) }) as DatedTiming;
   }
   return stored;
 }
@@ -129,12 +159,27 @@ export function buildScheduleBody(planned: Schedule, startDate: IsoDate | null):
     version: SCHEDULE_BODY_SCHEMA_VERSION,
     algorithmId: SCHEDULE_ALGORITHM_ID,
   };
-  for (const [key, value] of Object.entries(planned)) {
+  for (const key of Object.keys(planned).sort()) {
     if (NOT_STORED.has(key)) continue;
+    const value: unknown = (planned as unknown as Record<string, unknown>)[key];
     body[key] =
       value instanceof Map
         ? datedRecordOf(value as ReadonlyMap<string, Scheduled>, startDate)
         : value;
   }
-  return body as unknown as ScheduleBody;
+  return withSortedKeys(body) as unknown as ScheduleBody;
+}
+
+/**
+ * The bytes the SHA-256 is taken over, and the bytes the body stores.
+ *
+ * Plain `JSON.stringify`, for the reason `serialiseCanonicalPlanInput` gives
+ * about the input body: {@link buildScheduleBody} has already done both things
+ * that make a serialization stable — sorted keys at every level, and the one
+ * array left in the value ordered by the engine rather than by iteration. A
+ * key-sorting serializer here would hide a builder that had stopped doing its
+ * half, so this deliberately adds nothing.
+ */
+export function serialiseScheduleBody(body: ScheduleBody): string {
+  return JSON.stringify(body);
 }
