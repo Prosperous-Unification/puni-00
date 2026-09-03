@@ -498,6 +498,19 @@ check-that-cannot-fail failure R5 names.
       `Sum |offset - baseline|` is NOT checked yet** and is owed — it needs
       `baselineOffsets`, which is 2.11's. Contracts at `d665bef5`, dirty=0: lint
       0, typecheck 0, **103 pass / 0 fail across 9 files**.
+      **`STAGE_BUDGET_SPLIT` and its invariant landed (2026-09-03)** in
+      `stage-budget.ts`: the constant `[0.60, 0.25, 0.15]` plus
+      `isValidStageBudgetSplit`, a predicate rather than a one-off assertion
+      because the builder must check whatever it is handed. It enforces the
+      schema's stated builder invariant — that the three sum to 1 — which JSON
+      Schema cannot express. **The tolerance's justification was WRONG on the
+      first write and the gate caught it:** `0.6 + 0.25 + 0.15` is exactly `1`
+      in doubles, not `0.9999999999999999`. The real case is order dependence —
+      `0.7 + 0.2 + 0.1` is not `1` while `0.1 + 0.2 + 0.7` is — so an exact
+      comparison would accept or refuse one authored split according to the
+      order its shares were written in. Both the comment and the test now say
+      the measured thing. Contracts at `de7cb086`, dirty=0: lint 0, typecheck 0,
+      **113 pass / 0 fail across 10 files**.
       **Still unbuilt in 2.2:** `edges`, `baselineOffsets`/`fastHint` (2.11's
       quantised baseline, which cannot precede it) with MOVEMENT's preflight,
       and the assembly itself. `edges` is the next real
