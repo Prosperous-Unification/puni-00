@@ -122,23 +122,27 @@ describe('the quota is read inside the transaction that would write', () => {
     // holding two and holding three.
     expect(await plans().write(record('sp-held'), () => Promise.resolve(null))).toBeNull();
 
-    let saw: SavedPlanHoldingRow | null = null;
-    let rivalGotIn: boolean | null = null;
+    // Collected into arrays rather than assigned to nullable locals: an
+    // assignment inside a callback stays `null` to TypeScript's narrowing, and
+    // the length also says the check ran exactly once.
+    const saw: SavedPlanHoldingRow[] = [];
+    const rivalGotIn: boolean[] = [];
     const refusal = await plans().write<'over'>(record('sp-last'), (holding) => {
-      saw = holding;
+      saw.push(holding);
       // Attempted at exactly the instant the count has been read and the row
       // has not been written yet — the window the bound lives or dies in.
-      rivalGotIn = rivalCommits('sp-rival');
+      rivalGotIn.push(rivalCommits('sp-rival'));
       return Promise.resolve(holding.plans + 1 > 2 ? 'over' : null);
     });
 
-    // The count was read from inside the transaction, and it saw the held plan.
-    expect(saw).toEqual({ plans: 1, bytes: 19 });
+    // The count was read once, from inside the transaction, and it saw the held
+    // plan.
+    expect(saw).toEqual([{ plans: 1, bytes: 19 }]);
     // And SQLite refused the rival, because `BEGIN IMMEDIATE` was already held.
     // This is the SQLite-visible mechanism, not an in-process marker: the rival
     // is a different connection to the same file, which is what blue and green
     // are.
-    expect(rivalGotIn).toBe(false);
+    expect(rivalGotIn).toEqual([false]);
     expect(refusal).toBeNull();
 
     // Two, not three: the last slot went to the save that held the lock.
