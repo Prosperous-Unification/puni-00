@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { projectRow } from '../testing/project-fixture';
 import type { Connection } from './db';
@@ -79,6 +80,12 @@ describe('the quota is read inside the transaction that would write', () => {
   const rivalCommits = (id: string): boolean => {
     const rival = openConnection(path);
     try {
+      // `busy_timeout` **0**, set after `openConnection`'s assertion rather than
+      // instead of it: the refusal under test is the immediate one, and at this
+      // file's default of 3 s the wait alone outlives bun's per-test budget. It
+      // is also the setting 4.4 and 4.5 build the real refusal on, so the rival
+      // here fails the way a second save is meant to.
+      rival.db.run(sql.raw('PRAGMA busy_timeout = 0'));
       rival.db
         .insert(savedPlan)
         .values({
