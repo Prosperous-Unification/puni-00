@@ -1,6 +1,7 @@
 import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import type { DependencyReach } from './dependency-reach';
 import { deriveNumbers, type PlannedRow } from './derive-numbers';
+import { leafFloorsOf } from './leaf-constraints';
 import { snapWorkdays } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
@@ -1773,7 +1774,9 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[])
  * `WorkItem` satisfies it structurally, so nothing maps anything. The engine
  * now sits beside the rules it always shared: {@link snapWorkdays},
  * {@link ASSUMED_SLICE_WORKDAYS}, {@link DependencyReach},
- * {@link deriveNumbers}. It reads those four modules and no others.
+ * {@link deriveNumbers}. It reads those four modules and {@link leafFloorsOf},
+ * and no others — the fifth is the floor fold, moved out on 2026-09-03 so the
+ * solver request builder reads the same walk rather than writing a second one.
  *
  * What keeps it that way is `@nx/enforce-module-boundaries`: `domain` is tagged
  * `runtime:isomorphic` and may depend only on other isomorphic libs, so a
@@ -1854,28 +1857,15 @@ export function schedule(
   // out of date with the tree the moment a leaf is added under either end.
   const leafEdges = expandToLeaves(index, edges);
 
-  // Floors expanded down the tree the same way the edges are: a floor keyed by
-  // any row constrains every leaf beneath it, and each leaf keeps the
-  // **latest** of its own floor and every ancestor's. `Math.max`, never a
-  // copy-down — a parent's day 3 must not overwrite a child's own day 9.
-  // Until 2026-08-10 this map was read for leaf ids alone, so a floor written
-  // on a parent was accepted, stored, echoed back — and constrained nothing;
-  // `floors every leaf beneath a parent told not to start before a day`
-  // (`work-item.service.test.ts`) was watched failing on the leaf starting
-  // `2026-08-06` under a parent floored to `2026-08-12`.
+  // Floors expanded down the tree the same way the edges are — see
+  // {@link leafFloorsOf}, which holds the rule and the 2026-08-10 proof.
   //
-  // Proof: the `Math.max` replaced with a bare copy-down (`set(leafId,
-  // atLeast)`) and two tests in `schedule-shapes.test.ts` failed — `composes
-  // ancestor floors with a dependency, each leaf keeping its own maximum` on
-  // `L2` at `earliestStart: 5` where its own day-9 floor was owed, and
-  // `carries a grandparent's floor two levels down to the leaf` on
-  // `earliestStart: 3` where the grandparent's day 6 was; watched 2026-08-10.
-  const leafFloors = new Map<string, number>();
-  for (const [flooredId, atLeast] of notBefore) {
-    for (const leafId of index.leavesUnder.get(flooredId) ?? []) {
-      leafFloors.set(leafId, Math.max(leafFloors.get(leafId) ?? 0, atLeast));
-    }
-  }
+  // The walk lives there and not here because the solver request builder needs
+  // the identical numbers: every wire slice carries `notBeforeUnits` already
+  // folded, so Python never receives the tree. Two walks would be two rules the
+  // moment either is edited, and this is the exact fold that was already wrong
+  // once for a month.
+  const leafFloors = leafFloorsOf(notBefore, index);
 
   /**
    * The nodes, in the order they run: every leaf's slices in step order, and

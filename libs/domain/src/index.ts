@@ -19,6 +19,10 @@ export * from './external-system';
 // shape and reads nothing else, like everything else in here.
 export * from './is-within';
 export * from './label-mismatch';
+// The floor and deadline folds, published rather than left inside `schedule()`
+// because the solver request builder must carry the very same numbers on the
+// wire. The floor half was already wrong once for a month (2026-08-10).
+export * from './leaf-constraints';
 export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';
