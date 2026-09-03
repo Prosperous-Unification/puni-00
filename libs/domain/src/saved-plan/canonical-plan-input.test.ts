@@ -3,8 +3,8 @@ import fc from 'fast-check';
 
 import {
   CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
-  type CanonicalPlanInput,
   canonicalisePlanInput,
+  type CanonicalPlanInput,
   type PlanInputRows,
   serialiseCanonicalPlanInput,
 } from './canonical-plan-input';
