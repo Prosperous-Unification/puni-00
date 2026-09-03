@@ -1680,6 +1680,37 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[])
 }
 
 /**
+ * Which algorithm produced a schedule — the identity a saved plan stores.
+ *
+ * **The rule that moves it: any change to {@link schedule}'s semantics bumps
+ * this in the same commit.** A semantics change is any edit after which some
+ * input produces a different {@link Schedule} — a new floor kind, a changed
+ * tie-break, a different reservation order, a bound that clamps where it did
+ * not. TASK-219's dual objective and TASK-240's deadline both qualify.
+ * Refactors, renames, comments and performance work that leave every output
+ * identical do not.
+ *
+ * Without that rule the column is a constant and the feature it exists for
+ * fails silently. `saved_plan.scheduler_algorithm_id` is how a stored plan
+ * answers "were these dates computed by the engine running now?"; a snapshot
+ * taken before a semantics change and one taken after both read
+ * `slice-leveling-v1`, a reader concludes "same algorithm, same input, so these
+ * dates still hold", and the silent restatement this feature exists to prevent
+ * happens anyway — now with a stored provenance field asserting it did not.
+ *
+ * It is deliberately **not** a hash of this file. A source hash moves on every
+ * comment edit, so it would be bumped by rote until nobody read it, and it
+ * cannot be written into a migration, a fixture or a review by hand.
+ * `schedule-algorithm-id.test.ts` supplies the enforcement a bare constant
+ * cannot: a behavioural digest over a fixed corpus, pinned beside this value,
+ * so a semantics change lands as one red test naming both.
+ *
+ * Format is `<engine>-v<n>` with `n` a monotonically increasing integer. The
+ * value is stored, so it is never reused for a different meaning.
+ */
+export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v1';
+
+/**
  * The schedule for a project: computed in slices, and levelled so that one
  * person does one thing at a time.
  *
