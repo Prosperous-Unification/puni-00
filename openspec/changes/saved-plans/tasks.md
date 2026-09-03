@@ -60,7 +60,7 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 3. The capture, inside one read snapshot
 
-- [ ] 3.0 **The scheduling algorithm identity.** No such constant exists in the
+- [x] 3.0 **The scheduling algorithm identity.** No such constant exists in the
       checkout (no `SCHEDULE_ALGORITHM`, `schedulerAlgorithm` or `algorithmId` in
       `libs/domain` or `apps/be-01`). Define it in `libs/domain` beside
       `schedule()`, with JSDoc stating the rule that moves it: any change to
