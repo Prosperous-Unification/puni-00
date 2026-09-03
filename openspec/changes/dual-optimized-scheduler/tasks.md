@@ -158,7 +158,34 @@ check-that-cannot-fail failure R5 names.
 - [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
-      Critical 1, Sol r7 Critical 5). It carries `wireVersion` as a required
+      Critical 1, Sol r7 Critical 5).
+      **Four request members reach this slice with a stated meaning and no
+      stated shape, and the schema author must not quietly invent them**
+      (found TASK-219 run 1 by grepping each request field for a shape
+      declaration across all three artifacts; `NONE` for every form of an edge
+      pair). Named so the invention is a decision with a record rather than a
+      default:
+      (i) **`edges`** — every artifact says only that they arrive
+      "already leaf-expanded with `reach` applied" and already carrying
+      intra-item step-order edges. Nothing says whether a wire edge is an
+      object or a pair, and — the load-bearing gap — nothing says it is keyed
+      by slice `key`, although it must be, since the solver receives no work
+      item ids and no tree.
+      (ii) **`pools`** — occurs only inside the request field list; capacity
+      lives in `poolSizes` on the canonical side and has no wire form here.
+      (iii) **`baselineOffsets`** and (iv) **`fastHint`** — both are pinned in
+      *meaning* (the quantised Fast baseline, in integer units, and the only
+      movement reference either objective uses) and unpinned in *form*: map
+      versus array, and keyed by what. They are also the pair that must agree
+      exactly, since the hint has to be a feasible solution of the model the
+      bound describes.
+      `stageBudgetSplit` is **not** in this list: `STAGE_BUDGET_SPLIT =
+      [0.60, 0.25, 0.15]` fixes it as a three-element array of fractions.
+      Fix each of the four **in the schema first and then in the prose**, never
+      the reverse — retro-fitting three artifacts' "descriptive" text to an
+      invented schema is Sol r6 Critical 1 run backwards, and the set-equality
+      check below passes just as green on a wrong shape agreed everywhere as
+      on a right one. It carries `wireVersion` as a required
       literal, states the unit of every numeric field, and includes every field
       staged solving needs (`fastHint`, `baselineOffsets`, `stageBudgetSplit`,
       `quantum`, `horizonUnits`, and the per-term `objectiveValues` shape).
