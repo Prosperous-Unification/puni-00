@@ -13,16 +13,27 @@ describe('STAGE_BUDGET_SPLIT', () => {
     expect(isValidStageBudgetSplit(STAGE_BUDGET_SPLIT)).toBe(true);
   });
 
-  it('does NOT sum to exactly 1 in doubles, which is why the check has a tolerance', () => {
-    // The assertion that makes the tolerance a decision rather than a habit: an
-    // exact `=== 1` test would reject the project's own default split.
-    expect(0.6 + 0.25 + 0.15).not.toBe(1);
+  it('does sum to exactly 1 in doubles — the tolerance is not for THIS split', () => {
+    // Written the other way first, and the gate said otherwise. Kept as an
+    // assertion so the next reader does not re-guess it: the constant is exact,
+    // and the tolerance below exists for the splits that are not.
+    expect(0.6 + 0.25 + 0.15).toBe(1);
   });
 });
 
 describe('isValidStageBudgetSplit', () => {
   it('accepts an authored split that sums to 1', () => {
     expect(isValidStageBudgetSplit([0.5, 0.3, 0.2])).toBe(true);
+  });
+
+  it('accepts a split whose sum drifts, and is not decided by share ORDER', () => {
+    // The case the tolerance is actually for: `0.7 + 0.2 + 0.1` is
+    // 0.9999999999999999 while `0.1 + 0.2 + 0.7` is exactly 1. An exact
+    // comparison would accept or refuse one authored split depending on the
+    // order its shares were written in.
+    expect(0.7 + 0.2 + 0.1).not.toBe(1);
+    expect(isValidStageBudgetSplit([0.7, 0.2, 0.1])).toBe(true);
+    expect(isValidStageBudgetSplit([0.1, 0.2, 0.7])).toBe(true);
   });
 
   it('refuses a split that does not add up', () => {

@@ -23,11 +23,15 @@ export const STAGE_BUDGET_SPLIT: SolverStageBudgetSplit = [0.6, 0.25, 0.15];
  * request builder must check whatever it is handed — a split that came from
  * configuration is the case a constant-only assertion cannot cover.
  *
- * **The sum is compared inside a tolerance, and that is not laziness.**
- * `0.6 + 0.25 + 0.15` is `0.9999999999999999` in IEEE-754 doubles; an exact
- * `=== 1` test would reject the project's own default split. The tolerance is
- * one part in 2^40, which is far above the rounding of three additions and far
- * below any share anybody would author.
+ * **The sum is compared inside a tolerance, and the reason is measured rather
+ * than assumed.** `0.6 + 0.25 + 0.15` happens to be exactly `1` in IEEE-754
+ * doubles — checked, because the obvious comment here is that it is not — so an
+ * exact `=== 1` test would pass for the constant above and is still wrong for
+ * the general case this predicate exists to cover: `0.7 + 0.2 + 0.1` is
+ * `0.9999999999999999`, and the same three shares in the other order are `1`.
+ * An authored split would then be accepted or refused according to the order it
+ * was written in. The tolerance is one part in 2^40, far above the rounding of
+ * three additions and far below any share anybody would author.
  *
  * Each fraction must also be **strictly above zero** and at most 1, matching
  * the schema's `exclusiveMinimum`: a stage given no budget is a stage that
