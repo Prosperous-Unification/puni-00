@@ -150,6 +150,9 @@ const rows: PlanInputRows = {
   workItemTypes: [
     { id: 't-epic', name: 'Epic' },
     { id: 't-task', name: 'Task' },
+    // `w2` states this one too, and the registry's contract is every type id the
+    // captured items use — a fixture that omits it contradicts its own field doc.
+    { id: 't-spike', name: 'Spike' },
   ],
   externalSystems: [
     { id: 'jira', name: 'Jira' },
@@ -232,7 +235,7 @@ describe('canonicalisePlanInput', () => {
   it('stores every work-item type a row states, not one of them', () => {
     const [typed] = canonicalisePlanInput(rows).workItems.filter((row) => row.id === 'w2');
 
-    expect(typed?.typeIds).toEqual(['t-spike', 't-task']);
+    expect(typed.typeIds).toEqual(['t-spike', 't-task']);
   });
 
   /**
@@ -244,7 +247,7 @@ describe('canonicalisePlanInput', () => {
   it('orders external refs by system then url, and keeps the shown position', () => {
     const [linked] = canonicalisePlanInput(rows).workItems.filter((row) => row.id === 'w2');
 
-    expect(linked?.externalRefs).toEqual([
+    expect(linked.externalRefs).toEqual([
       { externalSystemId: 'gh', url: 'https://gh/17', position: 10 },
       { externalSystemId: 'jira', url: 'https://jira/SHED-2', position: 20 },
     ]);
