@@ -1060,9 +1060,10 @@ refreshing, releasing or writing over the replacement.
 _Avoid_: lease id, lock, owner id
 
 **Baseline schedule**:
-The Fast schedule for the same canonical input, passed to the solver as `baselineOffsets`.
-It is the only thing either Objective's movement term is measured against — never "the
-schedule currently on screen", which would put unhashed state into the result.
+The real-domain Fast schedule for the same canonical input, with fractional `days / width`
+intact. It never crosses the solver wire: that is the Quantised baseline, which also supplies
+the movement reference. Its only consumer is the real-domain publication guard in task 4.11b,
+which scores a materialised optimized result against it before storage.
 _Avoid_: current schedule, published schedule, previous plan
 
 **Optimized result**:

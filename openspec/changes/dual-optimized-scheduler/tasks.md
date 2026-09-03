@@ -112,6 +112,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       literal, states the unit of every numeric field, and includes every field
       staged solving needs (`fastHint`, `baselineOffsets`, `stageBudgetSplit`,
       `quantum`, `horizonUnits`, and the per-term `objectiveValues` shape).
+      Every integer objective field in both directions has an inclusive
+      `Number.MAX_SAFE_INTEGER` maximum; this is the Bun/JSON exactness bound,
+      not merely CP-SAT's wider signed-64-bit range.
       Exactly four consumers read that one file: the Bun request builder and
       `parseSolverResponse` in `libs/contracts/solver/src/`, the `wbs-solver`
       entrypoint (validating against the copy installed beside it with the
@@ -176,7 +179,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       `asOptionalPriority` accepts any safe integer and `P_max + 1` loses
       precision at `Number.MAX_SAFE_INTEGER`; the builder also computes the
       exact worst case `Σ w(s) × horizonUnits` and fails pre-spawn with
-      `objective-overflow` above `2^62`), and
+      `objective-overflow` above `Number.MAX_SAFE_INTEGER`, so every integer
+      remains exact through Bun and JSON; the preflight accumulator uses
+      `bigint` and converts only after comparing with
+      `BigInt(Number.MAX_SAFE_INTEGER)`), and
       `notBeforeUnits` (the latest of the leaf's own floor and every
       ancestor's). `edges` are already leaf-expanded with `reach` applied and
       already include the intra-item step-order edges, so Python never receives
@@ -197,7 +203,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       respected, no pool over capacity at any instant (checked against **all**
       of a slice's `poolIds`, since the whole width is spent in each), no
       assignee double-booked, and `objectiveValues[T].value` recomputed from
-      the final offsets and matched. **`value` is the only recomputed field**
+      the final offsets and matched. Every objective `value`, `stageValue` and
+      `bound`, and every recomputed `PRIORITY`, `MAKESPAN` and `MOVEMENT`, must
+      be a non-negative safe integer; an unsafe value is `invalid-output`.
+      **`value` is the only recomputed field**
       (Sol r7 Critical 1): `stageValue`, `bound` and `status` are statements
       about a stage, not about the published schedule, and a later stage may
       legitimately improve an earlier term below its own incumbent, so
@@ -246,14 +255,21 @@ h2puni is green — no build or autotest runs on the workspace box.
       fractional offset and a negative one.
 - [ ] 2.10 `horizonUnits > 2**31 - 1` fails before spawn with
       `horizon-overflow`, and the `Σ w(s) × horizonUnits` worst case past
-      `2^62` fails before spawn with `objective-overflow`; both are **first-class members of the one failure state
+      `Number.MAX_SAFE_INTEGER` fails before spawn with `objective-overflow`;
+      the same safe-integer ceiling applies to the worst-case `MOVEMENT` sum
+      and every request/response objective integer. Bound calculation uses a
+      `bigint` accumulator so the preflight cannot itself round an overflow.
+      Both are **first-class members of the one failure state
       machine** (7.1), not a bare return from request construction: it writes
       the same `status='failed'` marker row and emits the same
       `schedule_optimization_failed` event as any other reason, so a client
       already showing `Optimizing…` reaches Retry rather than waiting on a
       child that was never spawned. **Watched red:** a synthetic plan past each
       bound must not reach a process, and both a connected client and a freshly
-      loaded one must reach `Optimization unavailable · Retry`.
+      loaded one must reach `Optimization unavailable · Retry`. A dense-rank
+      fixture whose exact sum is `Number.MAX_SAFE_INTEGER` round-trips, while
+      the same fixture at one greater never spawns; a response altered by one
+      at the boundary is rejected rather than rounded to the same value.
 - [ ] 2.11 The **quantised Fast baseline**: re-run Fast's placement over the
       rounded durations to produce `fastHint` and `baselineOffsets` in integer
       units, and take stage 1's upper bound from **that**, never from real
@@ -283,7 +299,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       NOT NULL))`; `CHECK (objective IN ('pri','time'))`.
 - [ ] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
       `generation` (integer not null), `inputHash` (text nullable),
-      `cancelEpoch` (integer not null default 0), `updatedAt`. This is the sole
+      `cancelEpoch` (integer not null default 0), `admissionState`
+      (`'open' | 'draining'`, not null default `'open'`), `updatedAt`. This is the sole
       home of the generation identity; it is deliberately **not** on `project`,
       because `SCHEDULER_CONTRACT_VERSION` is bumped while blue and green run
       against one file and a single project-row pair would let the release
@@ -319,7 +336,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       deleting a project cannot leave rows consuming the global 16-slot budget.
       Retirement: an `optimization_generation` row untouched for
       `GENERATION_RETENTION_DAYS = 30`, or whose contract version is retired at
-      deploy, is deleted with its cache, slot and queue rows.
+      deploy, first enters `admissionState='draining'` and is deleted only by
+      the drain protocol in 3.9b.
 - [ ] 3.3 Forward migration under `apps/be-01/drizzle/` — additive only. Blue
       and green share one SQLite file during a swap, so the outgoing release
       must keep running against the migrated file untouched.
@@ -329,7 +347,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       release's queries still run after the migration; each CHECK rejects its
       malformed row (an `ok` row with a NULL `resultJson`, a `failed` row
       with one, an unknown `objective`); and deleting a project cascades its
-      cache rows away.
+      cache rows away only through `finishOptimizationDrain` after the real
+      slot count reaches zero.
 - [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
       and watch 3.4's "an `ok` row with a NULL `resultJson` is rejected" case
       fail. `Proof:` comment names the removed constraint. SQLite text columns
@@ -343,7 +362,9 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
       ('timeout','invalid-output','no-solution','internal-error','oom',
       'horizon-overflow','objective-overflow'))` — any non-null text was
-      previously accepted.
+      previously accepted. `optimization_generation.admission_state` also has
+      `CHECK (admission_state IN ('open','draining'))` plus an explicit read
+      validator; it is a scalar enum, not an enum hidden in `resultJson`.
 - [ ] 3.9 **Proven by** `optimization-generation.db.test.ts`, run through the
       production repositories: a blue/green pair with two distinct
       `contractVersion` values neither reallocates nor deletes the other's
@@ -354,24 +375,41 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 3.9b **Deletion and retirement are two-phase cancel-and-drain, proven by
       a real two-coordinator process test** (Sol r10 Critical 2).
       `optimization-drain.proc.test.ts` samples the **real OS process count**
-      throughout, not a mocked spawner. Phase 1 closes the project (or contract
-      version) to new admission; phase 2 is one transaction that advances
-      `cancelEpoch`, stamps `cancel_requested_at` on its `solver_slot` rows and
-      deletes its `solver_queue` rows; phase 3 drains, leaving those slot rows
+      throughout, not a mocked spawner. Name and implement two repository/service
+      seams: `beginOptimizationDrain(projectId, contractVersion?)` and
+      `finishOptimizationDrain(projectId, contractVersion?)`. Begin is one
+      transaction: for contract retirement it sets the targeted generation's
+      `admissionState='draining'`; for project deletion it first sets the durable
+      `project.optimization_delete_pending_at` marker and then sets every one of
+      that project's generation rows to `draining`; it also advances
+      `cancelEpoch`, stamps `cancel_requested_at` on the affected `solver_slot`
+      rows, and deletes the affected `solver_queue` rows. Both admission and
+      dequeue transactions reject a generation unless `admissionState='open'`
+      and reject any project carrying `optimization_delete_pending_at`. The
+      project is hidden from ordinary reads and writes as soon as that marker
+      commits, but its physical row remains to keep slot rows and their capacity
+      accounting alive. The system then drains, leaving those slot rows
       **counted and undeleted** until each is released by its owner or passes
-      its stored `admittedDeadlineAt`; phase 4 deletes the generation or
-      project row and lets the `ON DELETE CASCADE` take the remainder. The
+      its stored `admittedDeadlineAt`. Finish runs in a transaction, observes
+      zero affected slot rows while the same durable closed state still holds,
+      and only then deletes the generation or project row and lets the
+      `ON DELETE CASCADE` take the remainder. The
       cascade remains declared as the orphan backstop, not the mechanism.
       **Watched red:** restore the immediate slot cascade — delete the project
       row while its child still runs — and the sampled process count must
       exceed 16 as a second project admits into the freed capacity. A second
-      red: skip phase 1 and a dequeue must admit into the draining project.
+      red uses two coordinators: one begins a drain while the other attempts
+      both admission and dequeue; removing either closed-state predicate must
+      let work start after the zero-slot observation and before final deletion.
 
 ## 3b. Project settings columns and API (PROD MODE — reviewed PR, no self-merge)
 
 - [ ] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
       null default **false**, `schedule_engine` text not null default `'fast'`,
-      `schedule_objective` text not null default `'pri'`. The defaults are
+      `schedule_objective` text not null default `'pri'`, and internal nullable
+      timestamp `optimization_delete_pending_at`. The timestamp is the durable
+      cross-process fence used only while project deletion drains solver slots;
+      it is not a user setting or a read-payload field. The defaults are
       what make OFF-by-default true for every existing row; no backfill can
       guarantee that retroactively. The generation counter, the input hash and
       the cancel epoch are **not** added here (Sol r7 Critical 4): they are per
@@ -799,7 +837,9 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 6.2 **Admission in SQLite, not memory**: one transaction that reclaims
       slots whose stored `admittedDeadlineAt` has passed, refuses at 4 rows for
       the project and 16 rows globally counting **every** unreleased row
-      including those already asked to cancel, then inserts the
+      including those already asked to cancel, rejects unless the matching
+      generation has `admissionState='open'` and the project has no
+      `optimization_delete_pending_at`, then inserts the
       `(projectId, contractVersion, generation, objective, budgetMs)` slot with
       `ON CONFLICT DO NOTHING` so concurrent cold reads coalesce to one spawn,
       stamping a fresh 128-bit `attemptToken` and
@@ -827,8 +867,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       epoch the dequeue re-check has nothing to compare against (Sol r7
       Important 8). Dequeue re-reads the `optimization_generation` row and
       discards the entry without launching if its generation is no longer
-      current, `cancelEpoch != admittedCancelEpoch`, or the project's toggle is
-      no longer ON. **Watched red:** enqueue PRI and Time at the identical
+      current, `admissionState != 'open'`, `cancelEpoch != admittedCancelEpoch`,
+      the project's toggle is no longer ON, or
+      `optimization_delete_pending_at` is non-null. **Watched red:** enqueue PRI and Time at the identical
       timestamp and assert a single deterministic dequeue order; enqueue the
       same project and objective from two contract versions at that same
       timestamp and assert the same; toggle OFF while an entry is queued and
@@ -955,11 +996,14 @@ h2puni is green — no build or autotest runs on the workspace box.
       two-instance ceiling case fail.
 - [ ] 6.11 Slot fencing: admission mints an unforgeable 128-bit
       `attemptToken`; heartbeat, release, the outcome write and the event write
-      all carry it. Reclamation mints a new token and cannot run before the
-      child's own hard deadline —
-      the stored `solver_slot.admittedDeadlineAt` and nothing else — reclamation is exactly
-      `now > admittedDeadlineAt`, the value stamped once at admission from that
-      row's own `budgetMs` (6.2). **`SLOT_HEARTBEAT_TTL_MS` is struck (Sol r9
+      all carry it. The two deadlines are deliberately different:
+      `childDeadlineAt = startedAt + budgetMs + 5000`, and the child arms its
+      own alarm for that earlier instant; SQLite alone stores and observes
+      `admittedDeadlineAt = childDeadlineAt + SLOT_RECLAIM_MARGIN_MS` (15 s).
+      Reclamation mints a new token and is exactly `now > admittedDeadlineAt`,
+      using the absolute value stamped once at admission from that row's own
+      `budgetMs` (6.2), so the child has the full margin to exit before its row
+      can release capacity. **`SLOT_HEARTBEAT_TTL_MS` is struck (Sol r9
       Critical 4):** a TTL derived from the observing coordinator's current
       `solverBudgetMs`, or added to a refreshed `heartbeatAt`, is not the admitted
       child's absolute deadline, and across a 60 s/120 s blue-green overlap it
@@ -968,11 +1012,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       `heartbeatAt` survives for cancellation observation and diagnostics only.
       **Watched red:** change the observing coordinator's configured budget and
       assert neither row's expiry moves.
-      (15 s) — and the child arms that deadline itself. `PR_SET_PDEATHSIG` is
-      followed by a `getppid()` re-check so a parent dying inside that window
-      is not missed. **Watched red:** an old owner's late heartbeat, release and
-      write each match zero rows; sampled OS process count never exceeds 4 per
-      project or 16 globally across rapid generations under two coordinators.
+      `PR_SET_PDEATHSIG` is followed by a `getppid()` re-check so a parent dying
+      inside that window is not missed. **Watched red:** a real child is observed
+      gone before a sweep at `admittedDeadlineAt` deletes its slot and admits a
+      replacement; arming the child at `admittedDeadlineAt` must make that test
+      fail. An old owner's late heartbeat, release and write each match zero
+      rows; sampled OS process count never exceeds 4 per project or 16 globally
+      across rapid generations under two coordinators.
 
 ## 7. Failure path and events
 
@@ -1184,4 +1230,3 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 10.3 Slices 3 and 3b each ship as a reviewed PR (`status: review`, no
       self-merge) — both touch `apps/be-01/drizzle/**`. The remaining slices
       are dev-mode and follow the normal PR + green CI + merge path.
-
