@@ -40,7 +40,10 @@ interface Update {
   readonly statement: string;
 }
 
-type Source = { readonly name: string; readonly text: string };
+interface Source {
+  readonly name: string;
+  readonly text: string;
+}
 
 /**
  * Every `.update(<table>)` chain in the given sources, as text: from the call to
