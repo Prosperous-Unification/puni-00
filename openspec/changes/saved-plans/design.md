@@ -159,6 +159,44 @@ connection's write handle, edits would queue behind the body write regardless of
 dedicated one if it is not already there — the guarantee in spec is about live
 edits completing, and a shared handle silently voids it.
 
+### The topology found (TASK-231, 2026-09-03) — one connection, and no pool
+
+Read off the checkout rather than assumed, because the paragraph above turns on
+it and the answer is worse than "not already there":
+
+- **be-01 opens exactly one connection for the whole process.** `boot.ts:64`
+  calls `openConnection(opts.dbPath)` once and hands the resulting `Drizzle` to
+  every store. `repository/db.ts` is the only file permitted to open one — an
+  ESLint rule restricts `bun:sqlite` and the drizzle bun adapter to it, because
+  two of the three pragmas (`busy_timeout`, `foreign_keys`) are per-connection
+  and a second handle opened elsewhere would silently run without them.
+- **There is no pool.** `bun:sqlite`'s `Database` is a single handle, and
+  drizzle's bun adapter wraps that one handle. So all three connections this
+  design requires to be distinct — the capture's read snapshot, the save's write
+  connection, and the handle live edits use — are **the same connection today**,
+  and stay that way until this change opens dedicated ones.
+- **Every store read yields before it queries.** The read methods open with
+  `await Promise.resolve()` (`repository/estimate.ts:56`, `:83`, `:110`, `:127`,
+  and the same shape across the folder). That is a real microtask suspension, so
+  another in-flight request's continuation can resume and issue its own statement
+  between two of the capture's reads.
+
+**This inverts the hazard 3.1 was written against.** The danger here is not a
+pool handing each read its own snapshot; it is a single connection on which a
+held `BEGIN DEFERRED` encloses *everything else the process does* until it
+commits. A concurrent write would land inside the capture's transaction, where
+its durability becomes the capture's to grant and a rollback of the capture takes
+a stranger's committed-looking edit with it. That is a stronger reason for a
+dedicated read connection than the one this document started with, and it is why
+`openConnection` — not the process handle — is what 3.1 must call.
+
+**Stated as a hypothesis, not as a measurement.** The enclosure above follows
+from the single connection plus the microtask yield; nothing has yet run that
+watches a foreign write appear inside a capture transaction. 3.2 is the test that
+settles it, and its "per-read connections" negative is now the *positive*
+architecture — the negative worth watching is the capture running on the shared
+process handle.
+
 ## Quota
 
 Permanent records on a shared SQLite file that any authenticated account can

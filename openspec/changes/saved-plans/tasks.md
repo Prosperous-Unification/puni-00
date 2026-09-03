@@ -95,13 +95,22 @@ comparison UI) and start only after slice 6 is merged.
       Either leaves a stored id whose label needs a live read the first
       requirement forbids, and is unrecoverable once the row is deleted.
       **All of them, both halves, run sequentially on one explicitly held
-      connection inside a single transaction block.** A pooled handle checked out
-      per `await` gives each read its own connection and therefore its own
-      snapshot, and the transaction is torn while every line still reads as if it
-      were not — 3.2's test would then be measuring the pool's luck. A
-      capture-only read left outside the snapshot is the same defect wearing a
+      connection inside a single transaction block** — and that connection is a
+      **dedicated** one from `openConnection(dbPath)`, not the process handle.
+      The pooled-handle hazard this task was first written against does not
+      exist here and the real one is worse; the topology was read off the
+      checkout on 2026-09-03 and is recorded in design.md under "The topology
+      found". In short: `boot.ts:64` opens exactly one connection for the whole
+      process, `bun:sqlite` has no pool, and every store read opens with `await
+      Promise.resolve()` — a real microtask yield before the query. A
+      `BEGIN DEFERRED` held on that shared handle therefore encloses every
+      statement any other in-flight request issues until it commits, which makes
+      a stranger's write the capture's to commit or to roll back. Take the
+      dedicated connection and the snapshot is the capture's alone. A
+      capture-only read left outside the snapshot is a separate defect wearing a
       different table: a tag renamed between the item read and the registry read
-      stores pre-edit items beside post-edit labels. The JSDoc says both.
+      stores pre-edit items beside post-edit labels. The JSDoc says all of it,
+      including that the dedicated connection is closed on every path.
 - [ ] 3.2 **The torn-read test, which is the Critical this design exists for.**
       Pause the capture at **each** read boundary in turn — including every
       capture-only boundary from 3.1(ii), not just the twelve projection ones;
@@ -109,8 +118,13 @@ comparison UI) and start only after slice 6 is merged.
       change, **a registry rename (`tag.name`) and a junction write
       (`work_item_tag`)** in the gap; assert the captured input is entirely
       before or entirely after that write. Run it on two connections standing in
-      for blue and green. Negative: replace the shared transaction with per-read
-      connections and watch a mixed document appear. Second negative: move the
+      for blue and green. Negative: run the capture on the **shared process
+      handle** instead of its own connection and watch a foreign write land
+      inside the capture's transaction — the enclosure design.md states as a
+      hypothesis, which this negative is what settles. (The per-read-connections
+      negative it once named is gone: `bun:sqlite` has no pool, so it could only
+      ever have been staged, and a staged negative proves nothing about this
+      codebase.) Second negative: move the
       registry reads outside the transaction, leaving the twelve inside, and
       watch the registry-rename case produce items and labels from either side of
       one write — the case that stays green while every projection-boundary
