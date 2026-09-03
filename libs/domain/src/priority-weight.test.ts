@@ -16,6 +16,22 @@ describe('priorityWeights', () => {
     expect([...weights]).toEqual([['a', 2], ['b', 2], ['c', 1]]);
   });
 
+  it('bounds the top weight by the DISTINCT count, not by the leaf count', () => {
+    // This is the case `1, 1, 9` cannot make. Deduplication reaches the answer
+    // through two different mechanisms — the `Set`, and the `Map` constructor's
+    // last-wins over a duplicated key — and on a run of TWO they agree, so a
+    // three-leaf fixture passes with the `Set` deleted. Measured: with
+    // `new Set` removed the suite stayed 342/0. Here the duplicate run is three
+    // long, and the two mechanisms disagree: `a` weighs 3 (one of three
+    // distinct statements) and not 5 (one of five leaves). A weight that counts
+    // leaves is not bounded by the rank set at all, which is the property the
+    // objective's `Σ w(s) × horizonUnits` bound is checked against.
+    const weights = priorityWeights(
+      new Map([['a', 1], ['b', 5], ['c', 5], ['d', 5], ['e', 9]]),
+    );
+    expect([...weights]).toEqual([['a', 3], ['b', 2], ['c', 2], ['d', 2], ['e', 1]]);
+  });
+
   it('weighs an unprioritised leaf below every stated priority', () => {
     // `priorityByLeaf` omits them, so absence arrives as a missing key.
     const weights = priorityWeights(new Map([['a', 1], ['b', 9]]));
