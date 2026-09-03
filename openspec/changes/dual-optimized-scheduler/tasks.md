@@ -308,7 +308,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       counter and delete each other's rows for ever.
       `solver_slot`: PK
       `(projectId, contractVersion, generation, objective, budgetMs)` →
-      `ownerId`, `attemptToken`, `pid`, `startedAt`, `heartbeatAt`,
+      `ownerId`, `attemptToken`, `lifecycle` (`'starting' | 'running'`, with
+      `CHECK (lifecycle IN ('starting','running'))`), nullable `pid` (NULL
+      while `starting`, since the process does not exist at reservation time
+      — Sol r12 Critical 2), `startedAt`, `heartbeatAt`,
       `cancelRequestedAt`, `admittedDeadlineAt`. **`budgetMs` is in the key and
       the deadline is a stored absolute instant (Sol r8 Critical 2, kimi r8
       Important 3)**: `budgetMs` is a cache-key column, so without it a 60 s
@@ -349,6 +352,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       with one, an unknown `objective`); and deleting a project cascades its
       cache rows away only through `finishOptimizationDrain` after the real
       slot count reaches zero.
+- [ ] 3.1b `project.optimization_delete_pending_at`, internal nullable
+      timestamp, in **this** slice's additive migration (Sol r12
+      Important 5). It is the durable cross-process fence 3.9b's drain and
+      its process test read, not a user setting and not a read-payload
+      field, so it must exist before any drain code lands; slices 3 and 3b
+      ship as separate reviewed PRs, so leaving it in 3b made this slice
+      unimplementable against its own declared schema. Repository mapping is
+      internal-only; the read payload is unchanged. Covered by 3.7's
+      `down.sql` and its rollback-then-re-apply proof.
 - [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
       and watch 3.4's "an `ok` row with a NULL `resultJson` is rejected" case
       fail. `Proof:` comment names the removed constraint. SQLite text columns
@@ -359,6 +371,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       lint and `readMigrationFolders` refuse without it, and an aborted
       blue/green deploy cannot return to the applied set. Proved by
       apply → rollback → re-apply against the applied set, not by inspection.
+      The rollback assertion **enumerates** what this slice added — the
+      three tables plus `project.optimization_delete_pending_at` (3.1b) —
+      rather than counting them.
 - [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
       ('timeout','invalid-output','no-solution','internal-error','oom',
       'horizon-overflow','objective-overflow'))` — any non-null text was
@@ -395,6 +410,27 @@ h2puni is green — no build or autotest runs on the workspace box.
       and only then deletes the generation or project row and lets the
       `ON DELETE CASCADE` take the remainder. The
       cascade remains declared as the orphan backstop, not the mechanism.
+      **Finish is not the initiator's job (Sol r12 Critical 3).** A crash
+      between `begin` and `finish` previously left the project hidden with
+      admission closed for ever, and admission is exactly what a draining
+      project rejects, so no later read could sweep it. Two further paths
+      call the same transactional `finish`: (a) **opportunistic** — every
+      slot release and every reclaim sweep re-reads the durable marker in the
+      same transaction that removes the last affected row and finishes when
+      zero remain; (b) **reconciliation** — `reconcileOptimizationDrains()`
+      on coordinator startup and every `DRAIN_RECONCILE_INTERVAL_MS = 60000`,
+      scanning `draining` generations and delete-pending projects, reclaiming
+      affected slots past their stored `admittedDeadlineAt`, and finishing
+      those with none left. Both are idempotent, no-ops on an absent target,
+      and safe to race: the precondition is the lock, and the loser observes
+      the row already gone. Neither path reopens admission.
+      **Third watched red:** crash immediately after `begin`, restart a
+      *different* coordinator, advance past slot expiry, and require physical
+      project deletion, optimization-row cleanup and terminal contract
+      retirement with admission still closed throughout; remove the
+      reconciler and the project must stay wedged and undeletable. Two
+      reconcilers run concurrently must produce the same end state and no
+      error.
       **Watched red:** restore the immediate slot cascade — delete the project
       row while its child still runs — and the sampled process count must
       exceed 16 as a second project admits into the freed capacity. A second
@@ -406,10 +442,12 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 - [ ] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
       null default **false**, `schedule_engine` text not null default `'fast'`,
-      `schedule_objective` text not null default `'pri'`, and internal nullable
-      timestamp `optimization_delete_pending_at`. The timestamp is the durable
-      cross-process fence used only while project deletion drains solver slots;
-      it is not a user setting or a read-payload field. The defaults are
+      and `schedule_objective` text not null default `'pri'` — **three
+      columns, all user-facing settings**. `optimization_delete_pending_at`
+      is **not** here: slice 3's drain code and its process test read that
+      column, and the two slices ship as separately reviewed PRs, so a marker
+      created only in 3b left slice 3 unimplementable against its own
+      declared schema (Sol r12 Important 5). It moves to 3.1b. The defaults are
       what make OFF-by-default true for every existing row; no backfill can
       guarantee that retroactively. The generation counter, the input hash and
       the cancel epoch are **not** added here (Sol r7 Critical 4): they are per
@@ -436,8 +474,12 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 3b.6 This slice touches `apps/be-01/drizzle/**`, the **second** prod-mode
       path in this change: PR with green CI and a real review, `status:
       review`, no self-merge.
-- [ ] 3b.7 `down.sql` plus rollback-then-re-apply coverage for all three added
-      columns.
+- [ ] 3b.7 `down.sql` plus rollback-then-re-apply coverage that names and
+      removes **each of the three** columns this slice adds
+      (`optimization_enabled`, `schedule_engine`, `schedule_objective`); the
+      assertion enumerates them rather than counting, so a column left behind
+      is schema drift the test catches. `optimization_delete_pending_at`
+      belongs to slice 3's own `down.sql` (3.1b, 3.7).
 - [ ] 3b.8 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
       ('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
       and explicit read-time validators `isScheduleEngine` /
@@ -690,11 +732,30 @@ h2puni is green — no build or autotest runs on the workspace box.
       `stageValue` and `bound` are null, `status` is `unknown`, and 2.4's
       `value <= stageValue` relation is not applied — it is a within-stage
       relation with no meaning across the quantised and real domains.
+      **The numeric domain is per-`publication`, not blanket (Sol r12
+      Critical 1).** `decodeOptimizedResult` requires a non-negative **safe
+      integer** for every non-null number of a `'solver'` row (quantised
+      solver units, the wire's own rule) and a **finite non-negative number
+      that need not be an integer** for each `value` of a
+      `'quantisation-floor'` row (real domain, fractional workdays, the same
+      unit as the stored offsets), rejecting `NaN`, infinities and negatives
+      in both. A blanket safe-integer rule is unsatisfiable: `durationOf`
+      keeps `days / width` fractional (`libs/domain/src/schedule.ts:539-541`),
+      so the mandated width-5 floor row's real makespan is 0.6 workdays /
+      28.8 units and the decoder would reject the row the guard must store.
       **Watched red:** a width-5 floor row must round-trip through SQLite and
       the real plan read with the stored schedule equal to Fast's, null
       `stageValue`/`bound` and `publication: 'quantisation-floor'`; put
       `'quantisation-floor'` back into `status` and the read-time enum
       validator must reject it.
+      **Second watched red, the fractional one (Sol r12 Critical 1):** that
+      same floor row's reloaded `value` must be **bit-equal** to `scoreReal`
+      re-run on the reloaded Fast schedule — asserted against the scorer, not
+      against the literal `0.6`, because `0.2 + 0.2 + 0.2 !== 0.6` in
+      IEEE-754 — and the row must decode with `Number.isSafeInteger(value)`
+      false; apply the safe-integer rule to floor rows and this case must
+      fail, while a `'solver'` row carrying that same non-integer value must
+      still be rejected.
       **Two further negatives, both valid JSON** (Sol r10 Important 11, which
       is where the JSON-held enums are actually enforced): (a) a syntactically
       valid `resultJson` whose `publication` is `'fast'` — `decodeOptimizedResult`
@@ -714,6 +775,21 @@ h2puni is green — no build or autotest runs on the workspace box.
       `encodeSchedule` output makes `decodeOptimizedResult` throw naming the
       missing `dtoVersion`; and storing through the old
       `scheduleJson`-shaped write makes the metadata assertions fail.
+- [ ] 4.11b **The capacity arrow's referent is the chosen pool, and it is
+      tested** (Sol r12 Minor 6). For a `capacity` floor,
+      `resourcePredecessorId` is taken from the filtered blockers of the pool
+      `capacityTeamId` names, ties broken by placement order **within that
+      pool** — never from the union across binding pools, whose tie-break can
+      point the arrow at a slice from a different pool and split it from the
+      team sentence that explains it (Fast selects from
+      `capacityTeamBlockers` for this reason,
+      `libs/domain/src/schedule.ts:1316-1335`). 4.9's and 4.11's existing
+      cases prove pool filtering and team selection but not the referent, so
+      an implementation selecting from the union passes all of them.
+      **Watched red:** a fixture with two eligible binding pools whose latest
+      valid finishers finish at the same instant — select from the union and
+      the emitted `resourcePredecessorId` must belong to a pool other than
+      `capacityTeamId`, failing the case.
 - [ ] 4.12 `CACHE_DTO_VERSION`, `encodeSchedule`, `decodeSchedule`
       in `libs/domain`: both `Map`s become arrays of entries sorted by key, and
       `waitingForPerson`, `waitingForCapacity` and `eventsVisited` are stored,
@@ -754,6 +830,29 @@ h2puni is green — no build or autotest runs on the workspace box.
       disagree, one exercising `notBeforeUnits`, one exercising a two-pool
       slice, and one exercising an intra-item step-order edge. The solver
       reproduces each exactly.
+- [ ] 5.4b **Bounded CPU and memory per child, with values** (Sol r12
+      Important 4). The process ceiling bounds processes, not resources:
+      CP-SAT starts its own search workers and grows until something kills
+      it. Production solves set `num_search_workers` from
+      `solverSearchWorkers` (default 2); the pinned determinism config keeps
+      1. Every child runs under `solverMemoryLimitMb` (default 512 MB),
+      enforced outside the solve — a per-child cgroup/systemd `MemoryMax=`
+      scope as the deployment mechanism, plus the wrapper's portable
+      `RLIMIT_AS` pre-exec fallback — because CP-SAT has no dependable
+      in-process ceiling. Both terminations map to the existing `oom`
+      failure reason and to no other. Record the implied fleet worst case
+      (16 × 2 = 32 solver threads, ~8 GB solver RSS) as a deployment
+      obligation beside the ceilings.
+      **Proven by** `solver-resource-limits.proc.test.ts`: the effective
+      `num_search_workers` read from a real spawned production solve equals
+      `solverSearchWorkers`; a fixture that deliberately allocates past the
+      limit is killed under each mechanism, the coordinator survives, the
+      slot is released, and exactly one `failed` marker with
+      `failureReason: 'oom'` is stored per case.
+      **Watched red:** remove the memory limit and the overrun case must
+      grow past the ceiling without producing `oom`; remove the
+      `num_search_workers` setting and the effective-configuration assertion
+      must fail.
 - [ ] 5.5 **Proven by** the determinism case under the pinned config only —
       `num_search_workers=1`, fixed `random_seed`, and CP-SAT's
       **deterministic** time limit, never a wall-clock assertion. Production is
@@ -845,6 +944,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       stamping a fresh 128-bit `attemptToken` and
       `admittedDeadlineAt = startedAt + budgetMs + 5000 +
       SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
+      **The insert is `lifecycle='starting'` with a NULL `pid` (Sol r12
+      Critical 2)** — the PID does not exist at reservation time, and the
+      reservation is what the ceiling counts, so a `starting` row counts
+      against 4 and 16 identically to a `running` one and expires by the same
+      `admittedDeadlineAt`.
       Expiry is read from that column and never recomputed from the observing
       coordinator's config. `ownerId` is a UUID minted at coordinator boot;
       `heartbeatAt` is refreshed every 5 s for live slots and the row is
@@ -893,10 +997,40 @@ h2puni is green — no build or autotest runs on the workspace box.
       PATCH turning optimization OFF. **Watched red** with the epoch condition
       removed: both real children exit within one heartbeat interval, and
       neither can store a result, write a failure marker, or emit any event.
+- [ ] 6.2b **Spawn handshake: reserve, spawn, bind, fence** (Sol r12
+      Critical 2). After 6.2's `starting` insert the coordinator spawns
+      `wbs-solver` with `--attempt-token` and `--child-deadline-epoch-ms` as
+      **argv**, never as request fields — both are clock/identity derived and
+      would destabilise the golden corpus and reopen the no-clock rule. The
+      child's **lifecycle wrapper** (distinct from the deterministic solve,
+      which still reads no clock, database or environment) arms that absolute
+      instant, installs `PR_SET_PDEATHSIG`, re-checks `getppid()`, then blocks
+      on stdin for the bind verdict **before reading the request**. The
+      coordinator binds with
+      `UPDATE solver_slot SET pid=:pid, lifecycle='running' WHERE <key> AND
+      attempt_token=:token AND lifecycle='starting'`; one row means `bound`,
+      zero rows means `abort` plus kill and no further admission on that
+      token. The child exits without solving on `abort`, a closed stdin, or
+      `BIND_TIMEOUT_MS = 5000`.
+      **Proven by** `optimization-spawn-handshake.proc.test.ts`, a real
+      two-coordinator process test that pauses the owner between the
+      `starting` insert and the bind for longer than
+      `SLOT_RECLAIM_MARGIN_MS`, lets the peer reclaim and admit a
+      replacement that binds and solves, and samples the real OS process
+      count throughout: the delayed bind matches zero rows, its child exits
+      before solving, and the sampled count of solving processes never
+      exceeds the unreleased row count nor 4 per project / 16 globally.
+      **Watched red:** let the child begin solving without waiting for the
+      bind verdict — or drop the `lifecycle='starting'` predicate from the
+      CAS — and the paused-owner case must show two solving children against
+      one reclaimed slot.
 - [ ] 6.5 Restart: nothing resumed, no queue rebuilt. Orphan handling is not a
       PID search — 5.1's `PR_SET_PDEATHSIG` kills the child, slot expiry
       restores capacity, and the container/cgroup boundary is recorded as a
-      deployment obligation.
+      deployment obligation. Startup **does** run 3.9b's
+      `reconcileOptimizationDrains()` once before serving and then on its
+      interval; that is the only startup sweep, and it resumes no solve
+      (Sol r12 Critical 3).
 - [ ] 6.6 **Proven by** `optimization-coordinator.test.ts`, asserting on an
       injected spawner rather than timing: a cold input spawns exactly two; a
       full hit spawns none; **two concurrent first reads spawn exactly one per
@@ -996,7 +1130,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       two-instance ceiling case fail.
 - [ ] 6.11 Slot fencing: admission mints an unforgeable 128-bit
       `attemptToken`; heartbeat, release, the outcome write and the event write
-      all carry it. The two deadlines are deliberately different:
+      all carry it, and 6.2b's bind CAS is the first statement that presents
+      it. The two deadlines are deliberately different:
       `childDeadlineAt = startedAt + budgetMs + 5000`, and the child arms its
       own alarm for that earlier instant; SQLite alone stores and observes
       `admittedDeadlineAt = childDeadlineAt + SLOT_RECLAIM_MARGIN_MS` (15 s).
@@ -1230,3 +1365,9 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 10.3 Slices 3 and 3b each ship as a reviewed PR (`status: review`, no
       self-merge) — both touch `apps/be-01/drizzle/**`. The remaining slices
       are dev-mode and follow the normal PR + green CI + merge path.
+      **Slice order is a correctness constraint, not a preference (Sol r12
+      Important 5):** every column a slice's own code and tests read is
+      created by that slice's own migration, so slice 3 carries
+      `optimization_delete_pending_at` (3.1b) and slice 3b carries only the
+      three user-facing settings. Verify before starting either PR that no
+      task in a slice references a column another slice creates.
