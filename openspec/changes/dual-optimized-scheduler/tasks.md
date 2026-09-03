@@ -16,6 +16,34 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 ## 1. Canonical input and the exact-input hash
 
+**Whose seventh argument this is — settled here so two queue tasks cannot both
+build it or both skip it.** The dependency chain is TASK-219 (this change)
+→ TASK-220 → **TASK-241** (`wbs-deadline-scheduling-core`), and TASK-241's own
+description claims "include deadlines in the canonical hash and versioned solver
+wire, revalidate them independently in Bun, and persist/report legitimate
+plan-infeasible results". Read naively that is the same work as slices 1, 2 and
+4 here, by a task that cannot start until they are done. The split is by
+**plumbing versus field**:
+
+- **TASK-219 builds the seventh argument's plumbing and every consumer of it**
+  — the canonical entry, the hash, the `deadlineUnits` wire field, the CP-SAT
+  constraint, the Bun revalidation clause, the `plan-infeasible` row state and
+  its `VariantState` member — against a deadline **source that is legitimately
+  empty**, because the `deadline` column and `deadlineOffsetOf` do not exist
+  yet. That is not a stub: 1.6's no-op proof *requires* the seventh argument
+  defaulted to an empty map to leave every golden corpus case byte-identical,
+  so the empty-source state is the proved state rather than a placeholder.
+- **TASK-241 adds the field and populates the source** — the nullable
+  date-only `deadline`, its migration, API, realtime, undo, `deadlineOffsetOf`,
+  the §1.4 effective-deadline fold and Fast's minimum-slack ordering — and
+  turns on every path TASK-219 already built and gated.
+
+Consequence for 1.3: the tie-sensitive deadline mutation case is TASK-241's to
+make green, because it needs a real deadline to mutate. TASK-219 lands it as a
+**declared-pending** case naming TASK-241, never as a silently skipped or
+trivially-passing one — a mutation case with no mutation is exactly the
+check-that-cannot-fail failure R5 names.
+
 - [ ] 1.1 `canonicalScheduleInput(plan)` builds the canonical JSON string,
       living beside Fast in `libs/domain/src/` so both read one normalizer —
       Fast is `libs/domain/src/schedule.ts`, not `apps/be-01/src/service/`.
