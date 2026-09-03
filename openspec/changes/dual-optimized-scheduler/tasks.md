@@ -238,8 +238,24 @@ check-that-cannot-fail failure R5 names.
       accepts, fails the contract test; and a TypeScript type that drifts from
       the schema fails it too. **A repository check enforces the "descriptive
       only" claim (Sol r8 Critical 4, restated Sol r9 Critical 1):** three
-      rounds running, an obsolete prose schema in one of those four files was
-      an implementation instruction contradicting the real one. The check is
+      rounds running, an obsolete prose schema in one of the four **descriptive
+      artifacts** was an implementation instruction contradicting the real one.
+      **Those four are named here because "those four files" read as the four
+      consumers of the sentence before it, which are code and carry no prose
+      (found run 2):** this file, design.md,
+      `specs/scheduler-optimization/spec.md`, and the long-form note.
+      **The note is not in this repository** — it lives in the Claire workspace
+      as `notes/wbs-dual-optimized-scheduler-design.md`, 1609 lines, and no
+      copy of it exists under `openspec/`, `docs/` or `notes/` here (grepped
+      run 2 for every form of `solver`, `CP-SAT` and `solver-wire`;
+      `dual-optimized-scheduler` is also the only `openspec/changes/*` entry
+      that mentions the solver at all). So a **repository** check in
+      wbs-tool-v1 can cover three of the four and not the fourth, and it must
+      say which it covered rather than reporting a three-file pass as a
+      four-file one. Decide explicitly when the check is written: either the
+      note is copied in beside the change and travels with it, or it is
+      declared out of scope and the "descriptive only" claim is enforced over
+      three artifacts. The check is
       **set equality, not a ban on prose**, because a planning artifact that
       may not name a field cannot say what the schema must contain, and the
       earlier "no field list outside the schema" wording rejected design.md,
