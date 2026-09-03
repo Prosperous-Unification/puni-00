@@ -3,10 +3,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  SOLVER_EDGE_KEYS,
+  SOLVER_HORIZON_UNITS_MAX,
   SOLVER_OBJECTIVE_TERM_KEYS,
   SOLVER_OBJECTIVE_TERMS,
+  SOLVER_OBJECTIVES,
+  SOLVER_REQUEST_KEYS,
   SOLVER_RESPONSE_KEYS,
   SOLVER_RESPONSE_STATUSES,
+  SOLVER_SLICE_KEYS,
+  SOLVER_STAGE_COUNT,
   SOLVER_STAGE_STATUSES,
   SOLVER_WIRE_VERSION,
 } from './wire-types';
@@ -126,5 +132,57 @@ describe('wire-types is pinned to solver-wire.v1.json', () => {
 
     const then = conditional['then'] as { required: readonly string[] };
     expect(sorted(then.required)).toEqual(['objectiveValues', 'offsets']);
+  });
+});
+
+describe('the request side is pinned to solver-wire.v1.json', () => {
+  it('SOLVER_OBJECTIVES is the objective enum', () => {
+    const wire = enumOf('request', 'objective');
+    expect(wire.length).toBe(SOLVER_OBJECTIVES.length);
+    expect(sorted(wire)).toEqual(sorted(SOLVER_OBJECTIVES));
+  });
+
+  // Each of the three closed branches gets the same pair of assertions:
+  // `additionalProperties: false` is what makes the key list a closed set
+  // rather than a subset, and `required` covering the whole property set is
+  // what makes the TypeScript interface's lack of optional members correct.
+  for (const [branch, keys] of [
+    ['request', SOLVER_REQUEST_KEYS],
+    ['slice', SOLVER_SLICE_KEYS],
+    ['edge', SOLVER_EDGE_KEYS],
+  ] as const) {
+    it(`${branch} is closed, fully required, and matches its key constant`, () => {
+      expect(def(branch)['additionalProperties']).toBe(false);
+      const wire = Object.keys(properties(branch));
+      expect(wire.length).toBe(keys.length);
+      expect(sorted(wire)).toEqual(sorted(keys));
+      expect(sorted(def(branch)['required'] as string[])).toEqual(sorted(keys));
+    });
+  }
+
+  it('SOLVER_HORIZON_UNITS_MAX is the schema bound checked before spawn', () => {
+    const horizon = properties('request')['horizonUnits'] as { maximum: number };
+    expect(horizon.maximum).toBe(SOLVER_HORIZON_UNITS_MAX);
+    // Narrower than safeInteger on purpose: it is a CP-SAT variable domain.
+    expect(horizon.maximum).toBeLessThan(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('the stage budget split is a fixed-length tuple, not a list', () => {
+    const split = properties('request')['stageBudgetSplit'] as {
+      minItems: number;
+      maxItems: number;
+    };
+    expect(split.minItems).toBe(SOLVER_STAGE_COUNT);
+    expect(split.maxItems).toBe(SOLVER_STAGE_COUNT);
+  });
+
+  it('a slice width and a pool capacity both floor at 1', () => {
+    // Both are the same boundary stated twice: duration is effort divided by
+    // width, and a pool of 0 slots is a plan of Infinity dates.
+    expect((properties('slice')['width'] as { minimum: number }).minimum).toBe(1);
+    const pools = properties('request')['pools'] as {
+      additionalProperties: { minimum: number };
+    };
+    expect(pools.additionalProperties.minimum).toBe(1);
   });
 });

@@ -90,3 +90,101 @@ export type SolverResponseKey = (typeof SOLVER_RESPONSE_KEYS)[number];
 
 /** The members `#/$defs/objective-term` requires — all four of them. */
 export const SOLVER_OBJECTIVE_TERM_KEYS = ['value', 'stageValue', 'bound', 'status'] as const;
+
+/* ------------------------------------------------------------------------- *
+ * The request side.
+ *
+ * Same rule as above: every vocabulary is a `const` array pinned to its schema
+ * branch by the drift guard, because a bare union is erased before a test can
+ * see it. Bun owns duration and graph derivation and Python owns placement
+ * only, so nothing here carries the tree — no `parentId`, no `dep_reach`.
+ * ------------------------------------------------------------------------- */
+
+/** `#/$defs/request.properties.objective` — the two independently solved runs. */
+export const SOLVER_OBJECTIVES = ['pri', 'time'] as const;
+export type SolverObjective = (typeof SOLVER_OBJECTIVES)[number];
+
+/**
+ * `#/$defs/request.properties.horizonUnits.maximum`. The serial bound is
+ * checked against this **before spawn** (2.10), because it is the CP-SAT
+ * variable domain and not a preference.
+ */
+export const SOLVER_HORIZON_UNITS_MAX = 2147483647;
+
+/**
+ * `#/$defs/request.properties.stageBudgetSplit` is `minItems` = `maxItems` = 3.
+ * Exactly three stages, so the split is a fixed-length tuple rather than a list
+ * that happens to have three entries today.
+ */
+export const SOLVER_STAGE_COUNT = 3;
+export type SolverStageBudgetSplit = readonly [number, number, number];
+
+/** `#/$defs/edge` — two named endpoints, asymmetric, never a 2-array. */
+export const SOLVER_EDGE_KEYS = ['predecessorKey', 'successorKey'] as const;
+export interface SolverEdge {
+  readonly predecessorKey: string;
+  readonly successorKey: string;
+}
+
+/** `#/$defs/slice`. Every member is required; two of them are nullable. */
+export const SOLVER_SLICE_KEYS = [
+  'key',
+  'durationUnits',
+  'width',
+  'personId',
+  'poolIds',
+  'priorityWeight',
+  'notBeforeUnits',
+  'deadlineUnits',
+] as const;
+export interface SolverSlice {
+  readonly key: string;
+  readonly durationUnits: number;
+  /** People, so at least 1: duration is effort divided by width and 0 is Infinity days. */
+  readonly width: number;
+  readonly personId: string | null;
+  /** A sorted set. The whole width is spent in **each** pool named here. */
+  readonly poolIds: readonly string[];
+  readonly priorityWeight: number;
+  readonly notBeforeUnits: number;
+  /** The **effective** deadline, already folded over the tree. `null` is unconstrained. */
+  readonly deadlineUnits: number | null;
+}
+
+/**
+ * `#/$defs/request`. Every one of the thirteen members is required — the branch
+ * lists them all in `required` — so there is no optional field to forget.
+ */
+export const SOLVER_REQUEST_KEYS = [
+  'wireVersion',
+  'contractVersion',
+  'solverVersion',
+  'objective',
+  'budgetMs',
+  'stageBudgetSplit',
+  'quantum',
+  'horizonUnits',
+  'slices',
+  'edges',
+  'pools',
+  'baselineOffsets',
+  'fastHint',
+] as const;
+export type SolverRequestKey = (typeof SOLVER_REQUEST_KEYS)[number];
+
+export interface SolverRequest {
+  readonly wireVersion: SolverWireVersion;
+  readonly contractVersion: string;
+  readonly solverVersion: string;
+  readonly objective: SolverObjective;
+  readonly budgetMs: number;
+  readonly stageBudgetSplit: SolverStageBudgetSplit;
+  readonly quantum: number;
+  readonly horizonUnits: number;
+  readonly slices: readonly SolverSlice[];
+  readonly edges: readonly SolverEdge[];
+  /** Pool id to capacity. A pool of 0 slots is a plan of Infinity dates, so capacity floors at 1. */
+  readonly pools: Readonly<Record<string, number>>;
+  readonly baselineOffsets: SolverOffsetMap;
+  readonly fastHint: SolverOffsetMap;
+}
