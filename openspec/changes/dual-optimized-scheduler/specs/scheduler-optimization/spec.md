@@ -86,7 +86,7 @@ Every solver response SHALL be a single well-formed JSON line and SHALL be indep
 
 ### Requirement: Resource ceilings cap solver concurrency
 
-The coordinator SHALL cap solver processes at 4 per project and 16 globally. A valid generation SHALL normally use 2 (one PRI and one Time); remaining headroom SHALL cover only termination overlap or future variants, never stale publication — stale publication is prevented by the generation check, not by the slot count. When the global cap is full, entries SHALL wait in a FIFO ordered by `enqueuedAt` then `projectId` with one entry per (project, objective). At dequeue the coordinator SHALL re-check both that the entry's generation is still its project's current generation and that the project's optimization toggle is still ON, and SHALL discard the entry without launching if either check fails. Enforcement scope is defined by the cross-process requirement below.
+The coordinator SHALL cap solver processes at 4 per project and 16 globally. A valid generation SHALL normally use 2 (one PRI and one Time); remaining headroom SHALL cover only termination overlap or future variants, never stale publication — stale publication is prevented by the generation check, not by the slot count. When the global cap is full, entries SHALL wait in a FIFO holding at most one entry per (project, objective) and ordered by `enqueuedAt`, then `projectId`, then `objective` — the last term is required for a total order, because a project's PRI and Time entries can share a timestamp. At dequeue the coordinator SHALL re-check both that the entry's generation is still its project's current generation and that the project's optimization toggle is still ON, and SHALL discard the entry without launching if either check fails. Enforcement scope is defined by the cross-process requirement below.
 
 #### Scenario: the per-project cap holds during overlap
 
@@ -210,7 +210,7 @@ Each project SHALL carry a monotonic `optimizationGeneration`, allocated in the 
 
 ### Requirement: Resource ceilings are enforced across processes
 
-The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a SQLite admission transaction over a `solver_slot` table, not by coordinator memory, so that co-existing backend releases share one budget. Slots SHALL be reclaimed by heartbeat expiry. Waiting entries SHALL be ordered by `enqueuedAt` then `projectId`, one per `(project, objective)`, and SHALL be discarded at dequeue if their generation is no longer current or the project's toggle is no longer ON.
+The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a SQLite admission transaction over a `solver_slot` table, not by coordinator memory, so that co-existing backend releases share one budget. Slots SHALL be reclaimed by heartbeat expiry. Waiting entries SHALL be ordered by `enqueuedAt`, then `projectId`, then `objective`, at most one per `(project, objective)`, and SHALL be discarded at dequeue if their generation is no longer current or the project's toggle is no longer ON.
 
 #### Scenario: two coordinators share one global budget
 

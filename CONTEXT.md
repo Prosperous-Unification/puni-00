@@ -994,8 +994,10 @@ with `position`/`frozenNumber`/as-written priority, authored dependency edges, t
 array in order (that order is step precedence), `notBefore` floors in days from day zero,
 pool sizes, and the project's dependency reach. Two scheduling inputs are the same exactly
 when their hashes match. Engine, Objective, the optimization toggle, the display variant,
-the clock, the acting user and the solver budget are all excluded — the last three of those
-are key columns, not hash inputs.
+the clock, the acting user and the solver budget are all excluded from the hash. Three of
+them — Objective, Contract version and the solver budget — are cache-key columns instead;
+the clock, the acting user, the toggle, Engine and the display variant are read by nothing
+that produces a schedule and appear nowhere in the cache identity.
 _Avoid_: plan hash, cache key, fingerprint
 
 **Contract version**:

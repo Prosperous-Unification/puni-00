@@ -116,8 +116,14 @@ h2puni is green — no build or autotest runs on the workspace box.
       NOT NULL))`; `CHECK (objective IN ('pri','time'))`.
 - [ ] 3.2 `solver_slot`: PK `(projectId, generation, objective)` → `ownerId`,
       `pid`, `startedAt`, `heartbeatAt`. `solver_queue`: PK
-      `(projectId, generation, objective)` → `enqueuedAt`, with an index on
-      `(enqueuedAt, projectId)` for the FIFO order.
+      `(projectId, objective)` — **not** keyed by generation, so a project holds
+      at most one queued entry per objective at a time as the prose claims and a
+      new generation replaces rather than accumulates — with columns
+      `generation`, `enqueuedAt`, and an index on
+      `(enqueuedAt, projectId, objective)`. The dequeue order is
+      `ORDER BY enqueuedAt, projectId, objective`, which is total: `objective`
+      breaks the tie between a project's PRI and Time entries enqueued in the
+      same millisecond.
 - [ ] 3.3 Forward migration under `apps/be-01/drizzle/` — additive only. Blue
       and green share one SQLite file during a swap, so the outgoing release
       must keep running against the migrated file untouched.
