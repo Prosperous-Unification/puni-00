@@ -991,7 +991,9 @@ _Avoid_: strategy, goal, optimization mode
 **Input hash**:
 The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` receives — rows
 with `position`/`frozenNumber`/as-written priority, authored dependency edges, the slice
-array in order (that order is step precedence), `notBefore` floors in days from day zero,
+array grouped by work item with groups ordered by id and each group's own order preserved
+(only that intra-item order is step precedence — the order between groups is whatever SQL
+returned), `notBefore` floors in days from day zero,
 pool sizes, and the project's dependency reach. Two scheduling inputs are the same exactly
 when their hashes match. Engine, Objective, the optimization toggle, the display variant,
 the clock, the acting user and the solver budget are all excluded from the hash. Three of
@@ -1008,11 +1010,27 @@ the Python package version does not describe.
 _Avoid_: solver version, schema version, cache version
 
 **Generation**:
-A project's monotonic optimization counter, allocated whenever its Input hash changes and
-carried by every solver run. Every cache write is conditional on it still being current, so
-a superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
+A project's monotonic optimization counter, stored beside the Input hash it was allocated
+for and carried by every solver run. The pair is what makes allocation atomic across
+processes: an equal hash reuses the generation, a different one increments it under a
+compare-and-swap. Every cache write is conditional on it still being current, so a
+superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
 prevent, because an undo can make an old hash current again.
 _Avoid_: run id, epoch, version
+
+**Optimizer floor**:
+The `ScheduleFloor` member `optimizer`, reported when an optimized start is strictly later
+than every floor of its slice — the optimizer deliberately idled it so higher-priority work
+could run. It is the only floor that names a choice rather than a constraint, and like
+`projectStart` it carries no capacity predecessors and no binding team.
+_Avoid_: idle, slack, deliberate delay
+
+**Solver quantum**:
+`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
+Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
+CP-SAT interval variables are integers. Durations round **up** to the next unit when an
+estimate does not divide, never down.
+_Avoid_: tick, granularity, resolution
 
 **Baseline schedule**:
 The Fast schedule for the same canonical input, passed to the solver as `baselineOffsets`.

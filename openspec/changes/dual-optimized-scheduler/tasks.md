@@ -22,8 +22,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       priority, so a parent's edit that changes no leaf today still rehashes;
       (b) authored `{ predecessorId, successorId }` edges sorted by the pair,
       with the leaf expansion derived rather than hashed;
-      (c) the `slices` array **in its given order**, because `groupByWorkItem`
-      preserves it and intra-work-item step precedence is read from it, each
+      (c) the `slices` array **grouped by work item, groups ordered by
+      `workItemId`, each group's own order preserved as given** — only the
+      intra-item order is step precedence; the global order is whatever SQL
+      returned, because `WorkItemRepo.listByProject` selects with no
+      `ORDER BY` and `slicesOf` emits groups in row order, so hashing it made
+      one unchanged project hash differently between reads and between blue
+      and green — each
       slice carrying `workItemId`, `stepId`, `days` (null distinct from 0),
       `personId`, `width`, and `poolIds` as a **sorted set** (`readonly
       string[]`, never a singular `poolId`);
@@ -59,7 +64,21 @@ h2puni is green — no build or autotest runs on the workspace box.
       `ASSUMED_SLICE_WORKDAYS` without bumping the constant and watch the
       corpus fail. This is the guard that makes the cache key honest: without
       it a domain change leaves stale rows matching their key forever.
-
+- [ ] 1.5 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
+      work-item select. An argument tuple that varies between reads of an
+      unchanged project is a Fast defect before it is a cache one.
+- [ ] 1.6 The unchanged-hash proof is built **through the real adapter** —
+      `listByProject` → `slicesOf` → `canonicalScheduleInput` — not by
+      reordering a `rows` fixture, which cannot observe this fault.
+      **Watched red:** drop the `ORDER BY` from 1.5 and reverse the stub
+      driver's row order; the two hashes must differ.
+- [ ] 1.7 Extend 1.3's one-mutation-per-fact set with the two it was missing:
+      a `parentId` reparenting that keeps every other field identical (it
+      changes leaf expansion, inherited priority and floors), and a `stepId`
+      identity swap between two slices of one work item. Extend 1.4's
+      watched-red removals to **every** field named in 1.1, not only `reach`
+      and slice order — each removal must be observed failing on the
+      production path before the field is trusted.
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
 - [ ] 2.1 Request/response types for the one-JSON-line contract:
@@ -102,7 +121,22 @@ h2puni is green — no build or autotest runs on the workspace box.
       `Proof:` comment names each removed check. Re-validation is the only thing
       standing between a wrong solver and a published schedule; a check that
       cannot fail is exactly the failure mode AGENTS.md R5 names.
-
+- [ ] 2.7 `SOLVER_QUANTUM = 48` exported from `libs/domain`, and
+      `durationUnits(slice)` = `Math.ceil(durationOf(slice) * SOLVER_QUANTUM)`
+      with an exact-multiple assertion within `DRIFT` before the ceiling
+      applies. **Fast's real arithmetic, restated because the plan had it
+      wrong:** `durationOf` returns `ASSUMED_SLICE_WORKDAYS` for `days === null`
+      **without** dividing by `width`, and `days / width` otherwise **without**
+      calling `snapWorkdays`; `snapWorkdays` only removes drift near an integer
+      and preserves genuine fractions. **Watched red:** a `days: 1, width: 2`
+      fixture must read 0.5 workdays end to end; a `days: null, width: 3`
+      fixture must read `ASSUMED_SLICE_WORKDAYS`, not a third of it.
+- [ ] 2.8 The re-validator rejects any offset that is not a non-negative
+      integer unit within `horizonUnits`. **Watched red:** feed it a
+      fractional offset and a negative one.
+- [ ] 2.9 `horizonUnits > 2**31 - 1` fails before spawn with
+      `horizon-overflow`. **Watched red:** a synthetic plan past the bound
+      must not reach a process.
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
 - [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
@@ -140,7 +174,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       otherwise hold any combination a past bug wrote.
 - [ ] 3.6 This slice touches `apps/be-01/drizzle/**`, a prod-mode path: PR with
       green CI and a real review, `status: review`, no self-merge.
-
+- [ ] 3.7 `down.sql` beside `migration.sql` — AGENTS.md mandates it, migration
+      lint and `readMigrationFolders` refuse without it, and an aborted
+      blue/green deploy cannot return to the applied set. Proved by
+      apply → rollback → re-apply against the applied set, not by inspection.
+- [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
+      ('timeout','invalid-output','no-solution','internal-error','oom',
+      'horizon-overflow'))` — any non-null text was previously accepted.
 ## 3b. Project settings columns and API (PROD MODE — reviewed PR, no self-merge)
 
 - [ ] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
@@ -170,7 +210,20 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 3b.6 This slice touches `apps/be-01/drizzle/**`, the **second** prod-mode
       path in this change: PR with green CI and a real review, `status:
       review`, no self-merge.
-
+- [ ] 3b.7 `optimization_input_hash` (TEXT, nullable, default NULL) is part of
+      this migration: the generation counter alone does not record *which*
+      hash it stands for, so no process could atomically decide between reuse
+      and allocation (slice 6).
+- [ ] 3b.8 `down.sql` plus rollback-then-re-apply coverage for all five added
+      columns.
+- [ ] 3b.9 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
+      ('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
+      and explicit read-time validators `isScheduleEngine` /
+      `isScheduleObjective` in the project mapper that throw naming column and
+      value — the shape `toProject` already uses for `estimateMethod`,
+      `depReach` and `estimateRounding`. **Watched red:** write an unknown
+      value for each of the three and the boolean directly and read through
+      the production path.
 ## 4. Cache read/write, generations, validity and the failed marker
 
 - [ ] 4.1 Repository functions: read the pair for the full key; upsert an `ok`
@@ -210,7 +263,32 @@ h2puni is green — no build or autotest runs on the workspace box.
       4.1's conditional write and watch 4.6 fail. `Proof:` comment names the
       removed predicate. `inputHash` alone cannot tell a resurrected run from a
       current one, which is the whole reason the generation exists.
-
+- [ ] 4.6 `isOptimizedStatus` / `isObjective` / `isFailureReason` validators on
+      the cache read path, throwing rather than casting or defaulting.
+      **Watched red:** an unknown value for each, injected as a stored row.
+- [ ] 4.7 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
+      is what produces `scheduleJson`; the offsets map is never persisted or
+      returned as a schedule. It runs Fast's annotation pass with the optimized
+      starts pinned, so `duration`, `estimated`, earliest/latest, `float`,
+      `critical`, `boundBy`, `resourcePredecessorId`, `capacityPredecessorIds`,
+      `capacityTeamId`, `width`, `effort`, the work-item projections and both
+      wait counters come out of the one code path that produces them today,
+      with resource edges and late times derived from the **optimized**
+      placement rather than copied from Fast.
+- [ ] 4.8 `ScheduleFloor` gains the additive member `'optimizer'`, used exactly
+      when a start is strictly later than every floor of its slice — an
+      optimizer may deliberately idle a low-priority slice and that start has
+      no value in today's union. `floorWordsOf` gains its case. The render
+      invariant holds: under `'optimizer'`, `resourcePredecessorId` is null,
+      `capacityPredecessorIds` is empty and `capacityTeamId` is null, so
+      "set exactly when `boundBy === 'capacity'`" is still true.
+- [ ] 4.9 Materialiser proofs run **through the real plan-read payload**
+      (`work-item.service.ts`), not against the domain type. **Watched red:**
+      (a) return Fast's own annotations against optimized dates — the float
+      and `boundBy` assertions must fail; (b) report a deliberately idled
+      slice as `projectStart` instead of `'optimizer'`; (c) set
+      `capacityTeamId` on an `'optimizer'` slice — the render invariant test
+      must fail.
 ## 5. The `wbs-solver` Python package
 
 - [ ] 5.1 New versioned package with a lock file, OR-Tools CP-SAT declared, one
@@ -252,7 +330,37 @@ h2puni is green — no build or autotest runs on the workspace box.
       PRI/Time-disagree oracle fail. `Proof:` comment names each fault. Any
       input the hash does not cover breaks cache identity, and a weighted sum
       silently reorders the terms.
-
+- [ ] 5.8 Staged optimization implements the exact anytime rule:
+      `STAGE_BUDGET_SPLIT = [0.60, 0.25, 0.15]` with early remainder donated
+      forward; OPTIMAL fixes an equality; FEASIBLE or UNKNOWN-with-incumbent
+      adds `term <= incumbent` (**never** an equality — fixing an unproven
+      incumbent is not lexicographic minimisation); UNKNOWN with no incumbent
+      stops and reports `no-solution`; INFEASIBLE at stage 1 reports
+      `invalid-output` because Fast placed the same input. The published
+      result is the last stage's incumbent, feasible by construction since
+      every stage only adds inequalities. `objectiveValues` reports
+      `{ value, bound, status }` per term.
+- [ ] 5.9 Fast's placement is supplied as both a CP-SAT solution hint and an
+      upper bound on stage 1's term, which is what makes the only guarantee
+      the design now claims — *each variant's primary term is no worse than
+      Fast's* — true under a wall-clock budget. **Watched red:** remove the
+      bound and run a fixture where the search's first incumbent is worse than
+      Fast on that term.
+- [ ] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
+      bounded 2-6 slice fixture, sufficiently large coefficients encode the
+      same lexicographic order exactly, so PRI/Time disagreement proves
+      nothing about staged versus weighted. The mutation instead substitutes
+      the implementation's **own** coefficient constants into a fixture built
+      so the second term's swing exceeds the first term's coefficient gap —
+      an answer that necessarily changes — plus a separate integer-overflow
+      guard test for the weighted form's bound.
+- [ ] 5.11 Packaging into the deployed artifact: the Dagger/image path installs
+      the pinned Python runtime and the locked OR-Tools environment, copies
+      the package and entrypoint into the be-01 runtime, and exposes the
+      installed version to the coordinator as the `solverVersion` half of
+      `contractVersion`. An Nx target runs the Python suite in the gate.
+      **Watched red:** build the image without the package; the spawn proof
+      must fail with `internal-error` rather than silently falling back.
 ## 6. OptimizationCoordinator — admission, spawn, cancel, restart
 
 - [ ] 6.1 Coordinator in `apps/be-01/src/service/`: on a debounced edit with the
@@ -303,7 +411,17 @@ h2puni is green — no build or autotest runs on the workspace box.
       in-memory counter and watch 6.7's two-instance case fail; drop
       `PR_SET_PDEATHSIG` and watch 6.8 fail. Four faults, four `Proof:`
       comments, because one check passing does not prove the others exist.
-
+- [ ] 6.8 Generation allocation is one transaction over
+      `(optimization_generation, optimization_input_hash)`: equal hash reuses
+      the generation; a different or NULL hash sets the hash and increments
+      under `WHERE optimization_generation = :seen`, deleting the previous
+      generation's cache, slot and queue rows in the same transaction. The
+      compare-and-swap is what makes the pair atomic across blue and green —
+      a losing writer retries and observes the winner's hash.
+      **Watched red:** two concurrent allocators for one hash must produce one
+      generation and one child per objective; an allocator for a different
+      hash must not coalesce onto the current slot; a restart on an unchanged
+      hash must allocate nothing.
 ## 7. Failure path and events
 
 - [ ] 7.1 Non-zero exit, timeout, OS kill, OOM and failed re-validation each
@@ -340,7 +458,33 @@ h2puni is green — no build or autotest runs on the workspace box.
       crash-injection case fail. Two `Proof:` comments. A broadcast per read
       would make every collaborator refetch unchanged data; a split write is a
       result nobody is told about.
-
+- [ ] 7.6 A newly written failure marker emits `schedule_optimization_failed`
+      in the same transaction as the row, carrying `(projectId, generation,
+      inputHash, objective, contractVersion, budgetMs, failureReason)` and no
+      schedule. Without it the read returns Fast, success emits
+      `schedule_optimized`, and failure emitted nothing — so a client on
+      screen sat at `Optimizing…` for ever and manual-only Retry was
+      unreachable. A cache **hit** still emits nothing; a hit is not a new
+      outcome. **Watched red:** both variants fail with no other event; the
+      client must reach `Optimization unavailable · Retry` with no refresh.
+- [ ] 7.7 `budgetMs` joins both event identities. It is a cache-key column and
+      changes neither hash nor generation, so without it a larger-budget
+      result announced itself under the smaller-budget identity and a client
+      holding that identity ignored the only notice that should move it.
+      **Watched red:** raise the budget, store, assert the client refetches.
+- [ ] 7.8 Name the seam rather than assume it: `EventLogRepo.recordEventIn(tx,
+      subscription, message, createdAt)` writes inside the caller's
+      transaction, and `GatewayBroadcaster.pushRecorded(subscription,
+      recorded, event)` buffers and pushes an already-recorded sequence
+      without recording it twice; today `recordEvent` opens its own
+      transaction and `publish` does both. `publish` becomes those two calls.
+- [ ] 7.9 The guarantee is narrowed in every artifact to **one durable replay
+      record plus one best-effort post-commit push** — `event_log` is a replay
+      buffer consulted on resume, not a dispatched-and-acknowledged outbox,
+      and a process can die after commit and before the push, so "delivered
+      at least once" over a live socket was false. **Watched red:** kill
+      between commit and push; the record must exist and a client resuming
+      from its last sequence must receive it.
 ## 8. UI — toggle, selectors, indicator
 
 - [ ] 8.1 Project Settings hidden toggle bound to `optimization_enabled` (3b),
@@ -372,7 +516,19 @@ h2puni is green — no build or autotest runs on the workspace box.
       to prevent.
 - [ ] 8.6 A user-facing feature: file one lane-q Browser Use Cloud QA task after
       deploy.
-
+- [ ] 8.5 `sameOrder(a, b)` is the exact relation, computed server-side on the
+      **materialised** schedules and shipped as one boolean beside the
+      day-count delta: it holds iff for every pair of slices present in both,
+      `sign(startA(s) - startA(t)) === sign(startB(s) - startB(t))` in
+      quantised units. It is blind to a uniform shift and to iteration order,
+      and it treats ties as first-class — a tie broken and a tie created are
+      both reordered. **Watched red / scenarios:** uniform two-day shift
+      (same order, later deadline); a tie broken (reordered); a tie created
+      (reordered); a zero-duration slice moved across another's start
+      (reordered). Client-side computation is forbidden, so client and server
+      cannot label the same pair differently.
+- [ ] 8.6 The failure indicator is driven by `schedule_optimization_failed`
+      rather than by a refetch, and shows per variant.
 ## 9. Corpus and regression safety
 
 - [ ] 9.1 Extend the generated corpus to >=1,000 seeds covering

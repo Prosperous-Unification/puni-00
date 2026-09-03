@@ -253,3 +253,137 @@ While Engine is Optimized and the selected variant has neither a stored result n
 - **GIVEN** Engine is Optimized, Objective is Priority-first, and PRI is admitted but not stored
 - **WHEN** the schedule is read
 - **THEN** Fast offsets are returned with an `Optimizing…` indicator
+
+### Requirement: An optimized result is materialised into the full schedule contract
+
+The solver response SHALL carry only `{ status, offsets, objectiveValues }`, and the system SHALL NOT persist or return that offsets map as a schedule. Before storage the system SHALL materialise a complete `Schedule` from the offsets and the canonical input, using the Fast annotation pass with the optimized starts pinned, so that every `ScheduledSlice` field the read payload exposes — duration, estimate state, earliest and latest times, float, critical, `boundBy`, `resourcePredecessorId`, `capacityPredecessorIds`, `capacityTeamId`, `width`, `effort` — and both wait counters and the work-item projections are produced by the same code path that produces them for Fast, with resource edges and late times derived from the optimized placement. A start that is strictly later than every floor of its slice SHALL be reported as the added `ScheduleFloor` member `optimizer`, and such a slice SHALL carry a null `resourcePredecessorId`, an empty `capacityPredecessorIds` and a null `capacityTeamId`.
+
+#### Scenario: a deliberately idled slice is named rather than misattributed
+
+- **GIVEN** a PRI solve that idles a low-priority slice past every one of its floors so a high-priority slice can run first
+- **WHEN** the result is materialised and read through the plan payload
+- **THEN** that slice reports `boundBy: 'optimizer'`, a null `resourcePredecessorId`, an empty `capacityPredecessorIds` and a null `capacityTeamId`, and no other slice's floor is reported as `optimizer`
+
+#### Scenario: the materialised schedule is field-complete on the real read path
+
+- **GIVEN** a stored optimized variant for a project whose plan uses assignees, sized teams and a manual floor
+- **WHEN** the plan is read with Engine Optimized
+- **THEN** every field the same read returns for Fast is present and non-placeholder, and float, critical, earliest and latest are recomputed against the optimized starts rather than copied from Fast
+
+### Requirement: Solver time is exchanged in fixed-point workday units
+
+The system SHALL NOT send whole-day integers to the solver. It SHALL compute each slice's duration exactly as Fast computes it — `ASSUMED_SLICE_WORKDAYS` when `days` is null, without dividing by width, and `days / width` otherwise, preserving genuine fractions — and SHALL express durations, manual floors, the horizon and every returned offset in integer multiples of `1 / SOLVER_QUANTUM` workdays. A duration that is not an exact multiple SHALL be rounded up to the next unit, never down. The system SHALL reject a plan whose horizon in units exceeds the solver's integer bound with failure reason `horizon-overflow` rather than spawning a process, and the re-validator SHALL reject any offset that is not a non-negative integer unit within the horizon.
+
+#### Scenario: a width-two one-day slice keeps its half day
+
+- **GIVEN** a slice with `days = 1` and `width = 2`
+- **WHEN** the solver request is built
+- **THEN** its duration is sent as `SOLVER_QUANTUM / 2` units and the materialised schedule reports `duration` 0.5, matching Fast for the same input
+
+#### Scenario: an unestimated wide slice is not divided
+
+- **GIVEN** a slice with `days = null` and `width = 3`
+- **WHEN** the solver request is built
+- **THEN** its duration is `ASSUMED_SLICE_WORKDAYS × SOLVER_QUANTUM` units, not one third of it
+
+### Requirement: The staged objective is an anytime algorithm with stated stage outcomes
+
+Staged lexicographic optimization SHALL divide `budgetMs` across its three terms by the exported `STAGE_BUDGET_SPLIT`, donating an early stage's remainder to the next. A stage proved OPTIMAL SHALL fix its term as an equality; a stage ending FEASIBLE, or UNKNOWN with an incumbent, SHALL constrain its term by the inequality `term <= incumbent` and SHALL NOT fix an equality; a stage ending UNKNOWN with no incumbent SHALL stop staging and publish nothing with reason `no-solution`; INFEASIBLE at the first stage SHALL be reported as `invalid-output`. The published result SHALL be the incumbent of the last stage that produced one, and a partially staged result SHALL be cacheable. `objectiveValues` SHALL report `{ value, bound, status }` per term. The system SHALL NOT require either variant's objective value to beat the other variant's; it SHALL require each variant's own primary term to be no worse than the Fast baseline's value for that term, achieved by supplying Fast's placement as both a solution hint and an upper bound on the first stage.
+
+#### Scenario: the first stage exhausts the budget without proof
+
+- **GIVEN** a PRI solve whose priority stage ends FEASIBLE with incumbent `v` after consuming its whole stage budget
+- **WHEN** the makespan stage runs
+- **THEN** the model carries `PRIORITY <= v` rather than `PRIORITY = v`, and the published result is the last incumbent found
+
+#### Scenario: a run that cannot beat Fast still publishes
+
+- **GIVEN** an input where CP-SAT finds no placement better than Fast's on the selected primary term within the budget
+- **WHEN** the run ends
+- **THEN** Fast's own value is published as the variant result and the variant is not marked failed
+
+### Requirement: A generation records the input hash it was allocated for
+
+The project row SHALL store `optimization_input_hash` beside `optimization_generation`. Allocation SHALL be one transaction that reads both, reuses the generation when the stored hash equals the computed hash, and otherwise sets the hash and increments the generation under a compare-and-swap on the generation it read, deleting the previous generation's cache, slot and queue rows in the same transaction. Two processes computing the same hash concurrently SHALL NOT allocate two generations, and a process computing a different hash SHALL NOT coalesce onto the current generation's slot.
+
+#### Scenario: two backends cold-read the same plan at once
+
+- **GIVEN** blue and green both compute hash H for a project whose stored hash is H0
+- **WHEN** both attempt allocation
+- **THEN** exactly one increments the generation and stores H, the other observes H and reuses the same generation, and one PRI child and one Time child exist in total
+
+#### Scenario: a restart on an unchanged plan reuses its generation
+
+- **GIVEN** a backend restarts while the project's stored hash still equals the computed hash
+- **WHEN** the plan is read
+- **THEN** no new generation is allocated and the existing cache rows remain valid
+
+### Requirement: A failed variant reaches a client already on screen
+
+A newly written failure marker SHALL emit a `schedule_optimization_failed` project event in the same transaction that writes the row, carrying `(projectId, generation, inputHash, objective, contractVersion, budgetMs, failureReason)` and no schedule. A client displaying that variant SHALL move to the `Optimization unavailable · Retry` indicator on receiving it, without a manual refresh and without refetching the variant. A cache hit SHALL still emit nothing.
+
+#### Scenario: both variants fail and Retry still appears
+
+- **GIVEN** a client viewing Engine Optimized while both PRI and Time solves are in flight
+- **WHEN** both fail and no other event occurs
+- **THEN** the client shows `Optimization unavailable · Retry` for the selected variant without any refresh or poll
+
+### Requirement: Result events name every cache-key dimension
+
+Both `schedule_optimized` and `schedule_optimization_failed` SHALL carry `budgetMs` in their identity, so a receiver can tell which cached row an event names. The system SHALL guarantee one durable `event_log` record per newly stored outcome plus one best-effort post-commit push, and SHALL NOT claim delivery over a live socket. The record SHALL be written inside the same transaction as its cache row through a transaction-taking repository call, and pushed afterwards without being recorded twice.
+
+#### Scenario: raising the budget notifies a client holding the old result
+
+- **GIVEN** a client holding the stored result for generation G at budget 60000
+- **WHEN** the budget is raised to 120000 and a new result is stored for the same hash and generation
+- **THEN** the event's identity differs by `budgetMs` and the client refetches rather than ignoring it as a duplicate
+
+#### Scenario: the process dies between commit and push
+
+- **GIVEN** a stored result whose transaction has committed
+- **WHEN** the process exits before the websocket push
+- **THEN** the `event_log` record exists and a client resuming from its last sequence receives it
+
+### Requirement: The canonical slice order is stable across reads and processes
+
+Canonicalization SHALL group slices by work item, order the groups by work-item id, and preserve each group's own order as given, because only the intra-item order carries step precedence. `WorkItemRepo.listByProject` SHALL order work items by id, so the argument tuple handed to Fast does not vary between reads of an unchanged project.
+
+#### Scenario: an unchanged project hashes identically across adapter reads
+
+- **GIVEN** a stored project read twice through the production repository and service path
+- **WHEN** the two canonical inputs are hashed
+- **THEN** the hashes are equal even if the underlying row order differs
+
+### Requirement: Every new stored enum is validated at the read boundary
+
+The migrations SHALL declare a `CHECK` for each new stored enum and for the new boolean column, and the repository read paths SHALL validate `status`, `objective`, `failureReason`, `schedule_engine` and `schedule_objective` explicitly, throwing an error naming the column and the stored value on an unknown one, as `toProject` already does for `estimateMethod`, `depReach` and `estimateRounding`. The system SHALL NOT cast or default an unknown stored enum.
+
+#### Scenario: an unknown failure reason is refused rather than defaulted
+
+- **GIVEN** a cache row whose `failure_reason` holds a value outside the defined set
+- **WHEN** the row is read on the production path
+- **THEN** the read throws naming the column and the value, and no variant state is inferred from it
+
+### Requirement: The solver package is installed in the deployed image
+
+The build SHALL install the pinned Python runtime and the locked OR-Tools environment into the be-01 image, copy the `wbs-solver` package and entrypoint into that runtime, and expose the installed package version to the coordinator as the `solverVersion` half of `contractVersion`. The Python suite SHALL have its own build target wired into the gate.
+
+#### Scenario: a spawn from the built image succeeds and its absence is proved to fail
+
+- **GIVEN** the built be-01 image
+- **WHEN** the coordinator spawns the solver entrypoint
+- **THEN** it returns a valid response line, and an image built without the package makes the same spawn fail with `internal-error` rather than silently returning Fast
+
+### Requirement: The comparison indicator names the change by an exact order relation
+
+Two schedules SHALL be reported as the same order iff, for every pair of slices present in both, the sign of the difference between their starts is equal in both, compared in quantised units on the materialised schedules. The relation SHALL be computed server-side and shipped as one boolean beside the day-count delta.
+
+#### Scenario: a uniform shift is not a reorder
+
+- **GIVEN** an optimized schedule whose every slice starts exactly two workdays later than Fast's
+- **THEN** the indicator reports the same order and a later deadline
+
+#### Scenario: a broken tie is a reorder
+
+- **GIVEN** two slices that start on the same day under Fast and on different days under the optimized result
+- **THEN** the indicator reports reordered
