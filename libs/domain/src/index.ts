@@ -36,6 +36,11 @@ export * from './progress';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+// The slice graph's edges — the intra-item step chain and the reach-decided
+// join — beside the reach that decides one half of it. Here rather than in
+// `schedule.ts` because the solver request builder must derive the same graph,
+// and a second copy is the copy that gets the join backwards.
+export * from './slice-edges';
 // The one place the solver's integer time axis is defined, and the only
 // quantisation of `durationOf` anywhere. It lives here rather than in
 // `schedule.ts` because the quantum is a fact about CP-SAT and not about the

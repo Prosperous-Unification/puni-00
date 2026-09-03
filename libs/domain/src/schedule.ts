@@ -2,6 +2,7 @@ import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import type { DependencyReach } from './dependency-reach';
 import { deriveNumbers, type PlannedRow } from './derive-numbers';
 import { leafFloorsOf } from './leaf-constraints';
+import { sliceGraphEdges } from './slice-edges';
 import { snapWorkdays } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
@@ -1654,52 +1655,15 @@ function slackOf(latestStart: number, earliestStart: number): number {
 }
 
 /**
- * Which of one leaf's slices a dependency on it waits for — the index, in step
- * order, of the slice whose finish releases the successor.
+ * Which of one leaf's slices a dependency on it waits for — moved to
+ * `slice-edges.ts` and re-exported from `libs/domain`'s barrel, so this is the
+ * only line about it left here.
  *
- * The one place the project's {@link DependencyReach} is read. Everything
- * downstream — parent expansion to leaves, successor-side attachment to the
- * first slice plain, floors, cycle detection and the item-anchored arithmetic —
- * takes the answer and does not know which arm produced it.
- *
- * - `whole-item`: the **last** slice, so a dependency waits for the whole work
- *   item. Dany's call on 2026-08-29, having seen the August rule drawn.
- * - `anchor-slice`: the first slice somebody **estimated** — his words on
- *   2026-08-11, "first in list of project roles, then first that is estimated"
- *   — and the last slice when nobody estimated any of them. `days !== null`
- *   rather than `days > 0`, which is what `Scheduled.estimated` means
- *   everywhere else here: an explicit zero is somebody saying this step takes
- *   no time, and the walk honours the statement. Nobody having said anything is
- *   the different fact, and it is the one this walk steps over — a `Design`
- *   step a project lists and this plan left blank must not stand in front of
- *   the `Dev` the wait is really about, or every edge in such a plan decides
- *   nothing.
- *
- * Both arms fall through to the last slice, which is why an unestimated
- * predecessor is reached at its own finish under either reach.
- *
- * That finish used to be the leaf's own start, so such an edge imposed exactly
- * what the leaf's own predecessors imposed and nothing more.
- * `assumed-duration-schedules` (2026-08-29) ended that: an unestimated slice is
- * {@link ASSUMED_SLICE_WORKDAYS} long, so a leaf nobody has estimated finishes
- * its steps' assumed durations end to end — three unestimated steps run 0→6 —
- * and a dependency on it now imposes a real wait. "Has a duration" and "is
- * estimated" are different questions, and only the `anchor-slice` arm asks the
- * second: its `days !== null` walk still steps over a slice that has a duration
- * nobody stated.
- *
- * `slices` is never empty: `groupByWorkItem` only makes a group because a slice
- * went into it, and the leaf it made none for is what `slicesOf` refuses. So
- * `length - 1` is a real index rather than `-1`.
- *
- * See `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+ * It moved with the edge join it decides. The solver request builder must reach
+ * the same slice this pass reaches; a reach read in two places is two rules the
+ * moment either is edited, and the join around it has already been got wrong
+ * three ways (see that module's header).
  */
-export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[]): number {
-  if (reach === 'whole-item') return slices.length - 1;
-  const estimated = slices.findIndex((slice) => slice.days !== null);
-  return estimated === -1 ? slices.length - 1 : estimated;
-}
-
 /**
  * The schedule for a project: computed in slices, and levelled so that one
  * person does one thing at a time.
@@ -1878,7 +1842,6 @@ export function schedule(
    */
   const nodes: SliceNode[] = [];
   const firstNode = new Map<string, number>();
-  const reachedNode = new Map<string, number>();
   let items = 0;
   for (const leafId of leafIds) {
     const { slices: own, offsets } = slicesOf(leafId);
@@ -1897,24 +1860,20 @@ export function schedule(
         successors: [],
       });
     });
-    for (let node = first + 1; node < nodes.length; node += 1) {
-      nodes[node - 1].successors.push(node);
-      nodes[node].predecessors.push(node - 1);
-    }
     // Recorded only if the group put a node in. It always does — a group exists
     // because a slice created it — and the one thing that could make it not is
     // the fault `firstNodeOf` below names, which is why nothing is written for
     // a leaf with no node rather than a dangling index.
-    if (nodes.length > first) {
-      firstNode.set(leafId, first);
-      reachedNode.set(leafId, first + reachedSliceOf(reach, own));
-    }
+    if (nodes.length > first) firstNode.set(leafId, first);
   }
 
   /**
-   * Where a leaf's slices begin among the nodes — the node an external edge
-   * arrives at. It leaves from {@link reachedNodeOf}, which is not always
-   * this one.
+   * Where a leaf's slices begin among the nodes.
+   *
+   * Every edge {@link sliceGraphEdges} returns names its ends as a leaf and a
+   * position within that leaf's own group, so this is the offset that turns one
+   * into a node index. It is the leaf's first node because the groups were
+   * pushed in `leafIds` order and contiguously.
    *
    * Every leaf has an entry: the loop above made one for each of them, and
    * refused the leaf it was handed no slice for. It throws rather than skipping
@@ -1933,53 +1892,19 @@ export function schedule(
     return found;
   };
 
-  /**
-   * The leaf's **reached** node — where an external edge leaves it, chosen by
-   * the project's {@link DependencyReach} in {@link reachedSliceOf}. Recorded
-   * beside {@link firstNode} above, and absent for exactly the leaf that map is
-   * absent for, so this throws for the same reason and with the same words.
-   */
-  const reachedNodeOf = (leafId: string): number => {
-    const found = reachedNode.get(leafId);
-    if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
-    return found;
-  };
-
-  // The predecessor's **reached** slice to the successor's **first**: the
-  // reached slice finishes before any of the successor starts, and the
-  // successor's own step order carries the wait to the steps behind its first.
-  // Pushed onto the two nodes rather than rebuilt into a map — the adjacency is
-  // written once per edge.
+  // The slice graph's edges, derived once in {@link sliceGraphEdges} rather
+  // than built here: each leaf's own step chain, then the predecessor's
+  // **reached** slice to the successor's **first**. Both rules moved with the
+  // reach they depend on, because the solver request builder must derive the
+  // very same graph and a second copy is the copy that gets the join backwards
+  // — that module's header carries the three watched reds that fix each half.
   //
-  // The asymmetry is deliberate and the reach does not touch it: the edge lands
-  // on the successor's first slice **plain**, never its first estimated one and
-  // never its last, because either would leave an unestimated first step with
-  // no predecessor and start the row before the thing it waits for.
-  //
-  // Proof: the join reverted to the predecessor's **last** node while the reach
-  // was `anchor-slice` — the whole-item rule `dep-waits-on-first-role`
-  // replaced — and `waits for the first role, not the last` failed on
-  // `Expected: 3, Received: 5`, `a branch releases at its anchors` on
-  // `Expected: 4, Received: 5` (`schedule-shapes.test.ts`); watched 2026-08-11.
-  //
-  // Proof: `reachedNodeOf` replaced by `firstNodeOf` — the first slice plain,
-  // the rule before August — and four failed: `a chain does not collapse
-  // because a project lists a role nobody estimated` on `c2` `earliestStart`
-  // `Expected: 4, Received: 0`, `walks past an unestimated role to the first
-  // one somebody estimated` on `Expected: 4, Received: 0`, `a branch anchors
-  // each leaf on its own first estimate` on `Expected: 5, Received: 0`, and
-  // `carries an unestimated predecessor's own wait through to its successor`
-  // on `B` `earliestStart` `Expected: 3, Received: 0`; watched 2026-08-11.
-  //
-  // Proof: `reachedNodeOf` used on the **successor** side too — the reach
-  // applied to both ends — and `a parent predecessor expands to its leaves
-  // under either reach` failed on `Q`'s projection, `earliestStart` /
-  // `earliestFinish` `{5, 11}` against a received `{0, 7}`: the successor's own
-  // first step escaped the wait entirely and only its last was held. Watched
-  // 2026-08-30.
-  for (const { predecessorId, successorId } of leafEdges) {
-    const before = reachedNodeOf(predecessorId);
-    const after = firstNodeOf(successorId);
+  // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
+  // written once per edge, and the order the edges arrive in is the order these
+  // arrays are walked in later.
+  for (const { from, to } of sliceGraphEdges(leafIds, (id) => slicesOf(id).slices, leafEdges, reach)) {
+    const before = firstNodeOf(from.leafId) + from.at;
+    const after = firstNodeOf(to.leafId) + to.at;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
   }
