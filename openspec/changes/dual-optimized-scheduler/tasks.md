@@ -422,6 +422,21 @@ check-that-cannot-fail failure R5 names.
       offsets is rejected; a response whose `value` is strictly better than
       `stageValue` is **accepted**; a response whose `value` is worse than
       `stageValue` is rejected.
+      **Two of three halves landed** in
+      `libs/contracts/solver/src/revalidate-solver-result.ts`: the placement
+      rules (offset key-set equality, the 2.9 domain, floors, edges, pool
+      capacity against **all** of a slice's `poolIds`, assignee non-overlap)
+      and the objective arithmetic (the safe-integer wire rule, `value <=
+      stageValue`, and all three terms recomputed with a `bigint` accumulator
+      so the check cannot round the overflow it exists to find). **The deadline
+      clause is NOT implemented** and is the only part left: it is stated on
+      the materialised schedule in the fractional domain, so it waits on 4.9's
+      `materialiseOptimized`. It is named in the module header rather than
+      stubbed. A fifth kind of refusal appeared that this slice did not
+      predict — `malformed-request`, for a request that cannot support a
+      verdict at all (duplicate slice key, an edge naming no slice, a pool
+      membership with no capacity, a slice with no baseline offset). Blaming
+      the solver for those sends the repair to the wrong side of the seam.
 - [ ] 2.5 **Proven by** `solver-contract.test.ts`: a valid response passes;
       each violation in 2.4 is rejected as invalid-output, one case each; and
       each of 2.3's six framing cases is fed to `parseSolverResponse` **as a raw
@@ -467,9 +482,13 @@ check-that-cannot-fail failure R5 names.
       and preserves genuine fractions. **Watched red:** a `days: 1, width: 2`
       fixture must read 0.5 workdays end to end; a `days: null, width: 3`
       fixture must read `ASSUMED_SLICE_WORKDAYS`, not a third of it.
-- [ ] 2.9 The re-validator rejects any offset that is not a non-negative
+- [x] 2.9 The re-validator rejects any offset that is not a non-negative
       integer unit within `horizonUnits`. **Watched red:** feed it a
       fractional offset and a negative one.
+      **Landed** in `revalidate-solver-result.ts`; the watched red disables the
+      domain guard and fails that case alone, 69/1. `horizonUnits` bounds the
+      OFFSET and not the finish, because it is the CP-SAT variable domain; a
+      finish past the horizon is 2.4's makespan arithmetic.
 - [ ] 2.10 `horizonUnits > 2**31 - 1` fails before spawn with
       `horizon-overflow`, and the `Σ w(s) × horizonUnits` worst case past
       `Number.MAX_SAFE_INTEGER` fails before spawn with `objective-overflow`;

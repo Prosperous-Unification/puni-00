@@ -1,4 +1,10 @@
-import type { SolverRequest, SolverResponse, SolverSlice } from './wire-types';
+import {
+  SOLVER_OBJECTIVE_TERMS,
+  type SolverObjectiveTerm,
+  type SolverRequest,
+  type SolverResponse,
+  type SolverSlice,
+} from './wire-types';
 
 /**
  * 2.4 — re-validation, placement half.
@@ -19,10 +25,14 @@ import type { SolverRequest, SolverResponse, SolverSlice } from './wire-types';
  * throwing, for the same reason 2.3 does — the caller records a value, and an
  * exception would make it re-derive that value from a message.
  *
- * This module carries the placement rules. The objective arithmetic and the
- * deadline clause are the remaining halves of 2.4 and are not implemented here;
- * they are listed in the task file rather than stubbed, because a check that
- * exists and always passes is worse than one that is absent.
+ * This module carries the placement rules and the objective arithmetic. The
+ * deadline clause is 2.4's remaining half and is **not** implemented here: it
+ * is stated on the MATERIALISED schedule in the real fractional domain
+ * (`lastWorkdayOf(start, finish) <= effectiveDeadlineOffset`), which needs
+ * `materialiseOptimized` from 4.9, and checking it in quantised units instead
+ * would re-implement the inclusive-ceiling rounding a second time. It is named
+ * here and in the task file rather than stubbed, because a check that exists
+ * and always passes is worse than one that is absent.
  */
 
 /**
@@ -46,6 +56,10 @@ export const SOLVER_REVALIDATION_FAILURES = [
   'floor-violated',
   'pool-overcapacity',
   'assignee-double-booked',
+  'objective-domain',
+  'objective-overflow',
+  'objective-regression',
+  'objective-mismatch',
 ] as const;
 export type SolverRevalidationFailure = (typeof SOLVER_REVALIDATION_FAILURES)[number];
 
@@ -107,6 +121,41 @@ const overloadAt = (
   return null;
 };
 
+const isNonNegativeSafeInteger = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 0;
+
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+
+/**
+ * The three cost terms of 5.2, recomputed from the final offsets in quantised
+ * units: `MAKESPAN = max finish`, `PRIORITY = Σ priorityWeight(s) · finish(s)`,
+ * `MOVEMENT = Σ |start(s) − baselineOffsets[s]|`.
+ *
+ * The accumulator is `bigint` for the same reason 2.10's preflight bound is:
+ * `PRIORITY` multiplies a weight by a horizon and sums that over every slice,
+ * so a `number` accumulator would silently round the overflow it is here to
+ * detect and then agree with whatever the solver reported.
+ */
+const recomputeObjectives = (
+  request: SolverRequest,
+  placements: readonly Placement[],
+): Record<SolverObjectiveTerm, bigint> => {
+  let makespan = 0n;
+  let priority = 0n;
+  let movement = 0n;
+  for (const placement of placements) {
+    const finish = BigInt(placement.finish);
+    if (finish > makespan) makespan = finish;
+    priority += BigInt(placement.slice.priorityWeight) * finish;
+    const start = BigInt(placement.start);
+    const baseline = BigInt(request.baselineOffsets[placement.slice.key]);
+    movement += start >= baseline ? start - baseline : baseline - start;
+  }
+  // An empty slice set has no finish to take a maximum over, and 0 is the
+  // honest reading: nothing is scheduled, so the schedule ends at day zero.
+  return { makespan, priority, movement };
+};
+
 const groupBy = <T>(items: readonly T[], keysOf: (item: T) => readonly string[]) => {
   const groups = new Map<string, T[]>();
   for (const item of items) {
@@ -138,6 +187,33 @@ export const revalidateSolverResult = (
       return refuse('malformed-request', `duplicate slice key ${JSON.stringify(slice.key)}`);
     }
     slices.set(slice.key, slice);
+    // The objective arithmetic below converts these three to `bigint`, and
+    // `BigInt(1.5)` throws. A re-validator that crashes on a malformed request
+    // reports nothing at all, so the domain is proved before it is used.
+    for (const field of ['durationUnits', 'priorityWeight', 'notBeforeUnits'] as const) {
+      if (!isNonNegativeSafeInteger(slice[field])) {
+        return refuse(
+          'malformed-request',
+          `slice ${JSON.stringify(slice.key)} has ${field} ${JSON.stringify(slice[field])}`,
+        );
+      }
+    }
+    // MOVEMENT is measured against the baseline, so a slice with no baseline is
+    // a term that cannot be computed rather than a term that is zero. ONE check
+    // covers both absent and out-of-domain, and it is one check on purpose: an
+    // `Object.hasOwn` guard in front of it read as the careful spelling and was
+    // measured dead — removing it changed no test, because
+    // `Number.isSafeInteger(undefined)` is already false. `SolverOffsetMap` is
+    // a `Record<string, number>`, so the compiler believes this lookup always
+    // lands; the map is a wire value and its key set is exactly what is in
+    // question here, which is why the domain is asked of the value itself.
+    const baseline = request.baselineOffsets[slice.key];
+    if (!isNonNegativeSafeInteger(baseline)) {
+      return refuse(
+        'malformed-request',
+        `slice ${JSON.stringify(slice.key)} has baseline offset ${JSON.stringify(baseline)}`,
+      );
+    }
     for (const poolId of slice.poolIds) {
       if (!Object.hasOwn(request.pools, poolId)) {
         return refuse(
@@ -244,6 +320,56 @@ export const revalidateSolverResult = (
       return refuse(
         'assignee-double-booked',
         `${JSON.stringify(personId)} is on ${String(overload.load)} slices at unit ${String(overload.at)}`,
+      );
+    }
+  }
+
+  // The objective arithmetic runs last, on a schedule already proved placeable:
+  // a term recomputed over offsets that do not match the request's slices would
+  // be arithmetic about a different plan.
+  const recomputed = recomputeObjectives(request, placements);
+  for (const term of SOLVER_OBJECTIVE_TERMS) {
+    const entry = response.objectiveValues[term];
+
+    // Repeated from the parser on purpose, and for the same reason the offset
+    // domain is: this function must hold whether or not its caller used
+    // `parseSolverResponse`.
+    for (const member of ['value', 'stageValue', 'bound'] as const) {
+      const at = entry[member];
+      if (at !== null && !isNonNegativeSafeInteger(at)) {
+        return refuse(
+          'objective-domain',
+          `${term}.${member} is ${JSON.stringify(at)}, not a non-negative safe integer`,
+        );
+      }
+    }
+
+    // `value` is a statement about the published schedule and `stageValue` is a
+    // statement about one stage's incumbent, so a later stage improving the
+    // term below its own incumbent is legal and expected. What is not legal is
+    // publishing a value WORSE than an incumbent every later stage was
+    // constrained at.
+    if (entry.stageValue !== null && entry.value > entry.stageValue) {
+      return refuse(
+        'objective-regression',
+        `${term}.value ${String(entry.value)} is worse than its stage incumbent ${String(entry.stageValue)}`,
+      );
+    }
+
+    const computed = recomputed[term];
+    if (computed > MAX_SAFE) {
+      return refuse(
+        'objective-overflow',
+        `${term} recomputes to ${computed.toString()}, past Number.MAX_SAFE_INTEGER`,
+      );
+    }
+    // `value` is the ONLY recomputed field. `stageValue`, `bound` and `status`
+    // are statements about a stage rather than about this schedule, and there
+    // is nothing in the published offsets to check them against.
+    if (computed !== BigInt(entry.value)) {
+      return refuse(
+        'objective-mismatch',
+        `${term}.value is ${String(entry.value)}, but the offsets give ${computed.toString()}`,
       );
     }
   }

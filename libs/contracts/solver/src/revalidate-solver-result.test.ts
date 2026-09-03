@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { revalidateSolverResult } from './revalidate-solver-result';
 import type {
+  SolverObjectiveTerm,
   SolverObjectiveValues,
   SolverRequest,
   SolverResponse,
@@ -46,14 +47,38 @@ const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
   ...over,
 });
 
-const TERM = { value: 0, stageValue: 0, bound: 0, status: 'feasible' } as const;
-const VALUES: SolverObjectiveValues = { makespan: TERM, priority: TERM, movement: TERM };
+const term = (value: number): SolverObjectiveValues[SolverObjectiveTerm] => ({
+  value,
+  stageValue: value,
+  bound: value,
+  status: 'feasible',
+});
 
-const feasible = (offsets: Record<string, number>): SolverResponse => ({
+/**
+ * The three cost terms of 5.2 over the default fixtures, where every slice runs
+ * 10 units, carries `priorityWeight` 0 and has baseline 0. Computed rather than
+ * written down, because every placement case below moves the offsets and the
+ * re-validator now checks the arithmetic: a hand-written constant would turn
+ * each of those cases into an objective failure wearing a placement name.
+ */
+const valuesFor = (
+  offsets: Record<string, number>,
+  over: Partial<SolverObjectiveValues> = {},
+): SolverObjectiveValues => ({
+  makespan: term(Math.max(0, ...Object.values(offsets).map((offset) => offset + 10))),
+  priority: term(0),
+  movement: term(Object.values(offsets).reduce((sum, offset) => sum + offset, 0)),
+  ...over,
+});
+
+const feasible = (
+  offsets: Record<string, number>,
+  over: Partial<SolverObjectiveValues> = {},
+): SolverResponse => ({
   wireVersion: 1,
   status: 'feasible',
   offsets,
-  objectiveValues: VALUES,
+  objectiveValues: valuesFor(offsets, over),
 });
 
 const rejects = (
@@ -165,6 +190,110 @@ describe('revalidateSolverResult checks capacity', () => {
     });
     rejects(revalidateSolverResult(person, feasible({ a: 0, b: 5 })), 'assignee-double-booked');
     expect(revalidateSolverResult(person, feasible({ a: 0, b: 10 })).ok).toBe(true);
+  });
+});
+
+describe('revalidateSolverResult recomputes the objective', () => {
+  // 5.2: MAKESPAN = max finish, PRIORITY = Σ weight · finish,
+  // MOVEMENT = Σ |start − baseline|. Hand-computed here so the assertion does
+  // not share an implementation with the thing it is checking.
+  const weighted = request({
+    slices: [
+      slice({ key: 'a', priorityWeight: 3 }),
+      slice({ key: 'b', priorityWeight: 5, durationUnits: 4 }),
+    ],
+    baselineOffsets: { a: 7, b: 0 },
+  });
+  // a: finish 10, b: finish 20+4 = 24. makespan 24; priority 3·10 + 5·24 = 150;
+  // movement |0−7| + |20−0| = 27.
+  const truth: SolverObjectiveValues = {
+    makespan: term(24),
+    priority: term(150),
+    movement: term(27),
+  };
+  const answer = (values: SolverObjectiveValues): SolverResponse => ({
+    wireVersion: 1,
+    status: 'feasible',
+    offsets: { a: 0, b: 20 },
+    objectiveValues: values,
+  });
+  const withMakespan = (
+    over: SolverObjectiveValues[SolverObjectiveTerm],
+  ): SolverObjectiveValues => ({ ...truth, makespan: over });
+
+  it('accepts all three terms recomputed from the offsets', () => {
+    expect(revalidateSolverResult(weighted, answer(truth))).toEqual({
+      ok: true,
+      published: true,
+    });
+  });
+
+  it('rejects each term that disagrees with the offsets, one at a time', () => {
+    const wrong: SolverObjectiveValues[] = [
+      { ...truth, makespan: term(25) },
+      { ...truth, priority: term(151) },
+      { ...truth, movement: term(28) },
+    ];
+    for (const values of wrong) {
+      rejects(revalidateSolverResult(weighted, answer(values)), 'objective-mismatch');
+    }
+  });
+
+  it('accepts a value strictly better than its stage incumbent', () => {
+    // A later stage may legitimately improve an earlier term below the
+    // incumbent that stage proved; rejecting that rejects valid answers.
+    const better = withMakespan({ value: 24, stageValue: 99, bound: 0, status: 'feasible' });
+    expect(revalidateSolverResult(weighted, answer(better)).ok).toBe(true);
+  });
+
+  it('rejects a value worse than its stage incumbent', () => {
+    // Every later stage carries an inequality at `stageValue`, so publishing
+    // worse than it is a contract violation and not a better answer.
+    const worse = withMakespan({ value: 24, stageValue: 23, bound: 0, status: 'feasible' });
+    rejects(revalidateSolverResult(weighted, answer(worse)), 'objective-regression');
+  });
+
+  it('checks nothing against a null stageValue or bound', () => {
+    const unproved = withMakespan({ value: 24, stageValue: null, bound: null, status: 'unknown' });
+    expect(revalidateSolverResult(weighted, answer(unproved)).ok).toBe(true);
+  });
+
+  it('rejects a wire value that is not a non-negative safe integer', () => {
+    for (const stageValue of [-1, 0.5, Number.MAX_SAFE_INTEGER + 2]) {
+      const bad = withMakespan({ value: 24, stageValue, bound: 0, status: 'feasible' });
+      rejects(revalidateSolverResult(weighted, answer(bad)), 'objective-domain');
+    }
+  });
+
+  it('refuses to round an overflow instead of reporting it', () => {
+    // 2^31 slices' worth of weight against a 2^31 horizon is past
+    // MAX_SAFE_INTEGER by two orders of magnitude. A `number` accumulator would
+    // round the product and then agree with whatever the solver claimed.
+    const huge = request({
+      horizonUnits: 2_147_483_647,
+      slices: [slice({ key: 'a', priorityWeight: 2_147_483_647, durationUnits: 1 })],
+      baselineOffsets: { a: 0 },
+      fastHint: { a: 0 },
+    });
+    const response: SolverResponse = {
+      wireVersion: 1,
+      status: 'feasible',
+      offsets: { a: 2_147_483_646 },
+      objectiveValues: {
+        makespan: term(2_147_483_647),
+        priority: term(0),
+        movement: term(2_147_483_646),
+      },
+    };
+    rejects(revalidateSolverResult(huge, response), 'objective-overflow');
+  });
+
+  it('refuses a request whose arithmetic cannot be done', () => {
+    // `BigInt(1.5)` throws, and a re-validator that crashes reports nothing.
+    const fractional = request({ slices: [slice({ key: 'a', priorityWeight: 1.5 })] });
+    rejects(revalidateSolverResult(fractional, feasible({ a: 0 })), 'malformed-request');
+    const unbaselined = request({ baselineOffsets: { a: 0 } });
+    rejects(revalidateSolverResult(unbaselined, feasible({ a: 0, b: 0 })), 'malformed-request');
   });
 });
 
