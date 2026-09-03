@@ -444,6 +444,32 @@ check-that-cannot-fail failure R5 names.
       accepts it and is the assertion that fails first if the alias is dropped.
       Contracts gates at `9264f0dc`, dirty=0: lint 0, typecheck 0, **77 pass /
       0 fail across 6 files**.
+      **`buildSolverSlices` landed (2026-09-03)** in
+      `libs/contracts/solver/src/build-solver-slices.ts`: the whole slice
+      projection, one wire slice per canonical slice in the order given, taking
+      the three folded maps (`floors`, `deadlines`, `weights`) rather than the
+      tree. Every field is copied or read from a published seam; the function's
+      own content is the assembly and two refusals. **One deliberate divergence
+      from `schedule()`, argued rather than inherited:** the floor is carried on
+      EVERY slice of a leaf, where `schedule()` puts it on the first alone and
+      lets the intra-item chain carry it. Same feasible region — the request's
+      `edges` already carry that chain — but the schema's field is per-slice and
+      defines itself as the *fold*, so a zero on a later slice would be that
+      slice claiming to be unfloored, and a position-dependent projection would
+      need a second grouping rule beside `groupByWorkItem`'s. The deadline is on
+      every slice for the simpler reason that an item due on day `D` has no
+      slice that may finish after it. **Two refusals, both watched red:** a
+      duplicated `(workItemId, stepId)` (three wire maps are keyed by
+      `sliceKey`'s result, so a duplicate is one row silently overwriting
+      another in all three and the re-validator would report the key-set
+      mismatch as a *solver* fault), and a **fractional** width — `width: 0` is
+      already refused twice upstream, but `1.5` yields a perfectly finite
+      duration and would reach the schema's `type: integer` as a malformed
+      request the builder itself wrote. Contracts at `42b23ab5`, dirty=0: lint
+      0, typecheck 0, **87 pass / 0 fail across 7 files**; domain unchanged at
+      356/0. **Still unbuilt in 2.2:** `edges`, `pools`, `horizonUnits` with
+      2.10's overflow preflights, and `baselineOffsets`/`fastHint`, which are
+      2.11's quantised baseline and cannot precede it.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
