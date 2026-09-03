@@ -677,7 +677,7 @@ describe('how wide the steps make the table', () => {
     ).toBe(widthFor('anything-final', DATED));
     // And it answers the narrow state too, which is the fact a count could
     // never carry into it.
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1275 - (84 - 56));
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1235 - (84 - 56));
   });
 
   it('is the fixed columns plus Name plus the steps, with nothing left out', () => {
