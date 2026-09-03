@@ -8,13 +8,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint libs/contracts/src"
+        "command": "bunx eslint libs/contracts/src libs/contracts/solver/src"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint libs/contracts/src --cache --cache-location .nx/eslintcache-contracts"
+        "command": "bunx eslint libs/contracts/src libs/contracts/solver/src --cache --cache-location .nx/eslintcache-contracts"
       }
     },
     "test": {
