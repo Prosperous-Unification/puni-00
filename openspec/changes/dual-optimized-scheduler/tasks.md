@@ -481,9 +481,26 @@ check-that-cannot-fail failure R5 names.
       is a plan of `Infinity` dates and clamping invents a slot nobody has. All
       three refusals watched red at `e61124c6`, 3 fail. Contracts at `e61124c6`,
       dirty=0: lint 0, typecheck 0, **94 pass / 0 fail across 8 files**.
-      **Still unbuilt in 2.2:** `edges`, `horizonUnits` with 2.10's overflow
-      preflights, `baselineOffsets`/`fastHint` (2.11's quantised baseline, which
-      cannot precede it), and the assembly itself. `edges` is the next real
+      **`horizonUnits` and both pre-spawn overflow refusals landed
+      (2026-09-03)** in `solver-preflight.ts` as
+      `preflightSolverRequest(slices)`, returning `parseSolverResponse`'s
+      discriminated shape rather than throwing — the failure token is what the
+      cached row records. The horizon is the SERIAL bound
+      `max(0, ...notBeforeUnits) + Sum durationUnits`, zero-seeded; the
+      objective worst case is `Sum w(s) x horizonUnits`. **Both accumulate in
+      `bigint` and convert only after comparing**, and that is not decoration:
+      with a `number` accumulator the horizon check passes by having already
+      lost precision above its own bound — the check failing OPEN. Watched red
+      at `d665bef5`, 1 fail. The horizon is checked **first** on purpose: when
+      both bounds break, the horizon is the cause and the objective failure its
+      consequence, and naming the consequence sends a user to their priorities
+      when the plan is simply too long. **MOVEMENT's own worst case
+      `Sum |offset - baseline|` is NOT checked yet** and is owed — it needs
+      `baselineOffsets`, which is 2.11's. Contracts at `d665bef5`, dirty=0: lint
+      0, typecheck 0, **103 pass / 0 fail across 9 files**.
+      **Still unbuilt in 2.2:** `edges`, `baselineOffsets`/`fastHint` (2.11's
+      quantised baseline, which cannot precede it) with MOVEMENT's preflight,
+      and the assembly itself. `edges` is the next real
       derivation and it needs a seam published rather than restated, exactly as
       the floor fold did: `expandToLeaves` is already exported and applies
       `reach`, but the **intra-item step chain** is built inline in
