@@ -2,9 +2,9 @@
 
 ### Requirement: Legacy schema elements survive forward migration, rollback, and restart
 
-The three elements named for retirement in R2-6 — the `service_team.size`
-column, the `work_item.service_id` column, and the physical `service_team`
-table name — SHALL all remain present after the full migration chain runs
+The three elements named for retirement in R2-6 SHALL all remain present: the
+`service_team.size` column, the `work_item.service_id` column, and the physical
+`service_team` table name. They SHALL remain after the full migration chain runs
 forward, after a rollback and re-apply, and after a re-run on an already-migrated
 file. No migration in the overlap window SHALL drop, rename, or re-key them.
 
@@ -50,8 +50,8 @@ that carried it and SHALL NOT delete the work item itself.
 
 ### Requirement: The settled team and service set pairs stay intact with cascading deletes
 
-The settled single-team representation — the `work_item_team` join table and
-the `work_item.service_team_id` scalar — SHALL remain, and `work_item_service`
+The settled single-team representation SHALL remain: the `work_item_team` join
+table and the `work_item.service_team_id` scalar. `work_item_service`
 SHALL remain as the single-service set. Deleting a work item SHALL cascade to its
 `work_item_team` and `work_item_service` rows; deleting a team or service
 SHALL cascade to the join rows and SHALL NOT delete work items.
