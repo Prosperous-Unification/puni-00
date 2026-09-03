@@ -246,7 +246,7 @@ comparison UI) and start only after slice 6 is merged.
       produces, so without this the "fresh save over a new read snapshot" SHALL
       stays green while unimplemented and a user's retry stores the plan as of
       the attempt that failed.
-- [ ] 4.6 Quota. Each of the three limits refuses **before** any row is written,
+- [x] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
       after the header insert and watch the "no partial record" assertion fail;
