@@ -185,7 +185,44 @@ check-that-cannot-fail failure R5 names.
       the reverse — retro-fitting three artifacts' "descriptive" text to an
       invented schema is Sol r6 Critical 1 run backwards, and the set-equality
       check below passes just as green on a wrong shape agreed everywhere as
-      on a right one. It carries `wireVersion` as a required
+      on a right one.
+      **`edges` is already answered by `libs/domain/src/schedule.ts` and must be
+      read off it rather than invented** — the same method round 1 used when it
+      rebuilt the canonical input from the code instead of the architecture
+      prose. Three facts, each cited:
+      (a) `expandToLeaves` (`schedule.ts:337`) returns `DependencyEdge[]`, and
+      `DependencyEdge` (`schedule.ts:7`) is `{ predecessorId, successorId }` of
+      **leaf work-item ids** — so the expanded edge set is *not* slice-keyed,
+      while every wire slice is identified by `key`. The conversion is real
+      work, not a rename, because one leaf holds many slices.
+      (b) The predecessor endpoint is
+      `reachedSliceOf(reach, slices)` (`schedule.ts:1676`): `slices.length - 1`
+      under `whole-item`, and under `anchor-slice` the first slice with
+      `days !== null`, falling back to the last. This is where "`reach` applied"
+      is discharged, and it is why the solver can be told it never sees `reach`.
+      (c) The successor endpoint is the **first slice plain under either
+      reach** — `schedule.ts:1718`, "never the first estimated one and never the
+      last: either would leave an unestimated `Dev` with no predecessor at all".
+      The asymmetry is deliberate; a schema that treats both ends alike is wrong
+      in a way no fixture with one slice per item can show.
+      So a wire edge is a pair of **slice `key`s**, one endpoint chosen by (b)
+      and the other by (c), and the intra-item step-order edges the request also
+      carries are already in that same form. **Watched red for this fact:**
+      build the request for a two-slice predecessor under each reach and assert
+      the emitted edge leaves a *different* slice; collapse the predecessor
+      endpoint to the first slice and the `whole-item` case must fail.
+      **One encoding hazard, and it is in the key itself:**
+      `sliceKey(workItemId, stepId)` joins the two ids with a literal
+      **U+0000** separator and renders a null `stepId` as the empty string
+      (`schedule.ts:105`; read the separator there rather than transcribing it —
+      pasting it into a document writes a real NUL byte into that file, and
+      every `grep` over it then reports binary and prints nothing, which is how
+      this paragraph found its own hazard). So every wire `key` contains a
+      U+0000. That is legal JSON and survives
+      `JSON.stringify`/`json.loads`, but the schema must not add a `pattern`
+      that assumes a printable key, the golden corpus must carry one such key
+      **verbatim** rather than a sanitised stand-in, and any logging of a
+      request must not be the place this is discovered. It carries `wireVersion` as a required
       literal, states the unit of every numeric field, and includes every field
       staged solving needs (`fastHint`, `baselineOffsets`, `stageBudgetSplit`,
       `quantum`, `horizonUnits`, and the per-term `objectiveValues` shape).
