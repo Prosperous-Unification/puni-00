@@ -5,7 +5,13 @@ import type { AuthService } from '../service/auth.service';
 import type { RemoveStepOutcome, StepRefusal, StepService } from '../service/step.service';
 import { statusForRefusal } from './refusal-status';
 
-const named = t.Object({ name: t.String() });
+/**
+ * Built per controller, not per module: Elysia writes `additionalProperties`
+ * into the schema object it is handed when the route's validator compiles, so a
+ * module-level one is shared mutable state between apps — see
+ * {@link credentials} in `auth.controller.ts` for the failure that taught this.
+ */
+const named = () => t.Object({ name: t.String() });
 
 /**
  * `taken` is 409 and a blank name is 422, the same split the rest of the API
@@ -40,7 +46,7 @@ export function stepController(auth: AuthService, steps: StepService) {
         }
         return { step: outcome.value };
       },
-      { ...signedIn, body: named },
+      { ...signedIn, body: named() },
     )
     .patch(
       '/:id/steps/:stepId',
@@ -52,7 +58,7 @@ export function stepController(auth: AuthService, steps: StepService) {
         }
         return { step: outcome.value };
       },
-      { ...signedIn, body: named },
+      { ...signedIn, body: named() },
     )
     .delete(
       '/:id/steps/:stepId',

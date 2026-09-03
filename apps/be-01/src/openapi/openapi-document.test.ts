@@ -39,6 +39,52 @@ describe('the committed OpenAPI document', () => {
   });
 
   /**
+   * The document says the same thing whatever else the process has done.
+   *
+   * **The order-dependence this file shipped with, and the only reason it was
+   * ever green.** Elysia compiles a route's body validator lazily, on that
+   * route's first request, and injects `additionalProperties: !normalize` —
+   * `false`, since `normalize` defaults on — **into the schema object it was
+   * handed**. Four controllers declared theirs at module level, so one app
+   * serving a POST rewrote the schema every later app would serve in its
+   * document.
+   *
+   * Bun runs a project's tests in one process, in directory order; Linux and
+   * macOS enumerate differently. On 2026-09-03 a commit that added one test
+   * file and no production code turned `main` red on exactly this: on the
+   * runner an auth test logged in before the case above read the document, so
+   * the document carried six `additionalProperties: false` the committed file
+   * does not have, and the failure read as "the routes moved" when nothing had.
+   *
+   * This case is the invariant, stated so it cannot come back: a request to one
+   * app may not change what another app's document says.
+   *
+   * Proof: with `credentials` in `auth.controller.ts` back at module level,
+   * watched failing on `expect(received).toBe(expected)` — 3 pass / 1 fail in
+   * this file, the fresh app's document carrying the mutation the *other* app's
+   * POST made (2026-09-03).
+   */
+  it('is not changed by a request another app served', async () => {
+    const clean = serialiseDocument(await documentFromApp(testApp()));
+
+    // A different app, asked to do what an auth controller test does.
+    const busy = testApp();
+    const answered = await busy.handle(
+      new Request(`http://localhost/api/auth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'someone', password: 'a-password-long-enough' }),
+      }),
+    );
+    // The precondition: a route that 404s compiles no validator, and this case
+    // would then be asserting nothing at all.
+    expect(answered.status).toBeLessThan(500);
+    expect(answered.status).not.toBe(404);
+
+    expect(serialiseDocument(await documentFromApp(testApp()))).toBe(clean);
+  });
+
+  /**
    * The route, separately from the document.
    *
    * `documentFromApp` throws on a non-200, so the check above would already fail
