@@ -113,11 +113,17 @@ const DRIFT = 1e-9;
  * of a whole day it **is** that whole day, and anything further is real work,
  * returned untouched.
  *
- * Applied at the discrete calendar boundaries — {@link addWorkdays}' floor and
- * the three discrete readings {@link firstWorkdayOf}, {@link lastWorkdayOf}
- * and {@link wholeDaysCovering} — and nowhere else: the engine's own numbers
- * stay verbatim on the wire, and only the step from a fractional offset to a
- * whole calendar day may not let one drifted bit mint or eat a day.
+ * Applied only where a fractional number becomes a discrete one, because that
+ * is the only step where a drifted bit can mint or eat a whole unit of
+ * something; the engine's own numbers stay verbatim on the wire. Four such
+ * sites: the discrete calendar boundaries {@link addWorkdays}' floor,
+ * {@link firstWorkdayOf}, {@link lastWorkdayOf} and {@link wholeDaysCovering},
+ * and — since 2026-09-03 — `durationUnits`' step onto the solver's integer
+ * axis, whose unit is `1 / SOLVER_QUANTUM` of a day rather than a whole one.
+ * The window survives that change of unit with room to spare: {@link DRIFT} is
+ * chosen eight orders below a sixth of a day, and a sixth of a day is eight
+ * solver units, so it is still nine orders below the smallest real fraction an
+ * estimate can quantise to and still cannot swallow work somebody estimated.
  *
  * Proof: with the window widened to 0.5, `keeps a genuine fraction just shy of
  * a boundary as real work` (the production path, `work-item.service.test.ts`)

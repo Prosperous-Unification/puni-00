@@ -535,8 +535,18 @@ function groupByWorkItem(
  * `- "earliestFinish": 2 / + "earliestFinish": 0`, with the Chromium chain spec
  * red beside it on `the successor is drawn left of the work it waits for`;
  * watched 2026-08-30.
+ *
+ * **Exported on 2026-09-03 so that the solver has no second copy of it.**
+ * `durationUnits` quantises this number for CP-SAT, and the alternative was for
+ * `solver-quantum.ts` to restate the two arms above. The plan already restated
+ * them once and got both wrong — it divided the assumption by `width` and it
+ * put `snapWorkdays` in the estimated arm — which is why the wire tasks now
+ * carry the correction in prose. A second implementation of a rule this
+ * particular is a divergence waiting for one of the two to be edited, and the
+ * divergence would surface as a solver plan whose bars are a different length
+ * from Fast's on the same input. One function, two callers.
  */
-function durationOf(slice: Slice): number {
+export function durationOf(slice: Slice): number {
   if (slice.days === null) return ASSUMED_SLICE_WORKDAYS;
   return slice.days / slice.width;
 }

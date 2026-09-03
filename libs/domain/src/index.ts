@@ -28,4 +28,9 @@ export * from './progress';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+// The one place the solver's integer time axis is defined, and the only
+// quantisation of `durationOf` anywhere. It lives here rather than in
+// `schedule.ts` because the quantum is a fact about CP-SAT and not about the
+// calendar: 2,212 lines of placement have no business knowing the wire's unit.
+export * from './solver-quantum';
 export * from './workday';
