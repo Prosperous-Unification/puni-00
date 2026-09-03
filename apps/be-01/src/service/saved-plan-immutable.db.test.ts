@@ -101,13 +101,28 @@ describe('a saved plan does not move when the live plan does', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const save = () =>
+  const save = (id = 'sp-1') =>
     new SavedPlanService({
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
-      newId: () => 'sp-1',
+      newId: () => id,
       now: () => OPENED_AT,
     }).save({ projectId: 'p1', name: 'before the rewire', createdBy: 'Ada Lovelace' });
+
+  /** The five edits task 4.2 names, each reaching the capture by its own route. */
+  const moveTheLivePlan = async (): Promise<void> => {
+    const live = openConnection(path);
+    const items = new WorkItemRepository(live.db);
+    await items.patch('wi-1', { name: 'renamed after the save' }, wrote);
+    await items.remove(['wi-2'], [], wrote);
+    await new StepRepository(live.db).remove('p1', 'st-2', true, wrote);
+    await new ProjectRepository(live.db).update(
+      'p1',
+      { estimateMethod: 'optimistic', startDate: '2027-01-04' },
+      wrote,
+    );
+    live.close();
+  };
 
   /**
    * Everything the record holds, read the way another process would read it.
@@ -129,20 +144,7 @@ describe('a saved plan does not move when the live plan does', () => {
     expect(saved.outcome).toBe('saved');
     const before = await stored();
 
-    const live = openConnection(path);
-    const items = new WorkItemRepository(live.db);
-    // The five edits task 4.2 names, and they are five because each reaches the
-    // capture by a different route: a column, a deleted row, a deleted row in
-    // another table, a scheduling *rule*, and the calendar the dates count from.
-    await items.patch('wi-1', { name: 'renamed after the save' }, wrote);
-    await items.remove(['wi-2'], [], wrote);
-    await new StepRepository(live.db).remove('p1', 'st-2', true, wrote);
-    await new ProjectRepository(live.db).update(
-      'p1',
-      { estimateMethod: 'optimistic', startDate: '2027-01-04' },
-      wrote,
-    );
-    live.close();
+    await moveTheLivePlan();
 
     // The live plan really did move — otherwise the assertions below are a
     // comparison of a record against itself and would pass on any writer.
@@ -174,5 +176,27 @@ describe('a saved plan does not move when the live plan does', () => {
     expect(after.header).toEqual(before.header);
     // And the saved plan still names the item the live plan no longer has.
     expect(before.bodies.get('input')!).toContain('wi-2');
+  });
+
+  it('captures those same five edits, so the equality above is not blindness', async () => {
+    // The control the assertion above needs. Bytes that never move are also
+    // what a writer that stores nothing of substance produces, and the live
+    // assertions in that test prove only that SQLite moved — not that a
+    // *capture* would have seen it. Saving again over the moved plan and
+    // finding a different digest is what makes the first test immutability
+    // rather than insensitivity.
+    const first = await save('sp-1');
+    if (first.outcome !== 'saved') throw new Error('expected a save');
+    await moveTheLivePlan();
+    const second = await save('sp-2');
+    if (second.outcome !== 'saved') throw new Error('expected a second save');
+
+    expect(second.record.input.sha256).not.toBe(first.record.input.sha256);
+    expect(second.record.input.bytes).not.toBe(first.record.input.bytes);
+    expect(second.record.input.bytes).not.toContain('wi-2');
+    // Both records are still there, each with its own bytes: the second save
+    // wrote a new row rather than restating the first.
+    const rows = await reader.db.select().from(savedPlanBody);
+    expect(rows.length).toBe(4);
   });
 });
