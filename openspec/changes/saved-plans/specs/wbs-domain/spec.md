@@ -270,7 +270,9 @@ requirement below and is live by construction.
 
 - **WHEN** a plan is saved while no schedule is available
 - **THEN** the record has no schedule body, carries the reason, and a comparison
-  against it reports that no schedule was saved rather than showing live dates
+  against it reports that no schedule was saved **for that side** and does not
+  substitute live dates **for that side** — the other side, including `current`,
+  still carries its own schedule and identity
 
 ### Requirement: A comparison is one diff over two sides, either of which may be the live plan
 

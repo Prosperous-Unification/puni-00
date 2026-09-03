@@ -312,6 +312,19 @@ comparison UI) and start only after slice 6 is merged.
       lawfully permits until 7.3a exists — and watch that test report "no
       schedule was saved" on the live side while every input-side assertion,
       7.2b and 7.2c all stay green, because none of them runs this path.
+      **Second case: a saved plan with an *absent* schedule against `current`.**
+      Assert `current` still carries its live schedule and identity beside the
+      saved side's absent reason. Nothing else exercises that shape, and the
+      "saved while optimization was pending" scenario governs it, so a build
+      that suppresses the live side's dates whenever the saved side has none
+      would otherwise ship with every named test green.
+      **3.3's handle-liveness assertion runs on this scheduling call too**, with
+      the same watched negative: spec requires `current`'s schedule to be
+      computed *outside* the read snapshot exactly as the save path computes its
+      own, and 3.3's spy covers the save path only. Without it an implementer
+      calling `schedule()` inside 7.3's held `BEGIN DEFERRED` ships green and
+      every saved-vs-current comparison — this feature's hot path — holds the
+      read snapshot open for the length of a levelling run.
 - [ ] 7.3b **The compare route**, on `savedPlanController` under the project's
       read rule: two sides, each a saved-plan id or `current`. It has to be a
       route — `current` needs 7.3's server-side capture over 3.1's read set, so
@@ -335,8 +348,11 @@ comparison UI) and start only after slice 6 is merged.
       (A-1); renaming is an edit on the created record, not a modal in the way of
       the save.
 - [ ] 8.3 The comparison surface: two side pickers, each a saved plan or
-      `current`; the diff rendered by category; "no schedule was saved" where a
-      side has none.
+      `current`; the diff rendered by category; **the absent reason rendered per
+      side**, "no schedule was saved" only for a *saved* side with no body, and
+      `current` + `infeasible` saying the live plan cannot be scheduled —
+      nothing about `current` was ever saved, so the saved-side copy would state
+      the wrong fact about a cyclic live plan.
 - [ ] 8.4 **Stale but not replaced.** A broadcast arrives while a comparison is
       open: the refresh affordance appears and the rendered comparison does not
       change until it is used. Negative: refetch into the open comparison and

@@ -31,9 +31,9 @@ scheduler code restates history.
 - The capture runs inside **one SQLite read snapshot**: the live projection reads
   in thirteen awaited calls (`work-item.service.ts:1285-1312`, `:1364-1385`),
   the capture more, and no counter brackets them.
-- **Comparison in both directions.** One diff over two canonical bodies; each
-  side is a saved-plan id or the literal `current`, projected through the same
-  function and never stored.
+- **Comparison in both directions.** One diff over two sides — input, schedule,
+  identity; each side is a saved-plan id or the literal `current`, projected
+  through the same function and never stored.
 - Save, list, read, rename, delete. The name is the only editable field, and
   every read checks the stored bytes against their hash.
 

@@ -49,6 +49,7 @@ until it has been.
 | The diff names every differing canonical field (7.2b) | `frozen_number`, then a tag id, dropped from `diffPlans`' comparison | |
 | The diff names every differing schedule field (7.2c) | `diffPlans` built over the plan inputs alone — every schedule mutation must report "no change" | |
 | `current` carries a live schedule, not an absent reason (7.3a) | `projectCurrentPlan()` returns the absent reason `unavailable` for `current` — the saved-vs-current date test must fail while 7.2b and 7.2c stay green | |
+| `current`'s schedule runs outside the read snapshot (7.3a) | `schedule()` called inside 7.3's held `BEGIN DEFERRED` — 3.3's handle-liveness assertion must fail on this path too | |
 | A successful retry captures a new read snapshot (4.5) | the retry reuses the refused attempt's detached values — the interleaved live edit must be missing from the stored input | |
 | Immutability, asserted by hash (4.2) | one captured field dropped from the writer — the hash must move even though every asserted field is still present | |
 | Save writes nothing on failure (4.3) | a throw injected between the header and the input body | |
