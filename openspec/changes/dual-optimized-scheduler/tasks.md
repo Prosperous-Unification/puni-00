@@ -159,73 +159,73 @@ check-that-cannot-fail failure R5 names.
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
       Critical 1, Sol r7 Critical 5).
-      **Four request members reach this slice with a stated meaning and no
-      stated shape, and the schema author must not quietly invent them**
-      (found TASK-219 run 1 by grepping each request field for a shape
-      declaration across all three artifacts; `NONE` for every form of an edge
-      pair). Named so the invention is a decision with a record rather than a
-      default:
-      (i) **`edges`** — every artifact says only that they arrive
-      "already leaf-expanded with `reach` applied" and already carrying
-      intra-item step-order edges. Nothing says whether a wire edge is an
-      object or a pair, and — the load-bearing gap — nothing says it is keyed
-      by slice `key`, although it must be, since the solver receives no work
-      item ids and no tree.
-      (ii) **`pools`** — occurs only inside the request field list; capacity
-      lives in `poolSizes` on the canonical side and has no wire form here.
-      (iii) **`baselineOffsets`** and (iv) **`fastHint`** — both are pinned in
-      *meaning* (the quantised Fast baseline, in integer units, and the only
-      movement reference either objective uses) and unpinned in *form*: map
-      versus array, and keyed by what. They are also the pair that must agree
-      exactly, since the hint has to be a feasible solution of the model the
-      bound describes.
-      `stageBudgetSplit` is **not** in this list: `STAGE_BUDGET_SPLIT =
+      **The four request members that reached this slice with a meaning and
+      no shape are settled, and the schema is where to read them rather than
+      this paragraph.** `edges` was answered by `libs/domain/src/schedule.ts`
+      in run 1. Run 2 settled the other three the same way, and each carries
+      in its own `$comment` the source it was read from: `PoolSizes =
+      ReadonlyMap<string, number>` (`schedule.ts:95`) and
+      `project_team_capacity.size`'s floor of 1 for `pools`; the response's
+      normative "that offsets **map**" and `MOVEMENT`'s subscript access for
+      `baselineOffsets` and `fastHint`. The one result there that is not a
+      shape: those two carry the **same value** — design.md's quantisation
+      decision 2 says both *are* the quantised Fast baseline and 2.11 produces
+      both from one re-run — so two fields hold one value, and their equality
+      is an enforced builder invariant rather than a coincidence.
+      `stageBudgetSplit` was never in that list: `STAGE_BUDGET_SPLIT =
       [0.60, 0.25, 0.15]` fixes it as a three-element array of fractions.
-      Fix each of the four **in the schema first and then in the prose**, never
-      the reverse — retro-fitting three artifacts' "descriptive" text to an
-      invented schema is Sol r6 Critical 1 run backwards, and the set-equality
-      check below passes just as green on a wrong shape agreed everywhere as
-      on a right one.
-      **`edges` is already answered by `libs/domain/src/schedule.ts` and must be
-      read off it rather than invented** — the same method round 1 used when it
-      rebuilt the canonical input from the code instead of the architecture
-      prose. Three facts, each cited:
-      (a) `expandToLeaves` (`schedule.ts:337`) returns `DependencyEdge[]`, and
-      `DependencyEdge` (`schedule.ts:7`) is `{ predecessorId, successorId }` of
-      **leaf work-item ids** — so the expanded edge set is *not* slice-keyed,
-      while every wire slice is identified by `key`. The conversion is real
-      work, not a rename, because one leaf holds many slices.
-      (b) The predecessor endpoint is
-      `reachedSliceOf(reach, slices)` (`schedule.ts:1676`): `slices.length - 1`
-      under `whole-item`, and under `anchor-slice` the first slice with
-      `days !== null`, falling back to the last. This is where "`reach` applied"
-      is discharged, and it is why the solver can be told it never sees `reach`.
-      (c) The successor endpoint is the **first slice plain under either
-      reach** — `schedule.ts:1718`, "never the first estimated one and never the
-      last: either would leave an unestimated `Dev` with no predecessor at all".
-      The asymmetry is deliberate; a schema that treats both ends alike is wrong
-      in a way no fixture with one slice per item can show.
-      So a wire edge is a pair of **slice `key`s**, one endpoint chosen by (b)
-      and the other by (c), and the intra-item step-order edges the request also
-      carries are already in that same form. **Watched red for this fact:**
-      build the request for a two-slice predecessor under each reach and assert
-      the emitted edge leaves a *different* slice; collapse the predecessor
-      endpoint to the first slice and the `whole-item` case must fail.
-      **One encoding hazard, and it is in the key itself:**
-      `sliceKey(workItemId, stepId)` joins the two ids with a literal
-      **U+0000** separator and renders a null `stepId` as the empty string
-      (`schedule.ts:105`; read the separator there rather than transcribing it —
-      pasting it into a document writes a real NUL byte into that file, and
-      every `grep` over it then reports binary and prints nothing, which is how
-      this paragraph found its own hazard). So every wire `key` contains a
-      U+0000. That is legal JSON and survives
-      `JSON.stringify`/`json.loads`, but the schema must not add a `pattern`
-      that assumes a printable key, the golden corpus must carry one such key
+      **What JSON Schema cannot say is written into the request's own
+      `$comment` as eight numbered invariants**, each with the watched red that
+      proves it, and each checked by the builder before spawn and again by the
+      Python entrypoint: hint equals baseline; the key set of `baselineOffsets`
+      equals that of `fastHint` and both equal the set of slice keys; every
+      offset lies within `horizonUnits`; every pool a slice names has an entry
+      — `schedule.ts:718`'s `no size for pool ${poolId}` throw promoted to the
+      wire, where a default would be a capacity constraint silently not
+      applied; every edge endpoint is a known key; the split sums to 1; no
+      duplicate object key, **which no schema anywhere can reject**, because
+      `JSON.parse` and `json.loads` both silently keep the last — so both
+      consumers compare the parsed key count against the raw member count; and
+      the `bigint` overflow preflight.
+      **The encoding hazard is in the key itself, and it reached the schema as
+      an absence.** `sliceKey(workItemId, stepId)` joins the two ids with a
+      literal **U+0000** and renders a null `stepId` as the empty string
+      (`schedule.ts:105`; read the separator there rather than transcribing it
+      — pasting it into a document writes a real NUL byte, after which every
+      `grep` over that file reports binary and prints nothing, which is how
+      this paragraph found its own hazard, and run 2 reproduced it in a probe
+      script). So the key definition is a non-empty string and **nothing
+      else**: a printable-character `pattern` would reject every valid request.
+      Proven rather than asserted — a two-slice request with real U+0000 keys
+      validates against the schema and round-trips through `json.dumps` and
+      `json.loads` with the NUL intact. The golden corpus must carry such a key
       **verbatim** rather than a sanitised stand-in, and any logging of a
-      request must not be the place this is discovered. It carries `wireVersion` as a required
+      request must not be the place this is discovered.
+      **A FIFTH member is open, and it is the response's `status`** — found by
+      writing the file, and deliberately not invented in it. Pinned: it admits
+      `infeasible` as a first-class outcome, distinct from `unknown` and never
+      mapped onto it, and 2.3 rejects an unknown value, so the set must be
+      **closed**. Open: the rest of that set, and the two candidates decide
+      differently. (a) The stage vocabulary plus `infeasible`, reusing the
+      matrix design.md says the response schema is generated from — but a
+      response-level `'optimal'` would claim the published schedule is optimal,
+      which the design has said from the start it is not. (b) A run-outcome
+      vocabulary distinct from the per-stage one, which needs names no artifact
+      has written. Until one is settled the member is an unconstrained
+      non-empty string carrying that note, the contract suite's `status` cases
+      cannot be green, and the conditional between `status` and `offsets` — an
+      infeasible or incumbent-less run has no offsets to report — waits on the
+      same decision. **Settle it the way the other four were settled:** find
+      the artifact or the code that already answers it, and only then write it
+      into the schema.
+      It carries `wireVersion` as a required
       literal, states the unit of every numeric field, and includes every field
-      staged solving needs (`fastHint`, `baselineOffsets`, `stageBudgetSplit`,
-      `quantum`, `horizonUnits`, and the per-term `objectiveValues` shape).
+      staged solving needs — on the request `fastHint`, `baselineOffsets`,
+      `stageBudgetSplit`, `quantum` and `horizonUnits`; on the response, the
+      per-term `objectiveValues` shape. **Split deliberately (found run 2):**
+      as one run those six were an untagged enumeration mixing the request and
+      response vocabularies, which is exactly what rule (b) below rejects, so
+      2.1's own prose failed 2.1's own check.
       Every integer objective field in both directions has an inclusive
       `Number.MAX_SAFE_INTEGER` maximum; this is the Bun/JSON exactness bound,
       not merely CP-SAT's wider signed-64-bit range.
@@ -270,7 +270,9 @@ check-that-cannot-fail failure R5 names.
       r9 Critical 1, against design.md's and 2.2's `key` — set comparison is
       what catches it, and the banned-prose wording would have deleted the
       evidence instead. A prototype of rules (a)–(c) was run over the four
-      files at this head and reported no divergent enumeration.
+      files at `af05ead1` and reported no divergent enumeration; it has not
+      been re-run since, so that is a statement about that head and not
+      about this one.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
