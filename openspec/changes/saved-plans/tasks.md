@@ -68,7 +68,7 @@ comparison UI) and start only after slice 6 is merged.
       both qualify — bumps it in the same commit. Without the rule the column is a
       constant, stored plans read "same algorithm" across a semantics change, and
       the silent restatement it exists to prevent happens anyway.
-- [ ] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — **every read the
+- [x] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — **every read the
       canonical input requires**, inside one `BEGIN DEFERRED` on a read
       connection. The bound is `CanonicalPlanInput`'s field list, **not** the live
       projection's: the projection is where twelve of the reads come from, and the
@@ -111,6 +111,13 @@ comparison UI) and start only after slice 6 is merged.
       use of it at `:1310` is narrowed to assigned ids, which is exactly the
       unassigned-member hole named above. So 3.1 writes no new SQL: it is six
       existing reads plus the thirteen, ordered on one held connection.
+      **Counted off the landed call sites, that is seventeen distinct calls, not
+      nineteen.** `listPeople()` is named in both halves — it is one call the
+      projection already makes and the capture reuses unfiltered — so the union
+      of twelve projection reads and the capture-only half is twelve plus five;
+      and 13 - 1 + 6 was itself 18, not 19. Corrected here rather than left to
+      read as a count somebody could check against
+      `repository/saved-plan-capture.ts` and find wrong.
       **All of them, both halves, run sequentially on one explicitly held
       connection inside a single transaction block** — and that connection is a
       **dedicated** one from `openConnection(dbPath)`, not the process handle.
