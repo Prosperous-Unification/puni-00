@@ -77,9 +77,12 @@ describe('sliceGraphEdges', () => {
   });
 
   it('emits every chain before any external edge — the order the adjacency is walked in', () => {
-    // Not decoration: `schedule()` pushes these onto each node's own
-    // predecessor/successor arrays in arrival order, and the placement walks
-    // those arrays again.
+    // This is the ONLY thing holding that order. Watched: with the two loops
+    // swapped, every one of the 356 domain tests that predate this file stays
+    // green and this case alone fails (364 pass / 1 fail, h2puni, 2026-09-04).
+    // So it pins the order `schedule()`'s inline chain produced — which is what
+    // makes the move a move — and it does not claim the placement depends on
+    // it, because nothing measured says it does.
     const edges: readonly LeafEdge[] = [
       { predecessorId: 'C', successorId: 'A' },
       { predecessorId: 'A', successorId: 'B' },

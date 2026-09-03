@@ -122,13 +122,18 @@ export interface LeafEdge {
  * Every edge of the slice graph: each leaf's own step chain first, in
  * `leafIds` order, then the external edges in the order they were given.
  *
- * **That order is the contract, not an accident.** `schedule()` pushes each
- * edge onto its two nodes' adjacency arrays in the order it walks them, and
- * those arrays are walked again by the placement, so a chain edge arriving
- * after an external one on the same node is a different tie-break. Emitting
- * chains before externals is exactly the order the node loop produced when it
- * built the chain inline, which is why this function returns a list rather than
- * a set.
+ * **That order is preserved deliberately, and nothing but this module's own
+ * test holds it.** `schedule()` pushes each edge onto its two nodes' adjacency
+ * arrays in arrival order, and the placement walks those arrays again, so the
+ * order was worth keeping identical to the one the node loop produced when it
+ * built the chain inline — that is what makes this a move rather than a
+ * rewrite. But the claim that it *matters* is measured rather than argued, and
+ * it did not survive: with the two loops swapped, the whole 356-test domain
+ * suite that predates this file stays green and **only** `emits every chain
+ * before any external edge` fails (364 pass / 1 fail, h2puni, 2026-09-04). So
+ * the placement is order-insensitive on every plan that corpus holds, this
+ * order is the one under which every existing number was measured, and a red
+ * that names only its own test names the test rather than the guard.
  *
  * `slicesOf` is a lookup rather than a map because its two callers hold
  * different things: `schedule()` holds `groupByWorkItem`'s
