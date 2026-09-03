@@ -277,14 +277,15 @@ here.
       event/state table** — the section that declares itself authoritative — which
       enumerates outcomes by row and needs `plan-infeasible` rows. It is a
       workspace file, not in the wbs checkout. **Do not amend that note's review
-      ledger rows**, which are the only other place its variant states appear
-      and are protected history under 7.2b.
+      ledger rows**, which are protected history under 7.2b.
       **This has already gone wrong twice.** Adding `corrupt` updated (2) and
       left (1), (3) and (4) at five members, which shipped as a Critical, and
       the two rounds before it found the same divergence in other fields.
       **Search for the member names, not for "six":** the count word appears in
-      (1) ("a tagged union of **six** members") and (3), so it finds two sites of
-      five and both misses are in the files an implementer edits.
+      (1) ("a tagged union of **six** members") and (3) only, so it finds two
+      sites of five and misses three — including site 5, the note's
+      authoritative table, whose omission is the exact failure this item exists
+      to prevent.
 - [ ] 8.7c The stored row status and the DTO union are **different layers** and
       both get a value. `plan-infeasible` is a row status beside `ok` and
       `failed`, and is **not** an `ok` row carrying an infeasible payload:

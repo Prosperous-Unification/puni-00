@@ -556,7 +556,28 @@ Each is watched failing before the implementation lands, per AGENTS.md R5.
 | Gemini r1 | `80d7081f` | `bin/gemini-review.sh` (agy) | **failed** — exit 1 after 2 s, "Agent execution terminated due to error", zero verdict bytes | stderr only |
 | Gemini r2 | `80d7081f` | `bin/gemini-review.sh` (agy) | **failed** — exit 1 after 3 s, identical | stderr only |
 | 1 | `80d7081f` | `anthropic/claude-fable-5` (AGENTS.md fallback) | **REQUEST CHANGES** — 2 Critical / 3 Important / 1 Minor | `queue/reviews/t240-planning-peer-r1.txt`, verified, 13259 bytes, sha256 `bc5bf80a` |
-| 2 | `b1858308` | `anthropic/claude-fable-5` | closure check — in flight at run-2 exit | `queue/reviews/t240-planning-peer-r2.txt` |
+| 2 | `b1858308` | `anthropic/claude-fable-5` | **APPROVE WITH CHANGES** — 0 Critical / 2 Important / 1 Minor; every round-1 Critical confirmed closed against source | `queue/reviews/t240-planning-peer-r2.txt`, verified, 8942 bytes, sha256 `ffedb755` |
+| 3 | `bb6cca3f` | `anthropic/claude-fable-5` | **APPROVE WITH CHANGES** — 0 Critical / 1 Important / 2 Minor, all three closed at `6d4a` below | `queue/reviews/t240-planning-peer-r3.txt`, verified, 7724 bytes, sha256 `9b29c15c` |
+
+**Rounds 2–3 dispositions.** r2 found two Importants, both true: (I1) the r1
+disposition of I3 "corrected" a true statement into a false one — `git ls-tree`
+shows no `libs/contracts/solver/` subtree at all, and the claim came from
+reading `libs/contracts/`'s own listing and attributing it to a child; (I2)
+8.7b's site 5 pointed at a DTO paragraph the workspace note does not contain,
+sending an implementer at the review-ledger rows that 7.2b in the same document
+forbids amending — re-pointed at note §3.2's self-declared authoritative
+event/state table. r3 confirmed both closed and found one more: the sentence
+rewritten to close I2(b) shipped its own false count ("both misses" where there
+are three, dropping site 5 — the very site the item exists to protect), leaving
+`tasks.md` and the spec delta numerically contradicting each other. Corrected.
+
+**Four false counting claims in four rounds** — r1-M1, r2-I2(b), r2-I1's
+directory listing, r3's "both". Every one was a claim *about* these artifacts
+rather than a claim *in* them, and every one was found by re-reading source
+rather than by re-reading the text. That pattern is the finding: in this
+document, a sentence counting or locating something is the sentence most likely
+to be wrong, and it does not announce itself.
+
 
 **Round-1 dispositions.** Every finding was verified at the cited source before
 being acted on, never on the seat's word.
