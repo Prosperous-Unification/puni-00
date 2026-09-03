@@ -2,27 +2,41 @@
 
 ## Static
 
-- [ ] `design.md` names every path for the three elements and the preserved pair;
+- [x] `design.md` names every path for the three elements and the preserved pair;
       no code, fixture, or migration outside that inventory reads or writes a legacy
       element in this release.
-- [ ] `git diff --check` clean on the exact head.
+- [x] `git diff --check` clean on the exact head.
 
 ## Migration behaviour (remote, h2puni)
 
-- [ ] Forward: full chain migrates a fresh temp SQLite file; `service_team.size`
+- [x] Forward: full chain migrates a fresh temp SQLite file; `service_team.size`
       and `work_item.service_id` are still columns, `service_team` still exists,
       `work_item_team` and `work_item_service` still exist with both cascading FKs.
-- [ ] Rollback: down then up, a row survives the round trip; pre/post counts
+- [x] Rollback: down then up, a row survives the round trip; pre/post counts
       match.
-- [ ] Restart: re-running the migration on a migrated file is a no-op (idempotent).
-- [ ] Watched red: reverting a guard (drop a column, rename the table, change a
-      cascade, stop the dual-write) fails the corresponding test.
+- [x] Restart: re-running the migration on a migrated file is a no-op (idempotent).
+- [x] Watched red: dropping the retired `size` column in a scratch migration
+      fails the corresponding presence guard.
+
+Exact h2puni evidence, 2026-09-03:
+
+- Green: `bun test apps/be-01/src/repository/retired-schema-untouched.db.test.ts`
+  reported 5 pass / 0 fail.
+- Watched red: after a scratch `ALTER TABLE service_team DROP COLUMN size`, the
+  first case failed at `toContain('size')`; 4 pass / 1 fail, 26 assertions.
+- Team round-trip counts: before `work_item=1`, `work_item_team=1`; after
+  `work_item=1`, `work_item_team=1`; scalar/set moved together from `t1` to `t2`.
+- Rollback/re-apply counts: before `work_item=1`, `work_item_team=1`,
+  `work_item_service=0`; after `1`, `1`, `0`. The deliberately lossy service down
+  recreates `service_id` as null, now asserted explicitly. Restart leaves those
+  counts and every guarded schema element unchanged.
 
 ## Preserved
 
-- [ ] `work_item_team` still present and still the team-set source of truth.
-- [ ] `work_item.service_team_id` still dual-written (a team patch writes both
-      the join table and the scalar).
+- [x] `work_item_team` still present and still the team-set source of truth.
+- [x] `work_item.service_team_id` remains dual-written; the app-level guard is
+      `work-item.db.test.ts:260-290`. This migration test checks schema presence
+      and join integrity, not patch behavior.
 
 ## Not done here (deferred, recorded)
 

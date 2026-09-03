@@ -22,6 +22,12 @@ import { rollbackTo } from './migrate-down';
  * patch moves both storage locations, is guarded by work-item.db.test.ts's
  * repo.patch path, not this file.)
  *
+ * Watched red, 2026-09-03 on h2puni: after the forward migration, a scratch
+ * mutant ran `ALTER TABLE service_team DROP COLUMN size`. The first case failed
+ * at the `toContain('size')` guard with Received `["id", "name", "created_at",
+ * "updated_at", "created_by"]`; 4 tests passed / 1 failed. Restoring the exact
+ * head returned the suite to 5/5.
+ *
  * See openspec/changes/retired-schema-cleanup/design.md for the path inventory
  * and the five-rule version-overlap protocol this file enforces.
  */
@@ -253,6 +259,8 @@ describe('the retired schema, across the full migration chain', () => {
       // Pre-change: both storage locations agree on t1.
       expect(scalar()).toBe('t1');
       expect(teamSet()).toEqual(['t1']);
+      expect(count(db.path, 'work_item')).toBe(1);
+      expect(count(db.path, 'work_item_team')).toBe(1);
 
       // Round-trip both storage locations directly so the scalar and the set member stay in agreement.
       const write = openDatabase(db.path);
@@ -266,6 +274,8 @@ describe('the retired schema, across the full migration chain', () => {
       // Post-change: both still agree, now on t2.
       expect(scalar()).toBe('t2');
       expect(teamSet()).toEqual(['t2']);
+      expect(count(db.path, 'work_item')).toBe(1);
+      expect(count(db.path, 'work_item_team')).toBe(1);
     } finally {
       db.cleanup();
     }
@@ -299,6 +309,11 @@ describe('the retired schema, across the full migration chain', () => {
       // A row round-trips: the team set member written before the down is still
       // present after the up.
       expect(count(db.path, 'work_item_team')).toBe(1);
+      expect(count(db.path, 'work_item')).toBe(1);
+      expect(count(db.path, 'work_item_service')).toBe(0);
+      // The service rollback is deliberately lossy: the down drops service_id,
+      // and the later up recreates the column without the old scalar value.
+      expect(scalarOf(db.path, "SELECT service_id FROM work_item WHERE id = 'w1'")).toBeNull();
 
       // Restart: re-running on a migrated file is a no-op (idempotent).
       expect(() => {

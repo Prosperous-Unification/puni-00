@@ -15,9 +15,10 @@ superseded it:
   is that change's D4.
 - **`work_item.service_id`** — superseded by `work_item_service` (2026-08-21)
   when a service became a set. This release still selects the scalar on every
-  tree read for restore/undo compatibility but no longer writes it; the outgoing
-  release still selects and writes it. Its drop is `service-split`'s D2
-  (amended) and D9.
+  tree read for restore/undo compatibility. The patch path no longer writes it,
+  but subtree duplicate/restore still inserts the selected value; the outgoing
+  release also selects and writes it. Its drop is `service-split`'s D2 (amended)
+  and D9.
 - **`service_team` the name** — the table holds **teams**, not services; the
   directory's one entity was literally called `service_team` and the split added
   a table called `service` that means product area. For one release the two names

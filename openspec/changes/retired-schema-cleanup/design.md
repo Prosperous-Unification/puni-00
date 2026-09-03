@@ -27,19 +27,19 @@ releases share one SQLite file across a blue/green swap.
 `text('service_id') REFERENCES service(id) ON DELETE SET NULL` on the `work_item`
 table (`schema.ts`, `workItem.serviceId`).
 
-| path                          | location                                                     | detail                                                                                                                                                                                                         |
-| ----------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| definition                    | `apps/be-01/src/repository/schema.ts:419`                    | `serviceId: text('service_id').references(() => service.id, { onDelete: 'set null' })`                                                                                                                         |
-| read (this release)           | `work-item.ts:108` (`WORK_ITEM_COLUMNS`)                     | read on every tree read — the column sits in `WORK_ITEM_COLUMNS` (`work-item.ts:96-112`) consumed by `listByProject` and the subtree read, kept for restore/undo compatibility (`repository/index.ts:367-372`) |
-| write (this release)          | —                                                            | none — the scalar write came off the patch line when the set landed (`work-item.ts:373`); only `work_item_service` is written (`work-item.ts:676-680`)                                                         |
-| read/write (outgoing release) | every tree read and patch                                    | the outgoing release selects and writes the column for the whole swap window                                                                                                                                   |
-| foreign key                   | `schema.ts:419`                                              | `REFERENCES service(id) ON DELETE SET NULL` — deleting a service must not delete work items                                                                                                                    |
-| migration create              | `drizzle/20260821000000_add_service/migration.sql`           | adds the column (task 1.2)                                                                                                                                                                                     |
-| migration supersede           | `drizzle/20260821080000_add_work_item_service/migration.sql` | creates `work_item_service` and seeds it `INSERT … SELECT id, service_id FROM work_item WHERE service_id IS NOT NULL`, leaving the column standing                                                             |
-| fixture                       | `testing/work-item-fixture.ts:229`                           | `serviceId: existing.serviceId` carries the legacy scalar through a fixture round trip                                                                                                                         |
-| export                        | —                                                            | none                                                                                                                                                                                                           |
-| rollback                      | `drizzle/20260821000000_add_service/down.sql`                | drops the column                                                                                                                                                                                               |
-| deferred drop                 | `openspec/changes/service-split/design.md` D2 (amended), D9  | drop in a later migration, not the one that adds the join table                                                                                                                                                |
+| path                          | location                                                     | detail                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| definition                    | `apps/be-01/src/repository/schema.ts:419`                    | `serviceId: text('service_id').references(() => service.id, { onDelete: 'set null' })`                                                                                                                                                       |
+| read (this release)           | `work-item.ts:108` (`WORK_ITEM_COLUMNS`)                     | read on every tree read — the column sits in `WORK_ITEM_COLUMNS` (`work-item.ts:96-111`), consumed by `work-item.ts:154`, `:240`, and `directory.ts:98`, and kept for restore/undo compatibility (`repository/index.ts:367-372`)             |
+| write (this release)          | `work-item.ts:859-864` (`insertSubtree`)                     | patch no longer writes the scalar (`work-item.ts:373`), but duplicate (`work-item.service.ts:2038`) and restore (`:3589`) spread a selected `WorkItem`, including `serviceId`, into `insertSubtree`; the set write is `work-item.ts:675-685` |
+| read/write (outgoing release) | every tree read and patch                                    | the outgoing release selects and writes the column for the whole swap window                                                                                                                                                                 |
+| foreign key                   | `schema.ts:419`                                              | `REFERENCES service(id) ON DELETE SET NULL` — deleting a service must not delete work items                                                                                                                                                  |
+| migration create              | `drizzle/20260821000000_add_service/migration.sql`           | adds the column (task 1.2)                                                                                                                                                                                                                   |
+| migration supersede           | `drizzle/20260821080000_add_work_item_service/migration.sql` | creates `work_item_service` and seeds it `INSERT … SELECT id, service_id FROM work_item WHERE service_id IS NOT NULL`, leaving the column standing                                                                                           |
+| fixture                       | `testing/work-item-fixture.ts:229`                           | `serviceId: existing.serviceId` carries the legacy scalar through a fixture round trip                                                                                                                                                       |
+| export                        | —                                                            | none                                                                                                                                                                                                                                         |
+| rollback                      | `drizzle/20260821000000_add_service/down.sql`                | drops the column and its values (lossy; the down script records that it loses the third label dimension)                                                                                                                                     |
+| deferred drop                 | `openspec/changes/service-split/design.md` D2 (amended), D9  | drop in a later migration, not the one that adds the join table                                                                                                                                                                              |
 
 ## Element 3 — the `service_team` physical table name
 
@@ -82,10 +82,11 @@ tests enforce:
 2. **Team: dual-write.** The current release writes both `work_item_team` (its
    read source) and `work_item.service_team_id` (the outgoing release's read
    source), holding the single member of the set or null for the empty set.
-3. **Service: seed-then-leave.** The migration that added `work_item_service`
-   seeded it from `work_item.service_id` and then the current release stopped
-   **writing** the scalar; it is left standing (and still read on every tree read,
-   for restore compatibility) for the outgoing release's reads and writes.
+3. **Service: seed-then-leave on patch; preserve restore.** The migration that
+   added `work_item_service` seeded it from `work_item.service_id`, and the current
+   release stopped writing the scalar on the patch path. It remains selected on
+   every tree read and is still inserted by subtree duplicate/restore. That path
+   must be migrated before a later release drops the scalar.
 4. **Size: no fallback.** Capacity is per-project (`project_team_capacity.size`);
    there is deliberately no fallback to the retired global `service_team.size`, and
    nothing reads it.
@@ -95,6 +96,6 @@ tests enforce:
 Each schema-shape rule (a premature drop, rename, or re-key) is asserted by
 `retired-schema-untouched.db.test.ts` so it fails a test instead of a swap. The
 rule-2 app-level dual-write is guarded separately by `work-item.db.test.ts`
-(the `repo.patch` path, `work-item.db.test.ts:261-287`); this change's migration
+(the `repo.patch` path, `work-item.db.test.ts:260-290`); this change's migration
 test round-trips both storage locations itself, so it asserts schema presence and
 join-table integrity, not the app-level write path.
