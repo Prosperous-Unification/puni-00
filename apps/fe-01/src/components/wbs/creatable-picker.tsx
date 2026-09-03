@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 
 import { commandChordIn, escapesAnOpenList } from './keyboard-bindings';
@@ -57,6 +58,40 @@ export function pickerOptionId(listId: string, index: number): string {
   return `${listId}-option-${String(index)}`;
 }
 
+/**
+ * The chrome every picker panel wears: one card, drawn the same way wherever a
+ * list drops out of a cell.
+ *
+ * Shared rather than written twice because the second copy had already drifted.
+ * The Depends-on cell keeps its own list — it has no `CreatablePicker` — and its
+ * copy was missing the radius, the shadow and the `overflow: hidden` that clips
+ * the first and last line to the rounded corner, so the same gesture in the
+ * same table produced a flat square list in one column and a rounded card in
+ * the other four. Dany, 2026-09-03: _"can you pls make + ui same on depends on
+ * and services"_.
+ *
+ * What is **not** here is what the two surfaces mean differently: the stacking
+ * layer (the table's own popovers sit at 10, this component's at 15) and the
+ * width — a reference cell's list is its box's width, and a dependency's is
+ * `DEP_LIST_WIDTH`, because an entry there is a work item's number *and* its
+ * name and the column is 110px. Both stay at their call sites, named.
+ */
+export const PICKER_PANEL_STYLE = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+  background: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
+  overflow: 'hidden',
+  maxHeight: 200,
+  overflowY: 'auto',
+} as const satisfies CSSProperties;
+
 export function PickerList({
   id,
   label,
@@ -100,23 +135,7 @@ export function PickerList({
       onMouseDown={(e) => {
         e.preventDefault();
       }}
-      style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        margin: 0,
-        padding: 0,
-        listStyle: 'none',
-        background: 'var(--popover)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
-        overflow: 'hidden',
-        maxHeight: 200,
-        overflowY: 'auto',
-        zIndex: 15,
-        minWidth: '100%',
-      }}
+      style={{ ...PICKER_PANEL_STYLE, zIndex: 15, minWidth: '100%' }}
     >
       {options.map((option, index) => {
         const active = index === activeIndex;
@@ -506,6 +525,24 @@ export function CreatablePicker({
         aria-label={label}
         role="combobox"
         aria-expanded={open}
+        /*
+          **Whether the search is open, which is not the same question as
+          `aria-expanded`.**
+
+          `aria-expanded` is `open` — the search *and* at least one line under
+          it — because a combobox claiming an expanded popup that is not
+          rendered is a lie to a screen reader. But "is this cell's add UI on
+          screen" is `typed !== null` alone: a directory with nothing in it
+          offers no lines, so the box sits open for searching with
+          `aria-expanded="false"`.
+
+          {@link ReferenceSetStrip}'s `+` needs that second question to toggle
+          — see its `onClick`. An attribute rather than a prop because the
+          button reaches its box through the DOM (it is a sibling, not a
+          child), and presence rather than `"true"`/`"false"` so the resting
+          box carries nothing at all.
+        */
+        data-searching={typed === null ? undefined : ''}
         aria-controls={open ? listId : undefined}
         // Which line Enter takes, for a reader who cannot see the highlight.
         aria-activedescendant={open ? pickerOptionId(listId, active) : undefined}

@@ -344,6 +344,68 @@ describe('dependencies in the table', () => {
     expect(description?.textContent).toBe('Waiting for 010 - Strip, 020 - Sand, 030 - Paint');
   });
 
+  itDom('drops the same card a reference cell drops', async () => {
+    await fiveRoots();
+
+    /*
+      Dany, 2026-09-03: _"can you pls make + ui same on depends on and
+      services"_.
+
+      This cell is the one of the five that has no `CreatablePicker`, so its
+      list was a copy of that component's panel — and the copy had drifted. The
+      shared `PICKER_PANEL_STYLE` is the fix; this is the check that the two
+      surfaces stay one card.
+
+      **Measured against the other list rather than against literals.** A case
+      asserting `borderRadius: 'var(--radius-md)'` here would pass while the
+      reference panel moved to something else, which is the drift it is supposed
+      to catch. So both lists are opened, one after the other — they cannot be
+      open at once, since either one's blur closes it — and their chrome is
+      compared.
+
+      Measured in Chromium first, on the live plan and before the fix: the deps
+      list came back `radius: "0px", shadow: "none"` against the reference
+      list's `radius: "6px", shadow: "oklch(0 0 0 / 0.12) 0px 4px 12px 0px"`.
+
+      Proof: with `...PICKER_PANEL_STYLE` replaced by the copy it stood in for,
+      watched failing on `expected { borderRadius: '', …(6) } to deeply equal
+      { …(7) }` (2026-09-03).
+    */
+    const chrome = (list: HTMLElement) => ({
+      borderRadius: list.style.borderRadius,
+      boxShadow: list.style.boxShadow,
+      border: list.style.border,
+      background: list.style.background,
+      overflow: list.style.overflow,
+      maxHeight: list.style.maxHeight,
+      overflowY: list.style.overflowY,
+    });
+    const openList = (): HTMLElement => {
+      const list = document.querySelector<HTMLElement>('ul[role="listbox"]');
+      if (list === null) throw new Error('no list opened');
+      return list;
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: 'Make 050 wait for something' }));
+    const deps = chrome(openList());
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 050'));
+
+    // Typed, because this suite's directory is empty: with nothing to offer and
+    // nothing typed the reference panel has no lines and does not render at all
+    // — which is the *other* half of what 2026-09-03 reported. One character
+    // gives it the `Add “x”` line, and a card to compare.
+    const tags = screen.getByRole('combobox', { name: 'Tags for 050' });
+    fireEvent.focus(tags);
+    fireEvent.change(tags, { target: { value: 'x' } });
+    const reference = chrome(openList());
+
+    // The precondition: a pair of empty strings would satisfy the equality
+    // below without either list being a card at all.
+    expect(reference.borderRadius).toBe('var(--radius-md)');
+    expect(reference.boxShadow).not.toBe('');
+    expect(deps).toEqual(reference);
+  });
+
   itDom('closes the deps picker on a second press of its add button', async () => {
     await fiveRoots();
 

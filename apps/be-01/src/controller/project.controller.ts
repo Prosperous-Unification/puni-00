@@ -8,48 +8,58 @@ import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
 import { statusForRefusal } from './refusal-status';
 
-/** Types only, for the same reason as authController: rules live in the service. */
-const newProject = t.Object({ name: t.String() });
-const projectPatch = t.Object({
-  name: t.Optional(t.String()),
-  restricted: t.Optional(t.Boolean()),
-  // The union rather than a bare string: an unknown method reaching the column
-  // would be read back as malformed data and throw on every later read of the
-  // project. Refusing it here is a 422 on one request instead.
-  estimateMethod: t.Optional(t.Union(ESTIMATE_METHODS.map((method) => t.Literal(method)))),
-  // The same union for the same reason: an unrecognised reach in the column is
-  // read back as malformed data and throws on every later read of the project,
-  // so it is refused here as a 422 on one request instead. It is a **choice**
-  // the owner makes about their plan, not a scheduling parameter a client sends
-  // per read — see `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
-  depReach: t.Optional(t.Union(DEPENDENCY_REACHES.map((reach) => t.Literal(reach)))),
-  // The three coefficients, together or not at all: the divisor is their sum,
-  // so a request naming one of them is asking for an arithmetic it has not
-  // stated. `minimum: 0` refuses a negative weight here; what it cannot refuse
-  // is `1e999`, which JSON parses to `Infinity` and which satisfies every
-  // `>= 0` ever written — `ProjectService.update` refuses that and the all-zero
-  // triple as 422, and `PertWeights` is the one rule both boundaries ask.
-  pertWeights: t.Optional(
-    t.Object({
-      optimistic: t.Number({ minimum: 0 }),
-      realistic: t.Number({ minimum: 0 }),
-      pessimistic: t.Number({ minimum: 0 }),
-    }),
-  ),
-  // The union for `estimateMethod`'s reason: an unrecognised rounding in the
-  // column is malformed data on every later read of the project.
-  estimateRounding: t.Optional(t.Union(ESTIMATE_ROUNDINGS.map((rounding) => t.Literal(rounding)))),
-  // A day, or null to take the plan back off the calendar. The pattern is the
-  // shape only; `ProjectService.update` refuses a shape-valid non-day like
-  // `2026-02-31`, which is a date this schema cannot express.
-  startDate: t.Optional(t.Union([t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), t.Null()])),
-  solutionRef: t.Optional(
-    t.Union([
-      t.Object({ slug: t.String({ minLength: 1 }), url: t.String({ minLength: 1 }) }),
-      t.Null(),
-    ]),
-  ),
-});
+/**
+ * Types only, for the same reason as authController: rules live in the service.
+ *
+ * Functions rather than constants, and that is not style: Elysia writes
+ * `additionalProperties` into the schema object it is handed when a route's
+ * validator compiles, so a module-level schema is shared mutable state between
+ * every app in the process. See {@link credentials} in `auth.controller.ts`.
+ */
+const newProject = () => t.Object({ name: t.String() });
+const projectPatch = () =>
+  t.Object({
+    name: t.Optional(t.String()),
+    restricted: t.Optional(t.Boolean()),
+    // The union rather than a bare string: an unknown method reaching the column
+    // would be read back as malformed data and throw on every later read of the
+    // project. Refusing it here is a 422 on one request instead.
+    estimateMethod: t.Optional(t.Union(ESTIMATE_METHODS.map((method) => t.Literal(method)))),
+    // The same union for the same reason: an unrecognised reach in the column is
+    // read back as malformed data and throws on every later read of the project,
+    // so it is refused here as a 422 on one request instead. It is a **choice**
+    // the owner makes about their plan, not a scheduling parameter a client sends
+    // per read — see `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+    depReach: t.Optional(t.Union(DEPENDENCY_REACHES.map((reach) => t.Literal(reach)))),
+    // The three coefficients, together or not at all: the divisor is their sum,
+    // so a request naming one of them is asking for an arithmetic it has not
+    // stated. `minimum: 0` refuses a negative weight here; what it cannot refuse
+    // is `1e999`, which JSON parses to `Infinity` and which satisfies every
+    // `>= 0` ever written — `ProjectService.update` refuses that and the all-zero
+    // triple as 422, and `PertWeights` is the one rule both boundaries ask.
+    pertWeights: t.Optional(
+      t.Object({
+        optimistic: t.Number({ minimum: 0 }),
+        realistic: t.Number({ minimum: 0 }),
+        pessimistic: t.Number({ minimum: 0 }),
+      }),
+    ),
+    // The union for `estimateMethod`'s reason: an unrecognised rounding in the
+    // column is malformed data on every later read of the project.
+    estimateRounding: t.Optional(
+      t.Union(ESTIMATE_ROUNDINGS.map((rounding) => t.Literal(rounding))),
+    ),
+    // A day, or null to take the plan back off the calendar. The pattern is the
+    // shape only; `ProjectService.update` refuses a shape-valid non-day like
+    // `2026-02-31`, which is a date this schema cannot express.
+    startDate: t.Optional(t.Union([t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), t.Null()])),
+    solutionRef: t.Optional(
+      t.Union([
+        t.Object({ slug: t.String({ minLength: 1 }), url: t.String({ minLength: 1 }) }),
+        t.Null(),
+      ]),
+    ),
+  });
 
 interface ExportedWorkItem {
   number: string;
@@ -103,7 +113,7 @@ export function projectController(
     .use(callerGuard(auth))
     .post('/', async ({ body, user }) => projects.create(body.name, user.id), {
       ...signedIn,
-      body: newProject,
+      body: newProject(),
     })
     .get('/', async ({ user }) => ({ projects: await projects.list(user.id) }), signedIn)
     .post(
@@ -176,6 +186,6 @@ export function projectController(
         }
         return { project: outcome.value };
       },
-      { ...signedIn, body: projectPatch },
+      { ...signedIn, body: projectPatch() },
     );
 }

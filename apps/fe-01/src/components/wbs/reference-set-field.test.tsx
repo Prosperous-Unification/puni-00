@@ -308,6 +308,57 @@ describe('the add button closes what it opened', () => {
     expect(box.getAttribute('aria-expanded')).toBe('true');
   });
 
+  itDom('closes an add UI that never had a list to close', () => {
+    /*
+      **The Types column, and every cell whose directory is still empty.**
+
+      Dany, 2026-09-03: _"clicking on + on types column i cannot click it again
+      to remove the adding type UI; i want same UI as for services, teams"_.
+
+      `aria-expanded` is `typed !== null && options.length > 0`, so a directory
+      with nothing in it and nothing typed has **no list** — the box is open for
+      searching, the panel is on screen, and the attribute says `false`. The
+      toggle read that attribute, took it for "closed", and opened what was
+      already open: on a plan where nobody has made a work item type yet, the
+      `+` could not put the cell back. Teams and Services toggle because a
+      deployment has teams and services in it.
+
+      The predicate is the **search** — `typed !== null`, which the box carries
+      as `data-searching` — and the two states that matter stay apart: this
+      one, where the search is open with no lines under it, and the moment
+      after a take, where the search is closed and the box still holds the
+      focus (`picker-reopens-on-click`, the case below).
+
+      Proof: with the predicate back to `aria-expanded === 'true'`, watched
+      failing on `expected <input aria-label="Types" …(7)></input> not to be
+      <input aria-label="Types" …(7)></input>` — the box still held the focus
+      after the second press (2026-09-03).
+    */
+    render(
+      <ReferenceSetStrip
+        label="Types"
+        adapter={adapter({ kind: 'type', entries: [], ownIds: [], inheritedLabel: undefined })}
+      />,
+    );
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Types' });
+    const add = screen.getByRole('button', { name: 'Add a type' });
+    const searching = () => document.querySelector<HTMLElement>('[data-reference-search]');
+
+    fireEvent.click(add);
+    // The add UI is open — and the attribute a reader cannot see says it is not,
+    // which is the whole fault.
+    expect(document.activeElement).toBe(box);
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    expect(searching()?.style.minWidth).toBe('72px');
+
+    fireEvent.click(add);
+
+    expect(document.activeElement).not.toBe(box);
+    // `'0'` and not `'0px'`: a unitless zero is what React writes.
+    expect(searching()?.style.minWidth).toBe('0');
+  });
+
   itDom('still opens the press after a value is taken', async () => {
     const model = adapter();
     render(<ReferenceSetStrip label="Teams" adapter={model} />);

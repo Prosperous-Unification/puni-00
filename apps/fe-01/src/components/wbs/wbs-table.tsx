@@ -64,6 +64,7 @@ import { type ColumnHintState, hintFor, STEP_FINAL_HINT } from './column-hints';
 import {
   CreatablePicker,
   pickableLabel,
+  PICKER_PANEL_STYLE,
   PickerList,
   type PickerOption,
   pickerOptionId,
@@ -8307,23 +8308,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       e.preventDefault();
                     }}
                     style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      margin: 0,
-                      padding: 0,
-                      listStyle: 'none',
-                      // Tokens and not `#fff`/`#ccc`: this list is the one
-                      // popover in the app that never took the palette, so on a
-                      // dark page it stayed a white card with near-white text on
-                      // it — 1.05:1, measured. `CreatablePicker`'s `PickerList`
-                      // has read `--popover` since it was written; this is the
-                      // same surface saying the same thing.
-                      background: 'var(--popover)',
+                      // {@link PICKER_PANEL_STYLE} and not a copy of it. This
+                      // list is the one the four reference cells do **not**
+                      // share a component with, and the copy it used to carry
+                      // had drifted: no radius, no shadow, no `overflow:
+                      // hidden`, so the same gesture drew a flat square list
+                      // here and a rounded card three columns over. The tokens
+                      // that copy did get right — `--popover` over `#fff`, on a
+                      // dark page 1.05:1 measured — are in the shared style now.
+                      ...PICKER_PANEL_STYLE,
+                      // `--popover-foreground` is this list's own: the reference
+                      // panel inherits the cell's colour and reads correctly
+                      // doing it, and changing that is not what was asked for.
                       color: 'var(--popover-foreground)',
-                      border: '1px solid var(--border)',
-                      maxHeight: 200,
-                      overflowY: 'auto',
+                      // The table's own popover layer, which is 10 everywhere in
+                      // this file. `CreatablePicker` stacks its list at 15 —
+                      // that is its surface's number, not this one's.
                       zIndex: 10,
                       // Wider than its own column on purpose, since that column
                       // is 110px: an entry is a work item's number and its name,
