@@ -362,10 +362,32 @@ check-that-cannot-fail failure R5 names.
       idle a slice — checked against `2^31 − 1` before spawn (2.10). The
       request also carries `wireVersion` and `fastHint`; every field and unit
       comes from 2.1's schema rather than from this sentence.
-- [ ] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
+- [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
-      `status`, an unknown key, a missing key.
+      `status`, an unknown key, a missing key. Lands in
+      `libs/contracts/solver/src/`, which the same commit made a **compiled and
+      linted** directory: `libs/contracts` included `src/**` only, so a module
+      here would have been exercised by the suite (its target runs with `cwd:
+      libs/contracts` and bun scans recursively) and never typechecked or
+      linted — measured, with both includes at their old values a real type
+      error in `solver/src` gives `tsc` exit 0 and zero errors.
+      It returns a **result**, never a throw: every rejection is the
+      coordinator's `invalid-output`, which is a value it records, and four
+      refusal codes distinguish the four distinct repairs — `empty-output`,
+      `not-one-line`, `malformed-json`, `schema-violation`. Text after a valid
+      line on the SAME line is `malformed-json` rather than `not-one-line`,
+      deliberately: one is a framing fault and the other is a serialiser fault.
+      The structural half is written against the constants `wire-types.ts`
+      exports and `wire-types.test.ts` pins to the schema, and **the golden
+      corpus is its oracle** — every response fixture is enumerated out of the
+      manifest and run through the parser, which fails if it accepts one the
+      schema rejects or rejects one it accepts. That is the manifest's own
+      stated contract, so no second copy of the schema's rules exists to fall
+      out of step, and this is why 2.3 needs no JSON Schema validator
+      dependency. **Note for 2.1:** the response corpus has no unknown-key
+      fixture (only `request/invalid-unknown-key.json`), so that case is
+      covered by 2.5's raw-string cases and not by the corpus.
 - [ ] 2.4 `revalidateSolverResult(request, response)` — every offset present and
       non-negative, every edge respected, every `notBeforeUnits` floor
       respected, no pool over capacity at any instant (checked against **all**
@@ -405,6 +427,13 @@ check-that-cannot-fail failure R5 names.
       each of 2.3's six framing cases is fed to `parseSolverResponse` **as a raw
       string**, not through a child process — a process cannot reliably produce
       the two-line and trailing-text cases on demand.
+      **Framing half landed** in
+      `libs/contracts/solver/src/parse-solver-response.test.ts` — all six cases
+      as raw strings, plus the corpus agreement suite. The file name differs
+      from the one this slice guessed on purpose: the tests live beside the
+      unit they prove, and 2.4's re-validator will bring
+      `revalidate-solver-result.test.ts` with it. What remains here is 2.4's
+      violation cases, which cannot be written until 2.4 exists.
 - [ ] 2.6 **Proven by** `solver-request.test.ts`: a null-`days` slice becomes
       `ASSUMED_SLICE_WORKDAYS`; a width-3 slice of 6 days' effort becomes 2
       days; a `whole-item` and an `anchor-slice` plan produce different edge
