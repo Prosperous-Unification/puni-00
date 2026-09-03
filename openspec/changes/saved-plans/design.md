@@ -190,12 +190,21 @@ a stranger's committed-looking edit with it. That is a stronger reason for a
 dedicated read connection than the one this document started with, and it is why
 `openConnection` — not the process handle — is what 3.1 must call.
 
-**Stated as a hypothesis, not as a measurement.** The enclosure above follows
-from the single connection plus the microtask yield; nothing has yet run that
-watches a foreign write appear inside a capture transaction. 3.2 is the test that
-settles it, and its "per-read connections" negative is now the *positive*
-architecture — the negative worth watching is the capture running on the shared
-process handle.
+**Settled by measurement on 2026-09-03; it was a hypothesis until then.** The
+enclosure above followed from the single connection plus the microtask yield, and
+nothing had run that watched a foreign write appear inside a capture transaction.
+3.2's first negative now has:
+`saved-plan-capture.db.test.ts`, *"encloses that same write when the capture is
+run on the shared process handle"*. One scenario is run twice, differing only in
+the connection the capture is handed. On its own connection, a stranger's
+`UPDATE tag SET name = 'renamed'` survives the capture's rollback and a third
+connection reads `renamed`. On the process handle, the identical write is inside
+the capture's transaction: the capture unwinds and the same third connection
+reads the **pre-edit** `urgent`, with nothing in the writing request able to
+observe that its committed-looking edit was revoked. Green on h2puni at
+`92cad22b`. The "per-read connections" negative this section once named is gone,
+not merely demoted: `bun:sqlite` has no pool, so it could only ever have been
+staged.
 
 ## Quota
 
