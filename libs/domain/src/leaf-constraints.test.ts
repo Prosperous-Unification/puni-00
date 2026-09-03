@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import type { PlannedRow } from './derive-numbers';
+import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { indexTree } from './schedule';
 
 /** A grandparent, a parent under it, and two leaves under the parent. */
