@@ -1030,9 +1030,17 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 ## 10. Gate and close
 
-- [ ] 10.1 Remote gate on h2puni: the repo's standard Nx gate (see
-      `openspec/config.yaml`, "There is no CI. The gate is …") plus the Python
-      suite. Record the actual output in `verify.md` with the failure-proof
+- [ ] 10.1 Remote gate on h2puni: **`bin/h2puni-gate.sh`** (it takes the
+      host-wide lock; `AGENTS.md` 466–473 forbids the raw full Nx gate there),
+      **`bunx @fission-ai/openspec@1.3.0 validate --all --json`**, the Python suite, and the
+      **positive/negative built-image spawn proof** — this change's packaging
+      claim is a Python-enabled built image, so a gate without `build` cannot
+      observe it. The actual CI run (`.github/workflows/ci.yml`) is retained as
+      the merge gate; its job runs `bunx nx format:check --all` and
+      `bunx nx run-many -t test lint typecheck build`, so **format and build are
+      part of the real gate** (Sol r9 Important 5). `openspec/config.yaml`'s
+      "There is no CI" line was stale and is corrected in this slice so later
+      plans do not inherit an under-scoped gate. Record the actual output in `verify.md` with the failure-proof
       table (fault injected, the case that observed it failing, result) for
       every watched-red check in slices 1–9.
 - [ ] 10.2 Terminal review of the exact head: the Anthropic↔OpenAI peer plus
