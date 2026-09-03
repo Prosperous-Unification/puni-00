@@ -6,7 +6,7 @@ import type { StepUsage, StepView } from '@/lib/wbs-api';
 
 import { flipSentence, StepsPanel, usageSentence } from './steps-panel';
 import type * as TableFrame from './table-frame';
-import { INITIAL_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } from './table-frame';
+import { foldedTableMinWidth, type FrameLayoutState, INITIAL_HIDDEN_COLUMNS } from './table-frame';
 
 /**
  * The width module with its folded-minimum function watched.
