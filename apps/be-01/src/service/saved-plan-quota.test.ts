@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   DEFAULT_SAVED_PLAN_QUOTA,
+  type SavedPlanQuota,
   bodyBytesRefusal,
   holdingRefusal,
-  type SavedPlanQuota,
 } from './saved-plan-quota';
 
 /**
