@@ -249,7 +249,10 @@ time from a `ScheduleCycleError` thrown by `schedule()`
 (`apps/be-01/src/service/work-item.service.ts:1413`, `:1474`) and is not a stored
 column, so it is a property of the scheduling attempt, captured as the absent
 reason, and never a field of the plan input. A comparison SHALL report that no
-schedule was saved for that side, and SHALL NOT substitute the live schedule.
+schedule was saved for **that saved side**, and SHALL NOT substitute the live
+schedule for it. This is a rule about a saved record with no body; it does not
+reach the `current` side, whose schedule is defined in the comparison
+requirement below and is live by construction.
 
 #### Scenario: an older algorithm's numbers
 
@@ -309,6 +312,26 @@ by a list written here. Without this a change to `schedule()`'s semantics, which
 is exactly what `scheduler_algorithm_id` exists to record, moves every date
 between two saves whose inputs are byte-identical while the comparison reports
 no change: the feature's motivating question answered wrongly.
+
+**`current` has a schedule, and it is not an absent one.** The paragraph above
+bounds each side by its *stored* schedule and `current` stores nothing, so this
+requirement states what the live side carries. `current`'s schedule SHALL be
+`schedule()`'s return over the values the same read snapshot captured, computed
+outside that snapshot exactly as the save path computes its own, labelled with
+the scheduling algorithm identity **currently** in force rather than any stored
+one. A plan whose dependencies form a cycle SHALL yield the same `infeasible`
+absent reason a save records, on the same derivation. `current` SHALL NOT be
+given the absent reason `unavailable` merely because it has no stored body: that
+is the reading this paragraph exists to forbid, and under it every
+saved-vs-current comparison — the primary direction of this feature — reports
+"no schedule was saved" on the live side and answers nothing about dates.
+
+#### Scenario: a saved plan against the live plan's dates
+
+- **WHEN** a saved plan is compared against `current`, their canonical plan
+  inputs are equal, and the live schedule differs from the stored one
+- **THEN** the comparison reports the date and offset differences and the two
+  algorithm identities, and does not report `current` as having no schedule
 
 #### Scenario: the dates moved but the input did not
 

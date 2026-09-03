@@ -251,10 +251,15 @@ comparison UI) and start only after slice 6 is merged.
 ## 7. The diff
 
 - [ ] 7.1 `diffPlans(left, right)` in `libs/domain`. Each side is a
-      `CanonicalPlanInput` **and its stored schedule body** (or the recorded
-      absent reason), because spec requires schedule-side differences to be
-      reported and a schedule is not a field of the input: a signature taking
-      only the inputs cannot see a date at all. One function, both directions.
+      `CanonicalPlanInput`, **its schedule body** (or the recorded absent
+      reason), **and its `scheduler_algorithm_id`** — because spec requires
+      schedule-side differences to be reported and a schedule is not a field of
+      the input: a signature taking only the inputs cannot see a date at all.
+      The identity is named separately because it is a `saved_plan` **header**
+      column, not part of the `Scheduled`/`ScheduledSlice` body 7.2c derives its
+      field set from, so a side object carrying only input + body would drop the
+      one field spec names explicitly. On the `current` side these three come
+      from 7.3, not from a stored record. One function, both directions.
 - [ ] 7.2 Property test: added, removed, renamed, reparented and reordered items;
       changed uncertainty, effort, actuals, progress, measures, ownership,
       dependencies, settings, dates, **and freeze** (`frozen_number` set, cleared
@@ -295,6 +300,18 @@ comparison UI) and start only after slice 6 is merged.
       live plan that never existed — the display-side twin of the defect 3.2
       exists to catch. Test: compare against `current`, assert no row was
       written, and assert the `current` value carries the registry rows by value.
+- [ ] 7.3a **`current` carries a schedule, produced here.** `projectCurrentPlan()`
+      returns the third side-field 7.1 takes as well as the input: `schedule()`'s
+      return over the values it just captured, run **outside** the read snapshot
+      as 3.3 requires of the save path, labelled with the algorithm identity
+      currently in force, with a `ScheduleCycleError` mapped to the `infeasible`
+      absent reason on 5.4's derivation. Test: a saved plan and `current` whose
+      canonical inputs are equal but whose schedules differ report the date
+      differences and both identities. Negative: return the absent reason
+      `unavailable` for `current` — which is what spec's stored-schedule bound
+      lawfully permits until 7.3a exists — and watch that test report "no
+      schedule was saved" on the live side while every input-side assertion,
+      7.2b and 7.2c all stay green, because none of them runs this path.
 - [ ] 7.3b **The compare route**, on `savedPlanController` under the project's
       read rule: two sides, each a saved-plan id or `current`. It has to be a
       route — `current` needs 7.3's server-side capture over 3.1's read set, so

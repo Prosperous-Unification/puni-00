@@ -71,11 +71,17 @@ produces a document describing a plan that never existed.
 same snapshot.** The projection renders in a browser that can resolve a label
 against the live registry a moment later; a saved plan cannot, so it captures the
 rows the projection only references by id — `tag` (`schema.ts:968`),
-`work_item_type` (`:1063`), `external_system` (`:1085`) and the junctions behind
+`work_item_type` (`:1063`), `external_system` (`:1085`), the junctions behind
 labelling and ownership (`work_item_tag` `:1020`, the `typeId` reference `:1131`,
 `work_item_external_ref` `:1170`, `work_item_team` `:921`, `work_item_service`
-`:1343`, `person_team` `:1546`, `team_service` `:1273`). None of these is among
-the thirteen. The read set is therefore bounded by `CanonicalPlanInput`, not by
+`:1343`, `person_team` `:1546`, `team_service` `:1273`) **and the team, service
+and person rows those junctions and the capacity map name**. That last class is
+one hop further than it looks: `slotsFor` is keyed by team id and needs no
+junction row, so a capacity-only team — ordinary in the early planning this
+feature targets — is named by no junction at all; and the projection's people
+read is filtered to *assigned* ids, so a person named only by a captured
+`person_team` row is captured nowhere. None of these is among the thirteen. The
+read set is therefore bounded by `CanonicalPlanInput`, not by
 the projection, and a capture-only read left outside the snapshot reproduces the
 defect exactly: a tag renamed between the item read and the registry read stores
 pre-edit items beside post-edit labels, and every assertion written against the
@@ -167,10 +173,29 @@ levelling search work and says nothing about serialized size.
 
 ## Comparison
 
-One function, `diffPlans(left, right)`, over two canonical plan-input values.
+One function, `diffPlans(left, right)`, both directions, over two **sides**. A
+side is not a plan input: it is the canonical plan input, **plus** that side's
+schedule — the stored schedule body, or the recorded absent reason where there is
+none — **plus** the `scheduler_algorithm_id` the schedule was produced under,
+which is a header column rather than a field of the schedule body. A signature
+taking only the two inputs cannot see a date at all, and spec requires the
+schedule side to be reported normatively: two saves with byte-identical inputs
+and different dates are exactly what a `schedule()` semantics change produces,
+and they must not compare as unchanged.
+
 `current` is the live plan run through the same canonical projection, in memory,
-written nowhere. So snapshot↔snapshot and snapshot↔current are one code path and
-one test suite; the API takes two sides and there is no compare-to-live endpoint.
+written nowhere — **and it has a schedule like any other side.** It is
+`schedule()`'s return over the values 7.3 captured, computed outside the read
+snapshot as the save path computes its own, labelled with the *current*
+algorithm identity, with a dependency cycle mapping to the same `infeasible`
+absent reason a save records. Leaving it undefined is not neutral: spec bounds
+schedule coverage by each side's stored schedule and `current` stores nothing,
+so an implementer would lawfully pass `unavailable` and every saved-vs-current
+comparison — the primary direction of this feature — would answer "no schedule
+was saved" about the live side and report nothing about dates.
+
+So snapshot↔snapshot and snapshot↔current are one code path and one test suite;
+the API takes two sides and there is no compare-to-live endpoint.
 
 Cross-version diffs **normalise forward only**: an older body is upgraded in
 memory to the newest schema for the diff. Stored bytes are never rewritten — that

@@ -48,6 +48,7 @@ until it has been.
 | The compare route carries the project read rule (7.3b) | the route mounted without the read rule — 6.2's anonymous and third-party cases must fail | |
 | The diff names every differing canonical field (7.2b) | `frozen_number`, then a tag id, dropped from `diffPlans`' comparison | |
 | The diff names every differing schedule field (7.2c) | `diffPlans` built over the plan inputs alone — every schedule mutation must report "no change" | |
+| `current` carries a live schedule, not an absent reason (7.3a) | `projectCurrentPlan()` returns the absent reason `unavailable` for `current` — the saved-vs-current date test must fail while 7.2b and 7.2c stay green | |
 | A successful retry captures a new read snapshot (4.5) | the retry reuses the refused attempt's detached values — the interleaved live edit must be missing from the stored input | |
 | Immutability, asserted by hash (4.2) | one captured field dropped from the writer — the hash must move even though every asserted field is still present | |
 | Save writes nothing on failure (4.3) | a throw injected between the header and the input body | |
@@ -73,11 +74,14 @@ Both outputs are pasted here verbatim when the slices land.
 | OpenSpec validation | `@fission-ai/openspec validate --all --json`, h2puni | 1 | recorded in the task log |
 | Peer | `openai/gpt-5.6-sol` | 2 | recorded in the task log |
 | Gemini | per AGENTS.md seat order | 2 | recorded in the task log |
-| Peer | `anthropic/claude-fable-5` (Sol seat unavailable) | 2, 4, 5, 6 | recorded in the task log |
-| Gemini | `openrouter/google/gemini-3.1-pro-preview` (agy and direct google failed) | 3, 4, 5, 6 | recorded in the task log |
+| Peer | `anthropic/claude-fable-5` (Sol seat unavailable) | 2, 4, 5, 6, 7, 8 | recorded in the task log |
+| Gemini | `openrouter/google/gemini-3.1-pro-preview` (agy and direct google failed) | 3, 4, 5, 6, 7, 8 | recorded in the task log |
 
 Every round's full verdict is a verified artifact under `queue/reviews/` in the
 ops workspace, with its byte length and SHA-256 recorded in the task log beside
 the findings it produced and their dispositions. Rounds 3 and later are listed
 here so a reader at archive time does not take the gate to have stopped at
-round 2.
+round 2. The `openai/gpt-5.6-sol` seat was attempted at the head of every round
+from 4 on and refused in under a second each time with the same Codex
+harness tool-policy error, so the peer column names the model that actually
+read the artifacts rather than the one the routing policy prefers.
