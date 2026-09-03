@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../testing/project-fixture';
 import { CapacityRepository } from './capacity';
-import type { Connection, Drizzle } from './db';
+import type { Connection } from './db';
 import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import type { WriteStamp } from './index';
@@ -21,20 +21,15 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
- * The text of a `sql.raw` statement, which is what the transaction helper runs.
+ * A `sql.raw` statement in a form an assertion can match.
  *
- * Rendered from the chunks rather than with `String(...)`: drizzle's `SQL` has
- * no `toString` that yields its text, so a stringified statement is
- * `[object Object]` and every assertion below would compare two of those and
- * pass on any pair of raw statements at all.
+ * Serialized rather than stringified: drizzle's `SQL` has no `toString` that
+ * yields its text, so `String(statement)` is `[object Object]` — two of those
+ * compare equal, and every assertion below would pass on any pair of raw
+ * statements at all. The chunk shape is drizzle's, so the tests match on the
+ * text they contain rather than pinning it.
  */
-const rendered = (statement: unknown): string => {
-  const chunks = (statement as { queryChunks?: readonly { value?: unknown }[] }).queryChunks;
-  if (!Array.isArray(chunks)) return String(statement);
-  return chunks
-    .map((chunk) => (Array.isArray(chunk.value) ? chunk.value.join('') : String(chunk.value ?? '')))
-    .join('');
-};
+const rendered = (statement: unknown): string => JSON.stringify(statement) ?? '';
 
 /**
  * A connection whose raw statements and reads are recorded in one sequence.
@@ -71,7 +66,7 @@ const tracing = (
       }
       return Reflect.get(target, prop, receiver) as unknown;
     },
-  }) as Drizzle;
+  });
   return {
     db,
     close: () => {
@@ -87,7 +82,7 @@ const tracing = (
  * Two separate claims live here and they fail for different reasons. The first
  * is *enclosure*: every read the capture makes falls inside one
  * `BEGIN DEFERRED` on a connection this class opened for itself. The second is
- * *coverage*: the capture-only reads exist because the live projection has two
+ * coverage: the capture-only reads exist because the live projection has two
  * holes, and both are seeded below rather than described.
  */
 describe('capturing a project’s plan input', () => {
@@ -144,8 +139,8 @@ describe('capturing a project’s plan input', () => {
     const read = await capture().readPlanInput('p1');
 
     expect(read).not.toBeNull();
-    expect(trace.statements.at(0)).toBe('BEGIN DEFERRED');
-    expect(trace.statements.at(-1)).toBe('COMMIT');
+    expect(trace.statements.at(0)).toContain('BEGIN DEFERRED');
+    expect(trace.statements.at(-1)).toContain('COMMIT');
     // Seventeen reads, and no statement outside the block. Counted rather than
     // listed: which store issues which query is the store's business, but a read
     // that escaped the snapshot would land outside these bounds.
@@ -174,8 +169,8 @@ describe('capturing a project’s plan input', () => {
 
   it('answers null for a project it cannot find, and still closes the connection', async () => {
     expect(await capture().readPlanInput('nope')).toBeNull();
-    expect(trace.statements.at(0)).toBe('BEGIN DEFERRED');
-    expect(trace.statements.at(-1)).toBe('COMMIT');
+    expect(trace.statements.at(0)).toContain('BEGIN DEFERRED');
+    expect(trace.statements.at(-1)).toContain('COMMIT');
     expect(trace.closes).toBe(1);
   });
 
@@ -184,9 +179,15 @@ describe('capturing a project’s plan input', () => {
     // `readPlanInput`, `trace.closes` is 0 here and the connection is a leaked
     // WAL reader — which during a blue/green swap is the other colour's problem
     // and shows up nowhere near this test.
-    await expect(capture(3).readPlanInput('p1')).rejects.toThrow('fell over mid-capture');
+    let thrown: unknown;
+    try {
+      await capture(3).readPlanInput('p1');
+    } catch (err) {
+      thrown = err;
+    }
 
-    expect(trace.statements.at(-1)).toBe('ROLLBACK');
+    expect((thrown as Error | undefined)?.message).toContain('fell over mid-capture');
+    expect(trace.statements.at(-1)).toContain('ROLLBACK');
     expect(trace.closes).toBe(1);
   });
 });

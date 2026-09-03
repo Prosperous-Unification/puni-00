@@ -1,3 +1,5 @@
+import type { PriorityBand } from '@wbs/domain';
+
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
 import type { Connection } from './db';
@@ -27,7 +29,6 @@ import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
 import { WorkItemRepository } from './work-item';
-import type { PriorityBand } from '@wbs/domain';
 
 /**
  * Every row one capture read, as the stores returned it.
