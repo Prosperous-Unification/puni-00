@@ -1092,6 +1092,18 @@ h2puni is green — no build or autotest runs on the workspace box.
       row is reclaimed by `admittedDeadlineAt` and not by a live holder.
       **Watched red:** remove the timeout and let the launcher block on read —
       the launcher must still be alive when the assertion runs.
+      **Fourth trigger, the bind into a spent budget:** reclamation is
+      `now > admittedDeadlineAt` and runs only inside sweeps, so an owner
+      paused between `childDeadlineAt` and `admittedDeadlineAt` — a
+      `SLOT_RECLAIM_MARGIN_MS`-wide window against an unswept row — still
+      binds with its token intact and its budget already spent. The launcher
+      SHALL treat a `bound` verdict with `now >= childDeadlineAt` as abort and
+      exit without `exec`ing, because a non-positive duration is undefined at
+      both arming mechanisms. Add the case to this proc test: pause the owner
+      into that window, let the bind succeed, assert no `wbs-solver` process is
+      created and the slot is released. **Watched red:** arm the child anyway
+      with the non-positive remainder — the test must show either a
+      `wbs-solver` process or an unbounded one.
 - [ ] 6.5 Restart: nothing resumed, no queue rebuilt. Orphan handling is not a
       PID search — 5.1's `PR_SET_PDEATHSIG` kills the child, slot expiry
       restores capacity, and the container/cgroup boundary is recorded as a

@@ -1106,10 +1106,13 @@ _Avoid_: slot TTL, heartbeat timeout, expiry window
 **Lifecycle launcher**:
 The distinct entrypoint the coordinator spawns for an admitted slot — never `wbs-solver`
 itself. It loads no CP-SAT and solves nothing. Its lifecycle wrapper reads the clock once to
-arm `--child-deadline-epoch-ms` as its own alarm, installs `PR_SET_PDEATHSIG`, re-checks
+convert `--child-deadline-epoch-ms` into CP-SAT's `max_time_in_seconds` — the in-process half;
+the load-bearing half is the per-child scope's `RuntimeMaxSec` kill at that same instant, since a
+Python alarm cannot preempt a native solve under the GIL — installs `PR_SET_PDEATHSIG`, re-checks
 `getppid()`, and then blocks for the bind verdict before it touches the request at all. On
 `bound` it `exec`s `wbs-solver` in place, keeping the pid the bind CAS recorded; on `abort`,
-a closed stdin, or `BIND_TIMEOUT_MS` expiry it exits **without** `exec`ing. That is what
+a closed stdin, `BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when the child deadline
+has already passed it exits **without** `exec`ing. That is what
 makes the ceiling literal: a process named `wbs-solver` cannot exist before its row is
 `running`, so a delayed spawn after reclaim creates no uncounted solver.
 _Avoid_: shim, supervisor, solver wrapper — "lifecycle wrapper" is the launcher's own
