@@ -179,7 +179,7 @@ comparison UI) and start only after slice 6 is merged.
       Negative: run `schedule()` inside the snapshot and watch 3.3 fail — a
       liveness assertion that cannot fail would let a levelling run hold the read
       transaction open, which is the cost slice 3 is shaped to avoid.
-- [ ] 3.4 The schedule body carries the **whole** `Scheduled`/`ScheduledSlice`
+- [x] 3.4 The schedule body carries the **whole** `Scheduled`/`ScheduledSlice`
       field set (`schedule.ts:116-125`, `:156-234`) plus the top-level `Schedule`
       counts `waitingForPerson` and `waitingForCapacity` (`schedule.ts:246-263`),
       in offsets **and** ISO dates. `eventsVisited` (`schedule.ts:264-277`) is
