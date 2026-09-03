@@ -37,14 +37,14 @@ const rows: PlanInputRows = {
       position: 20,
       name: 'Pull cable',
       notes: '',
-      typeId: 't-task',
+      typeIds: ['t-spike', 't-task'],
       tagIds: ['tag-b', 'tag-a'],
       externalRefs: [
-        { externalSystemId: 'jira', externalId: 'SHED-2' },
-        { externalSystemId: 'gh', externalId: '17' },
+        { externalSystemId: 'jira', url: 'https://jira/SHED-2', position: 20 },
+        { externalSystemId: 'gh', url: 'https://gh/17', position: 10 },
       ],
       priority: 30,
-      maxParallel: null,
+      maxParallel: 1,
       frozenNumber: null,
       serviceTeamId: 'team-1',
       serviceId: null,
@@ -57,7 +57,7 @@ const rows: PlanInputRows = {
       position: 10,
       name: 'Electrics',
       notes: 'consented',
-      typeId: null,
+      typeIds: [],
       tagIds: ['tag-a'],
       externalRefs: [],
       priority: 10,
@@ -163,6 +163,7 @@ function reversed(values: PlanInputRows): PlanInputRows {
     ...values,
     workItems: [...values.workItems].reverse().map((row) => ({
       ...row,
+      typeIds: [...row.typeIds].reverse(),
       tagIds: [...row.tagIds].reverse(),
       externalRefs: [...row.externalRefs].reverse(),
     })),
@@ -223,6 +224,33 @@ describe('canonicalisePlanInput', () => {
   });
 
   /**
+   * The whole type set, not one of it. `typeId: string | null` held exactly one
+   * id and this fixture row states two, so a singular field silently keeps
+   * whichever the fold reached for — and `workItemTypes`, whose contract is
+   * "every work-item-type id the captured items use", is enumerated from this.
+   */
+  it('stores every work-item type a row states, not one of them', () => {
+    const [typed] = canonicalisePlanInput(rows).workItems.filter((row) => row.id === 'w2');
+
+    expect(typed?.typeIds).toEqual(['t-spike', 't-task']);
+  });
+
+  /**
+   * An external ref is identified by its `url`; `work_item_external_ref` has no
+   * `external_id` column. Sorting by a field the row cannot supply compares
+   * `undefined` with `undefined`, which leaves arrival order in the bytes — so
+   * this asserts the *sorted* order rather than only that both fields survive.
+   */
+  it('orders external refs by system then url, and keeps the shown position', () => {
+    const [linked] = canonicalisePlanInput(rows).workItems.filter((row) => row.id === 'w2');
+
+    expect(linked?.externalRefs).toEqual([
+      { externalSystemId: 'gh', url: 'https://gh/17', position: 10 },
+      { externalSystemId: 'jira', url: 'https://jira/SHED-2', position: 20 },
+    ]);
+  });
+
+  /**
    * The watched negative for 1.3. A canonicaliser that stops sorting work items
    * still returns a perfectly well-typed value, so the only thing that can
    * catch it is the byte comparison above — proved here by running that
@@ -267,11 +295,11 @@ describe('canonicalisePlanInput round trip', () => {
           position: (index + 1) * 10,
           name: `item ${id}`,
           notes: '',
-          typeId: null,
+          typeIds: [],
           tagIds,
           externalRefs: [],
           priority: index,
-          maxParallel: null,
+          maxParallel: 1,
           frozenNumber: null,
           serviceTeamId: teamIds[0] ?? null,
           serviceId: null,

@@ -102,13 +102,35 @@ export interface CanonicalWorkItem {
   readonly position: number;
   readonly name: string;
   readonly notes: string;
-  readonly typeId: string | null;
+  /**
+   * Work-item-type ids, sorted. The rows themselves ride in `workItemTypes`.
+   *
+   * **Plural, and it was `typeId: string | null` until the caller existed.**
+   * A row states 0..n types (`LabelledWorkItem.typeIds`,
+   * `apps/be-01/src/repository/index.ts:455`; `work_item_type_link` is the whole
+   * of the fact and there is no `work_item.type_id` column to narrow it to one).
+   * A singular field stores at most one of them, so an item typed `Story` **and**
+   * `Spike` would be saved as one of the two, silently, chosen by whichever the
+   * fold happened to reach for — and `workItemTypes`, whose contract is "every
+   * work-item-type id the captured items use", would have had a field list it
+   * could not be enumerated from. `tagIds` one line up was already plural; this
+   * is the same dimension counted the same way.
+   */
+  readonly typeIds: readonly string[];
   /** Tag ids, sorted. The rows themselves ride in `tags`. */
   readonly tagIds: readonly string[];
-  /** Sorted by `externalSystemId`, then `externalId`. */
+  /** Sorted by `externalSystemId`, then `url`. */
   readonly externalRefs: readonly CanonicalExternalRef[];
   readonly priority: number | null;
-  readonly maxParallel: number | null;
+  /**
+   * How many people may work this item at once — never null.
+   *
+   * `work_item.max_parallel` is `NOT NULL DEFAULT 1` (`schema.ts:436`), so no
+   * read can produce a null and a nullable field would be a second spelling of
+   * "1" that every reader would have to handle. Narrowed for the closed field
+   * list's reason: a type wider than the fact admits values the plan cannot have.
+   */
+  readonly maxParallel: number;
   readonly frozenNumber: string | null;
   readonly serviceTeamId: string | null;
   readonly serviceId: string | null;
@@ -116,9 +138,28 @@ export interface CanonicalWorkItem {
   readonly startNoEarlierThanReason: string | null;
 }
 
+/**
+ * One link from a work item out to a system that is not this one.
+ *
+ * **The identifier is the `url`, and there is no `externalId`.** The field this
+ * replaces named a column that does not exist: `work_item_external_ref` is
+ * `(id, work_item_id, system_id, url, position)` (`schema.ts:1169-1187`) and
+ * what a user typed is the URL. Sorting by a field the row cannot supply is not
+ * a sort — it compares `undefined` against `undefined`, leaves the array in
+ * arrival order, and puts the read's `ORDER BY` into the hash, which is the one
+ * thing this module exists to keep out of it.
+ *
+ * `position` is stored rather than dropped: it is the order the refs are shown
+ * in (`wier_by_work_item` is `(work_item_id, position)`), so a saved plan
+ * without it renders somebody's links in an order they did not choose. It is
+ * **not** the sort key — two refs that tie on it would then order by arrival —
+ * so the ordering is by `externalSystemId` then `url`, and `position` rides as
+ * an ordinary value.
+ */
 export interface CanonicalExternalRef {
   readonly externalSystemId: string;
-  readonly externalId: string;
+  readonly url: string;
+  readonly position: number;
 }
 
 export interface CanonicalStep {
@@ -290,15 +331,19 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       position: row.position,
       name: row.name,
       notes: row.notes,
-      typeId: row.typeId,
+      typeIds: sorted(row.typeIds, byString((id: string) => id)),
       tagIds: sorted(row.tagIds, byString((id: string) => id)),
       externalRefs: sorted(
         row.externalRefs,
         byString(
           (ref: CanonicalExternalRef) => ref.externalSystemId,
-          (ref: CanonicalExternalRef) => ref.externalId,
+          (ref: CanonicalExternalRef) => ref.url,
         ),
-      ).map((ref) => ({ externalSystemId: ref.externalSystemId, externalId: ref.externalId })),
+      ).map((ref) => ({
+        externalSystemId: ref.externalSystemId,
+        url: ref.url,
+        position: ref.position,
+      })),
       priority: row.priority,
       maxParallel: row.maxParallel,
       frozenNumber: row.frozenNumber,
