@@ -6,10 +6,15 @@ Every reference cell's `+` — Tags, Teams, Services, Types and Depends on — S
 open its picker when the picker's list is not open, and SHALL close that list and
 leave the cell at rest when it is.
 
-The question the button asks SHALL be whether the **list** is open, not whether
-the box holds the focus. A box holding the focus with no list under it is the
-state a reader is in immediately after taking a value, and the `+` SHALL open the
-list again from there.
+The question the button asks SHALL be whether the cell's **search** is open, not
+whether a list is under it and not whether the box holds the focus. A box holding
+the focus with no search open is the state a reader is in immediately after
+taking a value, and the `+` SHALL open the search again from there.
+
+A search with **no lines** is still open: a cell whose directory is empty, or
+whose row already holds every entry in it, offers nothing to pick and the `+`
+SHALL still close it. Reading the list instead left the Types column unclosable
+on any plan where nobody had made a type yet (2026-09-03).
 
 Pressing the `+` SHALL NOT move the keyboard focus onto the button on any press,
 opening or closing.
@@ -24,6 +29,13 @@ taken.
   open
 - **WHEN** the `+` is pressed again
 - **THEN** the list SHALL be closed and the cell SHALL be at rest
+
+#### Scenario: a second press closes a search that has no list
+
+- **GIVEN** a Types cell whose directory holds no entry it can offer, so its `+`
+  has opened the search with nothing under it
+- **WHEN** the `+` is pressed again
+- **THEN** the search SHALL be closed and the cell SHALL be at rest
 
 #### Scenario: a third press opens it again
 

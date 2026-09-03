@@ -506,6 +506,24 @@ export function CreatablePicker({
         aria-label={label}
         role="combobox"
         aria-expanded={open}
+        /*
+          **Whether the search is open, which is not the same question as
+          `aria-expanded`.**
+
+          `aria-expanded` is `open` — the search *and* at least one line under
+          it — because a combobox claiming an expanded popup that is not
+          rendered is a lie to a screen reader. But "is this cell's add UI on
+          screen" is `typed !== null` alone: a directory with nothing in it
+          offers no lines, so the box sits open for searching with
+          `aria-expanded="false"`.
+
+          {@link ReferenceSetStrip}'s `+` needs that second question to toggle
+          — see its `onClick`. An attribute rather than a prop because the
+          button reaches its box through the DOM (it is a sibling, not a
+          child), and presence rather than `"true"`/`"false"` so the resting
+          box carries nothing at all.
+        */
+        data-searching={typed === null ? undefined : ''}
         aria-controls={open ? listId : undefined}
         // Which line Enter takes, for a reader who cannot see the highlight.
         aria-activedescendant={open ? pickerOptionId(listId, active) : undefined}

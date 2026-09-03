@@ -547,20 +547,32 @@ export function ReferenceSetStrip({
               the way out was Escape or a click somewhere else, neither of which
               is where the hand already is.
 
-              `aria-expanded` and **not** `editing`, and not
-              `document.activeElement`. Both of those are "the focus is in this
-              cell", which is true in the state `picker-reopens-on-click` was
-              written for: the moment after a value is taken, the box still
-              holds the focus and the list is closed, and the `+` has to open it
-              again from exactly there. A toggle reading the focus would close
-              the cell in the one state that change exists to fix.
+              **`data-searching` and not `aria-expanded`**, and not `editing`,
+              and not `document.activeElement`.
+
+              The last two are "the focus is in this cell", which is true in the
+              state `picker-reopens-on-click` was written for: the moment after
+              a value is taken, the box still holds the focus and the search is
+              closed, and the `+` has to open it again from exactly there. A
+              toggle reading the focus would close the cell in the one state
+              that change exists to fix.
+
+              `aria-expanded` was the first answer and it was too narrow by one
+              case. It is `typed !== null && options.length > 0`, so a cell
+              whose directory is **empty** — the Types column on any plan where
+              nobody has made a type yet — opens for searching with no lines
+              under it and reports `false`. The toggle read that as "closed" and
+              re-opened what was already open. Dany, 2026-09-03: _"clicking on +
+              on types column i cannot click it again to remove the adding type
+              UI"_. `data-searching` is `typed !== null` and nothing else, which
+              is exactly "the add UI is on screen".
 
               `blur()` rather than closing the list on its own: the blur is what
               the cell's own `focusout` reads to leave `editing`, so this is the
               same close Escape and a click outside already make, and it
               discards exactly what they discard.
             */
-            if (box?.getAttribute('aria-expanded') === 'true') {
+            if (box?.hasAttribute('data-searching') === true) {
               box.blur();
               return;
             }
