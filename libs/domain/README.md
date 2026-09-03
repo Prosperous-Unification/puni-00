@@ -19,6 +19,7 @@ with it, and the two cannot disagree about a date.
 | Its work item type                         | — nowhere              | ADR 0009 — a type does not inherit at all      |
 | How far into a predecessor an edge reaches | `dependency-reach.ts`  | ADR 0010 — the project's choice                |
 | What a priority number is called           | `priority-band.ts`     | five rungs, always                             |
+| What a priority is worth to the solver     | `priority-weight.ts`   | dense rank, because an absolute is never a weight |
 | How far the work has got                   | `progress.ts`          | states fold with `agree`, which is commutative |
 | How many of a team work at once            | `capacity.ts`          | per project, never a property of the team      |
 | Whether a row sits under another           | `is-within.ts`         | one upward walk, four copies before 2026-09-02 |

@@ -22,6 +22,10 @@ export * from './label-mismatch';
 export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';
+// The dense rank the solver objective multiplies. Separate from
+// `priority-band` because a band is what a priority is CALLED and this is what
+// it is WORTH relative to the others in one plan.
+export * from './priority-weight';
 export * from './progress';
 // Moved out of `apps/be-01/src/service/` on 2026-09-02, once its last storage
 // type was gone. 2,212 lines of pure planning that read five fields of a row
