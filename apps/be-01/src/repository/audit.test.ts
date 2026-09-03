@@ -52,7 +52,24 @@ const FOLDER = import.meta.dir;
 // and the table kept, because `migrate.test.ts` and `migrate-down.test.ts`
 // assert it survives a round trip — a claim about migrations rather than about
 // any code. It stays listed so a write added against it is a deliberate act.
-const EXEMPT = new Set(['eventLog', 'commandJournal', 'planEvent', 'eventSequencer', 'examples']);
+// `savedPlan` and `savedPlanBody` join them for `planEvent`'s reason, one step
+// further: a saved plan records an act too, and it records it **by value**.
+// The header carries its own `created_by` — the display name at the instant of
+// the save, deliberately not a `users` reference — and its own `created_at`,
+// the instant the capture's read snapshot opened rather than the instant the
+// row was written. `auditOnCreate` would stamp a second, later pair of the same
+// two facts, and a reader would have to pick. Nothing updates either table:
+// `saved_plan_body` is never rewritten at all, which is the whole immutability
+// property (`schema.ts`), and a rename touches the header's `name` alone.
+const EXEMPT = new Set([
+  'eventLog',
+  'commandJournal',
+  'planEvent',
+  'eventSequencer',
+  'examples',
+  'savedPlan',
+  'savedPlanBody',
+]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
 function repositorySources(): { name: string; text: string }[] {
