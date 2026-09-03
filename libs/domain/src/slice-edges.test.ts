@@ -8,7 +8,7 @@ import { reachedSliceOf, sliceGraphEdges } from './slice-edges';
  * two, `C` has one — enough for the chain, both reach arms and the join's
  * asymmetry to be told apart.
  */
-const groups: Record<string, readonly EstimatedSlice[]> = {
+const groups: Record<string, readonly EstimatedSlice[] | undefined> = {
   A: [{ days: null }, { days: null }, { days: 3 }],
   B: [{ days: 2 }, { days: 1 }],
   C: [{ days: 5 }],
@@ -22,17 +22,20 @@ const slicesOf = (leafId: string): readonly EstimatedSlice[] => {
 
 /** `A0→A1`, as the assertions below spell an edge. */
 const wire = (edges: readonly SlicePositionEdge[]): string[] =>
-  edges.map((edge) => `${edge.from.leafId}${edge.from.at}→${edge.to.leafId}${edge.to.at}`);
+  edges.map(
+    (edge) =>
+      `${edge.from.leafId}${String(edge.from.at)}→${edge.to.leafId}${String(edge.to.at)}`,
+  );
 
 describe('reachedSliceOf', () => {
   it('reaches the LAST slice under whole-item', () => {
-    expect(reachedSliceOf('whole-item', groups.A)).toBe(2);
-    expect(reachedSliceOf('whole-item', groups.C)).toBe(0);
+    expect(reachedSliceOf('whole-item', slicesOf('A'))).toBe(2);
+    expect(reachedSliceOf('whole-item', slicesOf('C'))).toBe(0);
   });
 
   it('reaches the first ESTIMATED slice under anchor-slice, stepping over the blanks', () => {
-    expect(reachedSliceOf('anchor-slice', groups.A)).toBe(2);
-    expect(reachedSliceOf('anchor-slice', groups.B)).toBe(0);
+    expect(reachedSliceOf('anchor-slice', slicesOf('A'))).toBe(2);
+    expect(reachedSliceOf('anchor-slice', slicesOf('B'))).toBe(0);
   });
 
   it('falls through to the last slice when nobody estimated any of them', () => {

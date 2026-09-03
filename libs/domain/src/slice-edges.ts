@@ -135,10 +135,15 @@ export interface LeafEdge {
  * `Map<string, WorkItemSlices>` and owes the "no slice for work item" refusal,
  * and the request builder holds its own grouping. The refusal stays with
  * whoever owns the grouping; this function only asks.
+ *
+ * It is deliberately NOT generic over the caller's slice type. Nothing here
+ * returns a slice — an edge names a leaf and a position — so a type parameter
+ * would appear once in the signature and infer nothing, which is what
+ * `no-unnecessary-type-parameters` said when the first draft carried one.
  */
-export function sliceGraphEdges<S extends EstimatedSlice>(
+export function sliceGraphEdges(
   leafIds: readonly string[],
-  slicesOf: (leafId: string) => readonly S[],
+  slicesOf: (leafId: string) => readonly EstimatedSlice[],
   leafEdges: readonly LeafEdge[],
   reach: DependencyReach,
 ): SlicePositionEdge[] {
