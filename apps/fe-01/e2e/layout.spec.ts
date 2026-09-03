@@ -1531,8 +1531,11 @@ test.describe('the table, measured by a browser', () => {
      */
     await page.setViewportSize(NARROW);
     await scrollFrameTo(page, SCROLLED);
-    // Nothing to reset until something has been dragged, so the control is not
-    // there to be pressed: a button that provably does nothing reads as broken.
+    // The suite deliberately seeds Links shown, while this project has no refs;
+    // first take that explicit fixture layout back to the contextual baseline.
+    // Only then is there nothing to reset until a width has been dragged.
+    await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
+    await page.getByRole('button', { name: 'Reset layout' }).click();
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
 
     await dragColumnEdge(page, 'number', 40);
@@ -1541,11 +1544,11 @@ test.describe('the table, measured by a browser', () => {
     expect((await columnGeometry(page, 'number')).declared).toBe(
       `${String(widthFor('number', SEEDED_PLAN))}px`,
     );
-    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+    await expect(page.locator('thead th[data-column="refs"]')).toHaveCount(0);
+    expect(await measuredLefts(page, ['drag', 'number', 'name'])).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
-      refs: declaredLeft('refs'),
-      name: declaredLeft('name'),
+      name: declaredLeft('name') - widthFor('refs', SEEDED_PLAN),
     });
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
   });
