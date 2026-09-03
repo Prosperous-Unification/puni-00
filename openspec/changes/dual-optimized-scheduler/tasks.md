@@ -96,6 +96,15 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
+- [ ] 2.0 **Publish the priority resolver before anything imports it.** Add
+      `export` to `function priorityByLeaf` in `libs/domain/src/schedule.ts`
+      and re-export it from `libs/domain/src/index.ts`. Nothing else moves: it
+      keeps its signature `(rows: readonly PlannedRow[], index: TreeIndex) =>
+      Map<string, number>` and Fast keeps calling the same function, so the
+      existing golden corpus is the proof that publishing it changed nothing.
+      This slice exists because 2.2's named seam is an import of a symbol
+      `libs/domain` does not currently publish, and an ordered plan that
+      reaches 2.2 first cannot proceed (deepseek r9 Important 1).
 - [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
@@ -120,16 +129,19 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
-      Each slice carries `key` (`sliceKey`), an **integer** `durationUnits` (2.7)
+      Each slice carries `key` (`sliceKey`), an **integer** `durationUnits` (2.8)
       computed exactly as Fast computes it — `ASSUMED_SLICE_WORKDAYS` for a
       null `days` **without** dividing by `width`, `days / width` otherwise
       **without** `snapWorkdays`, then `× SOLVER_QUANTUM` and rounded **up**
-      only when the estimate does not divide (2.7) — `width`, `personId`,
+      only when the estimate does not divide (2.8) — `width`, `personId`,
       `poolIds`, `priorityWeight`
       (the **dense rank** `(R + 1) − rank(p(s))` over the `R` distinct
       priorities present in this canonical input, resolved by **importing
-      `priorityByLeaf` from `libs/domain` rather than reimplementing it** (Sol
-      r8 Critical 7) — it is a nearest/most-specific **override**, taking the
+      `priorityByLeaf` from `libs/domain` rather than reimplementing it** —
+      which **2.0 must publish first**, because `schedule.ts` declares it
+      `function priorityByLeaf`, unexported, and `libs/domain/src/index.ts`
+      re-exports only what `schedule.ts` exports, so the seam this plan names
+      does not exist yet (deepseek r9 Important 1; Sol r8 Critical 7) — it is a nearest/most-specific **override**, taking the
       first non-null value walking leaf-upward, not a floor or a minimum
       across ancestors, so leaf 5 under parent 1 resolves to 5 — `0` when no
       priority reaches the leaf — the absolute priority is never a weight, because
@@ -204,7 +216,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       fractional offset and a negative one.
 - [ ] 2.10 `horizonUnits > 2**31 - 1` fails before spawn with
       `horizon-overflow`, and the `Σ w(s) × horizonUnits` worst case past
-      `2^62` fails before spawn with `objective-overflow`; both are It is a **first-class member of the one failure state
+      `2^62` fails before spawn with `objective-overflow`; both are **first-class members of the one failure state
       machine** (7.1), not a bare return from request construction: it writes
       the same `status='failed'` marker row and emits the same
       `schedule_optimization_failed` event as any other reason, so a client
@@ -435,10 +447,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       is what produces the `schedule` member of `resultJson`; the offsets map
       is never persisted or
       returned as a schedule. Fast has **no** annotation-only pass to call, so
-      4.7 begins by splitting `placeSlices` into `chooseStarts(canonicalInput)`
-      and `annotate(canonicalInput, starts)`, proved behaviour-preserving by
-      the existing Fast golden corpus **before** anything optimized is built on
-      it (4.9 begins with that split); `materialiseOptimized` is then
+      **this task begins** by splitting `placeSlices` into
+      `chooseStarts(canonicalInput)` and `annotate(canonicalInput, starts)`,
+      proved behaviour-preserving by the existing Fast golden corpus **before**
+      anything optimized is built on it; `materialiseOptimized` is then
       `annotate` over the dequantised
       offsets. `annotate` replays the person and pool ledgers in ascending
       start with ties broken by the canonical slice order, calling the
@@ -809,7 +821,17 @@ h2puni is green — no build or autotest runs on the workspace box.
       `attemptToken`; heartbeat, release, the outcome write and the event write
       all carry it. Reclamation mints a new token and cannot run before the
       child's own hard deadline —
-      `SLOT_HEARTBEAT_TTL_MS = solverBudgetMs + 5000 + SLOT_RECLAIM_MARGIN_MS`
+      the stored `solver_slot.admittedDeadlineAt` and nothing else — reclamation is exactly
+      `now > admittedDeadlineAt`, the value stamped once at admission from that
+      row's own `budgetMs` (6.2). **`SLOT_HEARTBEAT_TTL_MS` is struck (Sol r9
+      Critical 4):** a TTL derived from the observing coordinator's current
+      `solverBudgetMs`, or added to a refreshed `heartbeatAt`, is not the admitted
+      child's absolute deadline, and across a 60 s/120 s blue-green overlap it
+      either reclaims a live child or holds a dead slot past the promised bound —
+      either way the claim that SQLite rows upper-bound live processes fails.
+      `heartbeatAt` survives for cancellation observation and diagnostics only.
+      **Watched red:** change the observing coordinator's configured budget and
+      assert neither row's expiry moves.
       (15 s) — and the child arms that deadline itself. `PR_SET_PDEATHSIG` is
       followed by a `getppid()` re-check so a parent dying inside that window
       is not missed. **Watched red:** an old owner's late heartbeat, release and
@@ -844,7 +866,7 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 7.3 Retry is a route, not an unnamed "action": its contract, statuses
       and authorization are 7.11. It re-reads the current `inputHash`, refuses
       a moved plan with the current hash in the body, then launches only the
-      failed or absent variant for the unchanged key. Its `failed` row is
+      `failed` or `corrupt` variant for the unchanged key — an **absent** variant is `idle`, admitted by the cold read (6.1) rather than by Retry, which answers `409 not-retryable` naming it (Sol r9 Critical 3). Its `failed` row is
       **overwritten by the replacement outcome, never deleted first**, so
       concurrent reads see `retrying` rather than `failed` or a cold miss that
       would auto-spawn.
