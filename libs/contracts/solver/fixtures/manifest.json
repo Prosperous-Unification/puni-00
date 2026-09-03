@@ -1,0 +1,72 @@
+{
+  "$comment": "The shared golden corpus both suites run (2.1). Each entry names the branch of solver-wire.v1.json to validate against \u2014 #/$defs/<branch> \u2014 and whether the schema must accept it. A consumer that accepts a message the schema rejects, or rejects one it accepts, fails the contract test. Every slice key here contains a real U+0000, written as the \\u0000 escape: the escape parses to the exact character, so the corpus is verbatim while the files stay text to git and grep.",
+  "schema": "../solver-wire.v1.json",
+  "fixtures": [
+    {
+      "file": "request/valid-two-slices.json",
+      "branch": "request",
+      "valid": true,
+      "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null and an empty poolIds are legal states, not omissions."
+    },
+    {
+      "file": "request/invalid-zero-width.json",
+      "branch": "request",
+      "valid": false,
+      "why": "A width is people; schedule.ts:478 refuses 0 because duration is effort divided by width and 0 is Infinity days."
+    },
+    {
+      "file": "request/invalid-fractional-width.json",
+      "branch": "request",
+      "valid": false,
+      "why": "Same boundary: 2.5 people do not exist, and Fast returned duration 2.4 when this check was deleted."
+    },
+    {
+      "file": "request/invalid-unknown-key.json",
+      "branch": "request",
+      "valid": false,
+      "why": "2.3 rejects an unknown key; every message object is closed."
+    },
+    {
+      "file": "request/invalid-zero-pool-size.json",
+      "branch": "request",
+      "valid": false,
+      "why": "project_team_capacity.size floors at 1: a pool of 0 slots is a plan of Infinity dates."
+    },
+    {
+      "file": "request/invalid-positional-edge.json",
+      "branch": "request",
+      "valid": false,
+      "why": "An edge is an object of two named endpoints, mirroring the domain's DependencyEdge; the endpoints are asymmetric and a 2-array hides which is which."
+    },
+    {
+      "file": "request/negative-printable-key.json",
+      "branch": "request",
+      "valid": true,
+      "why": "SCHEMA-LEGAL ON PURPOSE, and the reason there is no pattern on a slice key. A sanitised 'wi-1::step-a' is a well-formed string, so no schema can tell it from a real sliceKey() result: only the builder's key-set equality against slices[].key catches a corpus that quietly dropped the U+0000. Kept as the fixture that proves the schema is NOT where that mistake is caught."
+    },
+    {
+      "file": "response/valid-feasible.json",
+      "branch": "response",
+      "valid": true,
+      "why": "All three terms present with a stage that found an incumbent."
+    },
+    {
+      "file": "response/invalid-fourth-stage-status.json",
+      "branch": "response",
+      "valid": false,
+      "why": "The matrix fixes the stage status at three values; quantisation-floor is a publication tag and never a status (Sol r8 Critical 5)."
+    },
+    {
+      "file": "response/invalid-uppercase-term-key.json",
+      "branch": "response",
+      "valid": false,
+      "why": "Wire term keys are lowercase, as tasks.md 4.12b spells the stored Record; MAKESPAN is the mathematical name, not the JSON key."
+    },
+    {
+      "file": "response/invalid-missing-term.json",
+      "branch": "response",
+      "valid": false,
+      "why": "A stage that never ran reports status unknown with null stageValue and bound; it never omits its term."
+    }
+  ]
+}

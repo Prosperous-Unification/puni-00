@@ -1,0 +1,28 @@
+{
+  "objectiveValues": {
+    "makespan": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "quantisation-floor",
+      "value": 1
+    },
+    "movement": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "feasible",
+      "value": 1
+    },
+    "priority": {
+      "bound": 1,
+      "stageValue": 1,
+      "status": "feasible",
+      "value": 1
+    }
+  },
+  "offsets": {
+    "wi-1\u0000step-a": 0,
+    "wi-2\u0000": 10
+  },
+  "status": "feasible",
+  "wireVersion": 1
+}
