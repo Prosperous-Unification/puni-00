@@ -1,11 +1,17 @@
 # Verification
 
-**Nothing in `tasks.md` has been implemented yet.** This change is at its
-planning gate (TASK-230); the slices are TASK-231 and TASK-232. This file states
-what will be measured and how each check will be proved to fail, so the plan is
-judged with its evidence obligations rather than after them. Every row below is
-filled in with observed output before either successor task is called done —
-a check with no observed failure is not done.
+This file states what will be measured and how each check will be proved to fail,
+so the plan is judged with its evidence obligations rather than after them. Every
+row below is filled in with observed output before either successor task is
+called done — a check with no observed failure is not done.
+
+**Status, 2026-09-03.** The opening line here used to read "Nothing in
+`tasks.md` has been implemented yet", written at the TASK-230 planning gate. That
+is now stale: TASK-231 has landed slices 1 and 2 and tasks 3.0, 3.1 and 3.2, and
+three rows below carry observed output. An `Observed` cell names the date and the
+**exact head** the observation was made at, because a fault watched at one head
+says nothing about a later one. A cell that relays an earlier run's log rather
+than re-observing says so.
 
 ## What is measured, not asserted
 
@@ -32,7 +38,7 @@ until it has been.
 
 | Check | Fault injected | Observed |
 | ----- | -------------- | -------- |
-| Canonical serialization is order-stable (1.3) | work-item sort dropped from `canonicalisePlanInput` | |
+| Canonical serialization is order-stable (1.3) | work-item sort dropped from `canonicalisePlanInput` | **2026-09-03, run 1, head `ed8354bd`** (relayed from the task log, not re-observed since). Committed as a standing assertion rather than injected once: the byte comparison is run against a copy of the fold with exactly the work-item sort removed and asserted to differ, which is the only thing that catches a dropped sort — the value stays perfectly well-typed |
 | No `UPDATE` targets `saved_plan_body` (2.4) | an `update(savedPlanBody)` call added in `repository/` | |
 | No `UPDATE` targets a `saved_plan` column but `name` (2.4) | an `update(savedPlan).set({ inputSha256 })` call added | |
 | Every read checks bytes against their hash (5.1b) | one byte of a stored body flipped with raw SQL | |
@@ -43,8 +49,8 @@ until it has been.
 | The save never blocks on a single acquire (4.5) | the bounded retry replaced with one 60 s blocking acquire | |
 | The stored schedule is deep-equal to `schedule()`'s return (3.4) | `resourcePredecessorId` dropped from the writer — the equality must name the key | |
 | Project delete cascades to headers and bodies (2.3) | the `ON DELETE CASCADE` clause removed from the migration | |
-| Capture is one read snapshot (3.2) | the shared read transaction replaced with a connection per read | |
-| Every capture-only read rides that snapshot too (3.2) | the registry and junction reads moved outside the transaction with the twelve left inside, then a `tag.name` rename interleaved — the registry-rename case must fail while every projection-boundary assertion still passes | |
+| Capture is one read snapshot (3.2) | ~~the shared read transaction replaced with a connection per read~~ — retired, `bun:sqlite` has no pool, so that fault could only ever have been staged. Replaced by: the capture run on the **shared process handle** with a stranger's `UPDATE tag` interleaved | **2026-09-03, head `92cad22b`.** One scenario run twice, differing only in the connection handed to the capture. Own connection: the stranger's rename survives the capture's rollback, a third connection reads `renamed`. Process handle: the same write is inside the capture's transaction, the rollback revokes it, the third connection reads the pre-edit `urgent`. Both green; the pair is the assertion |
+| Every capture-only read rides that snapshot too (3.2) | the registry and junction reads moved outside the transaction with the twelve left inside, then a `tag.name` rename interleaved — the registry-rename case must fail while every projection-boundary assertion still passes | **2026-09-03, head `cacf9e1b`, watched red: 17 fail / 1151 pass.** `tx.commit()` moved above `listTags`. Failures: the enclosure test and boundaries **2–17**, every other `be-01` test green. **The prediction in the middle column is wrong in the guard's favour** — one edit spanning both halves tears at every boundary from 2 up, not only the registry one. Boundary 1 stays green by construction: the write lands before the snapshot is taken, so the whole capture is legitimately post-edit. Run as a watched red rather than committed — a second implementation would prove things about itself |
 | The compare route carries the project read rule (7.3b) | the route mounted without the read rule — 6.2's anonymous and third-party cases must fail | |
 | The diff names every differing canonical field (7.2b) | `frozen_number`, then a tag id, dropped from `diffPlans`' comparison | |
 | The diff names every differing schedule field (7.2c) | `diffPlans` built over the plan inputs alone — every schedule mutation must report "no change" | |
