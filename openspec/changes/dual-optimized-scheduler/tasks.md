@@ -882,6 +882,39 @@ h2puni is green — no build or autotest runs on the workspace box.
       in-memory counter and watch 6.7's two-instance case fail; drop
       `PR_SET_PDEATHSIG` and watch 6.8 fail. Four faults, four `Proof:`
       comments, because one check passing does not prove the others exist.
+- [ ] 6.8b **Restart semantics, one implementable rule** (Sol r10 Important 7).
+      `optimization-restart.db.test.ts`: (a) an in-flight child is never
+      adopted or resumed by the restarted coordinator; (b) a durable
+      `solver_queue` entry whose generation is current, whose
+      `admittedCancelEpoch` matches and whose project is still ON **survives
+      the restart and launches** — it is not discarded, and the earlier
+      "entries left by a dead process are discarded by the generation
+      re-check" claim was unimplementable; (c) an entry failing any one of
+      those three predicates is discarded without a spawn; (d) a restart with
+      an unchanged plan **reuses** the generation rather than allocating a new
+      one, matching 6.10's allocation rule; (e) an absent variant is
+      re-admitted in that same generation only once any orphan `solver_slot`
+      row for its key is released or passes its stored `admittedDeadlineAt`.
+      **Watched red:** drop (e)'s orphan wait and the restarted coordinator
+      must spawn a duplicate beside a still-live child, breaking the sampled
+      per-project ceiling; separately, make the restart allocate a fresh
+      generation and (d) must fail against 6.10.
+- [ ] 6.9c **Four eviction authorities, four separate reds** (Sol r10
+      Important 9). The four-part `(generation, cancelEpoch, enabled,
+      attemptToken)` predicate governs **worker-owned outcome writes only**;
+      three other paths evict under their own authority and have no child
+      token to present. Each gets its own test and its own watched red, so
+      weakening one cannot silently weaken another: (a) *worker outcome* —
+      drop the `attemptToken` term and a reclaimed-then-superseded owner's
+      late store must succeed where it should have matched zero rows;
+      (b) *allocation eviction* — require a token in the allocation
+      transaction and the cold-start hash change must fail outright, since no
+      child exists yet; (c) *OFF cleanup* — require a token in the
+      `optimization_enabled = 0` transaction and the queue rows must survive
+      the toggle; (d) *deletion/retirement eviction* — require a token in the
+      drain protocol and 3.9b's phase 2 must fail. Assert in (b), (c) and (d)
+      that the eviction is authorized by the CAS, the epoch increment and the
+      drain phase respectively — not by a token.
 - [ ] 6.9b **The empty project bypasses both solvers** (Sol r7 Important 12).
       A project with no slices is legal — `schedule` handles it explicitly with
       `projectFinish = Math.max(0, ...placedFinishes)` and empty maps — but
