@@ -20,7 +20,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       living beside Fast in `libs/domain/src/` so both read one normalizer —
       Fast is `libs/domain/src/schedule.ts`, not `apps/be-01/src/service/`.
       **The canonical form is the exact argument tuple of
-      `schedule(rows, edges, slices, notBefore, poolSizes, reach)`:**
+      `schedule(rows, edges, slices, notBefore, poolSizes, reach, deadlines)`:**
       (a) every `PlannedRow` sorted by `id` with `id`, `parentId`, `position`,
       `frozenNumber` and its **as-written** `priority` — not the resolved leaf
       priority, so a parent's edit that changes no leaf today still rehashes;
@@ -39,7 +39,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       (d) `notBefore` as `[workItemId, offsetDays]` sorted, already normalized
       against `project.startDate` into whole days from day zero;
       (e) `poolSizes` as `[poolId, size]` sorted;
-      (f) `reach` from `project.dep_reach` (`whole-item | anchor-slice`).
+      (f) `reach` from `project.dep_reach` (`whole-item | anchor-slice`);
+      (g) `deadlines` as `[workItemId, deadlineOffset]` sorted by id, offsets
+      already resolved by `deadlineOffsetOf` against `project.startDate` into
+      whole workdays from day zero exactly as (d) is, and keyed by
+      **as-authored** work item ids rather than the leaf expansion — the fold
+      is derived, so hashing the expansion would hide a parent's deadline edit
+      that binds no leaf today and binds one after a move, the same argument
+      (a) makes for as-written `priority`
+      (`openspec/changes/work-item-deadline/design.md` §3.4).
       Reuses the existing `sliceKey`/`indexTree`/`expandToLeaves` normalizers.
 - [ ] 1.2 `scheduleInputHash(plan)` = SHA-256 of 1.1.
 - [ ] 1.3 **Proven by** `schedule-input-hash.test.ts`, one **tie-sensitive**
@@ -48,7 +56,12 @@ h2puni is green — no build or autotest runs on the workspace box.
       passes. Cases: estimate, edge, as-written priority on a parent, `width`,
       `notBefore` floor, `personId`, pool size, **`depReach` flipped**, **two
       slices of one work item swapped**, **`poolIds` widened from one pool to
-      two**, and `position`/`frozenNumber` changed. Unchanged-hash cases:
+      two**, **a work-item `deadline` set on a parent that binds no leaf until
+      a later move** (tie-sensitive because Fast's ready-slice ordering gains a
+      minimum-slack then earliest-effective-deadline tie-break —
+      `openspec/changes/work-item-deadline/design.md` §3.1 — so the mutation
+      moves a real placement rather than only a solver constraint), and
+      `position`/`frozenNumber` changed. Unchanged-hash cases:
       Engine, Objective, the toggle, the display variant, the clock, the acting
       user, and a plan-row reordering that yields the same tree. `budgetMs` and
       `contractVersion` are **not** hash inputs but **are** cache-key columns,
@@ -63,11 +76,20 @@ h2puni is green — no build or autotest runs on the workspace box.
       where the cache key is built. Documented as bumped by any change to Fast
       semantics, `ASSUMED_SLICE_WORKDAYS`, `snapWorkdays`, reach or numbering
       semantics, resource tie-breaks, the canonicalizer, or the duration rule.
+      **This slice performs one such bump**, because the seventh canonical
+      argument, the `deadlineUnits` wire field and the materialiser all change
+      together: every pre-existing cache row describes a different function, and
+      the bump is what evicts them — there is no data migration of cached
+      results (`openspec/changes/work-item-deadline/design.md` §3.4).
 - [ ] 1.6 **Proven by** keying the existing Fast golden corpus on
       `SCHEDULER_CONTRACT_VERSION`. **Negative check, watched red** — change
       `ASSUMED_SLICE_WORKDAYS` without bumping the constant and watch the
       corpus fail. This is the guard that makes the cache key honest: without
       it a domain change leaves stale rows matching their key forever.
+      **Same commit, no-op proof:** with the seventh argument defaulted to an
+      empty map, every existing corpus case SHALL produce a **byte-identical**
+      schedule — the re-key must not be able to hide a placement change smuggled
+      in with it (`openspec/changes/work-item-deadline/design.md` §3.4, §7).
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
@@ -184,7 +206,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       `bigint` and converts only after comparing with
       `BigInt(Number.MAX_SAFE_INTEGER)`), and
       `notBeforeUnits` (the latest of the leaf's own floor and every
-      ancestor's). `edges` are already leaf-expanded with `reach` applied and
+      ancestor's), and `deadlineUnits` (`integer | null` — the **effective**
+      deadline for that slice, folded over the tree by the same leaf-upward
+      walk and already converted to `(D + 1) × quantum` so Python applies it
+      without seeing the tree, `null` meaning unconstrained).
+      `edges` are already leaf-expanded with `reach` applied and
       already include the intra-item step-order edges, so Python never receives
       the tree, `parentId`, or `dep_reach`. `horizonUnits` is the **serial
       bound** `max(0, ...notBeforeUnits) + Σ durationUnits`, seeded with zero so a
@@ -202,8 +228,18 @@ h2puni is green — no build or autotest runs on the workspace box.
       non-negative, every edge respected, every `notBeforeUnits` floor
       respected, no pool over capacity at any instant (checked against **all**
       of a slice's `poolIds`, since the whole width is spent in each), no
-      assignee double-booked, and `objectiveValues[T].value` recomputed from
-      the final offsets and matched. Every objective `value`, `stageValue` and
+      assignee double-booked, **every effective deadline respected**, and
+      `objectiveValues[T].value` recomputed from
+      the final offsets and matched. The deadline clause is stated on the
+      **materialised** schedule in the real fractional domain —
+      `lastWorkdayOf(start, finish) <= effectiveDeadlineOffset` for every slice
+      — and **not** in quantised units, because checking it in units would
+      re-implement the inclusive-ceiling rounding a second time and could
+      disagree with the End date the column prints, the same argument
+      `sameOrder` already makes. A violation is `invalid-output`, never
+      `plan-infeasible`: a solver that returns a feasible schedule breaking a
+      deadline is a broken engine, not an infeasible plan
+      (`openspec/changes/work-item-deadline/design.md` §3.6). Every objective `value`, `stageValue` and
       `bound` **on the wire response**, and every recomputed `PRIORITY`,
       `MAKESPAN` and `MOVEMENT` in quantised solver units, must be a
       non-negative safe integer; an unsafe value is `invalid-output`. This is
@@ -300,13 +336,30 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 - [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
       composite PK `(projectId, inputHash, objective, contractVersion,
-      budgetMs)` → `generation`, `status` (`'ok' | 'failed'`), `resultJson`
-      (NULL iff failed), `failureReason` (NULL iff ok), `createdAt`.
+      budgetMs)` → `generation`, `status`
+      (`'ok' | 'failed' | 'plan-infeasible'`), `resultJson`
+      (NULL iff failed), `failureReason` (NULL unless failed), `createdAt`.
       Integrity is declared, not assumed: `projectId` FK to `project(id)`
-      `ON DELETE CASCADE`; `CHECK (status IN ('ok','failed'))`;
+      `ON DELETE CASCADE`; `CHECK (status IN ('ok','failed','plan-infeasible'))`;
       `CHECK ((status='ok' AND resultJson IS NOT NULL AND failureReason IS
       NULL) OR (status='failed' AND resultJson IS NULL AND failureReason IS
-      NOT NULL))`; `CHECK (objective IN ('pri','time'))`.
+      NOT NULL) OR (status='plan-infeasible' AND resultJson IS NOT NULL AND
+      failureReason IS NULL))`; `CHECK (objective IN ('pri','time'))`.
+      **Assumption A1 (TASK-219, dev mode): the `plan-infeasible` payload
+      reuses `resultJson`**, holding a versioned `PlanInfeasibleResult` —
+      `{ dtoVersion, items: [{ ownerWorkItemId, boundWorkItemId,
+      effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
+      a leaf's own date binds — discriminated by the row's own `status` rather
+      than by a fourth nullable column. Rationale: `resultJson` is already the
+      row's versioned payload with a decoder whose failure is already defined
+      as `corrupt`, and a fourth column would add a fourth CHECK arm and a
+      second decode seam for one state. **Consequence that must be stated, not
+      implied:** a `plan-infeasible` row whose `resultJson` fails to decode
+      reads as `corrupt` on exactly the same rule as an `ok` row does, and is
+      therefore retryable, while a decodable one is not. **Falsified if** the
+      offending-item list ever needs to be queried by SQL rather than read
+      whole, at which point it becomes its own table and this assumption is
+      wrong rather than merely superseded.
 - [ ] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
       `generation` (integer not null), `inputHash` (text nullable),
       `cancelEpoch` (integer not null default 0), `admissionState`
@@ -870,7 +923,8 @@ h2puni is green — no build or autotest runs on the workspace box.
       only when the stage proved OPTIMAL, `term <= incumbent` for FEASIBLE and
       for UNKNOWN-with-incumbent, stop-and-publish-the-previous-incumbent for
       UNKNOWN-without at a later stage, `no-solution` for UNKNOWN-without at
-      the first stage, and `invalid-output` for INFEASIBLE at any stage. That
+      the first stage, `plan-infeasible` for INFEASIBLE at the first stage, and
+      `invalid-output` for INFEASIBLE at any later one. That
       matrix is the single authority; this task restates none of it. Never a
       weighted sum, which overflows on realistic horizons. Neither is a total order; ties
       exist and are not broken reproducibly in production.
@@ -937,8 +991,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       because the two that were stated here contradicted it. In particular:
       UNKNOWN with no incumbent reports `no-solution` **only at stage 1** and at
       `k > 1` publishes the previous stage's incumbent, and INFEASIBLE reports
-      `invalid-output` **at every stage**, not only at stage 1, since Fast
-      placed the same input and every later stage only adds inequalities to a
+      the typed state `plan-infeasible` **at stage 1 only** — effective
+      deadlines enter before the objective terms, so stage 1 is the one stage
+      whose infeasibility can be the user's plan — and `invalid-output` at
+      every later stage, since stage 1 already produced a deadline-satisfying
+      incumbent and every later stage only adds inequalities to a
       feasible model. The published result is the last stage's incumbent,
       feasible by construction. <!-- wire-fields:objective-term -->`objectiveValues` reports the
       **four**-field per-term shape `{ value, stageValue, bound, status }` exactly as
@@ -1359,9 +1416,10 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 7.10 The plan-read DTO: `tree()` returns an `optimization`
       block — `enabled`, `engine`, `objective`, `inputHash`, `generation`,
       `contractVersion`, `budgetMs`, `displayed`, `variants: { pri, time }`,
-      `comparison` present iff `displayed !== 'fast'`. A variant is one of six:
+      `comparison` present iff `displayed !== 'fast'`. A variant is one of seven:
       `ready`, `pending`, `retrying`, `failed` with reason, `corrupt` with the
-      decoder's message, or `idle`, distinguished by the cache row **together
+      decoder's message, `plan-infeasible` with every offending work item and its
+      **effective** deadline, or `idle`, distinguished by the cache row **together
       with** a live slot or queue entry matched on the **full** key including
       `budgetMs` — which is
       what lets a retry in flight read as `retrying` while its marker row
@@ -1371,8 +1429,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       `Optimization unavailable · Retry` control as `failed`; the round-7
       disposition added it to spec.md and left this union, the design's
       `VariantState` list and 8.3–8.4 at five members (Sol r8 Critical 6).
+      `plan-infeasible` renders `Plan infeasible · N work item deadlines` and
+      **no** Retry control, and Retry answers `409 not-retryable` for it — the
+      same divergence trap, so this union, the design's `VariantState` list,
+      spec.md and 8.3–8.4 move to seven together or the gate is red.
       **Proven through the real controller payload** in the cold, queued,
-      retrying, failed, **corrupt**, partial-success and full-hit states.
+      retrying, failed, **corrupt**, **plan-infeasible**, partial-success and
+      full-hit states.
 - [ ] 7.11 `POST /api/projects/:projectId/optimization/retry`, body
       `{ objective, inputHash }`, under the same project-write authorization as
       the settings PATCH, running the ordinary admission transaction so two
@@ -1389,7 +1452,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       one child with both responses `retrying` and the bad row intact until the
       replacement commits; a Retry against a `ready` variant must return
       `not-retryable` naming `ready`; restore the `not-failed` guard and the
-      corrupt-row Retry case must fail.
+      corrupt-row Retry case must fail. A Retry against a `plan-infeasible`
+      variant must likewise return `not-retryable` naming `plan-infeasible`:
+      admitting it would spend a slot re-proving the same certificate and put a
+      Retry affordance on an answer that cannot change.
 
 ## 8. UI — toggle, selectors, indicator
 
@@ -1405,14 +1471,23 @@ h2puni is green — no build or autotest runs on the workspace box.
       deadline + reordered / Same deadline + same order, plus
       `Optimization unavailable · Retry` on **both** the `failed` and the
       `corrupt` variant states (Sol r8 Critical 6 — the round-7 disposition
-      added `corrupt` to spec.md and left this list at five states) and
+      added `corrupt` to spec.md and left this list at five states),
+      `Plan infeasible · N work item deadlines` on the `plan-infeasible` state
+      with **no** Retry control and the offending items listed on demand, and
       `Optimizing…` while the selected variant is admitted but not stored — with Fast on screen
       throughout, never a blank plan or a spinner over it. No toast, no modal,
-      no timer retry, no second indicator.
+      no timer retry, no second indicator. On `plan-infeasible` the indicator
+      SHALL NOT fall back to reading Fast's late plan as a satisfied baseline:
+      Fast stays on screen, stays usable, and stays labelled `Late by N
+      workdays` per missed item — Fast's lateness is a report, never a verdict
+      of feasibility (`openspec/changes/work-item-deadline/design.md` §3.1).
 - [ ] 8.4 **Proven by** `optimization-indicator.test.tsx` and
       `optimization-settings.test.tsx`: each of the four comparison outcomes
       renders its exact wording with the right day count; a `failed` variant
       renders Retry; a `corrupt` variant renders the **same** Retry control; a
+      `plan-infeasible` variant renders the count wording, lists its offending
+      items on demand, and renders **no** Retry control while Fast stays on
+      screen with its per-item `Late by N workdays` labels intact; a
       pending variant renders `Optimizing…` over Fast offsets;
       no toast or modal role appears in the tree in any of those states; a
       toggle change issues the PATCH and **survives a remount** (proving it is
