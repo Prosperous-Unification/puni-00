@@ -209,7 +209,7 @@ comparison UI) and start only after slice 6 is merged.
       then the count and total quota checks **inside** that transaction, header,
       input body, schedule body, commit. Test: a save writes one header and the
       bodies it should, and the returned record round-trips.
-- [ ] 4.2 **Immutability asserted by hash, not by field list.** Save; rename an
+- [x] 4.2 **Immutability asserted by hash, not by field list.** Save; rename an
       item, delete another, delete a step, change `estimate_method` and
       `start_date`; re-read and assert the stored bytes and both SHA-256 values
       are byte-identical. A field-by-field comparison stays green for every field
