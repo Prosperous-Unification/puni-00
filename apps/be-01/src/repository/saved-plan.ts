@@ -122,7 +122,7 @@ export class SavedPlanRepository {
    * reads a megabyte to learn its size.
    */
   async holdingOf(db: Drizzle, projectId: string): Promise<SavedPlanHoldingRow> {
-    const [row] = await db
+    const rows = await db
       .select({
         plans: sql<number>`count(*)`,
         // `coalesce` twice: the outer one for a project with no rows at all,
@@ -134,7 +134,13 @@ export class SavedPlanRepository {
       })
       .from(savedPlan)
       .where(eq(savedPlan.projectId, projectId));
-    return { plans: row?.plans ?? 0, bytes: row?.bytes ?? 0 };
+    // An aggregate over no rows is still one row, so the empty case is the
+    // `coalesce` above and not this line. It is written as a length check
+    // rather than as `rows[0]?.plans ?? 0` because drizzle types the element
+    // as present and the lint rule refuses a chain it can prove unnecessary.
+    return rows.length === 0
+      ? { plans: 0, bytes: 0 }
+      : { plans: rows[0].plans, bytes: rows[0].bytes };
   }
 
   /**
@@ -214,10 +220,12 @@ export class SavedPlanRepository {
 
   /** One saved plan's stored body, or `null` when it has none of that kind. */
   async bodyOf(db: Drizzle, savedPlanId: string, kind: 'input' | 'schedule'): Promise<string | null> {
-    const [row] = await db
+    const rows = await db
       .select({ bytes: savedPlanBody.bytes })
       .from(savedPlanBody)
       .where(and(eq(savedPlanBody.savedPlanId, savedPlanId), eq(savedPlanBody.kind, kind)));
-    return row?.bytes ?? null;
+    // Absent for real here, unlike the aggregate above: a schedule-less save
+    // writes no `schedule` row at all, which is the point of the body table.
+    return rows.length === 0 ? null : rows[0].bytes;
   }
 }
