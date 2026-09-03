@@ -202,21 +202,41 @@ describe('the saved-plan migration', () => {
 
   /**
    * `created_by` is a value, not a reference — an account deletion must not
-   * orphan or erase a permanent record. Read back after the delete, because a
-   * foreign key that had quietly been applied would either refuse the delete or
-   * take the saved plan with it.
+   * orphan or erase a permanent record.
+   *
+   * Asserted by naming an account that does not exist rather than by deleting
+   * one: `project.owner_id` is `NOT NULL` and references `users`, so no project
+   * with a saved plan can outlive its owner's row in the first place, and a
+   * delete-then-read test would be measuring that constraint instead of this
+   * one. Foreign keys are on for every connection `openDatabase` hands out
+   * (`db.ts`, asserted there), so a reference quietly applied to this column
+   * would refuse the row below.
    */
-  it('keeps the saved plan and its creator after the account is deleted', () => {
+  it('stores a creator no account row backs', () => {
     seedProject();
-    seedSavedPlan();
-
     const db = openDatabase(path);
     try {
-      db.run(`UPDATE project SET owner_id = NULL WHERE id = 'p1'`);
-      db.run(`DELETE FROM users WHERE id = 'u1'`);
+      db.run(
+        `INSERT INTO saved_plan (
+           id, project_id, name, created_by, created_at,
+           input_schema_version, input_bytes, input_sha256, schedule_absent_reason
+         ) VALUES ('sp3', 'p1', 'left the company', 'nobody-by-that-id', 1000, 1, 3, 'deadbeef', 'pending')`,
+      );
+
       expect(
         db.query<{ created_by: string }, []>(`SELECT created_by FROM saved_plan`).get()?.created_by,
-      ).toBe('Ada');
+      ).toBe('nobody-by-that-id');
+      // The precondition: the same insert against a column that *is* a
+      // reference does fail, so the line above is not passing on a disabled
+      // pragma.
+      expect(() =>
+        db.run(
+          `INSERT INTO saved_plan (
+             id, project_id, name, created_by, created_at,
+             input_schema_version, input_bytes, input_sha256, schedule_absent_reason
+           ) VALUES ('sp4', 'no-such-project', 'orphan', 'Ada', 1000, 1, 3, 'deadbeef', 'pending')`,
+        ),
+      ).toThrow(/FOREIGN KEY constraint failed/);
     } finally {
       db.close();
     }
