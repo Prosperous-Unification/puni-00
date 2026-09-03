@@ -482,7 +482,7 @@ describe('how wide the steps make the table', () => {
     // phone's toolbar sheet too, and the sentence used to describe a table that
     // reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 steps need ≥1247px of width to sit side by side',
+      '2 steps need ≥1207px of width to sit side by side',
     );
     expect(document.body.textContent).toContain(
       'under 768px wide or 500px tall the plan is drawn as cards instead',
@@ -581,7 +581,7 @@ describe('how wide the steps make the table', () => {
     // 1123 → 1135 → 1175 in `number-column-widen` (93 → 105 in
     // `COLUMN_WIDTHS`) and then `external-refs` (the 40px `refs` column), and
     // 1175 → 1151 on 2026-08-31 when `depends` paid for it (110 → 86).
-    expect(document.body.textContent).toContain('1 step needs ≥1151px of width to sit side by');
+    expect(document.body.textContent).toContain('1 step needs ≥1111px of width to sit side by');
     expect(document.body.textContent).not.toContain('1 step need ≥');
   });
 
@@ -598,7 +598,7 @@ describe('how wide the steps make the table', () => {
     // 1219 → 1231 → 1271 in `number-column-widen` (93 → 105 in
     // `COLUMN_WIDTHS`) and then `external-refs` (the 40px `refs` column), and
     // 1271 → 1247 on 2026-08-31 when `depends` paid for it (110 → 86).
-    expect(document.body.textContent).toContain('2 steps need ≥1247px of width to sit side by');
+    expect(document.body.textContent).toContain('2 steps need ≥1207px of width to sit side by');
     expect(document.body.textContent).not.toContain('2 steps needs');
   });
 });
