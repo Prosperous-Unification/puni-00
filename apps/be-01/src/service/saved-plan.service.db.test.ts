@@ -272,7 +272,7 @@ describe('SavedPlanService.save', () => {
         plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
         // Distinct per save: two records is the state under test, and a reused
         // id would fail on the primary key instead of on the quota.
-        newId: () => `sp-${(issued += 1)}`,
+        newId: () => 'sp-' + String((issued += 1)),
         now: () => OPENED_AT,
         quota: {
           mostBytesPerBody: 8 * 1024 * 1024,
