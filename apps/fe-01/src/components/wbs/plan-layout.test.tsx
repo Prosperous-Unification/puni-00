@@ -1621,6 +1621,68 @@ describe('the columns a reader has hidden', () => {
     }
   });
 
+  itDom('keeps each project’s reset marker while the selected project changes', async () => {
+    localStorage.setItem(RESET_MARKER, 'true');
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'One row' });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    expect(headerIds()).toContain('refs');
+
+    view.rerender(<WbsTable projectId="p2" api={api} />);
+    await waitFor(() => {
+      expect(headerIds()).not.toContain('refs');
+    });
+    expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+    expect(localStorage.getItem('wbs.linksResetShown.p2')).toBeNull();
+
+    view.rerender(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(headerIds()).toContain('refs');
+    });
+  });
+
+  itDom('offers no reset until the first tree read succeeds, including an empty tree', async () => {
+    localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
+    const api = fakeApi();
+    const empty = await api.tree('p1');
+    let release!: (tree: typeof empty) => void;
+    const held = new Promise<typeof empty>((resolve) => {
+      release = resolve;
+    });
+    const read = vi.fn(() => held);
+    api.tree = read;
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(read).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+
+    act(() => {
+      release(empty);
+    });
+    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+  });
+
+  itDom('retains the last successful reset target when a later refresh fails', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/held' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    click('Add work item');
+    await waitFor(() => {
+      expect(document.querySelector('[data-stale-tree]')).not.toBeNull();
+    });
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
   itDom('changes only the reset target when the first or last link changes', async () => {
     const api = fakeApi();
     const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
@@ -1643,6 +1705,83 @@ describe('the columns a reader has hidden', () => {
     await screen.findByLabelText('Name of 030');
     expect(headerIds()).not.toContain('refs');
     expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom('uses the last landed tree while first-link and last-link reads are in flight', async () => {
+    const linkedApi = fakeApi();
+    const linkedRow = await linkedApi.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Linked',
+    });
+    linkedApi.linkTo(linkedRow.id, [
+      { systemId: 'github', url: 'https://example.test/before-removal' },
+    ]);
+    render(<WbsTable projectId="p1" api={linkedApi} />);
+    await screen.findByLabelText('Name of 010');
+
+    const linkedTree = linkedApi.tree.bind(linkedApi);
+    linkedApi.linkTo(linkedRow.id, []);
+    const withoutLink = await linkedTree('p1');
+    let releaseRemoval!: (tree: typeof withoutLink) => void;
+    const heldRemoval = new Promise<typeof withoutLink>((resolve) => {
+      releaseRemoval = resolve;
+    });
+    const removalRead = vi.fn(() => heldRemoval);
+    linkedApi.tree = removalRead;
+    click('Add work item');
+    await waitFor(() => {
+      expect(removalRead).toHaveBeenCalledTimes(1);
+    });
+
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+    linkedApi.tree = linkedTree;
+    act(() => {
+      releaseRemoval(withoutLink);
+    });
+    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    expect(headerIds()).toContain('refs');
+    click('Reset layout');
+    expect(headerIds()).not.toContain('refs');
+
+    cleanup();
+    localStorage.clear();
+    const emptyApi = fakeApi();
+    const emptyRow = await emptyApi.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Unlinked',
+    });
+    render(<WbsTable projectId="p1" api={emptyApi} />);
+    await screen.findByLabelText('Name of 010');
+    fireEvent.click(within(openColumns()).getByLabelText('Links'));
+    expect(headerIds()).toContain('refs');
+
+    const emptyTree = emptyApi.tree.bind(emptyApi);
+    emptyApi.linkTo(emptyRow.id, [{ systemId: 'github', url: 'https://example.test/first' }]);
+    const withLink = await emptyTree('p1');
+    let releaseAddition!: (tree: typeof withLink) => void;
+    const heldAddition = new Promise<typeof withLink>((resolve) => {
+      releaseAddition = resolve;
+    });
+    const additionRead = vi.fn(() => heldAddition);
+    emptyApi.tree = additionRead;
+    click('Add work item');
+    await waitFor(() => {
+      expect(additionRead).toHaveBeenCalledTimes(1);
+    });
+
+    click('Reset layout');
+    expect(headerIds()).not.toContain('refs');
+    emptyApi.tree = emptyTree;
+    act(() => {
+      releaseAddition(withLink);
+    });
+    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    expect(headerIds()).not.toContain('refs');
     click('Reset layout');
     expect(headerIds()).toContain('refs');
   });

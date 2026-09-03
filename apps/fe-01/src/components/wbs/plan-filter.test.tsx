@@ -1310,6 +1310,7 @@ describe('saved views, per browser', () => {
 
   /** The hidden-columns store, which a saved view writes when it carries columns. */
   const HIDDEN_KEY = 'wbs.hiddenColumns.p1';
+  const RESET_MARKER = 'wbs.linksResetShown.p1';
   const columnsOnScreen = (): string[] =>
     screen.getAllByRole('columnheader').map((th) => th.getAttribute('data-column') ?? '');
   const toggleColumn = (label: string) => {
@@ -1336,11 +1337,20 @@ describe('saved views, per browser', () => {
     toggleColumn('Depends on');
     expect(columnsOnScreen()).toContain('depends');
     find('');
+    localStorage.setItem(RESET_MARKER, 'true');
 
     fireEvent.click(screen.getByText('Narrow'));
     expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('strip');
     expect(columnsOnScreen()).not.toContain('depends');
     expect(localStorage.getItem(HIDDEN_KEY)).toBe(JSON.stringify(['depends']));
+    expect(localStorage.getItem(RESET_MARKER)).toBeNull();
+
+    localStorage.removeItem(HIDDEN_KEY);
+    cleanup();
+    render(<WbsTable projectId="p1" api={fakeApi()} />);
+    await waitFor(() => {
+      expect(columnsOnScreen()).not.toContain('refs');
+    });
   });
 
   itDom(
@@ -1367,12 +1377,14 @@ describe('saved views, per browser', () => {
       await aPlanWithATeam();
       toggleColumn('Priority');
       expect(columnsOnScreen()).not.toContain('priority');
+      localStorage.setItem(RESET_MARKER, 'true');
 
       openViews();
       fireEvent.click(screen.getByText('Older'));
       expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('strip');
       expect(columnsOnScreen()).not.toContain('priority');
       expect(localStorage.getItem(HIDDEN_KEY)).toBe(JSON.stringify(['priority']));
+      expect(localStorage.getItem(RESET_MARKER)).toBe('true');
     },
   );
 
