@@ -82,28 +82,28 @@ h2puni is green — no build or autotest runs on the workspace box.
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
 - [ ] 2.1 Request/response types for the one-JSON-line contract:
-      `{ contractVersion, solverVersion, objective, budgetMs, horizonDays,
+      `{ contractVersion, solverVersion, objective, budgetMs, stageBudgetSplit, quantum, horizonUnits,
       slices, edges, pools, baselineOffsets }` in,
       `{ status, offsets, objectiveValues: { makespan, priority, movement } }`
       out.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in `libs/domain` —
       **Bun owns duration and graph derivation, Python owns placement only.**
-      Each slice carries `key` (`sliceKey`), an **integer** `durationDays`
+      Each slice carries `key` (`sliceKey`), an **integer** `durationUnits` (2.7)
       computed exactly as Fast computes it (`ASSUMED_SLICE_WORKDAYS` for a null
       `days`, divided by `width`, then `snapWorkdays` — no fraction crosses the
       boundary), `width`, `personId`, `poolIds`, `priorityWeight`
       (`(P_max + 1) − p(s)`, `0` when no priority reaches the leaf), and
-      `notBeforeDays` (the latest of the leaf's own floor and every
+      `notBeforeUnits` (the latest of the leaf's own floor and every
       ancestor's). `edges` are already leaf-expanded with `reach` applied and
       already include the intra-item step-order edges, so Python never receives
-      the tree, `parentId`, or `dep_reach`. `horizonDays` is the Fast makespan
+      the tree, `parentId`, or `dep_reach`. `horizonUnits` is the Fast makespan
       plus total remaining effort.
 - [ ] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
       `status`, an unknown key, a missing key.
 - [ ] 2.4 `revalidateSolverResult(request, response)` — every offset present and
-      non-negative, every edge respected, every `notBeforeDays` floor
+      non-negative, every edge respected, every `notBeforeUnits` floor
       respected, no pool over capacity at any instant, no assignee
       double-booked, and the reported `objectiveValues` recomputed and matched.
 - [ ] 2.5 **Proven by** `solver-contract.test.ts`: a valid response passes;
@@ -311,7 +311,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       parse round-trip, response serialization.
 - [ ] 5.4 **Proven by** the oracle cases: 2–6 slice hand-verified instances with
       known optimal offsets per objective, including one where PRI and Time
-      disagree, one exercising `notBeforeDays`, one exercising a two-pool
+      disagree, one exercising `notBeforeUnits`, one exercising a two-pool
       slice, and one exercising an intra-item step-order edge. The solver
       reproduces each exactly.
 - [ ] 5.5 **Proven by** the determinism case under the pinned config only —
@@ -432,11 +432,12 @@ h2puni is green — no build or autotest runs on the workspace box.
       all. Failure is variant-specific.
 - [ ] 7.2 `schedule_optimized` added to `ProjectEvent` in
       `apps/be-01/src/service/broadcast.ts`, carrying `(projectId, generation,
-      inputHash, objective, contractVersion)`. **The cache row and the
-      `event_log` record are written in one SQLite transaction** and the
-      broadcaster pushes from the committed record, so the guarantee is exactly
-      one durable event record per newly stored result, delivered at least once
-      and idempotent for receivers. Never emitted on a cache hit.
+      inputHash, objective, contractVersion, budgetMs)` (7.7). **The cache row
+      and the `event_log` record are written in one SQLite transaction** and the
+      broadcaster pushes from the committed record, so the guarantee is one
+      durable replay record per newly stored outcome plus one best-effort
+      post-commit push (7.9), idempotent for receivers. Never emitted on a
+      cache hit.
       Toggle/Engine/Objective changes emit `project_settings_changed` (3b.3)
       instead.
 - [ ] 7.3 Retry action: re-read the current `inputHash`, refuse if the plan

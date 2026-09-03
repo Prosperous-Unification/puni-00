@@ -96,7 +96,7 @@ The coordinator SHALL cap solver processes at 4 per project and 16 globally. A v
 
 ### Requirement: The solver receives every fact its objective depends on
 
-The solver request SHALL be one JSON line carrying `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `horizonDays`, `slices`, `edges`, `pools`, and `baselineOffsets`. Each slice SHALL carry its `sliceKey`, an integer `durationDays`, `width`, `personId`, set-valued `poolIds`, a resolved `priorityWeight`, and a resolved `notBeforeDays`. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the Fast schedule for the same canonical input and SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor.
+The solver request SHALL be one JSON line carrying `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `stageBudgetSplit`, `quantum`, `horizonUnits`, `slices`, `edges`, `pools`, `baselineOffsets` and `fastHint`. Each slice SHALL carry its `sliceKey`, an integer `durationUnits`, `width`, `personId`, set-valued `poolIds`, a resolved `priorityWeight`, and a resolved `notBeforeUnits`. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the Fast schedule for the same canonical input and SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor.
 
 #### Scenario: the movement term uses the passed baseline, not live state
 
@@ -180,23 +180,23 @@ The input hash SHALL be the SHA-256 of a canonical JSON built from every argumen
 
 ### Requirement: The objectives are defined as executable mathematics
 
-PRI SHALL minimize `(PRIORITY, MAKESPAN, MOVEMENT)` lexicographically and Time SHALL minimize `(MAKESPAN, PRIORITY, MOVEMENT)`, where `MAKESPAN` is the maximum slice finish in whole workdays, `PRIORITY` is `Σ w(s)·finish(s)` with `w(s) = (P_max + 1) − p(s)` over the leaf priority resolved by the nearest-ancestor floor rule and `w(s) = 0` for an unprioritised leaf, and `MOVEMENT` is `Σ |start(s) − baselineStart(s)|`. The lexicographic order SHALL be implemented as staged optimization rather than a weighted sum. Neither ordering SHALL be claimed to be a total order, and production SHALL NOT be required to break ties reproducibly.
+PRI SHALL minimize `(PRIORITY, MAKESPAN, MOVEMENT)` lexicographically and Time SHALL minimize `(MAKESPAN, PRIORITY, MOVEMENT)`, where `MAKESPAN` is the maximum slice finish in quantised workday units, `PRIORITY` is `Σ w(s)·finish(s)` with `w(s) = (P_max + 1) − p(s)` over the leaf priority resolved by the nearest-ancestor floor rule and `w(s) = 0` for an unprioritised leaf, and `MOVEMENT` is `Σ |start(s) − baselineStart(s)|`. The lexicographic order SHALL be implemented as staged optimization rather than a weighted sum. Neither ordering SHALL be claimed to be a total order, and production SHALL NOT be required to break ties reproducibly.
 
 #### Scenario: the two objectives differ only in term precedence
 
 - **GIVEN** one canonical input with at least one prioritised leaf and a resource conflict
 - **WHEN** PRI and Time are both solved
-- **THEN** both are feasible against the same graph, PRI's `PRIORITY` is no worse than Time's, and Time's `MAKESPAN` is no worse than PRI's
+- **THEN** both are feasible against the same graph, PRI's `PRIORITY` is no worse than the Fast baseline's `PRIORITY`, and Time's `MAKESPAN` is no worse than the Fast baseline's `MAKESPAN` — the cross-objective comparison is deliberately **not** required, because two independent time-limited best-found runs cannot guarantee it
 
-### Requirement: Time is expressed in whole workdays computed by the caller
+### Requirement: Every duration crossing the solver boundary is computed by the caller
 
-Every duration crossing the solver boundary SHALL be an integer count of workdays computed by Bun exactly as the Fast pass computes it — `ASSUMED_SLICE_WORKDAYS` substituted for a null `days`, divided by `width`, then snapped by `snapWorkdays`. The solver SHALL NOT receive fractional effort and SHALL NOT derive a duration.
+Bun SHALL compute every duration and the solver SHALL NOT derive one. The value crossing the boundary SHALL be an integer count of `1 / SOLVER_QUANTUM` workday units, never a whole-day integer and never a raw fraction. The request SHALL contain no null duration.
 
 #### Scenario: an unestimated slice crosses the boundary as its assumed duration
 
 - **GIVEN** a slice whose `days` is null and whose `width` is 1
 - **WHEN** the solver request is built
-- **THEN** its `durationDays` is `ASSUMED_SLICE_WORKDAYS`, and the request contains no null and no fraction
+- **THEN** its `durationUnits` is `ASSUMED_SLICE_WORKDAYS × SOLVER_QUANTUM`, and the request contains no null and no fraction
 
 ### Requirement: A stale generation can neither publish nor evict
 
@@ -226,7 +226,7 @@ The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a
 
 ### Requirement: A newly stored result and its event commit together
 
-The cache row and a durable `event_log` record SHALL be written in one SQLite transaction, and the broadcaster SHALL push from the committed record. The guarantee SHALL be exactly one durable event record per newly stored result, delivered at least once, with the payload `(projectId, generation, inputHash, objective, contractVersion)` so a duplicate delivery is idempotent.
+The cache row and a durable `event_log` record SHALL be written in one SQLite transaction, and the broadcaster SHALL push from the committed record. The guarantee SHALL be one durable replay record per newly stored outcome plus one best-effort post-commit push; the system SHALL NOT claim delivery over a live socket, because `event_log` is a replay buffer rather than a dispatched-and-acknowledged outbox and the process can die between the commit and the push. The payload SHALL be `(projectId, generation, inputHash, objective, contractVersion, budgetMs)` so a duplicate delivery is idempotent and a budget change is distinguishable.
 
 #### Scenario: a crash between the row and the event leaves neither
 
