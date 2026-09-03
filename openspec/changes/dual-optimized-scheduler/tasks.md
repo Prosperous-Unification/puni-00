@@ -1157,13 +1157,27 @@ h2puni is green — no build or autotest runs on the workspace box.
       `attemptToken`; heartbeat, release, the outcome write and the event write
       all carry it, and 6.2b's bind CAS is the first statement that presents
       it. The two deadlines are deliberately different:
-      `childDeadlineAt = startedAt + budgetMs + 5000`, and the child arms its
-      own alarm for that earlier instant; SQLite alone stores and observes
+      `childDeadlineAt = startedAt + budgetMs + 5000`, armed for that earlier
+      instant **twice — inside the child and outside it (self-found, round
+      10)**: the wrapper passes `childDeadlineAt − now` as CP-SAT's
+      `max_time_in_seconds` so a progressing solve stops itself and returns a
+      publishable partial, and the per-child systemd scope (the same scope
+      5.4b's memory limit requires) carries `RuntimeMaxSec` for that instant so
+      the child is `SIGKILL`ed whether or not it can act. **A Python `SIGALRM`
+      alone is not sufficient and must not be written as the mechanism:**
+      `wbs-solver` is a Python package, the handler runs only when the
+      interpreter regains the GIL, and `CpSolver.Solve()` is one long native
+      C++ call — the same reason 5.4b moved the memory bound outside the solve.
+      SQLite alone stores and observes
       `admittedDeadlineAt = childDeadlineAt + SLOT_RECLAIM_MARGIN_MS` (15 s).
       Reclamation mints a new token and is exactly `now > admittedDeadlineAt`,
       using the absolute value stamped once at admission from that row's own
-      `budgetMs` (6.2), so the child has the full margin to exit before its row
-      can release capacity. **`SLOT_HEARTBEAT_TTL_MS` is struck (Sol r9
+      `budgetMs` (6.2), so the **external** kill lands a full margin before the
+      row can release capacity — the exit half of 6.2b's ceiling, which would
+      otherwise rest on a wedged process honouring its own bound.
+      **Watched red:** arm the deadline only in-process, run a fixture whose
+      native solve ignores it past `admittedDeadlineAt`, and assert the live
+      `wbs-solver` count exceeds the `running` row count. **`SLOT_HEARTBEAT_TTL_MS` is struck (Sol r9
       Critical 4):** a TTL derived from the observing coordinator's current
       `solverBudgetMs`, or added to a refreshed `heartbeatAt`, is not the admitted
       child's absolute deadline, and across a 60 s/120 s blue-green overlap it
