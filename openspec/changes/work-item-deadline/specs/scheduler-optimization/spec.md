@@ -245,6 +245,45 @@ Malformed or invalid solver output SHALL remain `invalid-output` and an **engine
 - **WHEN** the coordinator revalidates it
 - **THEN** the result is stored as `invalid-output`, not as `plan-infeasible`
 
+### Requirement: plan-infeasible becomes the seventh VariantState in every artifact that enumerates it
+
+`plan-infeasible` is two things at two layers and SHALL be specified as both, because they are distinct and conflating them is how the previous member was half-added:
+
+- a **stored row status**, beside `ok` and `failed`. It SHALL NOT be an `ok` row carrying an infeasible payload: `corrupt` is already defined as "an `ok` row whose `resultJson` fails to decode", so an `ok` row that is deliberately not a schedule would be indistinguishable from a decoder fault at exactly the point the two must be told apart.
+- a **seventh member of the `VariantState` union** returned by the plan read, beside `ready`, `pending`, `retrying`, `failed`, `corrupt` and `idle`.
+
+That union is declared **the one authority** and is enumerated in five places. All five SHALL be amended in the **same commit**:
+
+| # | Location | Form |
+|---|---|---|
+| 1 | `dual-optimized-scheduler/design.md`, the plan-read DTO bullet | the authoritative `VariantState` list |
+| 2 | `dual-optimized-scheduler/specs/scheduler-optimization/spec.md`, the plan-read requirement | the normative "SHALL be one of" |
+| 3 | `dual-optimized-scheduler/tasks.md` 7.10 | "one of six", **and** its proof-state list |
+| 4 | `dual-optimized-scheduler/tasks.md` 8.3–8.4 | the UI rendered-states list |
+| 5 | `notes/wbs-dual-optimized-scheduler-design.md` | the same DTO paragraph |
+
+This is not a caution. Adding `corrupt` updated location 2 and left 1, 3 and 4 at five members, which shipped as a Critical; the two rounds before it found the same divergence in other fields. A partial amendment here repeats it a third time, and the count word "six" in location 3 is what makes a text search for the union miss the sites that do not spell it.
+
+`plan-infeasible` SHALL also be added to the Retry endpoint's refusal path. Retry accepts `failed` or `corrupt`; every other state returns one code, `409 not-retryable`, naming the state. `plan-infeasible` SHALL take that path rather than being accepted, because re-solving an unchanged input is guaranteed to return the same proof — the UI showing no Retry affordance is not sufficient, since the route is reachable without the UI.
+
+#### Scenario: the union is amended everywhere or the change is incomplete
+
+- **GIVEN** `plan-infeasible` added to the plan-read requirement alone
+- **WHEN** the artifacts are compared
+- **THEN** the four remaining enumerations still list six members and the change is incomplete, exactly as the five-member divergence was
+
+#### Scenario: Retry refuses an infeasible variant
+
+- **GIVEN** a variant stored `plan-infeasible`
+- **WHEN** `POST /api/projects/:projectId/optimization/retry` is called for it directly
+- **THEN** it returns `409 not-retryable` naming the state, and no solver process starts
+
+#### Scenario: an infeasible row is not a corrupt row
+
+- **GIVEN** a variant stored `plan-infeasible` and a variant stored as an `ok` row whose `resultJson` fails to decode
+- **WHEN** the plan read resolves both
+- **THEN** the first is `plan-infeasible` and the second is `corrupt`, and neither is reported as the other
+
 ### Requirement: The canonical scheduling input gains a seventh argument and bumps the contract version
 
 The canonical input is the exact argument tuple of `schedule()`, which SHALL become

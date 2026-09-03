@@ -213,6 +213,34 @@ are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
       binding date and the item the constraint **fell on**. The
       ancestor-bound-leaf case is the test — a payload showing the leaf's own
       later date sends the user to edit a field that changes nothing.
+- [ ] 8.7b **`plan-infeasible` is a seventh `VariantState`, and the union is
+      enumerated in FIVE places.** Amend all five in the same commit:
+      (1) `dual-optimized-scheduler/design.md`'s plan-read DTO bullet — the list
+      that artifact calls "the one authority";
+      (2) `.../specs/scheduler-optimization/spec.md`'s plan-read requirement,
+      the normative "SHALL be one of";
+      (3) `.../tasks.md` 7.10 — both the words "one of six" **and** its
+      proof-state list;
+      (4) `.../tasks.md` 8.3–8.4, the UI rendered-states list;
+      (5) `notes/wbs-dual-optimized-scheduler-design.md`'s DTO paragraph
+      (workspace file, not in the wbs checkout).
+      **This has already gone wrong twice.** Adding `corrupt` updated (2) and
+      left (1), (3) and (4) at five members, which shipped as a Critical, and
+      the two rounds before it found the same divergence in other fields. The
+      count word "six" appears in (3) only, so searching for it finds one site
+      of five — search for the member names.
+- [ ] 8.7c The stored row status and the DTO union are **different layers** and
+      both get a value. `plan-infeasible` is a row status beside `ok` and
+      `failed`, and is **not** an `ok` row carrying an infeasible payload:
+      `corrupt` is defined as an `ok` row whose `resultJson` fails to decode, so
+      an `ok` row that is deliberately not a schedule is indistinguishable from
+      a decoder fault at the one point they must be told apart. Test both
+      resolutions side by side.
+- [ ] 8.7d Retry refuses it. The endpoint accepts `failed` or `corrupt` and
+      returns `409 not-retryable` naming the state for everything else;
+      `plan-infeasible` takes that path. The UI hiding the affordance is not
+      sufficient — the route is reachable without the UI, which is exactly the
+      hole the `corrupt`-promised-a-Retry Critical named.
 - [ ] 8.8 Revalidator clause `lastWorkdayOf(start, finish) <=
       effectiveDeadlineOffset`, evaluated on the materialised schedule in the
       **real fractional domain**, not in quantised units. A violation is
