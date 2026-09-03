@@ -478,7 +478,7 @@ check-that-cannot-fail failure R5 names.
       measured dead (an `Object.hasOwn` guard whose removal changed nothing) and
       deleted rather than documented. The `days / width` half still waits on
       2.2's request builder.
-- [ ] 2.8 `SOLVER_QUANTUM = 48` exported from `libs/domain`, and
+- [x] 2.8 `SOLVER_QUANTUM = 48` exported from `libs/domain`, and
       `durationUnits(slice)` = `Math.ceil(durationOf(slice) * SOLVER_QUANTUM)`
       with an exact-multiple assertion within `DRIFT` before the ceiling
       applies. **Fast's real arithmetic, restated because the plan had it
@@ -488,6 +488,30 @@ check-that-cannot-fail failure R5 names.
       and preserves genuine fractions. **Watched red:** a `days: 1, width: 2`
       fixture must read 0.5 workdays end to end; a `days: null, width: 3`
       fixture must read `ASSUMED_SLICE_WORKDAYS`, not a third of it.
+      **Landed** in `libs/domain/src/solver-quantum.ts`, with `durationOf`
+      **exported** from `schedule.ts` rather than restated — the plan restating
+      it is how both arms came to be wrong in the first place. The snap is
+      `snapWorkdays` itself, applied to the product rather than to the duration:
+      `durationOf`'s result is a genuine fraction that must not be snapped (0.2
+      is not drift) and only the product is supposed to be a whole unit, so the
+      domain keeps ONE 1e-9 window. `workday.ts`'s "applied at the discrete
+      calendar boundaries and nowhere else" is corrected to name this fourth
+      site and to carry the reason the window survives the change of unit: a
+      sixth of a day is eight solver units, so `DRIFT` is still nine orders
+      below the smallest real fraction an estimate can quantise to.
+      `durationRoundedUp(slice)` ships beside it because 2.2 records the
+      per-slice rounding, and the alternative was 2.2 multiplying and comparing
+      against its own copy of the drift window.
+      **Three watched reds, each on the h2puni gate at `b1b6201c`:** the snap
+      dropped for a bare ceiling → 332/1, failing the overshoot case ALONE
+      (`65/6` workdays over width 5 is exactly 104 units and the double is
+      `104.00000000000001`, which a bare ceiling reads as 105); the ceiling
+      dropped → 331/2, the rounding case plus the integrality invariant across
+      all 96 widths; the assumption divided by `width` in `durationOf` → 332/1.
+      **That third count is the finding:** breaking Fast's own assumed arm fails
+      NO pre-existing test in the 327-test domain suite. Nothing held that arm
+      until this slice did, which is exactly why the plan could restate it wrong
+      and go unnoticed.
 - [x] 2.9 The re-validator rejects any offset that is not a non-negative
       integer unit within `horizonUnits`. **Watched red:** feed it a
       fractional offset and a negative one.
