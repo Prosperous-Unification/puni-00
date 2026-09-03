@@ -25,8 +25,8 @@ import { rollbackTo } from './migrate-down';
  * Watched red, 2026-09-03 on h2puni: after the forward migration, a scratch
  * mutant ran `ALTER TABLE service_team DROP COLUMN size`. The first case failed
  * at the `toContain('size')` guard with Received `["id", "name", "created_at",
- * "updated_at", "created_by"]`; 4 tests passed / 1 failed. Restoring the exact
- * head returned the suite to 5/5.
+ * "updated_at", "created_by"]`; 4 tests passed / 1 failed / 33 assertions.
+ * Restoring the exact head returned the suite to 5/5 / 34 assertions.
  *
  * See openspec/changes/retired-schema-cleanup/design.md for the path inventory
  * and the five-rule version-overlap protocol this file enforces.
@@ -76,7 +76,9 @@ function tableNames(dbPath: string): string[] {
 function count(dbPath: string, table: string): number {
   const sqlite = openDatabase(dbPath);
   try {
-    return sqlite.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? -1;
+    const row = sqlite.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get();
+    if (row === null) throw new Error(`COUNT(*) returned no row for ${table}`);
+    return row.n;
   } finally {
     sqlite.close();
   }

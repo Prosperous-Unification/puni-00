@@ -21,9 +21,11 @@
 Exact h2puni evidence, 2026-09-03:
 
 - Green: `bun test apps/be-01/src/repository/retired-schema-untouched.db.test.ts`
-  reported 5 pass / 0 fail.
+  reported 5 pass / 0 fail / 34 assertions.
 - Watched red: after a scratch `ALTER TABLE service_team DROP COLUMN size`, the
-  first case failed at `toContain('size')`; 4 pass / 1 fail, 26 assertions.
+  first case failed at `toContain('size')`; 4 pass / 1 fail / 33 assertions.
+  The fresh-database row counts were unchanged by the schema-only mutant:
+  `work_item=0`, `work_item_team=0`, `work_item_service=0` before and after.
 - Team round-trip counts: before `work_item=1`, `work_item_team=1`; after
   `work_item=1`, `work_item_team=1`; scalar/set moved together from `t1` to `t2`.
 - Rollback/re-apply counts: before `work_item=1`, `work_item_team=1`,
