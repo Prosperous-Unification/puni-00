@@ -216,7 +216,11 @@ where `(D + 1) × quantum` is the first instant of the day after the deadline da
 
 ### Requirement: plan-infeasible is a typed cached state, not an engine failure
 
-CP-SAT returning `INFEASIBLE` on a well-formed model SHALL be recorded as `plan-infeasible`, a first-class variant state beside `ok` and `failed` in the stored state machine. It SHALL NOT reach the `Optimization unavailable · Retry` indicator, because retrying is guaranteed to produce the same answer.
+CP-SAT returning `INFEASIBLE` **at the first stage** of staged lexicographic optimization SHALL be recorded as `plan-infeasible`, a first-class variant state beside `ok` and `failed` in the stored state machine. It SHALL NOT reach the `Optimization unavailable · Retry` indicator, because retrying is guaranteed to produce the same answer.
+
+**The stage qualifier is load-bearing and SHALL NOT be dropped.** The existing rule this change amends says `INFEASIBLE` SHALL be `invalid-output` **at any stage**, reasoning that Fast found a placement for the same graph and every constraint a later stage adds is satisfied by the previous incumbent. Deadlines enter the model *before* the objective terms, so they are present at stage 1 — which is what makes a first-stage `INFEASIBLE` a genuine statement about the user's deadlines and the one case the old blanket rule now over-covers. A **later-stage** `INFEASIBLE` remains impossible on a correct engine for exactly the original reason — the previous incumbent already satisfies every effective deadline and every bound added since — so it SHALL remain `invalid-output`. It also could not honour the payload contract below: a later-stage `INFEASIBLE` carries no offending-work-item certificate to name.
+
+The existing "at any stage" clause and the stage-status matrix SHALL therefore be amended in the **same commit** that introduces `plan-infeasible`, with the same land-together rigour the wire markers get. An unqualified new rule merged against an unamended old one leaves two requirements mandating opposite outcomes for one solver status, and if the new one wins, a later-stage engine failure is cached as "your deadlines cannot be met", with no Retry, at the moment the solver's own previous stage proved a deadline-satisfying schedule exists.
 
 `plan-infeasible` SHALL:
 
@@ -226,6 +230,12 @@ CP-SAT returning `INFEASIBLE` on a well-formed model SHALL be recorded as `plan-
 - render as `Plan infeasible · N work item deadlines` with the offending items listed on demand, Fast still on screen and usable, and no toast and no modal.
 
 Malformed or invalid solver output SHALL remain `invalid-output` and an **engine failure**: an unparseable line, an unknown status, a missing or unknown offset key, any offset failing Bun revalidation, and — specifically — a *feasible* schedule that violates an effective deadline. A deadline-violating solver result is a broken engine, never an infeasible plan.
+
+#### Scenario: a later-stage INFEASIBLE stays an engine failure
+
+- **GIVEN** a staged solve whose first stage returned a feasible incumbent and whose third stage returns `INFEASIBLE`
+- **WHEN** the outcome is classified
+- **THEN** it is `invalid-output`, not `plan-infeasible`, because the incumbent already satisfies every effective deadline and every bound added since
 
 #### Scenario: an infeasible plan offers no Retry
 
@@ -355,17 +365,17 @@ Checking it in units would re-implement the rounding a second time and could dis
 - **WHEN** the coordinator revalidates
 - **THEN** the result is rejected as `invalid-output` and is not stored as `ok`
 
-### Requirement: Cache retention is scoped to the writing generation's contract version
-
-Retention SHALL be read as "a project keeps only its current generation's rows **for the contract version that wrote them**". During a blue/green swap, two application versions run different `SCHEDULER_CONTRACT_VERSION` values against one SQLite file; because the version is part of the cache key they read and write disjoint rows, but an unscoped retention rule would make each side evict the other's rows in a loop. This scoping SHALL land as part of this change rather than as a note, because this change is what makes the latent defect reachable.
+### Requirement: The deadline migration is additive and its rollback boundary is the application, not the schema
 
 The forward migration SHALL be one additive nullable column plus the contract-version bump: every existing row reads `null`, every existing plan schedules identically, and every existing cache row is evicted by the bump rather than read under a contract it does not satisfy. Rolling back the **application** while the column exists SHALL be safe — the old code selects a column list that does not name `deadline`, the values sit unread, and the old contract version keys a disjoint set of cache rows. Rolling back the **migration** drops user data and SHALL NOT be a supported operation; the blue/green swap therefore runs the migration first and the application second, which is the existing order.
+
+This change SHALL NOT restate or re-own cache retention. Retention is already scoped to the writing contract version by the existing rule — "allocating a new generation SHALL delete every cache row of that project **for that contract version**", retaining per `(projectId, objective, contractVersion, inputHash)` — so a blue/green swap's two versions already read and write disjoint rows and neither evicts the other's. An earlier draft of this change called that an existing latent defect and added a second retention requirement; both were wrong, and a second requirement owning one behaviour is the cross-artifact divergence these artifacts have paid for repeatedly. What survives is a **regression test**, not a rule.
 
 #### Scenario: a swap does not evict the peer's cache rows
 
 - **GIVEN** blue at contract version `4+v1` and green at `5+v1` against one SQLite file
 - **WHEN** each writes a validated result for the same project generation
-- **THEN** each retains its own contract version's rows and neither evicts the other's
+- **THEN** each retains its own contract version's rows and neither evicts the other's, under the retention rule as it already stands
 
 ### Requirement: Project deadline and Work item deadline are distinguished in copy
 

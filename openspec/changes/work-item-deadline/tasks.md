@@ -16,8 +16,26 @@ is green — no build or autotest runs on the workspace box.**
 
 **This change must land before TASK-219 (`wbs-optimized-scheduler-coordinator-cache`)
 starts.** It changes the canonical input, the cache identity, the solver wire and
-the failure state machine — all four of TASK-219's subjects. Slices 6, 7 and 8
-are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
+the failure state machine — all four of TASK-219's subjects.
+
+**Who executes what, because half of this cannot be executed here.** Verified at
+this head: `libs/contracts/solver/` exists but holds **no `solver-wire.v1.json`**,
+there is no cache table and no CP-SAT model. TASK-219 creates all three. So:
+
+| Slices | Owner | Why |
+|---|---|---|
+| 1–6, 9, 10.1–10.3 | **this change's own queue tasks** | column, converter, fold, `schedule()`'s seventh argument, Fast ordering, API, UI — all against code that exists |
+| 7, 8 | **TASK-219 absorbs them** | they assert cache-key columns (7.4), hash behaviour (7.1, 7.6) and a wire schema (8.1) belonging to artifacts TASK-219 has not created yet |
+
+Consequently **W1, W3 and W4 are watched here; W2, W5 and W6 are watched inside
+TASK-219**, and 10.1's "all six recorded failing" spans both tasks rather than
+one. Written down because the alternative is a queue that either blocks slice 8
+on a file that does not exist or lets two tasks implement it twice.
+
+The pre-219 obligation is therefore this document, not slices 7–8's code:
+TASK-219 must start from a plan that already says seven arguments, `infeasible`,
+`deadlineUnits` and a seventh `VariantState`. That is what "lands before" means
+here.
 
 ## 1. Migration and column — PROD MODE, own PR
 
@@ -173,11 +191,16 @@ are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
       **no** data migration of cached results.
 - [ ] 7.4 `deadline` is **not** a new cache-key dimension. Assert the key columns
       are still `(projectId, inputHash, objective, contractVersion, budgetMs)`.
-- [ ] 7.5 Retention scoped to the writing generation's contract version, so a
-      blue/green swap's two versions do not evict each other's rows in a loop.
-      This is an **existing latent defect** in the dual-scheduler retention rule
-      that this change makes reachable; the test runs two contract versions
-      against one file and asserts both row sets survive.
+- [ ] 7.5 A **regression test**, not a rule change: run two contract versions
+      against one SQLite file and assert both row sets survive a store on each
+      side. **Do not add a retention requirement.** An earlier draft called this
+      an existing latent defect; it is not — the rule already reads "allocating
+      a new generation SHALL delete every cache row of that project **for that
+      contract version**" and retains per `(projectId, objective,
+      contractVersion, inputHash)`. That draft had quoted the requirement's
+      unscoped *title* and ignored its scoped body. Adding a second requirement
+      for behaviour a first one already owns is the divergence pattern these
+      artifacts keep paying for; the test is worth having, the rule is not.
 - [ ] 7.6 **WATCHED RED W6** — omit the seventh argument from the hash. Two plans
       differing only in a deadline must collide on one cache row and the second
       must read the first's schedule.
@@ -202,9 +225,30 @@ are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
       non-zero-duration fixture stays green under the substitution, so the test
       must be the milestone.
 - [ ] 8.5 Response `status: infeasible` joins the stage-status matrix as a
-      first-class outcome mapping to the stored `plan-infeasible` state, distinct
-      from `unknown`. `horizonUnits` is **unchanged** and is not tightened to the
-      latest deadline.
+      first-class outcome, distinct from `unknown`. `horizonUnits` is
+      **unchanged** and is not tightened to the latest deadline.
+- [ ] 8.5b **`plan-infeasible` is FIRST-stage `INFEASIBLE` only, and the
+      standing "at any stage" rule must be amended in the same commit.** The
+      dual-scheduler spec says `INFEASIBLE` SHALL be `invalid-output` **at any
+      stage**, because Fast placed the same graph and every later stage's added
+      constraint is satisfied by the previous incumbent. Deadlines enter at
+      stage 1 (8.3), so a first-stage `INFEASIBLE` is now a real statement about
+      the user's deadlines — the one case that rule over-covers. A later-stage
+      `INFEASIBLE` is still impossible on a correct engine and stays
+      `invalid-output`; it also carries no offending-item certificate, so it
+      could not populate 8.7's payload. Amend that clause **and** the
+      stage-status matrix alongside 8.1, with the same land-together rigour as
+      8.2. Merging the new rule against the unamended old one leaves two
+      requirements mandating opposite outcomes for one solver status, and if the
+      new one wins, a later-stage engine failure is cached as "your deadlines
+      cannot be met" with no Retry — at the moment the solver's own earlier
+      stage proved a deadline-satisfying schedule exists. Test both stages.
+- [ ] 8.5c The cache schema's declared integrity admits a third status:
+      `CHECK (status IN ('ok','failed'))` appears in `dual-optimized-scheduler`
+      `design.md` and `tasks.md`, together with the CHECKs tying `ok` to a
+      non-NULL `resultJson` and the inverse for `failed`. `plan-infeasible`
+      carries a payload, so both the status CHECK and the payload CHECKs change,
+      in both files, in the same commit.
 - [ ] 8.6 **WATCHED RED W5** — map `infeasible` onto `unknown`. An infeasible
       plan must offer Retry.
 - [ ] 8.7 `plan-infeasible` stored beside `ok` and `failed`: cached under an
@@ -251,6 +295,15 @@ are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
       reordered` and `Same deadline + same order` → `Same project deadline + same
       order`, with their tests. A repository assertion that no unqualified
       "deadline" string remains in shipped UI copy.
+- [ ] 8.9b **The normative text mandating the old strings is amended in the same
+      commit**: `dual-optimized-scheduler/specs/scheduler-optimization/spec.md`,
+      the comparison-indicator requirement ("SHALL report one of: … Same
+      deadline + reordered, or Same deadline + same order"), and
+      `dual-optimized-scheduler/design.md`'s restatement of the four strings.
+      8.9's repository assertion covers **shipped UI copy**, not spec text, and
+      7.2's sweep greps for the argument tuple — neither reaches these two
+      lines, so without this item the merge leaves two SHALLs mandating
+      different literal strings for one indicator.
 
 ## 9. UI
 

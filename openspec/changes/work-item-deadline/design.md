@@ -296,8 +296,24 @@ every non-zero-duration fixture and admits a milestone one day late.
 
 ### 3.3 `plan-infeasible` is a typed state, not a failure
 
-**A legitimate outcome.** CP-SAT proving the model infeasible means the user's
-deadlines cannot all be met; the engine worked correctly. It is **not** the
+**A legitimate outcome, at the first stage only.** CP-SAT proving the model
+infeasible **at stage 1** means the user's deadlines cannot all be met; the
+engine worked correctly.
+
+**The stage qualifier is not decoration, and this note had it wrong.** The rule
+being amended says `INFEASIBLE` is `invalid-output` **at any stage**, because
+Fast placed the same graph and every later stage's added constraint is satisfied
+by the previous incumbent. Deadlines enter *before* the objective terms (§3.2),
+so they are present at stage 1 — which is the one case that blanket rule now
+over-covers, and the only case that changes. A **later-stage** `INFEASIBLE` is
+still impossible on a correct engine, stays `invalid-output`, and could not
+populate the payload below in any event: it carries no offending-item
+certificate. The "at any stage" clause and the stage-status matrix are amended
+in the same commit (§6 slice 8). Merging an unqualified new rule against the
+unamended old one leaves two requirements mandating opposite outcomes for one
+solver status, and if the new one wins, a later-stage engine failure is cached
+as "your deadlines cannot be met", with no Retry, at the moment the solver's own
+earlier stage proved a deadline-satisfying schedule exists. It is **not** the
 `invalid-output` / `failed` path, and it must not reach the
 `Optimization unavailable · Retry` indicator, because retrying is guaranteed to
 produce the same answer and Retry would be a lie.
@@ -449,15 +465,22 @@ of cache rows. Rolling back the *migration* drops user data and is not a
 supported operation. The blue/green swap therefore runs the migration first and
 the application second, which is the existing order.
 
-**The one real hazard**, stated so the deploy runbook can carry it: during a
-swap, blue and green run different `SCHEDULER_CONTRACT_VERSION` values against
-one SQLite file. That is already handled — the version is part of the cache key,
-so the two generations read and write disjoint rows and neither sees the other's
-results. Retention ("a project keeps only its current generation's rows") must
-be read as scoped to the writing generation's contract version, or a swap makes
-each side evict the other's rows in a loop. **This is an existing latent defect
-in the dual-scheduler retention rule that this change makes reachable**, and it
-is a required slice (§6 slice 7), not a note.
+**The one real hazard, and it is NOT a new defect.** During a swap, blue and
+green run different `SCHEDULER_CONTRACT_VERSION` values against one SQLite file.
+That is already handled, and further than an earlier draft of this section
+claimed: the version is part of the cache key, so the two generations read and
+write disjoint rows, **and retention is already scoped to it** — the existing
+rule reads "allocating a new generation SHALL delete every cache row of that
+project *for that contract version*", retaining per `(projectId, objective,
+contractVersion, inputHash)`.
+
+This section previously called that an existing latent defect that this change
+makes reachable, and §6 carried a slice to fix it. Both were wrong: the draft
+quoted the retention requirement's unscoped **title** and ignored its scoped
+body. What survives is a regression test that runs two contract versions against
+one file and asserts both row sets survive (§6 slice 7) — worth having, and not
+a rule change. Adding a second requirement for behaviour a first one already
+owns is the divergence pattern these artifacts have paid for repeatedly.
 
 ## §5 Assumptions (numbered, with what falsifies each)
 
@@ -491,8 +514,9 @@ is a required slice (§6 slice 7), not a note.
    existing priority tie-breaks (§3.1).
 6. **API + realtime + undo** — §2.2's `422` boundary, the existing event, the
    existing undo stack (§2.4).
-7. **Canonical input, contract-version bump, retention scoping** — §3.4 plus
-   §4's retention-by-contract-version fix.
+7. **Canonical input and contract-version bump** — §3.4. Plus a two-version
+   retention *regression test* (§4) — not a rule fix; the scoping already
+   exists.
 8. **Wire + `plan-infeasible` + TASK-221 copy** — §3.5's two schema additions
    with every tagged marker amended in the same commit, §3.3's state and
    payload, §3.6's revalidator clause, and the `Same project deadline …`
