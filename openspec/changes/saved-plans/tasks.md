@@ -7,12 +7,12 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 1. The term, and the canonical plan-input value
 
-- [ ] 1.1 CONTEXT.md gains **Saved plan**, next to Plan document, saying what it
+- [x] 1.1 CONTEXT.md gains **Saved plan**, next to Plan document, saying what it
       is and what it is not: never exported, never imported, never applied to a
       project. `_Avoid_: snapshot, checkpoint, backup, version`. Plan document's
       own entry is untouched — it already avoids `snapshot`, which is why this
       term exists.
-- [ ] 1.2 `CanonicalPlanInput` in `libs/domain/src/saved-plan/` — the closed
+- [x] 1.2 `CanonicalPlanInput` in `libs/domain/src/saved-plan/` — the closed
       field list from spec.md, which enumerates the project metadata and the
       work-item columns rather than gesturing at them, and includes
       `frozen_number`, `service_team_id`, `service_id`, `person_team`,
@@ -24,13 +24,13 @@ comparison UI) and start only after slice 6 is merged.
       editing, not about the plan), `work_item.revision` and `project.revision`
       (write counters — two identical plans would diff as changed), and
       `broadcast.latestSeq`. Types only, no reads.
-- [ ] 1.3 `canonicalisePlanInput(values)` — a pure function from already-read
+- [x] 1.3 `canonicalisePlanInput(values)` — a pure function from already-read
       rows to `CanonicalPlanInput`, with a **stable** key order and a stable
       ordering of every collection, because the SHA-256 is taken over its
       serialization. Test: two calls over the same rows supplied in a different
       row order serialize to identical bytes. Negative: sort dropped from work
       items, watched failing on the byte comparison.
-- [ ] 1.4 A round-trip property test over a generated plan: canonicalise,
+- [x] 1.4 A round-trip property test over a generated plan: canonicalise,
       serialize, parse, canonicalise again — identical bytes.
 
 ## 2. The tables
