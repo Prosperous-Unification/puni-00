@@ -46,6 +46,11 @@ write not present in that snapshot SHALL affect only a later successful tree
 read and a later reset. A later refresh SHALL NOT revise the visibility chosen
 by the completed reset.
 
+Before the selected project has completed its first successful tree read,
+full-table Reset SHALL be unavailable. A successful empty tree SHALL count as a
+loaded snapshot; after any success, a failed refresh SHALL retain the prior
+snapshot as the reset input.
+
 #### Scenario: a filtered collapsed descendant counts
 
 - **GIVEN** a linked descendant outside the rendered rows because its branch is
@@ -68,6 +73,13 @@ by the completed reset.
 - **AND** the later refresh SHALL leave it hidden
 - **AND** a subsequent Reset layout SHALL show it
 
+#### Scenario: initial loading is not an empty-project result
+
+- **GIVEN** the selected project has not completed a successful tree read
+- **WHEN** prior local width or Gantt overrides would otherwise offer Reset
+- **THEN** full-table Reset SHALL remain unavailable
+- **AND** a successful empty-tree response SHALL enable the hidden-Links target
+
 ### Requirement: The contextual reset result is local, durable and geometrically exact
 
 Reset SHALL forget the explicit hidden-column list but SHALL remember, per
@@ -75,7 +87,8 @@ project and per browser, only whether that reset showed Links. This one-bit
 baseline SHALL survive reloads and SHALL remain unchanged as refs change until
 the next full-table reset. It SHALL NOT be sent to or read from a server. An
 explicit Columns toggle or saved-view column set SHALL replace it as the sole
-authority.
+authority. Exactly the stored JSON boolean `true` SHALL represent this baseline;
+all other stored values SHALL be discarded as invalid.
 
 When Links is hidden, the table minimum and Name's pinned offset SHALL each be
 exactly 40px smaller than with Links shown, with no sticky gap. The Links width,

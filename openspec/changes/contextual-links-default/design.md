@@ -21,8 +21,8 @@ The visible column set is resolved in this order:
 
 1. a valid `wbs.hiddenColumns.<projectId>` list — an explicit Columns toggle or
    saved view;
-2. a valid local `wbs.linksResetShown.<projectId>` marker — the last full-table
-   reset showed Links;
+2. a valid local `wbs.linksResetShown.<projectId>` marker — exactly the JSON
+   boolean `true`, meaning the last full-table reset showed Links;
 3. the first-visit baseline — Links hidden.
 
 Rename the static baseline to `INITIAL_HIDDEN_COLUMNS` and add `refs` to its
@@ -33,7 +33,9 @@ true and unchanged when false.
 Any explicit column writer stores the whole current hide-list and clears the
 reset marker, so there is one authority. Applying an old saved view with no
 column set changes neither. Project switching reads the same precedence whole.
-Malformed values are dropped by the existing `Remembered` boundary.
+The marker uses `remembered(key, (value) => value === true)`; `false`, strings,
+numbers, objects and malformed JSON are invalid and removed by the existing
+`Remembered` boundary.
 
 ### D2 — Reset stores one semantic exception, not a layout snapshot
 
@@ -67,6 +69,12 @@ the click. A write still in flight is not in that snapshot. A later refresh may
 change the next reset target, not the result already chosen. JavaScript event
 ordering therefore supplies a deterministic boundary without a server request
 or race-prone second read.
+
+Before the current project has produced its first successful tree read, the
+full-table Reset control is unavailable rather than treating the initial empty
+array as a confirmed empty project. A successful empty read enables the normal
+hidden target. After any success, a failed refresh keeps Reset based on that
+last successful snapshot, consistently with the stale-tree screen.
 
 ### D4 — the reset predicate compares against today's contextual target
 
