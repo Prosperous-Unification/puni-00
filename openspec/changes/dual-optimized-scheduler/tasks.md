@@ -402,6 +402,27 @@ check-that-cannot-fail failure R5 names.
       deadline resolver, and `not-before.ts` holds only
       `isOrphanedNotBeforeReason`, which is a validation predicate rather than a
       floor walk.
+      **The two folds are now published (2026-09-03), and the floor half was
+      NOT a new function:** `libs/domain/src/leaf-constraints.ts` exports
+      `leafFloorsOf` and `leafDeadlinesOf`, and `schedule()` now *calls*
+      `leafFloorsOf` where it used to fold `notBefore` inline. That direction
+      matters — the builder must carry the very same numbers as
+      `notBeforeUnits`, and this exact fold was already wrong once for a month
+      (2026-08-10: a floor written on a parent was accepted, stored, echoed back
+      and constrained nothing), so a second copy in `libs/contracts` is the
+      copy that would get it backwards. `leafDeadlinesOf` is new and is the
+      fold's **mirror, not its twin**: `Math.min`, because the tighter of a
+      leaf's own date and any ancestor's is the one that binds, and with **no
+      zero seed**, because a floor's identity is day zero and a deadline has
+      none — an unconstrained leaf is absent from the map and the wire spells
+      that `deadlineUnits: null`. Both reds watched on h2puni at `f5053b1d`:
+      `min` → `max` fails 3 of the 12 new tests, and `own ?? 0` in place of the
+      `undefined` check fails 3 (a different 3 — a day-zero deadline is a real
+      and very tight constraint, and the seed silently wins every later
+      comparison). Neither the `(D + 1) × quantum` conversion nor
+      `deadlineOffsetOf` is here: that is TASK-241's boundary, and
+      `deadlineOffsetOf` exists nowhere in the repository today — checked by
+      search, not assumed. What remains of 2.2 is the builder itself.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
