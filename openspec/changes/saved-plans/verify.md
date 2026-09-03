@@ -7,8 +7,8 @@ called done — a check with no observed failure is not done.
 
 **Status, 2026-09-03.** The opening line here used to read "Nothing in
 `tasks.md` has been implemented yet", written at the TASK-230 planning gate. That
-is now stale: TASK-231 has landed slices 1 and 2 and tasks 3.0, 3.1 and 3.2, and
-three rows below carry observed output. An `Observed` cell names the date and the
+is now stale: TASK-231 has landed slices 1 and 2 and tasks 3.0 through 3.3, and
+four rows below carry observed output. An `Observed` cell names the date and the
 **exact head** the observation was made at, because a fault watched at one head
 says nothing about a later one. A cell that relays an earlier run's log rather
 than re-observing says so.
@@ -63,7 +63,7 @@ until it has been.
 | Rename is permissioned like delete (6.2) | rename given the project's ordinary write rule — the third-party case must fail | |
 | The concurrency refusal is SQLite-visible (4.4) | the mechanism replaced with an in-memory in-flight set, watched on two connections | |
 | The quota check runs inside the write transaction (4.6) | the count check moved outside `BEGIN IMMEDIATE`, two saves at 99/100 | |
-| `schedule()` runs outside the read snapshot (3.3) | `schedule()` called inside the snapshot — the liveness assertion must fail | |
+| `schedule()` runs outside the read snapshot (3.3) | `schedule()` called inside the snapshot — the liveness assertion must fail | **2026-09-03, head `c8f0bd4d`, watched red: 1 fail / 3 pass.** `readPlanInput` given the scheduler and calling it immediately before `tx.commit()`. `holds no connection open while the plan is scheduled` failed on `sampled` being `[1]` where `[0]` is owed — one handle live at the instant of the call. **Which three stayed green is the row's real finding:** `schedules every leaf from the captured values alone` samples the count only *after* the call returns and passed against the fault, which is exactly why 3.3's assertion is sampled from inside the scheduling call and not around it. Run as a watched red and reverted on both checkouts, not committed |
 | The save never blocks on a single acquire (4.5) | the bounded retry replaced with one 60 s blocking acquire | |
 | The stored schedule is deep-equal to `schedule()`'s return (3.4) | `resourcePredecessorId` dropped from the writer — the equality must name the key | |
 | Project delete cascades to headers and bodies (2.3) | the `ON DELETE CASCADE` clause removed from the migration | |

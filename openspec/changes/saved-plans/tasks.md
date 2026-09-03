@@ -174,7 +174,7 @@ comparison UI) and start only after slice 6 is merged.
       than this task predicted. Boundary 1 stays green on purpose: the write
       lands before the snapshot is taken, so the whole capture is legitimately
       `after`. Every other test in `be-01` stays green.
-- [ ] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
+- [x] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
       Test: assert no database handle is live during the scheduling call.
       Negative: run `schedule()` inside the snapshot and watch 3.3 fail — a
       liveness assertion that cannot fail would let a levelling run hold the read
