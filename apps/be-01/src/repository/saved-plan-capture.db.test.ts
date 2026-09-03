@@ -29,7 +29,7 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
  * statements at all. The chunk shape is drizzle's, so the tests match on the
  * text they contain rather than pinning it.
  */
-const rendered = (statement: unknown): string => JSON.stringify(statement) ?? '';
+const rendered = (statement: unknown): string => JSON.stringify(statement);
 
 /**
  * A connection whose raw statements and reads are recorded in one sequence.
