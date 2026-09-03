@@ -405,7 +405,7 @@ describe('capturing a project’s plan input', () => {
       expect(new Set(Object.values(witness)).size).toBe(1);
       // Named separately so a failure says *which* side, and so a capture that
       // lost every marker at once cannot pass by being uniformly `missing`.
-      expect(['before', 'after']).toContain(witness.projectName);
+      expect(['before', 'after']).toContain(witness['projectName']);
       // The edit really did land: the capture's snapshot is a snapshot, not a
       // write that never happened.
       expect(tagNameNow()).toBe('after');
