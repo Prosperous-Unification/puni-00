@@ -276,7 +276,9 @@ describe('capturing a project’s plan input', () => {
           failReadNumber: 4,
           foreignWrite: {
             atRead: 2,
-            commit: () => elsewhere.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'")),
+            commit: () => {
+              elsewhere.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'"));
+            },
           },
         }).readPlanInput('p1');
       } catch (err) {
@@ -309,7 +311,9 @@ describe('capturing a project’s plan input', () => {
           failReadNumber: 4,
           foreignWrite: {
             atRead: 2,
-            commit: () => shared.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'")),
+            commit: () => {
+              shared.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'"));
+            },
           },
         }).readPlanInput('p1');
       } catch (err) {
@@ -392,14 +396,19 @@ describe('capturing a project’s plan input', () => {
       let read: PlanInputReads | null;
       try {
         read = await capture({
-          foreignWrite: { atRead: boundary, commit: () => commitTheEdit(green.db) },
+          foreignWrite: {
+            atRead: boundary,
+            commit: () => {
+              commitTheEdit(green.db);
+            },
+          },
         }).readPlanInput('p1');
       } finally {
         green.close();
       }
 
       expect(read).not.toBeNull();
-      const witness = sides(read as PlanInputReads);
+      const witness = sides(read!);
       // The whole claim, in one line: seven values from seven different reads,
       // and one side between them.
       expect(new Set(Object.values(witness)).size).toBe(1);
