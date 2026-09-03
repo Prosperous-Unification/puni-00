@@ -34,7 +34,7 @@ terminal reviews remain.
 
 - At exact implementation head `ee48233a`, removing `refs` from
   `INITIAL_HIDDEN_COLUMNS` made `keeps Links hidden on a first visit even when
-  the project already has a link` fail on the unexpected `refs` header: **1
+the project already has a link` fail on the unexpected `refs` header: **1
   failed, 68 skipped**. The mutation was not retained.
 
 ## 2026-09-03 recovery run 4
@@ -60,6 +60,11 @@ The mobile Gantt-only reset now proves both column storage keys are untouched.
   was made explicit about the refs-shown fixture.
 - `fe-01:typecheck`: passed. Touched Prettier and ESLint: passed. OpenSpec
   strict all: **34/34 passed**.
+- Exact head `0a20f880` focused `table-frame` + `plan-layout` + `plan-cards`:
+  **238/238 passed**. Full-repository `nx format:check --all`: passed after
+  formatting the controlled-read case and this evidence file. A full FE lint
+  attempt saturated h2puni until SSH stopped responding and was terminated
+  without a verdict; the touched-file lint above remains the counted result.
 
 ### Watched red
 

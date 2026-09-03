@@ -1709,82 +1709,85 @@ describe('the columns a reader has hidden', () => {
     expect(headerIds()).toContain('refs');
   });
 
-  itDom('uses the last landed tree while first-link and last-link reads are in flight', async () => {
-    const linkedApi = fakeApi();
-    const linkedRow = await linkedApi.createWorkItem('p1', {
-      parentId: null,
-      afterId: null,
-      name: 'Linked',
-    });
-    linkedApi.linkTo(linkedRow.id, [
-      { systemId: 'github', url: 'https://example.test/before-removal' },
-    ]);
-    render(<WbsTable projectId="p1" api={linkedApi} />);
-    await screen.findByLabelText('Name of 010');
+  itDom(
+    'uses the last landed tree while first-link and last-link reads are in flight',
+    async () => {
+      const linkedApi = fakeApi();
+      const linkedRow = await linkedApi.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Linked',
+      });
+      linkedApi.linkTo(linkedRow.id, [
+        { systemId: 'github', url: 'https://example.test/before-removal' },
+      ]);
+      render(<WbsTable projectId="p1" api={linkedApi} />);
+      await screen.findByLabelText('Name of 010');
 
-    const linkedTree = linkedApi.tree.bind(linkedApi);
-    linkedApi.linkTo(linkedRow.id, []);
-    const withoutLink = await linkedTree('p1');
-    let releaseRemoval!: (tree: typeof withoutLink) => void;
-    const heldRemoval = new Promise<typeof withoutLink>((resolve) => {
-      releaseRemoval = resolve;
-    });
-    const removalRead = vi.fn(() => heldRemoval);
-    linkedApi.tree = removalRead;
-    click('Add work item');
-    await waitFor(() => {
-      expect(removalRead).toHaveBeenCalledTimes(1);
-    });
+      const linkedTree = linkedApi.tree.bind(linkedApi);
+      linkedApi.linkTo(linkedRow.id, []);
+      const withoutLink = await linkedTree('p1');
+      let releaseRemoval!: (tree: typeof withoutLink) => void;
+      const heldRemoval = new Promise<typeof withoutLink>((resolve) => {
+        releaseRemoval = resolve;
+      });
+      const removalRead = vi.fn(() => heldRemoval);
+      linkedApi.tree = removalRead;
+      click('Add work item');
+      await waitFor(() => {
+        expect(removalRead).toHaveBeenCalledTimes(1);
+      });
 
-    click('Reset layout');
-    expect(headerIds()).toContain('refs');
-    linkedApi.tree = linkedTree;
-    act(() => {
-      releaseRemoval(withoutLink);
-    });
-    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
-    expect(headerIds()).toContain('refs');
-    click('Reset layout');
-    expect(headerIds()).not.toContain('refs');
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+      linkedApi.tree = linkedTree;
+      act(() => {
+        releaseRemoval(withoutLink);
+      });
+      expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+      expect(headerIds()).toContain('refs');
+      click('Reset layout');
+      expect(headerIds()).not.toContain('refs');
 
-    cleanup();
-    localStorage.clear();
-    const emptyApi = fakeApi();
-    const emptyRow = await emptyApi.createWorkItem('p1', {
-      parentId: null,
-      afterId: null,
-      name: 'Unlinked',
-    });
-    render(<WbsTable projectId="p1" api={emptyApi} />);
-    await screen.findByLabelText('Name of 010');
-    fireEvent.click(within(openColumns()).getByLabelText('Links'));
-    expect(headerIds()).toContain('refs');
+      cleanup();
+      localStorage.clear();
+      const emptyApi = fakeApi();
+      const emptyRow = await emptyApi.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Unlinked',
+      });
+      render(<WbsTable projectId="p1" api={emptyApi} />);
+      await screen.findByLabelText('Name of 010');
+      fireEvent.click(within(openColumns()).getByLabelText('Links'));
+      expect(headerIds()).toContain('refs');
 
-    const emptyTree = emptyApi.tree.bind(emptyApi);
-    emptyApi.linkTo(emptyRow.id, [{ systemId: 'github', url: 'https://example.test/first' }]);
-    const withLink = await emptyTree('p1');
-    let releaseAddition!: (tree: typeof withLink) => void;
-    const heldAddition = new Promise<typeof withLink>((resolve) => {
-      releaseAddition = resolve;
-    });
-    const additionRead = vi.fn(() => heldAddition);
-    emptyApi.tree = additionRead;
-    click('Add work item');
-    await waitFor(() => {
-      expect(additionRead).toHaveBeenCalledTimes(1);
-    });
+      const emptyTree = emptyApi.tree.bind(emptyApi);
+      emptyApi.linkTo(emptyRow.id, [{ systemId: 'github', url: 'https://example.test/first' }]);
+      const withLink = await emptyTree('p1');
+      let releaseAddition!: (tree: typeof withLink) => void;
+      const heldAddition = new Promise<typeof withLink>((resolve) => {
+        releaseAddition = resolve;
+      });
+      const additionRead = vi.fn(() => heldAddition);
+      emptyApi.tree = additionRead;
+      click('Add work item');
+      await waitFor(() => {
+        expect(additionRead).toHaveBeenCalledTimes(1);
+      });
 
-    click('Reset layout');
-    expect(headerIds()).not.toContain('refs');
-    emptyApi.tree = emptyTree;
-    act(() => {
-      releaseAddition(withLink);
-    });
-    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
-    expect(headerIds()).not.toContain('refs');
-    click('Reset layout');
-    expect(headerIds()).toContain('refs');
-  });
+      click('Reset layout');
+      expect(headerIds()).not.toContain('refs');
+      emptyApi.tree = emptyTree;
+      act(() => {
+        releaseAddition(withLink);
+      });
+      expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+      expect(headerIds()).not.toContain('refs');
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+    },
+  );
 
   itDom('finds a linked descendant in the whole tree after its branch is collapsed', async () => {
     const api = fakeApi();
