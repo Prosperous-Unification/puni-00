@@ -161,7 +161,13 @@ describe('a saved plan does not move when the live plan does', () => {
     // reader can make cheaply once it holds them.
     expect(after.bodies).toEqual(before.bodies);
     expect(sha256(after.bodies.get('input')!)).toBe(before.header.inputSha256);
-    expect(sha256(after.bodies.get('schedule')!)).toBe(before.header.scheduleSha256);
+    // `schedule_sha256` is nullable in the schema because a schedule-less save
+    // is legal; this save has one, and asserting that first is what lets the
+    // comparison below be against a hash rather than against `null`.
+    const scheduleSha = before.header.scheduleSha256;
+    expect(scheduleSha).not.toBeNull();
+    if (scheduleSha === null) return;
+    expect(sha256(after.bodies.get('schedule')!)).toBe(scheduleSha);
     // The whole header, not the two hash columns: `input_bytes`,
     // `scheduler_algorithm_id` and `created_at` are as restatable as the digests
     // are, and an assertion on the hashes alone would not notice them moving.
