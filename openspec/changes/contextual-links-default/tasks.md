@@ -35,7 +35,7 @@ red/green bookkeeping. Builds and autotests run on h2puni or CI, never h1claw.
 ## 3. Reset against the whole successful tree
 
 - [ ] 3.1 Derive `hasAnyExternalRefs` from `flat.some(row =>
-  row.externalRefs.length > 0)`, never `shownRows`. Full-table Reset clears
+row.externalRefs.length > 0)`, never `shownRows`. Full-table Reset clears
       explicit hidden storage, sets the contextual target, and writes/removes
       the marker. Tests cover a linked filtered descendant under a collapsed
       branch, hierarchy depth, an empty array, and a deleted formerly-linked
