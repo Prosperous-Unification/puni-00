@@ -212,6 +212,7 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * Additive forward and dropped whole on the way back, so it heads the folder
  * order and every descending reversal list below.
  */
+const SAVED_PLAN = '20260903190000_add_saved_plan';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
@@ -482,6 +483,7 @@ describe('readMigrationFolders', () => {
       RENAME_ROLE_TO_STEP,
       AUDIT_COLUMNS,
       LOOKUP_INDEXES,
+      SAVED_PLAN,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -590,11 +592,13 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        SAVED_PLAN,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -687,6 +691,7 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        SAVED_PLAN,
       ]);
     } finally {
       db.cleanup();
@@ -757,6 +762,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -900,6 +906,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
