@@ -270,10 +270,24 @@ check-that-cannot-fail failure R5 names.
       that mentions the solver at all). So a **repository** check in
       wbs-tool-v1 can cover three of the four and not the fourth, and it must
       say which it covered rather than reporting a three-file pass as a
-      four-file one. Decide explicitly when the check is written: either the
-      note is copied in beside the change and travels with it, or it is
-      declared out of scope and the "descriptive only" claim is enforced over
-      three artifacts. The check is
+      four-file one. **DECIDED (run 3, 2026-09-03): the note is NOT copied in;
+      it is out of the check's scope, and the check SHALL name it as uncovered
+      in its own output** — a line naming the file and the repository it lives
+      in, printed on a pass as well as a failure, so "3 of 4" is never read as
+      "4 of 4". Three reasons, and the first is the decisive one: the note's §6
+      is a **review ledger**, and this change's standing rule is to amend
+      normative text and never history, so a second copy would have to be
+      either synced — two sources of truth for a ledger — or frozen, after
+      which the check would enforce against a stale artifact. Second, the
+      note's content is *already* required to be descriptive-only against a
+      normative schema, so its drift can mislead a reader but cannot instruct a
+      consumer; the exposure a copy would close is smaller than the exposure it
+      would open. Third, the obligation the copy was meant to create already
+      exists and has been met three runs running: whoever amends the wire
+      amends the note in the same chunk. **Falsifier:** hand this change to an
+      implementer who does not have the Claire workspace and the "descriptive
+      only" claim over four becomes unverifiable at exactly the moment it
+      matters — then copy the note in and freeze it deliberately. The check is
       **set equality, not a ban on prose**, because a planning artifact that
       may not name a field cannot say what the schema must contain, and the
       earlier "no field list outside the schema" wording rejected design.md,
