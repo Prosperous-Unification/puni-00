@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { projectRow } from '../testing/project-fixture';
 import { CapacityRepository } from './capacity';
@@ -14,8 +14,11 @@ import { DirectoryRepository } from './directory';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
+import { person, project, step, tag, workItem, workItemTag } from './schema';
 import { UserRepository } from './user';
+import { WorkItemRepository } from './work-item';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -44,11 +47,17 @@ interface TracingOptions {
   /** Throw from this read, counting from one, so the capture unwinds. */
   readonly failReadNumber?: number;
   /**
-   * A statement some *other* caller issues just before this read, on
-   * `writeOn`. It stands in for an in-flight request resuming across one of the
-   * capture's `await Promise.resolve()` boundaries.
+   * What some *other* caller commits just before this read. It stands in for an
+   * in-flight request resuming across one of the capture's
+   * `await Promise.resolve()` boundaries.
+   *
+   * `commit` is synchronous because this hook is: it runs inside the `select`
+   * interceptor, where nothing can be awaited. That rules the async stores out
+   * and is why the writes below are drizzle statements rather than
+   * `WorkItemRepository.patch` — a limitation of the seam, stated rather than
+   * hidden, and it costs the tests nothing they claim.
    */
-  readonly foreignWrite?: { readonly atRead: number; readonly on: Drizzle; readonly sql: string };
+  readonly foreignWrite?: { readonly atRead: number; readonly commit: () => void };
   /**
    * The connection the capture is handed. Given one, `close` is a no-op record
    * — the process handle is nobody's to close, which is itself part of what the
@@ -78,7 +87,7 @@ const tracing = (
           trace.statements.push('read');
           const foreign = options.foreignWrite;
           if (reads === foreign?.atRead) {
-            foreign.on.run(sql.raw(foreign.sql));
+            foreign.commit();
           }
           if (options.failReadNumber !== undefined && reads === options.failReadNumber) {
             throw new Error('the store fell over mid-capture');
@@ -125,8 +134,11 @@ describe('capturing a project’s plan input', () => {
       wrote,
     );
     await new ProjectRepository(db).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [],
+      // `name` and `estimateMethod` are generation markers for the torn-read
+      // cases below: `before`/`pert` is the seeded state, and the one edit
+      // committed mid-capture moves both.
+      projectRow({ id: 'p1', name: 'before', ownerId: 'owner', estimateMethod: 'pert' }),
+      [{ id: 'st-1', projectId: 'p1', name: 'before', position: 10 }],
       wrote,
     );
     const directory = new DirectoryRepository(db);
@@ -138,6 +150,31 @@ describe('capturing a project’s plan input', () => {
     await directory.addService({ id: 'svc-1', name: 'Wiring' }, wrote);
     await directory.addWorkItemType({ id: 'wit-1', name: 'Task' }, wrote);
     await new CapacityRepository(db).set('p1', 't-platform', 4, wrote);
+    const items = new WorkItemRepository(db);
+    await items.insert(
+      {
+        id: 'wi-1',
+        projectId: 'p1',
+        parentId: null,
+        position: 10,
+        name: 'before',
+        notes: '',
+        frozenNumber: null,
+        priority: null,
+        startNoEarlierThan: null,
+        serviceTeamId: null,
+        serviceId: null,
+        maxParallel: 1,
+        startNoEarlierThanReason: null,
+        revision: 0,
+      },
+      [],
+      wrote,
+    );
+    // The junction row, seeded so the mid-capture edit can *remove* it: a
+    // delete needs no audit columns, and the direction is immaterial to what is
+    // being asserted.
+    await items.patch('wi-1', { tagIds: ['tag-1'] }, wrote);
     seed.close();
     trace = { statements: [], closes: 0 };
   });
@@ -239,8 +276,7 @@ describe('capturing a project’s plan input', () => {
           failReadNumber: 4,
           foreignWrite: {
             atRead: 2,
-            on: elsewhere.db,
-            sql: "UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'",
+            commit: () => elsewhere.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'")),
           },
         }).readPlanInput('p1');
       } catch (err) {
@@ -273,8 +309,7 @@ describe('capturing a project’s plan input', () => {
           failReadNumber: 4,
           foreignWrite: {
             atRead: 2,
-            on: shared.db,
-            sql: "UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'",
+            commit: () => shared.db.run(sql.raw("UPDATE tag SET name = 'renamed' WHERE id = 'tag-1'")),
           },
         }).readPlanInput('p1');
       } catch (err) {
@@ -287,4 +322,93 @@ describe('capturing a project’s plan input', () => {
       shared.close();
     }
   });
+
+  /**
+   * One edit, committed as a single transaction by a connection that is not the
+   * capture's — the two connections standing in for blue and green.
+   *
+   * It is spread deliberately across the read order rather than aimed at one
+   * table: the project row (read 1), the work item and the `work_item_tag`
+   * junction folded into it (read 2), a step (read 9), a person and the
+   * `person_team` row that cascades with it (read 12), and the `tag` registry
+   * (read 15). A capture that tore anywhere between the first read and the last
+   * would show some of these moved and some not — which is exactly the failure
+   * mode a revision counter cannot see, since `tag` and `person_team` carry no
+   * revision column at all.
+   */
+  const commitTheEdit = (writer: Drizzle): void => {
+    writer.transaction((tx) => {
+      tx.update(project)
+        .set({ name: 'after', estimateMethod: 'pessimistic' })
+        .where(eq(project.id, 'p1'))
+        .run();
+      tx.update(workItem).set({ name: 'after' }).where(eq(workItem.id, 'wi-1')).run();
+      tx.delete(workItemTag).where(eq(workItemTag.workItemId, 'wi-1')).run();
+      tx.update(step).set({ name: 'after' }).where(eq(step.id, 'st-1')).run();
+      tx.delete(person).where(eq(person.id, 'pp-unassigned')).run();
+      tx.update(tag).set({ name: 'after' }).where(eq(tag.id, 'tag-1')).run();
+    });
+  };
+
+  /**
+   * Which side of {@link commitTheEdit} each captured value came from.
+   *
+   * Every entry is read off the capture rather than off the database, and each
+   * one comes from a *different* read, so a torn capture is a witness whose
+   * values disagree. Rows that are missing entirely are reported as `missing`
+   * rather than folded into `after`, because a dropped read and a post-edit read
+   * are not the same defect and must not be able to impersonate each other.
+   */
+  const sides = (read: PlanInputReads): Record<string, string> => {
+    const item = read.workItems.find((each) => each.id === 'wi-1');
+    const seededStep = read.steps.find((each) => each.id === 'st-1');
+    const seededTag = read.tags.find((each) => each.id === 'tag-1');
+    const side = (found: boolean, isBefore: boolean): string =>
+      !found ? 'missing' : isBefore ? 'before' : 'after';
+    return {
+      // read 1 — a rename and a settings change on the project row.
+      projectName: side(true, read.project.name === 'before'),
+      estimateMethod: side(true, read.project.estimateMethod === 'pert'),
+      // read 2 — the item, and the junction the labelled row folds in.
+      workItemName: side(item !== undefined, item?.name === 'before'),
+      tagJunction: side(item !== undefined, item?.tagIds.includes('tag-1') === true),
+      // read 9 — the step edit.
+      stepName: side(seededStep !== undefined, seededStep?.name === 'before'),
+      // read 12 — the directory cascade: the person, and its `person_team` row.
+      unassignedPerson: side(true, read.people.some((each) => each.id === 'pp-unassigned')),
+      // read 15 — the registry rename, the case with no revision column behind it.
+      tagName: side(seededTag !== undefined, seededTag?.name === 'urgent'),
+    };
+  };
+
+  // 3.2's positive: **every** read boundary, capture-only ones included, not
+  // just the twelve the projection shares. Each boundary is its own `it` so the
+  // fixture is reseeded — one `it` looping over all seventeen would leave the
+  // database in the post-edit state after the first pass and assert nothing
+  // afterwards.
+  for (let boundary = 1; boundary <= 17; boundary += 1) {
+    it(`captures entirely before or entirely after an edit committed at read ${String(boundary)}`, async () => {
+      const green = openConnection(path);
+      let read: PlanInputReads | null;
+      try {
+        read = await capture({
+          foreignWrite: { atRead: boundary, commit: () => commitTheEdit(green.db) },
+        }).readPlanInput('p1');
+      } finally {
+        green.close();
+      }
+
+      expect(read).not.toBeNull();
+      const witness = sides(read as PlanInputReads);
+      // The whole claim, in one line: seven values from seven different reads,
+      // and one side between them.
+      expect(new Set(Object.values(witness)).size).toBe(1);
+      // Named separately so a failure says *which* side, and so a capture that
+      // lost every marker at once cannot pass by being uniformly `missing`.
+      expect(['before', 'after']).toContain(witness.projectName);
+      // The edit really did land: the capture's snapshot is a snapshot, not a
+      // write that never happened.
+      expect(tagNameNow()).toBe('after');
+    });
+  }
 });
