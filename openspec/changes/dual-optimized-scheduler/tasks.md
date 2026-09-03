@@ -467,9 +467,27 @@ check-that-cannot-fail failure R5 names.
       duration and would reach the schema's `type: integer` as a malformed
       request the builder itself wrote. Contracts at `42b23ab5`, dirty=0: lint
       0, typecheck 0, **87 pass / 0 fail across 7 files**; domain unchanged at
-      356/0. **Still unbuilt in 2.2:** `edges`, `pools`, `horizonUnits` with
-      2.10's overflow preflights, and `baselineOffsets`/`fastHint`, which are
-      2.11's quantised baseline and cannot precede it.
+      356/0.
+      **`buildSolverPools` landed (2026-09-03)** in
+      `build-solver-pools.ts`, with `poolIdsNamedBy` beside it because the
+      request builder needs that same set for its own key-set checks. It emits
+      **only the pools the request names**, not every size the project holds: a
+      size for a team no slice is labelled with constrains nothing, and the
+      request is hashed as a cache key, so shipping it would invalidate a cached
+      result on an edit to a team this plan does not use. It enforces the
+      schema's **cross-field invariant (4)** pre-spawn — `schedule.ts`'s
+      `no size for pool ${poolId}` throw promoted to the wire — and refuses a
+      size below 1 or fractional rather than clamping, because a pool of 0 slots
+      is a plan of `Infinity` dates and clamping invents a slot nobody has. All
+      three refusals watched red at `e61124c6`, 3 fail. Contracts at `e61124c6`,
+      dirty=0: lint 0, typecheck 0, **94 pass / 0 fail across 8 files**.
+      **Still unbuilt in 2.2:** `edges`, `horizonUnits` with 2.10's overflow
+      preflights, `baselineOffsets`/`fastHint` (2.11's quantised baseline, which
+      cannot precede it), and the assembly itself. `edges` is the next real
+      derivation and it needs a seam published rather than restated, exactly as
+      the floor fold did: `expandToLeaves` is already exported and applies
+      `reach`, but the **intra-item step chain** is built inline in
+      `schedule()`'s node loop and is not.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
