@@ -115,7 +115,7 @@
         },
         "status": {
           "enum": ["optimal", "feasible", "unknown"],
-          "$comment": "A statement about the STAGE, never about the published schedule. Exactly three values, fixed by design.md's stage-status matrix, which is the single authority this schema and the 4.8 validator are generated from. 'quantisation-floor' is a publication tag and is NEVER a status here (Sol r8 Critical 5, kimi r8 Important 2). Bun additionally checks value <= stageValue when both are present; that relation is not expressible in JSON Schema."
+          "$comment": "A statement about the STAGE, never about the published schedule. Exactly three values, fixed by design.md's stage-status matrix, which is the single authority this schema and the 4.8 validator are generated from. NOT THE SAME THREE VALUES AS #/$defs/response's status, and not the same question: this one is PROOF STRENGTH and admits 'optimal'; that one is the RUN OUTCOME and refuses 'optimal' precisely because a response-level one would claim the published schedule is optimal. The two sets overlap on 'feasible' and 'unknown' and must never be merged or cross-validated — a codec that reuses one validator for both would silently admit a response status of 'optimal'. 'quantisation-floor' is a publication tag and is NEVER a status here (Sol r8 Critical 5, kimi r8 Important 2). Bun additionally checks value <= stageValue when both are present; that relation is not expressible in JSON Schema."
         }
       }
     },
