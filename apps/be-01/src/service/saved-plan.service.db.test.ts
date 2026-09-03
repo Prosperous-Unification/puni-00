@@ -235,11 +235,9 @@ describe('SavedPlanService.save', () => {
     expect((await headers()).length).toBe(0);
   });
 
-  it('reads its limits from construction, so raising one admits the same save', async () => {
-    // The same save, the same bytes, one number moved: task 4.7's assertion
-    // that the three limits are configuration and not literals at the call
-    // site. Without it, the refusal above would also pass against a service
-    // that hard-codes a small bound.
+  it('reads the body limit from construction, so raising it admits the same save', async () => {
+    // The same save, the same bytes, one number moved. Without it, the refusal
+    // above would also pass against a service that hard-codes a small bound.
     const admitting = new SavedPlanService({
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
@@ -260,5 +258,43 @@ describe('SavedPlanService.save', () => {
 
     expect(result.outcome).toBe('saved');
     expect((await headers()).length).toBe(1);
+  });
+
+  it('reads the count limit from construction, so raising it admits the same save', async () => {
+    // Task 4.7 names **the count**, and it is the limit worth naming: the body
+    // bound above is a property of one save, while this one is a property of
+    // the project and is the only one of the three a caller could plausibly
+    // have hard-coded at the call site as `100`.
+    let issued = 0;
+    const capped = (mostPlansPerProject: number): SavedPlanService =>
+      new SavedPlanService({
+        capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
+        plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
+        // Distinct per save: two records is the state under test, and a reused
+        // id would fail on the primary key instead of on the quota.
+        newId: () => `sp-${(issued += 1)}`,
+        now: () => OPENED_AT,
+        quota: {
+          mostBytesPerBody: 8 * 1024 * 1024,
+          mostPlansPerProject,
+          mostBytesPerProject: 64 * 1024 * 1024,
+        },
+      });
+    const request = { projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace' };
+
+    expect((await capped(1).save(request)).outcome).toBe('saved');
+    const refused = await capped(1).save(request);
+    expect(refused.outcome).toBe('refused');
+    if (refused.outcome !== 'refused') return;
+    expect(refused.refusal.limit).toBe('plan_count');
+    // The comparison is against the state *after* the save: one held, this
+    // would be the second, and the limit is one.
+    expect(refused.refusal.asked).toBe(2);
+    expect(refused.refusal.allowed).toBe(1);
+    expect((await headers()).length).toBe(1);
+
+    // One number moved in configuration, nothing else: the same save lands.
+    expect((await capped(2).save(request)).outcome).toBe('saved');
+    expect((await headers()).length).toBe(2);
   });
 });

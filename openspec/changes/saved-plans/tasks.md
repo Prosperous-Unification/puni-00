@@ -205,7 +205,7 @@ comparison UI) and start only after slice 6 is merged.
       fail `SQLITE_BUSY` under WAL once any other reader has touched the file.
       (iii) The captured values are already detached by then, so releasing the
       read early costs nothing.
-- [ ] 4.1 `SavedPlanService.save` — per-body byte checks, then `BEGIN IMMEDIATE`,
+- [x] 4.1 `SavedPlanService.save` — per-body byte checks, then `BEGIN IMMEDIATE`,
       then the count and total quota checks **inside** that transaction, header,
       input body, schedule body, commit. Test: a save writes one header and the
       bodies it should, and the returned record round-trips.
@@ -252,7 +252,7 @@ comparison UI) and start only after slice 6 is merged.
       after the header insert and watch the "no partial record" assertion fail;
       move the count check *outside* `BEGIN IMMEDIATE` and watch two concurrent
       saves at 99 of 100 both commit.
-- [ ] 4.7 The three limits are configuration read at construction, not literals at
+- [x] 4.7 The three limits are configuration read at construction, not literals at
       the call site. Test: raise the count limit in config and watch the same save
       succeed.
 
