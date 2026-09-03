@@ -23,6 +23,10 @@ export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';
 export * from './progress';
+// The value a Saved plan's input body is, and the pure fold that produces it.
+// Types and one pure function: the reads it is folded from live in be-01, and
+// the hash is taken over this module's serialization.
+export * from './saved-plan';
 // Moved out of `apps/be-01/src/service/` on 2026-09-02, once its last storage
 // type was gone. 2,212 lines of pure planning that read five fields of a row
 // and answer a question about a plan's shape — which is what everything else in

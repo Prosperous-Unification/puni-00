@@ -814,6 +814,14 @@ behind every directory id it uses, under a format name and version. Derived figu
 along for readers and are never restored.
 _Avoid_: backup, dump, snapshot, JSON export (as a term)
 
+**Saved plan**:
+One project's whole plan copied by value at one instant and kept in the database: the
+settings, the tree, the estimates, the ownership, the names behind every id it uses, and
+the dates the scheduler gave it. Read to be looked at or compared, never exported, never
+imported, never applied to a project — nothing puts one back. Not a Plan document: that one
+leaves the tool for a reader and can make a new project; this one never leaves.
+_Avoid_: snapshot, checkpoint, backup, version
+
 **Import**:
 Making a new project from a plan document, whole or not at all: the importer owns it, every
 id is minted afresh, directory entries are found by name and created when absent. Never a
