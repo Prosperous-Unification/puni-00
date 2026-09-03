@@ -423,6 +423,27 @@ check-that-cannot-fail failure R5 names.
       `deadlineOffsetOf` is here: that is TASK-241's boundary, and
       `deadlineOffsetOf` exists nowhere in the repository today — checked by
       search, not assumed. What remains of 2.2 is the builder itself.
+      **The two unit conversions landed with the `@wbs/domain` edge
+      (2026-09-03):** `libs/contracts/solver/src/solver-units.ts` exports
+      `notBeforeUnitsOf` and `deadlineUnitsOf`. They are separate from the folds
+      because the folds are Fast's own rules and shared with the placement,
+      while the conversions exist only because CP-SAT places integers. **The
+      asymmetry is the content:** a floor bounds a START, so day `N` is
+      `N × quantum` and there is no `+ 1`; a deadline names an inclusive
+      FINISH DAY, so it is `(D + 1) × quantum` — an exclusive instant, because
+      the last instant of day `D` is the first instant of day `D + 1`. Dropping
+      the `+ 1` requires finishing by the start of the due day, loses a workday
+      on every deadline in the plan, and makes a one-day task due the day it
+      starts infeasible; watched red on h2puni at `9264f0dc`, 3 fail.
+      **The boundary decision this paragraph flagged is now MADE, not deferred:**
+      `libs/contracts` imports `@wbs/domain` as of this file. Argued rather than
+      lint-approved — `@nx/enforce-module-boundaries` is still skipped in the
+      gate — so `solver-units.test.ts` carries an explicit edge test that
+      resolves the alias under the contracts target's own `cwd`
+      (`libs/contracts`), which is a different question from whether `tsc`
+      accepts it and is the assertion that fails first if the alias is dropped.
+      Contracts gates at `9264f0dc`, dirty=0: lint 0, typecheck 0, **77 pass /
+      0 fail across 6 files**.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
