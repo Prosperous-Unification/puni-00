@@ -975,3 +975,29 @@ _Avoid_: slot, side, version
 **Tier**:
 One of the three deployable services: `be`, `gw`, `fe`.
 _Avoid_: app, service, component
+
+**Engine**:
+Which schedule a project displays: `Fast`, the deterministic millisecond pass that always
+runs and is always the fallback, or `Optimized`, a stored solver result. A project-wide
+persisted setting, never a per-user view state, and never an input to the Input hash.
+_Avoid_: mode, scheduler type, solver toggle
+
+**Objective**:
+Which ordering an Optimized schedule was solved for: `Priority-first` (PRI) or
+`Finish-first` (Time). Project-wide and persisted like Engine, and a cache dimension rather
+than an Input hash input — both are solved, and Objective picks which stored one is shown.
+_Avoid_: strategy, goal, optimization mode
+
+**Input hash**:
+The SHA-256 of the canonical JSON of every fact that can move a computed offset — tree,
+estimates, priority, parallelism, `notBefore`, assignees, pools and dependency edges. Two
+scheduling inputs are the same exactly when their hashes match. Engine, Objective, the
+optimization toggle, the display variant, the clock, the acting user and the solver budget
+are all excluded.
+_Avoid_: plan hash, cache key, fingerprint
+
+**Baseline schedule**:
+The Fast schedule for the same canonical input, passed to the solver as `baselineOffsets`.
+It is the only thing either Objective's movement term is measured against — never "the
+schedule currently on screen", which would put unhashed state into the result.
+_Avoid_: current schedule, published schedule, previous plan
