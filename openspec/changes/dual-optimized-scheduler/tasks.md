@@ -12,10 +12,17 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 ## 1. Canonical input and the exact-input hash
 
-- [ ] 1.1 `canonicalScheduleInput(plan)` in `apps/be-01/src/service/` builds the
-      canonical JSON string from work-item tree, dependency edges (leaf
-      expansion included) and team pools, reusing the existing
+- [ ] 1.1 `canonicalScheduleInput(plan)` builds the canonical JSON string,
+      living beside Fast in `libs/domain/src/` so both read one normalizer —
+      Fast is `libs/domain/src/schedule.ts`, not `apps/be-01/src/service/`.
+      Inputs: work-item tree, dependency edges (leaf expansion included), team
+      pools via `Slice.poolIds` (**plural** — a slice can inherit several sized
+      teams and consumes its width in each), the project's `depReach`, project
+      step order, sibling `position`/`frozenNumber`, and the manual floor
+      normalized against `project.startDate`. Reuses the existing
       `sliceKey`/`indexTree`/`expandToLeaves` normalizers.
+      NOTE: this list is the Sol review's finding 1 and is not yet reconciled
+      with the long-form design — see the TASK-218 log before implementing.
 - [ ] 1.2 `scheduleInputHash(plan)` = SHA-256 of 1.1.
 - [ ] 1.3 **Proven by** `schedule-input-hash.test.ts`: identical facts in a
       different row order hash equal; a changed estimate, edge, priority,

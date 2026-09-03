@@ -1,6 +1,6 @@
 ## Context
 
-The scheduler (`apps/be-01/src/service/schedule.ts`) is a deterministic millisecond pass (Fast). It is immediately visible, the sole fallback, and never labelled optimal. WBS has no optimization today. Dany approved adding an optional dual-objective mode using official OR-Tools CP-SAT. Architecture section 1 (toggle, PRI+Time concurrency, exact-hash SQLite cache, one generation per project) and sections 2-4 (behaviour, failure, test design) are all approved; this design records the settled technical shape.
+The scheduler (`libs/domain/src/schedule.ts` — it moved out of be-01 on 2026-09-02) is a deterministic millisecond pass (Fast). It is immediately visible, the sole fallback, and never labelled optimal. WBS has no optimization today. Dany approved adding an optional dual-objective mode using official OR-Tools CP-SAT. Architecture section 1 (toggle, PRI+Time concurrency, exact-hash SQLite cache, one generation per project) and sections 2-4 (behaviour, failure, test design) are all approved; this design records the settled technical shape.
 
 ## Goals / Non-Goals
 
