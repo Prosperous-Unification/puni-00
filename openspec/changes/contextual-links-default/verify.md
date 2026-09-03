@@ -61,5 +61,24 @@ The mobile Gantt-only reset now proves both column storage keys are untouched.
 - `fe-01:typecheck`: passed. Touched Prettier and ESLint: passed. OpenSpec
   strict all: **34/34 passed**.
 
+### Watched red
+
+- Reintroducing hidden `refs` into `leafColumnIds` made the fresh-layout
+  Chromium proof fail at Name **169px instead of 129px**: the exact 40px pinned
+  gap the visible-only layout contract forbids.
+- Removing the reset-marker clear from the explicit column writer made the
+  saved-view proof fail on **`expected 'true' to be null`**.
+- Initializing the successful-read marker from `projectId` exposed Reset before
+  the held first read and failed on the unexpected button.
+- Deriving the reset target from root rows rather than the flattened whole tree
+  removed Reset for a linked child under its collapsed parent; the descendant
+  proof failed before the click.
+- Omitting the external-refs fixture's real Reset gesture made Chromium time out
+  waiting for `Links for 010`, proving visible-Links browser cases cannot pass on
+  the fresh hidden baseline by accident.
+
+Every mutant was confined to the h2puni gate checkout and then replaced with
+the exact production files; local and remote SHA-256 values matched afterwards.
+
 No build or autotest ran on h1claw. Remaining work is the outstanding watched-red
 mutations, full remote gates, CI, reviews, merge/deploy, and lane-q browser QA.
