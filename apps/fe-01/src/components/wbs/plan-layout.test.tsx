@@ -164,6 +164,8 @@ const rowFor = (number: string): HTMLElement => {
 /** Three named root rows: `010 Strip`, `020 Sand`, `030 Paint`. */
 async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
+  // These layout mechanics deliberately exercise the refs-shown geometry.
+  showEveryColumn();
 
   const api = fakeApi();
   render(<WbsTable projectId="p1" api={api} />);
