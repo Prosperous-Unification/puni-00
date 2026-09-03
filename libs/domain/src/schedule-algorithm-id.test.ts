@@ -90,8 +90,16 @@ const slice = (
  * `waitingForPerson`; the pool case pins reservations, `capacityTeamId`, the
  * whole `capacityPredecessorIds` set and `waitingForCapacity`; the unestimated
  * case pins `ASSUMED_SLICE_WORKDAYS` and the `estimated` flag; and the
- * `first-slice` case pins the reach mode, which is a parameter whose default
+ * `anchor-slice` case pins the reach mode, which is a parameter whose default
  * changing is exactly the kind of silent semantics change this file is for.
+ *
+ * The reach case earned its place on the way in. It was first written with a
+ * `reach` of `'first-slice'` — a value `DependencyReach` does not have. `bun
+ * test` does not typecheck, so it ran, took the not-`'anchor-slice'` branch and
+ * produced a perfectly stable digest; only `tsc` caught it. The digest moved
+ * from `136e8314b76e0398` to `5f5d507bdf199577` when the value was corrected,
+ * which is this guard doing on its own author exactly what it is here to do to
+ * everyone else: a changed placement is a changed digest.
  *
  * The corpus is fixed, not generated. A random corpus would make the pinned
  * digest a seed's property rather than the engine's.
