@@ -89,9 +89,11 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in `libs/domain` —
       **Bun owns duration and graph derivation, Python owns placement only.**
       Each slice carries `key` (`sliceKey`), an **integer** `durationUnits` (2.7)
-      computed exactly as Fast computes it (`ASSUMED_SLICE_WORKDAYS` for a null
-      `days`, divided by `width`, then `snapWorkdays` — no fraction crosses the
-      boundary), `width`, `personId`, `poolIds`, `priorityWeight`
+      computed exactly as Fast computes it — `ASSUMED_SLICE_WORKDAYS` for a
+      null `days` **without** dividing by `width`, `days / width` otherwise
+      **without** `snapWorkdays`, then `× SOLVER_QUANTUM` and rounded **up**
+      only when the estimate does not divide (2.7) — `width`, `personId`,
+      `poolIds`, `priorityWeight`
       (`(P_max + 1) − p(s)`, `0` when no priority reaches the leaf), and
       `notBeforeUnits` (the latest of the leaf's own floor and every
       ancestor's). `edges` are already leaf-expanded with `reach` applied and
@@ -117,7 +119,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       sets from identical rows; an unprioritised leaf gets `priorityWeight` 0.
 - [ ] 2.7 **Negative check, watched red** — remove the dependency check from 2.4
       and watch the "edge violated" case pass when it must fail; then send
-      fractional `days / width` from 2.2 and watch 2.6's width case fail.
+      the pre-quantisation `days / width` from 2.2 and watch 2.6's width case fail.
       `Proof:` comment names each removed check. Re-validation is the only thing
       standing between a wrong solver and a published schedule; a check that
       cannot fail is exactly the failure mode AGENTS.md R5 names.
@@ -135,8 +137,14 @@ h2puni is green — no build or autotest runs on the workspace box.
       integer unit within `horizonUnits`. **Watched red:** feed it a
       fractional offset and a negative one.
 - [ ] 2.9 `horizonUnits > 2**31 - 1` fails before spawn with
-      `horizon-overflow`. **Watched red:** a synthetic plan past the bound
-      must not reach a process.
+      `horizon-overflow`. It is a **first-class member of the one failure state
+      machine** (7.1), not a bare return from request construction: it writes
+      the same `status='failed'` marker row and emits the same
+      `schedule_optimization_failed` event as any other reason, so a client
+      already showing `Optimizing…` reaches Retry rather than waiting on a
+      child that was never spawned. **Watched red:** a synthetic plan past the
+      bound must not reach a process, and both a connected client and a freshly
+      loaded one must reach `Optimization unavailable · Retry`.
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
 - [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
@@ -426,7 +434,7 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 - [ ] 7.1 Non-zero exit, timeout, OS kill, OOM and failed re-validation each
       write exactly one `status='failed'` row with a typed `failureReason`
-      (`timeout | invalid-output | no-solution | internal-error | oom`), keep
+      (`timeout | invalid-output | no-solution | internal-error | oom | horizon-overflow`), keep
       Fast visible, publish nothing, and never retry — not on a timer, not on a
       read, and not on a same-hash edit. A **cancelled** run writes no row at
       all. Failure is variant-specific.
