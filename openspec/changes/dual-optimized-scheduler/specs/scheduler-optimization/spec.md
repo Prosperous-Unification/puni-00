@@ -18,7 +18,7 @@ When the project-wide optimization toggle is OFF, the application SHALL compute 
 
 ### Requirement: Optimized results are cached against the exact scheduling input
 
-Validated solver results SHALL be stored in a durable SQLite cache keyed by project, the exact scheduling-input hash, objective, and solver package version. A cache entry SHALL be valid only when its input hash equals the current hash and its solver version equals the installed version. A cache hit SHALL return the cached schedule directly to the requester.
+Validated solver results SHALL be stored in a durable SQLite cache keyed by `(projectId, inputHash, objective, contractVersion, budgetMs)`. `contractVersion` SHALL combine the domain scheduler's `SCHEDULER_CONTRACT_VERSION` with the solver package version, because durations, the leaf expansion and `baselineOffsets` are produced by domain code the package version does not describe. A cache entry SHALL be valid only when every key column matches the current state and its generation is still the project's current generation. A cache hit SHALL return the cached schedule directly to the requester.
 
 #### Scenario: a cache hit returns without a solve
 
@@ -26,11 +26,11 @@ Validated solver results SHALL be stored in a durable SQLite cache keyed by proj
 - **WHEN** a collaborator reads that project's schedule
 - **THEN** the cached result is returned directly and no solver process starts
 
-#### Scenario: a solver version bump invalidates the cache
+#### Scenario: a contract version bump invalidates the cache
 
-- **GIVEN** a cached pair recorded with solverVersion v1 while the installed version is v2
+- **GIVEN** a cached pair recorded under contractVersion `3+v1` while the running contract is `4+v1` — the domain scheduler changed, the Python package did not
 - **WHEN** the schedule is read
-- **THEN** the cached entry is treated as invalid and a fresh solve starts
+- **THEN** the cached entry is treated as invalid and a fresh solve starts, because a `solverVersion`-only key would have matched
 
 ### Requirement: schedule_optimized broadcasts only newly stored results
 
@@ -86,7 +86,7 @@ Every solver response SHALL be a single well-formed JSON line and SHALL be indep
 
 ### Requirement: Resource ceilings cap solver concurrency
 
-The coordinator SHALL cap solver processes at 4 per project and 16 globally. A valid generation SHALL normally use 2 (one PRI and one Time); remaining headroom SHALL cover only termination overlap or future variants, never stale publication. When the global cap is full, entries SHALL wait in a single global FIFO ordered by enqueue time with one entry per (project, objective). At dequeue the coordinator SHALL re-check both that the entry's input hash still matches its project's current hash and that the project's optimization toggle is still ON, and SHALL discard the entry without launching if either check fails.
+The coordinator SHALL cap solver processes at 4 per project and 16 globally. A valid generation SHALL normally use 2 (one PRI and one Time); remaining headroom SHALL cover only termination overlap or future variants, never stale publication — stale publication is prevented by the generation check, not by the slot count. When the global cap is full, entries SHALL wait in a FIFO ordered by `enqueuedAt` then `projectId` with one entry per (project, objective). At dequeue the coordinator SHALL re-check both that the entry's generation is still its project's current generation and that the project's optimization toggle is still ON, and SHALL discard the entry without launching if either check fails. Enforcement scope is defined by the cross-process requirement below.
 
 #### Scenario: the per-project cap holds during overlap
 
@@ -96,7 +96,7 @@ The coordinator SHALL cap solver processes at 4 per project and 16 globally. A v
 
 ### Requirement: The solver receives every fact its objective depends on
 
-The solver request SHALL be one JSON line carrying `objective`, `slices`, `edges`, `pools`, `baselineOffsets`, `budgetMs`, and `solverVersion`. `baselineOffsets` SHALL be the Fast schedule for the same canonical input and SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule.
+The solver request SHALL be one JSON line carrying `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `horizonDays`, `slices`, `edges`, `pools`, and `baselineOffsets`. Each slice SHALL carry its `sliceKey`, an integer `durationDays`, `width`, `personId`, set-valued `poolIds`, a resolved `priorityWeight`, and a resolved `notBeforeDays`. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the Fast schedule for the same canonical input and SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor.
 
 #### Scenario: the movement term uses the passed baseline, not live state
 
@@ -104,35 +104,47 @@ The solver request SHALL be one JSON line carrying `objective`, `slices`, `edges
 - **WHEN** each solve computes its movement term
 - **THEN** both use the identical `baselineOffsets` derived from that input, so the input hash fully determines the objective
 
-### Requirement: The solver budget is not a cache dimension
+### Requirement: The solver budget is a cache key dimension
 
-The solver budget SHALL be one configuration value `solverBudgetMs` defaulting to 60000, and the coordinator SHALL kill the child process at `solverBudgetMs + 5000`. `solverBudgetMs` SHALL be excluded from the input hash and SHALL NOT invalidate stored rows, because every stored row is an independently re-validated feasible schedule.
+The solver budget SHALL be one configuration value `solverBudgetMs` defaulting to 60000, and the coordinator SHALL kill the child process at `solverBudgetMs + 5000`. `solverBudgetMs` SHALL be excluded from the input hash and SHALL be a column of the cache key, because a larger budget can find a better feasible result. The cached promise SHALL be "the best result found for this input, this contract, this objective, at this budget".
 
-#### Scenario: changing the budget keeps stored results valid
+#### Scenario: raising the budget re-solves rather than serving the smaller-budget result
 
 - **GIVEN** a cached validated pair produced under a 60000 ms budget
-- **WHEN** `solverBudgetMs` is changed and the schedule is read
-- **THEN** the cached pair is still served and no solve starts
+- **WHEN** `solverBudgetMs` is raised to 300000 and the schedule is read
+- **THEN** the read misses, both variants are admitted under the new budget, and the 60000 ms rows are not served
 
 ### Requirement: A coordinator restart resumes nothing and publishes nothing stale
 
-On startup the coordinator SHALL NOT resume any generation and SHALL NOT rebuild a queue. Only the live coordinator that spawned a run SHALL write its result, so a process that dies mid-solve SHALL leave no row. Any orphaned solver child SHALL be killed on startup.
+On startup the coordinator SHALL NOT resume any generation and SHALL NOT rebuild a queue. A result SHALL be written only by a transaction whose generation is still the project's current generation, so a process that dies mid-solve SHALL leave no row. Orphaned solver children SHALL NOT be identified by a stored PID: `wbs-solver` SHALL call `prctl(PR_SET_PDEATHSIG, SIGKILL)` before reading stdin so a reparented child terminates itself, `solver_slot` rows SHALL be reclaimed by heartbeat expiry rather than process probing, and each backend release SHALL run in its own container or cgroup.
 
 #### Scenario: a mid-solve restart leaves no partial result
 
 - **GIVEN** a solve in flight
 - **WHEN** the coordinator process is killed and restarted
-- **THEN** no cache row exists for that run, no orphan solver child survives, and the next read starts a fresh generation
+- **THEN** no cache row exists for that run, the solver child has terminated itself, its slot expires, and the next read starts a fresh generation
 
-### Requirement: Selection changes broadcast on the project-settings channel
+### Requirement: The toggle, Engine and Objective are persisted project settings
 
-The optimization toggle, Engine, and Objective SHALL be project-scoped persisted settings. A change to any of them SHALL broadcast on the existing project-settings update channel and SHALL NOT emit `schedule_optimized`, which is reserved for newly stored solver results.
+The optimization toggle, Engine, and Objective SHALL be columns on the `project` row — `optimization_enabled` defaulting to false, `schedule_engine` defaulting to `'fast'`, `schedule_objective` defaulting to `'pri'` — readable in the project payload and writable only through a PATCH under the existing project-write authorization. A change to any of them SHALL emit a `project_settings_changed` event and SHALL NOT emit `schedule_optimized`, which is reserved for newly stored solver results.
+
+#### Scenario: an unmigrated project reads OFF
+
+- **GIVEN** a project row that existed before the migration
+- **WHEN** the project is read after the migration runs
+- **THEN** `optimization_enabled` is false, `schedule_engine` is `fast`, and `schedule_objective` is `pri`, with no backfill required
+
+#### Scenario: a reader cannot change a project setting
+
+- **GIVEN** a collaborator with read-only access to the project
+- **WHEN** they PATCH `schedule_engine`
+- **THEN** the request is refused and no event is emitted
 
 #### Scenario: switching Objective to a cached variant starts no solve
 
 - **GIVEN** both PRI and Time are cached for the current input hash
 - **WHEN** a collaborator switches Objective from Priority-first to Finish-first
-- **THEN** the project-settings change broadcasts, no `schedule_optimized` is emitted, and no solver process starts
+- **THEN** `project_settings_changed` broadcasts, no `schedule_optimized` is emitted, and no solver process starts
 
 #### Scenario: a project that opted out while queued burns no slot
 
@@ -149,3 +161,95 @@ Retention SHALL be one rule: a project keeps the `ok` and `failed` rows for its 
 - **GIVEN** a project with a stored PRI and Time pair for hash A
 - **WHEN** an edit produces hash B and its generation stores a result
 - **THEN** the hash-A rows are gone, and a later undo back to hash A misses the cache and starts a fresh generation while Fast stays visible
+
+### Requirement: The canonical input is the exact argument tuple of the Fast pass
+
+The input hash SHALL be the SHA-256 of a canonical JSON built from every argument `schedule(rows, edges, slices, notBefore, poolSizes, reach)` receives and from nothing else. It SHALL include each row's `id`, `parentId`, `position`, `frozenNumber` and as-written `priority`; the authored dependency edges; the `slices` array **in its given order**, because that order is intra-work-item step precedence, with each slice's `workItemId`, `stepId`, `days` (null distinct from zero), `personId`, `width` and set-valued `poolIds`; the `notBefore` floors as whole days from day zero; the pool sizes; and the project's `dep_reach`. Engine, Objective, the toggle, the display variant, the clock, the acting user and the request sequence SHALL be excluded.
+
+#### Scenario: a dependency-reach change is a different input
+
+- **GIVEN** a cached pair for a project whose `dep_reach` is `whole-item`
+- **WHEN** `dep_reach` is changed to `anchor-slice` and the schedule is read
+- **THEN** the hash differs, the read misses, and a new generation is admitted
+
+#### Scenario: reordering two slices of one work item is a different input
+
+- **GIVEN** a work item whose two slices are ordered design-then-build
+- **WHEN** the order becomes build-then-design and the schedule is read
+- **THEN** the hash differs and the read misses, because that order is step precedence
+
+### Requirement: The objectives are defined as executable mathematics
+
+PRI SHALL minimize `(PRIORITY, MAKESPAN, MOVEMENT)` lexicographically and Time SHALL minimize `(MAKESPAN, PRIORITY, MOVEMENT)`, where `MAKESPAN` is the maximum slice finish in whole workdays, `PRIORITY` is `Σ w(s)·finish(s)` with `w(s) = (P_max + 1) − p(s)` over the leaf priority resolved by the nearest-ancestor floor rule and `w(s) = 0` for an unprioritised leaf, and `MOVEMENT` is `Σ |start(s) − baselineStart(s)|`. The lexicographic order SHALL be implemented as staged optimization rather than a weighted sum. Neither ordering SHALL be claimed to be a total order, and production SHALL NOT be required to break ties reproducibly.
+
+#### Scenario: the two objectives differ only in term precedence
+
+- **GIVEN** one canonical input with at least one prioritised leaf and a resource conflict
+- **WHEN** PRI and Time are both solved
+- **THEN** both are feasible against the same graph, PRI's `PRIORITY` is no worse than Time's, and Time's `MAKESPAN` is no worse than PRI's
+
+### Requirement: Time is expressed in whole workdays computed by the caller
+
+Every duration crossing the solver boundary SHALL be an integer count of workdays computed by Bun exactly as the Fast pass computes it — `ASSUMED_SLICE_WORKDAYS` substituted for a null `days`, divided by `width`, then snapped by `snapWorkdays`. The solver SHALL NOT receive fractional effort and SHALL NOT derive a duration.
+
+#### Scenario: an unestimated slice crosses the boundary as its assumed duration
+
+- **GIVEN** a slice whose `days` is null and whose `width` is 1
+- **WHEN** the solver request is built
+- **THEN** its `durationDays` is `ASSUMED_SLICE_WORKDAYS`, and the request contains no null and no fraction
+
+### Requirement: A stale generation can neither publish nor evict
+
+Each project SHALL carry a monotonic `optimizationGeneration`, allocated in the same transaction that deletes the previous generation's rows. Every spawn SHALL carry its generation and every write SHALL be conditional on that generation still being the project's current one.
+
+#### Scenario: an undo back to a previous hash does not revive its old run
+
+- **GIVEN** a run in flight for hash A, an edit to hash B that cancels it, and an undo back to hash A
+- **WHEN** the original hash-A child returns a valid result
+- **THEN** its write is rejected, no rows are deleted, no `ok` row is overwritten, and no event is emitted, even though the current hash is again A
+
+### Requirement: Resource ceilings are enforced across processes
+
+The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a SQLite admission transaction over a `solver_slot` table, not by coordinator memory, so that co-existing backend releases share one budget. Slots SHALL be reclaimed by heartbeat expiry. Waiting entries SHALL be ordered by `enqueuedAt` then `projectId`, one per `(project, objective)`, and SHALL be discarded at dequeue if their generation is no longer current or the project's toggle is no longer ON.
+
+#### Scenario: two coordinators share one global budget
+
+- **GIVEN** a blue and a green backend process against the same database file
+- **WHEN** both admit solver work until refused
+- **THEN** at most 16 solver children run between them, and at most 4 for any one project
+
+#### Scenario: two concurrent first reads start one solve per objective
+
+- **GIVEN** no cached row for a project and two simultaneous reads
+- **WHEN** both request admission
+- **THEN** exactly one PRI child and one Time child are started, and the losing read waits for the event
+
+### Requirement: A newly stored result and its event commit together
+
+The cache row and a durable `event_log` record SHALL be written in one SQLite transaction, and the broadcaster SHALL push from the committed record. The guarantee SHALL be exactly one durable event record per newly stored result, delivered at least once, with the payload `(projectId, generation, inputHash, objective, contractVersion)` so a duplicate delivery is idempotent.
+
+#### Scenario: a crash between the row and the event leaves neither
+
+- **GIVEN** a validated solver result
+- **WHEN** the process dies after the cache write but before the transaction commits
+- **THEN** no cache row and no event record exist, and the next read starts a fresh solve
+
+### Requirement: The solver is a versioned package behind one entrypoint
+
+The solver SHALL ship as its own version-pinned Python package exposing exactly one stdin/stdout entrypoint, invoked as a short-lived child process. There SHALL be no import from Bun, no daemon, no listening port, and no sidecar.
+
+#### Scenario: the coordinator invokes the solver only as a child process
+
+- **GIVEN** a solver run
+- **WHEN** the coordinator starts it
+- **THEN** it spawns the package entrypoint, writes one JSON line to stdin, reads one JSON line from stdout, and the process exits
+
+### Requirement: A pending optimized variant keeps Fast on screen
+
+While Engine is Optimized and the selected variant has neither a stored result nor a failure marker, the UI SHALL display the Fast schedule under an `Optimizing…` indicator, and SHALL NOT show a blank schedule, a spinner over the plan, or a stale variant.
+
+#### Scenario: the selected variant is still solving
+
+- **GIVEN** Engine is Optimized, Objective is Priority-first, and PRI is admitted but not stored
+- **WHEN** the schedule is read
+- **THEN** Fast offsets are returned with an `Optimizing…` indicator

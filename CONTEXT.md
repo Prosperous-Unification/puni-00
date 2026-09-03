@@ -989,12 +989,28 @@ than an Input hash input — both are solved, and Objective picks which stored o
 _Avoid_: strategy, goal, optimization mode
 
 **Input hash**:
-The SHA-256 of the canonical JSON of every fact that can move a computed offset — tree,
-estimates, priority, parallelism, `notBefore`, assignees, pools and dependency edges. Two
-scheduling inputs are the same exactly when their hashes match. Engine, Objective, the
-optimization toggle, the display variant, the clock, the acting user and the solver budget
-are all excluded.
+The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` receives — rows
+with `position`/`frozenNumber`/as-written priority, authored dependency edges, the slice
+array in order (that order is step precedence), `notBefore` floors in days from day zero,
+pool sizes, and the project's dependency reach. Two scheduling inputs are the same exactly
+when their hashes match. Engine, Objective, the optimization toggle, the display variant,
+the clock, the acting user and the solver budget are all excluded — the last three of those
+are key columns, not hash inputs.
 _Avoid_: plan hash, cache key, fingerprint
+
+**Contract version**:
+The cache-key column identifying the code that produced a stored result: the domain
+`SCHEDULER_CONTRACT_VERSION` joined to the `wbs-solver` package version. Both are needed
+because durations, the leaf expansion and the Baseline schedule come from domain code that
+the Python package version does not describe.
+_Avoid_: solver version, schema version, cache version
+
+**Generation**:
+A project's monotonic optimization counter, allocated whenever its Input hash changes and
+carried by every solver run. Every cache write is conditional on it still being current, so
+a superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
+prevent, because an undo can make an old hash current again.
+_Avoid_: run id, epoch, version
 
 **Baseline schedule**:
 The Fast schedule for the same canonical input, passed to the solver as `baselineOffsets`.
