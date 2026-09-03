@@ -164,8 +164,14 @@ const rowFor = (number: string): HTMLElement => {
 /** Three named root rows: `010 Strip`, `020 Sand`, `030 Paint`. */
 async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
-  // These layout mechanics deliberately exercise the refs-shown geometry.
-  showEveryColumn();
+  // These layout mechanics deliberately exercise the refs-shown geometry while
+  // retaining the original hidden Teams/Services/Types baseline.
+  for (const projectId of ['p1', 'p2']) {
+    localStorage.setItem(
+      `wbs.hiddenColumns.${projectId}`,
+      JSON.stringify(['team', 'service', 'type']),
+    );
+  }
 
   const api = fakeApi();
   render(<WbsTable projectId="p1" api={api} />);
@@ -183,6 +189,11 @@ async function threeRoots() {
     await waitFor(() => {
       expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
     });
+    if (number === '010') {
+      api.linkTo(api.rows[0]?.id ?? '', [
+        { systemId: 'github', url: 'https://example.test/layout' },
+      ]);
+    }
   }
   unfoldStep('Dev');
   return api;
