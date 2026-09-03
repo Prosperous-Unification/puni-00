@@ -465,7 +465,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       violating the render invariant — and reported `optimizer` for a slice
       merely pinned at its predecessor floor. `capacityPredecessorIds` is
       `jointWindowFor`'s accumulated blocking set across rounds and pools
-      **filtered by `placed[b].finish <= start`**, which is what
+      **filtered by `finishesByStart` (`placed[b].finish <= start`)**, which is what
       `placeSlices` does at 1271–1308: the scan is conservative and records
       reservations that may legally continue alongside the slice, and
       promoting one into the backward graph gives it a late finish before its

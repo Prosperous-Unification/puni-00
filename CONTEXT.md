@@ -1078,3 +1078,18 @@ recomputed `value`, and never confused with it. A later stage constrained by `T 
 may return a strictly better `T`, so `value` is what Bun re-validates and `stageValue`,
 `bound` and `status` describe the stage that produced the constraint.
 _Avoid_: objective value, incumbent, best value
+
+**Publication**:
+Which schedule a cache row actually holds — `solver` for a solver result, `quantisation-floor`
+for Fast's own schedule republished because the quantised solve could not beat it. It is a
+field of its own and never a value of `ObjectiveValue.status`, whose domain is the three stage
+outcomes; a floor row's `value` terms are recomputed in the real domain on the stored Fast
+schedule with `stageValue` and `bound` null.
+_Avoid_: floor status, fallback result, Fast result
+
+**Admitted deadline**:
+The absolute instant a solver slot expires, stamped into the row at admission from the
+**admitting** coordinator's own budget (`startedAt + budgetMs + 5000 + SLOT_RECLAIM_MARGIN_MS`).
+Reclamation reads it and never recomputes it, because co-existing releases may run different
+budgets and an observer applying its own would reclaim a child still inside its deadline.
+_Avoid_: slot TTL, heartbeat timeout, expiry window
