@@ -167,10 +167,10 @@ async function threeRoots() {
   // These layout mechanics deliberately exercise the refs-shown geometry while
   // retaining the original hidden Teams/Services/Types baseline.
   for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(
-      `wbs.hiddenColumns.${projectId}`,
-      JSON.stringify(['team', 'service', 'type']),
-    );
+    const key = `wbs.hiddenColumns.${projectId}`;
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, JSON.stringify(['team', 'service', 'type']));
+    }
   }
 
   const api = fakeApi();
