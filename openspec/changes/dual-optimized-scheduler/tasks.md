@@ -110,7 +110,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       `libs/contracts/solver/fixtures/` that both suites run. **Watched red:**
       a consumer that accepts a message the schema rejects, or rejects one it
       accepts, fails the contract test; and a TypeScript type that drifts from
-      the schema fails it too.
+      the schema fails it too. **A repository check enforces the "descriptive
+      only" claim (Sol r8 Critical 4):** the contract suite scans design.md,
+      tasks.md, spec.md and the long-form note for a per-term
+      `objectiveValues` field list or a request/response field list that is
+      not the schema's, and fails naming the file — three rounds running, an
+      obsolete prose schema in one of those four files was an implementation
+      instruction contradicting the real one.
 - [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
@@ -121,8 +127,12 @@ h2puni is green — no build or autotest runs on the workspace box.
       only when the estimate does not divide (2.7) — `width`, `personId`,
       `poolIds`, `priorityWeight`
       (the **dense rank** `(R + 1) − rank(p(s))` over the `R` distinct
-      priorities present in this canonical input, `0` when no priority reaches
-      the leaf — the absolute priority is never a weight, because
+      priorities present in this canonical input, resolved by **importing
+      `priorityByLeaf` from `libs/domain` rather than reimplementing it** (Sol
+      r8 Critical 7) — it is a nearest/most-specific **override**, taking the
+      first non-null value walking leaf-upward, not a floor or a minimum
+      across ancestors, so leaf 5 under parent 1 resolves to 5 — `0` when no
+      priority reaches the leaf — the absolute priority is never a weight, because
       `asOptionalPriority` accepts any safe integer and `P_max + 1` loses
       precision at `Number.MAX_SAFE_INTEGER`; the builder also computes the
       exact worst case `Σ w(s) × horizonUnits` and fails pre-spawn with
@@ -166,6 +176,13 @@ h2puni is green — no build or autotest runs on the workspace box.
       `ASSUMED_SLICE_WORKDAYS`; a width-3 slice of 6 days' effort becomes 2
       days; a `whole-item` and an `anchor-slice` plan produce different edge
       sets from identical rows; an unprioritised leaf gets `priorityWeight` 0.
+      **Priority resolution is proved in both numeric directions (Sol r8
+      Critical 7)**, because the unprioritised-leaf case alone passes under a
+      minimum-across-ancestors rule too: leaf 5 under parent 1 resolves to 5,
+      leaf 1 under parent 5 resolves to 1, and a null leaf under parent 3
+      under grandparent 7 resolves to 3. **Watched red:** replace the import
+      with a minimum-across-ancestors resolver and the first and third cases
+      must fail.
 - [ ] 2.7 **Negative check, watched red** — remove the dependency check from 2.4
       and watch the "edge violated" case pass when it must fail; then send
       the pre-quantisation `days / width` from 2.2 and watch 2.6's width case fail.
@@ -225,16 +242,26 @@ h2puni is green — no build or autotest runs on the workspace box.
       against one file and a single project-row pair would let the release
       computing H1 and the release computing H2 alternately increment one
       counter and delete each other's rows for ever.
-      `solver_slot`: PK `(projectId, contractVersion, generation, objective)` →
+      `solver_slot`: PK
+      `(projectId, contractVersion, generation, objective, budgetMs)` →
       `ownerId`, `attemptToken`, `pid`, `startedAt`, `heartbeatAt`,
-      `cancelRequestedAt`. `solver_queue`: PK
-      `(projectId, contractVersion, objective)` — **not** keyed by generation,
+      `cancelRequestedAt`, `admittedDeadlineAt`. **`budgetMs` is in the key and
+      the deadline is a stored absolute instant (Sol r8 Critical 2, kimi r8
+      Important 3)**: `budgetMs` is a cache-key column, so without it a 60 s
+      and a 120 s solve for one objective collapse into one row, the
+      liveness lookup behind `pending`/`retrying` and Retry's `already-running`
+      cannot be evaluated against the full key at all, and a coordinator
+      configured at the smaller budget reclaims a larger-budget child that is
+      still inside its own deadline. `solver_queue`: PK
+      `(projectId, contractVersion, objective, budgetMs)` — **not** keyed by generation,
       so a project holds at most one queued entry per objective per contract
       version and a new generation replaces rather than accumulates — with
-      columns `generation`, `admittedCancelEpoch`, `enqueuedAt`, and an index on
-      `(enqueuedAt, projectId, contractVersion, objective)`. The dequeue order
-      is `ORDER BY enqueuedAt, projectId, contractVersion, objective`, which is
-      total (Sol r7 Minor 15): `objective` breaks the tie between a project's
+      columns `generation`, `admittedCancelEpoch`, `budgetMs`, `enqueuedAt`, and
+      an index on
+      `(enqueuedAt, projectId, contractVersion, objective, budgetMs)`. The
+      dequeue order is
+      `ORDER BY enqueuedAt, projectId, contractVersion, objective, budgetMs`,
+      which is total (Sol r7 Minor 15): `objective` breaks the tie between a project's
       PRI and Time entries enqueued in the same millisecond, and
       `contractVersion` breaks the tie between blue and green enqueuing the
       same project and objective in that same millisecond. All three companion
@@ -344,7 +371,12 @@ h2puni is green — no build or autotest runs on the workspace box.
       `contractVersion` and each deleted the other's row on every store —
       alternating solves for ever on an unchanged plan and holding the 4/16
       ceilings busy. The per-contract generation table cannot fix that; only
-      the bound can. **Proven by** (a) raising `budgetMs` three times and
+      the bound can. The bound every artifact states is **`MAX_LIVE_BUDGETS`
+      (2) rows per project per objective per live contract version, so at most
+      4 outcome rows per project per live contract version** — never "two rows
+      total", and never "superseded rows are deleted when their replacement
+      commits", which is the exclusive rule this task struck (Sol r8 Important
+      8). **Proven by** (a) raising `budgetMs` three times and
       bumping `contractVersion` with no plan edit, asserting at most two rows
       per project per objective per live contract version; and (b) a two-release
       fixture reading different budgets against one file — each stores once,
@@ -416,12 +448,31 @@ h2puni is green — no build or autotest runs on the workspace box.
       (Sol r7 Critical 3). "First pool in sorted `poolIds` with free capacity"
       is struck: it was a different resource model that could accept a
       materialised schedule overbooking a second team, and a different
-      resource-successor graph, float and wait count. `capacityPredecessorIds`
-      is `jointWindowFor`'s **accumulated** blocking set across rounds and
-      pools, never the releases at exactly the pinned start;
-      `capacityTeamId` is `binding`'s own rule — the pool whose blocking set
-      holds the latest finisher, ties by pool id. A joint window strictly later
-      than the pinned start is `invalid-output`. `annotate` derives from those
+      resource-successor graph, float and wait count. **The floor is
+      resolved by Fast's own loop, not by comparing the joint window to the
+      pinned start (Sol r8 Critical 1, kimi r8 Critical 1):** build
+      `[predecessor, stepOrder, notBefore, person, capacity=w.start]` in that
+      order and take a candidate only when it is **strictly** later than the
+      running answer, so a tie keeps the floor named first and `capacity`,
+      last, loses every tie — `schedule.ts` 1234–1252 verbatim. Only then
+      compare `pinnedStart` to the resolved start: equal keeps the resolved
+      `boundBy`; strictly later is `optimizer`, asserting
+      `jointWindowFor(…, pinnedStart).start === pinnedStart`; strictly earlier
+      is `invalid-output`. The struck three-way split reported `capacity` for
+      the common unmoved slice — where `jointWindowFor` returns `binding: []`
+      by construction, so `capacityTeamId` had no rule and
+      `capacityPredecessorIds` was empty beside `boundBy: 'capacity'`,
+      violating the render invariant — and reported `optimizer` for a slice
+      merely pinned at its predecessor floor. `capacityPredecessorIds` is
+      `jointWindowFor`'s accumulated blocking set across rounds and pools
+      **filtered by `placed[b].finish <= start`**, which is what
+      `placeSlices` does at 1271–1308: the scan is conservative and records
+      reservations that may legally continue alongside the slice, and
+      promoting one into the backward graph gives it a late finish before its
+      early finish and negative public float. The same filter applies to each
+      binding pool's candidate set before `capacityTeamId` is chosen — the
+      pool whose **valid** blockers hold the latest finisher, ties by pool id —
+      and to the resource-successor edges. `annotate` derives from those
       ledgers the resource-successor edges `lateTimes` consumes — so `duration`, `estimated`, earliest/latest, `float`,
       `critical`, `boundBy`, `resourcePredecessorId`, `capacityPredecessorIds`,
       `capacityTeamId`, `width`, `effort`, the work-item projections and both
@@ -471,7 +522,16 @@ h2puni is green — no build or autotest runs on the workspace box.
       second pool's capacity assertion must fail; take `capacityPredecessorIds`
       from the releases at exactly the pinned start and the accumulated-set
       assertion must fail; take `capacityTeamId` as the first sorted pool and
-      the latest-finisher assertion must fail.
+      the latest-finisher assertion must fail; (e) **the long-plus-short
+      capacity-2 case** (Sol r8 Critical 1): pool size 2, long width-1 A on
+      0–10, short width-1 B on 0–5, an optimized width-1 X pinned at 5 — drop
+      the `finish <= start` filter and X must report A as a capacity
+      predecessor, adding an A→X edge that gives A a late finish before its
+      early finish and exposes negative public float; (f) **the unmoved slice
+      at its predecessor floor with pool room** (kimi r8 Critical 1): restore
+      the three-way `w.start === pinnedStart` split and the slice must report
+      `boundBy: 'capacity'` with an empty `capacityPredecessorIds` and a null
+      `capacityTeamId`, failing the render invariant.
 - [ ] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
       (Sol r7 Critical 6). `objectiveValues` is what records how far a
       partially staged run got, and the publication guard must persist
@@ -480,9 +540,25 @@ h2puni is green — no build or autotest runs on the workspace box.
       becomes `resultJson` holding
       `{ dtoVersion, publication: 'solver' | 'quantisation-floor',
       objectiveValues: Record<'makespan'|'priority'|'movement', ObjectiveValue>,
-      schedule: <encodeSchedule(schedule)> }`, with `ObjectiveValue =
-      { value, stageValue, bound, status }` exactly as the matrix defines it,
-      and `encodeOptimizedResult` / `decodeOptimizedResult` as the seam.
+      schedule: <encodeSchedule(schedule)> }`, with `StoredObjectiveValue =
+      { value: number, stageValue: number | null, bound: number | null,
+      status: 'optimal' | 'feasible' | 'unknown' }` and
+      `encodeOptimizedResult` / `decodeOptimizedResult` as the seam.
+      **`quantisation-floor` lives only in `publication` (Sol r8 Critical 5,
+      kimi r8 Important 2)**: the matrix fixes the status enum at three values
+      and generates the wire schema, the column `CHECK` and the 4.8 validator
+      from it, so a fourth value there left the codec rejecting the row the
+      guard must store. The stored type widens `stageValue` and `bound` to
+      nullable and nothing else. For a `quantisation-floor` row every `value`
+      is recomputed **in the real domain on the stored Fast schedule**,
+      `stageValue` and `bound` are null, `status` is `unknown`, and 2.4's
+      `value <= stageValue` relation is not applied — it is a within-stage
+      relation with no meaning across the quantised and real domains.
+      **Watched red:** a width-5 floor row must round-trip through SQLite and
+      the real plan read with the stored schedule equal to Fast's, null
+      `stageValue`/`bound` and `publication: 'quantisation-floor'`; put
+      `'quantisation-floor'` back into `status` and the read-time enum
+      validator must reject it.
       `publication` is stored rather than inferred, because a
       `quantisation-floor` row **is** Fast's schedule and the comparison
       indicator must not present it as a solver win. **Watched red:** a
@@ -561,8 +637,17 @@ h2puni is green — no build or autotest runs on the workspace box.
       `invalid-output` **at every stage**, not only at stage 1, since Fast
       placed the same input and every later stage only adds inequalities to a
       feasible model. The published result is the last stage's incumbent,
-      feasible by construction. `objectiveValues` reports `{ value, bound,
-      status }` per term, with `value` defined in 5.8b.
+      feasible by construction. `objectiveValues` reports the **four**-field
+      per-term shape `{ value, stageValue, bound, status }` exactly as
+      `solver-wire.v1.json` and design.md's matrix define it; `value` is the
+      term on the published offsets (2.4), `stageValue`/`bound`/`status`
+      describe the stage. **This task previously wrote a three-field shape and
+      deferred `value` to a nonexistent 5.8b (Sol r8 Critical 4)** — an
+      implementation instruction that contradicted 2.4 and the schema on both
+      the field list and, in the long-form note, on the accepted outcome set.
+      No task, design paragraph or note prose spells an alternate request or
+      response field list; 2.1 is the single normative definition and every
+      other mention points at it.
 - [ ] 5.9 Fast's placement is supplied as both a CP-SAT solution hint and an
       upper bound on stage 1's term, which is what makes the only guarantee
       the design now claims — *each variant's primary term is no worse than
@@ -587,25 +672,46 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 ## 6. OptimizationCoordinator — admission, spawn, cancel, restart
 
-- [ ] 6.1 Coordinator in `apps/be-01/src/service/`: on a debounced edit with the
-      toggle ON, publish Fast, consult the cache, and request admission only
-      for variants that are **absent** — never for one holding a `failed` row
-      for that exact key, and never on a read or a same-hash edit; child killed
-      at `solverBudgetMs + 5000`; a result is written only under the generation
-      predicate of 4.1.
+- [ ] 6.1 Coordinator in `apps/be-01/src/service/`: with the toggle ON, publish
+      Fast, consult the cache, and request admission for variants **absent at
+      the current full key** — on a debounced edit *and on a read*. A read
+      admits an absent variant, which is how an enabled project recovers after
+      a restart, a contract-version bump or a cache eviction without waiting
+      for someone to type; it **never** auto-admits a variant holding a
+      `failed` or a `corrupt` row for that exact key, and a same-hash edit is
+      suppressed for those two terminal rows only. **This replaces the earlier
+      "never on a read" wording (Sol r8 Important 9)**, which contradicted 6.6,
+      the spec's two-concurrent-first-reads scenario and the design's selection
+      rule, and would have left a cold enabled project on Fast for ever. Child
+      killed at `solverBudgetMs + 5000`; a result is written only under the
+      generation predicate of 4.1.
 - [ ] 6.2 **Admission in SQLite, not memory**: one transaction that reclaims
-      slots whose `heartbeatAt` is older than `budgetMs + 30s`, refuses at 4
-      rows for the project and 16 rows globally, then inserts the
-      `(projectId, generation, objective)` slot with `ON CONFLICT DO NOTHING`
-      so concurrent cold reads coalesce to one spawn. `ownerId` is a UUID
-      minted at coordinator boot; `heartbeatAt` is refreshed every 5 s for live
-      slots and the row is deleted when the child exits.
+      slots whose stored `admittedDeadlineAt` has passed, refuses at 4 rows for
+      the project and 16 rows globally counting **every** unreleased row
+      including those already asked to cancel, then inserts the
+      `(projectId, contractVersion, generation, objective, budgetMs)` slot with
+      `ON CONFLICT DO NOTHING` so concurrent cold reads coalesce to one spawn,
+      stamping a fresh 128-bit `attemptToken` and
+      `admittedDeadlineAt = startedAt + budgetMs + 5000 +
+      SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
+      Expiry is read from that column and never recomputed from the observing
+      coordinator's config. `ownerId` is a UUID minted at coordinator boot;
+      `heartbeatAt` is refreshed every 5 s for live slots and the row is
+      deleted when the child exits. **This is the whole admission protocol
+      (Sol r8 Critical 3).** The earlier text here named the three-column key
+      `(projectId, generation, objective)` and a `budgetMs + 30s` reclaim, both
+      superseded by 3.2 and 6.10–6.11; an implementer following it would have
+      lost the blue/green, cancellation and old-owner fences the design calls
+      mandatory. No alternate key shape or reclaim rule is restated anywhere in
+      this plan.
 - [ ] 6.3 `solver_queue` FIFO ordered by `enqueuedAt`, then `projectId`, then
-      `contractVersion`, then `objective` — the last two terms are what make
-      the order total, because a project's PRI and Time entries can share a
-      timestamp and blue and green can enqueue the same project and objective
-      in that same millisecond (Sol r7 Minor 15) — one entry per
-      `(projectId, contractVersion, objective)`. Enqueue **persists the cancel
+      `contractVersion`, then `objective`, then `budgetMs` — the trailing terms
+      are what make the order total, because a project's PRI and Time entries
+      can share a timestamp and blue and green can enqueue the same project and
+      objective in that same millisecond (Sol r7 Minor 15) — one entry per
+      `(projectId, contractVersion, objective, budgetMs)`, the row carrying
+      `budgetMs` because the dequeue cannot otherwise say which budget to
+      launch (Sol r8 Critical 2). Enqueue **persists the cancel
       epoch it was admitted under** as `admittedCancelEpoch`; without a stored
       epoch the dequeue re-check has nothing to compare against (Sol r7
       Important 8). Dequeue re-reads the `optimization_generation` row and
@@ -788,22 +894,37 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 7.10 The plan-read DTO: `tree()` returns an `optimization`
       block — `enabled`, `engine`, `objective`, `inputHash`, `generation`,
       `contractVersion`, `budgetMs`, `displayed`, `variants: { pri, time }`,
-      `comparison` present iff `displayed !== 'fast'`. A variant is `ready`,
-      `pending`, `retrying`, `failed` with reason, or `idle`, distinguished by
-      the cache row **together with** a live slot or queue entry — which is
+      `comparison` present iff `displayed !== 'fast'`. A variant is one of six:
+      `ready`, `pending`, `retrying`, `failed` with reason, `corrupt` with the
+      decoder's message, or `idle`, distinguished by the cache row **together
+      with** a live slot or queue entry matched on the **full** key including
+      `budgetMs` — which is
       what lets a retry in flight read as `retrying` while its marker row
       survives, instead of forcing either a permanent "unavailable" or a
       delete that would make the next read auto-spawn. Arrays hold Fast unless
-      the selected variant is `ready`. **Proven through the real controller
-      payload** in the cold, queued, retrying, failed, partial-success and
-      full-hit states.
+      the selected variant is `ready`. `corrupt` renders the same
+      `Optimization unavailable · Retry` control as `failed`; the round-7
+      disposition added it to spec.md and left this union, the design's
+      `VariantState` list and 8.3–8.4 at five members (Sol r8 Critical 6).
+      **Proven through the real controller payload** in the cold, queued,
+      retrying, failed, **corrupt**, partial-success and full-hit states.
 - [ ] 7.11 `POST /api/projects/:projectId/optimization/retry`, body
       `{ objective, inputHash }`, under the same project-write authorization as
       the settings PATCH, running the ordinary admission transaction so two
       concurrent retries produce one child. `202` with the new state,
       generation and hash; `409 stale-input-hash` carrying the current hash;
-      `409 already-running`; `409 not-failed`. The marker is never deleted
-      before its replacement outcome commits.
+      `409 already-running` evaluated against the **full** cache key including
+      `budgetMs`; and a single `409 not-retryable` naming the current state for
+      everything else. **Retry accepts a `failed` row or a `corrupt` one (Sol
+      r8 Critical 6)** — a corrupt row is a `status='ok'` row, so the earlier
+      `not-failed` guard forbade the only recovery path 4.8 and the codec
+      requirement offer it. The marker or corrupt row is never deleted before
+      its replacement outcome commits, and is then overwritten exactly once.
+      **Watched red:** two concurrent Retries on one corrupt row must produce
+      one child with both responses `retrying` and the bad row intact until the
+      replacement commits; a Retry against a `ready` variant must return
+      `not-retryable` naming `ready`; restore the `not-failed` guard and the
+      corrupt-row Retry case must fail.
 
 ## 8. UI — toggle, selectors, indicator
 
@@ -817,14 +938,17 @@ h2puni is green — no build or autotest runs on the workspace box.
       `project_settings_changed` event so collaborators converge.
 - [ ] 8.3 The one compact indicator: Earlier by N days / Later by N days / Same
       deadline + reordered / Same deadline + same order, plus
-      `Optimization unavailable · Retry` on failure and `Optimizing…` while the
-      selected variant is admitted but not stored — with Fast on screen
+      `Optimization unavailable · Retry` on **both** the `failed` and the
+      `corrupt` variant states (Sol r8 Critical 6 — the round-7 disposition
+      added `corrupt` to spec.md and left this list at five states) and
+      `Optimizing…` while the selected variant is admitted but not stored — with Fast on screen
       throughout, never a blank plan or a spinner over it. No toast, no modal,
       no timer retry, no second indicator.
 - [ ] 8.4 **Proven by** `optimization-indicator.test.tsx` and
       `optimization-settings.test.tsx`: each of the four comparison outcomes
-      renders its exact wording with the right day count; a failed variant
-      renders Retry; a pending variant renders `Optimizing…` over Fast offsets;
+      renders its exact wording with the right day count; a `failed` variant
+      renders Retry; a `corrupt` variant renders the **same** Retry control; a
+      pending variant renders `Optimizing…` over Fast offsets;
       no toast or modal role appears in the tree in any of those states; a
       toggle change issues the PATCH and **survives a remount** (proving it is
       persisted, not local); and an incoming `project_settings_changed` moves
