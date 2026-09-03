@@ -34,7 +34,7 @@ protocol. The drop/rename itself is a separate later change (R2-6).
 
 ## 3. Gate and close
 
-- [ ] 3.1 Remote gate on h2puni: forward, rollback, restart and watched-red
+- [x] 3.1 Remote gate on h2puni: forward, rollback, restart and watched-red
       migration tests pass.
 - [ ] 3.2 Peer + Gemini terminal review of the exact-head diff; every finding
       dispositioned.

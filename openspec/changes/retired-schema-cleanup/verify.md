@@ -15,17 +15,20 @@
 - [x] Rollback: down then up, a row survives the round trip; pre/post counts
       match.
 - [x] Restart: re-running the migration on a migrated file is a no-op (idempotent).
-- [x] Watched red: dropping the retired `size` column in a scratch migration
-      fails the corresponding presence guard.
+- [x] Watched red: a scratch `ALTER TABLE` inside the first case, immediately
+      after its forward migration, drops the retired `size` column and fails the
+      corresponding presence guard.
 
 Exact h2puni evidence, 2026-09-03:
 
 - Green: `bun test apps/be-01/src/repository/retired-schema-untouched.db.test.ts`
-  reported 5 pass / 0 fail / 34 assertions.
-- Watched red: after a scratch `ALTER TABLE service_team DROP COLUMN size`, the
-  first case failed at `toContain('size')`; 4 pass / 1 fail / 33 assertions.
-  The fresh-database row counts were unchanged by the schema-only mutant:
-  `work_item=0`, `work_item_team=0`, `work_item_service=0` before and after.
+  reported 5 pass / 0 fail / 35 assertions at `bc740e98`.
+- Watched red: inside the first case after its forward migration, a scratch
+  `ALTER TABLE service_team DROP COLUMN size` made that case fail at
+  `toContain('size')`; 4 pass / 1 fail / 34 assertions at `bc740e98`. That case
+  deliberately uses an unseeded fresh database, so its row counts are
+  `work_item=0`, `work_item_team=0`, `work_item_service=0` before and after; the
+  non-zero preservation counts come from the seeded round-trip cases below.
 - Team round-trip counts: before `work_item=1`, `work_item_team=1`; after
   `work_item=1`, `work_item_team=1`; scalar/set moved together from `t1` to `t2`.
 - Rollback/re-apply counts: before `work_item=1`, `work_item_team=1`,
