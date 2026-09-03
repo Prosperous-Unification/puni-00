@@ -5,7 +5,7 @@ red/green bookkeeping. Builds and autotests run on h2puni or CI, never h1claw.
 
 ## 1. Separate first-visit and reset defaults
 
-- [ ] 1.1 In `table-frame.ts`, rename the static baseline to
+- [x] 1.1 In `table-frame.ts`, rename the static baseline to
       `INITIAL_HIDDEN_COLUMNS`, add `refs`, and add pure
       `resetHiddenColumns(hasAnyExternalRefs)`. In `table-frame.test.ts`, prove
       first visit hides `refs`, reset true removes only `refs`, and reset false

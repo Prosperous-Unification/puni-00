@@ -26,5 +26,13 @@ descendant hidden by a collapsed branch.
   before a verdict; it is **not** counted as a gate. The bounded affected suites
   above completed normally.
 
-No build or autotest ran on h1claw. Watched-red mutations, controlled-read race
-coverage, browser pixels, full remote gate, CI, and terminal reviews remain.
+No build or autotest ran on h1claw. Remaining watched-red mutations,
+controlled-read race coverage, browser pixels, full remote gate, CI, and
+terminal reviews remain.
+
+### Watched red
+
+- At exact implementation head `ee48233a`, removing `refs` from
+  `INITIAL_HIDDEN_COLUMNS` made `keeps Links hidden on a first visit even when
+  the project already has a link` fail on the unexpected `refs` header: **1
+  failed, 68 skipped**. The mutation was not retained.
