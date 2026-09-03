@@ -214,7 +214,7 @@ comparison UI) and start only after slice 6 is merged.
       `start_date`; re-read and assert the stored bytes and both SHA-256 values
       are byte-identical. A field-by-field comparison stays green for every field
       the writer forgot to store, which is why this asserts the hash.
-- [ ] 4.3 Atomicity. Inject a failure between header and input body, between
+- [x] 4.3 Atomicity. Inject a failure between header and input body, between
       input body and schedule body, and at commit; assert no header, no body, and
       an untouched live plan in all three.
 - [ ] 4.4 **Build** the concurrency refusal, then test it: `BEGIN IMMEDIATE` with
