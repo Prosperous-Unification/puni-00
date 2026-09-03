@@ -234,10 +234,16 @@ h2puni is green — no build or autotest runs on the workspace box.
       **Priority resolution is proved in both numeric directions (Sol r8
       Critical 7)**, because the unprioritised-leaf case alone passes under a
       minimum-across-ancestors rule too: leaf 5 under parent 1 resolves to 5,
-      leaf 1 under parent 5 resolves to 1, and a null leaf under parent 3
-      under grandparent 7 resolves to 3. **Watched red:** replace the import
+      leaf 1 under parent 5 resolves to 1, and a null leaf under parent 7
+      under grandparent 3 resolves to 7. **Watched red:** replace the import
       with a minimum-across-ancestors resolver and the first and third cases
-      must fail.
+      must fail. **The third fixture is deliberately 7-under-3 and not
+      3-under-7 (Fable r18 Minor 2):** under the minimum rule
+      `min({3,7}) = 3`, which is the same answer the nearest-ancestor override
+      gives, so a 3-under-7 fixture stays green under the injected fault and
+      an implementer sees one failure where two are promised. With 7 nearer,
+      override gives 7 and minimum gives 3, so the case distinguishes the
+      fault and still proves nearer-over-farther.
 - [ ] 2.7 **Negative check, watched red** — remove the dependency check from 2.4
       and watch the "edge violated" case pass when it must fail; then send
       the pre-quantisation `days / width` from 2.2 and watch 2.6's width case fail.
@@ -313,7 +319,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       `solver_slot`: PK
       `(projectId, contractVersion, generation, objective, budgetMs)` →
       `ownerId`, `attemptToken`, `lifecycle` (`'starting' | 'running'`, with
-      `CHECK (lifecycle IN ('starting','running'))`), nullable `pid` (NULL
+      `CHECK (lifecycle IN ('starting','running'))`) and
+      `CHECK (objective IN ('pri','time'))` on the key's own `objective`
+      column (Fable r18 Important 1 — the blanket stored-enum rule covers it
+      and every instantiating list omitted it), nullable `pid` (NULL
       while `starting`, since the process does not exist at reservation time
       — Sol r12 Critical 2), `startedAt`, `heartbeatAt`,
       `cancelRequestedAt`, `admittedDeadlineAt`. **`budgetMs` is in the key and
@@ -330,7 +339,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       budget could not tell the dequeue which budget to launch, which is why
       `budgetMs` is in the key) and a new generation replaces rather than
       accumulates — with
-      columns `generation`, `admittedCancelEpoch`, `budgetMs`, `enqueuedAt`, and
+      columns `generation`, `admittedCancelEpoch`, `budgetMs`, `enqueuedAt`,
+      `CHECK (objective IN ('pri','time'))` on the key's own `objective`
+      column (Fable r18 Important 1), and
       an index on
       `(enqueuedAt, projectId, contractVersion, objective, budgetMs)`. The
       dequeue order is
@@ -396,6 +407,25 @@ h2puni is green — no build or autotest runs on the workspace box.
       validator beside `admission_state`'s, throwing and naming the column and
       the stored value, and the negative test below injects an unknown
       lifecycle exactly as it does for the other scalar enums.
+      **`solver_slot.objective` and `solver_queue.objective` are the fourth and
+      fifth, and were missing everything (Fable r18 Important 1):** both are
+      `'pri' | 'time'` in their own scalar column and in their table's PK, both
+      now carry the inline `CHECK` declared at 3.2, and both read paths get the
+      **existing** `isObjective` validator — the validator list does not grow,
+      only the column list does, because these are the same stored enum the
+      cache's `objective` column already validates. The dequeue is why this is
+      not cosmetic: it reads `solver_queue.objective` into the typed spawn
+      identity (6.3), so a row corrupted by a past bug would launch a
+      garbage-objective solve whose failed-marker write then violates the
+      cache's own `CHECK (objective IN ('pri','time'))` — no marker and no
+      `schedule_optimization_failed` event could ever be written for that key,
+      which is the unnotified wedge rounds 7-12 spent closing, reached through
+      the one column the sweeps never audited.
+      **Negative injection, watched red:** write `'prio'` directly into
+      `solver_slot.objective` and into `solver_queue.objective` with the
+      `CHECK`s dropped, and each read path must throw naming the column and the
+      stored value; remove either validator and the corrupted row must reach
+      the spawn identity instead.
 - [ ] 3.9 **Proven by** `optimization-generation.db.test.ts`, run through the
       production repositories: a blue/green pair with two distinct
       `contractVersion` values neither reallocates nor deletes the other's

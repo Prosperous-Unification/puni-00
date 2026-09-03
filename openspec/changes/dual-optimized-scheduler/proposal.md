@@ -58,7 +58,7 @@ The scheduler is one deterministic millisecond pass (Fast) with no notion of opt
 
 ## Domain Terms
 
-- Fifteen glossary terms added to CONTEXT.md; `design.md` names each.
+- Seventeen glossary terms added to CONTEXT.md; `design.md` names each.
 
 ## Decisions Recorded
 
