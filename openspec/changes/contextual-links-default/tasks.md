@@ -77,7 +77,7 @@ red/green bookkeeping. Builds and autotests run on h2puni or CI, never h1claw.
       browser proof asserts both the 40px-narrower fresh-hidden state and the
       existing 1247/1248 refs-shown edge. **Watched red:** omit one setup path;
       its first visible-Links assertion or shown-width edge must fail.
-- [ ] 4.3 On h2puni, run focused `table-frame` + `plan-layout` + `plan-cards`
+- [x] 4.3 On h2puni, run focused `table-frame` + `plan-layout` + `plan-cards`
       suites, fe-01 lint/typecheck, `bunx nx format:check --all`, and
       `openspec validate --all --json`; record exact counts and bun version.
       Then run CI `gate` and `pixels`, including both 1280px folded-width states
@@ -85,7 +85,10 @@ red/green bookkeeping. Builds and autotests run on h2puni or CI, never h1claw.
 
 ## 5. Delivery
 
-- [ ] 5.1 Record watched-red evidence in `verify.md`, open the dev-mode PR,
-      merge on green CI, verify `/health`, and run lane-q Browser Use Cloud QA.
-      TASK-237's reviewed design and Dany's one-correction approval are required
-      before this implementation task starts.
+- [x] 5.1 Record watched-red evidence in `verify.md`, open the dev-mode PR,
+      collect green exact-head CI, and attempt the required exact-head peer and
+      Gemini terminal seats. TASK-237's reviewed design and Dany's
+      one-correction approval are required before this implementation task
+      starts.
+- [ ] 5.2 Merge on green CI, verify the commit-bearing dev `/health`, and
+      unblock the dependency-gated TASK-239 lane-q Browser Use Cloud QA.

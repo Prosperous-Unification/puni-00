@@ -85,5 +85,49 @@ The mobile Gantt-only reset now proves both column storage keys are untouched.
 Every mutant was confined to the h2puni gate checkout and then replaced with
 the exact production files; local and remote SHA-256 values matched afterwards.
 
-No build or autotest ran on h1claw. Remaining work is the outstanding watched-red
-mutations, full remote gates, CI, reviews, merge/deploy, and lane-q browser QA.
+No build or autotest ran on h1claw. At this checkpoint the remaining work was
+the final regression corrections, exact-head CI and terminal review.
+
+## 2026-09-03 recovery runs 12–13
+
+Four later heads closed the branch regression and terminal gate:
+
+- `4b26b073` added the explicit Links-shown setup missing from eleven existing
+  column-behaviour cases. Before the fix, the focused h2puni run reported
+  **11 failed / 269 passed** with 1.52 GB maximum RSS; afterwards
+  `plan-cells` **89/89**, `plan-layout` **73/73**, and `plan-cards` **118/118**
+  passed when run one file at a time under host pressure.
+- `f8e36710` corrected the two contextual-Links pixel expectations; both exact
+  Chromium cases passed **2/2** on h2puni.
+- `839fde38` merged current `origin/main` after PR #199. A fresh detached
+  h2puni worktree again passed `plan-cells` **89/89**, `plan-layout` **73/73**,
+  and `plan-cards` **118/118**.
+- `32a52b24` corrected two remaining 40px width expectations and bounded the
+  shared fe-01 Vitest target to one worker. The file-parallel CI process at the
+  prior head was killed before a summary; the serial full suite completed in
+  **4m06s at 1.07 GB RSS** and exposed the two ordinary failures. Their focused
+  files then passed **107/107**. The permanent one-worker bound is deliberate:
+  it keeps the CI runner below its memory ceiling and preserves a verdict
+  instead of a summary-less process death.
+
+### Exact-head terminal evidence
+
+- PR **#200**, workflow run **33805825125**, exact head `32a52b24`:
+  `gate` **SUCCESS** at `2026-09-03T21:13:27Z` and `pixels` **SUCCESS** at
+  `2026-09-03T21:16:36Z`. GitHub reported CLEAN and MERGEABLE against base
+  `a8020276`, already an ancestor of the head.
+- The sealed Opus 5 artifact
+  `queue/reviews/task238-terminal-r13b-opus.txt` reviewed that exact head and
+  returned APPROVE with no Critical finding and one Important record gap: this
+  file and tasks 4.3/5.1 stopped four commits short. This section and the two
+  task ticks close that finding; post-merge work is separated as task 5.2 so it
+  is not falsely marked complete before the merge.
+- Gemini was attempted at the same head through `bin/gemini-review.sh` with
+  the reviewed tree pinned. The Antigravity `agy` seat exited 1 after three
+  seconds with `Error: Agent execution terminated due to error.` and produced
+  no canonical artifact. No metered fallback was used and no Gemini verdict is
+  inferred.
+
+No build or autotest ran on h1claw. Remaining work is task 5.2: exact-head
+follow-up gates after this record-only correction, merge, commit-bearing dev
+health verification, and the already dependency-gated TASK-239 browser QA.
