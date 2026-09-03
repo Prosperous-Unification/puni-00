@@ -1,13 +1,4 @@
 {
-  "objectiveValues": {
-    "makespan": { "bound": 1, "stageValue": 1, "status": "optimal", "value": 1 },
-    "movement": { "bound": 1, "stageValue": 1, "status": "optimal", "value": 1 },
-    "priority": { "bound": 1, "stageValue": 1, "status": "optimal", "value": 1 }
-  },
-  "offsets": {
-    "wi-1\u0000step-a": 0,
-    "wi-2\u0000": 10
-  },
   "status": "optimal",
   "wireVersion": 1
 }

@@ -84,7 +84,7 @@
       "file": "response/invalid-response-optimal-status.json",
       "branch": "response",
       "valid": false,
-      "why": "THE WATCHED RED FOR THE REFUSED CANDIDATE. Reusing the stage vocabulary at the response level would admit `optimal`, which claims the published schedule is optimal — the one claim design.md says it has denied from the start. Per-term `optimal` stays legal and is untouched here; only the response-level one is refused."
+      "why": "THE WATCHED RED FOR THE REFUSED CANDIDATE: reusing the stage vocabulary at the response level would admit `optimal`, which claims the published schedule is optimal — the one claim design.md says it has denied from the start. Per-term `optimal` stays legal and is untouched. PAYLOAD-FREE ON PURPOSE, and the first draft was not: written with offsets and objectiveValues it was rejected by the status/offsets conditional rather than by the enum, so widening the enum back to an open string left the corpus fully green and the fixture proved nothing it claimed. Stripped to the smallest message whose only defect is the token, it goes red exactly when the enum opens."
     },
     {
       "file": "response/invalid-infeasible-with-offsets.json",
