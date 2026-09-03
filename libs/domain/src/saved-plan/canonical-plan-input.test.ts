@@ -139,8 +139,8 @@ const rows: PlanInputRows = {
     { workItemId: 'w1', serviceId: 'svc-1' },
   ],
   priorityBands: [
-    { startsAt: 21, label: 'High', writes: 30 },
-    { startsAt: 1, label: 'Critical', writes: 10 },
+    { startsAt: 21, label: 'High', defaultValue: 30 },
+    { startsAt: 1, label: 'Critical', defaultValue: 10 },
   ],
   capacity: [
     { teamId: 'team-2', people: 1 },

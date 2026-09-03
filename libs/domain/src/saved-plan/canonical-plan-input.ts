@@ -266,7 +266,15 @@ export interface CanonicalWorkItemService {
 export interface CanonicalPriorityBand {
   readonly startsAt: number;
   readonly label: string;
-  readonly writes: number;
+  /**
+   * What choosing this band by name writes into a work item's priority.
+   *
+   * `defaultValue`, the field's name on {@link PriorityBand}, rather than the
+   * `writes` this replaces — the same rule the corrected `metric` is under: a
+   * canonical name that is not the source's is a translation every reader
+   * checking a stored body against the ladder has to perform.
+   */
+  readonly defaultValue: number;
 }
 
 export interface CanonicalCapacity {
@@ -483,7 +491,11 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
         (row) => row.startsAt,
         byString((row: CanonicalPriorityBand) => row.label),
       ),
-    ).map((row) => ({ startsAt: row.startsAt, label: row.label, writes: row.writes })),
+    ).map((row) => ({
+      startsAt: row.startsAt,
+      label: row.label,
+      defaultValue: row.defaultValue,
+    })),
     capacity: sorted(values.capacity, byString((row) => row.teamId)).map((row) => ({
       teamId: row.teamId,
       people: row.people,
