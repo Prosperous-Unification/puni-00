@@ -16,34 +16,34 @@ on every read. And `project.revision` (`schema.ts:215`) deliberately does not
 move for work items (`schema.ts:207-211`), so "the plan as of revision N" is not
 expressible.
 
-Dates are the part that cannot be recovered later: re-deriving a September plan
-with November scheduler code restates history.
+Dates cannot be recovered later: re-deriving a September plan with November
+scheduler code restates history.
 
 ## What Changes
 
-- A **saved plan**: a named, immutable, project-scoped record written by value,
-  joined to no live row.
-- Two independently versioned, hashed bodies per record — the **canonical plan
-  input** (settings, tree, steps, estimates, actuals, measures, ownership,
-  dependencies, capacity, priority bands) and the **frozen schedule** (nullable;
-  ISO dates *and* working-day offsets, the whole `Scheduled`/`ScheduledSlice`
-  field set, plus the algorithm identity that produced them).
+- A **saved plan**: a named, project-scoped record written by value, joined to no
+  live row.
+- Two independently versioned, hashed bodies — the **canonical plan input**
+  (settings, tree, steps, estimates, actuals, measures, ownership, dependencies,
+  capacity, priority bands) and the **frozen schedule** (nullable; ISO dates
+  *and* offsets, the whole `Scheduled`/`ScheduledSlice` field set, plus the
+  algorithm identity).
 - The capture runs inside **one SQLite read snapshot**: the live projection reads
   in ten separate awaited calls (`work-item.service.ts:1285-1312`, `:1364-1385`)
-  and no revision counter brackets them.
+  and no counter brackets them.
 - **Comparison in both directions.** One diff over two canonical bodies; each
   side is a saved-plan id or the literal `current`, projected through the same
   function and never stored.
-- Save, list, read, delete. Delete is the only mutation.
+- Save, list, read, rename, delete. The name is the only editable field, and
+  every read checks the stored bytes against their hash.
 
 ## Non-goals
 
 - **No restore, no branching, no merge, no partial apply.** Inspection and
   comparison only.
-- No retention or automatic pruning: only an explicit delete removes one.
-- No rewriting of a stored body, ever — including when a person is removed from
-  the live plan (Dany chose `keep`: old records stay truthful about who owned
-  what).
+- No retention or pruning: only an explicit delete removes one.
+- No rewriting of a stored body, ever — including when a person leaves the live
+  plan (Dany chose `keep`: old records stay truthful about who owned what).
 - Not the August `plan_snapshot_figure` scope — estimate/actual numbers only,
   blind to an added item, a reparent, an ownership change and every date.
 

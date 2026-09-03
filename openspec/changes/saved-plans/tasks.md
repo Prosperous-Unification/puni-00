@@ -13,9 +13,14 @@ comparison UI) and start only after slice 6 is merged.
       own entry is untouched — it already avoids `snapshot`, which is why this
       term exists.
 - [ ] 1.2 `CanonicalPlanInput` in `libs/domain/src/saved-plan/` — the closed
-      field list from spec.md, with JSDoc on the type saying why the list is
-      closed and what is deliberately outside it (`project_access`, anything
-      recording who last opened what). Types only, no reads.
+      field list from spec.md, which enumerates the project metadata and the
+      work-item columns rather than gesturing at them, and includes
+      `frozen_number`, `service_team_id`, `service_id`, `person_team` and
+      `team_service`. JSDoc says why the list is closed and what is deliberately
+      outside it: `project_access` and anything recording who last opened what,
+      the audit columns (`created_at`/`updated_at`/`created_by` are about
+      editing, not about the plan), and `broadcast.latestSeq`. Types only, no
+      reads.
 - [ ] 1.3 `canonicalisePlanInput(values)` — a pure function from already-read
       rows to `CanonicalPlanInput`, with a **stable** key order and a stable
       ordering of every collection, because the SHA-256 is taken over its
@@ -40,17 +45,24 @@ comparison UI) and start only after slice 6 is merged.
       for it passed against the broken database. So: write a header and a body,
       delete the project, and assert both rows are gone by reading the tables —
       and assert the delete itself was not blocked.
-- [ ] 2.4 **No `UPDATE` ever targets `saved_plan_body`.** A source check over
-      `repository/**` in the shape of `audit.test.ts`. Negative: add an
-      `update(savedPlanBody)` call and watch the check name the site. This is the
+- [ ] 2.4 **No `UPDATE` ever targets `saved_plan_body`, and none targets any
+      `saved_plan` column except `name`.** A source check over `repository/**` in
+      the shape of `audit.test.ts`, scoped to both tables — the header scope is
+      not optional: `input_sha256`, `schedule_sha256`, `schedule_input_sha256`
+      and `scheduler_algorithm_id` live there, and one `UPDATE` of
+      `schedule_input_sha256` makes 5.2's check pass for a schedule computed from
+      a different input. Negatives, both watched: an `update(savedPlanBody)` call
+      added, and an `update(savedPlan).set({ inputSha256 })` added. This is the
       immutability property; a comment cannot hold it.
 
 ## 3. The capture, inside one read snapshot
 
 - [ ] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — every read of
       the projection inside one `BEGIN DEFERRED` on a read connection. JSDoc names
-      the ten call sites it replaces (`work-item.service.ts:1285-1312`,
-      `:1364-1385`) and why a revision counter cannot substitute.
+      the **twelve** plan reads it replaces (ten at
+      `apps/be-01/src/service/work-item.service.ts:1285-1312`, three at
+      `:1364-1385`, minus `broadcast.latestSeq`, which is a refresh cursor and is
+      not captured), and why a revision counter cannot substitute.
 - [ ] 3.2 **The torn-read test, which is the Critical this design exists for.**
       Pause the capture at **each** read boundary in turn; commit a work-item
       rename, a directory cascade, a step edit and a setting change in the gap;
@@ -61,16 +73,29 @@ comparison UI) and start only after slice 6 is merged.
 - [ ] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
       Test: assert no database handle is live during the scheduling call.
 - [ ] 3.4 The schedule body carries the **whole** `Scheduled`/`ScheduledSlice`
-      field set (`schedule.ts:116-125`, `:156-234`) plus `waitingForPerson` and
-      `waitingForCapacity`, in offsets **and** ISO dates. Negative: drop
-      `resourcePredecessorId` from the writer and watch the shape test fail.
-      A field-list test is not enough on its own — see 4.2.
+      field set (`schedule.ts:116-125`, `:156-234`) plus the top-level `Schedule`
+      counts `waitingForPerson` and `waitingForCapacity` (`schedule.ts:246-263`),
+      in offsets **and** ISO dates. `eventsVisited` (`schedule.ts:264-277`) is
+      excluded by decision — it is instrumentation about the run.
+      **Assert deep equality** between `schedule()`'s return (minus the excluded
+      key and plus the dates) and the parsed stored body, over a generated plan,
+      with the key set derived from the value rather than written out here: an
+      enumerated list stays green for every field `Scheduled` gains later, which
+      is the failure this test exists to prevent. Negative: drop
+      `resourcePredecessorId` from the writer and watch the equality fail naming
+      the key.
 
 ## 4. The write path
 
-- [ ] 4.1 `SavedPlanService.save` — quota and byte checks, then `BEGIN IMMEDIATE`,
-      header, input body, schedule body, commit. Test: a save writes one header
-      and the bodies it should, and the returned record round-trips.
+- [ ] 4.0 Establish the connection topology before writing any of 4.x: read how
+      be-01 hands out write connections and record it in design.md. If a save
+      would share the live-edit write handle, give it its own — 4.5's guarantee
+      that a live edit completes during a save is silently void otherwise, and no
+      `busy_timeout` value repairs it.
+- [ ] 4.1 `SavedPlanService.save` — per-body byte checks, then `BEGIN IMMEDIATE`,
+      then the count and total quota checks **inside** that transaction, header,
+      input body, schedule body, commit. Test: a save writes one header and the
+      bodies it should, and the returned record round-trips.
 - [ ] 4.2 **Immutability asserted by hash, not by field list.** Save; rename an
       item, delete another, delete a step, change `estimate_method` and
       `start_date`; re-read and assert the stored bytes and both SHA-256 values
@@ -79,8 +104,14 @@ comparison UI) and start only after slice 6 is merged.
 - [ ] 4.3 Atomicity. Inject a failure between header and input body, between
       input body and schedule body, and at commit; assert no header, no body, and
       an untouched live plan in all three.
-- [ ] 4.4 Concurrency refusal: two concurrent saves of one project, exactly one
-      writes, the other returns a typed refusal rather than serialising.
+- [ ] 4.4 **Build** the concurrency refusal, then test it: `BEGIN IMMEDIATE` with
+      `busy_timeout` 0, an immediate `SQLITE_BUSY` mapped to the typed refusal, so
+      no second save ever waits. It must be **SQLite-visible**, not an in-process
+      marker — blue and green are two processes on one file. The test runs on two
+      connections like 3.2: exactly one commits, the other is refused, and the
+      refusal arrives before the first has finished writing. Negative: replace the
+      mechanism with an in-memory in-flight set and watch the two-connection test
+      observe two commits.
 - [ ] 4.5 `snapshot_busy`: `busy_timeout` 5 s on the write connection, a
       `SQLITE_BUSY` at that bound mapped to the typed outcome. Test holds the
       write lock from another connection and asserts both the refusal **and** that
@@ -88,8 +119,10 @@ comparison UI) and start only after slice 6 is merged.
       to 60 s and watch the live-edit assertion fail.
 - [ ] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
-      transaction that would write. Negative: move the check after the header
-      insert and watch the "no partial record" assertion fail.
+      transaction that would write. Two negatives, both watched: move the check
+      after the header insert and watch the "no partial record" assertion fail;
+      move the count check *outside* `BEGIN IMMEDIATE` and watch two concurrent
+      saves at 99 of 100 both commit.
 - [ ] 4.7 The three limits are configuration read at construction, not literals at
       the call site. Test: raise the count limit in config and watch the same save
       succeed.
@@ -103,9 +136,16 @@ comparison UI) and start only after slice 6 is merged.
       a reader that re-derives from stored settings passes a date comparison.
       Extends `schedule-identity.test.ts` and `live-plan-identity.test.ts` rather
       than re-baselining either.
+- [ ] 5.1b **Every read recomputes each body's SHA-256 over the stored bytes**
+      and compares it with the header; a mismatch is a typed refusal naming the
+      saved plan and the body, never a repair or a default (R5). Negative: flip
+      one byte of a stored body with raw SQL and watch the read refuse. Without
+      this the stored hashes are decoration — 2.4 is a source scan and cannot see
+      a disk fault or an out-of-band write.
 - [ ] 5.2 A schedule body whose `schedule_input_sha256` differs from
       `input_sha256` is refused rather than rendered. Negative: make the writer
-      store the wrong hash and watch the read refuse.
+      store the wrong hash and watch the read refuse. This check only means
+      anything because 2.4 makes both header columns unrewritable.
 - [ ] 5.3 Readable with `plan_event` truncated entirely — guards against a pointer
       creeping in and against the 365-day prune reaching a saved plan.
 - [ ] 5.4 Absent schedule: save with no schedule for each reason (`pending`,
@@ -119,10 +159,16 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 6. Routes, permissions, rollout
 
-- [ ] 6.1 Save, list, read, delete on `savedPlanController`, following
-      `projectController`'s authenticated-read / authorised-write split.
+- [ ] 6.1 Save, list, read, rename, delete on `savedPlanController`, following
+      `projectController`'s authenticated-read / authorised-write split. Rename
+      writes `name` and nothing else, and is permissioned like delete (creator or
+      project owner) — on an unrestricted project every authenticated account can
+      write (`project.service.ts:30-40`), so the ordinary write rule would let any
+      account relabel anyone's permanent record.
 - [ ] 6.2 Permission matrix test: anonymous, unrestricted, restricted, creator,
-      owner, third party against each of the four routes.
+      owner, third party against each of the **five** routes. Negative: give
+      rename the project's ordinary write rule and watch the third-party case
+      fail.
 - [ ] 6.3 Account deletion leaves saved plans intact and still naming the creator,
       because `created_by` is a value.
 - [ ] 6.4 A node without the routes answers a typed unavailable outcome; the

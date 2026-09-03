@@ -6,19 +6,44 @@ A saved plan SHALL be a record of one project's plan as it stood at one instant,
 written by value. No column of it SHALL reference a live row, and reading one
 SHALL NOT read any live table other than the saved plan's own.
 
-It SHALL carry two bodies. The **plan input** body SHALL hold the project's
-date-producing settings (`estimate_method`, `dep_reach`, `estimate_rounding`,
-`start_date`, `pert_weight_optimistic`, `pert_weight_likely`,
-`pert_weight_pessimistic`), the project's own metadata, the work-item tree with
-each item's id, name, parent, sibling order, type, tags, external references,
-notes, `priority`, `max_parallel` and `start_no_earlier_than` with its reason,
-the steps and per (work item, step) the three-point estimate, the derived number,
-the actual and the progress, the token and hour measures, ownership
-(assignments, people, teams, services, `work_item_team`, `work_item_service`),
-the dependencies, the priority bands and the team capacity. The **schedule** body
-SHALL hold the complete `Scheduled` and `ScheduledSlice` field set that
-`schedule()` returned, in working-day offsets, **and** the ISO dates those
-offsets were rendered as.
+It SHALL carry two bodies.
+
+The **plan input** body SHALL hold:
+
+- the project's date-producing settings — `estimate_method`, `dep_reach`,
+  `estimate_rounding`, `start_date`, `pert_weight_optimistic`,
+  `pert_weight_realistic`, `pert_weight_pessimistic`;
+- the project's own metadata — `name`, `restricted`, `owner_id`,
+  `solution_slug`, `solution_url`;
+- the work-item tree, and per item its id, name, parent, sibling order, type,
+  tags, external references, notes, `priority`, `max_parallel`,
+  `frozen_number`, `service_team_id`, `service_id`, and
+  `start_no_earlier_than` with its reason;
+- the steps, and per (work item, step) the three-point estimate, the derived
+  number, the actual and the progress;
+- the token and hour measures;
+- ownership — assignments, people, teams, services, `work_item_team`,
+  `work_item_service`, `person_team` and `team_service`;
+- the dependencies, the priority bands and the team capacity.
+
+`frozen_number` is captured because it is the whole freeze mechanism
+(`schema.ts:262`, `:282`) and gates live edits; a freeze that a saved plan cannot
+see compares as no change. `service_team_id` and `service_id` are captured
+because they are live, patchable columns (`schema.ts:376`, `:419`) rather than
+derivations of the junction tables. `created_at`, `updated_at` and `created_by`
+on the plan's own rows are NOT captured: they are audit metadata about editing,
+not the plan.
+
+The **schedule** body SHALL hold the complete `Scheduled` and `ScheduledSlice`
+field set that `schedule()` returned, in working-day offsets, **and** the ISO
+dates those offsets were rendered as, **and** the top-level `Schedule` counts
+`waitingForPerson` and `waitingForCapacity` (`schedule.ts:246-263`). It SHALL
+NOT hold `eventsVisited` (`schedule.ts:264-277`), which counts levelling search
+work and is instrumentation about the run, not a fact about the plan.
+
+The stored schedule body SHALL be deep-equal to what `schedule()` returned, field
+for field, so that a field added to `Scheduled`, `ScheduledSlice` or `Schedule`
+later cannot be silently dropped by the writer.
 
 Each body SHALL carry its own schema version, its byte length and its SHA-256.
 The schedule body SHALL additionally carry the SHA-256 of the plan input it was
@@ -26,6 +51,10 @@ computed from and the identity of the scheduling algorithm that produced it.
 
 Access and navigation metadata SHALL NOT be captured — `project_access` and
 anything recording who last opened what is not part of the plan.
+
+`created_at` SHALL be the instant the read snapshot was taken, not the instant
+the transaction committed: a comparison is labelled with when the plan was
+looked at.
 
 #### Scenario: a plan is saved and read back
 
@@ -51,6 +80,52 @@ anything recording who last opened what is not part of the plan.
 - **THEN** saved plans written before that deletion still name that person as the
   owner of the work they owned, and no stored body has been rewritten
 
+### Requirement: Stored bytes are checked against their hash on every read
+
+Every read of a body SHALL recompute its SHA-256 over the stored bytes and
+compare it with the hash recorded in the header. A mismatch SHALL be a typed
+refusal naming the saved plan and the body; it SHALL NOT be repaired, defaulted
+away, or rendered.
+
+No `UPDATE` SHALL ever target `saved_plan_body`. No `UPDATE` SHALL target any
+column of `saved_plan` other than `name`. The header's `input_sha256`,
+`schedule_sha256`, `schedule_input_sha256` and `scheduler_algorithm_id` are
+written once, at insert, and are therefore not restatable by any write path —
+without that, comparing two header columns with each other proves nothing,
+because one `UPDATE` satisfies the comparison.
+
+#### Scenario: a body byte is corrupted
+
+- **WHEN** a stored body differs by one byte from what its header's SHA-256
+  records
+- **THEN** the read refuses with a typed error naming the saved plan and the body,
+  and returns no plan data
+
+#### Scenario: a header hash is rewritten
+
+- **WHEN** a write path attempts to `UPDATE` `input_sha256`, `schedule_sha256`,
+  `schedule_input_sha256` or `scheduler_algorithm_id`
+- **THEN** the guard names that write site and the change does not ship
+
+### Requirement: A saved plan may be renamed, and nothing else about it may change
+
+The `name` of a saved plan SHALL be editable after creation, by the account that
+created it or the project's owner — the same rule as delete. Renaming SHALL be
+the only mutation other than delete.
+
+No other column, and no byte of either body, SHALL be changeable by any route.
+
+#### Scenario: the creator renames a saved plan
+
+- **WHEN** the account that created a saved plan gives it a new name
+- **THEN** the name changes and both bodies' SHA-256 values are unchanged
+
+#### Scenario: a third party tries to rename
+
+- **WHEN** an authenticated account that neither created the saved plan nor owns
+  its project asks to rename it
+- **THEN** the request is refused and the name is unchanged
+
 ### Requirement: A saved plan describes a plan that actually existed
 
 Every repository read that builds a saved plan's bodies SHALL observe one SQLite
@@ -61,7 +136,9 @@ The header write and both body writes SHALL be one transaction: on any failure
 no header and no body SHALL survive, and the live plan SHALL be unchanged.
 
 A second save of the same project while one is in flight SHALL be refused with a
-typed outcome, not serialised behind it.
+typed outcome, not serialised behind it. The refusal SHALL be visible across
+processes, because blue and green run against one file: an in-process marker is
+not a mechanism.
 
 `schedule()` SHALL run over values already read out of that snapshot, never
 inside it, so scheduling work holds no database read.
@@ -158,7 +235,8 @@ SHALL NOT count against any quota.
 
 A comparison SHALL report added, removed, renamed, reparented and reordered work
 items, and changed estimates, uncertainty, actuals, progress, measures,
-ownership, dependencies, settings and dates.
+ownership, dependencies, settings, dates, and freeze — an item whose
+`frozen_number` was set, cleared or changed between the two sides.
 
 A body written at schema version *n* SHALL still be readable after the reader
 moves to *n+1*, by normalising forward in memory. Stored bytes SHALL NOT be

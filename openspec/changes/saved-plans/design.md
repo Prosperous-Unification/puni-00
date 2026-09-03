@@ -57,12 +57,15 @@ plan version.
 
 ## The capture, and why one read snapshot is the whole difficulty
 
-The live projection reads in ten separate awaited calls — project, work items,
-estimates, actuals, progress, measures, dependencies, assignments and people at
-`work-item.service.ts:1285-1312`, then steps, capacities and priority bands at
-`:1364-1385`. A concurrent work-item edit, directory cascade, step edit or
-setting change landing between any two of them produces a document describing a
-plan that never existed.
+The live projection reads in **thirteen** separate awaited calls — ten at
+`apps/be-01/src/service/work-item.service.ts:1285-1312` (project, work items,
+estimates, actuals, progress, measures, dependencies, assignments, people, and
+`broadcast.latestSeq`) and three at `:1364-1385` (`stepsOf`, `slotsFor`,
+`listFor`). Twelve of them are reads of the plan and ride the snapshot;
+`broadcast.latestSeq` is a refresh cursor and is not captured at all, for the
+same reason it is not a plan version. A concurrent work-item edit, directory
+cascade, step edit or setting change landing between any two of the twelve
+produces a document describing a plan that never existed.
 
 No counter repairs it: work-item edits deliberately do not move
 `project.revision` (`schema.ts:207-215`), and priority-band writes move no
@@ -77,17 +80,44 @@ nothing else.
 It is pure and needs no database; running it inside would hold the read
 transaction open for the length of a scheduling run for no gain.
 
-Write order: quota and byte checks → `BEGIN IMMEDIATE` → header → input body →
-schedule body → commit. Every check that can refuse runs before the first write,
-so a refusal never leaves a partial record.
+`created_at` is the instant that read snapshot opened, not the instant the
+transaction committed. A slow capture makes them differ, and the honest label on
+a comparison is when the plan was looked at.
 
-## Fail-fast, not queue
+**Write order: per-body byte checks → `BEGIN IMMEDIATE` → count and total quota
+checks → header → input body → schedule body → commit.** The byte checks depend
+on nothing in the database and may run first. The count and total must be read
+*inside* the write transaction: outside it, two saves at 99 of 100 both pass and
+both commit, and the bound is broken while "refused before any row is written"
+stays technically true.
+
+## Fail-fast, not queue — and the concurrency refusal is the same door
 
 A large body is one big write. Under SQLite's single writer, a save that queues
 holds every live edit in the project behind it. The named behaviour is
-**fail-fast**: `busy_timeout` 5 s on the write connection, and a `SQLITE_BUSY` at
-that bound becomes a typed `snapshot_busy` outcome. Live editing never waits on a
-save; the user retries a save.
+**fail-fast**.
+
+Two properties are wanted from one mechanism, and the difference between them is
+a timeout, not a lock:
+
+- A save that cannot take the write lock **at all** — because another save of any
+  project holds it — is `snapshot_busy`.
+- A save of a project another save is already writing must be refused rather than
+  serialised, **across processes**, because blue and green are two processes on
+  one file and an in-memory in-flight marker is invisible to the other one.
+
+So a save opens `BEGIN IMMEDIATE` with `busy_timeout` **0** on a connection of its
+own: an immediate `SQLITE_BUSY` is the typed `snapshot_busy` refusal, and there is
+no window in which a second save waits. The 5-second bound applies to the save's
+*total* attempt including a bounded retry the caller may make, never to a single
+blocking acquire.
+
+**The save's write connection is its own**, not the one live edits use. That is
+the whole reason live editing keeps working: if a save shared the request
+connection's write handle, edits would queue behind the body write regardless of
+`busy_timeout`. TASK-231 states the connection topology it found and adds a
+dedicated one if it is not already there — the guarantee in spec is about live
+edits completing, and a shared handle silently voids it.
 
 ## Quota
 
@@ -129,6 +159,30 @@ erase a saved plan.
 
 Migration is additive with a non-empty `down.sql`. Nodes that predate the routes
 answer a typed unavailable outcome.
+
+**A rollback destroys every saved plan**, and that cost is stated rather than
+discovered: `down.sql` drops both tables, so rolling back past this migration
+deletes records the product calls permanent. That is acceptable only while the
+feature is new and no user has saved a plan they rely on. Once it is in real use,
+a rollback is a data-loss decision, not a routine one, and the release that
+retires these tables owes an export first.
+
+## Integrity is checked, not assumed
+
+A hash that nothing recomputes is a comment. Every read recomputes SHA-256 over
+the stored bytes and compares it with the header; a mismatch is a typed refusal
+(R5 — malformed trusted data throws, never defaults).
+
+The header hashes must themselves be unrewritable, or the comparison
+`schedule_input_sha256 = input_sha256` proves nothing: one `UPDATE` satisfies it
+for a schedule computed from a different input. So the immutability guard covers
+**both** tables — no `UPDATE` on `saved_plan_body` at all, and none on
+`saved_plan` except `name`.
+
+`name` is the one exception, and it is deliberate: A-1 saves immediately with the
+server timestamp as the default name and lets the user name it afterwards, which
+is an `UPDATE` of that column. Renaming is permissioned like delete (creator or
+project owner) and touches nothing else.
 
 ## People stay named — a recorded limit
 

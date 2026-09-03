@@ -34,6 +34,12 @@ until it has been.
 | ----- | -------------- | -------- |
 | Canonical serialization is order-stable (1.3) | work-item sort dropped from `canonicalisePlanInput` | |
 | No `UPDATE` targets `saved_plan_body` (2.4) | an `update(savedPlanBody)` call added in `repository/` | |
+| No `UPDATE` targets a `saved_plan` column but `name` (2.4) | an `update(savedPlan).set({ inputSha256 })` call added | |
+| Every read checks bytes against their hash (5.1b) | one byte of a stored body flipped with raw SQL | |
+| Rename is permissioned like delete (6.2) | rename given the project's ordinary write rule — the third-party case must fail | |
+| The concurrency refusal is SQLite-visible (4.4) | the mechanism replaced with an in-memory in-flight set, watched on two connections | |
+| The quota check runs inside the write transaction (4.6) | the count check moved outside `BEGIN IMMEDIATE`, two saves at 99/100 | |
+| The stored schedule is deep-equal to `schedule()`'s return (3.4) | `resourcePredecessorId` dropped from the writer — the equality must name the key | |
 | Project delete cascades to headers and bodies (2.3) | the `ON DELETE CASCADE` clause removed from the migration | |
 | Capture is one read snapshot (3.2) | the shared read transaction replaced with a connection per read | |
 | The schedule body carries every field (3.4) | `resourcePredecessorId` dropped from the writer | |
