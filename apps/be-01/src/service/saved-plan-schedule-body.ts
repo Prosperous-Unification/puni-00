@@ -18,7 +18,7 @@ import {
  * reader that does not know the new key simply does not read it.
  *
  * Not to be confused with {@link SCHEDULE_ALGORITHM_ID}, which names the
- * *arithmetic* rather than the container. Two bodies can share this version and
+ * arithmetic rather than the container. Two bodies can share this version and
  * disagree about every date in them.
  */
 export const SCHEDULE_BODY_SCHEMA_VERSION = 1;

@@ -24,18 +24,15 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import {
-  buildScheduleBody,
-  SCHEDULE_BODY_SCHEMA_VERSION,
-} from './saved-plan-schedule-body';
 import { captureAndSchedulePlan } from './saved-plan-schedule';
+import { buildScheduleBody, SCHEDULE_BODY_SCHEMA_VERSION } from './saved-plan-schedule-body';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /** A Monday, so the first workday of the plan is the start date itself. */
-const START: IsoDate = '2026-01-05' as IsoDate;
+const START: IsoDate = '2026-01-05';
 
 /**
  * The whole `Scheduled`/`ScheduledSlice` field set reaches the stored body.
@@ -199,8 +196,8 @@ describe('the stored schedule body', () => {
    * Without this the deep equality above would still pass on a plan where
    * `resourcePredecessorId` is null on every slice — and so would a writer that
    * dropped it, since `toEqual` compares `null` against a missing key but the
-   * *negative* would then have nothing to make fail. This asserts the fixture's
-   * own shape, so a future edit that flattens the plan fails here rather than
+   * negative below would then have nothing to make fail. This asserts the
+   * fixture's own shape, so an edit that flattens the plan fails here rather than
    * quietly weakening the row above.
    */
   it('is computed over a plan whose resource fields are set', async () => {
@@ -247,11 +244,13 @@ describe('the stored schedule body', () => {
       JSON.stringify(buildScheduleBody(planned, reads.project.startDate)),
     );
     expect(stored).toEqual(expectedBody(planned, null));
-    const first = Object.values(
-      (stored as { workItems: Record<string, Record<string, unknown>> }).workItems,
-    )[0];
+    const { workItems } = stored as { workItems: Record<string, Record<string, unknown>> };
+    const first = Object.values(workItems)[0];
     expect(first).toBeDefined();
-    expect('startsOn' in first!).toBe(true);
-    expect(first!.startsOn).toBeNull();
+    // `in`, then the value: an absent key and a null one are the same
+    // `undefined` to a lookup, and the point of the row is that the key is
+    // there even with no calendar to render it from.
+    expect('startsOn' in first).toBe(true);
+    expect(first['startsOn']).toBeNull();
   });
 });
