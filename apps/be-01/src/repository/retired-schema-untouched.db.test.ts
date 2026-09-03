@@ -17,8 +17,10 @@ import { rollbackTo } from './migrate-down';
  * blue and green share one SQLite file across a swap, so the only safe edits are
  * additive. This file asserts the full migration chain leaves all three standing
  * (and the settled single-team pair — `work_item_team` and the
- * `work_item.service_team_id` dual-write — intact), so a premature drop,
- * rename, re-key, or stopped dual-write fails a test instead of a swap.
+ * `work_item.service_team_id` scalar — intact), so a premature drop, rename, or
+ * re-key fails a test instead of a swap. (The app-level dual-write, where a team
+ * patch moves both storage locations, is guarded by work-item.db.test.ts's
+ * repo.patch path, not this file.)
  *
  * See openspec/changes/retired-schema-cleanup/design.md for the path inventory
  * and the five-rule version-overlap protocol this file enforces.
@@ -250,7 +252,7 @@ describe('the retired schema, across the full migration chain', () => {
       expect(scalar()).toBe('t1');
       expect(teamSet()).toEqual(['t1']);
 
-      // The dual-write: a team patch moves both the scalar and the set member.
+      // Round-trip both storage locations directly so the scalar and the set member stay in agreement.
       const write = openDatabase(db.path);
       try {
         write.run("UPDATE work_item SET service_team_id = 't2' WHERE id = 'w1'");

@@ -21,11 +21,14 @@ protocol. The drop/rename itself is a separate later change (R2-6).
   - the `service_team` table still exists (not renamed);
   - `work_item_team` and `work_item_service` still exist with both cascading
     FKs;
-  - a row round-trips a `service_team_id` change with the dual-write intact
-    (pre/post row and relationship counts recorded).
+  - a row round-trips a `service_team_id` change through both storage locations
+    (`work_item.service_team_id` and `work_item_team`) (pre/post row and
+    relationship counts recorded).
 - [ ] 2.2 **Watched red** — the same suite fails when a column is dropped, the
-      table is renamed, a cascade is changed, or the dual-write is stopped; prove it
-      by reverting one guard locally and watching it fail.
+      table is renamed, or a cascade is changed; prove it by reverting one guard
+      locally and watching it fail. (The app-level dual-write is guarded separately
+      by `work-item.db.test.ts:261-287`, which drives `repo.patch`; this migration test
+      asserts schema presence and join-table integrity only.)
 - [ ] 2.3 Record pre/post row and relationship counts for forward, rollback,
       restart and watched-red runs.
 
