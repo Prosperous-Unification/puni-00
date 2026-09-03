@@ -1252,14 +1252,14 @@ describe('a step changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldStep('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1499px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1459px');
 
     await removeStep('QA');
 
-    // One step left, folded: 855px of fixed columns (827 → 839 → 879 in
-    // `number-column-widen` and then `external-refs`, 879 → 855 on 2026-08-31),
-    // 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1151px');
+    // One step left, folded: 815px of visible fixed columns (827 → 839 → 879 in
+    // `number-column-widen` and then `external-refs`, 879 → 855 on 2026-08-31,
+    // then 815 when Links joined the initial hide-list), 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1111px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 
