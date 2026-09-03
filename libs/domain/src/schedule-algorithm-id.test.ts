@@ -257,7 +257,7 @@ export const scheduleBehaviourDigest = (run: ScheduleFn): string =>
  */
 const PINNED = {
   id: 'slice-leveling-v1',
-  digest: '0000000000000000',
+  digest: '136e8314b76e0398',
 } as const;
 
 /** One perturbed value of the same shape — the smallest change a real edit makes. */
