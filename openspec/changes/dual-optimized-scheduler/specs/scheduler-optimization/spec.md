@@ -144,7 +144,7 @@ The process ceilings SHALL NOT be presented as the CPU or memory bound. Every pr
 
 ### Requirement: A coordinator restart resumes nothing and publishes nothing stale
 
-On startup the coordinator SHALL resume no in-flight child and SHALL rebuild no **in-memory** queue. It SHALL NOT discard the durable `solver_queue` merely because of the restart (Sol r10 Important 7): a current entry remains eligible and is discarded only by the ordinary dequeue predicates — generation no longer current, `admissionState != 'open'`, `cancelEpoch != admittedCancelEpoch`, toggle OFF, or non-null `optimizationDeletePendingAt`. A variant absent at the current full key SHALL be re-admitted within the same generation only after any orphan slot for that key has been released or passed its stored `admittedDeadlineAt`. A process that dies mid-solve SHALL leave no outcome row. Orphaned children SHALL NOT be identified by stored PID: `wbs-solver` installs `PR_SET_PDEATHSIG`, re-checks its parent id, and arms its own `childDeadlineAt = startedAt + budgetMs + 5000`; the later stored `admittedDeadlineAt` includes `SLOT_RECLAIM_MARGIN_MS` and is the only reclamation instant. No missed heartbeat alone reclaims a row; `heartbeatAt` is for cancellation observation and diagnostics only. Each backend release SHALL run in its own container or cgroup.
+On startup the coordinator SHALL resume no in-flight child and SHALL rebuild no **in-memory** queue. It SHALL NOT discard the durable `solver_queue` merely because of the restart (Sol r10 Important 7): a current entry remains eligible and is discarded only by the ordinary dequeue predicates — generation no longer current, `admissionState != 'open'`, `cancelEpoch != admittedCancelEpoch`, toggle OFF, or non-null `optimizationDeletePendingAt`. A variant absent at the current full key SHALL be re-admitted within the same generation only after any orphan slot for that key has been released or passed its stored `admittedDeadlineAt`. A process that dies mid-solve SHALL leave no outcome row. Orphaned children SHALL NOT be identified by stored PID: The **launcher wrapper** installs `PR_SET_PDEATHSIG` — surviving the `exec`, so it still binds `wbs-solver` on the same pid — re-checks its parent id, and arms the **given absolute** `childDeadlineAt = startedAt + budgetMs + 5000` in-process and through the scope's external kill, never a deadline derived from its own start (Fable r14 Minor 4: this sentence still carried the pre-launcher, self-derived model that Sol r12 Critical 2 rejected, and a top-down reader met it 110 lines before the correction); the later stored `admittedDeadlineAt` includes `SLOT_RECLAIM_MARGIN_MS` and is the only reclamation instant. No missed heartbeat alone reclaims a row; `heartbeatAt` is for cancellation observation and diagnostics only. Each backend release SHALL run in its own container or cgroup.
 
 #### Scenario: a mid-solve restart leaves no partial result
 
@@ -314,13 +314,19 @@ The cache row and a durable `event_log` record SHALL be written in one SQLite tr
 
 ### Requirement: The solver is a versioned package behind one entrypoint
 
-The solver SHALL ship as its own version-pinned Python package exposing exactly one stdin/stdout entrypoint, invoked as a short-lived child process. There SHALL be no import from Bun, no daemon, no listening port, and no sidecar.
+The solver SHALL ship as its own version-pinned Python package exposing exactly one **solve** entrypoint over stdin/stdout, invoked as a short-lived child process. There SHALL be no import from Bun, no daemon, no listening port, and no sidecar. The same distribution SHALL also ship the **lifecycle launcher** as a second, non-solving console script `wbs-solver-launcher`, which SHALL NOT import CP-SAT and SHALL NOT read the request before its bind verdict; "exactly one entrypoint" scopes the *solve contract*, and does not forbid the launcher the process ceiling depends on (Fable r14 Important 3, which found the launcher specified everywhere and homed nowhere). Production SHALL reach `wbs-solver` only through that launcher, and the built image SHALL be proved to carry both scripts.
 
 #### Scenario: the coordinator invokes the solver only as a child process
 
 - **GIVEN** a solver run
 - **WHEN** the coordinator starts it
-- **THEN** it spawns the package entrypoint, writes one JSON line to stdin, reads one JSON line from stdout, and the process exits
+- **THEN** it spawns `wbs-solver-launcher`, which after a `bound` verdict `exec`s the package's solve entrypoint in place, one JSON line is written to stdin, one JSON line is read from stdout, and the process exits
+
+#### Scenario: the package's solve entrypoint is also directly spawnable as a smoke test
+
+- **GIVEN** the built image and no coordinator
+- **WHEN** the solve entrypoint is spawned directly with one JSON line on stdin
+- **THEN** it answers on stdout — a package smoke test only, explicitly not the production path, which always goes through `wbs-solver-launcher`
 
 ### Requirement: A pending optimized variant keeps Fast on screen
 
@@ -499,7 +505,7 @@ Canonicalization SHALL group slices by work item, order the groups by work-item 
 
 ### Requirement: Every new stored enum is validated at the read boundary
 
-The migrations SHALL declare a `CHECK` for each new enum stored in its own scalar column (`status`, `objective`, `failureReason`, `schedule_engine`, `schedule_objective`, and `admissionState`) and for the new boolean column, and the repository read paths SHALL validate those scalar values explicitly, throwing an error naming the column and stored value on an unknown one, as `toProject` already does for `estimateMethod`, `depReach` and `estimateRounding`. Enums inside opaque `resultJson` (`publication` and per-term `status`) SHALL have codec validation only and SHALL NOT have a JSON-validity or JSON-extraction database `CHECK`. The system SHALL NOT cast or default an unknown stored enum.
+The migrations SHALL declare a `CHECK` for each new enum stored in its own scalar column (`status`, `objective`, `failureReason`, `schedule_engine`, `schedule_objective`, `admissionState`, and `solver_slot.lifecycle`) and for the new boolean column, and the repository read paths SHALL validate those scalar values explicitly, throwing an error naming the column and stored value on an unknown one, as `toProject` already does for `estimateMethod`, `depReach` and `estimateRounding`. Enums inside opaque `resultJson` (`publication` and per-term `status`) SHALL have codec validation only and SHALL NOT have a JSON-validity or JSON-extraction database `CHECK`. The system SHALL NOT cast or default an unknown stored enum.
 
 #### Scenario: an unknown failure reason is refused rather than defaulted
 

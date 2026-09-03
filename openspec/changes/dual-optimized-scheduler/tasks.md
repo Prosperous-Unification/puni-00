@@ -376,14 +376,26 @@ h2puni is green — no build or autotest runs on the workspace box.
       blue/green deploy cannot return to the applied set. Proved by
       apply → rollback → re-apply against the applied set, not by inspection.
       The rollback assertion **enumerates** what this slice added — the
-      three tables plus `project.optimization_delete_pending_at` (3.1b) —
-      rather than counting them.
+      **four** tables `optimized_schedule_cache` (3.1),
+      `optimization_generation`, `solver_slot` and `solver_queue` (3.2), plus
+      `project.optimization_delete_pending_at` (3.1b) — rather than counting
+      them. **The count is four, not three (Fable r14 Important 1):** "three
+      companion tables" beside the cache is the phrase this enumeration was
+      written from, and an implementer building `down.sql` from a
+      three-item list ships a rollback that strands one table — the aborted
+      blue/green failure this task exists to prevent.
 - [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
       ('timeout','invalid-output','no-solution','internal-error','oom',
       'horizon-overflow','objective-overflow'))` — any non-null text was
       previously accepted. `optimization_generation.admission_state` also has
       `CHECK (admission_state IN ('open','draining'))` plus an explicit read
       validator; it is a scalar enum, not an enum hidden in `resultJson`.
+      **`solver_slot.lifecycle` is the third one and was missing its validator
+      (Fable r14 Important 2):** 3.2 declares its `CHECK` inline, but a
+      `CHECK` alone is not the stored-enum rule — it gets an explicit read-time
+      validator beside `admission_state`'s, throwing and naming the column and
+      the stored value, and the negative test below injects an unknown
+      lifecycle exactly as it does for the other scalar enums.
 - [ ] 3.9 **Proven by** `optimization-generation.db.test.ts`, run through the
       production repositories: a blue/green pair with two distinct
       `contractVersion` values neither reallocates nor deletes the other's
@@ -790,7 +802,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       point the arrow at a slice from a different pool and split it from the
       team sentence that explains it (Fast selects from
       `capacityTeamBlockers` for this reason,
-      `libs/domain/src/schedule.ts:1316-1335`). 4.9's and 4.11's existing
+      `libs/domain/src/schedule.ts:1283-1288 for the rule, 1311-1334 for the selection loop it constrains`). 4.9's and 4.11's existing
       cases prove pool filtering and team selection but not the referent, so
       an implementation selecting from the union passes all of them.
       **Watched red:** a fixture with two eligible binding pools whose latest
@@ -814,7 +826,10 @@ h2puni is green — no build or autotest runs on the workspace box.
       port. Version readable by the coordinator for `contractVersion`. The
       entrypoint calls `prctl(PR_SET_PDEATHSIG, SIGKILL)` **before** reading
       stdin, so a reparented child dies with its parent rather than waiting to
-      be found.
+      be found. In production this is a **re-assertion**, not the first
+      install: 6.2b's launcher wrapper sets it before the bind and the setting
+      survives the `exec` onto the same pid (Fable r14 Minor 4). It is kept as
+      defence in depth for the direct-spawn smoke test, where no launcher ran.
 - [ ] 5.2 Objectives, stated as executable mathematics rather than prose:
       `MAKESPAN = max finish`; `PRIORITY = Σ priorityWeight(s) · finish(s)`;
       `MOVEMENT = Σ |start(s) − baselineOffsets[s]|`. PRI minimizes
@@ -929,11 +944,21 @@ h2puni is green — no build or autotest runs on the workspace box.
       guard test for the weighted form's bound.
 - [ ] 5.11 Packaging into the deployed artifact: the Dagger/image path installs
       the pinned Python runtime and the locked OR-Tools environment, copies
-      the package and entrypoint into the be-01 runtime, and exposes the
-      installed version to the coordinator as the `solverVersion` half of
-      `contractVersion`. An Nx target runs the Python suite in the gate.
-      **Watched red:** build the image without the package; the spawn proof
-      must fail with `internal-error` rather than silently falling back.
+      the package and **both** its console scripts — the solve entrypoint
+      `wbs-solver` and the lifecycle launcher `wbs-solver-launcher` (6.2b) —
+      into the be-01 runtime, and exposes the installed version to the
+      coordinator as the `solverVersion` half of `contractVersion`. An Nx
+      target runs the Python suite in the gate. **Both scripts are proved from
+      the built image (Fable r14 Important 3):** the existing direct spawn of
+      the solve entrypoint stays as the package smoke test, and a second proof
+      spawns `wbs-solver-launcher` and drives the production path through a
+      real bind. Without it a green gate coexists with an image whose launcher
+      is absent, which fails every production solve at bind time — the exact
+      packaging failure this task exists to close.
+      **Watched red (two):** build the image without the package; the spawn proof
+      must fail with `internal-error` rather than silently falling back. Then
+      build it with the solve entrypoint but **without** the launcher: the
+      smoke test still passes and the launcher-path proof must fail.
 
 ## 6. OptimizationCoordinator — admission, spawn, cancel, restart
 
@@ -1015,7 +1040,18 @@ h2puni is green — no build or autotest runs on the workspace box.
       removed: both real children exit within one heartbeat interval, and
       neither can store a result, write a failure marker, or emit any event.
 - [ ] 6.2b **Spawn handshake: reserve, spawn, bind, fence** (Sol r12
-      Critical 2; Sol r13 Critical 1). After 6.2's `starting` insert the coordinator spawns a small
+      Critical 2; Sol r13 Critical 1; Fable r14 Important 3). **The launcher's seam, which no
+      task named until now:** it is created by this task as a second console
+      script `wbs-solver-launcher` in the **same** `wbs-solver` distribution —
+      not a be-01 file and not a separate package — because it must be present
+      wherever `wbs-solver` is, must version-lock to it (both sides of the bind
+      protocol change together), and the image build already installs exactly
+      that one distribution. It imports no CP-SAT. `wbs-solver` remains the
+      only *solve* entrypoint; spec.md's "exactly one entrypoint" is scoped to
+      the solve contract accordingly, and 5.11 installs and proves both scripts.
+      *Assumption, falsifiable:* if the launcher ever needs a dependency the
+      solver distribution must not carry, split it into its own version-pinned
+      package and give 5.11 a second install proof. After 6.2's `starting` insert the coordinator spawns a small
       **lifecycle launcher** — a distinct entrypoint, not `wbs-solver`
       itself — with `--attempt-token` and `--child-deadline-epoch-ms` as
       **argv**, never as request fields — both are clock/identity derived and
