@@ -49,7 +49,7 @@ export const SOLVER_QUANTUM = 48;
  * the same accumulated-division drift that function exists for, so borrowing it
  * keeps one 1e-9 window in the domain instead of two that agree until one is
  * edited. It is applied to units rather than to workdays, and deliberately
- * *after* the multiplication rather than before — `durationOf`'s result is a
+ * after the multiplication rather than before: `durationOf`'s result is a
  * genuine fraction that must not be snapped (0.2 is not drift), and only the
  * product is supposed to be an integer.
  *
