@@ -77,7 +77,7 @@ const tracing = (
           reads += 1;
           trace.statements.push('read');
           const foreign = options.foreignWrite;
-          if (foreign !== undefined && reads === foreign.atRead) {
+          if (reads === foreign?.atRead) {
             foreign.on.run(sql.raw(foreign.sql));
           }
           if (options.failReadNumber !== undefined && reads === options.failReadNumber) {
