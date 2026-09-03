@@ -145,11 +145,29 @@ are the ones TASK-219 reads; slices 1–5 and 9 may trail it.
       leaves**. The parent-with-no-bound-leaf case is the test that pins the
       as-authored choice: its hash must change even though the fold emits no
       constraint.
-- [ ] 7.2 Every "six arguments" / "all six" phrasing amended in the same commit:
-      `notes/wbs-dual-optimized-scheduler-design.md` §2.2,
-      `openspec/changes/dual-optimized-scheduler/design.md` and
-      `.../specs/scheduler-optimization/spec.md`. Grep for the literal counts;
-      a stale count is a false statement about the hash, not a typo.
+- [ ] 7.2 Four stale statements amended in the same commit. **Grep for the
+      literal `schedule(rows, edges, slices, notBefore, poolSizes, reach)`, not
+      for "six"** — verified 2026-09-03, only one of the four uses the count
+      word and the other three state the tuple literally, so a count-word grep
+      passes green while three normative artifacts still say the hash covers six
+      arguments:
+      (a) `openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md`,
+      the "exact argument tuple of the Fast pass" requirement — normative, and
+      the one an implementer would resolve a disagreement against;
+      (b) `openspec/changes/dual-optimized-scheduler/design.md`, the **Canonical
+      input** bullet;
+      (c) `openspec/changes/dual-optimized-scheduler/tasks.md` slice 1.1, the
+      tuple the implementer builds from;
+      (d) `notes/wbs-dual-optimized-scheduler-design.md` §2.2, both the "all six
+      arguments" sentence and its numbered list — **a workspace file, not a wbs
+      one**, so a grep inside the wbs checkout will not see it.
+      A stale tuple is a false statement about the hash, not a typo.
+- [ ] 7.2b **Do not amend the review ledger.** The round-1 row of
+      `notes/wbs-dual-optimized-scheduler-design.md`'s ledger reads "Canonical
+      input rebuilt from `schedule()`'s actual six arguments" and is a record of
+      what round 1 found and fixed. Rewriting it to seven makes it a false
+      record. Amend normative text; never history. This is the one occurrence
+      7.2's grep will surface that must be left alone.
 - [ ] 7.3 `SCHEDULER_CONTRACT_VERSION` bumped, which re-keys the Fast golden
       corpus in the same commit and evicts every pre-existing cache row. There is
       **no** data migration of cached results.

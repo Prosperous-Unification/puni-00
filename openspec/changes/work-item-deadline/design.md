@@ -349,10 +349,31 @@ argument §2.2 already makes for hashing `priority` as written.
 Consequences that must be written into the dual-scheduler artifacts, not left
 implied:
 
-- The canonical input list grows from six entries to seven. Every "six
-  arguments" / "all six" phrasing in `notes/wbs-dual-optimized-scheduler-design.md`
-  §2.2, `openspec/changes/dual-optimized-scheduler/design.md` and
-  `specs/scheduler-optimization/spec.md` is stale on merge.
+- The canonical input list grows from six entries to seven, which makes four
+  existing statements false on merge. **Do not grep for "six".** Verified
+  2026-09-03 against the artifacts themselves: the word appears in exactly one
+  of the four, and the other three state the tuple literally with no numeral, so
+  a count-word grep passes green while three normative artifacts still say the
+  hash covers six arguments. **Grep for the literal string
+  `schedule(rows, edges, slices, notBefore, poolSizes, reach)`**, which is what
+  actually occurs in all four:
+
+  | File | Where | What is stale |
+  |---|---|---|
+  | `openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md` | §"The canonical input is the exact argument tuple of the Fast pass" | the normative tuple and its enumeration |
+  | `openspec/changes/dual-optimized-scheduler/design.md` | the **Canonical input** bullet | the tuple and its hashed-fields list |
+  | `openspec/changes/dual-optimized-scheduler/tasks.md` | slice 1.1 | the tuple the implementer builds from |
+  | `notes/wbs-dual-optimized-scheduler-design.md` §2.2 | "carries all six arguments and nothing else" + the numbered list | the count word **and** the list |
+
+  `openspec/changes/dual-optimized-scheduler/tasks.md` was missing from the
+  first version of this list and is the one an implementer actually follows.
+  **`notes/wbs-dual-optimized-scheduler-design.md` is a workspace file, not a
+  wbs one** — a grep run inside the wbs checkout will never see it.
+
+  **One occurrence must NOT be amended:** the round-1 row of that note's review
+  ledger ("Canonical input rebuilt from `schedule()`'s actual six arguments"). A
+  ledger records what a past round found and fixed; rewriting it to say seven
+  would make it a false record of round 1. Amend normative text, never history.
 - `SCHEDULER_CONTRACT_VERSION` **must be bumped**. The canonical input, the wire
   and the materialiser all change, so every pre-existing cache row is describing
   a different function. The bump is what evicts them; there is no data migration
