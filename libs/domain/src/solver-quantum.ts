@@ -93,7 +93,7 @@ function quantise(slice: Slice): { units: number; rounded: boolean } {
   const exact = snapWorkdays(durationOf(slice) * SOLVER_QUANTUM);
   if (!Number.isFinite(exact) || exact < 0) {
     throw new Error(
-      `slice ${slice.workItemId} has no finite duration in solver units: width ${slice.width}, days ${String(slice.days)}`,
+      `slice ${slice.workItemId} has no finite duration in solver units: width ${String(slice.width)}, days ${String(slice.days)}`,
     );
   }
   const units = Math.ceil(exact);
