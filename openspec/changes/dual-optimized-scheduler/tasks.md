@@ -181,7 +181,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       ancestor's). `edges` are already leaf-expanded with `reach` applied and
       already include the intra-item step-order edges, so Python never receives
       the tree, `parentId`, or `dep_reach`. `horizonUnits` is the **serial
-      bound** `max(notBeforeUnits) + Σ durationUnits` — not the Fast makespan
+      bound** `max(0, ...notBeforeUnits) + Σ durationUnits`, seeded with zero so a
+      plan with no manual floors at all (the common case) has a defined value
+      — not the Fast makespan
       plus remaining effort, which is not an upper bound once the optimizer may
       idle a slice — checked against `2^31 − 1` before spawn (2.10). The
       request also carries `wireVersion` and `fastHint`; every field and unit
@@ -258,10 +260,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       Fast. **Watched red** — the fixture that proves the earlier plan was
       wrong: three serial slices with `days=1, width=5` (real Fast finishes at
       28.8 units, the rounded model needs 30). Assert the hint is feasible,
-      `MOVEMENT` is defined against it, and the stored variant's primary term
-      measured in the real domain is no worse than real Fast's, falling back to
-      Fast's own materialised schedule tagged `'quantisation-floor'` (6.x
-      publication guard) when quantisation costs more than the search won.
+      `MOVEMENT` is defined against it, and — via **task 4.11b, the real-domain
+      publication guard**, which is where that comparison actually lives — the
+      stored variant's primary term measured in the real domain is not worse
+      than the real Baseline schedule's, falling back to Fast's own
+      materialised schedule tagged `'quantisation-floor'` when quantisation
+      costs more than the search won. Also assert the **request** carries the
+      quantised offsets: on this fixture `baselineOffsets` and `fastHint` must
+      be the 30-unit integer values, never real Fast's 28.8-unit ones, checked
+      against the golden request fixture and `solver-wire.v1.json`.
 
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
@@ -340,11 +347,25 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 3.9 **Proven by** `optimization-generation.db.test.ts`, run through the
       production repositories: a blue/green pair with two distinct
       `contractVersion` values neither reallocates nor deletes the other's
-      rows, while a real plan edit still fences both; deleting a project
-      cascades its generation, slot and queue rows away; and a retired contract
-      version's rows are removed with everything keyed to them. **Watched red:**
-      move the generation back onto `project` and the blue/green case must
-      fail.
+      rows, while a real plan edit still fences both; and a retired contract
+      version's rows are removed with everything keyed to them, **after the
+      drain below**. **Watched red:** move the generation back onto `project`
+      and the blue/green case must fail.
+- [ ] 3.9b **Deletion and retirement are two-phase cancel-and-drain, proven by
+      a real two-coordinator process test** (Sol r10 Critical 2).
+      `optimization-drain.proc.test.ts` samples the **real OS process count**
+      throughout, not a mocked spawner. Phase 1 closes the project (or contract
+      version) to new admission; phase 2 is one transaction that advances
+      `cancelEpoch`, stamps `cancel_requested_at` on its `solver_slot` rows and
+      deletes its `solver_queue` rows; phase 3 drains, leaving those slot rows
+      **counted and undeleted** until each is released by its owner or passes
+      its stored `admittedDeadlineAt`; phase 4 deletes the generation or
+      project row and lets the `ON DELETE CASCADE` take the remainder. The
+      cascade remains declared as the orphan backstop, not the mechanism.
+      **Watched red:** restore the immediate slot cascade — delete the project
+      row while its child still runs — and the sampled process count must
+      exceed 16 as a second project admits into the freed capacity. A second
+      red: skip phase 1 and a dequeue must admit into the draining project.
 
 ## 3b. Project settings columns and API (PROD MODE — reviewed PR, no self-merge)
 
@@ -575,6 +596,36 @@ h2puni is green — no build or autotest runs on the workspace box.
       the three-way `w.start === pinnedStart` split and the slice must report
       `boundBy: 'capacity'` with an empty `capacityPredecessorIds` and a null
       `capacityTeamId`, failing the render invariant.
+- [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
+      numbered slice implemented this at all; 2.11 pointed at a "6.x
+      publication guard" that does not exist, so the guarantee had no owner.
+      It runs **after 4.9's materialisation and before any cache write**, in
+      `libs/domain`, on the materialised schedule: (a) compute the **Baseline
+      schedule** — *real* Fast, fractional `days / width` intact, over the same
+      canonical input; (b) recompute the variant's **primary** term
+      (`MAKESPAN` for Time, `PRIORITY` for PRI) on both the materialised
+      optimized schedule and the Baseline schedule, **in the real domain**;
+      (c) if the optimized primary is **strictly worse** than the Baseline's,
+      substitute the Baseline's own materialised schedule and store it with
+      `publication: 'quantisation-floor'`, every `value` recomputed in the real
+      domain, null `stageValue`/`bound` and `status: 'unknown'` (4.12b);
+      otherwise store the solver's schedule with `publication: 'solver'`.
+      The predicate is **worse**, never "not strictly better": an *equal*
+      primary may carry a strictly better secondary term, and discarding that
+      result would throw away a real improvement the user asked for.
+      **Proven by** two fixtures, both on the production write path: (i) the
+      width-5 case — three serial `days=1, width=5` slices, real Fast at 28.8
+      units against a quantised model that needs 30 — where the solver's
+      quantisation-optimal answer is *worse* in the real domain and the stored
+      row must be Fast's schedule tagged `'quantisation-floor'`; (ii) an
+      **equal-primary, better-secondary** fixture where the optimized primary
+      ties the Baseline's and its secondary is strictly better — the stored row
+      must be the **solver's**, tagged `'solver'`.
+      **Watched red:** weaken the predicate to "not strictly better" and (ii)
+      must fail by substituting Fast; score in the **quantised** domain instead
+      of the real one and (i) must fail by publishing the worse schedule as
+      `'solver'`; move the guard after the cache write and (i) must fail with a
+      `'solver'` row already durable.
 - [ ] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
       (Sol r7 Critical 6). `objectiveValues` is what records how far a
       partially staged run got, and the publication guard must persist
@@ -705,12 +756,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       No task, design paragraph or note prose spells an alternate request or
       response field list; 2.1 is the single normative definition and every
       other mention points at it.
-- [ ] 5.9 Fast's placement is supplied as both a CP-SAT solution hint and an
-      upper bound on stage 1's term, which is what makes the only guarantee
-      the design now claims — *each variant's primary term is no worse than
-      Fast's* — true under a wall-clock budget. **Watched red:** remove the
-      bound and run a fixture where the search's first incumbent is worse than
-      Fast on that term.
+- [ ] 5.9 The **quantised** Fast baseline is supplied as both a CP-SAT solution
+      hint and an upper bound on stage 1's term. That bound holds **only in the
+      quantised model** (Sol r10 Critical 3): it guarantees the solver never
+      returns a quantised primary worse than quantised Fast's, and it says
+      nothing about the real domain, because rounding `days / width` up can
+      itself cost more than the search wins. The real no-worse-than-Fast
+      guarantee is made by **task 4.11b's publication guard**, not here.
+      **Watched red:** remove the bound and run a fixture where the search's
+      first incumbent is worse than quantised Fast on that term.
 - [ ] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
       bounded 2-6 slice fixture, sufficiently large coefficients encode the
       same lexicographic order exactly, so PRI/Time disagreement proves
@@ -831,9 +885,11 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 6.9b **The empty project bypasses both solvers** (Sol r7 Important 12).
       A project with no slices is legal — `schedule` handles it explicitly with
       `projectFinish = Math.max(0, ...placedFinishes)` and empty maps — but
-      `MAKESPAN = max finish` and `horizonUnits = max(notBeforeUnits) +
-      Σ durationUnits` have no empty-set identity, so both maxima were
-      undefined on a plan the product allows. The coordinator short-circuits: a
+      `MAKESPAN = max finish` has no empty-set identity, so it was undefined on
+      a plan the product allows. `horizonUnits` is **not** a second reason: its
+      `notBeforeUnits` max is seeded with zero (task 2.3), so it is defined for
+      every plan, including one with slices and no manual floors — the common
+      case (kimi r10 Minor 4). The coordinator short-circuits: a
       canonical input with zero slices, or one whose durations are all zero,
       allocates no slot, spawns nothing, writes no cache row and emits no
       event; the plan read returns Fast with every variant `idle`. **Watched
