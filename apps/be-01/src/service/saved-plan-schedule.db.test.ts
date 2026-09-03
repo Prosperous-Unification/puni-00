@@ -65,7 +65,7 @@ describe('scheduling a captured plan', () => {
       wrote,
     );
     await new ProjectRepository(db).create(
-      projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'single' }),
+      projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'realistic' }),
       [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
       wrote,
     );
@@ -132,7 +132,7 @@ describe('scheduling a captured plan', () => {
   /**
    * The instrument reads non-zero while a handle is open.
    *
-   * Without this, `liveDuringSchedule === 0` above would also pass against a
+   * Without this, the `[0]` sample above would also pass against a
    * counter that never increments — a liveness assertion that cannot fail,
    * which is what task 3.3 names as the failure mode. The other half of the
    * proof is the watched red recorded in `verify.md`: the scheduling call moved
@@ -148,7 +148,7 @@ describe('scheduling a captured plan', () => {
   it('schedules every leaf from the captured values alone', async () => {
     const result = await captureAndSchedulePlan(capture(), 'p1');
     expect(result).not.toBeNull();
-    const { reads, planned } = result as NonNullable<typeof result>;
+    const { reads, planned } = result!;
     expect([...planned.workItems.keys()].sort()).toEqual(['wi-1', 'wi-2']);
     // Recomputed from the same detached values, on no connection at all: the
     // schedule is a function of the capture and of nothing else, so a second
