@@ -1,4 +1,4 @@
-import { SOLVER_QUANTUM, leafDeadlinesOf, leafFloorsOf } from '@wbs/domain';
+import { leafDeadlinesOf, leafFloorsOf, SOLVER_QUANTUM } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { deadlineUnitsOf, notBeforeUnitsOf } from './solver-units';
