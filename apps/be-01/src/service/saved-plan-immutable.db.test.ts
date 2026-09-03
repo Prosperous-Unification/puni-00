@@ -109,17 +109,19 @@ describe('a saved plan does not move when the live plan does', () => {
       now: () => OPENED_AT,
     }).save({ projectId: 'p1', name: 'before the rewire', createdBy: 'Ada Lovelace' });
 
-  /** Everything the record holds, read the way another process would read it. */
-  const stored = async (): Promise<{
-    header: Record<string, unknown>;
-    bodies: Record<string, string>;
-  }> => {
+  /**
+   * Everything the record holds, read the way another process would read it.
+   *
+   * Returned as drizzle typed the rows — no `Record<string, unknown>` in
+   * between. A cast to an index signature would make every column below an
+   * `unknown` compared against an `unknown`, which is a comparison that cannot
+   * be wrong and therefore cannot be evidence.
+   */
+  const stored = async () => {
     const headers = await reader.db.select().from(savedPlan);
     expect(headers.length).toBe(1);
     const rows = await reader.db.select().from(savedPlanBody);
-    const bodies: Record<string, string> = {};
-    for (const row of rows) bodies[row.kind] = row.bytes;
-    return { header: headers[0] as unknown as Record<string, unknown>, bodies };
+    return { header: headers[0], bodies: new Map(rows.map((row) => [row.kind, row.bytes])) };
   };
 
   it('keeps both bodies and both hashes byte-identical across five live edits', async () => {
@@ -158,13 +160,13 @@ describe('a saved plan does not move when the live plan does', () => {
     // Bytes first: this is the property, and the hashes below are the check a
     // reader can make cheaply once it holds them.
     expect(after.bodies).toEqual(before.bodies);
-    expect(sha256(after.bodies.input)).toBe(before.header.inputSha256);
-    expect(sha256(after.bodies.schedule)).toBe(before.header.scheduleSha256);
+    expect(sha256(after.bodies.get('input')!)).toBe(before.header.inputSha256);
+    expect(sha256(after.bodies.get('schedule')!)).toBe(before.header.scheduleSha256);
     // The whole header, not the two hash columns: `input_bytes`,
     // `scheduler_algorithm_id` and `created_at` are as restatable as the digests
     // are, and an assertion on the hashes alone would not notice them moving.
     expect(after.header).toEqual(before.header);
     // And the saved plan still names the item the live plan no longer has.
-    expect(before.bodies.input).toContain('wi-2');
+    expect(before.bodies.get('input')!).toContain('wi-2');
   });
 });
