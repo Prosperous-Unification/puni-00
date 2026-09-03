@@ -15,12 +15,15 @@ comparison UI) and start only after slice 6 is merged.
 - [ ] 1.2 `CanonicalPlanInput` in `libs/domain/src/saved-plan/` — the closed
       field list from spec.md, which enumerates the project metadata and the
       work-item columns rather than gesturing at them, and includes
-      `frozen_number`, `service_team_id`, `service_id`, `person_team` and
-      `team_service`. JSDoc says why the list is closed and what is deliberately
+      `frozen_number`, `service_team_id`, `service_id`, `person_team`,
+      `team_service`, and the referenced `tag` / `work_item_type` /
+      `external_system` rows by value (id and name), because the items store only
+      ids into live renameable registries. JSDoc says why the list is closed and what is deliberately
       outside it: `project_access` and anything recording who last opened what,
       the audit columns (`created_at`/`updated_at`/`created_by` are about
-      editing, not about the plan), and `broadcast.latestSeq`. Types only, no
-      reads.
+      editing, not about the plan), `work_item.revision` and `project.revision`
+      (write counters — two identical plans would diff as changed), and
+      `broadcast.latestSeq`. Types only, no reads.
 - [ ] 1.3 `canonicalisePlanInput(values)` — a pure function from already-read
       rows to `CanonicalPlanInput`, with a **stable** key order and a stable
       ordering of every collection, because the SHA-256 is taken over its
@@ -57,6 +60,14 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 3. The capture, inside one read snapshot
 
+- [ ] 3.0 **The scheduling algorithm identity.** No such constant exists in the
+      checkout (no `SCHEDULE_ALGORITHM`, `schedulerAlgorithm` or `algorithmId` in
+      `libs/domain` or `apps/be-01`). Define it in `libs/domain` beside
+      `schedule()`, with JSDoc stating the rule that moves it: any change to
+      `schedule()`'s semantics — TASK-219's dual objective and TASK-240's deadline
+      both qualify — bumps it in the same commit. Without the rule the column is a
+      constant, stored plans read "same algorithm" across a semantics change, and
+      the silent restatement it exists to prevent happens anyway.
 - [ ] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — every read of
       the projection inside one `BEGIN DEFERRED` on a read connection. JSDoc names
       the **twelve** plan reads it replaces (ten at
@@ -77,6 +88,9 @@ comparison UI) and start only after slice 6 is merged.
       appear.
 - [ ] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
       Test: assert no database handle is live during the scheduling call.
+      Negative: run `schedule()` inside the snapshot and watch 3.3 fail — a
+      liveness assertion that cannot fail would let a levelling run hold the read
+      transaction open, which is the cost slice 3 is shaped to avoid.
 - [ ] 3.4 The schedule body carries the **whole** `Scheduled`/`ScheduledSlice`
       field set (`schedule.ts:116-125`, `:156-234`) plus the top-level `Schedule`
       counts `waitingForPerson` and `waitingForCapacity` (`schedule.ts:246-263`),
@@ -123,11 +137,15 @@ comparison UI) and start only after slice 6 is merged.
       refusal arrives before the first has finished writing. Negative: replace the
       mechanism with an in-memory in-flight set and watch the two-connection test
       observe two commits.
-- [ ] 4.5 `snapshot_busy`: `busy_timeout` 5 s on the write connection, a
-      `SQLITE_BUSY` at that bound mapped to the typed outcome. Test holds the
-      write lock from another connection and asserts both the refusal **and** that
-      a live edit issued in the same window completes. Negative: raise the timeout
-      to 60 s and watch the live-edit assertion fail.
+- [ ] 4.5 `snapshot_busy`: `busy_timeout` **0** on the save's write connection —
+      the same setting 4.4 builds, not a second one — and a bounded caller retry
+      loop capped at **5 s total**. A single blocking 5 s acquire is the wrong
+      shape: it serialises two saves and both commit, which is exactly what
+      spec's "refused, not serialised" forbids and what 4.4's two-connection test
+      catches. Test holds the write lock from another connection and asserts both
+      the refusal **and** that a live edit issued in the same window completes.
+      Negative: replace the retry loop with a single 60 s blocking acquire and
+      watch the live-edit assertion fail.
 - [ ] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
@@ -200,6 +218,12 @@ comparison UI) and start only after slice 6 is merged.
 - [ ] 7.3 `projectCurrentPlan()` materialises the live plan through
       `canonicalisePlanInput`, writes nothing, and consumes no quota. Test:
       compare against `current` and assert no row was written.
+- [ ] 7.3b **The compare route**, on `savedPlanController` under the project's
+      read rule: two sides, each a saved-plan id or `current`. It has to be a
+      route — `current` needs the twelve-read server-side capture of 7.3, so the
+      diff cannot run client-side. Extend 6.2's permission matrix to this sixth
+      route, including the case where one side is a saved plan the caller may read
+      and the other is `current` on a restricted project.
 - [ ] 7.4 Cross-version diff: a stored v*n* body against a live v*n+1* projection
       normalises forward in memory; the stored bytes are unchanged afterwards
       (asserted by hash). An unknown version fails loudly. Negative: rewrite the

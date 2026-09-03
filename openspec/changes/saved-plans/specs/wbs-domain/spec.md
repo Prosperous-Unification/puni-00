@@ -24,7 +24,19 @@ The **plan input** body SHALL hold:
 - the token and hour measures;
 - ownership — assignments, people, teams, services, `work_item_team`,
   `work_item_service`, `person_team` and `team_service`;
-- the dependencies, the priority bands and the team capacity.
+- the dependencies, the priority bands and the team capacity;
+- **the referenced registry rows, by value** — for every tag id, work-item-type
+  id and external-system id the captured items use, that row's id **and name**
+  (`tag`, `schema.ts:968-972`; `work_item_type`, `:1063-1067`;
+  `external_system`, `:1085-1089`).
+
+The registries are captured because the items store only ids and the registries
+are live, renameable and deletable. Without their names a saved plan cannot be
+rendered at all without reading a live table — which the first paragraph of this
+requirement forbids — and resolving them against the live registry instead
+restates history on a rename and loses the label outright on a delete. That is
+the same failure the `keep` decision closed for people, and it is closed here for
+labels on the same terms.
 
 `frozen_number` is captured because it is the whole freeze mechanism
 (`schema.ts:262`, `:282`) and gates live edits; a freeze that a saved plan cannot
@@ -32,7 +44,9 @@ see compares as no change. `service_team_id` and `service_id` are captured
 because they are live, patchable columns (`schema.ts:376`, `:419`) rather than
 derivations of the junction tables. `created_at`, `updated_at` and `created_by`
 on the plan's own rows are NOT captured: they are audit metadata about editing,
-not the plan.
+not the plan. Neither is `work_item.revision` nor `project.revision`
+(`schema.ts:215`): they count writes, so two content-identical plans carrying
+different counters would diff as changed.
 
 The **schedule** body SHALL hold the complete `Scheduled` and `ScheduledSlice`
 field set that `schedule()` returned, in working-day offsets, **and** the ISO

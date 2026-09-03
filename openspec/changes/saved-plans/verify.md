@@ -39,13 +39,13 @@ until it has been.
 | Rename is permissioned like delete (6.2) | rename given the project's ordinary write rule — the third-party case must fail | |
 | The concurrency refusal is SQLite-visible (4.4) | the mechanism replaced with an in-memory in-flight set, watched on two connections | |
 | The quota check runs inside the write transaction (4.6) | the count check moved outside `BEGIN IMMEDIATE`, two saves at 99/100 | |
+| `schedule()` runs outside the read snapshot (3.3) | `schedule()` called inside the snapshot — the liveness assertion must fail | |
+| The save never blocks on a single acquire (4.5) | the bounded retry replaced with one 60 s blocking acquire | |
 | The stored schedule is deep-equal to `schedule()`'s return (3.4) | `resourcePredecessorId` dropped from the writer — the equality must name the key | |
 | Project delete cascades to headers and bodies (2.3) | the `ON DELETE CASCADE` clause removed from the migration | |
 | Capture is one read snapshot (3.2) | the shared read transaction replaced with a connection per read | |
-| The schedule body carries every field (3.4) | `resourcePredecessorId` dropped from the writer | |
 | Immutability, asserted by hash (4.2) | one captured field dropped from the writer — the hash must move even though every asserted field is still present | |
 | Save writes nothing on failure (4.3) | a throw injected between the header and the input body | |
-| Save fails fast, never queues (4.5) | `busy_timeout` raised to 60 s — the live-edit assertion must fail | |
 | Quota refuses before any write (4.6) | the quota check moved after the header insert | |
 | The read never recomputes (5.1) | the reader re-derives dates from the stored settings — a date comparison would pass, the scheduler spy must not | |
 | A schedule is refused against the wrong input (5.2) | the writer stores a mismatched `schedule_input_sha256` | |
