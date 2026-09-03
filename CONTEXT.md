@@ -1010,17 +1010,20 @@ the Python package version does not describe.
 _Avoid_: solver version, schema version, cache version
 
 **Generation**:
-A project's monotonic optimization counter, stored beside the Input hash it was allocated
-for and carried by every solver run. The pair is what makes allocation atomic across
-processes: an equal hash reuses the generation, a different one increments it under a
-compare-and-swap. Every cache write is conditional on it still being current, so a
+A monotonic optimization counter held per `(project, Contract version)` in the
+`optimization_generation` table — not on the project row, because a canonicalizer bump
+would otherwise let two coexisting releases increment one counter against each other for
+ever. It is stored beside the Input hash it was allocated for and carried by every solver
+run. The pair is what makes allocation atomic across processes: an equal hash reuses the
+generation, a different one increments it under a compare-and-swap. Every cache write is conditional on it still being current, so a
 superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
 prevent, because an undo can make an old hash current again.
 _Avoid_: run id, epoch, version
 
 **Optimizer floor**:
 The `ScheduleFloor` member `optimizer`, reported when an optimized start is strictly later
-than every floor of its slice — the optimizer deliberately idled it so higher-priority work
+than every floor of its slice — including the person and capacity floors, so a slice
+delayed because its assignee or team was busy keeps that explanation instead — the optimizer deliberately idled it so higher-priority work
 could run. It is the only floor that names a choice rather than a constraint, and like
 `projectStart` it carries no capacity predecessors and no binding team.
 _Avoid_: idle, slack, deliberate delay
@@ -1029,8 +1032,32 @@ _Avoid_: idle, slack, deliberate delay
 `SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
 Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
 CP-SAT interval variables are integers. Durations round **up** to the next unit when an
-estimate does not divide, never down.
+estimate does not divide, never down — which is what makes every quantised-feasible
+solution real-feasible. Because rounding up can also put real Fast's value out of reach
+(three serial `days=1, width=5` slices finish at 28.8 units but need 30 rounded), the
+solver's hint and bound come from the Quantised baseline, never from real Fast.
 _Avoid_: tick, granularity, resolution
+
+**Quantised baseline**:
+Fast's own placement re-run over the rounded durations, in integer solver units. It is what
+the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage,
+because it is feasible in the model the solver actually gets. Distinct from the Baseline
+schedule, which is the real-domain Fast result the publication guard scores against.
+_Avoid_: rounded Fast, hint schedule
+
+**Cancel epoch**:
+A per-project counter advanced when optimization is switched OFF. It exists because the
+toggle is excluded from the Input hash, so an OFF transition cannot advance the Generation
+that allocation is required to reuse. Every write is conditional on it, and owners observe
+it on their slot heartbeat, so a child owned by another backend process is cancelled too.
+_Avoid_: cancel flag, kill switch, generation bump
+
+**Attempt token**:
+The unforgeable 128-bit value minted when a solver slot is admitted, carried by that
+owner's heartbeat, release, result write and event write. It is the fence that stops a
+superseded owner — one whose slot expired and was re-admitted to someone else — from
+refreshing, releasing or writing over the replacement.
+_Avoid_: lease id, lock, owner id
 
 **Baseline schedule**:
 The Fast schedule for the same canonical input, passed to the solver as `baselineOffsets`.
