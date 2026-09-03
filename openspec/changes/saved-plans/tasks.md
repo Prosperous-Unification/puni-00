@@ -48,7 +48,7 @@ comparison UI) and start only after slice 6 is merged.
       for it passed against the broken database. So: write a header and a body,
       delete the project, and assert both rows are gone by reading the tables —
       and assert the delete itself was not blocked.
-- [ ] 2.4 **No `UPDATE` ever targets `saved_plan_body`, and none targets any
+- [x] 2.4 **No `UPDATE` ever targets `saved_plan_body`, and none targets any
       `saved_plan` column except `name`.** A source check over `repository/**` in
       the shape of `audit.test.ts`, scoped to both tables — the header scope is
       not optional: `input_sha256`, `schedule_sha256`, `schedule_input_sha256`
