@@ -67,6 +67,20 @@ same reason it is not a plan version. A concurrent work-item edit, directory
 cascade, step edit or setting change landing between any two of the twelve
 produces a document describing a plan that never existed.
 
+**The capture reads MORE than the projection, and every extra read rides the
+same snapshot.** The projection renders in a browser that can resolve a label
+against the live registry a moment later; a saved plan cannot, so it captures the
+rows the projection only references by id — `tag` (`schema.ts:968`),
+`work_item_type` (`:1063`), `external_system` (`:1085`) and the junctions behind
+labelling and ownership (`work_item_tag` `:1020`, the `typeId` reference `:1131`,
+`work_item_external_ref` `:1170`, `work_item_team` `:921`, `work_item_service`
+`:1343`, `person_team` `:1546`, `team_service` `:1273`). None of these is among
+the thirteen. The read set is therefore bounded by `CanonicalPlanInput`, not by
+the projection, and a capture-only read left outside the snapshot reproduces the
+defect exactly: a tag renamed between the item read and the registry read stores
+pre-edit items beside post-edit labels, and every assertion written against the
+twelve still passes.
+
 No counter repairs it: work-item edits deliberately do not move
 `project.revision` (`schema.ts:207-215`), and priority-band writes move no
 revision at all (`priority-band.ts:22-24`).
@@ -111,6 +125,19 @@ own: an immediate `SQLITE_BUSY` is the typed `snapshot_busy` refusal, and there 
 no window in which a second save waits. The 5-second bound applies to the save's
 *total* attempt including a bounded retry the caller may make, never to a single
 blocking acquire.
+
+**The retry and "refused, not serialised" are the same rule, not two.** What the
+refusal buys is that no save ever *holds the lock while waiting* — that is the
+behaviour that would queue live edits behind two body writes. `SQLITE_BUSY` under
+`busy_timeout` 0 cannot say whether the holder is a rival save or a live edit, so
+a caller retry necessarily retries both, and that is correct: a retry that
+acquires after the rival committed is a **fresh save over a new read snapshot**,
+not the refused one resurrected, and the record it writes describes a plan that
+did exist at that later instant. The project then holds two records, which is the
+honest outcome, not a broken bound. The forbidden shape is the single blocking
+acquire, which produces two records from *one* contended attempt and holds edits
+for the length of it. The spec requirement and its two scenarios are written to
+that boundary.
 
 Three connections are in play and none of them may be the same one: the capture's
 read snapshot, the save's write connection, and whatever handle live edits use.

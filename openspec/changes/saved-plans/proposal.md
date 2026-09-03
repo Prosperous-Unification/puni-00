@@ -29,8 +29,8 @@ scheduler code restates history.
   *and* offsets, the whole `Scheduled`/`ScheduledSlice` field set, plus the
   algorithm identity).
 - The capture runs inside **one SQLite read snapshot**: the live projection reads
-  in ten separate awaited calls (`work-item.service.ts:1285-1312`, `:1364-1385`)
-  and no counter brackets them.
+  in thirteen awaited calls (`work-item.service.ts:1285-1312`, `:1364-1385`),
+  the capture more, and no counter brackets them.
 - **Comparison in both directions.** One diff over two canonical bodies; each
   side is a saved-plan id or the literal `current`, projected through the same
   function and never stored.

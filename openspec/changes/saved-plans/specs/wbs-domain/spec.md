@@ -149,10 +149,17 @@ after a concurrent write.
 The header write and both body writes SHALL be one transaction: on any failure
 no header and no body SHALL survive, and the live plan SHALL be unchanged.
 
-A second save of the same project while one is in flight SHALL be refused with a
-typed outcome, not serialised behind it. The refusal SHALL be visible across
-processes, because blue and green run against one file: an in-process marker is
-not a mechanism.
+A second save of the same project attempted **while the first save's write
+transaction is still open** SHALL be refused with a typed outcome, not serialised
+behind it. The refusal SHALL be visible across processes, because blue and green
+run against one file: an in-process marker is not a mechanism.
+
+The bound is the open transaction, not the caller's whole attempt. A caller
+retry that acquires the lock **after** the rival save has committed is a fresh
+save of the now-current plan and SHALL be allowed to succeed: it captures a new
+read snapshot and writes a record of a plan that did exist at that instant. What
+is forbidden is a second save *waiting on* the first — that is the serialisation
+that holds live edits behind two body writes.
 
 `schedule()` SHALL run over values already read out of that snapshot, never
 inside it, so scheduling work holds no database read.
@@ -172,8 +179,17 @@ inside it, so scheduling work holds no database read.
 
 #### Scenario: two saves at once
 
-- **WHEN** two saves of the same project are requested concurrently
-- **THEN** exactly one writes a record and the other returns a typed refusal
+- **WHEN** two saves of the same project are requested concurrently and the
+  second attempts to acquire while the first's write transaction is still open
+- **THEN** the second returns a typed refusal at that attempt rather than waiting
+  for the first, and the first writes its record
+
+#### Scenario: a retry after the rival committed
+
+- **WHEN** a refused save's bounded caller retry acquires the write lock after
+  the rival save has already committed
+- **THEN** it succeeds as a fresh save over a new read snapshot, and the project
+  holds two records, each describing the plan at its own instant
 
 ### Requirement: Saving never blocks editing, and saved plans are bounded
 
@@ -211,6 +227,14 @@ delete SHALL remove a saved plan.
 Reading a saved plan's schedule SHALL return the stored values and SHALL NOT call
 `schedule()`. The saved plan SHALL be labelled with the scheduling algorithm
 identity stored in its header.
+
+**Any change to `schedule()`'s semantics SHALL change that identity in the same
+commit.** An identity that does not move is a constant, and stored plans then
+read "same algorithm" straight across a semantics change — the silent
+restatement the column exists to prevent. This rule lives here rather than only
+in the implementation plan because `tasks.md` is archived when the change lands
+and this requirement is what survives into the main spec; TASK-219's dual
+objective and TASK-240's deadline each carry the bump.
 
 A schedule body whose stored plan-input SHA-256 does not equal the plan input
 body's SHA-256 SHALL be refused rather than rendered.
@@ -252,10 +276,29 @@ endpoint.
 canonical function the save uses, in memory. It SHALL NOT write a record and
 SHALL NOT count against any quota.
 
-A comparison SHALL report added, removed, renamed, reparented and reordered work
-items, and changed estimates, uncertainty, actuals, progress, measures,
-ownership, dependencies, settings, dates, and freeze — an item whose
-`frozen_number` was set, cleared or changed between the two sides.
+**Any field of the canonical plan input that differs between the two sides SHALL
+appear in the comparison.** The coverage bound is `CanonicalPlanInput`'s field
+list, not a list written here: a field the capture stores and the diff cannot
+report is data the product writes and never shows, which is the same silent-loss
+failure the capture list exists to prevent.
+
+The category names below are **presentation, not coverage** — how differences are
+grouped for a reader, in the same way requirement "the stored schedule is
+deep-equal to `schedule()`'s return" makes the writer's bound the value rather
+than an enumeration. A comparison groups differences as added, removed, renamed,
+reparented and reordered work items, and changed estimates, uncertainty, actuals,
+progress, measures, ownership, dependencies, settings, dates, freeze — an item
+whose `frozen_number` was set, cleared or changed between the two sides — type,
+tags, external references, notes, `priority`, `max_parallel`, service assignment
+(`service_team_id`, `service_id`), `start_no_earlier_than` and its reason,
+priority bands, team capacity, and the registry rows a label resolves through. A
+differing field with no listed category SHALL still be reported, under a
+catch-all group naming the field.
+
+#### Scenario: a captured field the category list does not name
+
+- **WHEN** two sides differ in exactly one field of the canonical plan input
+- **THEN** the comparison is non-empty and names that field, whichever field it is
 
 A body written at schema version *n* SHALL still be readable after the reader
 moves to *n+1*, by normalising forward in memory. Stored bytes SHALL NOT be

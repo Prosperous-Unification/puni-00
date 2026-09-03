@@ -44,6 +44,8 @@ until it has been.
 | The stored schedule is deep-equal to `schedule()`'s return (3.4) | `resourcePredecessorId` dropped from the writer — the equality must name the key | |
 | Project delete cascades to headers and bodies (2.3) | the `ON DELETE CASCADE` clause removed from the migration | |
 | Capture is one read snapshot (3.2) | the shared read transaction replaced with a connection per read | |
+| Every capture-only read rides that snapshot too (3.2) | the registry and junction reads moved outside the transaction with the twelve left inside, then a `tag.name` rename interleaved — the registry-rename case must fail while every projection-boundary assertion still passes | |
+| The compare route carries the project read rule (7.3b) | the route mounted without the read rule — 6.2's anonymous and third-party cases must fail | |
 | Immutability, asserted by hash (4.2) | one captured field dropped from the writer — the hash must move even though every asserted field is still present | |
 | Save writes nothing on failure (4.3) | a throw injected between the header and the input body | |
 | Quota refuses before any write (4.6) | the quota check moved after the header insert | |

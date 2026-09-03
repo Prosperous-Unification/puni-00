@@ -68,24 +68,45 @@ comparison UI) and start only after slice 6 is merged.
       both qualify — bumps it in the same commit. Without the rule the column is a
       constant, stored plans read "same algorithm" across a semantics change, and
       the silent restatement it exists to prevent happens anyway.
-- [ ] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — every read of
-      the projection inside one `BEGIN DEFERRED` on a read connection. JSDoc names
-      the **twelve** plan reads it replaces (ten at
+- [ ] 3.1 `SavedPlanCaptureRepository.readPlanInput(projectId)` — **every read the
+      canonical input requires**, inside one `BEGIN DEFERRED` on a read
+      connection. The bound is `CanonicalPlanInput`'s field list, **not** the live
+      projection's: the projection is where twelve of the reads come from, and the
+      capture list is a strict superset of it. JSDoc enumerates both halves and
+      says why a revision counter cannot substitute.
+      **(i) The twelve plan reads it replaces** — ten at
       `apps/be-01/src/service/work-item.service.ts:1285-1312`, three at
       `:1364-1385`, minus `broadcast.latestSeq`, which is a refresh cursor and is
-      not captured), and why a revision counter cannot substitute.
-      **All twelve run sequentially on one explicitly held connection inside a
-      single transaction block.** A pooled handle checked out per `await` gives
-      each read its own connection and therefore its own snapshot, and the
-      transaction is torn while every line still reads as if it were not — 3.2's
-      test would then be measuring the pool's luck. The JSDoc says this.
+      not captured.
+      **(ii) The capture-only reads, which the projection never makes** — the
+      three registries `tag` (`schema.ts:968`), `work_item_type` (`:1063`) and
+      `external_system` (`:1085`), and the junctions and rows behind the
+      ownership and labelling fields spec.md requires: `work_item_tag` (`:1020`),
+      the work-item/type reference (`typeId`, `:1131`),
+      `work_item_external_ref` (`:1170`), `work_item_team` (`:921`),
+      `work_item_service` (`:1343`), `person_team` (`:1546`), `team_service`
+      (`:1273`), and the team and service rows those junctions name.
+      **All of them, both halves, run sequentially on one explicitly held
+      connection inside a single transaction block.** A pooled handle checked out
+      per `await` gives each read its own connection and therefore its own
+      snapshot, and the transaction is torn while every line still reads as if it
+      were not — 3.2's test would then be measuring the pool's luck. A
+      capture-only read left outside the snapshot is the same defect wearing a
+      different table: a tag renamed between the item read and the registry read
+      stores pre-edit items beside post-edit labels. The JSDoc says both.
 - [ ] 3.2 **The torn-read test, which is the Critical this design exists for.**
-      Pause the capture at **each** read boundary in turn; commit a work-item
-      rename, a directory cascade, a step edit and a setting change in the gap;
-      assert the captured input is entirely before or entirely after that write.
-      Run it on two connections standing in for blue and green. Negative: replace
-      the shared transaction with per-read connections and watch a mixed document
-      appear.
+      Pause the capture at **each** read boundary in turn — including every
+      capture-only boundary from 3.1(ii), not just the twelve projection ones;
+      commit a work-item rename, a directory cascade, a step edit, a setting
+      change, **a registry rename (`tag.name`) and a junction write
+      (`work_item_tag`)** in the gap; assert the captured input is entirely
+      before or entirely after that write. Run it on two connections standing in
+      for blue and green. Negative: replace the shared transaction with per-read
+      connections and watch a mixed document appear. Second negative: move the
+      registry reads outside the transaction, leaving the twelve inside, and
+      watch the registry-rename case produce items and labels from either side of
+      one write — the case that stays green while every projection-boundary
+      assertion still passes.
 - [ ] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
       Test: assert no database handle is live during the scheduling call.
       Negative: run `schedule()` inside the snapshot and watch 3.3 fail — a
@@ -146,6 +167,12 @@ comparison UI) and start only after slice 6 is merged.
       the refusal **and** that a live edit issued in the same window completes.
       Negative: replace the retry loop with a single 60 s blocking acquire and
       watch the live-edit assertion fail.
+      The retry does **not** contradict 4.4: 4.4 asserts the refusal arrives
+      while the rival's transaction is still open, and a retry that acquires
+      after that transaction committed is a fresh save over a new read snapshot,
+      which spec allows explicitly. Second test: let the rival commit inside the
+      5 s window and assert the retry succeeds and the project holds two
+      records with different `created_at` values.
 - [ ] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
@@ -213,8 +240,20 @@ comparison UI) and start only after slice 6 is merged.
       values. One function, both directions.
 - [ ] 7.2 Property test: added, removed, renamed, reparented and reordered items;
       changed uncertainty, effort, actuals, progress, measures, ownership,
-      dependencies, settings and dates. Reordering siblings is a *change*, and
-      re-serializing an unchanged plan is *no* change — assert both.
+      dependencies, settings, dates, **and freeze** (`frozen_number` set, cleared
+      and changed — spec names it and this list omitted it). Reordering siblings
+      is a *change*, and re-serializing an unchanged plan is *no* change — assert
+      both.
+- [ ] 7.2b **The diff-completeness property, which is what stops the capture
+      becoming write-only data.** Over a generated plan, mutate **any single
+      field** of `CanonicalPlanInput` in turn and assert the diff is non-empty and
+      names the field — with the field set **derived from the value**, not written
+      out here, exactly as 3.4 does for the writer. An enumerated list stays green
+      for every field the capture gains later, which is how a changed type, tag,
+      external reference, note or `start_no_earlier_than` would come to compare as
+      "no change" while being faithfully stored. Negative: drop `frozen_number`
+      and then a tag id from `diffPlans`' comparison and watch the property name
+      each missing field.
 - [ ] 7.3 `projectCurrentPlan()` materialises the live plan through
       `canonicalisePlanInput`, writes nothing, and consumes no quota. Test:
       compare against `current` and assert no row was written.
@@ -223,7 +262,11 @@ comparison UI) and start only after slice 6 is merged.
       route — `current` needs the twelve-read server-side capture of 7.3, so the
       diff cannot run client-side. Extend 6.2's permission matrix to this sixth
       route, including the case where one side is a saved plan the caller may read
-      and the other is `current` on a restricted project.
+      and the other is `current` on a restricted project. Negative: mount the
+      compare route without the read rule and watch the matrix's anonymous and
+      third-party cases fail — this is the one permission that can expose a
+      restricted project's *live* plan, through `current`, so its guard owes the
+      same proof every other check here does.
 - [ ] 7.4 Cross-version diff: a stored v*n* body against a live v*n+1* projection
       normalises forward in memory; the stored bytes are unchanged afterwards
       (asserted by hash). An unknown version fails loudly. Negative: rewrite the
