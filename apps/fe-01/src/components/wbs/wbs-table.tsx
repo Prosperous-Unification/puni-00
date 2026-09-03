@@ -2784,7 +2784,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   activeProject.current = projectId;
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   /** The project whose whole tree most recently completed a successful read. */
-  const [treeReadProject, setTreeReadProject] = useState<string | null>(null);
+  const treeReadProject = useRef<string | null>(null);
   /**
    * Everything the chart is drawn from, as **one** read delivered it.
    *
@@ -3711,7 +3711,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
       const drawn = toTree(tree.workItems);
       setWorkItems(drawn);
-      setTreeReadProject(projectId);
+      treeReadProject.current = projectId;
       // The open hover card, settled against the rows that just arrived. The
       // previous placements are read into a local **before** the ref is replaced:
       // React may run the updater below after this call returns, and reading the
@@ -4149,7 +4149,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     return out;
   }, [workItems]);
 
-  const hasSuccessfulTreeRead = treeReadProject === projectId;
+  const hasSuccessfulTreeRead = treeReadProject.current === projectId;
   const hasAnyExternalRefs = useMemo(() => flat.some((row) => row.externalRefs.length > 0), [flat]);
   const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
 
