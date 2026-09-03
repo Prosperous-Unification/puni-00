@@ -194,7 +194,7 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 4. The write path
 
-- [ ] 4.0 Establish the connection topology before writing any of 4.x: read how
+- [x] 4.0 Establish the connection topology before writing any of 4.x: read how
       be-01 hands out write connections and record it in design.md. Three
       distinct requirements come out of it. (i) The save's write connection is
       not the live-edit write handle — otherwise 4.5's guarantee that a live edit

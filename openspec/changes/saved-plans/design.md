@@ -206,6 +206,52 @@ observe that its committed-looking edit was revoked. Green on h2puni at
 not merely demoted: `bun:sqlite` has no pool, so it could only ever have been
 staged.
 
+### The three write-path requirements (TASK-231 4.0, 2026-09-03)
+
+The topology above answers the *what*; these are the three obligations 4.1–4.6
+inherit from it, stated separately because each is violable on its own.
+
+**(i) The save's write connection is not the live-edit write handle.** Today
+there is exactly one process handle, so a save written against `db` would put the
+body write inside whatever the request path is doing, and 4.5's guarantee that a
+live edit completes during a save would be void whatever `busy_timeout` says.
+The save opens its own with `openConnection` and closes it, exactly as the
+capture does.
+
+**(ii) The read snapshot and the write are on different connections, and the read
+is committed and released before `BEGIN IMMEDIATE` opens.** Not an ordering
+preference — **measured on h2puni, 2026-09-03**, `/home/puni1/t231-probe/promote2.ts`,
+a scenario per fresh database file:
+
+| Scenario | `busy_timeout=0` | `busy_timeout=3000` |
+| --- | --- | --- |
+| `BEGIN DEFERRED`, read, **another connection commits**, then write on the same transaction | `SQLITE_BUSY_SNAPSHOT` after **0 ms** | `SQLITE_BUSY_SNAPSHOT` after **0 ms** |
+| the same promotion with no foreign write in between | succeeds | succeeds |
+| release the read with `COMMIT`, then `BEGIN IMMEDIATE` on that same connection | succeeds in 1 ms | succeeds in 1 ms |
+
+Three things follow, and only the first was already believed here. A `DEFERRED`
+read promoted in place fails once **any** other connection has committed since
+the snapshot — the control row shows the promotion itself is fine, so the foreign
+commit is the cause. **`busy_timeout` does not rescue it**: the failure is
+instant at 3000 ms as well as at 0, so the busy handler is never consulted, and a
+retry loop built on `busy_timeout` would be a retry that can never succeed. And
+releasing the read first costs nothing measurable — the same connection takes the
+write lock in a millisecond immediately afterwards.
+
+**A method note, because the first attempt at this produced a false negative.**
+The probe originally reused one database file across all six scenarios and
+reported the `busy_timeout=3000` promotion as *succeeding*, which would have read
+as "the timeout rescues it". It did not reproduce once each scenario got its own
+file. A shared fixture across rounds of a concurrency probe is not a smaller
+probe, it is a different one.
+
+**(iii) Releasing the read early is free, because the values are already
+detached.** Slice 3 is exactly this: `readPlanInput` returns `PlanInputReads`
+and closes, and `schedulePlanInput` runs over those values on no connection at
+all (`saved-plan-schedule.ts`, asserted at 3.3). So by the time `BEGIN
+IMMEDIATE` opens there is nothing left that the read transaction was holding
+open on anyone's behalf.
+
 ## Quota
 
 Permanent records on a shared SQLite file that any authenticated account can
