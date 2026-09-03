@@ -4150,10 +4150,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [workItems]);
 
   const hasSuccessfulTreeRead = treeReadProject === projectId;
-  const hasAnyExternalRefs = useMemo(
-    () => flat.some((row) => row.externalRefs.length > 0),
-    [flat],
-  );
+  const hasAnyExternalRefs = useMemo(() => flat.some((row) => row.externalRefs.length > 0), [flat]);
   const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
 
   /**
@@ -11469,15 +11466,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               ganttHeightPx !== null ||
               ganttDayPx !== DAY_PX ||
               !ganttLabelsShown) && (
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
-              onClick={resetLayout}
-            >
-              Reset layout
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
+                onClick={resetLayout}
+              >
+                Reset layout
+              </Button>
             )}
         </div>
       )}

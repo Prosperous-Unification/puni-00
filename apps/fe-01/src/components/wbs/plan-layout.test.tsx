@@ -1587,26 +1587,29 @@ describe('the columns a reader has hidden', () => {
     expect(screen.queryByLabelText('Services for 010')).toBeNull();
   });
 
-  itDom('keeps Links hidden on a first visit even when the project already has a link', async () => {
-    localStorage.removeItem(KEY);
-    const api = fakeApi();
-    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
-    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
-    render(<WbsTable projectId="p1" api={api} />);
-    await screen.findByLabelText('Name of 010');
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
-    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+  itDom(
+    'keeps Links hidden on a first visit even when the project already has a link',
+    async () => {
+      localStorage.removeItem(KEY);
+      const api = fakeApi();
+      const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+      api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+      expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
+      expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
 
-    click('Reset layout');
-    expect(headerIds()).toContain('refs');
-    expect(localStorage.getItem(RESET_MARKER)).toBe('true');
-    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+      expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+      expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
 
-    cleanup();
-    render(<WbsTable projectId="p1" api={api} />);
-    await screen.findByLabelText('Name of 010');
-    expect(headerIds()).toContain('refs');
-  });
+      cleanup();
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+      expect(headerIds()).toContain('refs');
+    },
+  );
 
   itDom('drops every reset marker except JSON true', async () => {
     for (const claimed of ['false', '"true"', '3', '{}', '{not json']) {

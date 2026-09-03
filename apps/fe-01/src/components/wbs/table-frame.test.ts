@@ -782,7 +782,9 @@ describe('how wide the steps make the table', () => {
     expect(foldedTableMinWidth([], DATED)).toBe(1043);
     expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1235);
     expect(foldedTableMinWidth([], DATED, resetHiddenColumns(true))).toBe(1083);
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED, resetHiddenColumns(true))).toBe(1275);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED, resetHiddenColumns(true))).toBe(
+      1275,
+    );
     // The figure the 1280 browser budget is actually measured against, and the
     // Name width that comes with it — the two the payment is judged by.
     expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1207);
