@@ -6,7 +6,7 @@ import type { StepUsage, StepView } from '@/lib/wbs-api';
 
 import { flipSentence, StepsPanel, usageSentence } from './steps-panel';
 import type * as TableFrame from './table-frame';
-import { DEFAULT_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } from './table-frame';
+import { INITIAL_HIDDEN_COLUMNS, foldedTableMinWidth, type FrameLayoutState } from './table-frame';
 
 /**
  * The width module with its folded-minimum function watched.
@@ -62,7 +62,7 @@ function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
     setDepReach,
     frameState: UNDATED,
     // The table's own default, so every figure below is the default table's.
-    hiddenColumnIds: DEFAULT_HIDDEN_COLUMNS,
+    hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
     numberOf: (id: string) => NUMBERS[id] ?? null,
     nameOf: (id: string) => PEOPLE[id] ?? null,
     addStep,

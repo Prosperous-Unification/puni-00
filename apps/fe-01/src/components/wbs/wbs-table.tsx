@@ -169,7 +169,7 @@ import {
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
-  DEFAULT_HIDDEN_COLUMNS,
+  INITIAL_HIDDEN_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
   floorFor,
@@ -182,6 +182,7 @@ import {
   numberIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
+  resetHiddenColumns,
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
@@ -1223,6 +1224,12 @@ const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${pro
 const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
   remembered(hiddenColumnsKey(projectId), isStringArray);
 
+/** A reset that showed Links survives reload without freezing the whole hide-list. */
+const linksResetShownKey = (projectId: string): string => `wbs.linksResetShown.${projectId}`;
+
+const storedLinksResetShown = (projectId: string): Remembered<true> =>
+  remembered(linksResetShownKey(projectId), (value): value is true => value === true);
+
 /**
  * The hide-list this browser last saved for `projectId`, or the default hidden
  * columns where it has never saved one.
@@ -1254,7 +1261,11 @@ const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =
  * be null`. Watched, 2026-08-28.
  */
 function rememberedHiddenColumns(projectId: string): readonly string[] {
-  return storedHiddenColumns(projectId).readAndDrop() ?? DEFAULT_HIDDEN_COLUMNS;
+  const explicit = storedHiddenColumns(projectId).readAndDrop();
+  if (explicit !== null) return explicit;
+  return storedLinksResetShown(projectId).readAndDrop() === true
+    ? resetHiddenColumns(true)
+    : INITIAL_HIDDEN_COLUMNS;
 }
 
 /**
@@ -1266,6 +1277,7 @@ function rememberedHiddenColumns(projectId: string): readonly string[] {
  */
 function rememberHiddenColumns(projectId: string, hidden: readonly string[]): void {
   storedHiddenColumns(projectId).write(hidden);
+  storedLinksResetShown(projectId).forget();
 }
 
 /**
@@ -1278,6 +1290,13 @@ function rememberHiddenColumns(projectId: string, hidden: readonly string[]): vo
  */
 function forgetHiddenColumns(projectId: string): void {
   storedHiddenColumns(projectId).forget();
+}
+
+/** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */
+function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): void {
+  const marker = storedLinksResetShown(projectId);
+  if (hasAnyExternalRefs) marker.write(true);
+  else marker.forget();
 }
 
 /**
@@ -2764,6 +2783,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const activeProject = useRef(projectId);
   activeProject.current = projectId;
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
+  /** The project whose whole tree most recently completed a successful read. */
+  const [treeReadProject, setTreeReadProject] = useState<string | null>(null);
   /**
    * Everything the chart is drawn from, as **one** read delivered it.
    *
@@ -3690,6 +3711,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
       const drawn = toTree(tree.workItems);
       setWorkItems(drawn);
+      setTreeReadProject(projectId);
       // The open hover card, settled against the rows that just arrived. The
       // previous placements are read into a local **before** the ref is replaced:
       // React may run the updater below after this call returns, and reading the
@@ -4126,6 +4148,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     walk(workItems);
     return out;
   }, [workItems]);
+
+  const hasSuccessfulTreeRead = treeReadProject === projectId;
+  const hasAnyExternalRefs = useMemo(
+    () => flat.some((row) => row.externalRefs.length > 0),
+    [flat],
+  );
+  const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
 
   /**
    * The row the ref editor is open on, or null while none is — including the
@@ -4894,8 +4923,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   function resetLayout(): void {
     setWidthOverrides(new Map());
     forgetWidthOverrides(projectId);
-    setStoredHiddenColumns(DEFAULT_HIDDEN_COLUMNS);
+    setStoredHiddenColumns(resetTargetHiddenColumnIds);
     forgetHiddenColumns(projectId);
+    rememberLinksResetTarget(projectId, hasAnyExternalRefs);
     resetGanttSettings();
   }
 
@@ -4906,8 +4936,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * reader ticked things in is not a difference.
    */
   const columnsDiffer =
-    hiddenColumnIds.length !== DEFAULT_HIDDEN_COLUMNS.length ||
-    hiddenColumnIds.some((id) => !DEFAULT_HIDDEN_COLUMNS.includes(id));
+    hiddenColumnIds.length !== resetTargetHiddenColumnIds.length ||
+    hiddenColumnIds.some((id) => !resetTargetHiddenColumnIds.includes(id));
 
   /**
    * The whole plan as a document, taken at the moment it is asked for.
@@ -11433,11 +11463,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             card has no columns` failed on `expected <button …(2)></button> to
             be null` — the control on the sheet at 390px. Watched, 2026-08-09.
           */}
-          {(widthOverrides.size > 0 ||
-            columnsDiffer ||
-            ganttHeightPx !== null ||
-            ganttDayPx !== DAY_PX ||
-            !ganttLabelsShown) && (
+          {hasSuccessfulTreeRead &&
+            (widthOverrides.size > 0 ||
+              columnsDiffer ||
+              ganttHeightPx !== null ||
+              ganttDayPx !== DAY_PX ||
+              !ganttLabelsShown) && (
             <Button
               variant="outline"
               size="sm"
@@ -11447,7 +11478,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             >
               Reset layout
             </Button>
-          )}
+            )}
         </div>
       )}
 

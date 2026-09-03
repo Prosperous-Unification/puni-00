@@ -1523,6 +1523,7 @@ describe('the chart height this browser has dragged', () => {
 describe('the columns a reader has hidden', () => {
   /** Where the hide-list lives for the project every test in here opens. */
   const KEY = 'wbs.hiddenColumns.p1';
+  const RESET_MARKER = 'wbs.linksResetShown.p1';
 
   /** The columns on screen, by id, in table order. */
   const headerIds = (): string[] =>
@@ -1547,7 +1548,6 @@ describe('the columns a reader has hidden', () => {
   const DEFAULT_ON_SCREEN = (stepIds: readonly string[]) => [
     'drag',
     'number',
-    'refs',
     'name',
     'depends',
     'priority',
@@ -1574,13 +1574,71 @@ describe('the columns a reader has hidden', () => {
     expect(screen.queryByLabelText('Services for 010')).toBeNull();
   });
 
-  itDom('shows the same default set on a full directory', async () => {
+  itDom('keeps Links hidden on a first visit even when the project already has a link', async () => {
     localStorage.removeItem(KEY);
     const api = fakeApi();
-    await api.addTeam('Platform');
-    await api.addService('Checkout');
-    await oneRow(api);
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
     expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+    expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+
+    cleanup();
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom('drops every reset marker except JSON true', async () => {
+    for (const claimed of ['false', '"true"', '3', '{}', '{not json']) {
+      cleanup();
+      localStorage.setItem(RESET_MARKER, claimed);
+      await oneRow();
+      expect(headerIds()).not.toContain('refs');
+      expect(localStorage.getItem(RESET_MARKER)).toBeNull();
+    }
+  });
+
+  itDom('changes only the reset target when the first or last link changes', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+
+    api.linkTo(row.id, []);
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    expect(headerIds()).toContain('refs');
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(headerIds()).not.toContain('refs');
+
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/2' }]);
+    click('Add work item');
+    await screen.findByLabelText('Name of 030');
+    expect(headerIds()).not.toContain('refs');
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom('lets an explicit column choice replace and clear the reset marker', async () => {
+    localStorage.setItem(RESET_MARKER, 'true');
+    await oneRow();
+    expect(headerIds()).toContain('refs');
+    const panel = openColumns();
+    fireEvent.click(within(panel).getByLabelText('Priority'));
+    expect(localStorage.getItem(RESET_MARKER)).toBeNull();
+    expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'priority']));
   });
 
   itDom('keeps a hidden column hidden across a reload', async () => {
@@ -1685,7 +1743,7 @@ describe('the columns a reader has hidden', () => {
     expect(offered(panel)).toEqual([
       // First, where the column is: between `#` and Name, and on by default —
       // a column hidden by default is a feature nobody finds (design D5).
-      { label: 'Links', checked: true },
+      { label: 'Links', checked: false },
       { label: 'Depends on', checked: true },
       { label: 'Priority', checked: true },
       { label: 'Teams', checked: false },
@@ -1713,11 +1771,11 @@ describe('the columns a reader has hidden', () => {
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).not.toContain('depends');
       expect(screen.queryByLabelText('Add a dependency to 010')).toBeNull();
-      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'depends']));
+      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type', 'depends']));
 
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).toContain('depends');
-      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type']));
+      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type']));
       // Proof: `rememberHiddenColumns` left out of the toggle, this failed on
       // `expected null to be '["team","service","depends"]'`. Watched, 2026-08-28.
     },
@@ -1731,7 +1789,7 @@ describe('the columns a reader has hidden', () => {
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
     expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['service', 'type', 'step-qa']));
+    expect(stored()).toBe(JSON.stringify(['refs', 'service', 'type', 'step-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {

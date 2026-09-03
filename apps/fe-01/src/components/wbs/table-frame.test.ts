@@ -9,7 +9,7 @@ import {
   DAY_ENVELOPE,
   DEEPEST_INDENT,
   DEFAULT_COLUMN_SET,
-  DEFAULT_HIDDEN_COLUMNS,
+  INITIAL_HIDDEN_COLUMNS,
   FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
@@ -28,6 +28,7 @@ import {
   pinnedGeometryFor,
   POPOVER_ROW_LAYER,
   ROW_CONTROLS,
+  resetHiddenColumns,
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
@@ -42,7 +43,7 @@ const DATED: FrameLayoutState = { hasAnyNotBefore: true };
 /** A plan where nobody has. */
 const UNDATED: FrameLayoutState = { hasAnyNotBefore: false };
 
-/** Every column of the default column set, in the order the table renders them. */
+/** Every column of the reset-with-links set, in the order the table renders them. */
 const RENDERED = [
   'drag',
   'number',
@@ -142,6 +143,18 @@ describe('the resolved frame layout', () => {
     // for: it used to sit between Number and Name.
     expect(pinned.get('depends')).toBeUndefined();
     expect(pinnedCellStyle(frameLayout(RENDERED, DATED), 'depends', 'body')).toBeUndefined();
+  });
+
+  it('removes the hidden Links width from both the minimum and Name’s pinned offset', () => {
+    const shown = frameLayout(RENDERED, DATED);
+    const hidden = frameLayout(
+      RENDERED.filter((id) => id !== 'refs'),
+      DATED,
+    );
+    expect(hidden.minWidth).toBe(shown.minWidth - 40);
+    expect(hidden.pinned.get('refs')).toBeUndefined();
+    expect(hidden.pinned.get('name')).toEqual({ left: 129, width: undefined });
+    expect(shown.pinned.get('name')).toEqual({ left: 169, width: undefined });
   });
 
   it('refuses an id nothing sizes, rather than handing back a plausible width', () => {
@@ -657,7 +670,7 @@ describe('how wide the steps make the table', () => {
     // The sentence the Steps dialog prints, and the steps' own ids rather
     // than a count: every width resolves per column id now, so a figure summed
     // from invented ids would answer about columns that do not exist.
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1275);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1235);
     expect(
       foldedTableMinWidth(['step-dev', 'step-qa', 'step-ops'], DATED) -
         foldedTableMinWidth(['step-dev', 'step-qa'], DATED),
@@ -678,13 +691,15 @@ describe('how wide the steps make the table', () => {
     );
     // Every column the table really renders is in that set, which is what the
     // equation above is only worth anything while it is true.
-    for (const id of RENDERED) expect([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS]).toContain(id);
+    for (const id of RENDERED.filter((id) => id !== 'refs')) {
+      expect([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS]).toContain(id);
+    }
   });
 
   it('has no steps to be wide for at all, and still declares a table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
-    expect(foldedTableMinWidth([], DATED)).toBe(1083);
+    expect(foldedTableMinWidth([], DATED)).toBe(1043);
   });
 
   it('hides Teams and Services by default, shows Tags, and the folded figures do not move', () => {
@@ -699,9 +714,9 @@ describe('how wide the steps make the table', () => {
     // visible here.
     // The floor first, deliberately: it is the fact, and the membership
     // assertions under it are only why it is true.
-    expect(foldedTableMinWidth([], DATED)).toBe(1083);
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1275);
-    expect(DEFAULT_HIDDEN_COLUMNS).toEqual(['team', 'service', 'type']);
+    expect(foldedTableMinWidth([], DATED)).toBe(1043);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1235);
+    expect(INITIAL_HIDDEN_COLUMNS).toEqual(['refs', 'team', 'service', 'type']);
     expect(DEFAULT_COLUMN_SET).toContain('tag');
     expect(DEFAULT_COLUMN_SET).not.toContain('team');
     expect(DEFAULT_COLUMN_SET).not.toContain('service');
@@ -724,7 +739,7 @@ describe('how wide the steps make the table', () => {
     // default table does not pay for. Watched, 2026-08-30.
   });
 
-  it('pays for the refs column out of Depends on, and leaves Number and the Name floor alone', () => {
+  it('makes the first visit 40px narrower and restores the existing shown-Links geometry', () => {
     // `external-refs` task 4.1, restated twice on 2026-08-31 as the payment
     // moved. It began as `the folded minimum grows by exactly the refs column`
     // and pinned 1067 → 1107: the column cost 40 and the folded table simply
@@ -764,11 +779,16 @@ describe('how wide the steps make the table', () => {
     // direction the first attempt took, and they are here because this test now
     // asserts that those two did **not** move — a payment quietly shifted back
     // onto them would otherwise be invisible.
-    expect(foldedTableMinWidth([], DATED)).toBe(1083);
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1275);
+    expect(foldedTableMinWidth([], DATED)).toBe(1043);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED)).toBe(1235);
+    expect(foldedTableMinWidth([], DATED, resetHiddenColumns(true))).toBe(1083);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], DATED, resetHiddenColumns(true))).toBe(1275);
     // The figure the 1280 browser budget is actually measured against, and the
     // Name width that comes with it — the two the payment is judged by.
-    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1247);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED)).toBe(1207);
+    expect(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED, resetHiddenColumns(true))).toBe(
+      1247,
+    );
     expect(widthFor('refs', DATED)).toBe(40);
     // The column that paid, and the two that did not: a cut moved back onto
     // `number` or the floor is visible here as well as in the totals above.
@@ -780,28 +800,30 @@ describe('how wide the steps make the table', () => {
     // feature nobody finds (design D5).
     expect(FIXED_COLUMNS).toContain('refs');
     expect(hideableColumnIds([])).toContain('refs');
-    expect(DEFAULT_HIDDEN_COLUMNS).not.toContain('refs');
-    expect(DEFAULT_COLUMN_SET).toContain('refs');
+    expect(INITIAL_HIDDEN_COLUMNS).toContain('refs');
+    expect(DEFAULT_COLUMN_SET).not.toContain('refs');
+    expect(resetHiddenColumns(false)).toEqual(INITIAL_HIDDEN_COLUMNS);
+    expect(resetHiddenColumns(true)).toEqual(['team', 'service', 'type']);
   });
 
   it('subtracts what the reader has hidden, a whole step included', () => {
     // The Steps dialog quotes the table actually on screen, not the default
     // one: a reader who has hidden Depends on is 86px narrower than the
     // default, and one who has shown Teams is 120px wider.
-    expect(foldedTableMinWidth([], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'depends'])).toBe(
-      1083 - widthFor('depends', DATED),
+    expect(foldedTableMinWidth([], DATED, [...INITIAL_HIDDEN_COLUMNS, 'depends'])).toBe(
+      1043 - widthFor('depends', DATED),
     );
     // Teams shown, Services and Types still hidden: the reader has turned **one**
     // column on, so the table is one column wider. Written as the whole hide-list
     // rather than as `['service']` because `DEFAULT_HIDDEN_COLUMNS` grew a third
     // member — a two-name list here would silently be showing Types as well, and
     // the assertion would be about a reader nobody described.
-    expect(foldedTableMinWidth([], DATED, ['service', 'type'])).toBe(
-      1083 + widthFor('team', DATED),
+    expect(foldedTableMinWidth([], DATED, ['refs', 'service', 'type'])).toBe(
+      1043 + widthFor('team', DATED),
     );
     // A hidden step takes its folded column with it, and nothing else.
     expect(
-      foldedTableMinWidth(['step-dev', 'step-qa'], DATED, [...DEFAULT_HIDDEN_COLUMNS, 'step-qa']),
+      foldedTableMinWidth(['step-dev', 'step-qa'], DATED, [...INITIAL_HIDDEN_COLUMNS, 'step-qa']),
     ).toBe(foldedTableMinWidth(['step-dev'], DATED));
     // Proof: the hidden list ignored, the first line failed on `expected 1067
     // to be 957`. Watched, 2026-08-28.
