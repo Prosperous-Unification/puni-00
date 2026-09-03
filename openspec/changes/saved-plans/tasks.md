@@ -35,7 +35,7 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 2. The tables
 
-- [ ] 2.1 `schema.ts`: `saved_plan` and `saved_plan_body` as in design.md.
+- [x] 2.1 `schema.ts`: `saved_plan` and `saved_plan_body` as in design.md.
       `ON DELETE CASCADE` header→project and body→header. `created_by` is a
       **value**, not a reference — the JSDoc says why (an account deletion must
       not orphan a permanent record).
