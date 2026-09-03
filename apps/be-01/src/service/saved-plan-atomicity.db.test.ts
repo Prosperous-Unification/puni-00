@@ -18,8 +18,8 @@ import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import { planInputRowsOf } from './saved-plan-input';
 import { SavedPlanService } from './saved-plan.service';
+import { planInputRowsOf } from './saved-plan-input';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -108,7 +108,7 @@ function faultingAt(path: string, boundary: Boundary): Faulting {
             .all()
             .some((row) => row.id === PLAN_ID);
         if (holdsThisHeader) fire();
-        return real.db.run(statement);
+        real.db.run(statement);
       },
     });
     return { db, close: real.close };
@@ -212,12 +212,21 @@ describe('SavedPlanService.save is atomic', () => {
         now: () => OPENED_AT,
       });
 
-      // The identity is asserted, not merely the rejection: a save that tripped
-      // over a constraint of its own would also reject, and would say nothing
-      // about what a failure *at this boundary* leaves behind.
-      await expect(
-        service.save({ projectId: 'p1', name: 'lost', createdBy: 'Ada' }),
-      ).rejects.toBe(INJECTED);
+      // Awaited through a catch rather than `.rejects`, which in this suite is
+      // load-bearing twice over: bun's matcher is not thenable so `await-thenable`
+      // refuses the await, and an unawaited `.rejects` would let the assertions
+      // below run against a write that has not finished failing yet.
+      //
+      // The identity is asserted, not merely that something threw: a save that
+      // tripped over a constraint of its own would also reject, and would say
+      // nothing about what a failure *at this boundary* leaves behind.
+      let refused: unknown = null;
+      try {
+        await service.save({ projectId: 'p1', name: 'lost', createdBy: 'Ada' });
+      } catch (thrown) {
+        refused = thrown;
+      }
+      expect(refused).toBe(INJECTED);
 
       // The boundary was the one claimed, and not one of the other two.
       expect(faulting.reached()).toBe(bodiesWritten);
