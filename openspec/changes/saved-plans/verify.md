@@ -24,8 +24,26 @@ database):
    `pragma table_info` and `pragma foreign_key_list` read back for `saved_plan`
    and `saved_plan_body`, and a write **through** the cascade, not just its
    declaration.
+   **Observed 2026-09-03 at head `345e2d11`, h2puni, on a fresh
+   `/tmp/t231-rehearse.db`:** `migrate-cli.ts` exit 0, `migrations applied`.
+   `pragma table_info` → `saved_plan` **14 columns** (`id, project_id, name,
+   created_by, created_at, input_schema_version, input_bytes, input_sha256,
+   schedule_schema_version, schedule_bytes, schedule_sha256,
+   schedule_input_sha256, scheduler_algorithm_id, schedule_absent_reason`),
+   `saved_plan_body` **3** (`saved_plan_id, kind, bytes`). `pragma
+   foreign_key_list` → `project_id -> project ON DELETE CASCADE` and
+   `saved_plan_id -> saved_plan ON DELETE CASCADE`, both **applied by SQLite**,
+   which is the half of this row that `steps-schema-rename` got wrong.
+   **Still owed:** the write *through* the cascade. The declaration is read back;
+   a project deleted and both tables re-read is 2.3's own row below and has not
+   been run.
 2. **The rollback runs** — `migrate-down-cli.ts` to the preceding migration, then
    `pragma table_info` showing both tables gone.
+   **Observed 2026-09-03 at head `345e2d11`, same file:**
+   `migrate-down-cli.ts --to=20260902120000_add_lookup_indexes` exit 0, then the
+   same probe returns **0 columns and no foreign keys for both tables** — they
+   are gone, not merely emptied. Run immediately after check 1 on the file
+   check 1 built, so this is the real reverse of the real forward migration.
 3. **A body's size against a real plan** (task 9.1) — the serialized byte length
    of the largest real project's plan-input body, printed, against the 8 MiB
    limit. This is A-3's falsifier and a number, not a verdict.
