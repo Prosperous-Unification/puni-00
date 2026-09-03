@@ -1,5 +1,6 @@
 import type { DependencyReach } from '../dependency-reach';
 import type { EstimateMethod, EstimateRounding } from '../estimate';
+import type { StepState } from '../progress';
 
 /**
  * Every field a Saved plan's **plan input** body holds, and nothing else.
@@ -47,11 +48,11 @@ export interface CanonicalPlanInput {
   readonly steps: readonly CanonicalStep[];
   /** Sorted by `workItemId`, then `stepId`. */
   readonly stepValues: readonly CanonicalStepValue[];
-  /** Sorted by `workItemId`, then `kind`. */
+  /** Sorted by `workItemId`, then `stepId`, then `metric`. */
   readonly measures: readonly CanonicalMeasure[];
   /** Sorted by `predecessorId`, then `successorId`. */
   readonly dependencies: readonly CanonicalDependency[];
-  /** Sorted by `workItemId`, then `personId`. */
+  /** Sorted by `workItemId`, then `stepId`, then `personId`. */
   readonly assignments: readonly CanonicalAssignment[];
   /** Sorted by `id`. */
   readonly people: readonly CanonicalNamedRow[];
@@ -177,12 +178,39 @@ export interface CanonicalStepValue {
   readonly pessimistic: number | null;
   readonly derived: number | null;
   readonly actual: number | null;
-  readonly progress: number | null;
+  /**
+   * What somebody said about this step, or `null` when nobody has.
+   *
+   * **A state, not a percentage.** `step_progress.state` is
+   * {@link StepState} — `in_progress` or `done` (`libs/domain/src/progress.ts:37`)
+   * — and the live projection carries it as one
+   * (`work-item.service.ts:453`, `progress: Record<string, StepState>`). The
+   * `number | null` this replaces had no source: nothing in the plan produces a
+   * percentage, so the fold would have had to invent one, and a reader would
+   * have had to guess what 0 meant against a step nobody had spoken about.
+   * Absence is still absence — no row is `null`, which is the same "two
+   * spellings of nobody has said" rule the column itself is written under.
+   */
+  readonly progress: StepState | null;
 }
 
+/**
+ * One measured figure — tokens or hours — for one **step** of one work item.
+ *
+ * **`stepId` is here and `kind` is now `metric`**, both because the row is
+ * `measure (work_item_id, step_id, metric, value, recorded_at)`
+ * (`repository/index.ts:1004-1012`). Without `stepId` the collection's own
+ * ordering contract — by work item then kind — makes two steps' token counts on
+ * one item indistinguishable, and a fold has to pick one of them to store: the
+ * plan says 1200 tokens for Build and 300 for Test, and the record says 1200 for
+ * the item. `metric` rather than `kind` for the same reason the field above is a
+ * state: the canonical name should be the column's, so a reader checking the
+ * body against the table has nothing to translate.
+ */
 export interface CanonicalMeasure {
   readonly workItemId: string;
-  readonly kind: string;
+  readonly stepId: string;
+  readonly metric: string;
   readonly value: number | null;
 }
 
@@ -191,8 +219,21 @@ export interface CanonicalDependency {
   readonly successorId: string;
 }
 
+/**
+ * Who is doing one **step** of one work item.
+ *
+ * **`stepId` is here**, because `assignment` is
+ * `(work_item_id, step_id, person_id)` (`repository/index.ts:1205-1209`) and the
+ * scheduler reads it that way: `schedulePlanInput` folds the same rows into
+ * `workItemId -> { [stepId]: personId }` before `slicesOf` sees them
+ * (`saved-plan-schedule.ts:41-48`), and the person floor is per step. A
+ * `(workItemId, personId)` pair cannot rebuild that map, so a saved plan without
+ * `stepId` could not reproduce its own dates — which is the one thing a
+ * materialised record of a plan is for.
+ */
 export interface CanonicalAssignment {
   readonly workItemId: string;
+  readonly stepId: string;
   readonly personId: string;
 }
 
@@ -377,9 +418,15 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       values.measures,
       byString(
         (row) => row.workItemId,
-        (row) => row.kind,
+        (row) => row.stepId,
+        (row) => row.metric,
       ),
-    ).map((row) => ({ workItemId: row.workItemId, kind: row.kind, value: row.value })),
+    ).map((row) => ({
+      workItemId: row.workItemId,
+      stepId: row.stepId,
+      metric: row.metric,
+      value: row.value,
+    })),
     dependencies: sorted(
       values.dependencies,
       byString(
@@ -391,9 +438,14 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       values.assignments,
       byString(
         (row) => row.workItemId,
+        (row) => row.stepId,
         (row) => row.personId,
       ),
-    ).map((row) => ({ workItemId: row.workItemId, personId: row.personId })),
+    ).map((row) => ({
+      workItemId: row.workItemId,
+      stepId: row.stepId,
+      personId: row.personId,
+    })),
     people: namedRows(values.people),
     teams: namedRows(values.teams),
     services: namedRows(values.services),

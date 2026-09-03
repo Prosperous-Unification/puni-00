@@ -82,7 +82,7 @@ const rows: PlanInputRows = {
       pessimistic: 5,
       derived: 2.5,
       actual: null,
-      progress: 0,
+      progress: 'in_progress',
     },
     {
       workItemId: 'w1',
@@ -92,20 +92,23 @@ const rows: PlanInputRows = {
       pessimistic: null,
       derived: null,
       actual: 3,
-      progress: 100,
+      progress: 'done',
     },
   ],
   measures: [
-    { workItemId: 'w2', kind: 'tokens', value: 1200 },
-    { workItemId: 'w2', kind: 'hours', value: 8 },
+    // Same item, same metric, two steps — the pair `stepId` was dropped from.
+    { workItemId: 'w2', stepId: 's2', metric: 'tokens', value: 300 },
+    { workItemId: 'w2', stepId: 's1', metric: 'tokens', value: 1200 },
+    { workItemId: 'w2', stepId: 's1', metric: 'hours', value: 8 },
   ],
   dependencies: [
     { predecessorId: 'w2', successorId: 'w1' },
     { predecessorId: 'w1', successorId: 'w2' },
   ],
   assignments: [
-    { workItemId: 'w2', personId: 'per-2' },
-    { workItemId: 'w1', personId: 'per-1' },
+    { workItemId: 'w2', stepId: 's2', personId: 'per-1' },
+    { workItemId: 'w2', stepId: 's1', personId: 'per-2' },
+    { workItemId: 'w1', stepId: 's1', personId: 'per-1' },
   ],
   people: [
     { id: 'per-2', name: 'Bo' },
@@ -254,6 +257,34 @@ describe('canonicalisePlanInput', () => {
   });
 
   /**
+   * A measure is per (work item, **step**, metric). Without `stepId` the two
+   * `tokens` rows on `w2` are one key, and a fold has to pick which step's
+   * figure the record keeps — the plan says 1200 for Build and 300 for Test.
+   */
+  it('keeps one measure per step, not one per item and metric', () => {
+    expect(canonicalisePlanInput(rows).measures).toEqual([
+      { workItemId: 'w2', stepId: 's1', metric: 'hours', value: 8 },
+      { workItemId: 'w2', stepId: 's1', metric: 'tokens', value: 1200 },
+      { workItemId: 'w2', stepId: 's2', metric: 'tokens', value: 300 },
+    ]);
+  });
+
+  /**
+   * An assignment is per (work item, **step**, person), and the scheduler reads
+   * it that way — `schedulePlanInput` folds these rows into
+   * `workItemId -> { [stepId]: personId }` before the person floor is applied.
+   * Two people on two steps of `w2` is the pair a `(workItemId, personId)` key
+   * could not have rebuilt.
+   */
+  it('keeps who does which step, not merely who is on the item', () => {
+    expect(canonicalisePlanInput(rows).assignments).toEqual([
+      { workItemId: 'w1', stepId: 's1', personId: 'per-1' },
+      { workItemId: 'w2', stepId: 's1', personId: 'per-2' },
+      { workItemId: 'w2', stepId: 's2', personId: 'per-1' },
+    ]);
+  });
+
+  /**
    * The watched negative for 1.3. A canonicaliser that stops sorting work items
    * still returns a perfectly well-typed value, so the only thing that can
    * catch it is the byte comparison above — proved here by running that
@@ -318,7 +349,7 @@ describe('canonicalisePlanInput round trip', () => {
           pessimistic: 3,
           derived: 2,
           actual: null,
-          progress: 0,
+          progress: 'in_progress',
         })),
         measures: [],
         dependencies: [],
