@@ -50,3 +50,6 @@ protocol. The drop/rename itself is a separate later change (R2-6).
 - [ ] 4.2 Before dropping `work_item.service_id`, migrate `insertSubtree`
       (`work-item.ts:859-864`) and its duplicate/restore callers so they no longer insert
       the scalar.
+- [ ] 4.3 When renaming `service_team`, explicitly preserve or re-create the
+      migration-only `work_item.service_team_id` NO ACTION foreign key; it is absent
+      from `schema.ts:376` and cannot be trusted to `drizzle-kit generate`.

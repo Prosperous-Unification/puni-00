@@ -22,11 +22,12 @@ import { rollbackTo } from './migrate-down';
  * patch moves both storage locations, is guarded by work-item.db.test.ts's
  * repo.patch path, not this file.)
  *
- * Watched red, 2026-09-03 on h2puni: after the forward migration, a scratch
- * mutant ran `ALTER TABLE service_team DROP COLUMN size`. The first case failed
- * at the `toContain('size')` guard with Received `["id", "name", "created_at",
- * "updated_at", "created_by"]`; 4 tests passed / 1 failed / 33 assertions.
- * Restoring the exact head returned the suite to 5/5 / 34 assertions.
+ * Watched red, 2026-09-03 on h2puni: inside the first case, immediately after
+ * its forward migration, a scratch `ALTER TABLE service_team DROP COLUMN size`
+ * removed the column. That case failed at the `toContain('size')` guard with
+ * Received `["id", "name", "created_at", "updated_at", "created_by"]`;
+ * 4 tests passed / 1 failed / 34 assertions. Restoring the exact head returned
+ * the suite to 5/5 / 35 assertions.
  *
  * See openspec/changes/retired-schema-cleanup/design.md for the path inventory
  * and the five-rule version-overlap protocol this file enforces.
@@ -216,6 +217,7 @@ describe('the retired schema, across the full migration chain', () => {
         c3.close();
       }
       expect(count(db.path, 'work_item_team')).toBe(0);
+      expect(count(db.path, 'work_item')).toBe(1);
 
       const c4 = openDatabase(db.path);
       try {
