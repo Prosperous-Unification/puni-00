@@ -222,14 +222,14 @@ describe('the stored schedule body', () => {
    * keys in theirs, so this is the whole class of difference that is about how
    * the value was assembled rather than about the plan.
    */
-  const reversed = (timings: ReadonlyMap<string, Scheduled>): Map<string, Scheduled> => {
-    const out = new Map<string, Scheduled>();
+  const reversed = <T extends Scheduled>(timings: ReadonlyMap<string, T>): Map<string, T> => {
+    const out = new Map<string, T>();
     for (const [id, timing] of [...timings].reverse()) {
       const flipped: Record<string, unknown> = {};
       for (const key of Object.keys(timing).reverse()) {
         flipped[key] = (timing as unknown as Record<string, unknown>)[key];
       }
-      out.set(id, flipped as unknown as Scheduled);
+      out.set(id, flipped as unknown as T);
     }
     return out;
   };
