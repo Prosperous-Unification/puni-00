@@ -135,7 +135,7 @@ comparison UI) and start only after slice 6 is merged.
       different table: a tag renamed between the item read and the registry read
       stores pre-edit items beside post-edit labels. The JSDoc says all of it,
       including that the dedicated connection is closed on every path.
-- [ ] 3.2 **The torn-read test, which is the Critical this design exists for.**
+- [x] 3.2 **The torn-read test, which is the Critical this design exists for.**
       Pause the capture at **each** read boundary in turn — including every
       capture-only boundary from 3.1(ii), not just the twelve projection ones;
       commit a work-item rename, a directory cascade, a step edit, a setting
@@ -153,6 +153,27 @@ comparison UI) and start only after slice 6 is merged.
       watch the registry-rename case produce items and labels from either side of
       one write — the case that stays green while every projection-boundary
       assertion still passes.
+      **Landed 2026-09-03, and the last sentence above turned out to be wrong in
+      the guard's favour.** The seventeen boundary cases are one `it` each, so
+      the fixture reseeds — a single `it` looping over all seventeen would leave
+      the database post-edit after the first pass and assert nothing after it.
+      The edit committed in the gap is **one transaction on a second
+      connection** touching the project row (read 1), the work item and its
+      `work_item_tag` junction (read 2), a step (read 9), a person and the
+      `person_team` row that cascades with it (read 12) and the `tag` registry
+      (read 15); the assertion reads seven values back off the capture, one per
+      read, and requires a single side between them. `missing` is a third
+      answer, not folded into `after`, so a dropped read cannot impersonate a
+      post-edit one.
+      The second negative was run as a **watched red** rather than committed as
+      a second implementation — a test that reimplements the method proves
+      things about the reimplementation. With `tx.commit()` moved above
+      `listTags`, **17 fail and 1151 pass**: the enclosure test, and boundaries
+      **2 through 17**. Not just the registry boundary — because one edit spans
+      both halves, every projection boundary tears too, so the guard is sharper
+      than this task predicted. Boundary 1 stays green on purpose: the write
+      lands before the snapshot is taken, so the whole capture is legitimately
+      `after`. Every other test in `be-01` stays green.
 - [ ] 3.3 `schedule()` runs over the detached values, outside the read snapshot.
       Test: assert no database handle is live during the scheduling call.
       Negative: run `schedule()` inside the snapshot and watch 3.3 fail — a

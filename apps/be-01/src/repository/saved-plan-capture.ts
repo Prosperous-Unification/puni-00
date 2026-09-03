@@ -140,8 +140,13 @@ export interface SavedPlanCaptureOptions {
  * opens its own connection, holds the snapshot there, and **closes it on every
  * path** — success, refusal, and throw alike. A leaked connection is a leaked
  * WAL reader, which during a blue/green swap is the other colour's problem.
- * Recorded as a hypothesis rather than a measurement: see design.md, "The
- * topology found", and 3.2, whose first negative is what settles it.
+ *
+ * **Measured, not reasoned.** `saved-plan-capture.db.test.ts` runs one scenario
+ * twice, differing only in the connection this class is handed: on its own, a
+ * stranger's `UPDATE tag` survives the capture's rollback; on the process
+ * handle, the same write is inside the capture's transaction and the rollback
+ * revokes it while the writing request is told it succeeded. design.md, "The
+ * topology found", records what changed.
  */
 export class SavedPlanCaptureRepository {
   constructor(private readonly opts: SavedPlanCaptureOptions) {}
