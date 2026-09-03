@@ -294,8 +294,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       configured at the smaller budget reclaims a larger-budget child that is
       still inside its own deadline. `solver_queue`: PK
       `(projectId, contractVersion, objective, budgetMs)` — **not** keyed by generation,
-      so a project holds at most one queued entry per objective per contract
-      version and a new generation replaces rather than accumulates — with
+      so a project holds at most one queued entry per objective **per budget**
+      per contract version (the PK's own bound; an entry that did not name its
+      budget could not tell the dequeue which budget to launch, which is why
+      `budgetMs` is in the key) and a new generation replaces rather than
+      accumulates — with
       columns `generation`, `admittedCancelEpoch`, `budgetMs`, `enqueuedAt`, and
       an index on
       `(enqueuedAt, projectId, contractVersion, objective, budgetMs)`. The
@@ -520,7 +523,7 @@ h2puni is green — no build or autotest runs on the workspace box.
       with resource edges and late times derived from the **optimized**
       placement rather than copied from Fast.
 - [ ] 4.10 The floor precedence is the complete ordered list `projectStart |
-      notBefore | predecessor | stepOrder | person | capacity | optimizer`; the
+      predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       earlier list stopped at `notBefore` and would have labelled a
       person-bound or capacity-bound optimized slice `optimizer`, erasing its
       resource predecessor, its team and both wait counts.
@@ -586,10 +589,14 @@ h2puni is green — no build or autotest runs on the workspace box.
       `encodeOptimizedResult` / `decodeOptimizedResult` as the seam.
       **`quantisation-floor` lives only in `publication` (Sol r8 Critical 5,
       kimi r8 Important 2)**: the matrix fixes the status enum at three values
-      and generates the wire schema, the column `CHECK` and the 4.8 validator
-      from it, so a fourth value there left the codec rejecting the row the
-      guard must store. The stored type widens `stageValue` and `bound` to
-      nullable and nothing else. For a `quantisation-floor` row every `value`
+      and generates the wire schema and the 4.8 validator from it, so a fourth
+      value there left the codec rejecting the row the guard must store.
+      **No column `CHECK` is generated for it**: `publication` and per-term
+      `status` live inside `resultJson`, so 4.8's `decodeOptimizedResult` is
+      their only validator (Sol r10 Important 11). The stored shape is
+      **identical to the wire shape** — `stageValue` and `bound` are already
+      nullable on the wire (matrix row `UNKNOWN, no incumbent, k > 1`), so
+      storage widens nothing. For a `quantisation-floor` row every `value`
       is recomputed **in the real domain on the stored Fast schedule**,
       `stageValue` and `bound` are null, `status` is `unknown`, and 2.4's
       `value <= stageValue` relation is not applied — it is a within-stage
@@ -599,6 +606,16 @@ h2puni is green — no build or autotest runs on the workspace box.
       `stageValue`/`bound` and `publication: 'quantisation-floor'`; put
       `'quantisation-floor'` back into `status` and the read-time enum
       validator must reject it.
+      **Two further negatives, both valid JSON** (Sol r10 Important 11, which
+      is where the JSON-held enums are actually enforced): (a) a syntactically
+      valid `resultJson` whose `publication` is `'fast'` — `decodeOptimizedResult`
+      throws naming `publication` and the unknown value, and the row reads as
+      `corrupt`; (b) a syntactically valid `resultJson` whose last term carries
+      `status: 'proved'` — the same seam throws naming the term and the value.
+      Neither may be caught by a database constraint: assert directly that the
+      migration adds **no** `CHECK` over `resultJson`, so a *malformed* payload
+      (a truncated string, already covered above) still inserts and still
+      surfaces as `corrupt` rather than failing the write.
       `publication` is stored rather than inferred, because a
       `quantisation-floor` row **is** Fast's schedule and the comparison
       indicator must not present it as a solver win. **Watched red:** a
@@ -797,12 +814,14 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 6.7 **Proven by** `optimization-admission.db.test.ts`: **two coordinator
       instances against one SQLite file** — the blue/green case — admit 16
       children between them, not 32, and 4 for one project, not 8; and a
-      coordinator killed without cleanup has its slots reclaimed by heartbeat
-      expiry rather than leaking capacity forever.
+      coordinator killed without cleanup has its slots reclaimed once
+      `now > admittedDeadlineAt` — never by a missed heartbeat — rather than
+      leaking capacity forever.
 - [ ] 6.8 **Proven by** `optimization-orphan.proc.test.ts`, a **real
       process-boundary test**, not a mocked restart: spawn an inert child that
       calls `PR_SET_PDEATHSIG`, kill the coordinator process, and observe (a)
-      the child terminates and (b) the slot expires and the count recovers.
+      the child terminates and (b) the slot is reclaimed once its stored
+      `admittedDeadlineAt` passes and the count recovers.
 - [ ] 6.9 **Negative checks, watched red** — remove the dequeue generation
       re-check and watch 6.6's stale-entry case fail; remove the toggle
       re-check and watch the toggled-OFF case fail; move admission back into an
