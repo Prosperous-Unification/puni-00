@@ -10,7 +10,7 @@ import type {
   ScheduledSlice,
   Slice,
 } from './schedule';
-import { SCHEDULE_ALGORITHM_ID, schedule } from './schedule';
+import { schedule, SCHEDULE_ALGORITHM_ID } from './schedule';
 
 /**
  * The enforcement `SCHEDULE_ALGORITHM_ID` cannot supply on its own.
@@ -160,11 +160,11 @@ const CORPUS: readonly ScheduleCase[] = [
     slices: [slice('a', DEV, null), slice('b', DEV, 2)],
   },
   {
-    name: 'the same plan under first-slice reach',
+    name: 'the same plan under anchor-slice reach',
     rows: [item('a', null, 10), item('b', null, 20)],
     edges: [{ predecessorId: 'a', successorId: 'b' }],
     slices: [slice('a', DEV, 3), slice('a', QA, 2), slice('b', DEV, 1)],
-    reach: 'first-slice',
+    reach: 'anchor-slice',
   },
 ];
 
@@ -182,19 +182,26 @@ const CORPUS: readonly ScheduleCase[] = [
  * enumerated list would stay green across exactly the change nobody remembered
  * to add to it.
  */
+const INSTRUMENTATION_KEY: keyof Schedule = 'eventsVisited';
+
 const semanticPart = (result: Schedule): Record<string, unknown> => {
-  const { eventsVisited: _instrumentation, ...semantic } = result;
-  return semantic;
+  const source = result as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(source)
+      .filter((key) => key !== INSTRUMENTATION_KEY)
+      .map((key) => [key, source[key]]),
+  );
 };
 
 /** Maps in key order, objects in key order, so the serialization is stable. */
 const stable = (value: unknown): unknown => {
   if (value instanceof Map) {
-    return [...value.entries()]
+    const entries = [...(value as Map<string, unknown>).entries()];
+    return entries
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([key, entry]) => [key, stable(entry)]);
   }
-  if (Array.isArray(value)) return value.map(stable);
+  if (Array.isArray(value)) return (value as unknown[]).map(stable);
   if (value !== null && typeof value === 'object') {
     const source = value as Record<string, unknown>;
     return Object.fromEntries(
@@ -265,7 +272,7 @@ const perturbed = (value: unknown): unknown => {
   if (typeof value === 'number') return value + 1;
   if (typeof value === 'boolean') return !value;
   if (typeof value === 'string') return `${value}~`;
-  if (Array.isArray(value)) return [...value, 'perturbation'];
+  if (Array.isArray(value)) return [...(value as unknown[]), 'perturbation'];
   return 'perturbation';
 };
 
@@ -276,9 +283,11 @@ const engineWithSliceFieldMoved =
     const real = schedule(...args);
     const slices = new Map(real.slices);
     const firstKey = [...slices.keys()].sort()[0];
-    if (firstKey === undefined) return real;
     const target = slices.get(firstKey) as unknown as Record<string, unknown>;
-    slices.set(firstKey, { ...target, [field]: perturbed(target[field]) } as ScheduledSlice);
+    slices.set(firstKey, {
+      ...target,
+      [field]: perturbed(target[field]),
+    } as unknown as ScheduledSlice);
     return { ...real, slices };
   };
 
@@ -289,9 +298,11 @@ const engineWithWorkItemFieldMoved =
     const real = schedule(...args);
     const workItems = new Map(real.workItems);
     const firstKey = [...workItems.keys()].sort()[0];
-    if (firstKey === undefined) return real;
     const target = workItems.get(firstKey) as unknown as Record<string, unknown>;
-    workItems.set(firstKey, { ...target, [field]: perturbed(target[field]) } as Scheduled);
+    workItems.set(firstKey, {
+      ...target,
+      [field]: perturbed(target[field]),
+    } as unknown as Scheduled);
     return { ...real, workItems };
   };
 
@@ -313,8 +324,8 @@ const sample = schedule(
 );
 const sampleSlice = [...sample.slices.values()][0];
 const sampleWorkItem = [...sample.workItems.values()][0];
-const SLICE_FIELDS = Object.keys(sampleSlice ?? {});
-const WORK_ITEM_FIELDS = Object.keys(sampleWorkItem ?? {});
+const SLICE_FIELDS = Object.keys(sampleSlice);
+const WORK_ITEM_FIELDS = Object.keys(sampleWorkItem);
 const COUNT_FIELDS = Object.keys(semanticPart(sample)).filter(
   (key) => key !== 'slices' && key !== 'workItems',
 );
