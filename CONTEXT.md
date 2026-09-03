@@ -1059,10 +1059,12 @@ another backend process is cancelled too.
 _Avoid_: cancel flag, kill switch, generation bump
 
 **Attempt token**:
-The unforgeable 128-bit value minted when a solver slot is admitted, carried by that
+The unforgeable 128-bit value minted when a solver slot is admitted — stamped into the
+`starting` row, handed to the Lifecycle launcher as `--attempt-token` argv, and the
+predicate of the bind CAS beside `lifecycle = 'starting'` — and thereafter carried by that
 owner's heartbeat, release, result write and event write. It is the fence that stops a
 superseded owner — one whose slot expired and was re-admitted to someone else — from
-refreshing, releasing or writing over the replacement.
+binding, refreshing, releasing or writing over the replacement.
 _Avoid_: lease id, lock, owner id
 
 **Baseline schedule**:
@@ -1100,3 +1102,23 @@ The absolute instant a solver slot expires, stamped into the row at admission fr
 Reclamation reads it and never recomputes it, because co-existing releases may run different
 budgets and an observer applying its own would reclaim a child still inside its deadline.
 _Avoid_: slot TTL, heartbeat timeout, expiry window
+
+**Lifecycle launcher**:
+The distinct entrypoint the coordinator spawns for an admitted slot — never `wbs-solver`
+itself. It loads no CP-SAT and solves nothing. Its lifecycle wrapper reads the clock once to
+arm `--child-deadline-epoch-ms` as its own alarm, installs `PR_SET_PDEATHSIG`, re-checks
+`getppid()`, and then blocks for the bind verdict before it touches the request at all. On
+`bound` it `exec`s `wbs-solver` in place, keeping the pid the bind CAS recorded; on `abort`,
+a closed stdin, or `BIND_TIMEOUT_MS` expiry it exits **without** `exec`ing. That is what
+makes the ceiling literal: a process named `wbs-solver` cannot exist before its row is
+`running`, so a delayed spawn after reclaim creates no uncounted solver.
+_Avoid_: shim, supervisor, solver wrapper — "lifecycle wrapper" is the launcher's own
+clock-reading part, not a second process, and the two are not interchangeable.
+
+**Slot lifecycle**:
+The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting`
+with a null `pid`; a successful bind CAS moves it to `running` and records the launcher's
+pid. A `starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a
+`running` one — it *is* the reservation — and is reclaimed by the same
+`now > admittedDeadlineAt` rule.
+_Avoid_: slot state, pending, provisional

@@ -899,7 +899,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       **four**-field per-term shape `{ value, stageValue, bound, status }` exactly as
       `solver-wire.v1.json` and design.md's matrix define it; `value` is the
       term on the published offsets (2.4), `stageValue`/`bound`/`status`
-      describe the stage. **This task previously wrote a three-field shape and
+      describe the stage **and are null where the stage produced none** — the
+      matrix's `k > 1` UNKNOWN-without-incumbent row writes
+      `{ value: <recomputed>, stageValue: null, bound: null, status: 'unknown' }`
+      for `Tₖ` and every later term, so "describe the stage" is never a
+      requirement that they be populated. **This task previously wrote a three-field shape and
       deferred `value` to a nonexistent 5.8b (Sol r8 Critical 4)** — an
       implementation instruction that contradicted 2.4 and the schema on both
       the field list and, in the long-form note, on the accepted outcome set.
