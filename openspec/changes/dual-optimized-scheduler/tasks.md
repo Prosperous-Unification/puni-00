@@ -472,6 +472,12 @@ check-that-cannot-fail failure R5 names.
       `Proof:` comment names each removed check. Re-validation is the only thing
       standing between a wrong solver and a published schedule; a check that
       cannot fail is exactly the failure mode AGENTS.md R5 names.
+      **First half landed:** the `Proof:` block at the top of
+      `revalidate-solver-result.ts` names twelve removed checks and the single
+      case each one turns red, all run on h2puni. It records one check that was
+      measured dead (an `Object.hasOwn` guard whose removal changed nothing) and
+      deleted rather than documented. The `days / width` half still waits on
+      2.2's request builder.
 - [ ] 2.8 `SOLVER_QUANTUM = 48` exported from `libs/domain`, and
       `durationUnits(slice)` = `Math.ceil(durationOf(slice) * SOLVER_QUANTUM)`
       with an exact-multiple assertion within `DRIFT` before the ceiling

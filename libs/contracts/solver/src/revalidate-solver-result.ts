@@ -35,6 +35,46 @@ import {
  * and always passes is worse than one that is absent.
  */
 
+/*
+ * Proof: 2.7 asks for the removed check to be named, one per rule, because
+ * re-validation is the only thing standing between a wrong solver and a
+ * published schedule and a check that cannot fail is the failure mode AGENTS.md
+ * R5 names. Each row below was RUN on h2puni against `libs/contracts` — the
+ * check disabled in a byte-verified copy, the suite recorded, the file restored
+ * and re-compared — and each names the single case that went red. A mutation
+ * that failed to apply was caught by `cmp` and re-run rather than scored as a
+ * pass, which happened once.
+ *
+ *   edge respected            widened by 1e6              69/1  successor case
+ *   every pool, not the first `poolIds.slice(0, 1)`       69/1  every-pool case
+ *   notBeforeUnits floor      compared against -1         69/1  floor case
+ *   assignee non-overlap      capacity 1 -> 99            69/1  double-booking
+ *   releases before starts    sweep sorts starts first    68/2  BOTH exactly-met
+ *   offset domain (2.9)       guard removed               69/1  fractional/neg/horizon
+ *   value matches offsets     comparison neutered         69/1  disagreeing term
+ *   value <= stageValue       widened by 1000             69/1  worse-than-incumbent
+ *   ...and not `!==`          tightened to `!==`          69/1  strictly-better case
+ *   objective overflow        bound raised x1000          69/1  overflow case
+ *   wire safe-integer rule    disabled                    69/1  wire-domain case
+ *   baseline domain           disabled                    69/1  unbuildable request
+ *
+ * The sweep ordering is the row worth reading twice: it fails BOTH exactly-met
+ * neighbours and no violation case at all, which is what "the ordering, not the
+ * comparison, is what makes an exactly-met constraint legal" looks like as a
+ * measurement. The counts are 69/1 against the 70-test suite at
+ * `2df9bc97`, and 61/1 or 60/2 against the 62-test suite at `411af89b` for the
+ * five placement rows, which landed first.
+ *
+ * One row is absent on purpose. An `Object.hasOwn` presence check in front of
+ * the baseline domain check was disabled and NOTHING failed (70/0): it was the
+ * careful spelling of a check rather than a check, because
+ * `Number.isSafeInteger(undefined)` is already false. It was deleted, not
+ * documented.
+ *
+ * Still owed by 2.7: the `days / width` mutation against 2.6's width case,
+ * which needs 2.2's request builder to exist.
+ */
+
 /**
  * Why a schedule was refused. One code per distinct repair, and each names a
  * different broken thing: the solver answered about the wrong slice set, put a
