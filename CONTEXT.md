@@ -1064,3 +1064,17 @@ The Fast schedule for the same canonical input, passed to the solver as `baselin
 It is the only thing either Objective's movement term is measured against — never "the
 schedule currently on screen", which would put unhashed state into the result.
 _Avoid_: current schedule, published schedule, previous plan
+
+**Optimized result**:
+What a cache row stores — `{ dtoVersion, publication, objectiveValues, schedule }` — never a
+bare `Schedule` and never the solver's offsets map. `publication` is `solver` or
+`quantisation-floor`, and `objectiveValues` is what records how far a partially staged run
+got; `Schedule` carries neither, so a row holding only a schedule silently discards both.
+_Avoid_: cached schedule, scheduleJson, stored plan
+
+**Stage value**:
+The incumbent a lexicographic stage found, reported beside the published schedule's own
+recomputed `value`, and never confused with it. A later stage constrained by `T <= stageValue`
+may return a strictly better `T`, so `value` is what Bun re-validates and `stageValue`,
+`bound` and `status` describe the stage that produced the constraint.
+_Avoid_: objective value, incumbent, best value

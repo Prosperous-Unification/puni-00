@@ -142,8 +142,21 @@ h2puni is green — no build or autotest runs on the workspace box.
       `status`, an unknown key, a missing key.
 - [ ] 2.4 `revalidateSolverResult(request, response)` — every offset present and
       non-negative, every edge respected, every `notBeforeUnits` floor
-      respected, no pool over capacity at any instant, no assignee
-      double-booked, and the reported `objectiveValues` recomputed and matched.
+      respected, no pool over capacity at any instant (checked against **all**
+      of a slice's `poolIds`, since the whole width is spent in each), no
+      assignee double-booked, and `objectiveValues[T].value` recomputed from
+      the final offsets and matched. **`value` is the only recomputed field**
+      (Sol r7 Critical 1): `stageValue`, `bound` and `status` are statements
+      about a stage, not about the published schedule, and a later stage may
+      legitimately improve an earlier term below its own incumbent, so
+      recomputing against `stageValue` would reject valid answers. The one
+      cross-field relation that must hold **is** checked: `value <= stageValue`
+      whenever both are present, because every later stage adds an inequality
+      at `stageValue` and a published value worse than it is a real contract
+      violation. **Watched red:** a response whose `value` disagrees with the
+      offsets is rejected; a response whose `value` is strictly better than
+      `stageValue` is **accepted**; a response whose `value` is worse than
+      `stageValue` is rejected.
 - [ ] 2.5 **Proven by** `solver-contract.test.ts`: a valid response passes;
       each violation in 2.4 is rejected as invalid-output, one case each; and
       each of 2.3's six framing cases is fed to `parseSolverResponse` **as a raw
@@ -197,12 +210,12 @@ h2puni is green — no build or autotest runs on the workspace box.
 
 - [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
       composite PK `(projectId, inputHash, objective, contractVersion,
-      budgetMs)` → `generation`, `status` (`'ok' | 'failed'`), `scheduleJson`
+      budgetMs)` → `generation`, `status` (`'ok' | 'failed'`), `resultJson`
       (NULL iff failed), `failureReason` (NULL iff ok), `createdAt`.
       Integrity is declared, not assumed: `projectId` FK to `project(id)`
       `ON DELETE CASCADE`; `CHECK (status IN ('ok','failed'))`;
-      `CHECK ((status='ok' AND scheduleJson IS NOT NULL AND failureReason IS
-      NULL) OR (status='failed' AND scheduleJson IS NULL AND failureReason IS
+      `CHECK ((status='ok' AND resultJson IS NOT NULL AND failureReason IS
+      NULL) OR (status='failed' AND resultJson IS NULL AND failureReason IS
       NOT NULL))`; `CHECK (objective IN ('pri','time'))`.
 - [ ] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
       `generation` (integer not null), `inputHash` (text nullable),
@@ -237,11 +250,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       creates the four tables; it is idempotent on an already-migrated file; a
       rollback and re-apply leave every pre-existing table intact; the outgoing
       release's queries still run after the migration; each CHECK rejects its
-      malformed row (an `ok` row with a NULL `scheduleJson`, a `failed` row
+      malformed row (an `ok` row with a NULL `resultJson`, a `failed` row
       with one, an unknown `objective`); and deleting a project cascades its
       cache rows away.
 - [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
-      and watch 3.4's "an `ok` row with a NULL `scheduleJson` is rejected" case
+      and watch 3.4's "an `ok` row with a NULL `resultJson` is rejected" case
       fail. `Proof:` comment names the removed constraint. SQLite text columns
       otherwise hold any combination a past bug wrote.
 - [ ] 3.6 This slice touches `apps/be-01/drizzle/**`, a prod-mode path: PR with
@@ -320,14 +333,24 @@ h2puni is green — no build or autotest runs on the workspace box.
       version, the cancel epoch unchanged, and `optimization_enabled` still 1.
       A superseded run therefore cannot store, evict, overwrite an `ok` with a
       `failed`, or emit a second outcome record for one key.
-- [ ] 4.1b Retention, both rules: allocation deletes that contract version's
-      older-generation rows, and a committing outcome deletes every other row
-      for `(projectId, objective, contractVersion)` whose `(inputHash,
-      budgetMs)` differs — without the second rule every superseded budget and
-      contract row stayed inside the current generation and the "only the
-      latest pair" bound was false. **Proven by** raising `budgetMs` three
-      times and bumping `contractVersion` with no plan edit, asserting at most
-      two rows per project per live contract version.
+- [ ] 4.1b Retention, both rules. (1) Allocation deletes that contract
+      version's older-generation cache rows. (2) A committing outcome keeps the
+      `MAX_LIVE_BUDGETS = 2` most recently written budgets for
+      `(projectId, objective, contractVersion, inputHash)` and deletes the
+      rest. **Rule 2 is a bound, not an exclusion** (Sol r7 Important 9): the
+      earlier "delete every other row whose `(inputHash, budgetMs)` differs"
+      made a budget change a livelock, because a config change is not a code
+      change, so blue and green can read 60000 and 120000 under one
+      `contractVersion` and each deleted the other's row on every store —
+      alternating solves for ever on an unchanged plan and holding the 4/16
+      ceilings busy. The per-contract generation table cannot fix that; only
+      the bound can. **Proven by** (a) raising `budgetMs` three times and
+      bumping `contractVersion` with no plan edit, asserting at most two rows
+      per project per objective per live contract version; and (b) a two-release
+      fixture reading different budgets against one file — each stores once,
+      each then hits its own row, and the injected spawner sees exactly two
+      solves across ten alternating reads. **Watched red:** restore the
+      exclusive rule and (b)'s spawn count must rise with every read.
 - [ ] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
       **zero calls on the injected spawner** (asserted on the spawner, not on
       elapsed time); a changed effort, edge or pool → miss; a `contractVersion`
@@ -335,8 +358,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       not served); a `status='failed'` row never satisfies a read and is
       overwritten by the next run for that key; a new generation deletes every
       prior row for that project including its `failed` ones; an undo to a
-      previous hash misses; a row whose `scheduleJson` fails schema validation
-      is deleted and treated as a miss.
+      previous hash misses; and a row whose `resultJson` fails to decode is
+      **left in place** and reads as `corrupt` (4.8), never deleted and never
+      treated as a miss.
 - [ ] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
       names the relaxed predicate. Serving a failure marker as a schedule would
@@ -362,20 +386,43 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 4.8 `isOptimizedStatus` / `isObjective` / `isFailureReason` validators on
       the cache read path, throwing rather than casting or defaulting.
       **Watched red:** an unknown value for each, injected as a stored row.
+      A row whose `resultJson` fails to decode is **left in place**, not
+      deleted (Sol r7 Important 13): the earlier "delete it and treat it as a
+      miss" contradicted the decoder throwing, contradicted AGENTS.md R5, and
+      silently turned corruption into a read-triggered solve — the timer retry
+      Dany rejected, arriving through the cache instead of the clock. The
+      variant reads as the sixth state `corrupt`, carrying the decoder's
+      message; it never satisfies a read and never auto-spawns, exactly like
+      `failed`, and Retry overwrites it through the ordinary admission path.
+      **Watched red:** write a truncated and a wrong-`dtoVersion` `resultJson`
+      directly, read through the production path — the row survives, the
+      payload reads `corrupt` with the reason, ten reads spawn nothing, one
+      Retry produces exactly one child; then restore the delete-and-miss
+      behaviour and the spawn-count case must fail.
 - [ ] 4.9 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
-      is what produces `scheduleJson`; the offsets map is never persisted or
+      is what produces the `schedule` member of `resultJson`; the offsets map
+      is never persisted or
       returned as a schedule. Fast has **no** annotation-only pass to call, so
       4.7 begins by splitting `placeSlices` into `chooseStarts(canonicalInput)`
       and `annotate(canonicalInput, starts)`, proved behaviour-preserving by
       the existing Fast golden corpus **before** anything optimized is built on
       it (4.9 begins with that split); `materialiseOptimized` is then
       `annotate` over the dequantised
-      offsets. `annotate` processes slices in ascending start with ties broken
-      by the canonical slice order, replays the person and pool ledgers to
-      reconstruct which reservations bind (a multi-pool slice takes Fast's own
-      rule at the pinned instant: first pool in sorted `poolIds` with free
-      capacity there), and derives from those ledgers the resource-successor
-      edges `lateTimes` consumes — so `duration`, `estimated`, earliest/latest, `float`,
+      offsets. `annotate` replays the person and pool ledgers in ascending
+      start with ties broken by the canonical slice order, calling the
+      **existing** `jointWindowFor(poolIds, …)` and `reserve(poolIds, …)`
+      unchanged — the whole width in **every** named pool, which is what
+      `Slice.poolIds` and Dany's 2026-08-13 decision 3 say and what Fast does
+      (Sol r7 Critical 3). "First pool in sorted `poolIds` with free capacity"
+      is struck: it was a different resource model that could accept a
+      materialised schedule overbooking a second team, and a different
+      resource-successor graph, float and wait count. `capacityPredecessorIds`
+      is `jointWindowFor`'s **accumulated** blocking set across rounds and
+      pools, never the releases at exactly the pinned start;
+      `capacityTeamId` is `binding`'s own rule — the pool whose blocking set
+      holds the latest finisher, ties by pool id. A joint window strictly later
+      than the pinned start is `invalid-output`. `annotate` derives from those
+      ledgers the resource-successor edges `lateTimes` consumes — so `duration`, `estimated`, earliest/latest, `float`,
       `critical`, `boundBy`, `resourcePredecessorId`, `capacityPredecessorIds`,
       `capacityTeamId`, `width`, `effort`, the work-item projections and both
       wait counters come out of the one code path that produces them today,
@@ -393,13 +440,58 @@ h2puni is green — no build or autotest runs on the workspace box.
       invariant holds: under `'optimizer'`, `resourcePredecessorId` is null,
       `capacityPredecessorIds` is empty and `capacityTeamId` is null, so
       "set exactly when `boundBy === 'capacity'`" is still true.
+- [ ] 4.10b **Two orders, not one** (Sol r7 Important 7). Ledger replay is
+      chronological (ascending start, canonical tie-break); the order handed to
+      `lateTimes` is a **topological** order of the augmented graph — plan
+      edges, step-order edges and the reconstructed resource-successor edges —
+      computed by Kahn with the ready set drained in ascending
+      `(start, canonical slice order)`, so it stays fully determined by the
+      hashed input. Chronological order is not topological on legal data:
+      `durationOf` preserves an explicit `days: 0`, `windowFor` treats a zero
+      duration as legal no-work, so a zero-duration predecessor and its
+      successor can share a start and the id tie-break can order them
+      backwards — after which `lateTimes`, which walks its `order` backwards
+      and immediately reads `late[next].latestStart`, reaches the predecessor
+      before the successor has a `Late`. Fast is audited for the same hazard in
+      this slice and fixed the same way if `placeSlices`' placement order can
+      produce it. **Watched red:** a two-slice fixture with a zero-duration
+      predecessor whose id sorts **after** its successor, sharing one start —
+      passing chronological order to `lateTimes` must throw or produce a wrong
+      `latestStart`, and the topological order must not.
 - [ ] 4.11 Materialiser proofs run **through the real plan-read payload**
       (`work-item.service.ts`), not against the domain type. **Watched red:**
       (a) return Fast's own annotations against optimized dates — the float
       and `boundBy` assertions must fail; (b) report a deliberately idled
       slice as `projectStart` instead of `'optimizer'`; (c) set
       `capacityTeamId` on an `'optimizer'` slice — the render invariant test
-      must fail.
+      must fail; (d) **the contended two-pool case, on the production path**
+      (Sol r7 Critical 3): one slice naming two pools that each have room only
+      after different reservations end, so the joint window is later than
+      either pool's own earliest fit. Reserve into only the first pool and the
+      second pool's capacity assertion must fail; take `capacityPredecessorIds`
+      from the releases at exactly the pinned start and the accumulated-set
+      assertion must fail; take `capacityTeamId` as the first sorted pool and
+      the latest-finisher assertion must fail.
+- [ ] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
+      (Sol r7 Critical 6). `objectiveValues` is what records how far a
+      partially staged run got, and the publication guard must persist
+      `'quantisation-floor'`, but `Schedule` carries neither and the cache had
+      only `scheduleJson`, so both were discarded at storage. The column
+      becomes `resultJson` holding
+      `{ dtoVersion, publication: 'solver' | 'quantisation-floor',
+      objectiveValues: Record<'makespan'|'priority'|'movement', ObjectiveValue>,
+      schedule: <encodeSchedule(schedule)> }`, with `ObjectiveValue =
+      { value, stageValue, bound, status }` exactly as the matrix defines it,
+      and `encodeOptimizedResult` / `decodeOptimizedResult` as the seam.
+      `publication` is stored rather than inferred, because a
+      `quantisation-floor` row **is** Fast's schedule and the comparison
+      indicator must not present it as a solver win. **Watched red:** a
+      partially staged row (`status: 'unknown'` on the last term) and a
+      `quantisation-floor` row each reload through SQLite and the real plan
+      read with every field intact; a `resultJson` holding a bare
+      `encodeSchedule` output makes `decodeOptimizedResult` throw naming the
+      missing `dtoVersion`; and storing through the old
+      `scheduleJson`-shaped write makes the metadata assertions fail.
 - [ ] 4.12 `CACHE_DTO_VERSION`, `encodeSchedule`, `decodeSchedule`
       in `libs/domain`: both `Map`s become arrays of entries sorted by key, and
       `waitingForPerson`, `waitingForCapacity` and `eventsVisited` are stored,
@@ -571,6 +663,20 @@ h2puni is green — no build or autotest runs on the workspace box.
       in-memory counter and watch 6.7's two-instance case fail; drop
       `PR_SET_PDEATHSIG` and watch 6.8 fail. Four faults, four `Proof:`
       comments, because one check passing does not prove the others exist.
+- [ ] 6.9b **The empty project bypasses both solvers** (Sol r7 Important 12).
+      A project with no slices is legal — `schedule` handles it explicitly with
+      `projectFinish = Math.max(0, ...placedFinishes)` and empty maps — but
+      `MAKESPAN = max finish` and `horizonUnits = max(notBeforeUnits) +
+      Σ durationUnits` have no empty-set identity, so both maxima were
+      undefined on a plan the product allows. The coordinator short-circuits: a
+      canonical input with zero slices, or one whose durations are all zero,
+      allocates no slot, spawns nothing, writes no cache row and emits no
+      event; the plan read returns Fast with every variant `idle`. **Watched
+      red:** a cold read with optimization ON and zero work items — no call on
+      the injected spawner, no row, no event, and a renderable payload; then
+      add and delete the only work item and assert the same, since that
+      transition is what would otherwise leave a stale row. Remove the
+      short-circuit and the spawner assertion must fail.
 - [ ] 6.10 Generation allocation is one transaction against the
       `optimization_generation` row for `(projectId, contractVersion)`, and
       there is exactly one allocation algorithm in this plan — 4.1's (Sol r7
