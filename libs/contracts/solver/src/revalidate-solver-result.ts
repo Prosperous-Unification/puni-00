@@ -1,0 +1,252 @@
+import type { SolverRequest, SolverResponse, SolverSlice } from './wire-types';
+
+/**
+ * 2.4 — re-validation, placement half.
+ *
+ * `parseSolverResponse` (2.3) proves the bytes are a well-formed response. It
+ * proves nothing about whether the schedule inside them is one Bun may publish:
+ * the schema has no access to the request, so it cannot know that an offset map
+ * is missing a slice, that an edge is violated, or that a pool is oversubscribed.
+ * The golden corpus makes that gap concrete rather than theoretical — its own
+ * `request/valid-two-slices.json` is schema-valid with a width-5 slice drawn
+ * against a capacity-2 pool, so the schema accepts a request whose only feasible
+ * schedule does not exist. Re-validation is the only thing standing between a
+ * wrong solver and a published plan.
+ *
+ * Every rejection here is the coordinator's `invalid-output` disposition, never
+ * `plan-infeasible`: a solver that returns `feasible` and breaks a constraint is
+ * a broken engine, not an infeasible plan. So this returns a result rather than
+ * throwing, for the same reason 2.3 does — the caller records a value, and an
+ * exception would make it re-derive that value from a message.
+ *
+ * This module carries the placement rules. The objective arithmetic and the
+ * deadline clause are the remaining halves of 2.4 and are not implemented here;
+ * they are listed in the task file rather than stubbed, because a check that
+ * exists and always passes is worse than one that is absent.
+ */
+
+/**
+ * Why a schedule was refused. One code per distinct repair, and each names a
+ * different broken thing: the solver answered about the wrong slice set, put a
+ * slice outside the variable domain, ignored an edge, ignored a floor, or
+ * oversubscribed a pool or a person. They are diagnosis, not disposition.
+ *
+ * `malformed-request` is the one code that does not blame the solver. It fires
+ * when the request itself cannot support a verdict — a duplicate slice key, an
+ * edge naming a slice that does not exist, a pool that carries no capacity.
+ * Reporting that as a solver fault would send the repair to the wrong side of
+ * the seam, and passing it silently would let a check report success on a
+ * question it never asked.
+ */
+export const SOLVER_REVALIDATION_FAILURES = [
+  'malformed-request',
+  'offset-key-mismatch',
+  'offset-domain',
+  'edge-violated',
+  'floor-violated',
+  'pool-overcapacity',
+  'assignee-double-booked',
+] as const;
+export type SolverRevalidationFailure = (typeof SOLVER_REVALIDATION_FAILURES)[number];
+
+/**
+ * `published` distinguishes the two ways a response can be acceptable. Only
+ * `feasible` carries a schedule, so a non-publishing response passes with
+ * nothing checked, and the caller must not read that as "there is a plan".
+ */
+export type RevalidatedSolverResult =
+  | { readonly ok: true; readonly published: boolean }
+  | {
+      readonly ok: false;
+      readonly failure: SolverRevalidationFailure;
+      readonly detail: string;
+    };
+
+const refuse = (
+  failure: SolverRevalidationFailure,
+  detail: string,
+): RevalidatedSolverResult => ({ ok: false, failure, detail });
+
+/** A slice placed at an offset. Occupancy is half-open: `[start, finish)`. */
+interface Placement {
+  readonly slice: SolverSlice;
+  readonly start: number;
+  readonly finish: number;
+}
+
+/**
+ * A sweep over half-open intervals, refusing the first instant at which the
+ * running load exceeds `capacity`.
+ *
+ * Two orderings matter and neither is cosmetic. Releases run before
+ * acquisitions at the same instant, so a slice finishing exactly where the next
+ * starts is a hand-off and not an overlap — the same closed-then-open reading
+ * the edge rule uses. And zero-length placements are dropped before the sweep
+ * rather than emitted as a coincident pair, because a pair at one instant has
+ * no ordering that is both non-negative and non-occupying.
+ */
+const overloadAt = (
+  placements: readonly Placement[],
+  weightOf: (placement: Placement) => number,
+  capacity: number,
+): { readonly at: number; readonly load: number } | null => {
+  const events: { time: number; delta: number }[] = [];
+  for (const placement of placements) {
+    if (placement.finish <= placement.start) continue;
+    const weight = weightOf(placement);
+    events.push({ time: placement.start, delta: weight });
+    events.push({ time: placement.finish, delta: -weight });
+  }
+  events.sort((a, b) => a.time - b.time || a.delta - b.delta);
+
+  let load = 0;
+  for (const event of events) {
+    load += event.delta;
+    if (load > capacity) return { at: event.time, load };
+  }
+  return null;
+};
+
+const groupBy = <T>(items: readonly T[], keysOf: (item: T) => readonly string[]) => {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    for (const key of keysOf(item)) {
+      const group = groups.get(key);
+      if (group === undefined) groups.set(key, [item]);
+      else group.push(item);
+    }
+  }
+  return groups;
+};
+
+/**
+ * Re-validate a solver response against the request that produced it.
+ *
+ * Order is deliberate: the request is proved usable, then the offset map is
+ * proved to be about the right slices and inside the variable domain, and only
+ * then are the constraints checked. A constraint checked against a key set that
+ * does not match the request is a check that reads whichever slices both
+ * happened to name.
+ */
+export const revalidateSolverResult = (
+  request: SolverRequest,
+  response: SolverResponse,
+): RevalidatedSolverResult => {
+  const slices = new Map<string, SolverSlice>();
+  for (const slice of request.slices) {
+    if (slices.has(slice.key)) {
+      return refuse('malformed-request', `duplicate slice key ${JSON.stringify(slice.key)}`);
+    }
+    slices.set(slice.key, slice);
+    for (const poolId of slice.poolIds) {
+      if (!Object.hasOwn(request.pools, poolId)) {
+        return refuse(
+          'malformed-request',
+          `slice ${JSON.stringify(slice.key)} draws on pool ${JSON.stringify(poolId)}, which has no capacity`,
+        );
+      }
+    }
+  }
+  for (const edge of request.edges) {
+    for (const end of [edge.predecessorKey, edge.successorKey]) {
+      if (!slices.has(end)) {
+        return refuse('malformed-request', `edge names unknown slice ${JSON.stringify(end)}`);
+      }
+    }
+  }
+
+  // A non-publishing response carries no schedule, so there is nothing to
+  // re-validate and `published: false` says so out loud.
+  if (response.status !== 'feasible') return { ok: true, published: false };
+
+  const offsets = response.offsets;
+  for (const key of Object.keys(offsets)) {
+    if (!slices.has(key)) {
+      return refuse('offset-key-mismatch', `offsets carry unknown slice ${JSON.stringify(key)}`);
+    }
+  }
+  for (const key of slices.keys()) {
+    if (!Object.hasOwn(offsets, key)) {
+      return refuse('offset-key-mismatch', `offsets omit slice ${JSON.stringify(key)}`);
+    }
+  }
+
+  // 2.9. `horizonUnits` is the CP-SAT variable domain for the offset itself, so
+  // that is what is bounded here; a finish past the horizon is 2.4's makespan
+  // arithmetic, not this rule. `parseSolverResponse` already refused a negative
+  // or fractional offset, and this repeats it on purpose — that call proves the
+  // bytes and this one proves the domain, and the re-validator must not depend
+  // on which parser its caller used.
+  const placements: Placement[] = [];
+  const placementByKey = new Map<string, Placement>();
+  for (const [key, slice] of slices) {
+    const start = offsets[key];
+    if (!Number.isSafeInteger(start) || start < 0 || start > request.horizonUnits) {
+      return refuse(
+        'offset-domain',
+        `offset ${JSON.stringify(key)} is ${JSON.stringify(start)}, outside 0..${String(request.horizonUnits)}`,
+      );
+    }
+    const placement: Placement = { slice, start, finish: start + slice.durationUnits };
+    placements.push(placement);
+    placementByKey.set(key, placement);
+  }
+
+  for (const placement of placements) {
+    if (placement.start < placement.slice.notBeforeUnits) {
+      return refuse(
+        'floor-violated',
+        `slice ${JSON.stringify(placement.slice.key)} starts at ${String(placement.start)}, before its floor ${String(placement.slice.notBeforeUnits)}`,
+      );
+    }
+  }
+
+  for (const edge of request.edges) {
+    const predecessor = placementByKey.get(edge.predecessorKey);
+    const successor = placementByKey.get(edge.successorKey);
+    // Both endpoints were proved present above. The guard is kept because the
+    // lookup and the proof are different statements, and a re-validator that
+    // silently skips an edge it cannot resolve is the exact hole 2.7 aims at.
+    if (predecessor === undefined || successor === undefined) {
+      return refuse('malformed-request', `edge names unknown slice`);
+    }
+    if (predecessor.finish > successor.start) {
+      return refuse(
+        'edge-violated',
+        `${JSON.stringify(edge.predecessorKey)} finishes at ${String(predecessor.finish)}, after ${JSON.stringify(edge.successorKey)} starts at ${String(successor.start)}`,
+      );
+    }
+  }
+
+  // The whole width is spent in EACH pool a slice names, so a slice in two
+  // pools is counted at full width in both. Checking only the first would let a
+  // solver hide an overload behind a second membership.
+  const byPool = groupBy(placements, (placement) => placement.slice.poolIds);
+  for (const [poolId, members] of byPool) {
+    const capacity = request.pools[poolId];
+    const overload = overloadAt(members, (placement) => placement.slice.width, capacity);
+    if (overload !== null) {
+      return refuse(
+        'pool-overcapacity',
+        `pool ${JSON.stringify(poolId)} carries ${String(overload.load)} of ${String(capacity)} at unit ${String(overload.at)}`,
+      );
+    }
+  }
+
+  // An assignee is a person and not a quantity: two slices naming one person
+  // overlap or they do not, whatever their widths.
+  const byPerson = groupBy(placements, (placement) =>
+    placement.slice.personId === null ? [] : [placement.slice.personId],
+  );
+  for (const [personId, members] of byPerson) {
+    const overload = overloadAt(members, () => 1, 1);
+    if (overload !== null) {
+      return refuse(
+        'assignee-double-booked',
+        `${JSON.stringify(personId)} is on ${String(overload.load)} slices at unit ${String(overload.at)}`,
+      );
+    }
+  }
+
+  return { ok: true, published: true };
+};
