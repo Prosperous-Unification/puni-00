@@ -376,6 +376,18 @@ check-that-cannot-fail failure R5 names.
       idle a slice — checked against `2^31 − 1` before spawn (2.10). The
       request also carries `wireVersion` and `fastHint`; every field and unit
       comes from 2.1's schema rather than from this sentence.
+      **Partly landed (2026-09-03):** the dense-rank `priorityWeight` is in
+      `libs/domain/src/priority-weight.ts` — `priorityWeights(leafPriorities)`
+      over `priorityByLeaf`'s output, plus `priorityWeightOf` for the absent
+      leaf, which is most leaves on most plans. It went to `libs/domain` rather
+      than beside the builder for two reasons: a dense rank over a plan's
+      distinct priorities needs no wire type at all, and `libs/contracts` has
+      **no** `@wbs/domain` import today, so opening that edge is a boundary
+      decision of its own rather than a side effect — the more so because
+      `@nx/enforce-module-boundaries` is SKIPPED in the gate (`No cached
+      ProjectGraph is available`) and would not have caught a bad one. The tag
+      constraints do permit it: both libraries are `scope:shared` +
+      `runtime:isomorphic`. The rest of 2.2 is unstarted.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
