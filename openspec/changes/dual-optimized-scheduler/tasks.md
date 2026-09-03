@@ -538,6 +538,16 @@ check-that-cannot-fail failure R5 names.
       NO pre-existing test in the 327-test domain suite. Nothing held that arm
       until this slice did, which is exactly why the plan could restate it wrong
       and go unnoticed.
+      **A defect this slice CREATED and closed in the same run:** publishing
+      `durationOf` put a caller outside `groupByWorkItem`, which refuses
+      `width < 1` precisely because `durationOf` divides by it — a width of 0 is
+      `Infinity` days for a slice with effort and `NaN` for one without. Since
+      `Math.ceil(Infinity)` is `Infinity`, an unrefused width would have reached
+      the wire as a *duration* and been diagnosed there as the builder's own
+      request violating its own schema. `quantise` now throws, which is
+      `groupByWorkItem`'s own choice on the same input: malformed input, not a
+      missing default. A null estimate never divides, so it stays finite at
+      every width and stays an answer. Watched red: guard deleted -> 343/1.
 - [x] 2.9 The re-validator rejects any offset that is not a non-negative
       integer unit within `horizonUnits`. **Watched red:** feed it a
       fractional offset and a negative one.
