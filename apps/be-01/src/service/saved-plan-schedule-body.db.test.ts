@@ -7,8 +7,8 @@ import {
   firstWorkdayOf,
   type IsoDate,
   lastWorkdayOf,
-  SCHEDULE_ALGORITHM_ID,
   type Schedule,
+  SCHEDULE_ALGORITHM_ID,
   type Scheduled,
 } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
