@@ -36,3 +36,30 @@ terminal reviews remain.
   `INITIAL_HIDDEN_COLUMNS` made `keeps Links hidden on a first visit even when
   the project already has a link` fail on the unexpected `refs` header: **1
   failed, 68 skipped**. The mutation was not retained.
+
+## 2026-09-03 recovery run 4
+
+The browser fixtures now preserve the explicit refs-shown layout where their
+existing geometry and interaction assertions require it. The external-refs
+fixture instead waits for the linked project tree and uses the real Reset layout
+gesture. A new Chromium case proves that a fresh hidden-Links layout removes
+exactly 40px and leaves Name pinned at 129px rather than the refs-shown 169px.
+The mobile Gantt-only reset now proves both column storage keys are untouched.
+
+### h2puni evidence
+
+- Bun `1.3.14`; exact implementation base `86200e85` plus the recorded browser
+  fixture patch.
+- Saved-view marker precedence: **2/2 passed together**. Full modified suites:
+  `plan-layout` **73/73**, `plan-filter` **61/61**.
+- Mobile Gantt-only reset: **1/1 passed**. External refs Chromium file:
+  **6/6 passed**, including the 390×844 no-card-field assertion.
+- Targeted layout Chromium gate: fresh hidden width, pinned shown geometry,
+  horizontal-scroll pinning and keyboard tab order **4/4 passed**; the existing
+  1280px folded-budget case then passed **1/1** after its expected arithmetic
+  was made explicit about the refs-shown fixture.
+- `fe-01:typecheck`: passed. Touched Prettier and ESLint: passed. OpenSpec
+  strict all: **34/34 passed**.
+
+No build or autotest ran on h1claw. Remaining work is the outstanding watched-red
+mutations, full remote gates, CI, reviews, merge/deploy, and lane-q browser QA.
