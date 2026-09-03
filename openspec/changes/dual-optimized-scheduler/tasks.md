@@ -204,8 +204,12 @@ h2puni is green — no build or autotest runs on the workspace box.
       of a slice's `poolIds`, since the whole width is spent in each), no
       assignee double-booked, and `objectiveValues[T].value` recomputed from
       the final offsets and matched. Every objective `value`, `stageValue` and
-      `bound`, and every recomputed `PRIORITY`, `MAKESPAN` and `MOVEMENT`, must
-      be a non-negative safe integer; an unsafe value is `invalid-output`.
+      `bound` **on the wire response**, and every recomputed `PRIORITY`,
+      `MAKESPAN` and `MOVEMENT` in quantised solver units, must be a
+      non-negative safe integer; an unsafe value is `invalid-output`. This is
+      the wire rule and runs before the publication guard; the *stored*
+      numeric domain follows `publication` and is 4.12b's rule, not this one
+      (Sol r12 Critical 1).
       **`value` is the only recomputed field**
       (Sol r7 Critical 1): `stageValue`, `bound` and `status` are statements
       about a stage, not about the published schedule, and a later stage may
@@ -341,6 +345,15 @@ h2puni is green — no build or autotest runs on the workspace box.
       `GENERATION_RETENTION_DAYS = 30`, or whose contract version is retired at
       deploy, first enters `admissionState='draining'` and is deleted only by
       the drain protocol in 3.9b.
+- [ ] 3.1b `project.optimization_delete_pending_at`, internal nullable
+      timestamp, in **this** slice's additive migration (Sol r12
+      Important 5). It is the durable cross-process fence 3.9b's drain and
+      its process test read, not a user setting and not a read-payload
+      field, so it must exist before any drain code lands; slices 3 and 3b
+      ship as separate reviewed PRs, so leaving it in 3b made this slice
+      unimplementable against its own declared schema. Repository mapping is
+      internal-only; the read payload is unchanged. Covered by 3.7's
+      `down.sql` and its rollback-then-re-apply proof.
 - [ ] 3.3 Forward migration under `apps/be-01/drizzle/` — additive only. Blue
       and green share one SQLite file during a swap, so the outgoing release
       must keep running against the migrated file untouched.
@@ -352,15 +365,6 @@ h2puni is green — no build or autotest runs on the workspace box.
       with one, an unknown `objective`); and deleting a project cascades its
       cache rows away only through `finishOptimizationDrain` after the real
       slot count reaches zero.
-- [ ] 3.1b `project.optimization_delete_pending_at`, internal nullable
-      timestamp, in **this** slice's additive migration (Sol r12
-      Important 5). It is the durable cross-process fence 3.9b's drain and
-      its process test read, not a user setting and not a read-payload
-      field, so it must exist before any drain code lands; slices 3 and 3b
-      ship as separate reviewed PRs, so leaving it in 3b made this slice
-      unimplementable against its own declared schema. Repository mapping is
-      internal-only; the read payload is unchanged. Covered by 3.7's
-      `down.sql` and its rollback-then-re-apply proof.
 - [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
       and watch 3.4's "an `ok` row with a NULL `resultJson` is rejected" case
       fail. `Proof:` comment names the removed constraint. SQLite text columns
@@ -775,8 +779,11 @@ h2puni is green — no build or autotest runs on the workspace box.
       `encodeSchedule` output makes `decodeOptimizedResult` throw naming the
       missing `dtoVersion`; and storing through the old
       `scheduleJson`-shaped write makes the metadata assertions fail.
-- [ ] 4.11b **The capacity arrow's referent is the chosen pool, and it is
-      tested** (Sol r12 Minor 6). For a `capacity` floor,
+- [ ] 4.11c **The capacity arrow's referent is the chosen pool, and it is
+      tested** (Sol r13 Minor 5 renumbered this from a duplicate `4.11b`;
+      `4.11b` is the real-domain publication guard and is referenced as such
+      by 2.x and 6.x, so a tracker could have closed one while skipping the
+      other). (Sol r12 Minor 6). For a `capacity` floor,
       `resourcePredecessorId` is taken from the filtered blockers of the pool
       `capacityTeamId` names, ties broken by placement order **within that
       pool** — never from the union across binding pools, whose tie-break can
@@ -1095,7 +1102,9 @@ h2puni is green — no build or autotest runs on the workspace box.
       `projectFinish = Math.max(0, ...placedFinishes)` and empty maps — but
       `MAKESPAN = max finish` has no empty-set identity, so it was undefined on
       a plan the product allows. `horizonUnits` is **not** a second reason: its
-      `notBeforeUnits` max is seeded with zero (task 2.3), so it is defined for
+      `notBeforeUnits` max is seeded with zero (task 2.2; its overflow check is
+      2.10 — task 2.3 is `parseSolverResponse` and never built the horizon,
+      Sol r13 Minor 5), so it is defined for
       every plan, including one with slices and no manual floors — the common
       case (kimi r10 Minor 4). The coordinator short-circuits: a
       canonical input with zero slices, or one whose durations are all zero,

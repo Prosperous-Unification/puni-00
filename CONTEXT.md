@@ -1046,10 +1046,16 @@ schedule, which is the real-domain Fast result the publication guard scores agai
 _Avoid_: rounded Fast, hint schedule
 
 **Cancel epoch**:
-A per-project counter advanced when optimization is switched OFF. It exists because the
-toggle is excluded from the Input hash, so an OFF transition cannot advance the Generation
-that allocation is required to reuse. Every write is conditional on it, and owners observe
-it on their slot heartbeat, so a child owned by another backend process is cancelled too.
+A counter carried by each `(project, Contract version)` generation row, advanced when
+optimization is switched OFF — an OFF transition advances every one of that project's rows.
+It exists because the toggle is excluded from the Input hash, so an OFF transition cannot
+advance the Generation that allocation is required to reuse. **Worker-owned outcome writes**
+are conditional on it, together with the current generation, the toggle and the writer's own
+attempt token; allocation eviction is authorised instead by the winning generation CAS, OFF
+cleanup by its own epoch increment, and deletion/retirement eviction by the cancel-and-drain
+protocol — none of those three holds a child token, so a universal predicate would make them
+unimplementable. Owners observe the epoch on their slot heartbeat, so a child owned by
+another backend process is cancelled too.
 _Avoid_: cancel flag, kill switch, generation bump
 
 **Attempt token**:
