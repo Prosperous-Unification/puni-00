@@ -201,23 +201,41 @@ check-that-cannot-fail failure R5 names.
       `json.loads` with the NUL intact. The golden corpus must carry such a key
       **verbatim** rather than a sanitised stand-in, and any logging of a
       request must not be the place this is discovered.
-      **A FIFTH member is open, and it is the response's `status`** — found by
-      writing the file, and deliberately not invented in it. Pinned: it admits
-      `infeasible` as a first-class outcome, distinct from `unknown` and never
-      mapped onto it, and 2.3 rejects an unknown value, so the set must be
-      **closed**. Open: the rest of that set, and the two candidates decide
-      differently. (a) The stage vocabulary plus `infeasible`, reusing the
-      matrix design.md says the response schema is generated from — but a
-      response-level `'optimal'` would claim the published schedule is optimal,
-      which the design has said from the start it is not. (b) A run-outcome
-      vocabulary distinct from the per-stage one, which needs names no artifact
-      has written. Until one is settled the member is an unconstrained
-      non-empty string carrying that note, the contract suite's `status` cases
-      cannot be green, and the conditional between `status` and `offsets` — an
-      infeasible or incumbent-less run has no offsets to report — waits on the
-      same decision. **Settle it the way the other four were settled:** find
-      the artifact or the code that already answers it, and only then write it
-      into the schema.
+      **The FIFTH member — the response's `status` — is now settled too, and
+      by the same method: candidate (a) was refused by an artifact rather than
+      by preference.** It is a **run-outcome** enum of exactly
+      `feasible | unknown | infeasible`, a different question from the
+      per-term `status`: that one reports a stage's proof strength, this one
+      reports whether a schedule is being returned at all and, if not, which
+      of the two reasons applies. `infeasible` is pinned verbatim by spec.md's
+      "SHALL admit `infeasible` as a first-class outcome"; `unknown` is pinned
+      by the same sentence's "SHALL NOT be mapped onto `unknown`", which is
+      only meaningful if `unknown` is itself a response status; `feasible` is
+      the only other outcome any matrix row produces. **`optimal` is excluded
+      by design.md's own words** — the per-stage `'optimal'` "never claims the
+      published schedule is optimal, which the design has said from the start
+      it is not" — so reusing the stage vocabulary would have written a claim
+      the design denies, and that is what closed candidate (a).
+      **The `status`-to-payload conditional came out of the matrix's `n/a`
+      column, not out of the enum:** `feasible` carries `offsets` and
+      `objectiveValues`, `unknown` and `infeasible` carry **neither**, because
+      `value` is defined only on a published schedule; `offsets` is *absent*
+      rather than `{}`, since an empty map passes the schema and then fails the
+      key-set invariant one layer later, reporting a vocabulary decision as a
+      corrupt payload. So `required` on the response names only `wireVersion`
+      and `status`, and spec.md's "SHALL carry only …" is read as the closed
+      maximum it is rather than as a floor.
+      **A later-stage INFEASIBLE has no wire encoding, deliberately.** The
+      matrix's own `k > 1` argument is that the previous incumbent already
+      satisfies every added constraint, so the solver holds a counterexample to
+      its own answer; it exits non-zero **without** emitting a response rather
+      than emit a proof it can refute, and the coordinator records the run as
+      `invalid-output` exactly as that row says. Falsifier: an artifact that
+      requires the coordinator to tell "the solver crashed" from "the solver
+      contradicted itself" *from the response* would need a fourth status.
+      Five golden fixtures carry the decision as watched reds: the two
+      payload-free valid responses, a response-level `optimal` that must be
+      refused, and the conditional in both directions.
       It carries `wireVersion` as a required
       literal, states the unit of every numeric field, and includes every field
       staged solving needs — on the request `fastHint`, `baselineOffsets`,

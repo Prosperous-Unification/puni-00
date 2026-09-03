@@ -220,13 +220,12 @@
     "response": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["wireVersion", "status", "offsets", "objectiveValues"],
+      "required": ["wireVersion", "status"],
       "properties": {
         "wireVersion": { "$ref": "#/$defs/wireVersion" },
         "status": {
-          "type": "string",
-          "minLength": 1,
-          "$comment": "OPEN MEMBER — THE ONE FIELD IN THIS FILE WHOSE VOCABULARY NO ARTIFACT FIXES, AND IT IS DELIBERATELY NOT INVENTED HERE. What IS pinned: it admits `infeasible` as a first-class outcome, distinct from `unknown` and never mapped onto it — unknown is budget exhausted with no proof and may become feasible with more budget, infeasible is a proof and never will (design.md, spec.md) — and parseSolverResponse rejects an unknown status, so the set must be CLOSED. What is not pinned is the rest of the set, and the two candidates decide differently: (a) the stage vocabulary plus infeasible, ['optimal','feasible','unknown','infeasible'], which reuses the matrix the design says the response schema is generated from — but a response-level 'optimal' would claim the published schedule is optimal, which the design has said from the start it is not; (b) a run-outcome vocabulary distinct from the per-stage one, which needs its own names and has none written anywhere. Until an artifact settles it, this stays an unconstrained non-empty string and the contract suite's status cases cannot be green. DO NOT close this by picking the one that reads well: the request half of this file has four members that were settled by reading libs/domain/src/schedule.ts, and this is the same kind of question with no such source yet found."
+          "enum": ["feasible", "unknown", "infeasible"],
+          "$comment": "A RUN-OUTCOME vocabulary, and a DIFFERENT question from #/$defs/objective-term's status: that one reports how strong a stage's proof is, this one reports WHETHER A SCHEDULE IS BEING RETURNED AT ALL and, if not, which of the two reasons applies. Exactly three values, and every one of them was read out of an artifact rather than chosen for how it reads. `infeasible` — spec.md 'The response `status` SHALL admit `infeasible` as a first-class outcome' pins the token verbatim; it is a PROOF that the submitted constraint system has no solution and never becomes feasible with more budget. `unknown` — pinned by the same sentence's second half, 'and it SHALL NOT be mapped onto `unknown`', which is only meaningful if `unknown` is itself a response status; it is budget exhausted with no incumbent and no proof, and it is the matrix's `UNKNOWN, no incumbent, k = 1` row. `feasible` — the only other outcome any matrix row produces: every publishing row publishes an incumbent, an incumbent is by construction feasible for the original constraints, and nothing more than that is ever claimed for it. `optimal` IS DELIBERATELY ABSENT, and by an artifact rather than by taste: design.md's four-fields paragraph says the per-stage 'optimal' 'never claims the published schedule is optimal, WHICH THE DESIGN HAS SAID FROM THE START IT IS NOT'. A response-level 'optimal' would make exactly that claim, so candidate (a) — reusing the stage vocabulary plus infeasible — is refused by the same design that owns the matrix. Proof strength is already carried per term; this field must not report it a second time and less precisely."
         },
         "offsets": {
           "$ref": "#/$defs/offsetMap",
@@ -234,7 +233,15 @@
         },
         "objectiveValues": { "$ref": "#/$defs/objectiveValues" }
       },
-      "$comment": "The response carries these four members and nothing else. The lifecycle wrapper's childDeadlineAt and attemptToken are process arguments rather than message fields, so neither enters this schema, the golden corpus, or the solved model. RELATION BETWEEN status AND offsets IS UNRESOLVED while status is open: an infeasible or incumbent-less run has no offsets to report, which is a conditional this file will need once the vocabulary is settled."
+      "allOf": [
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "feasible" } } },
+          "then": { "required": ["offsets", "objectiveValues"] },
+          "else": { "not": { "anyOf": [{ "required": ["offsets"] }, { "required": ["objectiveValues"] }] } },
+          "$comment": "THE status/offsets CONDITIONAL, taken from the matrix's own `n/a` rather than invented. `feasible` is the only status that publishes, so it is the only one that carries offsets and objectiveValues, and it carries BOTH. `unknown` and `infeasible` carry NEITHER, because the matrix writes `n/a` in the objectiveValues column for all three of its stopping rows and `value` is BY DEFINITION 'the term recomputed on the published offsets' — with nothing published, all three `value` fields have no referent and a required non-negative integer would have to be a lie or a sentinel. offsets is ABSENT rather than `{}`: an empty map is a well-formed offsetMap, so it would pass the schema and then fail request invariant (2) key-set equality one layer later, reporting a vocabulary decision as a corrupt payload."
+        }
+      ],
+      "$comment": "The response carries at most these four members and never any other. The lifecycle wrapper's childDeadlineAt and attemptToken are process arguments rather than message fields, so neither enters this schema, the golden corpus, or the solved model. Two of the four are conditional on `status` — see the allOf below — which is why `required` names only wireVersion and status; spec.md's 'SHALL carry only { wireVersion, status, offsets, objectiveValues }' is a closed maximum, not a floor. A LATER-STAGE INFEASIBLE HAS NO ENCODING HERE, ON PURPOSE. design.md's `INFEASIBLE, k > 1` row argues that every constraint a later stage adds is already satisfied by the previous incumbent, so such a result 'cannot become infeasible unless the model is wrong', and it SHALL NOT be reported as plan-infeasible. `infeasible` on this wire therefore means one thing only — a proof about the submitted constraint system — and a solver that hits INFEASIBLE at k > 1 holds, in memory, a counterexample to its own solver's answer. It SHALL exit non-zero WITHOUT emitting a response rather than emit a proof it can itself refute; the coordinator records that run as `invalid-output`, which is the disposition the matrix already assigns that row. FALSIFIER for this whole decision: an artifact that requires the coordinator to tell 'the solver crashed' from 'the solver contradicted itself' FROM THE RESPONSE — that would need a fourth status and this file chose wrong."
     }
   }
 }

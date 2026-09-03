@@ -67,6 +67,36 @@
       "branch": "response",
       "valid": false,
       "why": "A stage that never ran reports status unknown with null stageValue and bound; it never omits its term."
+    },
+    {
+      "file": "response/valid-infeasible.json",
+      "branch": "response",
+      "valid": true,
+      "why": "The proof outcome. Carries neither offsets nor objectiveValues, because the matrix writes n/a in the objectiveValues column for every stopping row and `value` is defined only on a published schedule."
+    },
+    {
+      "file": "response/valid-unknown-no-incumbent.json",
+      "branch": "response",
+      "valid": true,
+      "why": "The matrix's UNKNOWN-no-incumbent-at-k=1 row: budget exhausted, nothing found, nothing proved. Same shape as infeasible; the two differ only in whether more budget could ever help, which is why infeasible is never mapped onto unknown."
+    },
+    {
+      "file": "response/invalid-response-optimal-status.json",
+      "branch": "response",
+      "valid": false,
+      "why": "THE WATCHED RED FOR THE REFUSED CANDIDATE. Reusing the stage vocabulary at the response level would admit `optimal`, which claims the published schedule is optimal — the one claim design.md says it has denied from the start. Per-term `optimal` stays legal and is untouched here; only the response-level one is refused."
+    },
+    {
+      "file": "response/invalid-infeasible-with-offsets.json",
+      "branch": "response",
+      "valid": false,
+      "why": "The status/offsets conditional in the publishing-to-non-publishing direction: a run that proved no schedule exists cannot also report one. Without the conditional this passes the schema and only fails a builder key-set check one layer later, reporting a vocabulary error as a corrupt payload."
+    },
+    {
+      "file": "response/invalid-feasible-without-offsets.json",
+      "branch": "response",
+      "valid": false,
+      "why": "The same conditional in the other direction, and the reason `required` could not simply drop offsets: a feasible run that omits the schedule must fail loudly rather than be read as an empty one."
     }
   ]
 }
