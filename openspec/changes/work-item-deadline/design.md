@@ -552,9 +552,33 @@ Each is watched failing before the implementation lands, per AGENTS.md R5.
 
 | Round | Head | Seat | Verdict | Artifact |
 |---|---|---|---|---|
-| — | — | — | not yet run | — |
+| Sol attempt | `80d7081f` | `openai/gpt-5.6-sol` | **refused** — 465 ms, "Codex agent harness cannot enforce this conversation's tool policy". 14th consecutive refusal on this box. | none |
+| Gemini r1 | `80d7081f` | `bin/gemini-review.sh` (agy) | **failed** — exit 1 after 2 s, "Agent execution terminated due to error", zero verdict bytes | stderr only |
+| Gemini r2 | `80d7081f` | `bin/gemini-review.sh` (agy) | **failed** — exit 1 after 3 s, identical | stderr only |
+| 1 | `80d7081f` | `anthropic/claude-fable-5` (AGENTS.md fallback) | **REQUEST CHANGES** — 2 Critical / 3 Important / 1 Minor | `queue/reviews/t240-planning-peer-r1.txt`, verified, 13259 bytes, sha256 `bc5bf80a` |
+| 2 | `b1858308` | `anthropic/claude-fable-5` | closure check — in flight at run-2 exit | `queue/reviews/t240-planning-peer-r2.txt` |
+
+**Round-1 dispositions.** Every finding was verified at the cited source before
+being acted on, never on the seat's word.
+
+| # | Finding | Verified | Closed at |
+|---|---|---|---|
+| C1 | Retention is *already* scoped to contract version; this note's "existing latent defect" is false and its added requirement duplicates one that exists | **true** — the rule reads "delete every cache row of that project *for that contract version*" and retains per `(projectId, objective, contractVersion, inputHash)`; the draft had quoted the requirement's unscoped **title** | `b1858308` — claim and requirement deleted, two-version survival kept as a regression test |
+| C2 | Unqualified "INFEASIBLE → `plan-infeasible`" contradicts the standing "`invalid-output` at **any** stage" rule and would cache a later-stage engine failure as an unretryable "your deadlines cannot be met" | **true** — deadlines enter at stage 1, so only the first-stage case changes; a later-stage `INFEASIBLE` is still impossible on a correct engine and carries no offending-item certificate to name | `b1858308` — first-stage only, standing clause + stage-status matrix added to the same-commit amendment list |
+| I1 | The two normative lines mandating `Same deadline + …` are not scheduled for amendment; 8.9 covers shipped UI copy, not spec text | **true** | `b1858308` — `tasks.md` 8.9b |
+| I2 | `plan-infeasible`'s integration surface: (a) the `status` CHECK constraints, (b) the Retry endpoint's answer, (c) the seventh `VariantState` member | **true**; (b) and (c) were already closed at `01c2b534`, one commit before the review published | (a) `b1858308` 8.5c; (b)(c) `01c2b534` 8.7b–8.7d |
+| I3 | Slices 7–8 assert a cache and a wire that do not exist at this head, so W2/W5/W6 have no owner | **true, evidence corrected**: `libs/contracts/solver/` *does* exist — `solver-wire.v1.json` is what is absent | `b1858308` — explicit owner table; TASK-219 absorbs 7–8 and W2/W5/W6 |
+| M1 | The six-argument sweep greps for a phrase three of the four artifacts do not contain | **true**, found independently by this run | `cd919082` — four-location table + 7.2b protecting the ledger row |
+
+Two of the six (M1, and I2's (b) and (c)) were found and closed by this run
+before the seat reported them; the seat found four this run had not, two of them
+Critical, and C1 is a claim this design asserted about source that the source
+contradicts.
 
 Required: one-shot Sol (`openai/gpt-5.6-sol`) with explicit
 `anthropic/claude-fable-5` fallback, plus the Gemini seat
 (`bin/gemini-review.sh`, arg 4 = the reviewed worktree). Both publish through
-`bin/review-artifact.mjs`; a returned summary is not a verdict.
+`bin/review-artifact.mjs`; a returned summary is not a verdict. **The Gemini
+seat failed twice at 2–3 s with zero output — the same failure lanes c and f
+both recorded on 2026-09-03, so it is down box-wide rather than mis-called. It
+is recorded as missing, never bought with a metered model.**
