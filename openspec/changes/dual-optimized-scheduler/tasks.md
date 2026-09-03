@@ -838,24 +838,30 @@ h2puni is green — no build or autotest runs on the workspace box.
       slice, and one exercising an intra-item step-order edge. The solver
       reproduces each exactly.
 - [ ] 5.4b **Bounded CPU and memory per child, with values** (Sol r12
-      Important 4). The process ceiling bounds processes, not resources:
+      Important 4; Sol r13 Important 3). The process ceiling bounds processes, not resources:
       CP-SAT starts its own search workers and grows until something kills
       it. Production solves set `num_search_workers` from
       `solverSearchWorkers` (default 2); the pinned determinism config keeps
       1. Every child runs under `solverMemoryLimitMb` (default 512 MB),
       enforced outside the solve — a per-child cgroup/systemd `MemoryMax=`
-      scope as the deployment mechanism, plus the wrapper's portable
-      `RLIMIT_AS` pre-exec fallback — because CP-SAT has no dependable
-      in-process ceiling. Both terminations map to the existing `oom`
-      failure reason and to no other. Record the implied fleet worst case
-      (16 × 2 = 32 solver threads, ~8 GB solver RSS) as a deployment
+      scope as the deployment mechanism, with the coordinator classifying a
+      crossing as `oom` only from the scope's `memory.events`
+      `oom`/`oom_kill` evidence (or the systemd kill result), because
+      CP-SAT allocates in native C++ and an overrun can abort with no
+      catchable Python exception; the wrapper's `RLIMIT_AS` pre-exec is a
+      best-effort backstop only (address space, not RSS) and does not by
+      itself classify. A native abort with no OOM evidence is
+      `internal-error`, never `oom`. Record the implied fleet worst case
+      (16 × 2 = 32 CP-SAT search workers, ~8 GB solver RSS) as a deployment
       obligation beside the ceilings.
       **Proven by** `solver-resource-limits.proc.test.ts`: the effective
       `num_search_workers` read from a real spawned production solve equals
-      `solverSearchWorkers`; a fixture that deliberately allocates past the
-      limit is killed under each mechanism, the coordinator survives, the
-      slot is released, and exactly one `failed` marker with
-      `failureReason: 'oom'` is stored per case.
+      `solverSearchWorkers`; a fixture that forces native CP-SAT allocation
+      past the limit is killed, the scope's `memory.events` evidence
+      produces the `oom` classification, the coordinator survives, the slot
+      is released, and exactly one `failed` marker with `failureReason:
+      'oom'` is stored; a separate generic crash without OOM evidence is
+      stored `internal-error`, never `oom`.
       **Watched red:** remove the memory limit and the overrun case must
       grow past the ceiling without producing `oom`; remove the
       `num_search_workers` setting and the effective-configuration assertion
@@ -1005,32 +1011,38 @@ h2puni is green — no build or autotest runs on the workspace box.
       removed: both real children exit within one heartbeat interval, and
       neither can store a result, write a failure marker, or emit any event.
 - [ ] 6.2b **Spawn handshake: reserve, spawn, bind, fence** (Sol r12
-      Critical 2). After 6.2's `starting` insert the coordinator spawns
-      `wbs-solver` with `--attempt-token` and `--child-deadline-epoch-ms` as
+      Critical 2; Sol r13 Critical 1). After 6.2's `starting` insert the coordinator spawns a small
+      **lifecycle launcher** — a distinct entrypoint, not `wbs-solver`
+      itself — with `--attempt-token` and `--child-deadline-epoch-ms` as
       **argv**, never as request fields — both are clock/identity derived and
       would destabilise the golden corpus and reopen the no-clock rule. The
-      child's **lifecycle wrapper** (distinct from the deterministic solve,
-      which still reads no clock, database or environment) arms that absolute
-      instant, installs `PR_SET_PDEATHSIG`, re-checks `getppid()`, then blocks
-      on stdin for the bind verdict **before reading the request**. The
-      coordinator binds with
+      launcher's **lifecycle wrapper** (distinct from the deterministic
+      solve, which still reads no clock, database or environment) arms that
+      absolute instant, installs `PR_SET_PDEATHSIG`, re-checks `getppid()`,
+      then blocks on stdin for the bind verdict **before reading the
+      request**. The coordinator binds with
       `UPDATE solver_slot SET pid=:pid, lifecycle='running' WHERE <key> AND
-      attempt_token=:token AND lifecycle='starting'`; one row means `bound`,
-      zero rows means `abort` plus kill and no further admission on that
-      token. The child exits without solving on `abort`, a closed stdin, or
-      `BIND_TIMEOUT_MS = 5000`.
+      attempt_token=:token AND lifecycle='starting'` (with `:pid` the
+      launcher's); one row means `bound`, after which the launcher
+      **`exec`s `wbs-solver` in place** — the same pid — so `wbs-solver`
+      first exists only after its row is `running`; zero rows means `abort`
+      plus kill and no further admission on that token. The launcher exits
+      **without `exec`ing** on `abort`, a closed stdin, or
+      `BIND_TIMEOUT_MS = 5000`, so no `wbs-solver` process is ever created.
       **Proven by** `optimization-spawn-handshake.proc.test.ts`, a real
       two-coordinator process test that pauses the owner between the
-      `starting` insert and the bind for longer than
-      `SLOT_RECLAIM_MARGIN_MS`, lets the peer reclaim and admit a
-      replacement that binds and solves, and samples the real OS process
-      count throughout: the delayed bind matches zero rows, its child exits
-      before solving, and the sampled count of solving processes never
-      exceeds the unreleased row count nor 4 per project / 16 globally.
-      **Watched red:** let the child begin solving without waiting for the
-      bind verdict — or drop the `lifecycle='starting'` predicate from the
-      CAS — and the paused-owner case must show two solving children against
-      one reclaimed slot.
+      `starting` insert and the bind while time advances past the row's
+      stored `admittedDeadlineAt` (not merely past the reclaim margin), lets
+      the peer reclaim and admit a replacement whose launcher binds and
+      `exec`s `wbs-solver`, and samples the real OS `wbs-solver` process
+      count throughout: the delayed bind matches zero rows, its launcher
+      exits without `exec`ing so no `wbs-solver` is created, and the sampled
+      count of live `wbs-solver` processes never exceeds the `running` row
+      count nor 4 per project / 16 globally.
+      **Watched red:** let the launcher `exec` `wbs-solver` without waiting
+      for the bind verdict — or drop the `lifecycle='starting'` predicate
+      from the CAS — and the paused-owner case must show two live
+      `wbs-solver` processes against one reclaimed slot.
 - [ ] 6.5 Restart: nothing resumed, no queue rebuilt. Orphan handling is not a
       PID search — 5.1's `PR_SET_PDEATHSIG` kills the child, slot expiry
       restores capacity, and the container/cgroup boundary is recorded as a
