@@ -1647,6 +1647,28 @@ describe('the columns a reader has hidden', () => {
     expect(headerIds()).toContain('refs');
   });
 
+  itDom('finds a linked descendant in the whole tree after its branch is collapsed', async () => {
+    const api = fakeApi();
+    const parent = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Parent',
+    });
+    const child = await api.createWorkItem('p1', {
+      parentId: parent.id,
+      afterId: null,
+      name: 'Linked child',
+    });
+    api.linkTo(child.id, [{ systemId: 'github', url: 'https://example.test/child' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010.1');
+    click('Collapse all');
+    expect(screen.queryByLabelText('Name of 010.1')).toBeNull();
+
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
   itDom('lets an explicit column choice replace and clear the reset marker', async () => {
     localStorage.setItem(RESET_MARKER, 'true');
     await oneRow();
