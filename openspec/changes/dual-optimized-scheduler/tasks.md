@@ -388,6 +388,20 @@ check-that-cannot-fail failure R5 names.
       ProjectGraph is available`) and would not have caught a bad one. The tag
       constraints do permit it: both libraries are `scope:shared` +
       `runtime:isomorphic`. The rest of 2.2 is unstarted.
+      **Its `libs/domain` seams are all published now** — `sliceKey` (already
+      was), `durationUnits` and `SOLVER_QUANTUM` (2.8), `priorityByLeaf` (2.0)
+      and `priorityWeights`. **Its other two slice fields are not domain
+      imports at all**, and this is worth knowing before starting rather than
+      halfway through: `notBeforeUnits` converts the `notBefore:
+      ReadonlyMap<string, number>` that `schedule()` already takes as an
+      ARGUMENT — resolved by the caller, exactly as `personId`, `width` and
+      `poolIds` on a `Slice` are — so there is no resolver in `libs/domain` to
+      import and none is missing. `deadlineUnits` is the effective deadline
+      already folded, which is TASK-241's contract and a stated boundary of this
+      change, not a gap. Checked by search, not assumed: `libs/domain` holds no
+      deadline resolver, and `not-before.ts` holds only
+      `isOrphanedNotBeforeReason`, which is a validation predicate rather than a
+      floor walk.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
