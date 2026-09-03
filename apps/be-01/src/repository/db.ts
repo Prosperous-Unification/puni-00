@@ -136,3 +136,43 @@ export function drizzleOuterTransaction(db: Drizzle): {
     },
   };
 }
+
+/**
+ * The read snapshot a capture holds open across many separate reads — see
+ * `SavedPlanCaptureRepository`. Here beside {@link drizzleOuterTransaction} for
+ * the same reason: the raw SQL is this file's to write.
+ *
+ * `DEFERRED`, not `IMMEDIATE`, and the difference is the whole point of a second
+ * function. `IMMEDIATE` takes the write lock at `BEGIN`, which is right for a
+ * command batch that is *going* to write and wrong for a capture that never
+ * does: it would make every save block concurrent editing for the length of a
+ * whole-project read. `DEFERRED` takes a read lock at the first statement, and
+ * under WAL that pins the snapshot every later read in the block sees.
+ *
+ * **It must be held on a connection nothing else is using.** SQLite's
+ * transaction state belongs to the connection, not to this object, so a
+ * `BEGIN DEFERRED` on the process handle encloses every statement any other
+ * in-flight request issues until it commits — a stranger's write becomes the
+ * capture's to commit or to roll back. `boot.ts` opens exactly one connection
+ * for the process and `bun:sqlite` has no pool, so "a connection nothing else
+ * is using" means one the caller opened for itself with {@link openConnection}
+ * and closes afterwards. See `openspec/changes/saved-plans/design.md`,
+ * "The topology found".
+ */
+export function drizzleReadTransaction(db: Drizzle): {
+  begin(): void;
+  commit(): void;
+  rollback(): void;
+} {
+  return {
+    begin() {
+      db.run(sql.raw('BEGIN DEFERRED'));
+    },
+    commit() {
+      db.run(sql.raw('COMMIT'));
+    },
+    rollback() {
+      db.run(sql.raw('ROLLBACK'));
+    },
+  };
+}
