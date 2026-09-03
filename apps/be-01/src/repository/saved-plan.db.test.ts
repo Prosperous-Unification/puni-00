@@ -139,17 +139,23 @@ describe('SavedPlanRepository', () => {
    */
   it('hands the check what the project holds at that moment', async () => {
     await plans.write(bothSides(), admit);
-    let seen: { plans: number; bytes: number } | null = null;
+    // Collected rather than assigned to a `let`: an assignment inside a
+    // callback is invisible to the narrowing, so `let seen = null` stays
+    // `null` to the compiler and the assertion does not typecheck. The array
+    // also says how many times the check ran, which is once.
+    const seen: { plans: number; bytes: number }[] = [];
 
     await plans.write(bothSides({ id: 'sp-2' }), (holding) => {
-      seen = holding;
+      seen.push(holding);
       return Promise.resolve(null);
     });
 
-    expect(seen).toEqual({
-      plans: 1,
-      bytes: bodyByteLength('{"input":true}') + bodyByteLength('{"schedule":true}'),
-    });
+    expect(seen).toEqual([
+      {
+        plans: 1,
+        bytes: bodyByteLength('{"input":true}') + bodyByteLength('{"schedule":true}'),
+      },
+    ]);
   });
 
   /**
