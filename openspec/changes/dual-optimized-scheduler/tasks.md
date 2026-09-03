@@ -67,18 +67,29 @@ h2puni is green — no build or autotest runs on the workspace box.
 ## 4. Cache read/write, validity and the failed marker
 
 - [ ] 4.1 Repository functions: read the pair for `(projectId, inputHash,
-      solverVersion)`, upsert an `ok` row, upsert a `failed` row, and retain
-      only the latest generation per project.
+      solverVersion)`, upsert an `ok` row, upsert a `failed` row, and delete
+      every row for that project whose `inputHash` is not the current
+      generation's — `ok` and `failed` alike, one retention rule, no special
+      case. An undo back to a previous hash is therefore a miss.
 - [ ] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with no
       solver spawn; a changed effort, edge or pool → miss; a `solverVersion`
-      bump → miss; a `status='failed'` row never satisfies a read, never
-      suppresses a later solve, and is overwritten by the next run for that
-      key; a new generation replaces the prior rows; a changed
+      bump → miss; a `status='failed'` row never satisfies a read and is
+      overwritten by the next run for that key; a new generation deletes every prior row for that project including
+      its `failed` ones; an undo to a previous hash misses; a changed
       `solverBudgetMs` still serves the cached pair.
 - [ ] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
       names the relaxed predicate. Serving a failure marker as a schedule would
       publish an empty plan as an optimized one.
+- [ ] 4.4 A `failed` row suppresses an automatic re-spawn for its exact key and
+      blocks neither an explicit Retry nor a new hash's generation.
+      **Proven by** a case in `optimized-cache.db.test.ts`: ten reads by three
+      collaborators against a failed key spawn nothing; a Retry on the same key
+      spawns exactly one; a new hash spawns the normal pair.
+- [ ] 4.5 **Negative check, watched red** — put `failed` back into the
+      auto-spawn set and watch 4.4's "ten reads spawn nothing" case fail.
+      `Proof:` comment names the restored branch. Every read becoming a re-solve
+      is the timer retry Dany explicitly rejected, wearing a different hat.
 
 ## 5. The `wbs-solver` Python package
 
@@ -107,12 +118,14 @@ h2puni is green — no build or autotest runs on the workspace box.
 ## 6. OptimizationCoordinator — spawn, cancel, cap, restart
 
 - [ ] 6.1 Coordinator in `apps/be-01/src/service/`: on a debounced edit with the
-      toggle ON, publish Fast, consult the cache, spawn only missing/stale/
-      failed variants; child killed at `solverBudgetMs + 5000`; a result is
-      written only by the coordinator that spawned its run.
+      toggle ON, publish Fast, consult the cache, spawn only missing or stale
+      variants — never one holding a `failed` row for that exact key; child
+      killed at `solverBudgetMs + 5000`; a result is written only by the
+      coordinator that spawned its run.
 - [ ] 6.2 Ceilings: 4 processes per project, 16 global, a single global FIFO by
       enqueue time with one entry per (project, objective), and a dequeue-time
-      hash re-check that discards a stale entry without launching.
+      re-check of BOTH the input hash and the project's toggle that discards the
+      entry without launching if either has moved.
 - [ ] 6.3 Cancellation: a newer edit or an OFF toggle terminates the pair,
       rejects with a typed `cancelled` outcome, and writes no row. Idempotent
       and project-scoped.
@@ -120,11 +133,15 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 6.5 **Proven by** `optimization-coordinator.test.ts`: a cold input spawns
       exactly two; a full hit spawns none; a second edit mid-solve kills the old
       pair and writes no stale row; the per-project count never exceeds 4 during
-      termination overlap; the global queue discards a stale entry at dequeue; a
-      simulated restart mid-solve leaves no row and no orphan.
+      termination overlap; the global queue discards a stale-hash entry at
+      dequeue; the global queue discards a still-matching-hash entry whose
+      project toggled OFF while queued; a simulated restart mid-solve leaves no
+      row and no orphan.
 - [ ] 6.6 **Negative check, watched red** — remove the dequeue-time hash
-      re-check and watch the "stale entry discarded" case fail. `Proof:` comment
-      names the removed re-check. A stale generation occupying a slot is how a
+      re-check and watch the "stale-hash entry discarded" case fail; separately
+      remove the toggle re-check and watch the "toggled OFF while queued" case
+      fail. Two faults, two `Proof:` comments, because one check passing does
+      not prove the other exists. A stale generation occupying a slot is how a
       superseded schedule reaches the cache.
 
 ## 7. Failure path and events
@@ -132,8 +149,8 @@ h2puni is green — no build or autotest runs on the workspace box.
 - [ ] 7.1 Non-zero exit, timeout, OS kill and failed re-validation each write a
       `status='failed'` row with a typed `failureReason`
       (timeout / invalid-output / no-solution / internal-error), keep Fast
-      visible, publish nothing, and never retry on a timer. Failure is
-      variant-specific.
+      visible, publish nothing, and never retry — not on a timer and not on a
+      read. Failure is variant-specific.
 - [ ] 7.2 `schedule_optimized` added to `ProjectEvent` in
       `apps/be-01/src/service/broadcast.ts`, carrying `(projectId, inputHash,
       objective, solverVersion)`. Emitted once per newly stored `ok` row and
