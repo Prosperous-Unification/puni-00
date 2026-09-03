@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { eq } from 'drizzle-orm';
 
 import { CapacityRepository } from '../repository/capacity';
 import type { Connection } from '../repository/db';
@@ -102,9 +101,13 @@ describe('SavedPlanService.save', () => {
   const save = () =>
     service().save({ projectId: 'p1', name: 'before the rewire', createdBy: 'Ada Lovelace' });
 
-  const headers = () => reader.db.select().from(savedPlan).where(eq(savedPlan.id, 'sp-1'));
-  const bodies = () =>
-    reader.db.select().from(savedPlanBody).where(eq(savedPlanBody.savedPlanId, 'sp-1'));
+  // Unfiltered on purpose, and not only because a service test may not import
+  // `drizzle-orm`: each case writes at most one saved plan, so "the rows this
+  // save produced" and "every row in the table" are the same set — and a
+  // second header appearing from anywhere fails the length assertion below
+  // rather than being filtered quietly out of sight.
+  const headers = () => reader.db.select().from(savedPlan);
+  const bodies = () => reader.db.select().from(savedPlanBody);
 
   it('writes one header and both bodies, and the returned record round-trips', async () => {
     const result = await save();
@@ -151,8 +154,8 @@ describe('SavedPlanService.save', () => {
     // Recomputed from the row, not from the record: this is the check the read
     // path (task 5.2) makes, and it only means anything if the hash was taken
     // over what SQLite holds rather than over a second rendering of the value.
-    expect(sha256(stored.get('input') as string)).toBe(result.record.input.sha256);
-    expect(sha256(stored.get('schedule') as string)).toBe(
+    expect(sha256(stored.get('input')!)).toBe(result.record.input.sha256);
+    expect(sha256(stored.get('schedule')!)).toBe(
       result.record.schedule.present ? result.record.schedule.body.sha256 : '',
     );
   });
@@ -181,8 +184,8 @@ describe('SavedPlanService.save', () => {
     });
 
     expect(result.outcome).toBe('no_project');
-    expect((await reader.db.select().from(savedPlan)).length).toBe(0);
-    expect((await reader.db.select().from(savedPlanBody)).length).toBe(0);
+    expect((await headers()).length).toBe(0);
+    expect((await bodies()).length).toBe(0);
   });
 
   it('saves a cyclic plan with no schedule and the reason infeasible', async () => {
@@ -229,7 +232,7 @@ describe('SavedPlanService.save', () => {
     if (result.outcome !== 'refused') return;
     expect(result.refusal.limit).toBe('body_bytes');
     expect(result.refusal.allowed).toBe(8);
-    expect((await reader.db.select().from(savedPlan)).length).toBe(0);
+    expect((await headers()).length).toBe(0);
   });
 
   it('reads its limits from construction, so raising one admits the same save', async () => {
