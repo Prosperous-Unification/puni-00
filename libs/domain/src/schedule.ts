@@ -1463,8 +1463,18 @@ function placeSlices(
  * 5 under a parent carrying 1 taking the person at day 0 from the standalone 2,
  * and `gives the nearer ancestor's priority to a leaf between two` on the same
  * inversion; watched 2026-08-11.
+ *
+ * **Exported on 2026-09-03 for `durationOf`'s reason and no other.** The
+ * solver's request builder needs each leaf's priority to derive its weight, and
+ * the resolution above — most-specific override, not a floor, not a minimum
+ * across ancestors — is precisely the rule a second implementation gets
+ * backwards, because the floor rule is the one every neighbouring field uses.
+ * Nothing else changes: same signature, same body, and Fast still calls it, so
+ * the existing golden corpus is the proof that publishing it changed nothing.
+ * The weight itself is the builder's business and is deliberately not computed
+ * here — an absolute priority is never a weight.
  */
-function priorityByLeaf(rows: readonly PlannedRow[], index: TreeIndex): Map<string, number> {
+export function priorityByLeaf(rows: readonly PlannedRow[], index: TreeIndex): Map<string, number> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
   const ownPriority = new Map(rows.map((row) => [row.id, row.priority]));
   const found = new Map<string, number>();

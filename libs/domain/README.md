@@ -22,6 +22,7 @@ with it, and the two cannot disagree about a date.
 | How far the work has got                   | `progress.ts`          | states fold with `agree`, which is commutative |
 | How many of a team work at once            | `capacity.ts`          | per project, never a property of the team      |
 | Whether a row sits under another           | `is-within.ts`         | one upward walk, four copies before 2026-09-02 |
+| How long a slice is on the solver's axis   | `solver-quantum.ts`    | quantises `durationOf`, never restates it      |
 
 `effective-label.ts` is the walk those three `effective-*` modules share and is
 **not** exported from the barrel: it is the mechanism, not a fourth way to read a
