@@ -78,4 +78,23 @@ describe('durationUnits', () => {
     // an answer rather than becoming an error.
     expect(durationUnits(slice(null, 0))).toBe(ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM);
   });
+
+  it('is 30 units for 2.11’s fixture where real Fast finishes at 28.8 — measured, not claimed', () => {
+    // The number 2.11 turns on, pinned here before 2.11 is written so its
+    // "quantised baseline, never real Fast" is starting from an established
+    // gap rather than from a sentence in the plan.
+    //
+    // Three serial slices, each 1 day of effort over 5 people. Real Fast runs
+    // each for 0.2 days, so the chain finishes at 0.6 days — 28.8 units, which
+    // is not a number CP-SAT can hold. Rounded UP per slice it is 10 each, so
+    // the quantised model needs 30. Taking stage 1's upper bound from real
+    // Fast would therefore hand the solver a bound its own arithmetic cannot
+    // meet, and the hint would be infeasible in the model it hints.
+    const each = slice(1, 5);
+    expect(durationOf(each)).toBeCloseTo(0.2, 12);
+    expect(durationOf(each) * 3 * SOLVER_QUANTUM).toBeCloseTo(28.8, 9);
+    expect(durationUnits(each)).toBe(10);
+    expect(durationUnits(each) * 3).toBe(30);
+    expect(durationRoundedUp(each)).toBe(true);
+  });
 });
