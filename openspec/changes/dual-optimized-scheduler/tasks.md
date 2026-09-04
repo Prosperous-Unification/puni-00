@@ -1606,11 +1606,11 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
 
 ## 3b. Project settings columns and API (PROD MODE — reviewed PR, no self-merge)
 
-**This slice is on 4.1's critical path, not beside it (run 32).** 4.1's
-conditional insert cannot be written until `optimization_enabled` exists, so
-slice 4's write half is blocked here rather than on effort. Nothing else in
-slice 4 waits on it: the read half and three of the four write predicates
-landed without it.
+**This slice was on 4.1's critical path, not beside it (run 32); 3b.1 cleared
+it in run 33 and 4.1 closed in run 34.** The conditional insert could not be
+written until `optimization_enabled` existed, so slice 4's write half was
+blocked here rather than on effort. What remains in this slice is the mapper,
+the read payload and the write API — none of which slice 4 waits on.
 
 - [x] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
       null default **false**, `schedule_engine` text not null default `'fast'`,
@@ -1694,7 +1694,7 @@ review`, no self-merge.
       table extra would describe a `CREATE TABLE` no migration writes.
       `isScheduleEngine` / `isScheduleObjective` wait on 3b.2's mapper.
 
-- [ ] 4.1 Repository functions: read the pair for the full key; write an `ok`
+- [x] 4.1 Repository functions: read the pair for the full key; write an `ok`
       row; write a `failed` row; allocate the next generation in the
       `optimization_generation` row for `(projectId, contractVersion)` **and**
       delete that contract version's older-generation cache and queue rows in
@@ -1707,18 +1707,28 @@ review`, no self-merge.
       version, the cancel epoch unchanged, and `optimization_enabled` still 1.
       A superseded run therefore cannot store, evict, overwrite an `ok` with a
       `failed`, or emit a second outcome record for one key.
-      **Order of work, measured by run 32 rather than assumed: the read half
-      and three of the four write predicates are landable today; the write
-      itself is not.** `readOptimizedPair`, `writerStillHolds` (the slot and
-      its `attemptToken`) and `admissionStillCurrent` (the generation and the
-      cancel epoch, read as one row so a concurrent allocation cannot land
-      between two lookups) are done and separately proved. The fourth
-      predicate, `optimization_enabled` still 1, reads a column **3b.1** adds
-      and which does not exist, so `3b.1 is a hard prerequisite of this item`,
-      not a parallel settings nicety — and it is a migration, so it ships as a
-      prod-mode reviewed PR before the insert can be written. Composing three
-      of four is explicitly forbidden here: it would read as finished while
-      admitting a write against a project whose optimization is switched off.
+      **Closed in run 34, in the order run 32 measured.** `readOptimizedPair`,
+      `writerStillHolds` (the slot and its `attemptToken`) and
+      `admissionStillCurrent` (the generation and the cancel epoch, read as one
+      row so a concurrent allocation cannot land between two lookups) landed
+      first and are separately proved. `optimizationStillEnabled` is the fourth
+      predicate; it reads `project.optimization_enabled`, the column **3b.1**
+      added, which is why 3b.1 was a hard prerequisite of this item rather than
+      a parallel settings nicety. `storeOptimizedOutcome` composes all four
+      inside one transaction and inserts conditionally
+      (`onConflictDoNothing`) rather than upserting, returning `stored`,
+      `superseded` or `already-recorded` — three distinguishable facts,
+      because "I was overtaken" and "this key already has an outcome" are not
+      the same event to a coordinator. The primary key omits `generation`, so
+      two generations of one key collide by construction and the legitimate
+      replacement path stays `allocateGeneration`'s delete rather than an
+      overwrite. **Composing three of four was forbidden and did not happen**:
+      the write and the fourth predicate landed in the same chunk.
+      `Proof:` `optimized-cache.db.test.ts`, eight cases and four mutations —
+      dropping the enabled predicate reds 2, the slot token 1, the
+      generation/cancel-epoch pair 2, and making the insert unconditional 1.
+      **Still open under 4.1b:** the `MAX_LIVE_BUDGETS` retention bound, which
+      is a rule about which other rows survive a commit.
 - [ ] 4.1b Retention, both rules. (1) Allocation deletes that contract
       version's older-generation cache rows. (2) A committing outcome keeps the
       `MAX_LIVE_BUDGETS = 2` most recently written budgets for
