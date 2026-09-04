@@ -82,8 +82,14 @@ const EXEMPT = new Set([
   'planEvent',
   'eventSequencer',
   'examples',
+  // The three optimizer tables are machine state keyed by generation, not
+  // authored rows: nothing in them has an author to record, and each is deleted
+  // wholesale by the next allocation. The `it` below is what keeps that claim
+  // honest — an exemption survives only while the table declares no audit
+  // columns.
   'optimizationGeneration',
   'solverSlot',
+  'optimizedScheduleCache',
 ]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
