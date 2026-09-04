@@ -2394,6 +2394,58 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       so the second term's swing exceeds the first term's coefficient gap —
       an answer that necessarily changes — plus a separate integer-overflow
       guard test for the weighted form's bound.
+
+      **Mutation half closed run 19 chunk 2** (`e6c2256a`, 160 green);
+      **the integer-overflow guard is NOT done and is what keeps this
+      unticked.**
+
+      `test_lexicographic.py`. Under `pri` the coefficients under test are
+      `1000 / 100 / 1`, so one unit of PRIORITY is worth ten of MAKESPAN and the
+      instance must make one unit of PRIORITY cost **more than ten**. `W` (d=15,
+      w=1) and `S` (d=1, w=0) share a person so they serialise; `S` heads a
+      twenty-link chain, so delaying `S` delays the whole tail by `W`'s fifteen
+      units. `W` is the only weighted slice, so PRIORITY is its own finish.
+      Every number below is hand-computed and every solve proved OPTIMAL
+      (ortools 9.15.6755, one worker, seed 0):
+
+      | placement | PRIORITY | MAKESPAN |
+      | --- | --- | --- |
+      | `W` first (`W`@0, `S`@15) | 15 | 36 |
+      | `S` first (`S`@0, `W`@1) | 16 | 21 |
+
+      | objective minimised | answer |
+      | --- | --- |
+      | the shipped staged loop | `W`@0 — PRIORITY 15, MAKESPAN 36 |
+      | `1000·T₁ + 100·T₂ + T₃` | **`S`@0 — PRIORITY 16, MAKESPAN 21** |
+      | `1·T₁ + 1·T₂ + 1·T₃` | `W`@0 |
+      | `10⁶·T₁ + 10³·T₂ + T₃` | `W`@0 |
+
+      **This fixture is the exact complement of 5.7's, and the last two rows are
+      the finding.** There the dominating sum was green and the equal-weight sum
+      red; here the dominating sum is red and *both* the equal-weight sum and a
+      sum a thousand times larger are green. So neither "the coefficients are
+      big" nor "the coefficients are equal" decides whether a weighted form is
+      faithful — only whether the coefficient gap exceeds the term's swing does.
+      Both contrasts are asserted, not noted, because a reader carrying 5.7's
+      conclusion over would expect the opposite.
+
+      **5.9's bound would have masked this mutation**, which is why the two
+      objectives are compared on `build_model` rather than through
+      `solve_request`: the baseline is the lexicographic answer, so the bound is
+      `PRIORITY ≤ 15` and it excludes the `S`-first placement (PRIORITY 16)
+      outright. Correctly — `S`-first is worse than the quantised baseline on
+      stage 1's term — but a mutation compared under it is green for the wrong
+      reason.
+
+      **Left for the next run:** the integer-overflow guard on the weighted
+      form's own bound. The wire's cross-field invariant 8 bounds
+      `Σ w × horizonUnits` and `Σ |offset − baseline|` against
+      MAX_SAFE_INTEGER, but a *weighted* objective multiplies those by the
+      coefficients, so a request that passes invariant 8 can still overflow the
+      weighted form. Tooling note from run 19's probe: `IntVar.proto.domain[-1]`
+      read **0** for all three terms and is the wrong way to get a term's upper
+      bound — find the right accessor before writing the case.
+
 - [ ] 5.11 Packaging into the deployed artifact: the Dagger/image path installs
       the pinned Python runtime and the locked OR-Tools environment, copies
       the package and **both** its console scripts — the solve entrypoint
