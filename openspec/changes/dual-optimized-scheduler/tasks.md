@@ -2236,6 +2236,19 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       `encodeSchedule` output makes `decodeOptimizedResult` throw naming the
       missing `dtoVersion`; and storing through the old
       `scheduleJson`-shaped write makes the metadata assertions fail.
+      **OPEN AT ONE HALF, and only one (run 38 audit).** The codec, the
+      per-`publication` numeric domain, both JSON-held enum negatives, the
+      no-`CHECK`-over-contents assertion and the fractional bit-equality
+      through the column are all landed and proved
+      (`optimized-result-dto.ts`, `optimized-schedule-cache.db.test.ts` 478,
+      504, 538, 583). What is not asserted is the **scorer** half: the floor
+      row's reloaded `value` bit-equal to `scoreReal` re-run on the reloaded
+      Fast schedule, and the stored schedule equal to Fast's for a width-5
+      row. `scoreReal` does not exist in the tree yet — no symbol by that name
+      is defined anywhere — so the case cannot be written, and the db test says
+      so in its own comment rather than asserting against a fixture and
+      calling it the scorer. Tick this only when that function exists and the
+      case runs against it.
 - [ ] 4.11c **The capacity arrow's referent is the chosen pool, and it is
       tested** (Sol r13 Minor 5 renumbered this from a duplicate `4.11b`;
       `4.11b` is the real-domain publication guard and is referenced as such
@@ -2254,7 +2267,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       valid finishers finish at the same instant — select from the union and
       the emitted `resourcePredecessorId` must belong to a pool other than
       `capacityTeamId`, failing the case.
-- [ ] 4.12 `CACHE_DTO_VERSION`, `encodeSchedule`, `decodeSchedule`
+- [x] 4.12 `CACHE_DTO_VERSION`, `encodeSchedule`, `decodeSchedule`
       in `libs/domain`: both `Map`s become arrays of entries sorted by key, and
       `waitingForPerson`, `waitingForCapacity` and `eventsVisited` are stored,
       because `JSON.stringify` renders a `Map` as `{}` and an implementation
