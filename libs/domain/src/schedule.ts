@@ -1110,6 +1110,36 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
 }
 
 /**
+ * The one resource a slice's bar names as the reason it waited, or
+ * {@link NOBODY}.
+ *
+ * **A display referent and nothing more** — the graph the backward pass walks
+ * keeps the whole valid set, and the two are deliberately different: a bar
+ * points at one end a reader can look at, a float computation cannot drop a
+ * single edge without reporting slack that is not there.
+ *
+ * `boundBy` decides which ledger answers, and `person` is asked first because a
+ * slice can carry both: a team's slot is spent whether or not somebody is named
+ * on the work, and the floor order already settled which of the two the sentence
+ * is about.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9**, with {@link resolveFloor},
+ * {@link annotateCapacity} and {@link tileFinish}: the optimized materialiser
+ * produces `resourcePredecessorId` from the same three inputs and must not
+ * restate the choice. Under 4.10's `'optimizer'` floor this returns
+ * {@link NOBODY} by the same rule that already covers `projectStart` — neither
+ * is a resource — which is what keeps the render invariant true additively.
+ */
+function resourcePredecessorOf(
+  boundBy: ScheduleFloor,
+  busy: { node: number; finish: number } | undefined,
+  referent: number,
+): number {
+  if (boundBy === 'person' && busy !== undefined) return busy.node;
+  return boundBy === 'capacity' ? referent : NOBODY;
+}
+
+/**
  * Where a slice finishes, and the anchor the rest of its work item tiles from.
  *
  * **The anchor is kept while the work item's slices tile** — the arithmetic then
@@ -1444,12 +1474,7 @@ function placeSlices(
       start,
       finish,
       boundBy,
-      resourcePredecessor:
-        boundBy === 'person' && busy !== undefined
-          ? busy.node
-          : boundBy === 'capacity'
-            ? referent
-            : NOBODY,
+      resourcePredecessor: resourcePredecessorOf(boundBy, busy, referent),
       capacityPredecessors,
       capacityTeamId,
     };
