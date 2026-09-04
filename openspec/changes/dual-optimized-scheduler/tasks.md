@@ -682,11 +682,14 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       non-member is not; (c) `OptimizedResult` and `StoredObjectiveValue` are
       the stored shapes, have their own authority in the codec requirement,
       and are excluded by name. **Watched red:** the superseded sentence
-      "Each slice SHALL carry its `sliceKey`, an integer `durationUnits`,
+      <!-- wire-fields:fixture -->"Each slice SHALL carry its `sliceKey`, an integer `durationUnits`,
       `width`, `personId`, set-valued `poolIds`, a resolved `priorityWeight`,
       and a resolved `notBeforeUnits`." is kept as a negative fixture; the
       check SHALL reject it naming `sliceKey`, and a check that passes it is
-      not implementing rule (b). That sentence was live in spec.md until Sol
+      not implementing rule (b). A quoted counterexample is the artifact being
+      **correct**, so `wire-fields:fixture` is a reserved set name meaning
+      "this span is quoted in order to be rejected" — without it this paragraph
+      fails the check it specifies. That sentence was live in spec.md until Sol
       r9 Critical 1, against design.md's and 2.2's `key` — set comparison is
       what catches it, and the banned-prose wording would have deleted the
       evidence instead. A prototype of rules (a)–(c) was run over the four
@@ -696,7 +699,12 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
-      <!-- wire-fields:slice -->Each slice carries `key` (`sliceKey()`'s result), an **integer** `durationUnits` (2.8)
+      <!-- wire-fields:slice -->A slice is `{ key, durationUnits, width, personId, poolIds, priorityWeight, notBeforeUnits, deadlineUnits }`.
+      The derivation of each follows, and is deliberately **outside** that span:
+      a tagged span is checked for set equality, so a paragraph that names
+      `days`, `snapWorkdays` and `priorityByLeaf` while deriving a member cannot
+      also be the enumeration of the members.
+      Each slice carries `key` (`sliceKey()`'s result), an **integer** `durationUnits` (2.8)
       computed exactly as Fast computes it — `ASSUMED_SLICE_WORKDAYS` for a
       null `days` **without** dividing by `width`, `days / width` otherwise
       **without** `snapWorkdays`, then `× SOLVER_QUANTUM` and rounded **up**
