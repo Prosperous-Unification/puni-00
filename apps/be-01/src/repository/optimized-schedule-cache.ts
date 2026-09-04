@@ -34,9 +34,9 @@ type Reader = SQLiteBunDatabase | Transaction;
  * Tasks.md 4.1, both halves: the stored outcome of both objectives for one full
  * cache key, and the guarded write that puts one there.
  *
- * 4.1b's retention bound is the one part still absent. It is a rule about which
- * *other* rows survive a commit rather than about this commit, and it is
- * separately numbered.
+ * 4.1b's retention bound is the one part still absent. It is a rule about
+ * which rows *other than this one* survive a commit rather than about the
+ * commit itself, and it is separately numbered.
  */
 
 /**
@@ -406,8 +406,8 @@ export function admissionStillCurrent(db: Reader, claim: AdmissionClaim): boolea
  *
  * **This is the condition that blocked the write half of 4.1 for three runs**,
  * and it is not interchangeable with the other three. The slot token fences a
- * *superseded attempt*, the generation and cancel epoch fence a *superseded
- * input*; this one fences a project whose owner switched the optimizer off
+ * superseded *attempt*, the generation and cancel epoch fence a superseded
+ * *input*; this one fences a project whose owner switched the optimizer off
  * while a solve that was legitimately admitted was still running. Nothing else
  * in the pipeline observes that, because admission happened before the switch
  * was thrown — so without it a project can be switched off and still acquire a
@@ -514,8 +514,8 @@ export type OutcomeWriteResult = 'stored' | 'superseded' | 'already-recorded';
  * likely cause first.
  *
  * 4.1b's retention bound is deliberately not here: it is a rule about which
- * *other* rows survive a commit, it is separately numbered, and folding it in
- * would make this function's contract two claims instead of one.
+ * rows *other than this one* survive a commit, it is separately numbered, and
+ * folding it in would make this function's contract two claims instead of one.
  */
 export function storeOptimizedOutcome(
   db: SQLiteBunDatabase,
