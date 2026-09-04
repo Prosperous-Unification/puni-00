@@ -44,7 +44,7 @@ make green, because it needs a real deadline to mutate. TASK-219 lands it as a
 trivially-passing one — a mutation case with no mutation is exactly the
 check-that-cannot-fail failure R5 names.
 
-- [ ] 1.1 `canonicalScheduleInput(plan)` builds the canonical JSON string,
+- [x] 1.1 `canonicalScheduleInput(plan)` builds the canonical JSON string,
       living beside Fast in `libs/domain/src/` so both read one normalizer —
       Fast is `libs/domain/src/schedule.ts`, not `apps/be-01/src/service/`.
       **The canonical form is the exact argument tuple of
@@ -77,7 +77,7 @@ check-that-cannot-fail failure R5 names.
       (a) makes for as-written `priority`
       (`openspec/changes/work-item-deadline/design.md` §3.4).
       Reuses the existing `sliceKey`/`indexTree`/`expandToLeaves` normalizers.
-- [ ] 1.2 `scheduleInputHash(plan)` = SHA-256 of 1.1.
+- [x] 1.2 `scheduleInputHash(plan)` = SHA-256 of 1.1.
 - [ ] 1.3 **Proven by** `schedule-input-hash.test.ts`, one **tie-sensitive**
       mutation case per canonical fact — each fixture is built so the mutated
       fact actually moves a placement, otherwise a hash that ignores it still
@@ -94,7 +94,38 @@ check-that-cannot-fail failure R5 names.
       user, and a plan-row reordering that yields the same tree. `budgetMs` and
       `contractVersion` are **not** hash inputs but **are** cache-key columns,
       proven in 4.2 rather than here.
-- [ ] 1.4 **Negative check, watched red** — delete `reach` from the canonical
+      **Run 12 landed 1.1, 1.2 and 1.4 and the first half of this
+      (`canonical-schedule-input.{ts,test.ts}`, 13 cases, domain 393/0 across 31
+      files).** Every mutation case asserts **two** things — that the hash moved
+      and what `schedule()` did about the same edit — because a string-only
+      comparison can be wrong in either direction and only one of those
+      directions produces a red. That second assertion earned itself
+      immediately: the first fixture had `a -> b` as its only shape, so
+      `notBefore` and pool size were both invisible behind the edge and the two
+      cases came back with an identical schedule (391/2). A third leaf `c`,
+      unblocked and on the same one-slot pool, is what gives them somewhere to
+      show.
+      **Three kinds, stated per case.** *Moves a placement:* intra-item slice
+      swap, `days` null vs 0, `depReach`, the `notBefore` floor above the
+      predecessor, the pool grown to two slots. *Deliberately stricter than
+      today's engine* - hash moves, schedule identical: a parent's as-written
+      priority that binds no leaf (every leaf carries its own, so
+      `priorityByLeaf` never reaches it), and a `deadlines` entry, which
+      `schedule()` has no parameter for yet. *Must not move the hash:* the
+      global slice order across work items, the `rows` array reordered into the
+      same tree, `poolIds` reordered and de-duplicated.
+      **The deadline case is declared-pending for TASK-241, not skipped.** It
+      asserts what is true today - present in the string, inert in the engine -
+      so when TASK-241 lands the field and the earliest-effective-deadline
+      tie-break, its `toEqual` is the line that fails first and moves the case
+      up to the mutation set.
+      **Still open on this item (next chunk):** `width`, `personId`, an added
+      edge, an estimate change, and `position`/`frozenNumber`. The remaining
+      unchanged-hash cases - Engine, Objective, the toggle, the display variant,
+      the clock, the acting user - are **structurally** excluded rather than
+      untested: none of them is a member of `ScheduleInput`, so there is nothing
+      to mutate. Recorded here so nobody reads their absence as an omission.
+- [x] 1.4 **Negative check, watched red** — delete `reach` from the canonical
       string and watch 1.3's `depReach` case fail; repeat with the slice-array
       order flattened to a sorted set and watch the swap case fail. `Proof:`
       comment names each removed field. A hash that ignores a scheduling fact
