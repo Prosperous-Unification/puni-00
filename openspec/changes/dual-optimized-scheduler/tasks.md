@@ -2343,9 +2343,9 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       needs a `tsconfig.base.json` path alias — only `optimized-result-dto.ts`
       has one under `@wbs/contracts/solver/`, so `apps/be-01` cannot import it
       today.
-      **AND THE ADAPTER IS THE OTHER HALF, still unwritten.** The port has no
-      production implementation yet, so `readOptimizedPair` is reachable but not
-      yet reached. The adapter belongs in `apps/be-01/src/repository/`, is
+      **THE ADAPTER LANDED IN THE SAME RUN (42, chunk 3).**
+      `publishedScheduleReaderOf` in `optimized-schedule-cache.ts` is
+      `readOptimizedPair`'s first caller above the repository. It is
       constructed with the three key columns the plan read must not name —
       `budgetMs`, and the contract version, which is the COMPOSITE
       `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"` that
@@ -2355,7 +2355,21 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       coordinator that spawns with it is the thing that will construct this.
       Its body is `scheduleInputHash(ask.input)`, `readOptimizedPair`, then
       `pair[ask.objective].kind === 'ok' ? outcome.result.schedule : null` —
-      the four non-`ok` kinds are the one `null` the port documents.
+      the four non-`ok` kinds are the one `null` the port documents. It is typed
+      structurally rather than importing the service's port type, because the
+      service depends on the repository and not the reverse; the composition
+      root is where the shapes meet and where TypeScript checks them.
+      **Proven by** three cases in `optimized-cache.db.test.ts` against real
+      SQLite, with two reds: a fixed `inputHash` reddens the serving case, and
+      `pair.pri` for the asked objective reddens the published-objective case.
+      The third case records a **measured negative**: replacing the `kind`
+      test with `outcome.result?.schedule ?? null` leaves all 57 green, because
+      no non-`ok` outcome carries a `result`. The `kind` test is kept for saying
+      the rule out loud, not because it is the only form that works.
+      **Still unwired.** Nothing constructs this yet — the composition root
+      passes no `optimized` reader, so every deployment is still Fast. Wiring it
+      needs the `budgetMs` and `solverVersion` a release runs, which is slice 6's
+      to supply.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
