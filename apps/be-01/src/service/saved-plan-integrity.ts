@@ -28,6 +28,23 @@ export type SavedPlanIntegrityRefusal =
       readonly stored: string;
       /** SHA-256 over the bytes actually read back. */
       readonly recomputed: string;
+    }
+  | {
+      /**
+       * The stored dates were computed from an input that is not this record's.
+       *
+       * Distinct from `body_hash_mismatch` because **both bodies may be
+       * perfectly intact**: each hashes to its own header column, and the fault
+       * is in the *link* between them. A reader told "the schedule body is
+       * corrupt" would go looking for damaged bytes that are not damaged.
+       */
+      readonly reason: 'schedule_input_mismatch';
+      readonly savedPlanId: string;
+      readonly body: 'schedule';
+      /** The input hash the saved dates were computed from. */
+      readonly scheduleInputSha256: string;
+      /** The input hash this record actually holds. */
+      readonly inputSha256: string;
     };
 
 /**
@@ -65,4 +82,33 @@ export function verifyBody(
   const recomputed = bodySha256(bytes);
   if (recomputed === stored) return null;
   return { reason: 'body_hash_mismatch', savedPlanId, body, stored, recomputed };
+}
+
+/**
+ * Checks that the saved dates were computed from the input stored beside them.
+ *
+ * Task 5.2. Two hashes that both verify against their own bytes still leave one
+ * question open — whether these dates are *this plan's* dates — and the writer
+ * answers it by storing the input hash it scheduled over. A reader that
+ * rendered the schedule without checking would show a user dates belonging to
+ * an input they can no longer see, which is worse than showing none.
+ *
+ * **This comparison only means anything because 2.4 makes both header columns
+ * unrewritable.** If `schedule_input_sha256` could be `UPDATE`d, one statement
+ * satisfies this check for a schedule computed from something else, and the
+ * check becomes a comment about a column rather than a fact about the record.
+ */
+export function verifyScheduleLink(
+  savedPlanId: string,
+  scheduleInputSha256: string,
+  inputSha256: string,
+): SavedPlanIntegrityRefusal | null {
+  if (scheduleInputSha256 === inputSha256) return null;
+  return {
+    reason: 'schedule_input_mismatch',
+    savedPlanId,
+    body: 'schedule',
+    scheduleInputSha256,
+    inputSha256,
+  };
 }

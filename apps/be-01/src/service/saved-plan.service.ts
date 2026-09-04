@@ -18,7 +18,7 @@ import { bodyByteLength } from '../repository/saved-plan';
 import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { planInputRowsOf } from './saved-plan-input';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
-import { verifyBody } from './saved-plan-integrity';
+import { verifyBody, verifyScheduleLink } from './saved-plan-integrity';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from './saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA, holdingRefusal } from './saved-plan-quota';
 import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
@@ -380,6 +380,12 @@ function scheduleOfStored(
   }
   const refusal = verifyBody(header.id, 'schedule', stored.bodies.schedule, header.scheduleSha256);
   if (refusal !== null) return { outcome: 'corrupt', refusal };
+  // Task 5.2, and it runs **after** the byte check rather than instead of it:
+  // the two answer different questions — whether the schedule body is the one
+  // that was written, and whether the dates in it belong to this plan's input —
+  // and a record can fail either with the other intact.
+  const link = verifyScheduleLink(header.id, header.scheduleInputSha256, header.inputSha256);
+  if (link !== null) return { outcome: 'corrupt', refusal: link };
   return {
     outcome: 'ok',
     schedule: {

@@ -15,7 +15,7 @@ import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import type { PlanInputReads } from '../repository/saved-plan-capture';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
-import { savedPlan, savedPlanBody } from '../repository/schema';
+import { planEvent, savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
@@ -244,6 +244,104 @@ describe('reading a saved plan back', () => {
   it('reports a plan that was never saved as absent, not as corrupt', async () => {
     const read = await service().read('sp-does-not-exist');
     expect(read.outcome).toBe('not_found');
+  });
+
+  it('refuses a schedule whose stored input hash is not this record\'s (5.2)', async () => {
+    // Both bodies still hash to their own header columns; what is wrong is the
+    // *link* between them. `verifyBody` cannot see this and neither can 2.4's
+    // source scan — that guard proves nothing rewrites the column, not that the
+    // value in it belongs here.
+    await saveUnderTheOlderAlgorithm();
+    reader.db.run(
+      `UPDATE saved_plan SET schedule_input_sha256 = '${'0'.repeat(64)}' WHERE id = 'sp-1'`,
+    );
+
+    const read = await service().read('sp-1');
+    if (read.outcome !== 'corrupt') throw new Error(`expected a refusal, got ${read.outcome}`);
+    expect(read.refusal.reason).toBe('schedule_input_mismatch');
+    expect(read.refusal.body).toBe('schedule');
+    if (read.refusal.reason !== 'schedule_input_mismatch') return;
+    expect(read.refusal.scheduleInputSha256).toBe('0'.repeat(64));
+    expect(read.refusal.inputSha256).not.toBe('0'.repeat(64));
+  });
+
+  it('reads a saved plan with plan_event truncated entirely (5.3)', async () => {
+    // Two things at once: that no pointer into `plan_event` crept into the read
+    // path, and that the 365-day prune cannot reach a saved plan. A record that
+    // needed an event row would be a record whose lifetime is the retention
+    // window's, which is not what "saved" means.
+    await saveUnderTheOlderAlgorithm();
+    reader.db.run(`DELETE FROM plan_event`);
+    const remaining = await reader.db.select().from(planEvent);
+    expect(remaining.length).toBe(0);
+
+    scheduleCalls = [];
+    const read = await service().read('sp-1');
+    if (read.outcome !== 'read') throw new Error(`expected a read, got ${read.outcome}`);
+    expect(scheduleCalls.length).toBe(0);
+    expect(read.plan.input.bytes).toContain('wi-1');
+    expect(read.plan.schedule.present).toBe(true);
+  });
+
+  describe('a saved plan with no schedule (5.4)', () => {
+    /**
+     * Writes a schedule-less record for one reason, through the repository.
+     *
+     * `save()` produces `infeasible` on its own and cannot be made to produce
+     * the other two — `pending` and `unavailable` are states a caller supplies —
+     * so the record goes in through {@link SavedPlanRepository.write}, which is
+     * the real writer and enforces the same check constraint. Nothing here
+     * bypasses the schema; it supplies an input the service does not yet have a
+     * route for.
+     */
+    const writeWithout = async (id: string, absentReason: string) => {
+      const bytes = `{"schemaVersion":1,"marker":"${id}"}`;
+      const plans = new SavedPlanRepository({ openConnection: () => openConnection(path) });
+      const written = await plans.write<never>(
+        {
+          id,
+          projectId: 'p1',
+          name: `no schedule: ${absentReason}`,
+          createdBy: 'Ada Lovelace',
+          createdAt: OPENED_AT,
+          input: { schemaVersion: 1, bytes, sha256: bodySha256(bytes) },
+          schedule: { present: false, absentReason },
+        },
+        () => Promise.resolve(null),
+      );
+      expect(written.outcome).toBe('written');
+    };
+
+    it.each(['pending', 'infeasible', 'unavailable'])(
+      'reports %s and borrows no dates from the live scheduler',
+      async (absentReason) => {
+        await writeWithout(`sp-${absentReason}`, absentReason);
+        scheduleCalls = [];
+
+        const read = await service().read(`sp-${absentReason}`);
+        if (read.outcome !== 'read') throw new Error(`expected a read, got ${read.outcome}`);
+        expect(read.plan.schedule.present).toBe(false);
+        if (read.plan.schedule.present) return;
+        // The reason itself, not a boolean: absence has a cause and a
+        // comparison surface renders it (task 8.5).
+        expect(read.plan.schedule.absentReason).toBe(absentReason);
+        // And the live project *does* schedule — this file's other tests save a
+        // plan with dates from it — so a reader that fell back would have had
+        // something to fall back to. Zero calls is the assertion that names it.
+        expect(scheduleCalls.length).toBe(0);
+      },
+    );
+
+    it('is still a plan: the input body reads back whole', async () => {
+      // The control. "No schedule" must not become "nothing", or the three
+      // assertions above would pass on a reader that returned an empty record.
+      await writeWithout('sp-pending-2', 'pending');
+      const read = await service().read('sp-pending-2');
+      if (read.outcome !== 'read') throw new Error(`expected a read, got ${read.outcome}`);
+      expect(read.plan.input.bytes).toContain('sp-pending-2');
+      expect(read.plan.name).toBe('no schedule: pending');
+      expect(read.plan.createdAt).toBe(OPENED_AT);
+    });
   });
 
   it('watched negative: a read that skips the recomputation accepts the flipped byte', async () => {
