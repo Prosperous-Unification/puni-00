@@ -1,12 +1,15 @@
 import {
   type DependencyEdge,
+  FAST_GOLDEN_CASES,
   type PlannedRow,
+  type PoolSizes,
   schedule,
   type ScheduledSlice,
   ScheduleInvalidOptimizedStartError,
   type Slice,
   sliceKey,
   SOLVER_QUANTUM,
+  withinDrift,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -71,10 +74,10 @@ const materialise = (offsets: SolverOffsetMap) =>
   );
 
 /** Keys read back with the NUL written as an escape, so a failure prints something. */
+const readableKey = (key: string): string => key.replace('\u0000', '/');
+
 const readableStarts = (slices: ReadonlyMap<string, ScheduledSlice>): Record<string, number> =>
-  Object.fromEntries(
-    [...slices].map(([at, slice]) => [at.replace('\u0000', '/'), slice.earliestStart]),
-  );
+  Object.fromEntries([...slices].map(([at, slice]) => [readableKey(at), slice.earliestStart]));
 
 describe('materialiseOptimized', () => {
   it('divides the offsets by the quantum and hands them to schedule() as pinned starts', () => {
@@ -213,4 +216,69 @@ describe('materialiseOptimized', () => {
       /no start was returned for it/,
     );
   });
+});
+
+/**
+ * `SOLVER_QUANTUM`'s own feasibility claim, asserted for the first time instead
+ * of argued in a doc comment.
+ *
+ * The quantum rounds every duration UP, so every schedule feasible in the
+ * quantised model is feasible in the real one — "quantisation costs optimality
+ * and never validity". Two things follow, and both are checked here over all
+ * eight Fast cases rather than over one fixture chosen to agree:
+ *
+ * 1. Materialising the quantised baseline never throws. This is the property
+ *    run 40 chunk 2 found broken: `pinFloor` compared the dequantised pin to
+ *    Fast's floor with `===`, so the plan's own baseline came back as
+ *    `ScheduleInvalidOptimizedStartError` whenever the two roundings landed a
+ *    ulp apart.
+ * 2. No slice lands EARLIER than Fast put it. Later is the quantum's cost and
+ *    is expected; earlier would mean a rounding went the wrong way and a
+ *    materialised answer can break a constraint the model thought it held,
+ *    which is the failure the whole rounding policy exists to prevent.
+ */
+describe('materialiseOptimized over the Fast golden corpus', () => {
+  for (const each of FAST_GOLDEN_CASES) {
+    it(`materialises ${each.name}'s own quantised baseline into a legal schedule`, () => {
+      const notBefore = each.notBefore ?? new Map<string, number>();
+      const poolSizes: PoolSizes = each.poolSizes ?? new Map();
+      const reach = each.reach ?? 'whole-item';
+
+      const offsets = quantisedFastBaseline(
+        each.rows,
+        each.edges,
+        each.slices,
+        notBefore,
+        poolSizes,
+        reach,
+      );
+      const fast = schedule(each.rows, each.edges, each.slices, notBefore, poolSizes, reach);
+      const placed = materialiseOptimized(
+        each.rows,
+        each.edges,
+        each.slices,
+        notBefore,
+        poolSizes,
+        reach,
+        offsets,
+      );
+
+      expect(placed.slices.size).toBe(fast.slices.size);
+      // Reported as a map of the slices that went backwards rather than as a
+      // bare boolean, so a failure names which ones did.
+      const earlier = Object.fromEntries(
+        [...placed.slices]
+          .filter(([at, slice]) => {
+            const before = fast.slices.get(at)?.earliestStart ?? 0;
+            // Not a raw `<`: the two axes differ by the quantum's rounding, and
+            // a slice the quantum did not move must compare equal rather than
+            // lose by a ulp — the same drift the engine reads through
+            // `withinDrift`.
+            return slice.earliestStart < before && !withinDrift(slice.earliestStart, before);
+          })
+          .map(([at, slice]) => [readableKey(at), slice.earliestStart]),
+      );
+      expect(earlier).toEqual({});
+    });
+  }
 });
