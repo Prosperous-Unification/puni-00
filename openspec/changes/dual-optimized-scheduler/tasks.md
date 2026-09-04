@@ -688,6 +688,39 @@ check-that-cannot-fail failure R5 names.
       unit they prove, and 2.4's re-validator will bring
       `revalidate-solver-result.test.ts` with it. What remains here is 2.4's
       violation cases, which cannot be written until 2.4 exists.
+      **Violation half landed** in `revalidate-solver-result.test.ts` — one
+      case per placement and objective rule, each paired with its nearest legal
+      neighbour. **And the clause that half could not reach: "rejected as
+      *invalid-output*".** Until run 11 the disposition was prose in three
+      module headers and a value nowhere, so no test could assert it and the
+      coordinator writing `failureReason` had fifteen diagnosis tokens across
+      three seams and a paragraph to re-derive.
+      `solver-failure-disposition.ts` publishes it: `SOLVER_FAILURE_REASONS`
+      (checked against `design.md`'s own CHECK constraint by regex, so the
+      constant cannot drift from the column that stores it — the golden
+      corpus's non-circularity argument applied to a second artefact), plus one
+      `Record` per seam so a code added to any of the three failure lists is a
+      compile error until somebody decides what it means.
+      **The mapping is not a pass-through, and the trap is a real one:**
+      `objective-overflow` is a member of BOTH `SOLVER_PREFLIGHT_FAILURES` and
+      `SOLVER_REVALIDATION_FAILURES`, and it means opposite things — before the
+      spawn it is the recorded reason verbatim, after it the reason is
+      `invalid-output`. A mapping written by matching the token to the column's
+      vocabulary, which the token does match, is right in one direction and
+      wrong in the other while looking right in both. **Watched red, measured:**
+      pass it through in the re-validation table and the suite goes 164/3, not
+      the 164/1 the comment first predicted — the two enumerating cases fire
+      too, because each states the rule over the whole list. Comment corrected
+      to the measurement. Nothing outside the file notices, which is the half
+      of the prediction that held.
+      `malformed-request` maps to `internal-error`, not `invalid-output`
+      (**assumption 1, run 11**, recorded in the module with its falsifier): it
+      fires only on a request `buildSolverRequest` produced, so blaming the
+      response would send the repair to the wrong side of the seam.
+      **Still untickable, and only for one reason:** 2.4's deadline clause is
+      not implemented — it waits on 4.9's `materialiseOptimized` — so one of
+      2.4's violations has no case here yet. Everything else 2.5 asks for is
+      landed and gated.
 - [ ] 2.6 **Proven by** `solver-request.test.ts`: a null-`days` slice becomes
       `ASSUMED_SLICE_WORKDAYS`; a width-3 slice of 6 days' effort becomes 2
       days; a `whole-item` and an `anchor-slice` plan produce different edge

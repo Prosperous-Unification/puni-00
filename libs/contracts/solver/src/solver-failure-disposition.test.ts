@@ -107,13 +107,21 @@ describe('pre-spawn failures are the recorded reason verbatim', () => {
  * matched the token to the column's vocabulary would pass the first and fail
  * the second while looking correct in both places.
  *
- * WATCHED RED: set `REVALIDATION_DISPOSITIONS['objective-overflow']` to
- * `'objective-overflow'` — the single most plausible edit, since the token is
- * itself a legal `failureReason` and the entry beside it in the preflight table
- * says exactly that. Only the second assertion here fails. Nothing else in the
- * suite notices: the re-validator's own tests assert the *diagnosis* token,
- * which is unchanged, and the vocabulary and totality checks above both still
- * pass because the wrong answer is a member of the column's own enum.
+ * WATCHED RED, MEASURED at `9be51528`: set
+ * `REVALIDATION_DISPOSITIONS['objective-overflow']` to `'objective-overflow'` —
+ * the single most plausible edit, since the token is itself a legal
+ * `failureReason` and the entry beside it in the preflight table says exactly
+ * that. Result **164 pass / 3 fail**, where this comment first predicted one.
+ * The other two are the enumerating cases above — "rejects every
+ * solver-authored violation" and "leaves exactly one code on our side" — and
+ * that they fire is the point rather than noise: each states the rule over the
+ * whole list, so neither can be satisfied by a token-shaped exception.
+ *
+ * What did NOT fire is the part worth keeping. Every one of the other 164
+ * passes, including the re-validator's own suite, which asserts the
+ * *diagnosis* token and is unchanged; and including the vocabulary and totality
+ * checks above, which pass because the wrong answer is a member of the column's
+ * own enum. Nothing outside this file notices at all.
  */
 describe('the same token means opposite things on either side of the spawn', () => {
   it('records objective-overflow before the spawn and invalid-output after it', () => {
