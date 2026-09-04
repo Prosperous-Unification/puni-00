@@ -2515,7 +2515,7 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       path's seat is hard-coded to `'pri'` (`reserve`'s `solver_slot` insert),
       so every db case is a PRI variant. It is proved at the decision seam
       instead, with the `>` → `>=` mutation reddening it **alone**; the write
-      path proves the *tie* arm. Recorded rather than papered over: the
+      path proves the _tie_ arm. Recorded rather than papered over: the
       paragraph above says "both on the production write path", and one of
       them is not.
       **The measured mutations, all on h2puni.** Domain (4/0 unmutated):
