@@ -5,6 +5,7 @@ import {
   type Schedule,
   schedule,
   type Slice,
+  type StoredSchedule,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -14,8 +15,8 @@ import {
   type OptimizedResult,
   RESULT_DTO_VERSION,
   type StoredObjectiveValue,
-  type StoredOptimizedResult,
 } from './optimized-result-dto';
+import type { SolverObjectiveTerm } from './wire-types';
 
 /**
  * The stored-result envelope (tasks.md 4.12b): what the cached row keeps beyond
@@ -100,9 +101,39 @@ function throughJson(result: OptimizedResult): OptimizedResult {
   return decodeOptimizedResult(JSON.parse(JSON.stringify(encodeOptimizedResult(result))));
 }
 
-/** A stored payload, mutable, for the negatives below. */
-function stored(result: OptimizedResult): StoredOptimizedResult {
-  return JSON.parse(JSON.stringify(encodeOptimizedResult(result))) as StoredOptimizedResult;
+/**
+ * A stored payload as the negatives below need to hold it.
+ *
+ * Not `StoredOptimizedResult`: that type is an alias of the WIRE term shape,
+ * whose fields are `readonly` and whose numbers and enums are already narrowed
+ * — correctly, since it describes a payload that has been through the decoder.
+ * A corrupt row is by definition one that has not, so the loosening is declared
+ * once here rather than spread over a cast per case, where each cast would be
+ * a separate small lie about what the row is.
+ */
+interface CorruptibleTerm {
+  value: unknown;
+  stageValue: unknown;
+  bound: unknown;
+  status: string;
+}
+
+interface CorruptibleRow {
+  dtoVersion: number;
+  publication: string;
+  objectiveValues: Record<string, CorruptibleTerm | undefined>;
+  schedule: StoredSchedule;
+}
+
+function stored(result: OptimizedResult): CorruptibleRow {
+  return JSON.parse(JSON.stringify(encodeOptimizedResult(result))) as CorruptibleRow;
+}
+
+/** One term of a payload this file has just written, so it is there. */
+function termOf(row: CorruptibleRow, term: SolverObjectiveTerm): CorruptibleTerm {
+  const held = row.objectiveValues[term];
+  if (held === undefined) throw new Error(`fixture has no ${term} term`);
+  return held;
 }
 
 describe('what a stored result keeps', () => {
@@ -155,7 +186,7 @@ describe('the real domain a quantisation-floor row lives in', () => {
 
   it('refuses that same value on a solver row, whose units are quantised', () => {
     const row = stored(solverResult());
-    row.objectiveValues.makespan.value = 0.2 + 0.2 + 0.2;
+    termOf(row, 'makespan').value = 0.2 + 0.2 + 0.2;
 
     expect(() => decodeOptimizedResult(row)).toThrow(
       /objectiveValues\.makespan\.value is not a safe integer/,
@@ -164,7 +195,7 @@ describe('the real domain a quantisation-floor row lives in', () => {
 
   it('refuses a stage incumbent on a floor row, which had no stage', () => {
     const row = stored(floorResult());
-    row.objectiveValues.priority.stageValue = 3;
+    termOf(row, 'priority').stageValue = 3;
 
     expect(() => decodeOptimizedResult(row)).toThrow(
       /objectiveValues\.priority\.stageValue is 3 on a quantisation-floor row/,
@@ -174,7 +205,7 @@ describe('the real domain a quantisation-floor row lives in', () => {
   it('refuses a negative and a NaN under both readings', () => {
     for (const source of [solverResult(), floorResult()]) {
       const negative = stored(source);
-      negative.objectiveValues.movement.value = -1;
+      termOf(negative, 'movement').value = -1;
       expect(() => decodeOptimizedResult(negative)).toThrow(
         /objectiveValues\.movement\.value is not a finite non-negative number/,
       );
@@ -182,7 +213,7 @@ describe('the real domain a quantisation-floor row lives in', () => {
       const notANumber = stored(source);
       // Injected AFTER the JSON trip on purpose: `JSON.stringify` writes `NaN`
       // as `null`, so a round trip would silently test a different defect.
-      (notANumber.objectiveValues.movement as { value: unknown }).value = Number.NaN;
+      termOf(notANumber, 'movement').value = Number.NaN;
       expect(() => decodeOptimizedResult(notANumber)).toThrow(
         /objectiveValues\.movement\.value is not a finite non-negative number/,
       );
@@ -192,7 +223,7 @@ describe('the real domain a quantisation-floor row lives in', () => {
 
 describe('the two enums that live inside the JSON', () => {
   it('throws naming publication and the unknown value', () => {
-    const row = stored(solverResult()) as unknown as { publication: string };
+    const row = stored(solverResult());
     row.publication = 'fast';
 
     expect(() => decodeOptimizedResult(row)).toThrow(/publication is "fast"/);
@@ -200,7 +231,7 @@ describe('the two enums that live inside the JSON', () => {
 
   it('throws naming the term and the value on an unknown stage status', () => {
     const row = stored(solverResult());
-    (row.objectiveValues.movement as { status: string }).status = 'proved';
+    termOf(row, 'movement').status = 'proved';
 
     expect(() => decodeOptimizedResult(row)).toThrow(
       /objectiveValues\.movement\.status is "proved"/,
@@ -242,25 +273,21 @@ describe('the ways a stored result is refused', () => {
   });
 
   it('refuses a row that is missing a term outright', () => {
-    const row = stored(solverResult()) as unknown as {
-      objectiveValues: Record<string, unknown>;
-    };
+    const row = stored(solverResult());
     delete row.objectiveValues['priority'];
 
     expect(() => decodeOptimizedResult(row)).toThrow(/objectiveValues has no priority term/);
   });
 
   it('refuses a term the schema does not have and a key it does not have', () => {
-    const extraTerm = stored(solverResult()) as unknown as {
-      objectiveValues: Record<string, unknown>;
-    };
-    extraTerm.objectiveValues['slack'] = extraTerm.objectiveValues['movement'];
+    const extraTerm = stored(solverResult());
+    extraTerm.objectiveValues['slack'] = termOf(extraTerm, 'movement');
     expect(() => decodeOptimizedResult(extraTerm)).toThrow(
       /objectiveValues carries the unknown term slack/,
     );
 
     const extraKey = stored(solverResult());
-    (extraKey.objectiveValues.movement as unknown as Record<string, unknown>)['proof'] = 'yes';
+    (termOf(extraKey, 'movement') as unknown as Record<string, unknown>)['proof'] = 'yes';
     expect(() => decodeOptimizedResult(extraKey)).toThrow(
       /objectiveValues\.movement carries the unknown key proof/,
     );

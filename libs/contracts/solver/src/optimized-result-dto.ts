@@ -1,4 +1,5 @@
 import { decodeSchedule, encodeSchedule, type Schedule, type StoredSchedule } from '@wbs/domain';
+
 import {
   SOLVER_OBJECTIVE_TERM_KEYS,
   SOLVER_OBJECTIVE_TERMS,
@@ -189,7 +190,7 @@ function readTerm(
   }
 
   return {
-    value: raws.value as number,
+    value: raws.value,
     stageValue: raws.stageValue as number | null,
     bound: raws.bound as number | null,
     status: status as StoredObjectiveValue['status'],
