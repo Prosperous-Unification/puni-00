@@ -170,7 +170,7 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
    * optimizer would return and Fast would not.
    */
 
-  it('replays a person queue in the optimizer's order, not in the priority order', () => {
+  it("replays a person queue in the optimizer's order, not in the priority order", () => {
     // `kat` does both, and the optimizer swaps them against their priorities:
     // `a` outranks `b` and is nonetheless idled to day 3 while `b` takes day 0.
     const rows = [leafRow('a', 10, 1), leafRow('b', 20, 5)];
