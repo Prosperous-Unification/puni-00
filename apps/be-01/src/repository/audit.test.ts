@@ -65,6 +65,17 @@ const FOLDER = import.meta.dir;
 // BOTH branches of its upsert move it. That case is this exemption's price:
 // exempting the table drops the guard, so the invariant the guard was protecting
 // is asserted where the write lives instead.
+//
+// `solverSlot` is the seventh, added the same day with `optimization-drain.ts`'s
+// first write. It is a **lease**, not a record: one row per reserved solver
+// process, deleted when the process is released or reclaimed. Its `owner_id`
+// already names who holds it and `started_at` when, so a `created_by` beside
+// them would be two columns for one fact — `event_log`'s reason. It carries no
+// `updated_at` either, deliberately: the two instants that matter to a lease are
+// `heartbeat_at` and `cancel_requested_at`, both of which say *which* thing last
+// happened, where a general `updated_at` would say only that something did.
+// `optimization-drain.db.test.ts` pins the one this drain writes, including that
+// a re-run does not move an instant already stamped.
 const EXEMPT = new Set([
   'eventLog',
   'commandJournal',
@@ -72,6 +83,7 @@ const EXEMPT = new Set([
   'eventSequencer',
   'examples',
   'optimizationGeneration',
+  'solverSlot',
 ]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
