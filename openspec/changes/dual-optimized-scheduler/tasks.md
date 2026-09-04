@@ -2338,7 +2338,24 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       arguments names a different plan than the one about to be scheduled.
       **What (a)–(f) still need is a fixture that publishes an annotated
       optimized schedule through this port**, which is now a test-side stub
-      away rather than blocked on production wiring.
+      away rather than blocked on production wiring. To drive them through the
+      real materialiser rather than a moved schedule, `materialise-optimized.ts`
+      needs a `tsconfig.base.json` path alias — only `optimized-result-dto.ts`
+      has one under `@wbs/contracts/solver/`, so `apps/be-01` cannot import it
+      today.
+      **AND THE ADAPTER IS THE OTHER HALF, still unwritten.** The port has no
+      production implementation yet, so `readOptimizedPair` is reachable but not
+      yet reached. The adapter belongs in `apps/be-01/src/repository/`, is
+      constructed with the three key columns the plan read must not name —
+      `budgetMs`, and the contract version, which is the COMPOSITE
+      `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"` that
+      `build-solver-request.ts:213` writes, not the bare `7` — and closes over
+      the database. So `solverVersion` is a third reader-owned key column and
+      not a blocker: it is a deployment fact, exactly like the budget, and the
+      coordinator that spawns with it is the thing that will construct this.
+      Its body is `scheduleInputHash(ask.input)`, `readOptimizedPair`, then
+      `pair[ask.objective].kind === 'ok' ? outcome.result.schedule : null` —
+      the four non-`ok` kinds are the one `null` the port documents.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
