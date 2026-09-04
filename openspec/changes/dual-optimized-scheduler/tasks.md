@@ -1502,7 +1502,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       written from, and an implementer building `down.sql` from a
       three-item list ships a rollback that strands one table — the aborted
       blue/green failure this task exists to prevent.
-- [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
+- [x] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
 ('timeout','invalid-output','no-solution','internal-error','oom',
 'horizon-overflow','objective-overflow'))` — any non-null text was
       previously accepted. `optimization_generation.admission_state` also has
@@ -1533,6 +1533,19 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       `CHECK`s dropped, and each read path must throw naming the column and the
       stored value; remove either validator and the corrupted row must reach
       the spawn identity instead.
+      **Landed** in `repository/optimizer-rows.ts` — one guard per enum, five
+      guards over seven validated columns, and one row decoder per table, which
+      is the read boundary every repository read of these four tables goes
+      through. Proved by `optimizer-rows.db.test.ts`, 16 cases: each corrupt
+      value is first shown REFUSED on write by its own `CHECK`, then stored
+      under `PRAGMA ignore_check_constraints = ON` and shown to throw on read
+      naming the column and the value. Mutation-proved three ways — dropping
+      `toSolverQueueRow`'s guard reds that one case and no other, dropping
+      `toSolverSlotRow`'s lifecycle guard the same, and dropping the pragma
+      reds all seven injections at once, which is what proves the rows are
+      landing past live constraints rather than past absent ones. **The last
+      clause's own wording lands at 6.3**, which is where a spawn identity
+      first exists; the obligation is written into 6.3 rather than left here.
 - [ ] 3.9 **Proven by** `optimization-generation.db.test.ts`, run through the
       production repositories: a blue/green pair with two distinct
       `contractVersion` values neither reallocates nor deletes the other's
@@ -2676,7 +2689,14 @@ SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
       same project and objective from two contract versions at that same
       timestamp and assert the same; toggle OFF while an entry is queued and
       assert it is discarded without a spawn; drop `admittedCancelEpoch` and
-      the OFF-while-queued case must fail.
+      the OFF-while-queued case must fail. **The dequeue reads its row through
+      `toSolverQueueRow`** (3.8) rather than off the raw select, so a corrupted
+      `objective` throws here instead of reaching the spawn identity — that is
+      3.8's last clause, which had no spawn identity to name when it was
+      written. **Watched red:** inject `'prio'` into a queued row with the
+      `CHECK` dropped and the dequeue must refuse it by name; remove the
+      decoder from the dequeue and the corrupted objective must reach the
+      spawn identity instead.
 - [ ] 6.4 Cancellation, and the two paths are **not** the same operation. A
       newer edit changes the hash and therefore allocates the next generation.
       An **OFF toggle does not**: the toggle is excluded from the hash, so
