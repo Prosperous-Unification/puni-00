@@ -9,7 +9,6 @@ import {
   type Slice,
   sliceKey,
   SOLVER_QUANTUM,
-  withinDrift,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -231,7 +230,11 @@ describe('materialiseOptimized', () => {
  *    run 40 chunk 2 found broken: `pinFloor` compared the dequantised pin to
  *    Fast's floor with `===`, so the plan's own baseline came back as
  *    `ScheduleInvalidOptimizedStartError` whenever the two roundings landed a
- *    ulp apart.
+ *    ulp apart. **These eight cases do NOT prove that fix** — measured, not
+ *    assumed: restoring the `===` reddens the hand-built `days: 5/12, width: 5`
+ *    fixture above and none of the eight (M6, run 40 chunk 3). Every corpus
+ *    duration happens to quantise exactly, so the corpus is a breadth check on
+ *    the property, and the drift proof rests on that one fixture alone.
  * 2. No slice lands EARLIER than Fast put it. Later is the quantum's cost and
  *    is expected; earlier would mean a rounding went the wrong way and a
  *    materialised answer can break a constraint the model thought it held,
@@ -269,12 +272,15 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
       const earlier = Object.fromEntries(
         [...placed.slices]
           .filter(([at, slice]) => {
-            const before = fast.slices.get(at)?.earliestStart ?? 0;
-            // Not a raw `<`: the two axes differ by the quantum's rounding, and
-            // a slice the quantum did not move must compare equal rather than
-            // lose by a ulp — the same drift the engine reads through
-            // `withinDrift`.
-            return slice.earliestStart < before && !withinDrift(slice.earliestStart, before);
+            // A raw `<` is correct and a drift window here would be dead code,
+            // measured rather than assumed: M7 dropped a `!withinDrift(...)`
+            // clause from this predicate and reddened nothing. It cannot redden,
+            // because `pinFloor` now returns the FLOOR's own double whenever the
+            // pin is within drift of it — so a slice the quantum did not move
+            // comes back exactly equal, never a ulp under. The tolerance belongs
+            // in the engine, and putting a second copy of it here would hide the
+            // day the engine's own stopped working.
+            return slice.earliestStart < (fast.slices.get(at)?.earliestStart ?? 0);
           })
           .map(([at, slice]) => [readableKey(at), slice.earliestStart]),
       );
