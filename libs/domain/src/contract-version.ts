@@ -31,3 +31,28 @@
  * fixture pin above for that proof.
  */
 export const SCHEDULER_CONTRACT_VERSION = 7;
+
+/**
+ * The composite the **wire** carries and the **cache key** stores, from one
+ * place.
+ *
+ * `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"` is written twice in the
+ * pipeline today and the two writes are separated by a whole library boundary:
+ * `build-solver-request.ts` composes it for the request, and
+ * `publishedScheduleReaderOf` receives it as a caller-supplied string from a
+ * composition root that does not exist yet (slice 6). If those two strings ever
+ * differ by a character, every read of the cache misses forever, no row is ever
+ * served, nothing throws, and no test fails — the plan simply never gets a
+ * cached answer and looks slow rather than broken.
+ *
+ * So this is the one composer, and the composition root has one function to
+ * call rather than a template literal to retype. Task 1.5's remaining clause —
+ * "built where the cache key is built" — is what it exists for.
+ *
+ * `solverVersion` is the Python package's own version and this library never
+ * invents one: it arrives from the spawn that is about to run, because the
+ * string has to name the solver that actually produced the answer.
+ */
+export function contractVersionOf(solverVersion: string): string {
+  return `${String(SCHEDULER_CONTRACT_VERSION)}+${solverVersion}`;
+}

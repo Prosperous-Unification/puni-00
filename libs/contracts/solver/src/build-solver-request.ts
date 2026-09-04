@@ -1,4 +1,5 @@
 import {
+  contractVersionOf,
   type DependencyEdge,
   type DependencyReach,
   expandToLeaves,
@@ -10,7 +11,6 @@ import {
   type PoolSizes,
   priorityByLeaf,
   priorityWeights,
-  SCHEDULER_CONTRACT_VERSION,
   type Slice,
   SOLVER_QUANTUM,
 } from '@wbs/domain';
@@ -210,7 +210,7 @@ export function buildSolverRequest(
       // Both halves, and the schema's `$comment` holds the argument for both:
       // the solver's version describes none of the durations, the leaf
       // expansion or the baseline, all of which Bun produced.
-      contractVersion: `${String(SCHEDULER_CONTRACT_VERSION)}+${spawn.solverVersion}`,
+      contractVersion: contractVersionOf(spawn.solverVersion),
       solverVersion: spawn.solverVersion,
       objective,
       budgetMs: spawn.budgetMs,
