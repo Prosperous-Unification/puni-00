@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo, readMigrationFolders } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -250,10 +250,7 @@ describe('what the cache table refuses', () => {
 
       expect(refusal(db.path, cacheRow('ok', `'{"dtoVersion":1}'`, 'NULL'))).toBeNull();
       expect(
-        refusal(
-          db.path,
-          cacheRow('failed', 'NULL', `'timeout'`).replace(`'h1'`, `'h2'`),
-        ),
+        refusal(db.path, cacheRow('failed', 'NULL', `'timeout'`).replace(`'h1'`, `'h2'`)),
       ).toBeNull();
       expect(
         refusal(
@@ -275,9 +272,9 @@ describe('what the cache table refuses', () => {
       runMigrations(db.path, FOLDER);
       seedProject(db.path, 'p-1');
 
-      expect(
-        refusal(db.path, cacheRow('ok', `'{}'`, 'NULL').replace(`'pri'`, `'prio'`)),
-      ).toContain('CHECK');
+      expect(refusal(db.path, cacheRow('ok', `'{}'`, 'NULL').replace(`'pri'`, `'prio'`))).toContain(
+        'CHECK',
+      );
       expect(refusal(db.path, cacheRow('done', `'{}'`, 'NULL'))).toContain('CHECK');
       expect(refusal(db.path, cacheRow('failed', 'NULL', `'exploded'`))).toContain('CHECK');
     } finally {
