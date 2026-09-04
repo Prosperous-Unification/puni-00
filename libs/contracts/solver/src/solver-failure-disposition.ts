@@ -130,6 +130,7 @@ const REVALIDATION_DISPOSITIONS: Readonly<Record<SolverRevalidationFailure, Solv
     'objective-overflow': 'invalid-output',
     'objective-regression': 'invalid-output',
     'objective-mismatch': 'invalid-output',
+    'deadline-violated': 'invalid-output',
   };
 
 export const dispositionOfParseFailure = (failure: SolverParseFailure): SolverFailureReason =>

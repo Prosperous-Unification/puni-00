@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
-import { revalidateSolverResult } from './revalidate-solver-result';
+import {
+  revalidateOptimizedDeadlines,
+  revalidateSolverResult,
+} from './revalidate-solver-result';
 import type {
   SolverObjectiveTerm,
   SolverObjectiveValues,
@@ -308,5 +311,122 @@ describe('the golden corpus proves the schema cannot answer this question', () =
     const corpusRequest = read('request/valid-two-slices.json') as SolverRequest;
     const corpusResponse = read('response/valid-feasible.json') as SolverResponse;
     rejects(revalidateSolverResult(corpusRequest, corpusResponse), 'pool-overcapacity');
+  });
+});
+
+/**
+ * 2.5's DEADLINE half — one case per rule 2.4's deadline clause names, each
+ * paired with its nearest legal neighbour for the same reason the placement
+ * cases are.
+ *
+ * The clause reads the MATERIALISED schedule, so these feed
+ * `revalidateOptimizedDeadlines` a placement map directly rather than routing
+ * through `materialiseOptimized`: the arithmetic under test is
+ * `lastWorkdayOf(start, finish) <= deadlineUnits / quantum - 1`, and running a
+ * real solve first would decide the numbers the assertions are about.
+ *
+ * `deadlineUnits` is `(D + 1) x quantum`, so day 0 is `48` and day 1 is `96`.
+ */
+describe('revalidateOptimizedDeadlines', () => {
+  const placedOf = (
+    spans: Record<string, readonly [number, number]>,
+  ): { readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }> } => ({
+    slices: new Map(
+      Object.entries(spans).map(([key, [earliestStart, earliestFinish]]) => [
+        key,
+        { earliestStart, earliestFinish },
+      ]),
+    ),
+  });
+
+  it('accepts work that runs to the end of its own due day', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', deadlineUnits: 96 })] }),
+      placedOf({ a: [0, 2] }),
+    );
+    expect(found).toEqual({ ok: true, published: true });
+  });
+
+  it('rejects work whose last day is one past the deadline', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', deadlineUnits: 96 })] }),
+      placedOf({ a: [0, 3] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('deadline-violated');
+    expect(found.detail).toContain('day 2');
+  });
+
+  /**
+   * The clause that is the reason this is not checked in quantised units. A
+   * span finishing at 1.5 days occupies part of day 1, so its last workday is
+   * 1 and a day-0 deadline is broken — while `Math.floor` on the same number,
+   * or a units comparison against `48`, would call it met.
+   */
+  it('counts a fractional finish as spilling into the day it touches', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', deadlineUnits: 48 })] }),
+      placedOf({ a: [0, 1.5] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('deadline-violated');
+  });
+
+  it('accepts the same slice finishing exactly on the day boundary', () => {
+    expect(
+      revalidateOptimizedDeadlines(
+        request({ slices: [slice({ key: 'a', deadlineUnits: 48 })] }),
+        placedOf({ a: [0, 1] }),
+      ),
+    ).toEqual({ ok: true, published: true });
+  });
+
+  it('leaves a slice with no deadline unconstrained however late it runs', () => {
+    expect(
+      revalidateOptimizedDeadlines(
+        request({ slices: [slice({ key: 'a', deadlineUnits: null })] }),
+        placedOf({ a: [0, 900] }),
+      ),
+    ).toEqual({ ok: true, published: true });
+  });
+
+  /**
+   * A gap in the key sets is OUR bug — `materialiseOptimized` has already
+   * proved they are equal by the time a schedule exists — so it is reported as
+   * `malformed-request` and not as a broken deadline. Blaming the solver would
+   * send the repair to the wrong side of the seam.
+   */
+  it('reports a missing placement as malformed-request, not as a violation', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', deadlineUnits: 96 })] }),
+      placedOf({ b: [0, 1] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('malformed-request');
+  });
+
+  it('refuses a deadlineUnits outside the safe non-negative integers', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', deadlineUnits: 48.5 })] }),
+      placedOf({ a: [0, 1] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('malformed-request');
+  });
+
+  it('checks every slice, not only the first', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({
+        slices: [slice({ key: 'a', deadlineUnits: 480 }), slice({ key: 'b', deadlineUnits: 96 })],
+      }),
+      placedOf({ a: [0, 2], b: [0, 5] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.detail).toContain('"b"');
   });
 });

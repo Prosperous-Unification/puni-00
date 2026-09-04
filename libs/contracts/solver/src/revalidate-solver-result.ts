@@ -1,3 +1,5 @@
+import { lastWorkdayOf, SOLVER_QUANTUM } from '@wbs/domain';
+
 import {
   SOLVER_OBJECTIVE_TERMS,
   type SolverObjectiveTerm,
@@ -26,13 +28,11 @@ import {
  * exception would make it re-derive that value from a message.
  *
  * This module carries the placement rules and the objective arithmetic. The
- * deadline clause is 2.4's remaining half and is **not** implemented here: it
- * is stated on the MATERIALISED schedule in the real fractional domain
- * (`lastWorkdayOf(start, finish) <= effectiveDeadlineOffset`), which needs
- * `materialiseOptimized` from 4.9, and checking it in quantised units instead
- * would re-implement the inclusive-ceiling rounding a second time. It is named
- * here and in the task file rather than stubbed, because a check that exists
- * and always passes is worse than one that is absent.
+ * deadline clause is stated on the MATERIALISED schedule in the real fractional
+ * domain, so it cannot be reached from `(request, response)` alone and lives in
+ * {@link revalidateOptimizedDeadlines} at the foot of this file — a second
+ * entry point the caller composes after materialising, not another block here.
+ * The reason it is split rather than folded in is written out there.
  */
 
 /*
@@ -100,6 +100,7 @@ export const SOLVER_REVALIDATION_FAILURES = [
   'objective-overflow',
   'objective-regression',
   'objective-mismatch',
+  'deadline-violated',
 ] as const;
 export type SolverRevalidationFailure = (typeof SOLVER_REVALIDATION_FAILURES)[number];
 
@@ -415,5 +416,67 @@ export const revalidateSolverResult = (
     }
   }
 
+  return { ok: true, published: true };
+};
+
+/**
+ * 2.4 — re-validation, DEADLINE half, and it is a second entry point rather
+ * than another block inside {@link revalidateSolverResult}. That is a finding
+ * about the seam, not a convenience.
+ *
+ * The clause is stated on the MATERIALISED schedule in the real fractional
+ * domain — `lastWorkdayOf(start, finish) <= effectiveDeadlineOffset` for every
+ * slice — and deliberately not in quantised units, because checking it in units
+ * would re-implement the inclusive-ceiling rounding a second time and could
+ * disagree with the End date the column prints. Materialising needs
+ * `materialiseOptimized`, and that needs `rows`, `edges`, `slices`,
+ * `notBefore`, `poolSizes` and `reach`: the DOMAIN plan. `revalidateSolverResult`
+ * is signed `(request, response)` and has only the wire request, whose slices
+ * are already quantised. So the check cannot live inside it without either
+ * widening that signature or re-deriving the domain plan from the wire, and
+ * re-deriving it would be a second copy of the canonicaliser.
+ *
+ * The composition is therefore the caller's, in this order: re-validate the
+ * wire pair, materialise, then call this. Everything the wire alone can refuse
+ * has already been refused by the time a `Schedule` exists.
+ *
+ * `deadlineUnits` is an EXCLUSIVE bound on the finish, `(D + 1) × quantum`
+ * (`deadlineUnitsOf`), so the due day itself is `deadlineUnits / quantum - 1`.
+ * Converting the other way would require the work finished by the START of its
+ * own due day and lose a whole workday on every deadline in the plan.
+ *
+ * A slice the schedule has no placement for is `malformed-request`, not a
+ * deadline violation: the key sets are equal by construction once
+ * `materialiseOptimized` has returned, so a gap is our bug and blaming the
+ * solver would send the repair to the wrong side of the seam.
+ */
+export const revalidateOptimizedDeadlines = (
+  request: SolverRequest,
+  placed: { readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }> },
+): RevalidatedSolverResult => {
+  for (const slice of request.slices) {
+    if (slice.deadlineUnits === null) continue;
+    if (!isNonNegativeSafeInteger(slice.deadlineUnits)) {
+      return refuse(
+        'malformed-request',
+        `slice ${JSON.stringify(slice.key)} has deadlineUnits ${JSON.stringify(slice.deadlineUnits)}`,
+      );
+    }
+    const timing = placed.slices.get(slice.key);
+    if (timing === undefined) {
+      return refuse(
+        'malformed-request',
+        `the materialised schedule has no slice ${JSON.stringify(slice.key)}`,
+      );
+    }
+    const dueDay = slice.deadlineUnits / SOLVER_QUANTUM - 1;
+    const lastDay = lastWorkdayOf(timing.earliestStart, timing.earliestFinish);
+    if (lastDay > dueDay) {
+      return refuse(
+        'deadline-violated',
+        `slice ${JSON.stringify(slice.key)} last works on day ${String(lastDay)}, past its deadline day ${String(dueDay)}`,
+      );
+    }
+  }
   return { ok: true, published: true };
 };
