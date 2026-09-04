@@ -3,8 +3,8 @@ import { describe, expect, it } from 'bun:test';
 import * as domain from './index';
 
 /**
- * The three symbols `libs/contracts/solver` imports from this library, asserted
- * on the **barrel** rather than on their own modules.
+ * The symbols `libs/contracts/solver` imports from this library, asserted on the
+ * **barrel** rather than on their own modules.
  *
  * Slice 2.0 of the dual-optimized-scheduler change exists because a plan can
  * name a seam that does not exist: `priorityByLeaf` was declared `function`
@@ -32,5 +32,33 @@ describe('the solver seams libs/domain publishes', () => {
     expect(domain.SOLVER_QUANTUM).toBe(48);
     expect(typeof domain.durationUnits).toBe('function');
     expect(typeof domain.durationRoundedUp).toBe('function');
+  });
+
+  it('publishes the two leaf-upward folds every wire slice carries already folded', () => {
+    expect(typeof domain.leafFloorsOf).toBe('function');
+    expect(typeof domain.leafDeadlinesOf).toBe('function');
+  });
+
+  it('publishes the dense-rank weight and the absent leaf’s reading of it', () => {
+    expect(typeof domain.priorityWeights).toBe('function');
+    expect(typeof domain.priorityWeightOf).toBe('function');
+  });
+
+  it('publishes the slice graph — the chain, the join, and the reach that decides it', () => {
+    // `sliceGraphEdges` moved out of `schedule()` in run 8 precisely so
+    // `buildSolverEdges` could import it rather than restate it. Moving a
+    // function out of a file it was exported from is exactly the edit that
+    // silently drops it from the barrel, which `tsc` and every test inside
+    // this library would still call green.
+    expect(typeof domain.sliceGraphEdges).toBe('function');
+    expect(typeof domain.reachedSliceOf).toBe('function');
+    expect(typeof domain.expandToLeaves).toBe('function');
+    expect(typeof domain.sliceKey).toBe('function');
+  });
+
+  it('publishes the one grouping both projections start from', () => {
+    // A position on an edge is meaningless against a different grouping, so
+    // the builder must reach THIS one.
+    expect(typeof domain.groupSlicesByLeaf).toBe('function');
   });
 });
