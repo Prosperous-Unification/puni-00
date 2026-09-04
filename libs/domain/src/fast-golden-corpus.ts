@@ -63,7 +63,7 @@ const work = (
 });
 
 /**
- * Four cases, chosen so each one can *lose* something a different engine change
+ * Six cases, chosen so each one can lose something a different engine change
  * would break. A corpus of one plan is a corpus that only notices whatever that
  * plan happens to exercise.
  */
@@ -108,6 +108,33 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
     edges: [],
     slices: [work('a', 2, { personId: 'p' }), work('b', 1, { personId: 'p' })],
     notBefore: new Map([['b', 5]]),
+  },
+  {
+    // `reach` is on `contract-version.ts`'s own bump list and no case above can
+    // see it: with one slice per work item both arms agree. Two steps each and
+    // an edge between the items is the smallest plan where they differ — under
+    // `whole-item` `b` waits for all of `a`, under `anchor-slice` only for
+    // `a`'s anchor. Stored under `anchor-slice`, so flipping the default is a
+    // corpus failure rather than a silent semantic change.
+    name: 'anchor-slice-reach',
+    rows: [leaf('a', 10), leaf('b', 20)],
+    edges: [{ predecessorId: 'a', successorId: 'b' }],
+    slices: [
+      work('a', 2, { stepId: 'design' }),
+      work('a', 3, { stepId: 'build' }),
+      work('b', 1, { stepId: 'design' }),
+      work('b', 2, { stepId: 'build' }),
+    ],
+    reach: 'anchor-slice',
+  },
+  {
+    // The duration rule's other arm — `days / width` — and the snapping that
+    // follows it. 5 days across a width of 2 is 2.5, which is the case a
+    // corpus of whole numbers cannot distinguish from a rule that rounds.
+    name: 'fractional-duration',
+    rows: [leaf('a', 10), leaf('b', 20)],
+    edges: [{ predecessorId: 'a', successorId: 'b' }],
+    slices: [work('a', 5, { width: 2 }), work('b', 1)],
   },
 ];
 
