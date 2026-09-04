@@ -226,19 +226,33 @@ check-that-cannot-fail failure R5 names.
       the corpus is *not* the only check that notices this one — four existing
       float and drift tests catch it too — which is worth stating rather than
       overselling the corpus.
-      **Still uncovered, named rather than claimed:** numbering semantics have
-      no case aimed at them, and `SOLVER_QUANTUM` is not a `schedule()` input at
-      all, so this corpus cannot reach it.
-      **One qualifier on numbering, established but not proved (run 11).** It is
-      *reachable*: `schedule()` calls `deriveNumbers(rows)` at
-      `schedule.ts:1890` and spends the result at `:1902` as the **third of
-      four leveling tie-breaks** (time, priority, number, `at`). So it changes
-      output only where leveling reorders tied slices — and `pool-of-one` is
-      exactly that shape: two slices tied at 0 with no priority, competing for
-      one slot. Whether the stored bytes for that case actually turn on the
-      number, rather than falling through to `at`, was **not** measured; the
-      next run should either prove it with a red on the comparator or add a case
-      that isolates the tie.
+      **An eighth case, `inverted-numbering-tie`, closes numbering semantics
+      (`9a8e4a98`), and run 11's open question is answered NO.** Run 11 left
+      this reachable-but-unmeasured: `deriveNumbers(rows)` is spent at
+      `schedule.ts:1890` and read at `:1902` as the third of four leveling
+      tie-breaks, and `pool-of-one` looked like the shape that would turn on it.
+      **Measured: it does not.** With the number comparison deleted from
+      `goesFirst` (`schedule.ts:1940`) the corpus was regenerated and compared
+      case by case against the stored bytes — **`pool-of-one` and all six other
+      prior cases are byte-identical; only `inverted-numbering-tie` moves.**
+      The reason is in the inputs rather than the engine: every earlier case
+      declares its rows in position order, so `deriveNumbers`' order and the
+      `rows` **array** order (`index.leafIds`, `schedule.ts:326`) agree and the
+      number can only confirm what the last tie-break would have chosen anyway.
+      The new case pulls them apart — `b` at position 10, `a` at 20, declared
+      `a`-first, one pool slot — and since `node.at` is the index **within** a
+      work item (`schedule.ts:1813`) both nodes carry `at: 0`, which leaves the
+      number as the only line in `goesFirst` that separates them. Stored bytes:
+      `b` 0 → 2, `a` 2 → 4 `boundBy: 'capacity'`; the plan's own order would
+      have given `a` the slot. **Watched red:** delete that line → **371 pass /
+      9 fail**, the byte comparison among them. **Honest qualifier, same as
+      `snapWorkdays`:** the corpus is not the only check that notices — the
+      other eight failures include `breaks a remaining tie on the work item
+      number, then on step order`, a test written directly for this rule. The
+      case adds the version key to a rule that already had coverage.
+      **Still uncovered, named rather than claimed:** `SOLVER_QUANTUM` is not a
+      `schedule()` input at all, so this corpus cannot reach it. Every other
+      name on `contract-version.ts`'s bump list now has a case built for it.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
