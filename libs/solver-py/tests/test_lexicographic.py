@@ -51,14 +51,22 @@ only whether the gap exceeds the swing does. A mutation whose coefficients are
 not named, and whose fixture is not built against them, is a coin flip either
 way.
 
-WHY THE WEIGHTED COMPARISON RUNS ON `build_model` AND NOT THROUGH `solve_request`
----------------------------------------------------------------------------------
-`solve_request` installs 5.9's bound, `PRIORITY ≤ 15` for this baseline, and that
-bound **excludes the S-first placement outright** (PRIORITY 16). The bound is
-correct to do so — S-first is worse than the quantised baseline on stage 1's term
-and that is precisely what it exists to exclude — but a mutation compared under
-it would be green for the wrong reason. The two objectives are therefore compared
-on the same unbounded model, which is the thing 5.10 is asking about.
+5.9's BOUND CHOOSES THIS FILE'S BASELINE, AND THE OBVIOUS CHOICE WAS WRONG
+---------------------------------------------------------------------------
+`solve_request` installs 5.9's bound, `T₁ ≤ baselineT₁`. Baselined on `w_first` —
+the lexicographic answer, and the obvious pick — that bound is `PRIORITY ≤ 15`
+and it **excludes the S-first placement outright**. Correctly: S-first is worse
+than the quantised baseline on stage 1's term, which is exactly what the bound
+exists to exclude. But then the collapse cannot move `solve_request`'s answer,
+and this file goes green under its own target mutation. Measured, not predicted:
+run 19 chunk 3 replaced stage 1's objective with `1000·T₁ + 100·T₂ + T₃` and
+watched `TheStagedLoopIsLexicographic` pass while `test_solve.BothStagings` and
+`test_budget` caught it.
+
+The baseline is therefore `s_first` (PRIORITY 16), so the bound admits both
+placements and is present without being decisive. The weighted comparison itself
+still runs on `build_model`: it asks which objective picks which placement, and
+installing a bound on the mutant would be comparing two different models.
 """
 
 from __future__ import annotations
@@ -130,16 +138,27 @@ def s_first() -> dict[str, int]:
 
 
 def instance(baseline: Mapping[str, int] | None = None) -> dict[str, Any]:
-    """A fresh request per call, baselined on the lexicographic answer.
+    """A fresh request per call, baselined on `s_first` **deliberately**.
 
-    The baseline has to be a placement the model admits — 5.9's bound is
-    installed only on a proved-feasible one — and `w_first` is the natural
-    choice, since it is what the shipped loop returns.
+    `w_first` is the obvious choice — it is what the shipped loop returns — and
+    it is wrong here, measured rather than reasoned. With it, 5.9's bound is
+    `PRIORITY ≤ 15`, which excludes the `S`-first placement (PRIORITY 16)
+    outright; the collapse this file exists to catch then cannot move
+    `solve_request`'s answer, and `TheStagedLoopIsLexicographic` stays green
+    under its own target mutation. Run 19 chunk 3 injected that mutation and
+    watched this file pass while `test_solve.BothStagings` and `test_budget`
+    caught it.
+
+    `s_first` has PRIORITY 16, so the bound is `PRIORITY ≤ 16` and admits both
+    placements. It is a feasible placement, so the bound is still installed and
+    this file still solves the shipped model rather than a bound-free one — the
+    bound is present and simply not decisive, which is the state a mutation test
+    of the staging needs.
     """
     return a_request(
         _slices(),
         edges=_edges(),
-        baseline=dict(baseline if baseline is not None else w_first()),
+        baseline=dict(baseline if baseline is not None else s_first()),
         objective="pri",
     )
 
