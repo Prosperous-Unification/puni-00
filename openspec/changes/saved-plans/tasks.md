@@ -404,7 +404,7 @@ comparison UI) and start only after slice 6 is merged.
       which means the same as a deleted creator and falls back to the project
       owner. Negative: point the rule at `created_by` and watch two accounts
       sharing a display name share the right.
-- [ ] 6.1 Save, list, read, rename, delete on `savedPlanController`, following
+- [x] 6.1 Save, list, read, rename, delete on `savedPlanController`, following
       `projectController`'s authenticated-read / authorised-write split. Rename
       writes `name` and nothing else, and is permissioned like delete (creator or
       project owner) — on an unrestricted project every authenticated account can
