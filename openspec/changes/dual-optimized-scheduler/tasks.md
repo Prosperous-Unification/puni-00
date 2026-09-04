@@ -1612,7 +1612,7 @@ slice 4's write half is blocked here rather than on effort. Nothing else in
 slice 4 waits on it: the read half and three of the four write predicates
 landed without it.
 
-- [ ] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
+- [x] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
       null default **false**, `schedule_engine` text not null default `'fast'`,
       and `schedule_objective` text not null default `'pri'` — **three
       columns, all user-facing settings**. `optimization_delete_pending_at`
@@ -1625,11 +1625,23 @@ landed without it.
       the cancel epoch are **not** added here (Sol r7 Critical 4): they are per
       contract version and live in the `optimization_generation` table slice 3
       creates.
+      **Closed run 33 chunk 1** (`e3848d09`, 1247 green).
+      `20260904140000_add_project_settings` adds the three columns with the
+      defaults written into the `ADD COLUMN`, so no existing row is ever ON for
+      an instant. `optimization_delete_pending_at` stays where 3.1b put it.
 - [ ] 3b.2 Repository mapping in `apps/be-01/src/repository/project.ts`; the
       three settings in the project read payload; a PATCH contract in
       `project.controller.ts`/`project.service.ts` under the **existing
       project-write authorization** — these are project settings, so a reader
       may not change them.
+      **Half open after run 33 chunk 1.** The three columns exist and are
+      deliberately **withheld** from the read payload: `toProject` spreads
+      whatever is left of its row, so the moment the columns landed they were
+      published untyped and unvalidated through a `Project` that does not
+      declare them — caught by `carries the columns the Project type declares
+      and no others`. They sit in `INTERNAL_PROJECT_COLUMNS` with
+      `withholds the optimizer settings until the read payload declares them`
+      naming them, so this item must delete that case rather than pass silently.
 - [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
       `ProjectService.update` when any of the three change, carrying the new
       values. `schedule_optimized` stays reserved for stored solver results.
@@ -1639,19 +1651,28 @@ landed without it.
       read-only collaborator's PATCH is refused and emits nothing; a successful
       PATCH emits exactly one `project_settings_changed` and no
       `schedule_optimized`.
-- [ ] 3b.5 **Negative check, watched red** — make `optimization_enabled`
+- [x] 3b.5 **Negative check, watched red** — make `optimization_enabled`
       default true and watch 3b.4's unmigrated-row case fail. `Proof:` comment
       names the changed default. A toggle that defaults ON silently starts
       solvers for every existing project on deploy.
+      **Closed run 33 chunk 1.** Watched on h2puni at `e3848d09`: with the
+      migration's default flipped to `1`, `leaves a project written before it
+      switched off, on the fast engine` fails (2 pass / 2 fail against 4 pass /
+      0 fail). The `Proof:` comment on that case names the changed default.
 - [ ] 3b.6 This slice touches `apps/be-01/drizzle/**`, the **second** prod-mode
       path in this change: PR with green CI and a real review, `status:
 review`, no self-merge.
-- [ ] 3b.7 `down.sql` plus rollback-then-re-apply coverage that names and
+- [x] 3b.7 `down.sql` plus rollback-then-re-apply coverage that names and
       removes **each of the three** columns this slice adds
       (`optimization_enabled`, `schedule_engine`, `schedule_objective`); the
       assertion enumerates them rather than counting, so a column left behind
       is schema drift the test catches. `optimization_delete_pending_at`
       belongs to slice 3's own `down.sql` (3.1b, 3.7).
+      **Closed run 33 chunk 1.** `down.sql` names all three and no more; the
+      test enumerates rather than counts, and re-applies onto the rolled-back
+      file comparing the whole stored `CREATE TABLE`, so a dropped `CHECK` is a
+      diff. Watched: deleting the `schedule_engine` drop line reddens three of
+      the four cases.
 - [ ] 3b.8 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
 ('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
       and explicit read-time validators `isScheduleEngine` /
@@ -1663,6 +1684,15 @@ review`, no self-merge.
 
 ## 4. Cache read/write, generations, validity and the failed marker
 
+      **DDL half closed run 33 chunk 1**, validator half open. All three
+      `CHECK`s are in the migration and proved by `refuses a value outside each
+      column vocabulary`, which drives each one through a direct `UPDATE` and
+      keeps an accepted control beside the three refusals; removing the
+      `schedule_objective` `CHECK` reddens it. They are **not** declared as
+      table-level `check()`s in `schema.ts`, because `project` already exists
+      and each is a column constraint on an `ALTER TABLE … ADD COLUMN` — a
+      table extra would describe a `CREATE TABLE` no migration writes.
+      `isScheduleEngine` / `isScheduleObjective` wait on 3b.2's mapper.
 - [ ] 4.1 Repository functions: read the pair for the full key; write an `ok`
       row; write a `failed` row; allocate the next generation in the
       `optimization_generation` row for `(projectId, contractVersion)` **and**
