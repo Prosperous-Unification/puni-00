@@ -77,12 +77,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
     ]);
     expect(
       [...must(wire.get('objective-term'), 'the objective-term vocabulary').members].sort(),
-    ).toEqual([
-      'bound',
-      'stageValue',
-      'status',
-      'value',
-    ]);
+    ).toEqual(['bound', 'stageValue', 'status', 'value']);
     expect(must(wire.get('request'), 'the request vocabulary').members.has('fastHint')).toBe(true);
   });
 
