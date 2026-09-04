@@ -2261,6 +2261,22 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       places integers, so a genuinely early start is early by at least
       `1 / SOLVER_QUANTUM` = 0.0208 of a day against a 1e-9 window — asserted,
       not argued, by a case that fails if `DRIFT` is widened past a unit.
+      **AND THE SAME ULP WAS REACHABLE IN THE POOL RE-ASK, one branch below the
+      floor — closed in run 41 chunk 1.** Run 40 named it open and unproved; it
+      needs no exotic fixture. A slice of `1 / 48` of a day pinned at solver
+      unit 7 releases its pool at `7/48 + 1/48`, one ulp ABOVE unit 8, so a
+      block the solver abutted there — the commonest thing an optimizer does —
+      came back refused: no room in its pools at `0.16666666666666666`, the
+      earliest being `0.16666666666666669`. `window.start !== pinned` is now
+      `withinDrift(window.start, pinned)`, and **the accepted start is the
+      POOL's double**, by the floor branch's own rule one line up: the pin would
+      otherwise sit one ulp inside a live reservation, which over-allocates the
+      profile. The window is re-asked from that instant so it is the search's
+      own fixpoint — `binding: []`, which is what keeps `annotateCapacity`'s
+      render invariant true, since a non-empty `binding` under `'optimizer'`
+      names a team on a slice no pool held up. Three mutations, each reddening
+      exactly one case (`schedule-annotate.test.ts`): drop the re-ask, return
+      the pin's double, or widen the comparison to 0.5.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
