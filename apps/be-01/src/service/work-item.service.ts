@@ -184,7 +184,17 @@ export function poolsFor(
   return { poolIds, slots };
 }
 
-function slicesOf(
+/**
+ * The slices a plan runs, from rows that are already in memory.
+ *
+ * Exported since `saved-plan-schedule.ts` — a **second** production caller —
+ * needs the same slicing the live projection gets. A saved plan that computed
+ * its own slices would be a second arithmetic over one estimate rule, and the
+ * bar a saved plan draws would drift from the bar the live plan draws for the
+ * same numbers. There is one `slicesOf`, and both callers pass it detached
+ * values.
+ */
+export function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,

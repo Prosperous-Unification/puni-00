@@ -29,6 +29,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
@@ -73,6 +74,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     const auth = new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY });
 
     app = buildApp({
+      savedPlans: testSavedPlanService(),
       auth,
       projects: new ProjectService({ projects: projectStore }),
       directory: new DirectoryService({ directory: directoryStore, broadcast }),

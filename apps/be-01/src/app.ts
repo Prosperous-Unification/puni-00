@@ -11,6 +11,7 @@ import { directoryController } from './controller/directory.controller';
 import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
+import { savedPlanController } from './controller/saved-plan.controller';
 import { smokeController } from './controller/smoke.controller';
 import { solutionController } from './controller/solution.controller';
 import { stepController } from './controller/step.controller';
@@ -28,6 +29,7 @@ import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
+import type { SavedPlanService } from './service/saved-plan.service';
 import type { StepService } from './service/step.service';
 import type { WorkItemService } from './service/work-item.service';
 import type { WriteLock } from './service/write-lock';
@@ -49,6 +51,14 @@ export interface AppOptions {
   projects: ProjectService;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  /**
+   * Required for the same reason as `projects`. A process built without it
+   * would answer 404 on every saved-plan route, which a client reads as "this
+   * project has no saved plans" rather than as a be-01 that cannot store one.
+   * Task 6.4 is where absence acquires a *typed* answer; until then it is not
+   * an absence this process is allowed to have.
+   */
+  savedPlans: SavedPlanService;
   /**
    * Required for the same reason as `projects`, and for one more: a process
    * built without it would answer 404 on every step route, which is exactly
@@ -184,6 +194,11 @@ export function buildApp(opts: AppOptions) {
       .use(authController(opts.auth, opts.oidc))
       .use(solutionController(opts.auth, opts.projects))
       .use(projectController(opts.auth, opts.projects, opts.workItems))
+      // After `projectController`, whose `/api/projects` paths it extends: the
+      // saved-plan collection is one segment longer than anything that
+      // controller declares, so neither can shadow the other, and adjacency is
+      // what makes that checkable at a glance.
+      .use(savedPlanController(opts.auth, opts.savedPlans, opts.projects))
       .use(stepController(opts.auth, opts.steps))
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))

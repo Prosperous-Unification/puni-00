@@ -6,8 +6,11 @@ import { readDeployedCommit } from './deployed-commit';
 import { drizzleOuterTransaction, openConnection } from './repository/db';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
+import { SavedPlanRepository } from './repository/saved-plan';
+import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
 import { UserRepository } from './repository/user';
 import type { AuthenticatedUser } from './service/auth.service';
+import { SavedPlanService } from './service/saved-plan.service';
 import { WriteLock } from './service/write-lock';
 import { type BeServices, buildServices } from './services';
 
@@ -91,6 +94,22 @@ export function bootBe01(opts: BootOptions): RunningBe {
     projects: services.projects,
     steps: services.steps,
     workItems: services.workItems,
+    // Built here rather than in `buildServices`, and the reason is structural
+    // rather than tidiness: that factory is defined over the one shared
+    // `Drizzle` handle, and both saved-plan repositories are defined by opening
+    // their **own** connection — the capture needs a read snapshot beside the
+    // live one, and the rename and the delete refuse to wait for the write
+    // lock. A path is what they take, and `boot.ts` is where the path is.
+    savedPlans: new SavedPlanService({
+      capture: new SavedPlanCaptureRepository({
+        openConnection: () => openConnection(opts.dbPath),
+      }),
+      plans: new SavedPlanRepository({ openConnection: () => openConnection(opts.dbPath) }),
+      newId: () => crypto.randomUUID(),
+      // Epoch **seconds**, matching the column: `Date.now()` is milliseconds and
+      // would store a stamp a thousand times too large without failing anything.
+      now: () => Math.floor(Date.now() / 1000),
+    }),
     directory: services.directory,
     capacity: services.capacity,
     priorityBands: services.priorityBands,

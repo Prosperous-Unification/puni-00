@@ -246,7 +246,7 @@ describe('toolsFromDocument, on the committed document', () => {
    * project's gate can see is a count that drifts silently; the routes landed at
    * `2ad567c` in chunk 7 and were noticed at `e82b023` in chunk 14.
    */
-  it('is 22 tools, so a route that appears must be decided about', () => {
+  it('is 27 tools, so a route that appears must be decided about', () => {
     // **51 to 19 with `plan-commands`.** Every single-item plan and directory
     // write is excluded — a model gets one write tool, `commands`, and cannot
     // pick the slow path — and the batch route arrives. What stays: the reads,
@@ -268,7 +268,32 @@ describe('toolsFromDocument, on the committed document', () => {
     // This drift arrived as a red in `mcp-01` from a change gated on `-p be-01`,
     // which is the failure mode the comment above already records — noticed here
     // by the whole-workspace gate rather than four chunks late.
-    expect(tools).toHaveLength(22);
+    //
+    // **22 to 27 with `saved-plans`.** All five arrive —
+    // `postApiProjectsByIdSaved-plans`, `getApiProjectsByIdSaved-plans`,
+    // `getApiSaved-plansById`, `patchApiSaved-plansById`,
+    // `deleteApiSaved-plansById` — and `EXCLUDED_PATHS` stays at five.
+    //
+    // No exclusion class reaches them: they are not `/api/auth/*`, not
+    // `/internal/*`, and unlike `/health`, `/metrics` and `/api/smoke/echo`
+    // they carry a plan — a saved plan *is* a plan, snapshotted.
+    //
+    // The `plan-commands` exclusion is the one that looks like it should apply
+    // and does not. It removed single-item plan **edits**, because a model gets
+    // one batch write, `commands`, and must not be able to pick the slow path.
+    // A saved plan is not an edit to a plan: it is a separate resource with its
+    // own id, its own quota and its own lifecycle, and no command in the batch
+    // vocabulary creates one. Excluding the writes here would leave no way to
+    // save at all, which is a different decision from "use the batch instead".
+    //
+    // The reads belong for the reason the export route already does: an agent
+    // asked to compare two snapshots or restore one has to list them and read
+    // one before it can name an id, and the alternative is guessing.
+    //
+    // This drift arrived as a red in `mcp-01` from a change gated on `-p be-01`
+    // for sixteen runs — the third time this comment records that failure mode.
+    // The whole-workspace gate caught it; the per-project one could not.
+    expect(tools).toHaveLength(27);
     expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 

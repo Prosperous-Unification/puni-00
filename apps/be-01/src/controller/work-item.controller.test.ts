@@ -10,6 +10,7 @@ import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -31,6 +32,7 @@ function buildHarness() {
     projects: new ProjectService({ projects: projectStore }),
     steps: testStepService(projectStore),
     workItems: plan.service,
+    savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),

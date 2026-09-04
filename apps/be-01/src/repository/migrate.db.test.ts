@@ -208,6 +208,16 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * list below, because the newest migration is the first thing any rollback
  * reverses.
  */
+const SAVED_PLAN = '20260903190000_add_saved_plan';
+/**
+ * The newest, and the one that separates the two `created_by` questions:
+ * `saved_plan.created_by_id`, the account the permission rule reads, beside
+ * the display name the record keeps by value (assumption A-8). One nullable
+ * column added and dropped whole, so it heads every descending reversal list
+ * below and tails the ascending folder order.
+ */
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
@@ -313,6 +323,8 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -643,6 +655,8 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -1115,6 +1129,8 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -1352,6 +1368,8 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -1643,6 +1661,8 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -1870,6 +1890,8 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -2142,6 +2164,8 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -2396,6 +2420,8 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -2641,6 +2667,8 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -2992,6 +3020,8 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -3133,6 +3163,8 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      CREATED_BY_ID,
+      SAVED_PLAN,
       LOOKUP_INDEXES,
       AUDIT_COLUMNS,
       RENAME_ROLE_TO_STEP,
@@ -3285,6 +3317,8 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -3571,6 +3605,8 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -3659,6 +3695,8 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      CREATED_BY_ID,
+      SAVED_PLAN,
       LOOKUP_INDEXES,
       AUDIT_COLUMNS,
       RENAME_ROLE_TO_STEP,
@@ -3882,6 +3920,8 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,

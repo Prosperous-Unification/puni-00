@@ -9,6 +9,7 @@ import { testHistoryService } from './testing/history-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
+import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 import { testWrites } from './testing/writes-fixture';
@@ -63,6 +64,7 @@ function appWith(auth: AuthService): ReturnType<typeof buildApp> {
     auth,
     projects: testProjectService(),
     workItems: testWorkItemService(),
+    savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',

@@ -111,6 +111,36 @@ export function assertPragmas(db: Database): void {
 }
 
 /**
+ * Turns this connection's busy waiting **off**, so a contended write lock is a
+ * refusal at once rather than a wait.
+ *
+ * Here, next to {@link openDatabase}, because `busy_timeout` is this file's
+ * jurisdiction: it is per-connection rather than stored in the file, and the
+ * whole reason the ESLint rule confines `bun:sqlite` here is that a connection
+ * opened elsewhere carries whatever timeout nobody set on it. This is the one
+ * exception to the 5-second default that module argues for, and it is an
+ * exception with a name rather than a stray `PRAGMA` in a repository.
+ *
+ * **It is asserted, for {@link assertPragmas}' reason.** Setting a PRAGMA is a
+ * request; SQLite reports the value it adopted and does not error when it
+ * declines. An unasserted call that quietly left the timeout at 5 s would turn
+ * every save that meets a held lock into a five-second wait — the serialising
+ * behaviour the refusal exists to prevent — and nothing downstream could tell,
+ * because the error it eventually raises is the same `SQLITE_BUSY`.
+ *
+ * The save's writer calls this on the connection it opened for itself and
+ * closes afterwards, so the setting cannot leak onto a handle anything else
+ * uses (`repository/saved-plan.ts`).
+ */
+export function refuseToWaitForWriteLock(db: Drizzle): void {
+  db.run(sql.raw('PRAGMA busy_timeout = 0'));
+  const busy: { timeout: number } | undefined = db.get(sql.raw('PRAGMA busy_timeout;'));
+  if (busy?.timeout !== 0) {
+    throw new Error(`expected busy_timeout=0, got ${String(busy?.timeout)}`);
+  }
+}
+
+/**
  * The transaction a command batch holds open around the stores' own — see
  * `service/outer-transaction.ts` for the contract and ADR 0007 for why it is
  * safe. Here rather than beside its interface because `drizzle-orm` is this
@@ -127,6 +157,46 @@ export function drizzleOuterTransaction(db: Drizzle): {
       // so a reader on another process cannot turn the batch into SQLITE_BUSY
       // halfway through.
       db.run(sql.raw('BEGIN IMMEDIATE'));
+    },
+    commit() {
+      db.run(sql.raw('COMMIT'));
+    },
+    rollback() {
+      db.run(sql.raw('ROLLBACK'));
+    },
+  };
+}
+
+/**
+ * The read snapshot a capture holds open across many separate reads — see
+ * `SavedPlanCaptureRepository`. Here beside {@link drizzleOuterTransaction} for
+ * the same reason: the raw SQL is this file's to write.
+ *
+ * `DEFERRED`, not `IMMEDIATE`, and the difference is the whole point of a second
+ * function. `IMMEDIATE` takes the write lock at `BEGIN`, which is right for a
+ * command batch that is *going* to write and wrong for a capture that never
+ * does: it would make every save block concurrent editing for the length of a
+ * whole-project read. `DEFERRED` takes a read lock at the first statement, and
+ * under WAL that pins the snapshot every later read in the block sees.
+ *
+ * **It must be held on a connection nothing else is using.** SQLite's
+ * transaction state belongs to the connection, not to this object, so a
+ * `BEGIN DEFERRED` on the process handle encloses every statement any other
+ * in-flight request issues until it commits — a stranger's write becomes the
+ * capture's to commit or to roll back. `boot.ts` opens exactly one connection
+ * for the process and `bun:sqlite` has no pool, so "a connection nothing else
+ * is using" means one the caller opened for itself with {@link openConnection}
+ * and closes afterwards. See `openspec/changes/saved-plans/design.md`,
+ * "The topology found".
+ */
+export function drizzleReadTransaction(db: Drizzle): {
+  begin(): void;
+  commit(): void;
+  rollback(): void;
+} {
+  return {
+    begin() {
+      db.run(sql.raw('BEGIN DEFERRED'));
     },
     commit() {
       db.run(sql.raw('COMMIT'));
