@@ -2024,11 +2024,62 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       here**, so a request fixture added to `manifest.json` is round-tripped
       without anyone remembering to add it twice.
 
-- [ ] 5.4 **Proven by** the oracle cases: 2–6 slice hand-verified instances with
+- [x] 5.4 **Proven by** the oracle cases: 2–6 slice hand-verified instances with
       known optimal offsets per objective, including one where PRI and Time
       disagree, one exercising `notBeforeUnits`, one exercising a two-pool
       slice, and one exercising an intra-item step-order edge. The solver
       reproduces each exactly.
+
+      **Landed** as `libs/solver-py/tests/test_oracles.py`, three cases, plus
+      the disagreement case which stays in `test_solve.py`. Splitting it that
+      way is deliberate: `1,1,1,3` exists to separate the two **stagings**, and
+      it is tested beside the staging loop. The three here are pinned by a
+      **constraint** instead, which is why each is solved under *both*
+      objectives and asserted to give the same answer — agreement is the claim.
+
+      | case | constraint | offsets | PRI / MAKE / MOVE |
+      |---|---|---|---|
+      | `NotBeforeUnits` | release time | `early:0, late:5` | 10 / 8 / 5 |
+      | `TwoPoolSlice` | tighter of two pools | `both:0, only1:0, only2:2` | 10 / 4 / 2 |
+      | `IntraItemStepOrder` | one edge | `step-a:0, step-b:2` | 7 / 5 / 2 |
+
+      **Every number was worked out by hand in the case's docstring before the
+      solver was run on it**, and each instance is small enough that the optimum
+      is _unique_, so the offsets are asserted whole rather than by their
+      objective values. Two of the three needed a weight to make it unique, and
+      the docstring shows the runner-up placement the weight excludes — in
+      `TwoPoolSlice` the two orders are symmetric at `PRIORITY 8` until `both`
+      weighs 2, which separates them 10 against 12.
+
+      **Each case carries its own relaxation**, because an instance that
+      satisfies a constraint by accident proves nothing about it: the same
+      instance with the second pool membership dropped, the edge removed, or
+      `notBeforeUnits` back to 0, each with its own hand-computed optimum
+      (8/2/0, 5/3/0, 7/5/2). A model ignoring the constraint returns the relaxed
+      answer for both, and `TheInstancesAreNotAccidentallyIdentical` asserts the
+      pair differs in exactly one request field — `horizonUnits` is derived from
+      `notBeforeUnits` by the builder, so `NotBeforeUnits` pins it rather than
+      letting the contrast change two things.
+
+      **`notBeforeUnits` is stated twice in `build_model`, and that is why the
+      first mutation of it was green.** The start variable's lower bound is
+      `floor` and the end variable's is `floor + duration`; with
+      `end == start + duration` posted between them, either one alone implies
+      the release time. Deleting **one** site leaves all 119 tests green in both
+      directions — a genuine equivalence, not a gap. Only the two-site deletion
+      is a removal, and it takes `NotBeforeUnits` red under both objectives
+      along with six older cases. Watched reds, measured on the gate host and
+      reverted (`/home/puni1/mut2-t219-r17.py`, `mut3-t219-r17.py`;
+      `model.py` byte-compared afterwards):
+
+      | mutation | result |
+      |---|---|
+      | start bound `floor` → `0` | **green**, 119/0 — equivalent |
+      | end bound `floor + duration` → `duration` | **green**, 119/0 — equivalent |
+      | both bounds together | 8 fail, incl. `NotBeforeUnits` × 2 |
+      | pool members = first `poolIds` entry only | 3 fail, incl. `TwoPoolSlice` × 2 |
+      | edge constraint deleted | 6 fail, incl. `IntraItemStepOrder` × 2 |
+
 - [ ] 5.4b **Bounded CPU and memory per child, with values** (Sol r12
       Important 4; Sol r13 Important 3). The process ceiling bounds processes, not resources:
       CP-SAT starts its own search workers and grows until something kills
