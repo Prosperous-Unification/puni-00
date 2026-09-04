@@ -189,7 +189,10 @@ describe('renaming and deleting a saved plan', () => {
     });
     expect(nameOf('sp-1')).toBe('before the rewire');
 
-    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
     expect(nameOf('sp-1')).toBe('tidied up');
   });
 
@@ -209,7 +212,10 @@ describe('renaming and deleting a saved plan', () => {
    */
   it('keeps the creator’s name and drops their right when the account is deleted', async () => {
     await save('sp-1', 'ada');
-    expect(await service().rename('sp-1', 'ada', 'still hers')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().rename('sp-1', 'ada', 'still hers')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
 
     reader.run(`DELETE FROM users WHERE id = 'ada'`);
 
@@ -228,9 +234,15 @@ describe('renaming and deleting a saved plan', () => {
     // And the owner can still tidy up, which is the reason the constraint is
     // `SET NULL` and not `RESTRICT`: a plan nobody could reach would hold its
     // project's quota forever.
-    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
     expect(nameOf('sp-1')).toBe('tidied up');
-    expect(await service().delete('sp-1', 'owner')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().delete('sp-1', 'owner')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
     expect(nameOf('sp-1')).toBeNull();
     expect(bodyCount('sp-1')).toBe(0);
   });
@@ -239,7 +251,10 @@ describe('renaming and deleting a saved plan', () => {
     await save('sp-1', 'ada');
     expect(bodyCount('sp-1')).toBe(2);
 
-    expect(await service().delete('sp-1', 'ada')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().delete('sp-1', 'ada')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
 
     expect(nameOf('sp-1')).toBeNull();
     expect(bodyCount('sp-1')).toBe(0);
@@ -262,7 +277,10 @@ describe('renaming and deleting a saved plan', () => {
     });
     expect(nameOf('sp-1')).toBe('damaged, and still mine');
 
-    expect(await service().delete('sp-1', 'ada')).toEqual({ outcome: 'touched', projectId: 'p1' });
+    expect(await service().delete('sp-1', 'ada')).toEqual({
+      outcome: 'touched',
+      projectId: 'p1',
+    });
     expect(nameOf('sp-1')).toBeNull();
   });
 
