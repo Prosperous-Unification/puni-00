@@ -372,20 +372,34 @@ check-that-cannot-fail failure R5 names.
       Fast's own order-sensitive output for that fixture. **Watched red:** drop
       the `ORDER BY` from 1.7 and both assertions must fail while the hash
       assertion in 1.3 stays green.
-      **What is left after run 13 chunk 4, stated exactly.** 1.7 landed with the
-      **repository-boundary** half — `listByProject` answers in id order, two
-      reads agree, and the `orderBy` deleted gives 31 / 1 on that one test. That
-      is a real check and not the one this item asks for. Still owed: the same
-      reversed driver carried through `listByProject` → `slicesOf`, asserting the
-      `rows` and `slices` arrays **as `schedule()` receives them** are identical
-      between reads, plus the second assertion on Fast's own order-sensitive
-      output for that fixture. `slicesOf` is not exported
-      (`work-item.service.ts:187`; only `poolsFor` beside it is, "for the tests
-      alone"), and the tuple is assembled inside the plan read at
-      `work-item.service.ts:1391-1448`, so this is a service-level test with a
-      seam decision in front of it — export `slicesOf` the way `poolsFor` is
-      exported, or assert the tuple through the service's own plan read. That
-      choice is the first thing the next chunk settles.
+      **The tuple half landed in run 13 chunk 6; the Fast-output half is refused
+      on this fixture and the reason is the item's own.** The seam decision went
+      the way `poolsFor` already set: `slicesOf` is now exported "for the tests
+      alone", with a JSDoc naming this task, rather than the tuple being
+      reassembled through the whole service plan read.
+      The test lives beside 1.7's in `work-item.db.test.ts` and drives the real
+      repository — two rows **written in the opposite order to their ids**, then
+      `listByProject` → `slicesOf`, asserting **both** arrays Fast receives come
+      back in `work_item.id` order. No estimate is written, deliberately:
+      `slicesOf` emits one slice per leaf per project step whether or not
+      anybody estimated it, so an estimate would be a second moving part in an
+      assertion about order.
+      **Watched red, measured:** the `orderBy` deleted from the production path
+      → **31 pass / 2 fail** on that file against a green **33 / 0**, and the two
+      failures are exactly 1.7's assertion and this one — "both assertions must
+      fail", as written. The hash assertion in 1.3 stays green because it lives
+      in `libs/domain` and cannot see a be-01 repository at all, which is the
+      structural version of why it could never have been the proof here.
+      **Still owed, and named rather than quietly dropped:** the second
+      assertion on Fast's **own order-sensitive output** for this fixture. It is
+      not added because on *this* fixture it cannot fail — two unblocked leaves,
+      no edge, no pool and no estimate all start at day 0 whatever order they
+      arrive in, so a `serializeSchedule` assertion here would be a
+      check-that-cannot-fail, which is the exact fault this item was rewritten to
+      avoid. Making Fast's output order-sensitive needs the `inverted-numbering-tie`
+      shape — a tie on priority, start and float, and a pool of one to
+      separate them — which means a team and a capacity row in this db fixture.
+      That is the next chunk's work.
 - [x] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
       a `parentId` reparenting that keeps every other field identical (it
       changes leaf expansion, inherited priority and floors), and a `stepId`
