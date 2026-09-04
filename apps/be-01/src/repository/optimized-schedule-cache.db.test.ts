@@ -475,7 +475,7 @@ describe('a plan through the column it is stored in', () => {
    * while having changed the number. The scorer half waits for the real plan
    * read.
    */
-  it('keeps a quantisation-floor row\'s real-domain value bit-equal through the column', () => {
+  it("keeps a quantisation-floor row's real-domain value bit-equal through the column", () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
@@ -516,9 +516,7 @@ describe('a plan through the column it is stored in', () => {
         'movement.status',
         (row: Record<string, unknown>) => {
           const terms = row['objectiveValues'] as Record<string, Record<string, unknown>>;
-          const movement = terms['movement'];
-          if (movement === undefined) throw new Error('broken fixture: no movement term');
-          movement['status'] = 'proved';
+          terms['movement']['status'] = 'proved';
         },
       ],
     ] as [string, (row: Record<string, unknown>) => void][]) {
@@ -556,7 +554,7 @@ describe('a plan through the column it is stored in', () => {
    * asserted is the one that is true and load-bearing: every mention of the
    * column inside a `CHECK` is a NULL test and nothing else.
    */
-  it('constrains only result_json\'s nullity, never its contents', () => {
+  it("constrains only result_json's nullity, never its contents", () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
