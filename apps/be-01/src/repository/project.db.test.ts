@@ -516,4 +516,34 @@ describe('what a project read publishes', () => {
     expect(Object.keys(read ?? {})).not.toContain('createdBy');
     expect(Object.keys(read ?? {})).not.toContain('updatedAt');
   });
+
+  /**
+   * The three settings slice 3b.1's migration adds, held off the payload until
+   * 3b.2 publishes them deliberately.
+   *
+   * Named here rather than left to the assertion above, because that one says
+   * only "the same keys as `Project`" and would go quiet the moment somebody
+   * adds these to the type without also mapping and validating them. This case
+   * says *which* columns are being withheld and why, so 3b.2 deletes it in the
+   * same commit that publishes them — a `toContain` that has to be rewritten is
+   * a better handover than a silent pass.
+   *
+   * Proof: with the three names removed from `INTERNAL_PROJECT_COLUMNS`, this
+   * fails on the first expectation and `carries the columns the Project type
+   * declares and no others` fails beside it on
+   * `+ "optimizationEnabled" · + "scheduleEngine" · + "scheduleObjective"` —
+   * watched at 2e7c4f7f before the list was extended (run 33).
+   */
+  it('withholds the optimizer settings until the read payload declares them', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+    const read = await repo.findById(made.id);
+    const published = Object.keys(read ?? {});
+
+    expect(published).not.toContain('optimizationEnabled');
+    expect(published).not.toContain('scheduleEngine');
+    expect(published).not.toContain('scheduleObjective');
+    // The control: the mapper is still returning a project rather than an empty
+    // object, so the three absences above are about these columns.
+    expect(published).toContain('estimateRounding');
+  });
 });

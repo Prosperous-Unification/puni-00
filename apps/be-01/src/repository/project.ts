@@ -84,7 +84,27 @@ function weightColumns(weights: PertWeights): {
  * (tasks.md 3.1b): internal state, not a field of a project, and no boundary
  * returns it.
  */
-const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt'] as const;
+const INTERNAL_PROJECT_COLUMNS = [
+  'optimizationDeletePendingAt',
+  // The three settings slice 3b.1's migration adds. They are the opposite of
+  // internal — they are user-facing settings, and 3b.2 publishes all three in
+  // the read payload with `isScheduleEngine` / `isScheduleObjective` refusing an
+  // unknown stored value on the way out (tasks.md 3b.2, 3b.8).
+  //
+  // They are held back here until that item lands, because {@link toProject}
+  // spreads whatever is left of its row: the alternative is not "not published
+  // yet", it is published **now**, untyped and unvalidated, through a `Project`
+  // that does not declare them. `carries the columns the Project type declares
+  // and no others` in `project.db.test.ts` caught exactly that when the columns
+  // landed (run 33), which is the guard doing its job rather than an obstacle.
+  //
+  // 4.1's admission predicate does not wait on this: it reads
+  // `optimization_enabled` in its own SQL, off the column the migration adds,
+  // and never through this mapper.
+  'optimizationEnabled',
+  'scheduleEngine',
+  'scheduleObjective',
+] as const;
 
 /**
  * A row with {@link INTERNAL_PROJECT_COLUMNS} taken off, for
@@ -137,7 +157,10 @@ function toProject<
     >,
     'createdBy' | 'updatedAt' | 'updatedBy'
   >,
-  'optimizationDeletePendingAt'
+  // The list rather than the one name it held until run 33, so a column added
+  // to {@link INTERNAL_PROJECT_COLUMNS} is a column this signature stops
+  // declaring — the body already stopped returning it.
+  (typeof INTERNAL_PROJECT_COLUMNS)[number]
 > & {
   estimateMethod: EstimateMethod;
   depReach: DependencyReach;
