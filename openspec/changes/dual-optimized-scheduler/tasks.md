@@ -162,12 +162,27 @@ check-that-cannot-fail failure R5 names.
       doc line beside them is comment. **The seam is now asserted from the
       BARREL** in `solver-seams.test.ts`, not from `schedule.ts`, and the
       watched red is why that distinction is the whole slice: with `export`
-      removed from `priorityByLeaf` again — the exact pre-2.0 state — `tsc
-      --build --force` exits **0 with a zero-byte log** and the entire
-      pre-existing 327-test domain suite passes. Only the barrel test fails,
+      removed from `priorityByLeaf` again — the exact pre-2.0 state — the entire
+      pre-existing 327-test domain suite passes and only the barrel test fails,
       335/1. The defect is invisible from inside the module, because the symbol
       is right there and its own tests pass; it is only visible from where the
-      consumer stands. Second red: the barrel's `export * from
+      consumer stands.
+      **Which `tsc` says so depends on the config, and the first write of this
+      paragraph named the wrong one (re-measured 2026-09-04, run 8 chunk 5).**
+      It said `tsc --build --force` exits 0 with a zero-byte log, full stop.
+      That is true of `libs/domain/tsconfig.lib.json`, whose `exclude` is
+      `["src/**/*.spec.ts", "src/**/*.test.ts"]` — the library build cannot see
+      a barrel test and never will. It is **false** of the gate: the
+      `typecheck` target runs `tsc --build --force libs/domain/tsconfig.json`,
+      which does include the tests, and it exits **1** with
+      `solver-seams.test.ts(24,26): error TS2339: Property 'priorityByLeaf'
+      does not exist on type 'typeof import(".../index")'`. So the barrel test
+      is doing two jobs, not one: it fails as a test, **and** it is the only
+      reason the typecheck target sees the missing export at all — delete the
+      file and the same mutation is silent again under both configs. Measured
+      the same way for `export * from './slice-edges'` deleted: lib config 0,
+      typecheck target 1, suite 373/1, and `libs/contracts`'s own typecheck 1
+      on `TS2305` because a real consumer now imports it. Second red: the barrel's `export * from
       './solver-quantum'` commented out, 335/1 on the quantum case alone.
 - [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
