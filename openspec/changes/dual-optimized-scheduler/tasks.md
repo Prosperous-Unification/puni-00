@@ -1908,16 +1908,46 @@ review`, no self-merge.
       **This item did not need 4.2's spawner**, which is why it closed ahead of
       the item it is numbered under: it is a property of the read's own dispatch
       on `status`, and the read landed in run 35.
-- [ ] 4.4 A `failed` row suppresses an automatic re-spawn for its exact key and
+- [x] 4.4 A `failed` row suppresses an automatic re-spawn for its exact key and
       blocks neither an explicit Retry nor a new hash's generation.
       **Proven by** a case in `optimized-cache.db.test.ts`: ten reads by three
       collaborators against a failed key spawn nothing; **a same-hash edit
       spawns nothing**; a Retry on the same key spawns exactly one; a new hash
       spawns the normal pair.
-- [ ] 4.5 **Negative check, watched red** — put `failed` back into the
+
+      **Closed run 37 chunk 3, four cases.** The ten reads each get their own
+      spawner, so a total of zero is zero per collaborator rather than a total
+      that cancels out; the same-hash edit is the eleventh of those reads, since
+      an edit that leaves the canonical input alone produces the same key and is
+      therefore not a new event at all.
+      **A Retry is a second entry point, `retryOptimizedPair`, and not a flag on
+      the read.** That is the whole of why 4.5 is hard to reintroduce: the
+      suppression is a property of which function the caller reached for, where
+      a boolean with a default is exactly the shape that lets `failed` rejoin
+      the automatic set while every call site still compiles. Its policy is the
+      mirror of the automatic one — everything that is not `ok`, because `ok` is
+      the only state with an answer to serve, so `failed`, `corrupt` and
+      `plan-infeasible` are all states a person looking at "Optimization
+      unavailable · Retry" is asking about. A Retry that answered a
+      `plan-infeasible` row with nothing would be a button that does nothing on
+      the row the user is looking at; it will very likely answer the same way
+      again, and that is the user's minute to spend.
+      The last arm goes through `allocateGeneration`: a new hash allocates, the
+      allocation clears the failed row with everything else, and the read for
+      the new plan asks for the normal pair.
+- [x] 4.5 **Negative check, watched red** — put `failed` back into the
       auto-spawn set and watch 4.4's "ten reads spawn nothing" case fail.
       `Proof:` comment names the restored branch. Every read becoming a re-solve
       is the timer retry Dany explicitly rejected, wearing a different hat.
+      **Closed run 37 chunk 3.** The restored branch is `objectivesToAutoSpawn`
+      in `optimized-schedule-cache.ts`, its predicate widened from
+      `kind === 'miss'` back to `kind !== 'ok'`. Watched on h2puni at
+      `f1ed862c`: **44 pass / 4 fail** against a 48 / 0 baseline for
+      `optimized-cache.db.test.ts`, script `/home/puni1/mut44-r37.sh`. The named
+      case is one of the four; the other three each read a settled non-`ok` row
+      and count its spawns, so the widening cannot be made to look local.
+      Note the shape of the failure it prevents: a re-solve **once per open
+      tab** is worse than the timer that was rejected, not merely equal to it.
 - [ ] 4.6 **ABA fence, proven by** `optimization-generation.test.ts`: run hash
       A, edit to B (cancelling A), undo to A, then let the original A child
       return a valid result. Its write is rejected, no rows are deleted, no

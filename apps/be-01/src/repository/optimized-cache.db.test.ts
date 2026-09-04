@@ -1505,6 +1505,19 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
    * Every read gets its OWN spawner here rather than sharing one recorder, so a
    * total of zero is zero per collaborator and not a total that happens to
    * cancel out.
+   *
+   * tasks.md 4.5's negative check. `Proof:` the restored branch is
+   * `objectivesToAutoSpawn` in `optimized-schedule-cache.ts` — with its
+   * predicate widened from `kind === 'miss'` back to `kind !== 'ok'`, which is
+   * `failed` and `corrupt` rejoining the auto-spawn set, this case fails on ten
+   * reads each asking for `time`. Watched on h2puni at `f1ed862c`: 44 pass /
+   * 4 fail against a 48 / 0 baseline, script `/home/puni1/mut44-r37.sh`. The
+   * other three that redden all read a settled non-`ok` row and count its
+   * spawns, so the widening cannot be made to look local to one case.
+   *
+   * Why it is guarded: every read of a settled failure becoming a re-solve is
+   * the timer retry Dany rejected, arriving through the cache instead of the
+   * clock — and it arrives once per open tab, which is worse than a timer.
    */
   it('spawns nothing across ten reads by three collaborators against a failed key', () => {
     const db = tempDb();
