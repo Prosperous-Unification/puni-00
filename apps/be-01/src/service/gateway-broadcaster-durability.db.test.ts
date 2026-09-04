@@ -149,6 +149,14 @@ describe('the durable record of a project event', () => {
     const batch = openBatch(lock, 'commits');
     await batch.open;
     const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
+
+    // The assertion that gives this case teeth, and it has to come first.
+    // Gemini's Important on this head: a commit keeps the savepoint, so the
+    // *outcome* is `0` whether the publish waited or recorded inside the open
+    // transaction, and the case passed with the lock deleted. What separates
+    // the two is only observable while the batch is still open.
+    expect(await eventLog.latestSeq(subscription)).toBe(-1);
+
     batch.settle();
     await batch.done;
     await published;
