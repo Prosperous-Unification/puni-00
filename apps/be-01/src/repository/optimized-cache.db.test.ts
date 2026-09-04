@@ -14,6 +14,7 @@ import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { allocateGeneration } from './optimization-generation';
 import {
+  admissionStillCurrent,
   type CachedOutcome,
   type OptimizedCacheKey,
   type OptimizedPair,
@@ -694,6 +695,119 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
       }
 
       expect(() => holds(db.path)).toThrow(/solver_slot\.lifecycle.*wedged/);
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe("the generation the attempt was admitted under, which is 4.1's second and third conditions", () => {
+  const ADMITTED = {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation: 1,
+    admittedCancelEpoch: 0,
+  } as const;
+
+  const current = (path: string, claim = ADMITTED): boolean =>
+    admissionStillCurrent(openDrizzle(path), claim);
+
+  function bumpCancelEpoch(path: string): void {
+    const db = openDatabase(path);
+    try {
+      db.run(
+        `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1
+         WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  it('is current for the generation just allocated', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+
+      expect(current(db.path, { ...ADMITTED, generation })).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('is not current once a new generation has been allocated', () => {
+    const db = tempDb();
+    try {
+      const first = prepared(db.path);
+      allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 2);
+
+      expect(current(db.path, { ...ADMITTED, generation: first })).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The cancel a generation bump cannot stand in for: the plan did not change,
+   * so `generation` is untouched, and only the epoch says the run was cancelled.
+   */
+  it('is not current once the cancel epoch has moved under an unchanged generation', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      bumpCancelEpoch(db.path);
+
+      expect(current(db.path, { ...ADMITTED, generation })).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('is not current when there is no generation row at all', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path);
+
+      expect(current(db.path)).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** Blue and green each own their row, so green's allocation is not blue's. */
+  it("is unaffected by another contract version's allocation", () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      allocateGeneration(openDrizzle(db.path), 'p-1', '8+1.0.0', 'h1', 2);
+
+      expect(current(db.path, { ...ADMITTED, generation })).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * `draining` admits no new work; it does not discard a solve already admitted
+   * and still holding its slot. Refusing that commit would throw the completed
+   * work away and leave the key with no outcome at all.
+   */
+  it('stays current while the generation is draining', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      const raw = openDatabase(db.path);
+      try {
+        raw.run(
+          `UPDATE optimization_generation SET admission_state = 'draining'
+           WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+        );
+      } finally {
+        raw.close();
+      }
+
+      expect(current(db.path, { ...ADMITTED, generation })).toBe(true);
     } finally {
       db.cleanup();
     }

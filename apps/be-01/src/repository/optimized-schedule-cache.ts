@@ -330,3 +330,57 @@ export function writerStillHolds(db: SQLiteBunDatabase, claim: SlotClaim): boole
   const row = toSolverSlotRow(stored);
   return row.ownerId === claim.ownerId && row.attemptToken === claim.attemptToken;
 }
+
+/**
+ * What an admitted attempt recorded about the generation it was admitted under.
+ *
+ * Two numbers because they answer two different questions. `generation` moves
+ * when the plan's input hash changes; `cancelEpoch` moves when somebody cancels.
+ * A write may be superseded by either and by neither the same way, so a single
+ * "still current" counter would collapse a cancelled run and a re-planned one
+ * into one indistinguishable state.
+ */
+export interface AdmissionClaim {
+  readonly projectId: string;
+  readonly contractVersion: string;
+  readonly generation: number;
+  readonly admittedCancelEpoch: number;
+}
+
+/**
+ * Whether the generation row still says what it said when this attempt was
+ * admitted (tasks.md 4.1's second and third conditions).
+ *
+ * Read as one row rather than as two lookups on purpose: both numbers live in
+ * `optimization_generation` keyed `(projectId, contractVersion)`, and reading
+ * them separately would let a concurrent allocation land between the two and
+ * produce a verdict that was never true of any single state of the row.
+ *
+ * A **missing** generation row is not current. Nothing can have been admitted
+ * before the first allocation, so a claim against a key with no row is a claim
+ * by a run whose own allocation has since been deleted — the project was
+ * dropped, or its rows were retired.
+ *
+ * It reads through {@link readGeneration}, so an `admission_state` no `CHECK`
+ * was in force for throws rather than authorizing a write (tasks.md 3.8).
+ *
+ * **`admissionState` is deliberately not a condition, and this is the one place
+ * that could be argued either way.** `draining` means the generation admits no
+ * new* work; a run already admitted and still holding its slot is finishing
+ * work that was admitted while the generation was open, and refusing its commit
+ * would throw away a completed solve and leave the key with no outcome at all.
+ * **Falsified if** draining ever needs to mean "and discard what is in flight",
+ * at which point it is a condition here and the drain has to say so.
+ *
+ * The fourth condition of 4.1's write — `optimization_enabled` still 1 — is
+ * **not here and cannot be**: that column belongs to slice 3b.1, which is
+ * unimplemented. The write transaction composes this, {@link writerStillHolds}
+ * and that predicate when the column exists.
+ */
+export function admissionStillCurrent(db: SQLiteBunDatabase, claim: AdmissionClaim): boolean {
+  const current = readGeneration(db, claim.projectId, claim.contractVersion);
+  if (current === null) return false;
+  return (
+    current.generation === claim.generation && current.cancelEpoch === claim.admittedCancelEpoch
+  );
+}
