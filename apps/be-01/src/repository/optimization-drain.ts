@@ -7,9 +7,13 @@ import {
   optimizationGeneration,
   optimizedScheduleCache,
   project,
+  type SolverObjectiveName,
   solverQueue,
   solverSlot,
 } from './schema';
+
+/** The handle a caller's own transaction hands to the helpers below. */
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
 /**
  * Phase 1 of the two-phase cancel-and-drain (tasks.md 3.9b).
@@ -235,63 +239,160 @@ export function finishOptimizationDrain(
   projectId: string,
   contractVersion?: string,
 ): OptimizationDrainFinish {
-  return db.transaction((tx) => {
-    const outstanding = (): number =>
-      tx
-        .select()
-        .from(solverSlot)
-        .where(
-          and(
-            eq(solverSlot.projectId, projectId),
-            ...(contractVersion === undefined
-              ? []
-              : [eq(solverSlot.contractVersion, contractVersion)]),
-          ),
-        )
-        .all().length;
+  return db.transaction((tx) => finishDrainIn(tx, projectId, contractVersion));
+}
 
-    if (contractVersion === undefined) {
-      const target = tx.select().from(project).where(eq(project.id, projectId)).get();
-      if (target === undefined) return 'absent';
-      if (target.optimizationDeletePendingAt === null) return 'open';
-      if (outstanding() > 0) return 'waiting';
-
-      tx.delete(project).where(eq(project.id, projectId)).run();
-      return 'finished';
-    }
-
-    const generation = tx
+/**
+ * The whole of phase 2, in a transaction the caller already opened.
+ *
+ * **Every word of `finishOptimizationDrain`'s contract lives here, including
+ * the one about the lock.** The three callers differ only in which transaction
+ * they hand it: the initiator and the reconciler open one that does nothing
+ * else, while a slot release opens one that has just removed a row — and the
+ * spec asks for exactly that, the marker re-read *in the same transaction that
+ * removes the last affected row*. Splitting the body out is what makes the
+ * shared transaction expressible at all: `db.transaction` cannot be called
+ * from inside a transaction, so the release path could otherwise only have
+ * committed its delete first and finished afterwards, leaving a window in
+ * which the target has no slots and no finisher.
+ */
+function finishDrainIn(
+  tx: Transaction,
+  projectId: string,
+  contractVersion?: string,
+): OptimizationDrainFinish {
+  const outstanding = (): number =>
+    tx
       .select()
-      .from(optimizationGeneration)
+      .from(solverSlot)
       .where(
         and(
-          eq(optimizationGeneration.projectId, projectId),
-          eq(optimizationGeneration.contractVersion, contractVersion),
+          eq(solverSlot.projectId, projectId),
+          ...(contractVersion === undefined
+            ? []
+            : [eq(solverSlot.contractVersion, contractVersion)]),
         ),
       )
-      .get();
-    if (generation === undefined) return 'absent';
-    if (generation.admissionState !== 'draining') return 'open';
+      .all().length;
+
+  if (contractVersion === undefined) {
+    const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+    if (target === undefined) return 'absent';
+    if (target.optimizationDeletePendingAt === null) return 'open';
     if (outstanding() > 0) return 'waiting';
 
-    tx.delete(optimizedScheduleCache)
-      .where(
-        and(
-          eq(optimizedScheduleCache.projectId, projectId),
-          eq(optimizedScheduleCache.contractVersion, contractVersion),
-        ),
-      )
-      .run();
-
-    tx.delete(optimizationGeneration)
-      .where(
-        and(
-          eq(optimizationGeneration.projectId, projectId),
-          eq(optimizationGeneration.contractVersion, contractVersion),
-        ),
-      )
-      .run();
+    tx.delete(project).where(eq(project.id, projectId)).run();
     return 'finished';
+  }
+
+  const generation = tx
+    .select()
+    .from(optimizationGeneration)
+    .where(
+      and(
+        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.contractVersion, contractVersion),
+      ),
+    )
+    .get();
+  if (generation === undefined) return 'absent';
+  if (generation.admissionState !== 'draining') return 'open';
+  if (outstanding() > 0) return 'waiting';
+
+  tx.delete(optimizedScheduleCache)
+    .where(
+      and(
+        eq(optimizedScheduleCache.projectId, projectId),
+        eq(optimizedScheduleCache.contractVersion, contractVersion),
+      ),
+    )
+    .run();
+
+  tx.delete(optimizationGeneration)
+    .where(
+      and(
+        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.contractVersion, contractVersion),
+      ),
+    )
+    .run();
+  return 'finished';
+}
+
+/** Which slot row a release means, and which attempt is entitled to release it. */
+export interface SolverSlotRelease {
+  readonly projectId: string;
+  readonly contractVersion: string;
+  readonly generation: number;
+  readonly objective: SolverObjectiveName;
+  readonly budgetMs: number;
+  /** 6.11's fence. A release presenting a stale token removes nothing. */
+  readonly attemptToken: string;
+}
+
+/** What one slot release did — to the row, and to each of the two drain targets. */
+export interface SolverSlotReleaseOutcome {
+  /** Whether this call is the one that removed the row. */
+  readonly released: boolean;
+  /** Phase 2 on the slot's own contract version. */
+  readonly retirement: OptimizationDrainFinish;
+  /** Phase 2 on the slot's project. */
+  readonly deletion: OptimizationDrainFinish;
+}
+
+/**
+ * Give a solver slot back, and finish any drain that was waiting on it
+ * (tasks.md 3.9b, path (a) — the opportunistic finish).
+ *
+ * **One transaction, and that is the requirement rather than an optimisation.**
+ * The delete and both marker re-reads commit together, so no observer ever sees
+ * a drained target with zero slots and nobody finishing it. Committing the
+ * delete first and finishing afterwards would leave exactly that window, and a
+ * crash inside it is what makes the reconciler necessary — this path exists so
+ * the reconciler is the backstop for a crash rather than the ordinary route.
+ *
+ * **The token is a fence, not a formality.** Reclamation mints a new
+ * `attemptToken` (6.11), so an owner that was reclaimed and whose slot was then
+ * re-admitted would, releasing late, delete a row belonging to a live child and
+ * hand its capacity to somebody else. The delete carries the token; a stale one
+ * matches no row and `released` comes back false.
+ *
+ * **Both finishes run even when nothing was released**, and both run even when
+ * no drain is in progress. A release that removed nothing is precisely the case
+ * where another path already took the row, which is the moment a target may
+ * have gone quiet; and on an ordinary project neither target is closed, so both
+ * calls read a marker, return `open` and write nothing. Two reads is what the
+ * ordinary path pays for never needing to know whether it is the last one out.
+ *
+ * **Retirement before deletion**, for the reason the reconciler orders its two
+ * loops the same way: a delete-pending project has every release draining, and
+ * retiring them first is what makes the observation. Deleting the project first
+ * reaches the same end state by cascade, without it.
+ */
+export function releaseSolverSlot(
+  db: SQLiteBunDatabase,
+  slot: SolverSlotRelease,
+): SolverSlotReleaseOutcome {
+  return db.transaction((tx) => {
+    const held = and(
+      eq(solverSlot.projectId, slot.projectId),
+      eq(solverSlot.contractVersion, slot.contractVersion),
+      eq(solverSlot.generation, slot.generation),
+      eq(solverSlot.objective, slot.objective),
+      eq(solverSlot.budgetMs, slot.budgetMs),
+      eq(solverSlot.attemptToken, slot.attemptToken),
+    );
+    // Read then delete, never `.run().changes`: bun-sqlite returns that count at
+    // runtime but drizzle types it `void` here, and a number nobody can
+    // typecheck is a number nobody can trust.
+    const released = tx.select().from(solverSlot).where(held).all().length > 0;
+    tx.delete(solverSlot).where(held).run();
+
+    return {
+      released,
+      retirement: finishDrainIn(tx, slot.projectId, slot.contractVersion),
+      deletion: finishDrainIn(tx, slot.projectId),
+    };
   });
 }
 
@@ -349,12 +450,16 @@ export function reconcileOptimizationDrains(
   let waiting = 0;
 
   const sweep = (projectId: string, contractVersion?: string): void => {
+    // Reclaim and finish in ONE transaction, which is what 3.9b asks of a
+    // reclaim sweep in the same words it asks it of a slot release: the marker
+    // is re-read in the transaction that removes the last affected row. The
+    // counts are returned rather than added inside the callback, so a rolled
+    // back transaction cannot leave this pass reporting rows it did not remove.
+    //
     // Counted by reading the rows rather than by the delete's own row count:
     // `.run()` is typed `void` here, so `.changes` is reachable at runtime but
     // untyped, and a number nobody can typecheck is a number nobody can trust.
-    // The two statements share a transaction so the count is of the rows this
-    // pass actually removed.
-    reclaimed += db.transaction((tx) => {
+    const pass = db.transaction((tx) => {
       const expiring = and(
         eq(solverSlot.projectId, projectId),
         ...(contractVersion === undefined ? [] : [eq(solverSlot.contractVersion, contractVersion)]),
@@ -362,13 +467,11 @@ export function reconcileOptimizationDrains(
       );
       const count = tx.select().from(solverSlot).where(expiring).all().length;
       tx.delete(solverSlot).where(expiring).run();
-      return count;
+      return { count, outcome: finishDrainIn(tx, projectId, contractVersion) };
     });
-    // Outside that transaction on purpose: `finishOptimizationDrain` opens its
-    // own, and its precondition has to be read after the reclaim has committed.
-    const outcome = finishOptimizationDrain(db, projectId, contractVersion);
-    if (outcome === 'finished') finished += 1;
-    if (outcome === 'waiting') waiting += 1;
+    reclaimed += pass.count;
+    if (pass.outcome === 'finished') finished += 1;
+    if (pass.outcome === 'waiting') waiting += 1;
   };
 
   const draining = db

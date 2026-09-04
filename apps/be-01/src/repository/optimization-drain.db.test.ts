@@ -12,6 +12,7 @@ import {
   beginOptimizationDrain,
   finishOptimizationDrain,
   reconcileOptimizationDrains,
+  releaseSolverSlot,
 } from './optimization-drain';
 import { allocateGeneration, readGeneration } from './optimization-generation';
 import {
@@ -472,6 +473,138 @@ describe('finishing a project deletion', () => {
     expect(finishOptimizationDrain(db, 'ghost')).toBe('absent');
 
     expect(projectIds()).toEqual(['p-1', 'p-2']);
+  });
+});
+
+/** The release an owner of that seeded slot would make, with its real token. */
+function releaseOf(
+  contractVersion: string,
+  objective: 'pri' | 'time',
+  projectId = 'p-1',
+  attemptToken = `tok-${projectId}-${contractVersion}-${objective}`,
+): Parameters<typeof releaseSolverSlot>[1] {
+  return {
+    projectId,
+    contractVersion,
+    generation: 1,
+    objective,
+    budgetMs: 60000,
+    attemptToken,
+  };
+}
+
+describe('releasing a slot, which is how most drains finish', () => {
+  it('gives the row back and finds no drain to finish, which is every ordinary release', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    seedSlot(BLUE, 'pri', null);
+
+    // Neither target is closed, so both re-reads return `open` and write
+    // nothing. Two reads is what the ordinary path pays for never needing to
+    // know whether it is the last one out.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'open',
+      deletion: 'open',
+    });
+    expect(slotRowsByProject()).toEqual([]);
+    expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
+    expect(cacheRows()).toEqual([`p-1/${BLUE}`]);
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+  });
+
+  it('retires the release in the same call that removes the last of its slots', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    seedCache(BLUE);
+    seedCache(GREEN);
+    seedSlot(BLUE, 'pri', null);
+    seedSlot(GREEN, 'time', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // Nobody had to notice this was the last one: the delete and the marker
+    // re-read are one transaction, so there is no instant at which the release
+    // is drained and unfinished.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'open',
+    });
+    expect(generationRows()).toEqual([`p-1/${GREEN}/open/0`]);
+    expect(cacheRows()).toEqual([`p-1/${GREEN}`]);
+    expect(slotRowsByProject()).toEqual([`p-1/${GREEN}/time/null`]);
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+  });
+
+  it('waits while another slot of the same release is still counted', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null);
+    seedSlot(BLUE, 'time', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // The second child is still running and its capacity is still its own.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'waiting',
+      deletion: 'open',
+    });
+    expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
+    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/time/20`]);
+  });
+
+  it('closes both targets when the last slot of a deleted project goes back', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    seedSlot(BLUE, 'pri', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // A deletion closes every release, so the last slot back retires its own
+    // contract version AND takes the project — in that order, because retiring
+    // first is what makes the observation the drain exists to make.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
+    expect(projectIds()).toEqual(['p-2']);
+    expect(generationRows()).toEqual([]);
+    expect(cacheRows()).toEqual([]);
+  });
+
+  it('retires its own release and leaves the project waiting on the other one', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    seedSlot(BLUE, 'pri', null);
+    seedSlot(GREEN, 'time', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // The project's physical row stays while a child it counts is still
+    // running, which is the same reason a slot row survives a retirement.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'waiting',
+    });
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(generationRows()).toEqual([`p-1/${GREEN}/draining/1`]);
+    expect(deletePendingAt('p-1')).toBe(20);
+  });
+
+  it('releases nothing on a stale attempt token and leaves the capacity counted', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // 6.11's fence. A reclaimed owner whose slot was re-admitted would
+    // otherwise delete a row belonging to a live child and hand its capacity to
+    // somebody else — so a stale token removes nothing and the drain waits.
+    expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri', 'p-1', 'tok-reclaimed'))).toEqual({
+      released: false,
+      retirement: 'waiting',
+      deletion: 'open',
+    });
+    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/20`]);
+    expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
   });
 });
 
