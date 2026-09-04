@@ -107,11 +107,12 @@ const byPosition = (items: WorkItem[]) =>
  * the backward pass. The `?? null` keeps a missing work item a failed
  * comparison rather than a thrown `undefined`.
  */
-const spanOf = (planned: Schedule, workItemId: string): { start: number; finish: number } | null => {
+const spanOf = (
+  planned: Schedule,
+  workItemId: string,
+): { start: number; finish: number } | null => {
   const found = planned.workItems.get(workItemId);
-  return found === undefined
-    ? null
-    : { start: found.earliestStart, finish: found.earliestFinish };
+  return found === undefined ? null : { start: found.earliestStart, finish: found.earliestFinish };
 };
 
 /** A team in the global directory, since a join row has to point at a real one. */
@@ -315,7 +316,10 @@ describe('the order the work-item select answers in', () => {
   it('schedules the same project two ways when the rows arrive in two orders', async () => {
     const shared = await team('Platform');
     const tied = 10;
-    const later = { ...row(null, tied, 'Written first'), id: 'ffffffff-0000-4000-8000-000000000005' };
+    const later = {
+      ...row(null, tied, 'Written first'),
+      id: 'ffffffff-0000-4000-8000-000000000005',
+    };
     const earlier = {
       ...row(null, tied, 'Written second'),
       id: '00000000-0000-4000-8000-000000000006',
