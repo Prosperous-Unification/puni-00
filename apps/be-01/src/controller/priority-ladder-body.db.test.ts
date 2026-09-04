@@ -20,6 +20,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -98,6 +99,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       history: testHistoryService(projectStore),
       steps: testStepService(),
       workItems: testWorkItemService(),
+    savedPlans: testSavedPlanService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),

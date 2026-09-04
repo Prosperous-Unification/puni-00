@@ -9,6 +9,7 @@ import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixtu
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -63,6 +64,7 @@ describe('one plan’s history, over HTTP', () => {
       projects: testProjectService(projects),
       steps: testStepService(),
       workItems: testWorkItemService(),
+    savedPlans: testSavedPlanService(),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
