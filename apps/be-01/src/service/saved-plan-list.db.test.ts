@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { eq } from 'drizzle-orm';
 
 import type { Connection } from '../repository/db';
 import { openConnection } from '../repository/db';
@@ -12,7 +11,7 @@ import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
-import { savedPlan, savedPlanBody } from '../repository/schema';
+import { savedPlan } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
@@ -25,8 +24,8 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 /**
  * Task 6.1's list, at the service.
  *
- * The list is an index, and the two properties worth pinning are what it
- * *omits*: no body bytes, and no integrity verdict. Both are tested by
+ * The list is an index, and the two properties worth pinning are the ones it
+ * leaves out: no body bytes, and no integrity verdict. Both are tested by
  * observation rather than by reading the implementation — a body damaged on
  * disk must still be listed, which is the only behaviour under which a corrupt
  * plan can be found and deleted rather than becoming a row nobody can reach.
@@ -135,10 +134,7 @@ describe("listing a project's saved plans", () => {
    */
   it('lists a plan whose bytes are damaged, and read still refuses it', async () => {
     await save('sp-1', 1_756_000_000, 'before the rewire');
-    await reader.db
-      .update(savedPlanBody)
-      .set({ bytes: '{"tampered":true}' })
-      .where(eq(savedPlanBody.savedPlanId, 'sp-1'));
+    reader.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE saved_plan_id = 'sp-1'`);
 
     const service0 = readerService();
 
