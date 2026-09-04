@@ -1218,38 +1218,36 @@ check-that-cannot-fail failure R5 names.
       `baselineOffsets` and `fastHint`, which it now does and which
       `golden-request.test.ts` compares with the checked-in fixture. The
       real-domain comparison is 4.11b's.
-      **The feasibility assertion landed in run 14 chunk 2 (`1cb7a2ec`) and
-      closes this item.** `the quantised baseline as a solver response` in
-      `quantised-baseline.test.ts` builds the real request through
-      `buildSolverRequest`, wraps `request.fastHint` as a `feasible`
-      `SolverResponse`, and asserts `revalidateSolverResult` returns
-      `{ ok: true, published: true }`.
-      **It is deliberately not written against this file's own
-      `infeasibilities()` helper**, which reads two rules — floors and edges —
-      and says nothing about pools, people or the variable domain. "Feasible"
-      is a claim about the pass that gates a *published* result, so a baseline
-      that satisfied a feasibility rule written in the test file and violated
-      the one on the wire would be refused in production and green here.
-      `request.fastHint` is asserted equal to the baseline first, so a builder
-      that stopped copying one into the other could not pass by validating the
-      other map, and **MOVEMENT is asserted to be exactly 0** — the response's
-      offsets *are* the request's `baselineOffsets`, so `Σ |start − baseline|`
-      is a map compared with itself and needs no oracle. The fixture is the
-      assembly one (floor on a parent, authored edge, two-step leaf, shared
-      pool of two, person queue), not `fiveWide`: a feasibility claim checked
-      on a plan with no pool and no person is a claim about a third of the
-      pass.
-      **Two watched reds on the production path, measured on h2puni at
-      `1cb7a2ec` against a green 157 / 0 across 15 files.** `scaleFloors`
-      dropped from `quantisedFastBaseline` (unscaled floors on the unit axis) →
-      **154 pass / 3 fail**: both new cases plus the pre-existing floor-scaling
-      one, and the second new case fails by reporting `floor-violated` where it
-      demands `edge-violated` — the refusal it names is the one it gets only
-      while the rest of the baseline is sound. `poolSizes` replaced by an empty
-      map → **147 pass / 10 fail**, both new cases among them. That second red
-      is the one that justifies the choice of checker: `infeasibilities()`
-      never looks at a pool, so a pool-blind baseline is invisible to it and
-      caught here.
+      **The feasibility assertion landed at `e097a116` in
+      `baseline-feasibility.test.ts`, and the sentence above it that said "has
+      no test" was stale when run 14 read it.** It feeds the baseline back
+      through `revalidateSolverResult` as a `feasible` response, asserts
+      `{ ok: true, published: true }`, adds a not-vacuous case and an
+      objective-mismatch case, and does not reimplement the checker. Run 14
+      chunk 2 wrote a second copy of that claim in `quantised-baseline.test.ts`
+      before finding it; chunk 3 deleted the duplicate.
+      **What survived the deduplication is the part that was genuinely missing,
+      and it is measured rather than argued** (`21161156`). 2.11's own plan has
+      no edge, no pool, no person and no floor, so those three cases exercise
+      one of the pass's five placement rules — the intra-item step chain. With
+      `poolSizes` replaced by an empty map inside `quantisedFastBaseline`, a
+      baseline that ignores capacity entirely, the contracts suite goes
+      **147 pass / 10 fail** and **not one of them is in that describe**: there
+      is no pool on that plan for a pool-blind baseline to violate.
+      `the quantised baseline on a plan whose every constraint is live` now
+      sits beside it in the same file — a floor written on a **parent** so the
+      fold is `leafFloorsOf`'s walk, an authored edge across two leaves, a
+      two-step leaf, a shared pool of two, a person queue — and it fails under
+      that red. It asserts `request.fastHint` equals the baseline **first**, so
+      a builder that stopped copying one into the other could not pass by
+      validating the other map, and **MOVEMENT is exactly 0** because the
+      offsets *are* the `baselineOffsets`. Its objective terms are computed
+      from the request's own `durationUnits` and `priorityWeight` rather than
+      hand-worked as 2.11's plan allows, because a floor fold, a dense rank and
+      two widths decide them here.
+      **Second watched red, same head:** `scaleFloors` dropped from
+      `quantisedFastBaseline` — unscaled floors on the unit axis — →
+      **154 pass / 3 fail** against a green 157 / 0 across 15 files.
       **Deadlines are deliberately not applied to the
       baseline** — they constrain the solver, not Fast — so "the hint is always
       feasible" is a claim about edges, floors, pools and queues, and a plan
