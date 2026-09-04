@@ -43,9 +43,10 @@ describe('SCHEDULER_CONTRACT_VERSION and the golden requests', () => {
       );
       // And the suffix is a solver version rather than an empty tail: a
       // `startsWith` alone accepts `"7+"`, which names no solver at all.
-      expect(request.contractVersion.slice(`${String(SCHEDULER_CONTRACT_VERSION)}+`.length)).not.toBe(
-        '',
+      const suffix = request.contractVersion.slice(
+        `${String(SCHEDULER_CONTRACT_VERSION)}+`.length,
       );
+      expect(suffix).not.toBe('');
     });
   }
 });
