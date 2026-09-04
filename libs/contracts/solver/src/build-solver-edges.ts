@@ -12,10 +12,10 @@ import type { SolverEdge } from './wire-types';
  * The request's `edges`: the slice graph, keyed, exactly as `schedule()` builds
  * it.
  *
- * **This function derives nothing.** Both rules — each leaf's intra-item step
- * chain, and the join from the predecessor's *reached* slice to the successor's
- * *first* plain — live in `@wbs/domain`'s `sliceGraphEdges`, which `schedule()`
- * itself calls. What is left here is the conversion the schema's own
+ * **This function derives nothing.** Both rules live in `@wbs/domain`'s
+ * `sliceGraphEdges`, which `schedule()` itself calls: each leaf's intra-item
+ * step chain, and the join from the predecessor's **reached** slice to the
+ * successor's **first** slice plain. What is left here is the conversion the schema's own
  * `$defs/edge` comment calls "real work rather than a rename": the domain names
  * an edge's ends by leaf and position, and the wire names them by `sliceKey`,
  * because Python receives no work item ids and no tree.
@@ -50,10 +50,18 @@ export function buildSolverEdges(
    * request Bun itself wrote.
    */
   const keyOf = (leafId: string, at: number): string => {
-    const slice = slicesOf(leafId)[at];
-    if (slice === undefined) {
+    const own = slicesOf(leafId);
+    // A BOUNDS check rather than a `=== undefined` one. Indexing an array is
+    // typed as always returning an element here, so the narrowing form is dead
+    // to the type checker and eslint deletes it; the arithmetic is not. `at`
+    // is also the only negative any caller can produce — `reachedSliceOf`
+    // answers `length - 1`, which is -1 for the empty group that cannot exist
+    // — and `own.at(-1)` would have wrapped round to the LAST slice and keyed
+    // it silently.
+    if (at < 0 || at >= own.length) {
       throw new Error(`no slice ${String(at)} for work item ${leafId}`);
     }
+    const slice = own[at];
     return sliceKey(slice.workItemId, slice.stepId);
   };
 
