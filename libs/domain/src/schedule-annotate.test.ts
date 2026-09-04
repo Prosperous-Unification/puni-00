@@ -43,12 +43,12 @@ import {
 const startsOf = (produced: Schedule): Map<string, number> =>
   new Map([...produced.slices].map(([key, each]): [string, number] => [key, each.earliestStart]));
 
-const leafRow = (id: string, position: number) => ({
+const leafRow = (id: string, position: number, priority: number | null = null) => ({
   id,
   parentId: null,
   position,
   frozenNumber: null,
-  priority: null,
+  priority,
 });
 
 const work = (workItemId: string, days: number, extra: Partial<Slice> = {}): Slice => ({
@@ -156,6 +156,71 @@ describe("a start no floor of the plan explains is the optimizer's", () => {
     expect(only?.capacityPredecessorIds).toEqual([]);
     expect(only?.capacityTeamId).toBeNull();
     expect(produced.waitingForPerson).toBe(0);
+    expect(produced.waitingForCapacity).toBe(0);
+  });
+});
+
+describe('the two rules the corpus cannot see, because it pins Fast onto Fast', () => {
+  /**
+   * Both of these came out of mutations that stayed **green** on the corpus and
+   * on every case above it (run 39, chunk 1, M4 and M5). Neither is a defect —
+   * the behaviour-preservation proof pins Fast's own answers, so by construction
+   * it cannot separate a replay that reorders from one that does not, nor a pool
+   * re-ask from one that keeps a window nothing was binding. They need starts an
+   * optimizer would return and Fast would not.
+   */
+
+  it('replays a person queue in the optimizer\'s order, not in the priority order', () => {
+    // `kat` does both, and the optimizer swaps them against their priorities:
+    // `a` outranks `b` and is nonetheless idled to day 3 while `b` takes day 0.
+    const rows = [leafRow('a', 10, 1), leafRow('b', 20, 5)];
+    const slices = [work('a', 2, { personId: 'kat' }), work('b', 2, { personId: 'kat' })];
+    const pinned = new Map([
+      [sliceKey('a', null), 3],
+      [sliceKey('b', null), 0],
+    ]);
+
+    const produced = schedule(rows, [], slices, new Map(), new Map(), 'whole-item', pinned);
+
+    // Drained in priority order this throws rather than misreporting: `a` is
+    // reached first, `kat` is busy until 5, and `b`'s pinned 0 is then below its
+    // own person floor — a legal optimized schedule refused as invalid output.
+    // Watched red: M4 forced `levelOrder` back to `goesFirst` and this case is
+    // the one that reddens.
+    expect(produced.slices.get(sliceKey('b', null))?.earliestStart).toBe(0);
+    expect(produced.slices.get(sliceKey('a', null))?.earliestStart).toBe(3);
+    // `b` went first, so it is nobody's successor and `a` is behind it. The edge
+    // is the pass's own `busyUntil`, which is why the drain order decides it.
+    expect(produced.slices.get(sliceKey('b', null))?.boundBy).toBe('projectStart');
+    expect(produced.slices.get(sliceKey('a', null))?.boundBy).toBe('optimizer');
+  });
+
+  it('re-asks the pool at the pinned instant rather than keeping the floor window', () => {
+    // A pool of one that IS binding at `b`'s plan floor — `a` holds it until
+    // day 2 — and free at the day 3 the optimizer pinned `b` to. The floor
+    // window therefore carries a `binding` entry the pinned window does not.
+    const rows = [leafRow('a', 10), leafRow('b', 20)];
+    const pooled = [work('a', 2, { poolIds: ['team'] }), work('b', 2, { poolIds: ['team'] })];
+    const sizes: PoolSizes = new Map([['team', 1]]);
+    const pinned = new Map([
+      [sliceKey('a', null), 0],
+      [sliceKey('b', null), 3],
+    ]);
+
+    const produced = schedule(rows, [], pooled, new Map(), sizes, 'whole-item', pinned);
+    const idled = produced.slices.get(sliceKey('b', null));
+
+    expect(idled?.earliestStart).toBe(3);
+    expect(idled?.boundBy).toBe('optimizer');
+    // Watched red: M5 left `window` as the floor's, so `annotateCapacity` read a
+    // non-empty `binding` beside `boundBy: 'optimizer'` and threw `names team
+    // with no pool binding it` — the render invariant catching the fault one
+    // layer down, which is what it is for.
+    expect(idled?.capacityTeamId).toBeNull();
+    expect(idled?.capacityPredecessorIds).toEqual([]);
+    expect(idled?.resourcePredecessorId).toBeNull();
+    // Nothing in this plan is capacity-bound once the optimizer has moved `b`
+    // clear of the pool, so the header says so.
     expect(produced.waitingForCapacity).toBe(0);
   });
 });
