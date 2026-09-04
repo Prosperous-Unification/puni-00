@@ -14,7 +14,12 @@ import { describe, expect, it } from 'bun:test';
 import { buildSolverEdges } from './build-solver-edges';
 import { buildSolverSlices, type LeafConstraintMaps } from './build-solver-slices';
 import { quantisedFastBaseline } from './quantised-baseline';
-import type { SolverOffsetMap, SolverRequest } from './wire-types';
+import {
+  SOLVER_REQUEST_KEYS,
+  SOLVER_SLICE_KEYS,
+  type SolverOffsetMap,
+  type SolverRequest,
+} from './wire-types';
 
 const row = (id: string, position: number, parentId: string | null = null): PlannedRow => ({
   id,
@@ -232,10 +237,21 @@ describe('quantisedFastBaseline', () => {
  * against the golden corpus rather than against this file's own arithmetic.
  *
  * `request/valid-quantised-baseline.json` is the same three-slice fixture on the
- * wire, and it is in `manifest.json` so the schema validates it in both suites.
- * A change that made the builder emit real Fast's numbers would still agree with
- * every assertion above — they are all derived from the builder — and would
- * disagree with this file, which is checked in and read as bytes.
+ * wire. A change that made the builder emit real Fast's numbers would still
+ * agree with every assertion above — they are all derived from the builder —
+ * and would disagree with this file, which is checked in and read as bytes.
+ *
+ * **The manifest entry beside it is not yet checked by anything in this suite,
+ * and that was measured rather than assumed.** `parse-solver-response.test.ts`
+ * filters the corpus to `branch === 'response'`, and nothing anywhere filters it
+ * to `request`: the request branch's seven fixtures exist for the Python
+ * entrypoint's `jsonschema` validation, which is 2.x's and does not exist yet.
+ * So the structural check below is `SOLVER_REQUEST_KEYS` and
+ * `SOLVER_SLICE_KEYS` — constants `wire-types.test.ts` pins to
+ * `solver-wire.v1.json` member for member — rather than a validator this
+ * package does not have. It catches a fixture that has drifted from the schema's
+ * shape; it does not catch one that has drifted from its value ranges, and
+ * saying otherwise would be claiming a gate that is not there.
  */
 const golden = JSON.parse(
   readFileSync(
@@ -260,6 +276,13 @@ describe('the quantised baseline the golden request carries', () => {
       slices.filter((slice) => slice.workItemId === leafId);
     expect(buildSolverSlices(slices, noConstraints)).toEqual(golden.slices);
     expect(buildSolverEdges(['A'], slicesOf, [], 'whole-item')).toEqual(golden.edges);
+  });
+
+  it('is shaped like the request the schema defines, member for member', () => {
+    expect(Object.keys(golden).sort()).toEqual([...SOLVER_REQUEST_KEYS].sort());
+    for (const slice of golden.slices) {
+      expect(Object.keys(slice).sort()).toEqual([...SOLVER_SLICE_KEYS].sort());
+    }
   });
 
   it('satisfies the three cross-field invariants JSON Schema cannot state', () => {
