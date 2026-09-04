@@ -767,9 +767,12 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       pair below rule (b)'s attribution floor — three names overlapping no
       vocabulary are not attributed at all — so the check no longer reports it
       and also cannot catch drift in it. It is not named because **there is no
-      artifact to read it from yet**: 3b.1 has not landed those columns, and
-      reading a vocabulary out of the sentence that mentions it is the exact
-      failure rule (b) exists to catch. **Follow-up, owned by 3b.1:** when the
+      artifact to read it from yet, which is checked and not assumed**: the
+      `project` table is declared at `apps/be-01/src/repository/schema.ts:129`
+      and carries none of the three settings columns, and nothing under
+      `apps/be-01/drizzle/` mentions them either, so 3b.1 has genuinely not
+      landed them. Reading a vocabulary out of the sentence that mentions it is
+      the exact failure rule (b) exists to catch. **Follow-up, owned by 3b.1:** when the
       migration lands, add the settings tuple as a vocabulary sourced from
       `apps/be-01/src/repository/schema.ts` and re-measure.
       **A line-number list inside the file it describes is a moving target**,
