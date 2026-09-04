@@ -412,10 +412,22 @@ comparison UI) and start only after slice 6 is merged.
       account relabel anyone's permanent record. **Creator is `created_by_id`,
       never `created_by`** (6.0): the latter is a display name, and an actor id
       compared against one is not a permission check.
-- [ ] 6.2 Permission matrix test: anonymous, unrestricted, restricted, creator,
+- [x] 6.2 Permission matrix test: anonymous, unrestricted, restricted, creator,
       owner, third party against each of the **five** routes. Negative: give
       rename the project's ordinary write rule and watch the third-party case
-      fail.
+      fail. Landed as `the permission matrix` in
+      `controller/saved-plan.controller.db.test.ts`: four callers × five routes ×
+      two project states, each row collected into one object and compared whole
+      so a wrong rule reports every cell it moved. **The cell that carries the
+      task is `restricted` × the creator** — refused a *new* plan by `canEdit`
+      and still allowed to rename and delete the ones she made, which no single
+      rule produces. The negative is **two** substitutions, because
+      `mayTouchSavedPlan` cannot see `restricted` and so cannot spell the
+      ordinary rule in one line: the rule as it evaluates on an unrestricted
+      project (every authenticated account) fails both third-party rows, and as
+      it evaluates on a restricted one (owner only) fails both creator rows.
+      Between them they are `canEdit` on the two project states, and neither
+      passes.
 - [ ] 6.3 Account deletion leaves saved plans intact and still naming the creator,
       because `created_by` is a value. Its second half, from 6.0: the same
       deletion nulls `created_by_id`, so the plan keeps the name and loses the
