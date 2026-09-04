@@ -1862,9 +1862,9 @@ review`, no self-merge.
       `status === 'failed'` branch in `optimized-schedule-cache.ts`, rewritten
       to answer `{ kind: 'ok', result: <empty plan> }`. Watched on h2puni at
       `4eebaa44`: **32 pass / 4 fail** against a 36 / 0 baseline for
-      `optimized-cache.db.test.ts`, and `never lets a failed row satisfy a read,
-    and carries its reason` is one of the four — the other three all store a
-      failure and read it back, so the relaxation cannot be made to look local.
+      `optimized-cache.db.test.ts`. The named case is one of the four; the other
+      three all store a failure and read it back, so the relaxation cannot be
+      made to look local.
       The `Proof:` comment sits on that case and names the branch, the rewrite
       and both counts.
       **This item did not need 4.2's spawner**, which is why it closed ahead of
