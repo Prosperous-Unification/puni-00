@@ -6,6 +6,7 @@ import {
   schedule,
   type Schedule,
   ScheduleInvalidOptimizedStartError,
+  sliceKey,
   type Slice,
 } from './schedule';
 
@@ -31,9 +32,16 @@ import {
  * repeats.
  */
 
-/** `chooseStarts`: the half of the split that decides, read off a finished schedule. */
+/**
+ * `chooseStarts`: the half of the split that decides, read off a finished schedule.
+ *
+ * `earliestStart` and not `start`, because a {@link ScheduledSlice} has no
+ * `start`: the forward pass's answer is the slice's early start and the backward
+ * pass adds a late one beside it. Written as `start` first, and every case here
+ * threw `no start was returned for it` — the map was eight keys onto `undefined`.
+ */
 const startsOf = (produced: Schedule): Map<string, number> =>
-  new Map([...produced.slices].map(([key, each]) => [key, each.start]));
+  new Map([...produced.slices].map(([key, each]): [string, number] => [key, each.earliestStart]));
 
 const leafRow = (id: string, position: number) => ({
   id,
@@ -94,7 +102,7 @@ describe('a pinned start the plan refuses', () => {
     const pinned = startsOf(fast);
     // `b` follows `a`, which takes two days, so day 1 is inside its
     // predecessor. Not a worse schedule — not a schedule.
-    pinned.set('b', 1);
+    pinned.set(sliceKey('b', null), 1);
 
     expect(() => schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', pinned)).toThrow(
       ScheduleInvalidOptimizedStartError,
@@ -110,8 +118,8 @@ describe('a pinned start the plan refuses', () => {
     // later than every floor `b` has, because `b` depends on nothing and the
     // pool is free at 0.
     const pinned = new Map([
-      ['a', 3],
-      ['b', 4],
+      [sliceKey('a', null), 3],
+      [sliceKey('b', null), 4],
     ]);
 
     expect(() => schedule(rows, [], pooled, new Map(), sizes, 'whole-item', pinned)).toThrow(
@@ -120,7 +128,7 @@ describe('a pinned start the plan refuses', () => {
   });
 
   it('throws when the optimizer returned no start for a slice the plan has', () => {
-    const pinned = new Map([['a', 0]]);
+    const pinned = new Map([[sliceKey('a', null), 0]]);
 
     expect(() => schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', pinned)).toThrow(
       ScheduleInvalidOptimizedStartError,
@@ -133,12 +141,12 @@ describe("a start no floor of the plan explains is the optimizer's", () => {
     const rows = [leafRow('a', 10)];
     const slices = [work('a', 2, { poolIds: ['team'] })];
     const sizes: PoolSizes = new Map([['team', 1]]);
-    const pinned = new Map([['a', 5]]);
+    const pinned = new Map([[sliceKey('a', null), 5]]);
 
     const produced = schedule(rows, [], slices, new Map(), sizes, 'whole-item', pinned);
-    const only = produced.slices.get('a');
+    const only = produced.slices.get(sliceKey('a', null));
 
-    expect(only?.start).toBe(5);
+    expect(only?.earliestStart).toBe(5);
     expect(only?.boundBy).toBe('optimizer');
     // The render invariant, additively: `'optimizer'` is not a resource, so it
     // names none — the same rule `projectStart` already takes. A pool bound at
