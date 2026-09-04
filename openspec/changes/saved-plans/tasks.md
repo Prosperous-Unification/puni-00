@@ -225,7 +225,7 @@ comparison UI) and start only after slice 6 is merged.
       refusal arrives before the first has finished writing. Negative: replace the
       mechanism with an in-memory in-flight set and watch the two-connection test
       observe two commits.
-- [ ] 4.5 `snapshot_busy`: `busy_timeout` **0** on the save's write connection —
+- [x] 4.5 `snapshot_busy`: `busy_timeout` **0** on the save's write connection —
       the same setting 4.4 builds, not a second one — and a bounded caller retry
       loop capped at **5 s total**. A single blocking 5 s acquire is the wrong
       shape: it serialises two saves and both commit, which is exactly what
@@ -246,6 +246,26 @@ comparison UI) and start only after slice 6 is merged.
       produces, so without this the "fresh save over a new read snapshot" SHALL
       stays green while unimplemented and a user's retry stores the plan as of
       the attempt that failed.
+      **Landed** as `saveWithBoundedRetry` in `service/saved-plan-retry.ts`,
+      deliberately *outside* `SavedPlanService.save`: `save` is fail-fast by
+      contract and folding the loop into it would take that contract away from
+      every internal caller, including a route that wants to report the
+      contention to a user who can decide for themselves. Each attempt is a
+      whole new `save`, so the fresh read snapshot and the fresh `created_at`
+      come from `save`'s own top and nothing here can reuse the refused
+      attempt's work. The budget is stated as what it is — no attempt *starts*
+      once it is gone and no wait is entered that would end past it — rather
+      than as a promise that the call returns in 5 s, which a slow capture
+      would quietly break. Backoff 50→500 ms doubling, because a retry is not
+      a cheap re-acquire: every attempt re-runs the capture and the scheduler
+      and only then asks for the lock.
+      **Negative watched, and it is the one the paragraph above argues for:**
+      moving the interleaved edit out of the retry's wait to after the whole
+      retry finished left *seven* expect() calls green — two records, and
+      `created_at` values that differ — and reddened only
+      `inputBytes).toContain('wi-3')`, whose received value listed `wi-1` and
+      `wi-2` alone. So the two weaker assertions cannot stand in for it, which
+      is exactly the claim.
 - [x] 4.6 Quota. Each of the three limits refuses **before** any row is written,
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
