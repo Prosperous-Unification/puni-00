@@ -1639,7 +1639,7 @@ landed without it.
       whatever is left of its row, so the moment the columns landed they were
       published untyped and unvalidated through a `Project` that does not
       declare them — caught by `carries the columns the Project type declares
-      and no others`. They sit in `INTERNAL_PROJECT_COLUMNS` with
+and no others`. They sit in `INTERNAL_PROJECT_COLUMNS` with
       `withholds the optimizer settings until the read payload declares them`
       naming them, so this item must delete that case rather than pass silently.
 - [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
@@ -1657,7 +1657,7 @@ landed without it.
       solvers for every existing project on deploy.
       **Closed run 33 chunk 1.** Watched on h2puni at `e3848d09`: with the
       migration's default flipped to `1`, `leaves a project written before it
-      switched off, on the fast engine` fails (2 pass / 2 fail against 4 pass /
+switched off, on the fast engine` fails (2 pass / 2 fail against 4 pass /
       0 fail). The `Proof:` comment on that case names the changed default.
 - [ ] 3b.6 This slice touches `apps/be-01/drizzle/**`, the **second** prod-mode
       path in this change: PR with green CI and a real review, `status:
@@ -1693,6 +1693,7 @@ review`, no self-merge.
       and each is a column constraint on an `ALTER TABLE … ADD COLUMN` — a
       table extra would describe a `CREATE TABLE` no migration writes.
       `isScheduleEngine` / `isScheduleObjective` wait on 3b.2's mapper.
+
 - [ ] 4.1 Repository functions: read the pair for the full key; write an `ok`
       row; write a `failed` row; allocate the next generation in the
       `optimization_generation` row for `(projectId, contractVersion)` **and**
