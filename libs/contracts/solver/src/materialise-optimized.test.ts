@@ -107,6 +107,51 @@ describe('materialiseOptimized', () => {
   });
 
   /**
+   * The same round trip on a fixture where the quantum's snap is doing work —
+   * which is where chunk 1's named ulp hazard actually bites.
+   *
+   * `days: 5/12, width: 5` is exactly 4 solver units, so `durationUnits` snaps
+   * `4.000000000000001` back to 4 and the quantised baseline puts `A/two` at
+   * offset 4. Dividing that back down gives `0.08333333333333333`, while Fast's
+   * own floor for `A/two` — `days / width`, the double it accumulated — is
+   * `0.08333333333333334`. One ulp apart, denoting the same real number, and
+   * `pinFloor` compared them with `<`: the plan's OWN baseline came back as
+   * `ScheduleInvalidOptimizedStartError`, "before its stepOrder floor".
+   *
+   * Not a corner: over every width 1–1000 and every offset 1–480 whose real
+   * duration is an exact unit multiple, 53,451 of 480,000 pairs put the
+   * dequantised pin strictly below Fast's floor and 52,691 put it strictly
+   * above — where the start was right and only the WORD was wrong, `'optimizer'`
+   * for a slice sitting on its own floor. Measured, run 40 chunk 2.
+   */
+  it('round-trips a baseline whose dequantised pin lands a ulp off Fast’s own floor', () => {
+    const rows = [row('A', 0)];
+    const slices = [
+      sliceOf('A', 'one', 5 / 12, { width: 5 }),
+      sliceOf('A', 'two', 1),
+    ] as readonly Slice[];
+    const offsets = quantisedFastBaseline(rows, noEdges, slices, new Map(), new Map(), 'whole-item');
+    const fast = schedule(rows, noEdges, slices, new Map(), new Map(), 'whole-item');
+
+    const placed = materialiseOptimized(
+      rows,
+      noEdges,
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      offsets,
+    );
+
+    // The floor's own double survives, not the pin's: a pin that IS the floor up
+    // to drift is the floor, so the schedule stays on one axis.
+    expect(readableStarts(placed.slices)).toEqual(readableStarts(fast.slices));
+    expect([...placed.slices.values()].map((slice) => slice.boundBy)).toEqual(
+      [...fast.slices.values()].map((slice) => slice.boundBy),
+    );
+  });
+
+  /**
    * The fractional offset is deliberately **above** every floor of its slice and
    * the rest of the plan is deliberately feasible around it.
    *
