@@ -154,14 +154,19 @@ function sortedEntries<T>(map: ReadonlyMap<string, T>): StoredEntry<T>[] {
  */
 export function decodeSchedule(raw: unknown): Schedule {
   const dto = asRecord(raw, 'the payload');
-  if (dto.dtoVersion !== CACHE_DTO_VERSION) {
+  // Bracketed throughout, because `dto` is an index signature and this package
+  // compiles under `noPropertyAccessFromIndexSignature`: dotted access here
+  // would read as a declared field and hide that every one of these came off a
+  // stored string.
+  const version = dto['dtoVersion'];
+  if (version !== CACHE_DTO_VERSION) {
     throw defect(
-      `unknown dtoVersion ${JSON.stringify(dto.dtoVersion) ?? typeof dto.dtoVersion}; this release reads ${CACHE_DTO_VERSION}`,
+      `unknown dtoVersion ${JSON.stringify(version) ?? typeof version}; this release reads ${CACHE_DTO_VERSION}`,
     );
   }
 
-  const slices = readEntries<ScheduledSlice>(dto.slices, 'slices');
-  const workItems = readEntries<Scheduled>(dto.workItems, 'workItems');
+  const slices = readEntries<ScheduledSlice>(dto['slices'], 'slices');
+  const workItems = readEntries<Scheduled>(dto['workItems'], 'workItems');
 
   for (const [key, slice] of slices) {
     const own = sliceKey(slice.workItemId, slice.stepId ?? null);
@@ -180,8 +185,8 @@ export function decodeSchedule(raw: unknown): Schedule {
   return {
     slices,
     workItems,
-    waitingForPerson: asNumber(dto.waitingForPerson, 'waitingForPerson'),
-    waitingForCapacity: asNumber(dto.waitingForCapacity, 'waitingForCapacity'),
-    eventsVisited: asNumber(dto.eventsVisited, 'eventsVisited'),
+    waitingForPerson: asNumber(dto['waitingForPerson'], 'waitingForPerson'),
+    waitingForCapacity: asNumber(dto['waitingForCapacity'], 'waitingForCapacity'),
+    eventsVisited: asNumber(dto['eventsVisited'], 'eventsVisited'),
   };
 }
