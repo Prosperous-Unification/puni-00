@@ -2333,7 +2333,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       changed to pass `values[term_name], 0` reds **exactly that one case** and
       nothing else in 137. It carries the clause alone, which is why it exists.
 
-- [ ] 5.9 The **quantised** Fast baseline is supplied as both a CP-SAT solution
+- [x] 5.9 The **quantised** Fast baseline is supplied as both a CP-SAT solution
       hint and an upper bound on stage 1's term. That bound holds **only in the
       quantised model** (Sol r10 Critical 3): it guarantees the solver never
       returns a quantised primary worse than quantised Fast's, and it says
@@ -2342,6 +2342,49 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       guarantee is made by **task 4.11b's publication guard**, not here.
       **Watched red:** remove the bound and run a fixture where the search's
       first incumbent is worse than quantised Fast on that term.
+
+      **Closed run 19 chunk 1** (`b0453bb5`, 151 green). Hint half was already
+      in `model.py`; this added `baseline_bound` in `solve.py`, installed on
+      stage 1's term before the staging loop.
+
+      **The watched red above is UNREACHABLE, and 5.9's own hint half is why.**
+      Measured on the gate host, bound removed, one worker, seed 0, against a
+      baseline worth 1221: stage 1's incumbent is 1221 at every deterministic
+      limit from 0.001 to 0.5. The hint delivers the baseline as the first
+      incumbent, so "the search's first incumbent is worse than quantised Fast"
+      does not occur. Confirmed from the other side: against a mediocre serial
+      baseline worth 4045 the unbounded search returns 1875 at 0.001 and 1273 at
+      0.1 — it improves on the hint immediately. Building the fixture anyway
+      would mean emitting a request the request `$comment`'s invariant 1 forbids
+      (`fastHint` == `baselineOffsets`, enforced by `check_cross_field`).
+      Recorded as unreachable, not faked — run 17's `num_search_workers`
+      disposition.
+
+      **Asserted instead, at the model rather than at the search:** no placement
+      worse than the baseline on stage 1's term is a *solution*, which is
+      design.md's guarantee stated as a property of the solution set and is
+      decidable with no search and no clock. `test_bound.admits()` pins every
+      start to a feasible-but-worse placement and asks whether the model takes
+      it — no with the bound, yes without.
+
+      **THE BOUND IS UNSOUND ON A REQUEST THIS PACKAGE ACCEPTS.** design.md has
+      the baseline feasible "by construction", but that is a **builder**
+      invariant and the wire does not carry it: the request `$comment`'s eight
+      cross-field invariants say nothing about whether the baseline can be
+      placed. The all-zero baseline `a_request` defaults to is infeasible over
+      eleven slices sharing a capacity-2 pool, with a `priority` of **678
+      against a true optimum of 1221** — so an unguarded bound excludes every
+      solution and stage 1 reports `INFEASIBLE, k = 1`, which the matrix hands
+      to the coordinator as a property of the *user's plan*. `baseline_bound`
+      therefore returns `None` unless `baseline_is_feasible` proves the
+      placement is admitted; that probe is `build_model` with every start
+      pinned, deliberately the model itself rather than a second implementation
+      of the six clauses. Measured at 1.1–1.6 ms.
+
+      **Guard's watched red:** `if not baseline_is_feasible(request):` → `if
+      False:` reds **41 cases** across `test_determinism`, `test_oracles`,
+      `test_model` and `test_bound`. It protects most of the corpus, not one
+      case.
 - [ ] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
       bounded 2-6 slice fixture, sufficiently large coefficients encode the
       same lexicographic order exactly, so PRI/Time disagreement proves
