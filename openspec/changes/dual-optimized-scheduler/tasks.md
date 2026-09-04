@@ -126,18 +126,24 @@ check-that-cannot-fail failure R5 names.
       number tie-break and every leaf in the main fixture carries its own
       priority. `TIED` is the corpus case `inverted-numbering-tie` in
       miniature. Domain **397 pass / 0 fail across 31 files**.
-      **`width` and `frozenNumber` were written, run, and REMOVED — measured,
-      not forgotten.** Each came back with a byte-identical schedule from its
-      own `not.toEqual` (399 tests, 2 fail, at the chunk's working head), so
-      neither fixture can see the fact it names. Both need their own base:
-      `width` because every slice in the main fixture is on a pool of one, and
-      `frozenNumber` because the frozen label's effect on group ordering did
-      not reach the comparator the way the module's own doc comment predicts —
-      which is a question about `deriveNumbers`, worth answering before a case
-      is written around it. Checking in either as-is would have been a case
-      that cannot fail.
-      **Still open on this item:** `width` and `frozenNumber` above. The
-      remaining
+      **`width` and `frozenNumber` were written, run, and came back with a
+      byte-identical schedule from their own `not.toEqual` (399 tests, 2 fail).
+      Neither was checked in green; each was answered.**
+      **`frozenNumber` landed in chunk 4, and it takes TWO anchors — a fact
+      about `deriveNumbers`, probed directly rather than reasoned.** One anchor
+      cannot reorder siblings at all: freeze `x` (position 20) at `005` and
+      `deriveNumbers` **repairs the group around it** — `claimLabel` must place
+      the earlier-positioned `y` below the anchor, `below('005')` gives `0045`,
+      and the pair reads `y=0045, x=005`, the same relative order as the
+      unfrozen `y=010, x=020`. A single frozen number renames siblings without
+      reordering them. Two anchors that contradict `position` cannot be
+      repaired, because neither may be rebuilt: `x`@20 frozen `005` and `y`@10
+      frozen `010` come back verbatim and `x` now sorts first. Domain **398 pass
+      / 0 fail across 31 files**.
+      **Still open on this item:** `width` only, which needs its own base
+      because every slice in the main fixture sits on a pool of one, so
+      widening one moved nothing and a simultaneous `poolSizes` mutation would
+      stop it being a one-mutation-per-fact case. The remaining
       unchanged-hash cases - Engine, Objective, the toggle, the display variant,
       the clock, the acting user - are **structurally** excluded rather than
       untested: none of them is a member of `ScheduleInput`, so there is nothing

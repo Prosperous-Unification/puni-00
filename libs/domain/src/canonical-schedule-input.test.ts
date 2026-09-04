@@ -31,10 +31,9 @@ import { schedule, type Slice } from './schedule';
  * - **must not move the hash** — hash equal AND the schedule equal. The
  *   asymmetry in (c) lives or dies on these.
  *
- * Still to land: `width` and `frozenNumber`, each of which needs its own base.
- * Both were written, run, and came back with a byte-identical schedule from
- * their own `not.toEqual` (run 12 chunk 3), so they are absent because they
- * were not proved rather than because they were forgotten. 1.9's `parentId`
+ * Still to land: `width`, which needs its own base — every slice here sits on a
+ * pool of one, so widening a slice moved nothing and the case was written, run
+ * and removed rather than checked in green and unfalsifiable. 1.9's `parentId`
  * reparenting and `stepId` identity swap are open too. The deadline case is
  * TASK-241's to make green —
  * `deadlines` is declared-pending here, proved present in the string and
@@ -246,6 +245,37 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
       const mutated: ScheduleInput = {
         ...TIED,
         rows: [row('x', null, 10, null), row('y', null, 20, null)],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(TIED));
+      expect(run(mutated)).not.toEqual(run(TIED));
+    });
+
+    /**
+     * `frozenNumber`, and it takes **two** anchors — which is a fact about
+     * `deriveNumbers` rather than about this test, measured rather than
+     * reasoned.
+     *
+     * The obvious case is one anchor: freeze `x` at `005` and expect it to jump
+     * ahead of `y`'s natural `010`. It does not, and the schedule comes back
+     * byte-identical. `deriveNumbers` **repairs the group around the anchor**:
+     * `claimLabel` has to put the earlier-positioned `y` below `005`, so
+     * `below('005')` gives it `0045` and the pair reads `y=0045, x=005` — the
+     * same relative order as the unfrozen `y=010, x=020`. A single frozen
+     * number can therefore never reorder siblings; it only renames them.
+     *
+     * Two anchors that contradict `position` cannot be repaired, because
+     * neither may be rebuilt: `x` at position 20 frozen `005` and `y` at
+     * position 10 frozen `010` come back exactly as written, and `x` now sorts
+     * first. That is the mutation below. Both probed directly against
+     * `deriveNumbers` on h2puni before the case was written.
+     */
+    it('two frozen numbers that contradict position — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...TIED,
+        rows: [
+          { id: 'x', parentId: null, position: 20, frozenNumber: '005', priority: null },
+          { id: 'y', parentId: null, position: 10, frozenNumber: '010', priority: null },
+        ],
       };
       expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(TIED));
       expect(run(mutated)).not.toEqual(run(TIED));
