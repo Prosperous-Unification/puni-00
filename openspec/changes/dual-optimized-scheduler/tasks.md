@@ -30,7 +30,7 @@ plan-infeasible results". Read naively that is the same work as slices 1, 2 and
   constraint, the Bun revalidation clause, the `plan-infeasible` row state and
   its `VariantState` member — against a deadline **source that is legitimately
   empty**, because the `deadline` column and `deadlineOffsetOf` do not exist
-  yet. That is not a stub: 1.6's no-op proof *requires* the seventh argument
+  yet. That is not a stub: 1.6's no-op proof _requires_ the seventh argument
   defaulted to an empty map to leave every golden corpus case byte-identical,
   so the empty-source state is the proved state rather than a placeholder.
 - **TASK-241 adds the field and populates the source** — the nullable
@@ -63,7 +63,7 @@ check-that-cannot-fail failure R5 names.
       and green — each
       slice carrying `workItemId`, `stepId`, `days` (null distinct from 0),
       `personId`, `width`, and `poolIds` as a **sorted set** (`readonly
-      string[]`, never a singular `poolId`);
+string[]`, never a singular `poolId`);
       (d) `notBefore` as `[workItemId, offsetDays]` sorted, already normalized
       against `project.startDate` into whole days from day zero;
       (e) `poolSizes` as `[poolId, size]` sorted;
@@ -105,13 +105,13 @@ check-that-cannot-fail failure R5 names.
       cases came back with an identical schedule (391/2). A third leaf `c`,
       unblocked and on the same one-slot pool, is what gives them somewhere to
       show.
-      **Three kinds, stated per case.** *Moves a placement:* intra-item slice
+      **Three kinds, stated per case.** _Moves a placement:_ intra-item slice
       swap, `days` null vs 0, `depReach`, the `notBefore` floor above the
-      predecessor, the pool grown to two slots. *Deliberately stricter than
-      today's engine* - hash moves, schedule identical: a parent's as-written
+      predecessor, the pool grown to two slots. _Deliberately stricter than
+      today's engine_ - hash moves, schedule identical: a parent's as-written
       priority that binds no leaf (every leaf carries its own, so
       `priorityByLeaf` never reaches it), and a `deadlines` entry, which
-      `schedule()` has no parameter for yet. *Must not move the hash:* the
+      `schedule()` has no parameter for yet. _Must not move the hash:_ the
       global slice order across work items, the `rows` array reordered into the
       same tree, `poolIds` reordered and de-duplicated.
       **The deadline case is declared-pending for TASK-241, not skipped.** It
@@ -194,7 +194,7 @@ check-that-cannot-fail failure R5 names.
       `contractVersion = "<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"` is built
       at `build-solver-request.ts:214`, which is where the **request** is built.
       There is no cache table yet — `budgetMs` and `contractVersion` become
-      cache-key *columns* in **task 4.2**, which is where "built where the cache
+      cache-key _columns_ in **task 4.2**, which is where "built where the cache
       key is built" acquires a place to be true. This item stays unticked until
       4.2 lands, and it stays unticked for that reason alone; nothing else in it
       is outstanding.
@@ -215,8 +215,8 @@ check-that-cannot-fail failure R5 names.
       `libs/domain/src/schedule-identity.test.ts`, which is a **differential**
       corpus — a seeded `generatePlan` feeds both today's `schedule()` and a
       copy of the `role-crud` engine kept in the same file, and asserts they
-      agree. A differential corpus compares two implementations *inside one
-      commit*. It has nothing to key on a version, and it cannot be given one:
+      agree. A differential corpus compares two implementations _inside one
+      commit_. It has nothing to key on a version, and it cannot be given one:
       there are no stored numbers for a key to protect.
       **Worse, it is structurally blind to this slice's own watched red.** Its
       oracle consumes the live constant — `schedule-identity.test.ts:4` imports
@@ -237,7 +237,7 @@ check-that-cannot-fail failure R5 names.
       underneath it.
       **So the guard 1.6 is about does not exist today, and the 19 failures are
       not it.** Every one is a hand-written date assertion — precisely the set a
-      developer *expects* to update when deliberately changing the constant.
+      developer _expects_ to update when deliberately changing the constant.
       After updating them the suite is green again and nothing anywhere says
       "now bump 7 to 8", which is the stale-row-matching-its-key-forever
       failure this task names.
@@ -253,7 +253,7 @@ check-that-cannot-fail failure R5 names.
       **Correction to (c), same run, one paragraph later — `schedule()` has SIX
       parameters, not seven.** `libs/domain/src/schedule.ts:1717` takes
       `rows, edges, slices, notBefore = new Map(), poolSizes = new Map(),
-      reach = 'whole-item'` and stops. The seventh canonical argument exists as
+reach = 'whole-item'` and stops. The seventh canonical argument exists as
       `SolverRequestPlan.deadlines` in `libs/contracts` and as the `deadlines`
       parameter of `leaf-constraints.ts:109`; it has not reached the engine's
       own signature. So "with the seventh argument defaulted to an empty map"
@@ -298,7 +298,7 @@ check-that-cannot-fail failure R5 names.
       semantic be seen". `anchor-slice-reach` closes `reach`, which four
       one-slice-per-item cases structurally cannot see — both arms agree until a
       work item has two steps, and stored under `anchor-slice` the successor's
-      first step starts at 2 (its predecessor's *anchor*) rather than at 5 (the
+      first step starts at 2 (its predecessor's _anchor_) rather than at 5 (the
       whole item). `fractional-duration` closes the `days / width` arm of
       `durationOf` and the snapping after it: 5 days across width 2 stores
       `duration: 2.5` and a finish at 3.5, which a corpus of whole numbers
@@ -312,7 +312,7 @@ check-that-cannot-fail failure R5 names.
       make every duration a repeating third. **Watched red:** drop the
       `snapWorkdays` from that line → **371 pass / 9 fail**, and the corpus's
       byte comparison is among them. Unlike the `ASSUMED_SLICE_WORKDAYS` red,
-      the corpus is *not* the only check that notices this one — four existing
+      the corpus is _not_ the only check that notices this one — four existing
       float and drift tests catch it too — which is worth stating rather than
       overselling the corpus.
       **An eighth case, `inverted-numbering-tie`, closes numbering semantics
@@ -337,7 +337,7 @@ check-that-cannot-fail failure R5 names.
       9 fail**, the byte comparison among them. **Honest qualifier, same as
       `snapWorkdays`:** the corpus is not the only check that notices — the
       other eight failures include `breaks a remaining tie on the work item
-      number, then on step order`, a test written directly for this rule. The
+number, then on step order`, a test written directly for this rule. The
       case adds the version key to a rule that already had coverage.
       **Still uncovered, named rather than claimed:** `SOLVER_QUANTUM` is not a
       `schedule()` input at all, so this corpus cannot reach it. Every other
@@ -362,7 +362,7 @@ check-that-cannot-fail failure R5 names.
       and expected two different hashes through
       `listByProject` → `slicesOf` → `canonicalScheduleInput`; that fault is
       normalised away by design, because 1.1(c) reorders groups by
-      `workItemId` and sorts rows by `id`, and the spec separately *requires*
+      `workItemId` and sorts rows by `id`, and the spec separately _requires_
       the hash to be equal when only underlying row order differs. A hash
       assertion here can never fail, which is the check-that-cannot-fail
       failure AGENTS.md R5 names. The proof instead runs the same reversed
@@ -395,7 +395,7 @@ check-that-cannot-fail failure R5 names.
       unblocked leaves, no edge, no pool and no estimate all start at day 0
       whatever order they arrive in — so adding it there would have been the
       check-that-cannot-fail this item was rewritten to avoid. Run 14 first
-      established *why* by probing `deriveNumbers` and `goesFirst` directly at
+      established _why_ by probing `deriveNumbers` and `goesFirst` directly at
       `705f1bc5`, and the answer is narrower than "an `inverted-numbering-tie`
       shape": the number is the third of `goesFirst`'s four tie-breaks
       (`schedule.ts:1940`) and `deriveNumbers` sorts each sibling group by
@@ -427,9 +427,9 @@ check-that-cannot-fail failure R5 names.
       → **31 pass / 3 fail** on that file against a green **34 / 0**, and the
       three are exactly 1.7's assertion, 1.8's tuple assertion and this one. The
       failure is the exchange itself — `earlier` came back `{ start: 2, finish:
-      4 }` against an expected `{ start: 0, finish: 2 }` — while
+4 }` against an expected `{ start: 0, finish: 2 }` — while
       `waitingForCapacity` stayed `1` in both directions, which is the point
-      stated as an assertion: the queue is unchanged and only *who waits*
+      stated as an assertion: the queue is unchanged and only _who waits_
       moved, so an unordered select is a plan that schedules two ways rather
       than a plan that schedules worse.
 - [x] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
@@ -470,14 +470,14 @@ check-that-cannot-fail failure R5 names.
       **(1) `edges[].predecessorId` and `edges[].successorId` were both
       unobserved** — 22 pass / 0 fail each. `an authored edge added` was the only
       edge case, and an added edge lengthens the array, so the hash moved on the
-      array's *length* whichever half of the pair was missing: the case could not
+      array's _length_ whichever half of the pair was missing: the case could not
       see which end of the edge it proved. Two **redirections** fixed it — the
       edge count stays at one and a single end moves, so each removal collides
       the base with its own mutation, and each now gives 23 / 1.
       **(2) `rows[].id` and `slices[].workItemId` have no isolated red and are
       mutually redundant**, provably rather than accidentally: the rows entry is
       sorted by `id`; `schedule()` refuses a leaf with no slice at all (`no slice
-      for work item z`, probed directly), so the slice-bearing items are exactly
+for work item z`, probed directly), so the slice-bearing items are exactly
       the leaves under the same sort; and every non-leaf id appears as some
       child's `parentId`. Either field reconstructs the other, so no
       one-mutation case can separate them, and inventing one that quietly moved a
@@ -493,7 +493,7 @@ check-that-cannot-fail failure R5 names.
       `export` to `function priorityByLeaf` in `libs/domain/src/schedule.ts`
       and re-export it from `libs/domain/src/index.ts`. Nothing else moves: it
       keeps its signature `(rows: readonly PlannedRow[], index: TreeIndex) =>
-      Map<string, number>` and Fast keeps calling the same function, so the
+Map<string, number>` and Fast keeps calling the same function, so the
       existing golden corpus is the proof that publishing it changed nothing.
       This slice exists because 2.2's named seam is an import of a symbol
       `libs/domain` does not currently publish, and an ordered plan that
@@ -519,14 +519,14 @@ check-that-cannot-fail failure R5 names.
       `typecheck` target runs `tsc --build --force libs/domain/tsconfig.json`,
       which does include the tests, and it exits **1** with
       `solver-seams.test.ts(24,26): error TS2339: Property 'priorityByLeaf'
-      does not exist on type 'typeof import(".../index")'`. So the barrel test
+does not exist on type 'typeof import(".../index")'`. So the barrel test
       is doing two jobs, not one: it fails as a test, **and** it is the only
       reason the typecheck target sees the missing export at all — delete the
       file and the same mutation is silent again under both configs. Measured
       the same way for `export * from './slice-edges'` deleted: lib config 0,
       typecheck target 1, suite 373/1, and `libs/contracts`'s own typecheck 1
       on `TS2305` because a real consumer now imports it. Second red: the barrel's `export * from
-      './solver-quantum'` commented out, 335/1 on the quantum case alone.
+'./solver-quantum'` commented out, 335/1 on the quantum case alone.
 - [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
@@ -536,16 +536,16 @@ check-that-cannot-fail failure R5 names.
       this paragraph.** `edges` was answered by `libs/domain/src/schedule.ts`
       in run 1. Run 2 settled the other three the same way, and each carries
       in its own `$comment` the source it was read from: `PoolSizes =
-      ReadonlyMap<string, number>` (`schedule.ts:95`) and
+ReadonlyMap<string, number>` (`schedule.ts:95`) and
       `project_team_capacity.size`'s floor of 1 for `pools`; the response's
       normative "that offsets **map**" and `MOVEMENT`'s subscript access for
       `baselineOffsets` and `fastHint`. The one result there that is not a
       shape: those two carry the **same value** — design.md's quantisation
-      decision 2 says both *are* the quantised Fast baseline and 2.11 produces
+      decision 2 says both _are_ the quantised Fast baseline and 2.11 produces
       both from one re-run — so two fields hold one value, and their equality
       is an enforced builder invariant rather than a coincidence.
       `stageBudgetSplit` was never in that list: `STAGE_BUDGET_SPLIT =
-      [0.60, 0.25, 0.15]` fixes it as a three-element array of fractions.
+[0.60, 0.25, 0.15]` fixes it as a three-element array of fractions.
       **What JSON Schema cannot say is written into the request's own
       `$comment` as eight numbered invariants**, each with the watched red that
       proves it, and each checked by the builder before spawn and again by the
@@ -591,7 +591,7 @@ check-that-cannot-fail failure R5 names.
       **The `status`-to-payload conditional came out of the matrix's `n/a`
       column, not out of the enum:** `feasible` carries `offsets` and
       `objectiveValues`, `unknown` and `infeasible` carry **neither**, because
-      `value` is defined only on a published schedule; `offsets` is *absent*
+      `value` is defined only on a published schedule; `offsets` is _absent_
       rather than `{}`, since an empty map passes the schema and then fails the
       key-set invariant one layer later, reporting a vocabulary decision as a
       corrupt payload. So `required` on the response names only `wireVersion`
@@ -604,7 +604,7 @@ check-that-cannot-fail failure R5 names.
       than emit a proof it can refute, and the coordinator records the run as
       `invalid-output` exactly as that row says. Falsifier: an artifact that
       requires the coordinator to tell "the solver crashed" from "the solver
-      contradicted itself" *from the response* would need a fourth status.
+      contradicted itself" _from the response_ would need a fourth status.
       Five golden fixtures carry the decision as watched reds: the two
       payload-free valid responses, a response-level `optimal` that must be
       refused, and the conditional in both directions.
@@ -651,7 +651,7 @@ check-that-cannot-fail failure R5 names.
       normative text and never history, so a second copy would have to be
       either synced — two sources of truth for a ledger — or frozen, after
       which the check would enforce against a stale artifact. Second, the
-      note's content is *already* required to be descriptive-only against a
+      note's content is _already_ required to be descriptive-only against a
       normative schema, so its drift can mislead a reader but cannot instruct a
       consumer; the exposure a copy would close is smaller than the exposure it
       would open. Third, the obligation the copy was meant to create already
@@ -743,7 +743,7 @@ check-that-cannot-fail failure R5 names.
       **no** `@wbs/domain` import today, so opening that edge is a boundary
       decision of its own rather than a side effect — the more so because
       `@nx/enforce-module-boundaries` is SKIPPED in the gate (`No cached
-      ProjectGraph is available`) and would not have caught a bad one. The tag
+ProjectGraph is available`) and would not have caught a bad one. The tag
       constraints do permit it: both libraries are `scope:shared` +
       `runtime:isomorphic`. The rest of 2.2 is unstarted.
       **Its `libs/domain` seams are all published now** — `sliceKey` (already
@@ -751,7 +751,7 @@ check-that-cannot-fail failure R5 names.
       and `priorityWeights`. **Its other two slice fields are not domain
       imports at all**, and this is worth knowing before starting rather than
       halfway through: `notBeforeUnits` converts the `notBefore:
-      ReadonlyMap<string, number>` that `schedule()` already takes as an
+ReadonlyMap<string, number>` that `schedule()` already takes as an
       ARGUMENT — resolved by the caller, exactly as `personId`, `width` and
       `poolIds` on a `Slice` are — so there is no resolver in `libs/domain` to
       import and none is missing. `deadlineUnits` is the effective deadline
@@ -762,7 +762,7 @@ check-that-cannot-fail failure R5 names.
       floor walk.
       **The two folds are now published (2026-09-03), and the floor half was
       NOT a new function:** `libs/domain/src/leaf-constraints.ts` exports
-      `leafFloorsOf` and `leafDeadlinesOf`, and `schedule()` now *calls*
+      `leafFloorsOf` and `leafDeadlinesOf`, and `schedule()` now _calls_
       `leafFloorsOf` where it used to fold `notBefore` inline. That direction
       matters — the builder must carry the very same numbers as
       `notBeforeUnits`, and this exact fold was already wrong once for a month
@@ -812,7 +812,7 @@ check-that-cannot-fail failure R5 names.
       EVERY slice of a leaf, where `schedule()` puts it on the first alone and
       lets the intra-item chain carry it. Same feasible region — the request's
       `edges` already carry that chain — but the schema's field is per-slice and
-      defines itself as the *fold*, so a zero on a later slice would be that
+      defines itself as the _fold_, so a zero on a later slice would be that
       slice claiming to be unfloored, and a position-dependent projection would
       need a second grouping rule beside `groupByWorkItem`'s. The deadline is on
       every slice for the simpler reason that an item due on day `D` has no
@@ -820,7 +820,7 @@ check-that-cannot-fail failure R5 names.
       duplicated `(workItemId, stepId)` (three wire maps are keyed by
       `sliceKey`'s result, so a duplicate is one row silently overwriting
       another in all three and the re-validator would report the key-set
-      mismatch as a *solver* fault), and a **fractional** width — `width: 0` is
+      mismatch as a _solver_ fault), and a **fractional** width — `width: 0` is
       already refused twice upstream, but `1.5` yields a perfectly finite
       duration and would reach the schema's `type: integer` as a malformed
       request the builder itself wrote. Contracts at `42b23ab5`, dirty=0: lint
@@ -880,7 +880,7 @@ check-that-cannot-fail failure R5 names.
       ends are named by POSITION (`{ leafId, at }`), never by `sliceKey`:** a
       plan may hand two slices of one leaf the same `stepId`, `groupByWorkItem`
       accepts that and the placement tells them apart by index, so a key-based
-      edge list would merge them silently *before* `buildSolverSlices` could
+      edge list would merge them silently _before_ `buildSolverSlices` could
       refuse the duplicate. `schedule()` converts a position with
       `firstNodeOf(leafId) + at`; `buildSolverEdges` in
       `libs/contracts/solver/src/` converts it with `sliceKey`, which is the
@@ -922,7 +922,7 @@ check-that-cannot-fail failure R5 names.
       comes from a seam that owns its rule. Its own content is the **order** and
       **one refusal**. The order is content — `groupSlicesByLeaf` runs before
       any projection, so a slice belonging to a parent is refused naming the
-      *plan* rather than being keyed first and refused later by a message about
+      _plan_ rather than being keyed first and refused later by a message about
       positions in a group, and so the edge builder reads the identical
       grouping. The refusal is the direction nothing guarded anywhere:
       `preflightSolverRequest` throws on a slice with no baseline entry, which
@@ -951,7 +951,7 @@ check-that-cannot-fail failure R5 names.
       `libs/contracts/solver/src/`, which the same commit made a **compiled and
       linted** directory: `libs/contracts` included `src/**` only, so a module
       here would have been exercised by the suite (its target runs with `cwd:
-      libs/contracts` and bun scans recursively) and never typechecked or
+libs/contracts` and bun scans recursively) and never typechecked or
       linted — measured, with both includes at their old values a real type
       error in `solver/src` gives `tsc` exit 0 and zero errors.
       It returns a **result**, never a throw: every rejection is the
@@ -989,7 +989,7 @@ check-that-cannot-fail failure R5 names.
       `bound` **on the wire response**, and every recomputed `PRIORITY`,
       `MAKESPAN` and `MOVEMENT` in quantised solver units, must be a
       non-negative safe integer; an unsafe value is `invalid-output`. This is
-      the wire rule and runs before the publication guard; the *stored*
+      the wire rule and runs before the publication guard; the _stored_
       numeric domain follows `publication` and is 4.12b's rule, not this one
       (Sol r12 Critical 1).
       **`value` is the only recomputed field**
@@ -1009,7 +1009,7 @@ check-that-cannot-fail failure R5 names.
       rules (offset key-set equality, the 2.9 domain, floors, edges, pool
       capacity against **all** of a slice's `poolIds`, assignee non-overlap)
       and the objective arithmetic (the safe-integer wire rule, `value <=
-      stageValue`, and all three terms recomputed with a `bigint` accumulator
+stageValue`, and all three terms recomputed with a `bigint` accumulator
       so the check cannot round the overflow it exists to find). **The deadline
       clause is NOT implemented** and is the only part left: it is stated on
       the materialised schedule in the fractional domain, so it waits on 4.9's
@@ -1034,7 +1034,7 @@ check-that-cannot-fail failure R5 names.
       **Violation half landed** in `revalidate-solver-result.test.ts` — one
       case per placement and objective rule, each paired with its nearest legal
       neighbour. **And the clause that half could not reach: "rejected as
-      *invalid-output*".** Until run 11 the disposition was prose in three
+      _invalid-output_".** Until run 11 the disposition was prose in three
       module headers and a value nowhere, so no test could assert it and the
       coordinator writing `failureReason` had fifteen diagnosis tokens across
       three seams and a paragraph to re-derive.
@@ -1085,7 +1085,7 @@ check-that-cannot-fail failure R5 names.
       `build-solver-request.test.ts`, and run 14 chunk 3 re-ran the red at
       `21161156` rather than trusting the comment: 156 pass / 1 fail**, the one
       being `resolves priority as a nearest-ancestor override, in both numeric
-      directions`.
+directions`.
       **"The first and third cases must fail" is corrected to one failure, and
       the reason bounds what the red can prove.** What is observable in the
       request is the `priorityWeight`, not the resolved priority. Under the
@@ -1120,7 +1120,7 @@ check-that-cannot-fail failure R5 names.
       field's business — it is the horizon, the offsets, the objective and the
       bytes — so an unquantised one is refused by the arithmetic, by the fixture
       and by the re-validator independently. The one that would have caught it
-      *alone* is the golden corpus, because every other assertion derives from
+      _alone_ is the golden corpus, because every other assertion derives from
       these same seams.
       **Re-run at `21161156` in run 14 chunk 3 rather than trusted: 145 pass /
       12 fail.** The two extra failures over `6160aebe` are the live-constraint
@@ -1165,7 +1165,7 @@ check-that-cannot-fail failure R5 names.
       `width < 1` precisely because `durationOf` divides by it — a width of 0 is
       `Infinity` days for a slice with effort and `NaN` for one without. Since
       `Math.ceil(Infinity)` is `Infinity`, an unrefused width would have reached
-      the wire as a *duration* and been diagnosed there as the builder's own
+      the wire as a _duration_ and been diagnosed there as the builder's own
       request violating its own schema. `quantise` now throws, which is
       `groupByWorkItem`'s own choice on the same input: malformed input, not a
       missing default. A null estimate never divides, so it stays finite at
@@ -1208,7 +1208,7 @@ check-that-cannot-fail failure R5 names.
       baseline entry **throws** — the three key sets are equal by construction,
       so a gap is Bun's own bug and not a sentence to show a user; watched red,
       the guard removed still throws but as `TypeError: Cannot convert undefined
-      to a BigInt`, naming nothing.
+to a BigInt`, naming nothing.
 - [x] 2.11 The **quantised Fast baseline**: re-run Fast's placement over the
       rounded durations to produce `fastHint` and `baselineOffsets` in integer
       units, and take stage 1's upper bound from **that**, never from real
@@ -1234,9 +1234,9 @@ check-that-cannot-fail failure R5 names.
       are slots, so neither scales; floors do, and the fold stays inside
       `schedule()` because `max(k·a, k·b) === k·max(a, b)` for `k > 0`.
       **Watched red:** `durationUnits` swapped for the real duration → 4 of 8
-      tests fail, all at the safe-integer *product* guard
+      tests fail, all at the safe-integer _product_ guard
       (`9.600000000000001 units across 5 people`), because a fraction times a
-      width is not a safe integer either — so the whole-unit *offset* check is a
+      width is not a safe integer either — so the whole-unit _offset_ check is a
       second net over the placement rather than what makes the rescale exact.
       The real-Fast contrast is asserted with the literals the arithmetic
       actually produces, `0 / 9.600000000000001 / 19.200000000000003`, not the
@@ -1274,7 +1274,7 @@ check-that-cannot-fail failure R5 names.
       that red. It asserts `request.fastHint` equals the baseline **first**, so
       a builder that stopped copying one into the other could not pass by
       validating the other map, and **MOVEMENT is exactly 0** because the
-      offsets *are* the `baselineOffsets`. Its objective terms are computed
+      offsets _are_ the `baselineOffsets`. Its objective terms are computed
       from the request's own `durationUnits` and `priorityWeight` rather than
       hand-worked as 2.11's plan allows, because a floor fold, a dense rank and
       two widths decide them here.
@@ -1298,19 +1298,19 @@ check-that-cannot-fail failure R5 names.
 
 - [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
       composite PK `(projectId, inputHash, objective, contractVersion,
-      budgetMs)` → `generation`, `status`
+budgetMs)` → `generation`, `status`
       (`'ok' | 'failed' | 'plan-infeasible'`), `resultJson`
       (NULL iff failed), `failureReason` (NULL unless failed), `createdAt`.
       Integrity is declared, not assumed: `projectId` FK to `project(id)`
       `ON DELETE CASCADE`; `CHECK (status IN ('ok','failed','plan-infeasible'))`;
       `CHECK ((status='ok' AND resultJson IS NOT NULL AND failureReason IS
-      NULL) OR (status='failed' AND resultJson IS NULL AND failureReason IS
-      NOT NULL) OR (status='plan-infeasible' AND resultJson IS NOT NULL AND
-      failureReason IS NULL))`; `CHECK (objective IN ('pri','time'))`.
+NULL) OR (status='failed' AND resultJson IS NULL AND failureReason IS
+NOT NULL) OR (status='plan-infeasible' AND resultJson IS NOT NULL AND
+failureReason IS NULL))`; `CHECK (objective IN ('pri','time'))`.
       **Assumption A1 (TASK-219, dev mode): the `plan-infeasible` payload
       reuses `resultJson`**, holding a versioned `PlanInfeasibleResult` —
       `{ dtoVersion, items: [{ ownerWorkItemId, boundWorkItemId,
-      effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
+effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       a leaf's own date binds — discriminated by the row's own `status` rather
       than by a fourth nullable column. Rationale: `resultJson` is already the
       row's versioned payload with a decoder whose failure is already defined
@@ -1411,8 +1411,8 @@ check-that-cannot-fail failure R5 names.
       three-item list ships a rollback that strands one table — the aborted
       blue/green failure this task exists to prevent.
 - [ ] 3.8 `CHECK (failure_reason IS NULL OR failure_reason IN
-      ('timeout','invalid-output','no-solution','internal-error','oom',
-      'horizon-overflow','objective-overflow'))` — any non-null text was
+('timeout','invalid-output','no-solution','internal-error','oom',
+'horizon-overflow','objective-overflow'))` — any non-null text was
       previously accepted. `optimization_generation.admission_state` also has
       `CHECK (admission_state IN ('open','draining'))` plus an explicit read
       validator; it is a scalar enum, not an enum hidden in `resultJson`.
@@ -1486,7 +1486,7 @@ check-that-cannot-fail failure R5 names.
       and safe to race: the precondition is the lock, and the loser observes
       the row already gone. Neither path reopens admission.
       **Third watched red:** crash immediately after `begin`, restart a
-      *different* coordinator, advance past slot expiry, and require physical
+      _different_ coordinator, advance past slot expiry, and require physical
       project deletion, optimization-row cleanup and terminal contract
       retirement with admission still closed throughout; remove the
       reconciler and the project must stay wedged and undeletable. Two
@@ -1534,7 +1534,7 @@ check-that-cannot-fail failure R5 names.
       solvers for every existing project on deploy.
 - [ ] 3b.6 This slice touches `apps/be-01/drizzle/**`, the **second** prod-mode
       path in this change: PR with green CI and a real review, `status:
-      review`, no self-merge.
+review`, no self-merge.
 - [ ] 3b.7 `down.sql` plus rollback-then-re-apply coverage that names and
       removes **each of the three** columns this slice adds
       (`optimization_enabled`, `schedule_engine`, `schedule_objective`); the
@@ -1542,7 +1542,7 @@ check-that-cannot-fail failure R5 names.
       is schema drift the test catches. `optimization_delete_pending_at`
       belongs to slice 3's own `down.sql` (3.1b, 3.7).
 - [ ] 3b.8 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
-      ('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
+('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
       and explicit read-time validators `isScheduleEngine` /
       `isScheduleObjective` in the project mapper that throw naming column and
       value — the shape `toProject` already uses for `estimateMethod`,
@@ -1685,7 +1685,7 @@ check-that-cannot-fail failure R5 names.
       with resource edges and late times derived from the **optimized**
       placement rather than copied from Fast.
 - [ ] 4.10 The floor precedence is the complete ordered list `projectStart |
-      predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
+predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       earlier list stopped at `notBefore` and would have labelled a
       person-bound or capacity-bound optimized slice `optimizer`, erasing its
       resource predecessor, its team and both wait counts.
@@ -1742,7 +1742,7 @@ check-that-cannot-fail failure R5 names.
       publication guard" that does not exist, so the guarantee had no owner.
       It runs **after 4.9's materialisation and before any cache write**, in
       `libs/domain`, on the materialised schedule: (a) compute the **Baseline
-      schedule** — *real* Fast, fractional `days / width` intact, over the same
+      schedule** — _real_ Fast, fractional `days / width` intact, over the same
       canonical input; (b) recompute the variant's **primary** term
       (`MAKESPAN` for Time, `PRIORITY` for PRI) on both the materialised
       optimized schedule and the Baseline schedule, **in the real domain**;
@@ -1751,13 +1751,13 @@ check-that-cannot-fail failure R5 names.
       `publication: 'quantisation-floor'`, every `value` recomputed in the real
       domain, null `stageValue`/`bound` and `status: 'unknown'` (4.12b);
       otherwise store the solver's schedule with `publication: 'solver'`.
-      The predicate is **worse**, never "not strictly better": an *equal*
+      The predicate is **worse**, never "not strictly better": an _equal_
       primary may carry a strictly better secondary term, and discarding that
       result would throw away a real improvement the user asked for.
       **Proven by** two fixtures, both on the production write path: (i) the
       width-5 case — three serial `days=1, width=5` slices, real Fast at 28.8
       units against a quantised model that needs 30 — where the solver's
-      quantisation-optimal answer is *worse* in the real domain and the stored
+      quantisation-optimal answer is _worse_ in the real domain and the stored
       row must be Fast's schedule tagged `'quantisation-floor'`; (ii) an
       **equal-primary, better-secondary** fixture where the optimized primary
       ties the Baseline's and its secondary is strictly better — the stored row
@@ -1774,10 +1774,10 @@ check-that-cannot-fail failure R5 names.
       only `scheduleJson`, so both were discarded at storage. The column
       becomes `resultJson` holding
       `{ dtoVersion, publication: 'solver' | 'quantisation-floor',
-      objectiveValues: Record<'makespan'|'priority'|'movement', ObjectiveValue>,
-      schedule: <encodeSchedule(schedule)> }`, with `StoredObjectiveValue =
-      { value: number, stageValue: number | null, bound: number | null,
-      status: 'optimal' | 'feasible' | 'unknown' }` and
+objectiveValues: Record<'makespan'|'priority'|'movement', ObjectiveValue>,
+schedule: <encodeSchedule(schedule)> }`, with `StoredObjectiveValue =
+{ value: number, stageValue: number | null, bound: number | null,
+status: 'optimal' | 'feasible' | 'unknown' }` and
       `encodeOptimizedResult` / `decodeOptimizedResult` as the seam.
       **`quantisation-floor` lives only in `publication` (Sol r8 Critical 5,
       kimi r8 Important 2)**: the matrix fixes the status enum at three values
@@ -1824,7 +1824,7 @@ check-that-cannot-fail failure R5 names.
       `corrupt`; (b) a syntactically valid `resultJson` whose last term carries
       `status: 'proved'` — the same seam throws naming the term and the value.
       Neither may be caught by a database constraint: assert directly that the
-      migration adds **no** `CHECK` over `resultJson`, so a *malformed* payload
+      migration adds **no** `CHECK` over `resultJson`, so a _malformed_ payload
       (a truncated string, already covered above) still inserts and still
       surfaces as `corrupt` rather than failing the write.
       `publication` is stored rather than inferred, because a
@@ -1902,8 +1902,7 @@ check-that-cannot-fail failure R5 names.
       Important 4; Sol r13 Important 3). The process ceiling bounds processes, not resources:
       CP-SAT starts its own search workers and grows until something kills
       it. Production solves set `num_search_workers` from
-      `solverSearchWorkers` (default 2); the pinned determinism config keeps
-      1. Every child runs under `solverMemoryLimitMb` (default 512 MB),
+      `solverSearchWorkers` (default 2); the pinned determinism config keeps 1. Every child runs under `solverMemoryLimitMb` (default 512 MB),
       enforced outside the solve — a per-child cgroup/systemd `MemoryMax=`
       scope as the deployment mechanism, with the coordinator classifying a
       crossing as `oom` only from the scope's `memory.events`
@@ -1921,7 +1920,7 @@ check-that-cannot-fail failure R5 names.
       past the limit is killed, the scope's `memory.events` evidence
       produces the `oom` classification, the coordinator survives, the slot
       is released, and exactly one `failed` marker with `failureReason:
-      'oom'` is stored; a separate generic crash without OOM evidence is
+'oom'` is stored; a separate generic crash without OOM evidence is
       stored `internal-error`, never `oom`.
       **Watched red:** remove the memory limit and the overrun case must
       grow past the ceiling without producing `oom`; remove the
@@ -2013,7 +2012,7 @@ check-that-cannot-fail failure R5 names.
 
 - [ ] 6.1 Coordinator in `apps/be-01/src/service/`: with the toggle ON, publish
       Fast, consult the cache, and request admission for variants **absent at
-      the current full key** — on a debounced edit *and on a read*. A read
+      the current full key** — on a debounced edit _and on a read_. A read
       admits an absent variant, which is how an enabled project recovers after
       a restart, a contract-version bump or a cache eviction without waiting
       for someone to type; it **never** auto-admits a variant holding a
@@ -2034,7 +2033,7 @@ check-that-cannot-fail failure R5 names.
       `ON CONFLICT DO NOTHING` so concurrent cold reads coalesce to one spawn,
       stamping a fresh 128-bit `attemptToken` and
       `admittedDeadlineAt = startedAt + budgetMs + 5000 +
-      SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
+SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
       **The insert is `lifecycle='starting'` with a NULL `pid` (Sol r12
       Critical 2)** — the PID does not exist at reservation time, and the
       reservation is what the ceiling counts, so a `starting` row counts
@@ -2079,7 +2078,7 @@ check-that-cannot-fail failure R5 names.
       for every contract version of the project, sets `cancel_requested_at` on
       all of that project's `solver_slot` rows and deletes its queue rows.
       Owners observe the durable signal on their heartbeat round trip and kill
-      their child, so a child owned by the *other* backend is cancelled too — a
+      their child, so a child owned by the _other_ backend is cancelled too — a
       local process handle cannot reach it and `PR_SET_PDEATHSIG` is irrelevant
       while that coordinator is alive. Both paths reject with a typed
       `cancelled` outcome and write no row. Idempotent and project-scoped.
@@ -2096,9 +2095,9 @@ check-that-cannot-fail failure R5 names.
       wherever `wbs-solver` is, must version-lock to it (both sides of the bind
       protocol change together), and the image build already installs exactly
       that one distribution. It imports no CP-SAT. `wbs-solver` remains the
-      only *solve* entrypoint; spec.md's "exactly one entrypoint" is scoped to
+      only _solve_ entrypoint; spec.md's "exactly one entrypoint" is scoped to
       the solve contract accordingly, and 5.11 installs and proves both scripts.
-      *Assumption, falsifiable:* if the launcher ever needs a dependency the
+      _Assumption, falsifiable:_ if the launcher ever needs a dependency the
       solver distribution must not carry, split it into its own version-pinned
       package and give 5.11 a second install proof. After 6.2's `starting` insert the coordinator spawns a small
       **lifecycle launcher** — a distinct entrypoint, not `wbs-solver`
@@ -2111,7 +2110,7 @@ check-that-cannot-fail failure R5 names.
       then blocks on stdin for the bind verdict **before reading the
       request**. The coordinator binds with
       `UPDATE solver_slot SET pid=:pid, lifecycle='running' WHERE <key> AND
-      attempt_token=:token AND lifecycle='starting'` (with `:pid` the
+attempt_token=:token AND lifecycle='starting'` (with `:pid` the
       launcher's); one row means `bound`, after which the launcher
       **`exec`s `wbs-solver` in place** — the same pid — so `wbs-solver`
       first exists only after its row is `running`; zero rows means `abort`
@@ -2133,7 +2132,7 @@ check-that-cannot-fail failure R5 names.
       from the CAS — and the paused-owner case must show two live
       `wbs-solver` processes against one reclaimed slot.
       **Second case, the verdict that never arrives:** the test above proves
-      only the *zero-row* path, where a live coordinator writes `abort`. Add a
+      only the _zero-row_ path, where a live coordinator writes `abort`. Add a
       case whose coordinator neither binds nor aborts and stays alive, so
       `PR_SET_PDEATHSIG` never fires: assert the launcher exits on its own
       after `BIND_TIMEOUT_MS = 5000` with stdin still open, that no
@@ -2205,17 +2204,17 @@ check-that-cannot-fail failure R5 names.
       generation and (d) must fail against 6.10.
 - [ ] 6.9c **Four eviction authorities, four separate reds** (Sol r10
       Important 9). The four-part `(generation, cancelEpoch, enabled,
-      attemptToken)` predicate governs **worker-owned outcome writes only**;
+attemptToken)` predicate governs **worker-owned outcome writes only**;
       three other paths evict under their own authority and have no child
       token to present. Each gets its own test and its own watched red, so
-      weakening one cannot silently weaken another: (a) *worker outcome* —
+      weakening one cannot silently weaken another: (a) _worker outcome_ —
       drop the `attemptToken` term and a reclaimed-then-superseded owner's
       late store must succeed where it should have matched zero rows;
-      (b) *allocation eviction* — require a token in the allocation
+      (b) _allocation eviction_ — require a token in the allocation
       transaction and the cold-start hash change must fail outright, since no
-      child exists yet; (c) *OFF cleanup* — require a token in the
+      child exists yet; (c) _OFF cleanup_ — require a token in the
       `optimization_enabled = 0` transaction and the queue rows must survive
-      the toggle; (d) *deletion/retirement eviction* — require a token in the
+      the toggle; (d) _deletion/retirement eviction_ — require a token in the
       drain protocol and 3.9b's phase 2 must fail. Assert in (b), (c) and (d)
       that the eviction is authorized by the CAS, the epoch increment and the
       drain phase respectively — not by a token.
@@ -2253,7 +2252,7 @@ check-that-cannot-fail failure R5 names.
       concurrent first writers coalesce onto one generation rather than one
       failing (Sol r7 Important 8).
       **Watched red:** two concurrent allocators for one hash must produce one
-      generation and one child per objective; two concurrent *first* allocators
+      generation and one child per objective; two concurrent _first_ allocators
       for a project that has never optimized must produce one row and one
       child per objective; an allocator for a different hash must not coalesce
       onto the current slot; a restart on an unchanged hash must allocate
@@ -2264,8 +2263,7 @@ check-that-cannot-fail failure R5 names.
       all carry it, and 6.2b's bind CAS is the first statement that presents
       it. The two deadlines are deliberately different:
       `childDeadlineAt = startedAt + budgetMs + 5000`, armed for that earlier
-      instant **twice — inside the child and outside it (self-found, round
-      10)**: the wrapper passes `childDeadlineAt − now` as CP-SAT's
+      instant **twice — inside the child and outside it (self-found, round 10)**: the wrapper passes `childDeadlineAt − now` as CP-SAT's
       `max_time_in_seconds` so a progressing solve stops itself and returns a
       publishable partial, and the per-child systemd scope (the same scope
       5.4b's memory limit requires) carries `RuntimeMaxSec` for that instant so
@@ -2308,7 +2306,7 @@ check-that-cannot-fail failure R5 names.
       Fast visible, and never retry — not on a timer, not on a read, and not on
       a same-hash edit. A **cancelled** run writes no row at all. Failure is
       variant-specific. **"Publish nothing" is struck** (Sol r7 Important 14):
-      in this codebase `GatewayBroadcaster.publish` *is* the event operation, so
+      in this codebase `GatewayBroadcaster.publish` _is_ the event operation, so
       the phrase read as a prohibition on the failure event that 7.4 and 7.6
       require. The rule is exact — a failure publishes **no**
       `schedule_optimized` and stores no schedule, and it **does** publish
@@ -2317,7 +2315,7 @@ check-that-cannot-fail failure R5 names.
       `objective-overflow`.
 - [ ] 7.2 `schedule_optimized` added to `ProjectEvent` in
       `apps/be-01/src/service/broadcast.ts`, carrying `(projectId, generation,
-      inputHash, objective, contractVersion, budgetMs)` (7.7). **The cache row
+inputHash, objective, contractVersion, budgetMs)` (7.7). **The cache row
       and the `event_log` record are written in one SQLite transaction** and the
       broadcaster pushes from the committed record, so the guarantee is one
       durable replay record per newly stored outcome plus one best-effort
@@ -2350,7 +2348,7 @@ check-that-cannot-fail failure R5 names.
       result nobody is told about.
 - [ ] 7.6 A newly written failure marker emits `schedule_optimization_failed`
       in the same transaction as the row, carrying `(projectId, generation,
-      inputHash, objective, contractVersion, budgetMs, failureReason)` and no
+inputHash, objective, contractVersion, budgetMs, failureReason)` and no
       schedule. Without it the read returns Fast, success emits
       `schedule_optimized`, and failure emitted nothing — so a client on
       screen sat at `Optimizing…` for ever and manual-only Retry was
@@ -2363,9 +2361,9 @@ check-that-cannot-fail failure R5 names.
       holding that identity ignored the only notice that should move it.
       **Watched red:** raise the budget, store, assert the client refetches.
 - [ ] 7.8 Name the seam rather than assume it: `EventLogRepo.recordEventIn(tx,
-      subscription, message, createdAt)` writes inside the caller's
+subscription, message, createdAt)` writes inside the caller's
       transaction, and `GatewayBroadcaster.pushRecorded(subscription,
-      recorded, event)` buffers and pushes an already-recorded sequence
+recorded, event)` buffers and pushes an already-recorded sequence
       without recording it twice; today `recordEvent` opens its own
       transaction and `publish` does both. `publish` becomes those two calls.
 - [ ] 7.9 The guarantee is narrowed in every artifact to **one durable replay
@@ -2441,7 +2439,7 @@ check-that-cannot-fail failure R5 names.
       no timer retry, no second indicator. On `plan-infeasible` the indicator
       SHALL NOT fall back to reading Fast's late plan as a satisfied baseline:
       Fast stays on screen, stays usable, and stays labelled `Late by N
-      workdays` per missed item — Fast's lateness is a report, never a verdict
+workdays` per missed item — Fast's lateness is a report, never a verdict
       of feasibility (`openspec/changes/work-item-deadline/design.md` §3.1).
 - [ ] 8.4 **Proven by** `optimization-indicator.test.tsx` and
       `optimization-settings.test.tsx`: each of the four comparison outcomes

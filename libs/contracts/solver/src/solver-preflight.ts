@@ -1,8 +1,4 @@
-import {
-  SOLVER_HORIZON_UNITS_MAX,
-  type SolverOffsetMap,
-  type SolverSlice,
-} from './wire-types';
+import { SOLVER_HORIZON_UNITS_MAX, type SolverOffsetMap, type SolverSlice } from './wire-types';
 
 /**
  * The two arithmetic refusals that must happen **before a process is spawned**

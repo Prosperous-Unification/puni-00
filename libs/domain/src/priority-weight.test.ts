@@ -4,16 +4,36 @@ import { priorityWeightOf, priorityWeights } from './priority-weight';
 
 describe('priorityWeights', () => {
   it('ranks densely, so the most important present weighs the most', () => {
-    const weights = priorityWeights(new Map([['a', 1], ['b', 5], ['c', 9]]));
-    expect([...weights]).toEqual([['a', 3], ['b', 2], ['c', 1]]);
+    const weights = priorityWeights(
+      new Map([
+        ['a', 1],
+        ['b', 5],
+        ['c', 9],
+      ]),
+    );
+    expect([...weights]).toEqual([
+      ['a', 3],
+      ['b', 2],
+      ['c', 1],
+    ]);
   });
 
   it('gives equal priorities equal weight and does not skip the next one', () => {
     // Dense, not competition rank. Three leaves at 1, 1 and 9 are TWO distinct
     // statements: competition rank would weigh the third 0 and collapse it into
     // "nobody prioritised this", which is a different thing a plan can say.
-    const weights = priorityWeights(new Map([['a', 1], ['b', 1], ['c', 9]]));
-    expect([...weights]).toEqual([['a', 2], ['b', 2], ['c', 1]]);
+    const weights = priorityWeights(
+      new Map([
+        ['a', 1],
+        ['b', 1],
+        ['c', 9],
+      ]),
+    );
+    expect([...weights]).toEqual([
+      ['a', 2],
+      ['b', 2],
+      ['c', 1],
+    ]);
   });
 
   it('bounds the top weight by the DISTINCT count, not by the leaf count', () => {
@@ -27,14 +47,31 @@ describe('priorityWeights', () => {
     // leaves is not bounded by the rank set at all, which is the property the
     // objective's `Σ w(s) × horizonUnits` bound is checked against.
     const weights = priorityWeights(
-      new Map([['a', 1], ['b', 5], ['c', 5], ['d', 5], ['e', 9]]),
+      new Map([
+        ['a', 1],
+        ['b', 5],
+        ['c', 5],
+        ['d', 5],
+        ['e', 9],
+      ]),
     );
-    expect([...weights]).toEqual([['a', 3], ['b', 2], ['c', 2], ['d', 2], ['e', 1]]);
+    expect([...weights]).toEqual([
+      ['a', 3],
+      ['b', 2],
+      ['c', 2],
+      ['d', 2],
+      ['e', 1],
+    ]);
   });
 
   it('weighs an unprioritised leaf below every stated priority', () => {
     // `priorityByLeaf` omits them, so absence arrives as a missing key.
-    const weights = priorityWeights(new Map([['a', 1], ['b', 9]]));
+    const weights = priorityWeights(
+      new Map([
+        ['a', 1],
+        ['b', 9],
+      ]),
+    );
     expect(priorityWeightOf(weights, 'a')).toBe(2);
     expect(priorityWeightOf(weights, 'b')).toBe(1);
     expect(priorityWeightOf(weights, 'nobody-said')).toBe(0);
@@ -46,16 +83,30 @@ describe('priorityWeights', () => {
     // `P_max + 1` is not representable — every invert-the-scale formula loses
     // precision at exactly the number somebody types to mean "last".
     const weights = priorityWeights(
-      new Map([['a', 1], ['b', Number.MAX_SAFE_INTEGER]]),
+      new Map([
+        ['a', 1],
+        ['b', Number.MAX_SAFE_INTEGER],
+      ]),
     );
-    expect([...weights]).toEqual([['a', 2], ['b', 1]]);
+    expect([...weights]).toEqual([
+      ['a', 2],
+      ['b', 1],
+    ]);
     for (const weight of weights.values()) expect(Number.isSafeInteger(weight)).toBe(true);
   });
 
   it('reads a negative priority as more important, not as absent', () => {
     // Ordering is by the number and nothing else, so a plan that used negatives
     // to mean "before everything" gets what it asked for.
-    expect([...priorityWeights(new Map([['a', -3], ['b', 0], ['c', 2]]))]).toEqual([
+    expect([
+      ...priorityWeights(
+        new Map([
+          ['a', -3],
+          ['b', 0],
+          ['c', 2],
+        ]),
+      ),
+    ]).toEqual([
       ['a', 3],
       ['b', 2],
       ['c', 1],

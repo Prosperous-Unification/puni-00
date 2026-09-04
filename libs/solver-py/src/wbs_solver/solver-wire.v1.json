@@ -237,7 +237,9 @@
         {
           "if": { "required": ["status"], "properties": { "status": { "const": "feasible" } } },
           "then": { "required": ["offsets", "objectiveValues"] },
-          "else": { "not": { "anyOf": [{ "required": ["offsets"] }, { "required": ["objectiveValues"] }] } },
+          "else": {
+            "not": { "anyOf": [{ "required": ["offsets"] }, { "required": ["objectiveValues"] }] }
+          },
           "$comment": "THE status/offsets CONDITIONAL, taken from the matrix's own `n/a` rather than invented. `feasible` is the only status that publishes, so it is the only one that carries offsets and objectiveValues, and it carries BOTH. `unknown` and `infeasible` carry NEITHER, because the matrix writes `n/a` in the objectiveValues column for all three of its stopping rows and `value` is BY DEFINITION 'the term recomputed on the published offsets' — with nothing published, all three `value` fields have no referent and a required non-negative integer would have to be a lie or a sentinel. offsets is ABSENT rather than `{}`: an empty map is a well-formed offsetMap, so it would pass the schema and then fail request invariant (2) key-set equality one layer later, reporting a vocabulary decision as a corrupt payload."
         }
       ],

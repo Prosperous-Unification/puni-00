@@ -179,24 +179,23 @@ export function buildSolverRequest(
     deadlines: leafDeadlinesOf(plan.deadlines, index),
     weights: priorityWeights(priorityByLeaf(plan.rows, index)),
   });
-  const edges = buildSolverEdges(
-    leafIds,
-    slicesOf,
-    expandToLeaves(index, plan.edges),
-    plan.reach,
-  );
+  const edges = buildSolverEdges(leafIds, slicesOf, expandToLeaves(index, plan.edges), plan.reach);
   const pools = buildSolverPools(slices, plan.poolSizes);
 
   const named = new Set(slices.map((slice) => slice.key));
   for (const key of Object.keys(spawn.baselineOffsets)) {
     if (!named.has(key)) {
-      throw new Error(`baseline offset for ${key.replace('\u0000', '/')}, which this request has no slice for`);
+      throw new Error(
+        `baseline offset for ${key.replace('\u0000', '/')}, which this request has no slice for`,
+      );
     }
   }
 
   const stageBudgetSplit = spawn.stageBudgetSplit ?? STAGE_BUDGET_SPLIT;
   if (!isValidStageBudgetSplit(stageBudgetSplit)) {
-    throw new Error(`stage budget split ${JSON.stringify(stageBudgetSplit)} does not spend the budget exactly once`);
+    throw new Error(
+      `stage budget split ${JSON.stringify(stageBudgetSplit)} does not spend the budget exactly once`,
+    );
   }
 
   // Last, because it needs the projected slices, and it is what decides whether

@@ -9,7 +9,11 @@ import {
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { buildSolverRequest, type SolverRequestPlan, type SolverSpawn } from './build-solver-request';
+import {
+  buildSolverRequest,
+  type SolverRequestPlan,
+  type SolverSpawn,
+} from './build-solver-request';
 import { quantisedFastBaseline } from './quantised-baseline';
 import { STAGE_BUDGET_SPLIT } from './stage-budget';
 import { SOLVER_REQUEST_KEYS, SOLVER_WIRE_VERSION } from './wire-types';
@@ -134,7 +138,12 @@ describe('buildSolverRequest', () => {
     // `team-y` is sized in the project and named by no slice, so it stays out:
     // the request is hashed as a cache key, and shipping it would invalidate
     // this plan's cached result on an edit to a team the plan does not use.
-    const sizedTwice = planOf({ poolSizes: new Map([['team-x', 2], ['team-y', 9]]) });
+    const sizedTwice = planOf({
+      poolSizes: new Map([
+        ['team-x', 2],
+        ['team-y', 9],
+      ]),
+    });
     expect(requestOf(sizedTwice).pools).toEqual({ 'team-x': 2 });
     // The floor is written on the PARENT and lands on both of its leaves, in
     // units: day 3 is a start bound, so `3 × quantum` with no `+ 1`.
@@ -201,9 +210,9 @@ describe('buildSolverRequest', () => {
     // variable the model does not have.
     const plan = planOf();
     const stale = { ...baselineOf(plan), [sliceKey('A', 'gone')]: 0 };
-    expect(() => buildSolverRequest(plan, 'pri', spawnOf(plan, { baselineOffsets: stale }))).toThrow(
-      'which this request has no slice for',
-    );
+    expect(() =>
+      buildSolverRequest(plan, 'pri', spawnOf(plan, { baselineOffsets: stale })),
+    ).toThrow('which this request has no slice for');
   });
 
   it('groups before it projects, so a slice for a parent is refused as a plan fault', () => {
@@ -299,7 +308,11 @@ describe('buildSolverRequest', () => {
     // different path: `priorityByLeaf` omits the leaf entirely and
     // `priorityWeightOf` reads that absence as 0. A plan where nobody set a
     // priority gives every slice 0, and no dense rank exists at all.
-    const plan = planOf({ rows: [rowOf('A', null, null)], edges: [], slices: [sliceOf('A', 'dev', 1)] });
+    const plan = planOf({
+      rows: [rowOf('A', null, null)],
+      edges: [],
+      slices: [sliceOf('A', 'dev', 1)],
+    });
     expect(requestOf(plan).slices.map((slice) => slice.priorityWeight)).toEqual([0]);
   });
 

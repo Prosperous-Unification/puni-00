@@ -28,9 +28,7 @@
       "key": "wi-1\u0000step-a",
       "notBeforeUnits": 0,
       "personId": null,
-      "poolIds": [
-        "team-platform"
-      ],
+      "poolIds": ["team-platform"],
       "priorityWeight": 2,
       "width": 0
     },
@@ -46,10 +44,6 @@
     }
   ],
   "solverVersion": "0.1.0",
-  "stageBudgetSplit": [
-    0.6,
-    0.25,
-    0.15
-  ],
+  "stageBudgetSplit": [0.6, 0.25, 0.15],
   "wireVersion": 1
 }

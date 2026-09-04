@@ -81,10 +81,7 @@ const feasible = (
   objectiveValues: valuesFor(offsets, over),
 });
 
-const rejects = (
-  result: ReturnType<typeof revalidateSolverResult>,
-  failure: string,
-): void => {
+const rejects = (result: ReturnType<typeof revalidateSolverResult>, failure: string): void => {
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.failure).toBe(failure as never);
 };
@@ -147,7 +144,9 @@ describe('revalidateSolverResult checks the offset map', () => {
 
 describe('revalidateSolverResult checks floors and edges', () => {
   it('rejects a slice starting before its floor, and accepts one starting on it', () => {
-    const floored = request({ slices: [slice({ key: 'a', notBeforeUnits: 5 }), slice({ key: 'b' })] });
+    const floored = request({
+      slices: [slice({ key: 'a', notBeforeUnits: 5 }), slice({ key: 'b' })],
+    });
     rejects(revalidateSolverResult(floored, feasible({ a: 4, b: 0 })), 'floor-violated');
     expect(revalidateSolverResult(floored, feasible({ a: 5, b: 0 })).ok).toBe(true);
   });

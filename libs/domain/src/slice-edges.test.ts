@@ -23,8 +23,7 @@ const slicesOf = (leafId: string): readonly EstimatedSlice[] => {
 /** `A0→A1`, as the assertions below spell an edge. */
 const wire = (edges: readonly SlicePositionEdge[]): string[] =>
   edges.map(
-    (edge) =>
-      `${edge.from.leafId}${String(edge.from.at)}→${edge.to.leafId}${String(edge.to.at)}`,
+    (edge) => `${edge.from.leafId}${String(edge.from.at)}→${edge.to.leafId}${String(edge.to.at)}`,
   );
 
 describe('reachedSliceOf', () => {

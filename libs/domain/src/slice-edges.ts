@@ -111,7 +111,6 @@ export function reachedSliceOf(reach: DependencyReach, slices: readonly Estimate
   return estimated === -1 ? slices.length - 1 : estimated;
 }
 
-
 /** A leaf edge as `expandToLeaves` produces it — both ends are leaves. */
 export interface LeafEdge {
   readonly predecessorId: string;

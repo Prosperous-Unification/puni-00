@@ -27,7 +27,13 @@
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
 import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
-import { type DependencyEdge, type PoolSizes, type Schedule, schedule, type Slice } from './schedule';
+import {
+  type DependencyEdge,
+  type PoolSizes,
+  type Schedule,
+  schedule,
+  type Slice,
+} from './schedule';
 
 /** One corpus case: a whole `schedule()` argument tuple under a stable name. */
 export interface FastGoldenCase {
@@ -48,11 +54,7 @@ const leaf = (id: string, position: number, priority: number | null = null): Pla
   priority,
 });
 
-const work = (
-  workItemId: string,
-  days: number | null,
-  extra: Partial<Slice> = {},
-): Slice => ({
+const work = (workItemId: string, days: number | null, extra: Partial<Slice> = {}): Slice => ({
   workItemId,
   stepId: null,
   days,
@@ -194,7 +196,7 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
  * sorted by key so a change in insertion order is not a diff.
  */
 export const serializeSchedule = (found: Schedule): unknown => {
-  const entries = <V,>(map: Map<string, V>): [string, V][] =>
+  const entries = <V>(map: Map<string, V>): [string, V][] =>
     [...map.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
   return JSON.parse(
     JSON.stringify({

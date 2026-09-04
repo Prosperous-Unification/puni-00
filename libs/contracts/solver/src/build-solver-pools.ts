@@ -56,7 +56,9 @@ export function buildSolverPools(
       throw new Error(`no size for pool ${poolId}`);
     }
     if (!Number.isInteger(size) || size < 1) {
-      throw new Error(`pool ${poolId} has a size that is not a whole number of slots: ${String(size)}`);
+      throw new Error(
+        `pool ${poolId} has a size that is not a whole number of slots: ${String(size)}`,
+      );
     }
     pools[poolId] = size;
   }

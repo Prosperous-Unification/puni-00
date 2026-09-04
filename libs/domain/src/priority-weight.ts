@@ -28,9 +28,7 @@
  * would be the one that gets it backwards, because every neighbouring field
  * (the floor, the deadline) resolves by taking the strictest.
  */
-export function priorityWeights(
-  leafPriorities: ReadonlyMap<string, number>,
-): Map<string, number> {
+export function priorityWeights(leafPriorities: ReadonlyMap<string, number>): Map<string, number> {
   const distinct = [...new Set(leafPriorities.values())].sort((left, right) => left - right);
   // The rank of each distinct priority, densely: equal priorities share a rank
   // and the next distinct one is the next integer.

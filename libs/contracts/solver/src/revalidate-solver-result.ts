@@ -116,10 +116,11 @@ export type RevalidatedSolverResult =
       readonly detail: string;
     };
 
-const refuse = (
-  failure: SolverRevalidationFailure,
-  detail: string,
-): RevalidatedSolverResult => ({ ok: false, failure, detail });
+const refuse = (failure: SolverRevalidationFailure, detail: string): RevalidatedSolverResult => ({
+  ok: false,
+  failure,
+  detail,
+});
 
 /** A slice placed at an offset. Occupancy is half-open: `[start, finish)`. */
 interface Placement {

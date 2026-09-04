@@ -1861,7 +1861,12 @@ export function schedule(
   // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
   // written once per edge, and the order the edges arrive in is the order these
   // arrays are walked in later.
-  for (const { from, to } of sliceGraphEdges(leafIds, (id) => slicesOf(id).slices, leafEdges, reach)) {
+  for (const { from, to } of sliceGraphEdges(
+    leafIds,
+    (id) => slicesOf(id).slices,
+    leafEdges,
+    reach,
+  )) {
     const before = firstNodeOf(from.leafId) + from.at;
     const after = firstNodeOf(to.leafId) + to.at;
     nodes[before].successors.push(after);

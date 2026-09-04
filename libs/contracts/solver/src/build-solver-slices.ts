@@ -79,7 +79,9 @@ export function buildSolverSlices(
       // that can still name the pair. `sliceKey` separates with a NUL, so two
       // distinct pairs cannot collide by running into each other; a duplicate
       // here is a genuinely duplicated `(workItemId, stepId)`.
-      throw new Error(`duplicate slice for work item ${slice.workItemId}, step ${slice.stepId ?? '(none)'}`);
+      throw new Error(
+        `duplicate slice for work item ${slice.workItemId}, step ${slice.stepId ?? '(none)'}`,
+      );
     }
     seen.add(key);
 
@@ -91,7 +93,9 @@ export function buildSolverSlices(
       // would reach the schema with a `width` its `type: integer` refuses —
       // diagnosed there as a malformed request rather than as people who do not
       // exist.
-      throw new Error(`slice ${slice.workItemId} has a width that is not a whole number of people: ${String(slice.width)}`);
+      throw new Error(
+        `slice ${slice.workItemId} has a width that is not a whole number of people: ${String(slice.width)}`,
+      );
     }
 
     return {

@@ -1122,6 +1122,6 @@ clock-reading part, not a second process, and the two are not interchangeable.
 The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting`
 with a null `pid`; a successful bind CAS moves it to `running` and records the launcher's
 pid. A `starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a
-`running` one — it *is* the reservation — and is reclaimed by the same
+`running` one — it _is_ the reservation — and is reclaimed by the same
 `now > admittedDeadlineAt` rule.
 _Avoid_: slot state, pending, provisional

@@ -69,7 +69,9 @@ const manifest = JSON.parse(
 const requestFixtures = manifest.fixtures.filter((entry) => entry.branch === 'request');
 
 const fixture = (file: string): SolverRequest =>
-  JSON.parse(readFileSync(new URL(`../fixtures/${file}`, import.meta.url), 'utf8')) as SolverRequest;
+  JSON.parse(
+    readFileSync(new URL(`../fixtures/${file}`, import.meta.url), 'utf8'),
+  ) as SolverRequest;
 
 /**
  * 2.11's plan: one leaf, three serial steps, `days: 1` across five people.

@@ -47,10 +47,10 @@ describe('buildSolverSlices', () => {
     // schedule() puts it on the first slice alone and lets the intra-item chain
     // carry it. The wire's field is per-slice and defines itself as the fold,
     // so a zero on a later slice would be that slice claiming to be unfloored.
-    const built = buildSolverSlices(
-      [sliceOf({ stepId: 's1' }), sliceOf({ stepId: 's2' })],
-      { ...none, floors: new Map([['L1', 3]]) },
-    );
+    const built = buildSolverSlices([sliceOf({ stepId: 's1' }), sliceOf({ stepId: 's2' })], {
+      ...none,
+      floors: new Map([['L1', 3]]),
+    });
     expect(built.map((slice) => slice.notBeforeUnits)).toEqual([
       3 * SOLVER_QUANTUM,
       3 * SOLVER_QUANTUM,
@@ -66,10 +66,13 @@ describe('buildSolverSlices', () => {
   });
 
   it('reads an unprioritised leaf as weight 0, which is most leaves on most plans', () => {
-    const built = buildSolverSlices([sliceOf({ workItemId: 'L1' }), sliceOf({ workItemId: 'L2' })], {
-      ...none,
-      weights: new Map([['L1', 2]]),
-    });
+    const built = buildSolverSlices(
+      [sliceOf({ workItemId: 'L1' }), sliceOf({ workItemId: 'L2' })],
+      {
+        ...none,
+        weights: new Map([['L1', 2]]),
+      },
+    );
     expect(built.map((slice) => slice.priorityWeight)).toEqual([2, 0]);
   });
 
@@ -83,9 +86,9 @@ describe('buildSolverSlices', () => {
     // Three maps on the wire are keyed by this string. A duplicate is one row
     // silently overwriting another in all three, and the re-validator would
     // then report the key-set mismatch as a solver fault.
-    expect(() => buildSolverSlices([sliceOf({ stepId: 's1' }), sliceOf({ stepId: 's1' })], none)).toThrow(
-      /duplicate slice for work item L1/,
-    );
+    expect(() =>
+      buildSolverSlices([sliceOf({ stepId: 's1' }), sliceOf({ stepId: 's1' })], none),
+    ).toThrow(/duplicate slice for work item L1/);
   });
 
   it('refuses a fractional width, which nothing upstream catches', () => {

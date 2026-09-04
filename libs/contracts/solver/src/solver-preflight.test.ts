@@ -25,10 +25,13 @@ const atZero = { k: 0 };
 
 describe('preflightSolverRequest', () => {
   it('is the SERIAL bound: the latest floor plus every duration', () => {
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: 10, notBeforeUnits: 5 }),
-      sliceOf({ durationUnits: 7, notBeforeUnits: 100 }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [
+        sliceOf({ durationUnits: 10, notBeforeUnits: 5 }),
+        sliceOf({ durationUnits: 7, notBeforeUnits: 100 }),
+      ],
+      atZero,
+    );
     expect(preflight).toEqual({ ok: true, horizonUnits: 117 });
   });
 
@@ -50,19 +53,20 @@ describe('preflightSolverRequest', () => {
   });
 
   it('refuses one unit past it with horizon-overflow', () => {
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX }),
-      sliceOf({ durationUnits: 1 }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX }), sliceOf({ durationUnits: 1 })],
+      atZero,
+    );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
   });
 
   it('counts a floor toward the horizon, not only the durations', () => {
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX })],
+      atZero,
+    );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -72,11 +76,14 @@ describe('preflightSolverRequest', () => {
     // Three slices whose Number sum rounds: 2^53 - 1 twice over is not a safe
     // integer, and a Number accumulator would compare a value it had already
     // corrupted. The horizon check must catch this, not the objective one.
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
-      sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
-      sliceOf({ durationUnits: 1 }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [
+        sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
+        sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
+        sliceOf({ durationUnits: 1 }),
+      ],
+      atZero,
+    );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -87,9 +94,10 @@ describe('preflightSolverRequest', () => {
     // Horizon is comfortably legal; the product is not. Weight x horizon is the
     // coefficient the solver would carry, and above MAX_SAFE_INTEGER it stops
     // surviving the round trip through Bun and JSON.
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: 1_000_000_000, priorityWeight: 10_000_000 }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: 1_000_000_000, priorityWeight: 10_000_000 })],
+      atZero,
+    );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('objective-overflow');
@@ -99,9 +107,10 @@ describe('preflightSolverRequest', () => {
     // Both bounds are broken here. The horizon is the cause and the objective
     // failure is its consequence; naming the consequence would send a user to
     // their priorities when the plan is simply too long.
-    const preflight = preflightSolverRequest([
-      sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER, priorityWeight: 1_000_000 }),
-    ], atZero);
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER, priorityWeight: 1_000_000 })],
+      atZero,
+    );
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -117,10 +126,7 @@ describe('preflightSolverRequest', () => {
 });
 
 describe("preflightSolverRequest's MOVEMENT bound", () => {
-  const two = [
-    sliceOf({ key: 'a', durationUnits: 60 }),
-    sliceOf({ key: 'b', durationUnits: 40 }),
-  ];
+  const two = [sliceOf({ key: 'a', durationUnits: 60 }), sliceOf({ key: 'b', durationUnits: 40 })];
 
   it('accepts a baseline anywhere on the axis', () => {
     // Horizon 100. Worst case is max(b, 100 - b) per slice — 70 and 100 — which

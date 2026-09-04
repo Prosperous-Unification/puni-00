@@ -48,9 +48,7 @@ export interface SolverObjectiveTermValue {
   readonly status: SolverStageStatus;
 }
 
-export type SolverObjectiveValues = Readonly<
-  Record<SolverObjectiveTerm, SolverObjectiveTermValue>
->;
+export type SolverObjectiveValues = Readonly<Record<SolverObjectiveTerm, SolverObjectiveTermValue>>;
 
 /**
  * `#/$defs/response`, with the schema's `allOf` conditional carried as the

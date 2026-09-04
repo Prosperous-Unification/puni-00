@@ -117,21 +117,20 @@ const PREFLIGHT_DISPOSITIONS: Readonly<Record<SolverPreflightFailure, SolverFail
  * unjudgeable request, or by `malformed-request` becoming reachable from a
  * solver-authored artefact rather than only from `buildSolverRequest`.
  */
-const REVALIDATION_DISPOSITIONS: Readonly<
-  Record<SolverRevalidationFailure, SolverFailureReason>
-> = {
-  'malformed-request': 'internal-error',
-  'offset-key-mismatch': 'invalid-output',
-  'offset-domain': 'invalid-output',
-  'edge-violated': 'invalid-output',
-  'floor-violated': 'invalid-output',
-  'pool-overcapacity': 'invalid-output',
-  'assignee-double-booked': 'invalid-output',
-  'objective-domain': 'invalid-output',
-  'objective-overflow': 'invalid-output',
-  'objective-regression': 'invalid-output',
-  'objective-mismatch': 'invalid-output',
-};
+const REVALIDATION_DISPOSITIONS: Readonly<Record<SolverRevalidationFailure, SolverFailureReason>> =
+  {
+    'malformed-request': 'internal-error',
+    'offset-key-mismatch': 'invalid-output',
+    'offset-domain': 'invalid-output',
+    'edge-violated': 'invalid-output',
+    'floor-violated': 'invalid-output',
+    'pool-overcapacity': 'invalid-output',
+    'assignee-double-booked': 'invalid-output',
+    'objective-domain': 'invalid-output',
+    'objective-overflow': 'invalid-output',
+    'objective-regression': 'invalid-output',
+    'objective-mismatch': 'invalid-output',
+  };
 
 export const dispositionOfParseFailure = (failure: SolverParseFailure): SolverFailureReason =>
   PARSE_DISPOSITIONS[failure];
