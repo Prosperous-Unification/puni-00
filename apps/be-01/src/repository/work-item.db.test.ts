@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { effectiveTeamsOf } from '@wbs/domain';
+import { effectiveTeamsOf, type Schedule, schedule } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { slicesOf } from '../service/work-item.service';
@@ -98,6 +98,21 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
 
 const byPosition = (items: WorkItem[]) =>
   [...items].sort((a, b) => a.position - b.position).map((w) => w.name);
+
+/**
+ * One work item's span out of a schedule, as the two numbers a reader compares.
+ *
+ * The whole `Scheduled` record carries `latestStart`, `float` and `critical`
+ * too, and asserting it entire would make an order test fail on any change to
+ * the backward pass. The `?? null` keeps a missing work item a failed
+ * comparison rather than a thrown `undefined`.
+ */
+const spanOf = (planned: Schedule, workItemId: string): { start: number; finish: number } | null => {
+  const found = planned.workItems.get(workItemId);
+  return found === undefined
+    ? null
+    : { start: found.earliestStart, finish: found.earliestFinish };
+};
 
 /** A team in the global directory, since a join row has to point at a real one. */
 async function team(name: string): Promise<string> {
@@ -262,6 +277,77 @@ describe('the order the work-item select answers in', () => {
 
     expect(rows.map((each) => each.id)).toEqual([earlier.id, later.id]);
     expect(slices.map((each) => each.workItemId)).toEqual([earlier.id, later.id]);
+  });
+
+  /**
+   * Task 1.8's second assertion: Fast's **own output** for this read, not only
+   * the tuple that reaches it. The tuple assertion above proves the arrays
+   * arrive in one order; this proves that order is a scheduling fact, so an
+   * unordered select is a plan that schedules two ways rather than a tidiness
+   * complaint.
+   *
+   * **The two siblings share a position, and that is the whole fixture.**
+   * `deriveNumbers` sorts each sibling group by `position` and `Array#sort` is
+   * stable, so tied positions leave the labels decided by the array order — and
+   * the number is the third of `goesFirst`'s four tie-breaks
+   * (`schedule.ts:1940`). Measured at `705f1bc5`, two unestimated leaves on a
+   * one-slot pool: id order gives `00000000…` `010` and `ffffffff…` `020`, so
+   * `00000000…` takes the slot at 0 → 2 and `ffffffff…` waits at 2 → 4; the
+   * insert order gives `ffffffff…` `010` and the two placements exchange.
+   * With the positions **distinct** — which is what the two tests above use —
+   * the labels come off `position` alone and both orders produce a
+   * byte-identical schedule, which is precisely why a Fast assertion could not
+   * be added to them and this fixture exists.
+   *
+   * A tied sibling position is a legal database state and a reachable one:
+   * `work_item_siblings` (`schema.ts:475`) is a plain index, and `placeAfter`
+   * appends at `last + POSITION_STEP` with no re-read under a lock
+   * (`place-sibling.ts:53`), so two appends that read the same group both
+   * compute the same number.
+   *
+   * The pool is what turns the order into dates. Two leaves with no edge and no
+   * queue both start at day 0 whatever order they arrive in; one slot is what
+   * makes one of them wait, and the tie-break is what decides which.
+   *
+   * **Watched red:** the `ORDER BY` deleted from 1.7's production path and this
+   * assertion fails with the two spans exchanged, alongside 1.7's and 1.8's.
+   */
+  it('schedules the same project two ways when the rows arrive in two orders', async () => {
+    const shared = await team('Platform');
+    const tied = 10;
+    const later = { ...row(null, tied, 'Written first'), id: 'ffffffff-0000-4000-8000-000000000005' };
+    const earlier = {
+      ...row(null, tied, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000006',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+    joinTeam(later.id, shared);
+    joinTeam(earlier.id, shared);
+    const project = projectRow({ id: projectId, ownerId });
+    /** One slot, which is what makes the two leaves queue rather than run together. */
+    const slotsOf = new Map([[shared, 1]]);
+
+    const rows = await repo.listByProject(projectId);
+    const slices = slicesOf(
+      rows,
+      await estimates.listByProject(projectId),
+      new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
+      [stepId],
+      {
+        method: project.estimateMethod,
+        pertWeights: project.pertWeights,
+        rounding: project.estimateRounding,
+      },
+      new Map(),
+      effectiveTeamsOf(rows),
+      slotsOf,
+    );
+    const planned = schedule(rows, [], slices, new Map(), slotsOf, project.depReach);
+
+    expect(planned.waitingForCapacity).toBe(1);
+    expect(spanOf(planned, earlier.id)).toEqual({ start: 0, finish: 2 });
+    expect(spanOf(planned, later.id)).toEqual({ start: 2, finish: 4 });
   });
 });
 
