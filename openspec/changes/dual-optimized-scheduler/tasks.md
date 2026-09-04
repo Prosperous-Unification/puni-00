@@ -1483,13 +1483,13 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       with one; an unknown `objective`); and deleting a project cascades its
       cache rows away only through `finishOptimizationDrain` after the real
       slot count reaches zero.
-- [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
+- [x] 3.5 **Negative check, watched red** — drop the status/nullability CHECK
       and watch 3.4's "an `ok` row with a NULL `resultJson` is rejected" case
       fail. `Proof:` comment names the removed constraint. SQLite text columns
       otherwise hold any combination a past bug wrote.
 - [ ] 3.6 This slice touches `apps/be-01/drizzle/**`, a prod-mode path: PR with
       green CI and a real review, `status: review`, no self-merge.
-- [ ] 3.7 `down.sql` beside `migration.sql` — AGENTS.md mandates it, migration
+- [x] 3.7 `down.sql` beside `migration.sql` — AGENTS.md mandates it, migration
       lint and `readMigrationFolders` refuse without it, and an aborted
       blue/green deploy cannot return to the applied set. Proved by
       apply → rollback → re-apply against the applied set, not by inspection.
