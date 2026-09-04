@@ -2030,7 +2030,15 @@ describe('the adapter a plan read asks', () => {
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
       });
-      const otherPlan: ScheduleInput = { ...input, rows: input.rows.slice(0, 2) };
+      // The same rows and the same slice keys, two days longer each. A plan that
+      // differed by SHAPE would be refused by the canonicaliser before it could
+      // be hashed — `groupSlicesByLeaf` throws on a slice whose work item is not
+      // a row — so the miss below is proved on plan CONTENT, which is the fact
+      // the `inputHash` column is there to fence.
+      const otherPlan: ScheduleInput = {
+        ...input,
+        slices: input.slices.map((each) => ({ ...each, days: 4 })),
+      };
       expect([
         read({ projectId: 'p-1', objective: 'pri', input }),
         read({ projectId: 'p-1', objective: 'time', input }),
