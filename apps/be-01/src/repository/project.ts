@@ -388,6 +388,13 @@ export class ProjectRepository implements ProjectStore {
         startDate: project.startDate,
         solutionSlug: project.solutionSlug,
         solutionUrl: project.solutionUrl,
+        // Listed as well as read one at a time: the picker's rows are
+        // `ProjectWithAccess`, which extends `Project`, so a settings column
+        // missing here is a listing that cannot type-check rather than one that
+        // quietly answers `undefined` (tasks.md 3b.2).
+        optimizationEnabled: project.optimizationEnabled,
+        scheduleEngine: project.scheduleEngine,
+        scheduleObjective: project.scheduleObjective,
         revision: project.revision,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Step, WriteStamp } from './index';
+import type { NewProject, Project, Step, WriteStamp } from './index';
 import { STEP_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
@@ -43,7 +43,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function project(name: string, createdAt: number): Project {
+function project(name: string, createdAt: number): NewProject {
   return {
     id: crypto.randomUUID(),
     name,

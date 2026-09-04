@@ -1,7 +1,14 @@
 import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
+import type {
+  NewProject,
+  Project,
+  ProjectPatch,
+  ProjectStore,
+  ProjectWithAccess,
+  Step,
+} from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { type Clock, clockOf } from './clock';
 
@@ -52,7 +59,7 @@ export class ProjectService {
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
     const stamp = this.clock.stampFor(ownerId);
-    const project: Project = {
+    const project: NewProject = {
       id: this.clock.newId(),
       name,
       ownerId,
