@@ -23,6 +23,7 @@ import {
   type OutcomeWriteResult,
   readOptimizedPair,
   readOptimizedPairAndSpawn,
+  retryOptimizedPair,
   type Spawner,
   type SpawnRequest,
   storeOptimizedOutcome,
@@ -1488,6 +1489,142 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
       expect(pair.pri.kind).toBe('ok');
       expect(pair.time.kind).toBe('ok');
       expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * tasks.md 4.4's first two arms. A failed key is read over and over — three
+   * collaborators with a project open, refreshing — and asks for nothing every
+   * time, because the marker IS the suppression. An edit that leaves the
+   * canonical input unchanged (a rename, a reordered field) produces the same
+   * hash and therefore the same key, so it is one more of those reads and not a
+   * new event; there is nothing for it to spawn.
+   *
+   * Every read gets its OWN spawner here rather than sharing one recorder, so a
+   * total of zero is zero per collaborator and not a total that happens to
+   * cancel out.
+   */
+  it('spawns nothing across ten reads by three collaborators against a failed key', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+      storeRow(db.path, {
+        objective: 'time',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+      });
+
+      const perRead: SpawnRequest[][] = [];
+      for (let read = 0; read < 10; read += 1) {
+        const collaborator = recorder();
+        const pair = readAndSpawn(db.path, collaborator.spawn);
+        expect(pair.time.kind).toBe('failed');
+        perRead.push(collaborator.calls);
+      }
+
+      expect(perRead).toHaveLength(10);
+      expect(perRead.every((calls) => calls.length === 0)).toBe(true);
+      // The same-hash edit: a different action, the same key, and so the
+      // eleventh read of a settled failure rather than a new one.
+      const afterEdit = recorder();
+      readAndSpawn(db.path, afterEdit.spawn);
+      expect(afterEdit.calls).toEqual([]);
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.4's third arm. A Retry is a different entry point rather than a flag,
+   * so the suppression above is a property of which function the caller
+   * reached for. It asks for exactly the objectives with no answer to serve —
+   * here the failed one and not the committed one — which is why "exactly one"
+   * and not "both".
+   */
+  it('asks for exactly the failed objective on an explicit Retry, and leaves the ok one alone', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+      storeRow(db.path, {
+        objective: 'time',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+      });
+
+      const retry = recorder();
+      const pair = retryOptimizedPair(openDrizzle(db.path), KEY, retry.spawn);
+
+      expect(retry.calls).toEqual([{ key: KEY, objective: 'time' }]);
+      // A Retry reads; it does not write, evict or resurrect.
+      expect(pair.pri.kind).toBe('ok');
+      expect(pair.time.kind).toBe('failed');
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** A Retry against a corrupt row asks too — 4.8's row is kept, not abandoned. */
+  it('asks for a corrupt objective on a Retry while an automatic read does not', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'ok',
+        resultJson: '{"dtoVersion":',
+        failureReason: null,
+      });
+      storeOk(db.path, generation, 'time');
+
+      const automatic = recorder();
+      readAndSpawn(db.path, automatic.spawn);
+      const retry = recorder();
+      retryOptimizedPair(openDrizzle(db.path), KEY, retry.spawn);
+
+      expect(automatic.calls).toEqual([]);
+      expect(retry.calls.map((call) => call.objective)).toEqual(['pri']);
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.4's last arm: the marker suppresses its own key and nothing else. A new
+   * hash allocates a generation, that allocation clears the failed row with
+   * everything else, and the read for the new plan asks for the normal pair.
+   */
+  it("does not let a failed key suppress a new hash's generation", () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'infeasible-window',
+      });
+
+      allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 2);
+      const edited = recorder();
+      const pair = readAndSpawn(db.path, edited.spawn, { ...KEY, inputHash: 'h2' });
+
+      expect(edited.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+      expect(edited.calls.every((call) => call.key.inputHash === 'h2')).toBe(true);
+      expect(pair.pri).toEqual({ kind: 'miss' });
+      expect(storedRowCount(db.path)).toBe(0);
     } finally {
       db.cleanup();
     }

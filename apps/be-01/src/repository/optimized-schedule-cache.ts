@@ -353,6 +353,43 @@ export function readOptimizedPairAndSpawn(
 }
 
 /**
+ * Which objectives an **explicit Retry** asks a solver for (tasks.md 4.4).
+ *
+ * Everything that is not `ok`, which is the mirror of
+ * {@link objectivesToAutoSpawn} spawning on `miss` alone. `ok` is the only
+ * state with an answer to serve, so it is the only one a Retry has no reason to
+ * touch; `failed`, `corrupt` and `plan-infeasible` are all states a person
+ * looking at "Optimization unavailable · Retry" is asking about, and a Retry
+ * that refused one of them would be a button that does nothing on the row the
+ * user is looking at. `plan-infeasible` will very likely answer the same way
+ * again — that is the user's minute to spend, not this layer's to refuse.
+ */
+export function objectivesToRetry(pair: OptimizedPair): readonly SolverObjectiveName[] {
+  return SOLVER_OBJECTIVES.filter((objective) => pair[objective].kind !== 'ok');
+}
+
+/**
+ * The Retry arm of the same seam: read the pair, then ask for everything that
+ * has no answer.
+ *
+ * **A separate entry point rather than a flag on the one above**, so that "an
+ * automatic read can never spawn on a `failed` row" is a property of which
+ * function was called rather than of a parameter's default. 4.5's whole worry
+ * is a `failed` row silently rejoining the auto-spawn set; a boolean with a
+ * default is exactly the shape that lets it, and a caller that meant to read
+ * would have had to pass something to avoid re-solving.
+ */
+export function retryOptimizedPair(
+  db: Reader,
+  key: OptimizedCacheKey,
+  spawn: Spawner,
+): OptimizedPair {
+  const pair = readOptimizedPair(db, key);
+  for (const objective of objectivesToRetry(pair)) spawn({ key, objective });
+  return pair;
+}
+
+/**
  * Who a writer claims to be, and the whole of what {@link writerStillHolds}
  * checks it against.
  *
