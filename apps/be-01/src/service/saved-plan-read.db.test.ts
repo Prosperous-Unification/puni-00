@@ -2,9 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-
 import type { Schedule } from '@wbs/domain';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
 import type { Connection } from '../repository/db';
@@ -14,8 +13,8 @@ import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
-import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import type { PlanInputReads } from '../repository/saved-plan-capture';
+import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
@@ -170,10 +169,13 @@ describe('reading a saved plan back', () => {
     // And what came back is the bytes on disk, byte for byte.
     const bodies = await reader.db.select().from(savedPlanBody);
     const stored = new Map(bodies.map((row) => [row.kind, row.bytes]));
-    expect(read.plan.input.bytes).toBe(stored.get('input'));
+    // Compared with the stored side as the *subject*, so the assertion carries
+    // `string | undefined` and a body that turned out absent fails here rather
+    // than being narrowed away with a `??` before it is ever compared.
+    expect(stored.get('input')).toBe(read.plan.input.bytes);
     expect(read.plan.schedule.present).toBe(true);
     if (!read.plan.schedule.present) return;
-    expect(read.plan.schedule.body.bytes).toBe(stored.get('schedule'));
+    expect(stored.get('schedule')).toBe(read.plan.schedule.body.bytes);
     // The record still names the algorithm it was written under, rather than
     // the one this build would compute — a reader that re-derived would have
     // had to say `slice-leveling-v1` here.
