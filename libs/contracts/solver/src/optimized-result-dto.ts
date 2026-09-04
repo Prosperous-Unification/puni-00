@@ -1,4 +1,10 @@
-import { decodeSchedule, encodeSchedule, type Schedule, type StoredSchedule } from '@wbs/domain';
+import {
+  decodeSchedule,
+  encodeSchedule,
+  type PublicationDecision,
+  type Schedule,
+  type StoredSchedule,
+} from '@wbs/domain';
 
 import {
   SOLVER_OBJECTIVE_TERM_KEYS,
@@ -273,4 +279,55 @@ export function decodeOptimizedResult(raw: unknown): OptimizedResult {
   }
 
   return { publication: kind, objectiveValues, schedule: decodeSchedule(dto['schedule']) };
+}
+
+/**
+ * 4.11b's boundary line: one {@link PublicationDecision} becomes the row.
+ *
+ * The guard lives in `libs/domain` and answers
+ * `chosen: 'optimized' | 'baseline'` rather than naming a `publication`,
+ * because {@link OPTIMIZED_PUBLICATIONS} is this library's vocabulary and a
+ * second copy of those two literals in the engine is the copy that disagrees
+ * after an edit. This function is that mapping, and it is production code
+ * rather than a line each caller writes for itself, because the two arms are
+ * not symmetric and the asymmetry is where a hand-written mapping goes wrong.
+ *
+ * **A `'solver'` row keeps the solver's own numbers.** They are quantised
+ * integer units and {@link decodeOptimizedResult} requires safe integers of
+ * them; the guard's real-domain scores measured the *comparison* and are not
+ * what the run reported.
+ *
+ * **A `'quantisation-floor'` row keeps none of them.** Its schedule IS the
+ * Baseline — real Fast — so every `value` is the real-domain score of the
+ * schedule being stored, `stageValue` and `bound` are null because no stage
+ * produced them, and `status` is `'unknown'`. 2.4's `value <= stageValue`
+ * relation is deliberately not applied: it is a within-stage relation and has
+ * no meaning across the quantised and real domains.
+ *
+ * @param decision What the guard returned, carrying the schedule to store and
+ *   its real-domain score.
+ * @param solverValues What the run itself reported, used only on the
+ *   `'optimized'` arm.
+ */
+export function publishOptimizedResult(
+  decision: PublicationDecision,
+  solverValues: Readonly<Record<SolverObjectiveTerm, StoredObjectiveValue>>,
+): OptimizedResult {
+  if (decision.chosen === 'optimized') {
+    return {
+      publication: 'solver',
+      objectiveValues: solverValues,
+      schedule: decision.schedule,
+    };
+  }
+  const objectiveValues = {} as Record<SolverObjectiveTerm, StoredObjectiveValue>;
+  for (const term of SOLVER_OBJECTIVE_TERMS) {
+    objectiveValues[term] = {
+      value: decision.values[term],
+      stageValue: null,
+      bound: null,
+      status: 'unknown',
+    };
+  }
+  return { publication: 'quantisation-floor', objectiveValues, schedule: decision.schedule };
 }
