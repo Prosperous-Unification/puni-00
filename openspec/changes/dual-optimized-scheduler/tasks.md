@@ -2036,7 +2036,7 @@ review`, no self-merge.
       is a case about this function, and there are six of them besides the
       spawn count.
 
-- [ ] 4.9 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
+- [x] 4.9 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
       is what produces the `schedule` member of `resultJson`; the offsets map
       is never persisted or
       returned as a schedule. Fast has **no** annotation-only pass to call, so
@@ -2117,17 +2117,26 @@ review`, no self-merge.
       seam, `pinFloor(key, resolved, pinned, windowFrom)`, holds the whole
       three-way comparison — equal keeps the resolved `boundBy`, strictly later
       is `'optimizer'` after `jointWindowFor(…, pinned)` answers `pinned`, and
-      strictly earlier is `ScheduleInvalidOptimizedStartError`. The re-ask on
-      the later branch also **replaces** the window with the pin's own, whose
-      `binding` is empty by construction, which is what keeps
-      `annotateCapacity`'s render invariant true under a non-`capacity` floor.
+      strictly earlier is `ScheduleInvalidOptimizedStartError`. **Both of those
+      comparisons are `withinDrift`, not `===`** (run 40 chunk 2 for the floor,
+      run 41 chunk 1 for the pool re-ask), and the accepted start on each equal
+      branch is the PLAN's own double — the floor's, and the pool release's —
+      never the pin's, so the schedule stays on one axis. The re-ask on the
+      later branch also **replaces** the window with the one asked from that
+      accepted instant, whose `binding` is empty because the search is then its
+      own fixpoint, which is what keeps `annotateCapacity`'s render invariant
+      true under a non-`capacity` floor.
       The behaviour-preservation test is green over all eight corpus cases,
       comparing `slices`, `workItems` and both wait counters rather than the
-      dates. **What is still open is the entry point:**
-      `materialiseOptimized(canonicalInput, offsets)` by that name, dequantising
-      the offsets and resolving solver node ids onto slice keys, belongs to
-      4.11's wiring — today the caller must hand `schedule()` a map of day
-      values it has already dequantised itself.
+      dates. **The entry point closed in run 40:**
+      `materialiseOptimized` exists by that name in
+      `libs/contracts/solver/src/materialise-optimized.ts` — **not** in
+      `libs/domain`, deliberately: `schedule()` already owns the one placement
+      pass and the quantum is a fact about CP-SAT the domain is kept clear of.
+      It takes Fast's own six arguments plus the wire `offsets`, which are keyed
+      by `sliceKey` already, so there is no node-id resolution step and the
+      whole conversion is one division plus two refusals. Details and both
+      refusals: 4.11.
 - [x] 4.10 The floor precedence is the complete ordered list `projectStart |
 predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       earlier list stopped at `notBefore` and would have labelled a
@@ -2389,7 +2398,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       so in its own comment rather than asserting against a fixture and
       calling it the scorer. Tick this only when that function exists and the
       case runs against it.
-- [ ] 4.11c **The capacity arrow's referent is the chosen pool, and it is
+- [x] 4.11c **The capacity arrow's referent is the chosen pool, and it is
       tested** (Sol r13 Minor 5 renumbered this from a duplicate `4.11b`;
       `4.11b` is the real-domain publication guard and is referenced as such
       by 2.x and 6.x, so a tracker could have closed one while skipping the
@@ -2407,6 +2416,28 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       valid finishers finish at the same instant — select from the union and
       the emitted `resourcePredecessorId` must belong to a pool other than
       `capacityTeamId`, failing the case.
+      **CLOSED RUN 41 CHUNK 2 — AND THE FIXTURE ALREADY EXISTED.** The premise
+      above ("4.9's and 4.11's existing cases prove pool filtering and team
+      selection but not the referent, so an implementation selecting from the
+      union passes all of them") is **false as written**, measured rather than
+      argued. The case at `schedule-joint-capacity.test.ts:225` — "chooses a
+      tied pool and referent only from blockers that finish by the accepted
+      start" — IS this
+      fixture: `alpha-hold` and `beta-short` both finish at day 4, both pools
+      bind, `capacityTeamId` falls to the pool-id tie-break and names
+      `team-alpha`, and `beta-short` is placed FIRST — so the union's own
+      tie-break points at the pool the sentence does not name. **M5**, the exact
+      mutation this item specifies (`capacityTeamBlockers` replaced by
+      `window.blocking.filter(finishesByStart)` in the referent loop, the
+      `finishesByStart` filter left intact so only the pool constraint is
+      removed), reddens it at line 253: `Received: "beta-short step-dev"` beside
+      `capacityTeamId: 'team-alpha'`. 434 pass / 1 fail with that case alone.
+      A second fixture was written in this chunk and then **deleted rather than
+      kept**, for run 39's reason: it asserted the same rule and its own
+      mutation reddened two cases where it should have reddened one. What it
+      separated that :225 does not — a union rule broken by NODE INDEX rather
+      than placement order — is already dead by
+      `names the blocker placed first, not the one whose key sorts first`.
 - [x] 4.12 `CACHE_DTO_VERSION`, `encodeSchedule`, `decodeSchedule`
       in `libs/domain`: both `Map`s become arrays of entries sorted by key, and
       `waitingForPerson`, `waitingForCapacity` and `eventsVisited` are stored,
