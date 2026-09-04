@@ -148,12 +148,24 @@ export class WorkItemRepository implements WorkItemStore {
    * unchanged plan answer the same arrays — design.md D6, and the property
    * `EffectiveTeams.teamIds`, `EffectiveTags.tagIds` and
    * `EffectiveServices.serviceIds` all document.
+   *
+   * **And the work-item select carries its own `ORDER BY work_item.id`** for
+   * exactly that reason, one level up (`dual-optimized-scheduler/tasks.md`
+   * §1.7). Without it the row order is whatever SQLite returned, and this array
+   * is not merely displayed: `slicesOf` walks it in order and emits the
+   * `slices` argument in that order, which is a **scheduling** input — the
+   * intra-item step order is real precedence. An argument tuple that varies
+   * between two reads of an unchanged project is a Fast defect before it is a
+   * cache one, and it is what made the canonical form group slices by work item
+   * rather than hash the array it was handed
+   * (`canonical-schedule-input.ts`, (c)).
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
     const rows = await this.db
       .select(WORK_ITEM_COLUMNS)
       .from(workItem)
-      .where(eq(workItem.projectId, projectId));
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItem.id));
     const joined = await this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)

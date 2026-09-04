@@ -178,6 +178,43 @@ function labelServices(workItemId: string, serviceIds: readonly string[]): void 
   }
 }
 
+describe('the order the work-item select answers in', () => {
+  /**
+   * Task 1.7 of `dual-optimized-scheduler`. The select had no `ORDER BY`, so the
+   * row order was whatever SQLite chose to return — in practice the insert
+   * order, which is not a fact about the plan.
+   *
+   * This array is not merely displayed. `slicesOf` walks it in order and emits
+   * the `slices` argument in that order, and the intra-item step order is real
+   * precedence, so two reads of an unchanged project could hand Fast two
+   * different argument tuples. That is a scheduling defect before it is a cache
+   * one.
+   *
+   * The ids are written rather than generated because the whole assertion is
+   * about their order: with `crypto.randomUUID` the insert order agrees with id
+   * order often enough that the watched red would be a coin toss. Written in
+   * the opposite order to their ids for the same reason.
+   */
+  it('answers in work_item.id order, whatever order the rows were written in', async () => {
+    const later = {
+      ...row(null, 10, 'Written first'),
+      id: 'ffffffff-0000-4000-8000-000000000001',
+    };
+    const earlier = {
+      ...row(null, 20, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000002',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+
+    const first = await repo.listByProject(projectId);
+    const second = await repo.listByProject(projectId);
+
+    expect(first.map((each) => each.id)).toEqual([earlier.id, later.id]);
+    expect(second.map((each) => each.id)).toEqual(first.map((each) => each.id));
+  });
+});
+
 describe('the services on the row', () => {
   it('reads every service on the row back, in one order', async () => {
     // Task 10.2: the dimension is `work_item_service` and `listByProject` reads
