@@ -395,7 +395,7 @@ check-that-cannot-fail failure R5 names.
       **jointly** is a work item's identity, and `a work item renamed` now pins
       it — measured at `05b78008`: `rows[].id` alone **25 / 0**,
       `slices[].workItemId` alone **25 / 0**, both together **24 / 1** and it is
-      that case. Domain **403 pass / 0 fail across 31 files**.
+      that case. Domain **405 pass / 0 fail across 31 files**.
 
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
