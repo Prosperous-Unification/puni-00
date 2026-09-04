@@ -51,16 +51,38 @@ function defect(message: string): Error {
   return new Error(`stored schedule: ${message}`);
 }
 
+/**
+ * A stored value as a message may quote it.
+ *
+ * Not `JSON.stringify` alone: its lib signature promises a `string` and it
+ * returns `undefined` for `undefined`, a function and a symbol, so every message
+ * below would read `... is not an object: undefined` for three different
+ * defects — and the `?? typeof value` that would fix it is unreachable code as
+ * far as the type checker is concerned, which is a lint error rather than a
+ * guard. The branch is taken on the type instead, where it is true.
+ */
+function show(value: unknown): string {
+  switch (typeof value) {
+    case 'object':
+    case 'string':
+    case 'number':
+    case 'boolean':
+      return JSON.stringify(value);
+    default:
+      return typeof value;
+  }
+}
+
 function asRecord(value: unknown, what: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw defect(`${what} is not an object: ${JSON.stringify(value) ?? typeof value}`);
+    throw defect(`${what} is not an object: ${show(value)}`);
   }
   return value as Record<string, unknown>;
 }
 
 function asNumber(value: unknown, what: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw defect(`${what} is not a finite number: ${JSON.stringify(value) ?? typeof value}`);
+    throw defect(`${what} is not a finite number: ${show(value)}`);
   }
   return value;
 }
@@ -76,14 +98,14 @@ function asNumber(value: unknown, what: string): number {
  */
 function readEntries<T>(raw: unknown, field: string): Map<string, T> {
   if (!Array.isArray(raw)) {
-    throw defect(`${field} is not an array: ${JSON.stringify(raw) ?? typeof raw}`);
+    throw defect(`${field} is not an array: ${show(raw)}`);
   }
   const out = new Map<string, T>();
   for (const entry of raw) {
     const { key, value } = asRecord(entry, `an entry of ${field}`);
     if (typeof key !== 'string') {
       throw defect(
-        `an entry of ${field} has a non-string key: ${JSON.stringify(key) ?? typeof key}`,
+        `an entry of ${field} has a non-string key: ${show(key)}`,
       );
     }
     if (out.has(key)) {
@@ -161,7 +183,7 @@ export function decodeSchedule(raw: unknown): Schedule {
   const version = dto['dtoVersion'];
   if (version !== CACHE_DTO_VERSION) {
     throw defect(
-      `unknown dtoVersion ${JSON.stringify(version) ?? typeof version}; this release reads ${CACHE_DTO_VERSION}`,
+      `unknown dtoVersion ${show(version)}; this release reads ${String(CACHE_DTO_VERSION)}`,
     );
   }
 

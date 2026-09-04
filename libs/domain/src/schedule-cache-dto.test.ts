@@ -128,13 +128,16 @@ describe('what a stored schedule refuses', () => {
     const payload = { ...stored(realPlan()), dtoVersion: CACHE_DTO_VERSION + 1 };
 
     expect(() => decodeSchedule(payload)).toThrow(
-      `stored schedule: unknown dtoVersion ${CACHE_DTO_VERSION + 1}; this release reads ${CACHE_DTO_VERSION}`,
+      `stored schedule: unknown dtoVersion ${String(CACHE_DTO_VERSION + 1)}; this release reads ${String(CACHE_DTO_VERSION)}`,
     );
   });
 
   it('refuses one key carried twice, rather than taking the last of them', () => {
     const payload = stored(realPlan());
-    const first = payload.slices[0];
+    // `.at(0)` rather than `[0]`: this package does not compile with
+    // `noUncheckedIndexedAccess`, so an index read is typed non-optional and the
+    // fixture guard below would be dead code the linter refuses.
+    const first = payload.slices.at(0);
     if (first === undefined) throw new Error('broken fixture: no slices');
     payload.slices.push({ ...first });
 
@@ -145,7 +148,7 @@ describe('what a stored schedule refuses', () => {
 
   it('refuses a key that disagrees with the entry beside it', () => {
     const payload = stored(realPlan());
-    const first = payload.slices[0];
+    const first = payload.slices.at(0);
     if (first === undefined) throw new Error('broken fixture: no slices');
     // The entry still describes `a`; the key now names a slice that is not in
     // the plan at all. Deliberately not `b`'s key — that collides with `b`'s own
