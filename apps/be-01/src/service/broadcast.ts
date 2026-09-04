@@ -222,6 +222,18 @@ export class DeferringBroadcaster implements Broadcaster {
    * today. That predates the saved-plan work and is filed rather than widened
    * into it (TASK-256); the fix there is this accessor or a per-caller hold, and
    * it is a decision about the batch contract rather than a wiring change.
+   *
+   * **Bypassing the queue is not by itself enough, and that was this accessor's
+   * second mistake.** Skipping the hold means the publish reaches
+   * `GatewayBroadcaster` while the batch's transaction is still open, and the
+   * event log shares its connection with that transaction — so the row went in
+   * as a savepoint and the batch's rollback erased it after the push had left.
+   * Sol's Critical on PR 204. The durable half is now the broadcaster's own
+   * problem and is solved for every publisher at once: it records under the
+   * write lock (`GatewayBroadcasterOptions.lock`) and pushes outside it. What is
+   * left here is the *capture* half alone — being queued into somebody else's
+   * batch and dropped with it — which is what this accessor is for and all it
+   * claims.
    */
   get undeferred(): Broadcaster {
     return this.inner;

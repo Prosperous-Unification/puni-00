@@ -32,6 +32,7 @@ import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { RetentionTimer } from './service/retention-timer';
 import { StepService } from './service/step.service';
 import { WorkItemService } from './service/work-item.service';
+import type { WriteLock } from './service/write-lock';
 
 /**
  * How much of the event stream is kept, and how often.
@@ -49,6 +50,17 @@ const REPLAY_BUFFER_MAX_AGE_MS = 5 * 60_000;
 
 export interface ServicesOptions {
   db: Drizzle;
+  /**
+   * The process's one write lock, which `boot.ts` must hand to **both** this
+   * factory and `buildApp`'s `writes.lock`.
+   *
+   * The broadcaster built here records each event under it so the row can never
+   * land inside a command batch's outer transaction on `db`; the runner opens
+   * that transaction under the same lock. Two locks would each look healthy and
+   * exclude nothing — the same failure mode the one-broadcaster and one-buffer
+   * comments below describe.
+   */
+  lock: WriteLock;
   logger: Logger;
   jwtKey: string;
   gwUrl: string;
@@ -121,6 +133,10 @@ export function buildServices(opts: ServicesOptions): BeServices {
     eventLog,
     clock,
     buffer: replayBuffer,
+    // `eventLog` is on `opts.db`, which is the connection a batch holds its
+    // outer transaction open on, so the durable record has to wait for that
+    // transaction to close. See `GatewayBroadcasterOptions.lock`.
+    lock: opts.lock,
     push: new PushClient({ gwUrl: opts.gwUrl, secret: opts.internalAuthSecret }),
     // The event is already in the durable log and the mutation already
     // committed, so a client that reconnects still gets it on replay.

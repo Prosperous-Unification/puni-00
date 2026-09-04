@@ -1,0 +1,186 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+
+import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
+import { DrizzleEventLogRepo } from '../repository/event-log';
+import { runMigrations } from '../repository/migrate';
+import { subscriptionFor } from './broadcast';
+import { GatewayBroadcaster } from './gateway-broadcaster';
+import { PushClient } from './push-client';
+import { ReplayBuffer } from './replay-buffer';
+import { WriteLock } from './write-lock';
+
+const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
+
+/**
+ * The event log survives an unrelated batch's rollback.
+ *
+ * Sol's Critical on PR 204, verified against the code before it was written
+ * down. `services.ts` builds the event log on the one shared `Drizzle` handle,
+ * which is the handle `PlanCommandRunner` holds its outer transaction open on
+ * (ADR 0007). A publisher that is not part of the batch — a saved-plan save, a
+ * step add, `DeferringBroadcaster.send` draining a *previous* batch's queue —
+ * used to write its `recordEvent` row as a savepoint inside whatever
+ * transaction happened to be open. The rollback then erased the durable row and
+ * the sequencer advance **after** the live push had already left the process: a
+ * connected collaborator saw the change, a reconnecting one replayed nothing,
+ * and the sequencer could hand the number out twice.
+ *
+ * On a real database, with the real lock and the real outer transaction,
+ * because the whole defect is a property of the connection those three share.
+ * `recordingBroadcaster` has no transaction at all, so no fixture can see this.
+ */
+describe('the durable record of a project event', () => {
+  const dirs: string[] = [];
+  let db: ReturnType<typeof openDrizzle>;
+
+  beforeEach(() => {
+    const dir = mkdtempSync(join(tmpdir(), 'wbs-broadcast-durability-'));
+    dirs.push(dir);
+    const path = join(dir, 'test.db');
+    runMigrations(path, FOLDER);
+    db = openDrizzle(path);
+  });
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function bootstrap(): {
+    broadcaster: GatewayBroadcaster;
+    eventLog: DrizzleEventLogRepo;
+    lock: WriteLock;
+    buffer: ReplayBuffer;
+  } {
+    const eventLog = new DrizzleEventLogRepo(db);
+    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
+    const lock = new WriteLock();
+    return {
+      eventLog,
+      lock,
+      buffer,
+      broadcaster: new GatewayBroadcaster({
+        eventLog,
+        buffer,
+        lock,
+        // A push that answers immediately, so what these two cases measure is
+        // what survived in the log and never a delivery that timed out. The
+        // real `PushClient` against an unroutable host would sit in its
+        // 500ms→30s backoff for about a minute per event.
+        push: { push: () => Promise.resolve({ delivered: 1 }) } as unknown as PushClient,
+        onPushFailed: () => undefined,
+      }),
+    };
+  }
+
+  /**
+   * A batch that takes the lock, opens the transaction, waits, and refuses.
+   *
+   * `PlanCommandRunner.execute` in miniature, and deliberately not the runner
+   * itself: what has to be reproduced is the *window* — the transaction open
+   * across an await — and driving the real runner to a refusal at a controlled
+   * instant would need a fake command service whose only job is to hold this
+   * same barrier.
+   */
+  function refusingBatch(lock: WriteLock): { done: Promise<void>; refuse: () => void } {
+    let open!: () => void;
+    const held = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const transactions = drizzleOuterTransaction(db);
+    const done = lock.run(async () => {
+      transactions.begin();
+      await held;
+      transactions.rollback();
+    });
+    return { done, refuse: open };
+  }
+
+  it('survives an unrelated batch refusing while the publish is in flight', async () => {
+    const { broadcaster, eventLog, lock, buffer } = bootstrap();
+    const projectId = 'p-1';
+    const subscription = subscriptionFor(projectId);
+    expect(await eventLog.latestSeq(subscription)).toBe(-1);
+
+    const batch = refusingBatch(lock);
+    // Issued while the batch's transaction is open — the window the defect
+    // lived in. It queues behind the lock rather than recording into it.
+    const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
+    batch.refuse();
+    await batch.done;
+    await published;
+
+    // The publish is the only writer here, so its event is seq 0 and the
+    // rollback took nothing with it.
+    const replayed = await eventLog.rangeSince(subscription, -1);
+    expect(replayed.map((each) => each.message)).toEqual([{ type: 'saved_plans_changed' }]);
+    expect(await eventLog.latestSeq(subscription)).toBe(0);
+    // And the in-memory replay path agrees with the durable one, rather than
+    // holding a sequence the log no longer knows about.
+    expect(buffer.since(subscription, -1).map((each) => each.message)).toEqual([
+      { type: 'saved_plans_changed' },
+    ]);
+  });
+
+  it('records after the batch commits too, so the two orders agree', async () => {
+    const { broadcaster, eventLog, lock } = bootstrap();
+    const projectId = 'p-2';
+    const subscription = subscriptionFor(projectId);
+
+    let open!: () => void;
+    const held = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const transactions = drizzleOuterTransaction(db);
+    const batch = lock.run(async () => {
+      transactions.begin();
+      await held;
+      transactions.commit();
+    });
+    const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
+    open();
+    await batch;
+    await published;
+
+    expect(await eventLog.latestSeq(subscription)).toBe(0);
+  });
+
+  it('does not hold the write lock across the push', async () => {
+    // The half of `PlanCommandRunner`'s rule this change could have broken:
+    // under the lock the record, outside it the push. The fake push never
+    // settles until this test lets it, standing in for the ~1 minute
+    // `PushClient`'s six retries can take against a gateway that is down.
+    let deliver!: () => void;
+    const inFlight = new Promise<void>((resolve) => {
+      deliver = resolve;
+    });
+    const eventLog = new DrizzleEventLogRepo(db);
+    const lock = new WriteLock();
+    const broadcaster = new GatewayBroadcaster({
+      eventLog,
+      buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
+      lock,
+      push: {
+        push: () => inFlight.then(() => ({ delivered: 1 })),
+      } as unknown as PushClient,
+    });
+
+    const published = broadcaster.publish('p-3', { type: 'saved_plans_changed' });
+    // A later holder starts while that push is still open. If the lock covered
+    // it this would deadlock and the test would time out rather than fail.
+    let ran = false;
+    await lock.run(async () => {
+      ran = true;
+    });
+    expect(ran).toBe(true);
+    // And the row was already durable before the push was let go, which is the
+    // ordering the replay path depends on.
+    expect(await eventLog.latestSeq(subscriptionFor('p-3'))).toBe(0);
+
+    deliver();
+    await published;
+  });
+});

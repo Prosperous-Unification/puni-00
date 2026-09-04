@@ -12,6 +12,7 @@ import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
 import { buildServices } from './services';
 import { projectRow } from './testing/project-fixture';
+import { WriteLock } from './service/write-lock';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
@@ -29,6 +30,7 @@ function bootstrap() {
   const db = openDrizzle(path);
   const services = buildServices({
     db,
+    lock: new WriteLock(),
     logger: createLogger({ service: 'be-01' }),
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
