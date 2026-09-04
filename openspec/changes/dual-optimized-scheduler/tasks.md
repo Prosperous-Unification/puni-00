@@ -2108,11 +2108,64 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       grow past the ceiling without producing `oom`; remove the
       `num_search_workers` setting and the effective-configuration assertion
       must fail.
-- [ ] 5.5 **Proven by** the determinism case under the pinned config only —
+- [x] 5.5 **Proven by** the determinism case under the pinned config only —
       `num_search_workers=1`, fixed `random_seed`, and CP-SAT's
       **deterministic** time limit, never a wall-clock assertion. Production is
       multi-worker wall-clock and explicitly not reproducible; the case asserts
       the pinned config alone.
+
+      **Landed** as `libs/solver-py/tests/test_determinism.py`. The mechanism
+      already existed — `SolverConfig.deterministic_time_per_stage` selects
+      `max_deterministic_time` in `_configure`, added with 5.2 — so this item
+      was only ever the case, and the case is where the interesting parts are.
+
+      **The instance has to be tied or the whole file is vacuous.** `tied()` is
+      two interchangeable slices in a capacity-1 pool: both orders carry
+      `PRIORITY 6 / MAKESPAN 4 / MOVEMENT 2`, so the placement is a free choice
+      the search makes rather than something the arithmetic forces. On an
+      instance with a unique optimum, "the same answer twice" would hold under
+      any configuration at all, including the ones 5.5 says are not
+      reproducible.
+
+      **Three claims, and the third is the one 5.5 words carefully:** repeated
+      pinned solves return the identical _whole response_ (bounds and per-term
+      statuses too, not only offsets); the objective _values_ are seed- and
+      worker-independent, because an optimum is a number and that is what
+      production still promises when the placement does not; and the limit in
+      force is read off `solver.parameters`, never measured. There is no
+      `time.monotonic()` in the file — a determinism test that timed something
+      would be the first place 5.6's flake appeared.
+
+      **`test_no_case_here_requires_two_production_solves_to_place_alike` is
+      deliberately not an assertion about two production solves agreeing _or_
+      differing.** Asserting nondeterminism would fail exactly when the solver
+      got more stable. It asserts only that a production solve is still a valid
+      answer.
+
+      **An unset CP-SAT limit is `inf`, not `0`, and the first version of this
+      file went red proving it.** `0` there means "stop immediately", while
+      `_configure`'s own comment records that a zero-length _budget_ would read
+      as no limit — the opposite convention one layer away. So "in force" means
+      **finite**, and `assertTrue(math.isinf(...))` is the assertion that the
+      other limit does not bind.
+
+      **Watched reds** (`/home/puni1/mut4-t219-r17.py`, `solve.py` restored and
+      byte-compared), against the 127-test suite:
+
+      | mutation | result |
+      |---|---|
+      | `num_search_workers` never set | 2 fail — both parameter cases |
+      | deterministic branch never taken | 1 fail — the pinned parameter case |
+      | `num_search_workers` forced to 8 | 2 fail — parameter cases **only** |
+
+      **That last row is the honest limit of this case.** Forcing eight search
+      workers does _not_ red `ThePinnedConfigurationRepeats`: a two-slice model
+      is too small for CP-SAT's parallel search to diverge on, so the pin is
+      proved by the parameters it sets and not by an observed divergence. An
+      instance large enough to diverge would be an instance whose runtime is a
+      measurement, which is the trade 5.5 and 5.6 both refuse. Recorded rather
+      than papered over.
+
 - [ ] 5.6 **Proven by** the budget case, built to be flake-free: a deterministic
       limit small enough that the instance is provably unsolved at it (an
       instance whose search tree is measured, not guessed) returns `feasible`,
