@@ -239,17 +239,23 @@ describe("the materialiser's annotations, through the plan read", () => {
     // it, and it still held nothing up. A team named here would draw an arrow
     // from a bar that waited for nobody.
     //
-    // The pool has room — size 2 with one other tenant — so the pin is legal
-    // and the re-ask inside `pinFloor` returns its own instant with an empty
-    // binding, which is what makes the invariant true rather than lucky.
+    // The pin is placed where the annotation could plausibly go wrong rather
+    // than somewhere safe: pool size 1, the only other tenant releasing its
+    // slot at exactly day 3, and the optimizer's pin on that instant. So the
+    // conservative scan inside `annotateCapacity` DOES see a reservation that
+    // finishes by this start — it is a capacity predecessor by every test the
+    // function applies except the one that matters, which is that this slice
+    // never waited for the pool.
     //
-    // Watched red: `annotateCapacity`'s guard widened from
-    // `boundBy === 'capacity'` to `boundBy === 'capacity' || boundBy ===
-    // 'optimizer'`, so the optimizer slice named the team whose pool it
-    // happened to sit in. This failed on `capacityTeamId` receiving
-    // `'team-platform'` where `null` was expected. Watched 2026-09-04.
-    await capacity.set(projectId, PLATFORM, 2, WROTE);
-    const hold = await leaf('Hold', 6, PLATFORM);
+    // Watched red: `annotateCapacity`'s `boundBy === 'capacity' ?
+    // window.blocking.filter(finishesByStart) : []` reduced to
+    // `window.blocking.filter(finishesByStart)` — the gate that makes the set
+    // a statement about *why* the slice is where it is rather than about what
+    // happened to be running. This failed on `capacityPredecessorIds`
+    // receiving the holding slice's id where `[]` was expected. Watched
+    // 2026-09-04.
+    await capacity.set(projectId, PLATFORM, 1, WROTE);
+    const hold = await leaf('Hold', 3, PLATFORM);
     const rewire = await leaf('Rewire', 2, PLATFORM);
     const tree = await servedBy({
       [sliceKey(hold, stepId)]: units(0),
