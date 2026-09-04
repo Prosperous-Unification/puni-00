@@ -344,13 +344,15 @@ describe('reading a saved plan back', () => {
     });
   });
 
-  it('watched negative: a read that skips the recomputation accepts the flipped byte', async () => {
-    // The assertion that makes the refusals above mean something. Recomputing
-    // the digest and comparing it against the header is the only step between
-    // this record and a plan the reader would hand over as saved; here the same
-    // record is verified with the header's own hash restated over the *new*
-    // bytes, which is what a reader that trusted the column would effectively
-    // be doing.
+  it('watched negative: restating one hash over the damage does not launder the record', async () => {
+    // The assertion that makes the refusals above mean something, and it got
+    // STRONGER when 5.2 landed. Flip a byte, then re-stamp `input_sha256` over
+    // the new bytes the way a "self-healing" reader would: 5.1b's own check is
+    // now satisfied — the stored digest really is the digest of the stored
+    // bytes — and the record is still refused, because the schedule's
+    // `schedule_input_sha256` still names the input that was actually
+    // scheduled. One `UPDATE` cannot make a tampered record consistent; that is
+    // the whole point of storing the link rather than assuming it.
     await saveUnderTheOlderAlgorithm();
     reader.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE kind = 'input'`);
     const rows = await reader.db.select().from(savedPlanBody);
@@ -358,14 +360,21 @@ describe('reading a saved plan back', () => {
     expect(flipped).toBeDefined();
     if (flipped === undefined) return;
     const headers = await reader.db.select().from(savedPlan);
-    // Trusting the stored column: the two disagree, which is the fault.
+    // Trusting the stored column: the two disagree, which is the fault 5.1b
+    // catches.
     expect(bodySha256(flipped.bytes)).not.toBe(headers[0].inputSha256);
-    // And re-stamping the header the way a "repair" would makes the record read
-    // clean again — which is exactly why 5.1b forbids one.
+    const beforeRepair = await service().read('sp-1');
+    if (beforeRepair.outcome !== 'corrupt') throw new Error('expected a hash refusal');
+    expect(beforeRepair.refusal.reason).toBe('body_hash_mismatch');
+
     reader.db.run(
       `UPDATE saved_plan SET input_sha256 = '${bodySha256(flipped.bytes)}' WHERE id = 'sp-1'`,
     );
     const repaired = await service().read('sp-1');
-    expect(repaired.outcome).toBe('read');
+    if (repaired.outcome !== 'corrupt') throw new Error('a restated hash laundered the record');
+    // Not the same refusal: the byte check now passes and the LINK is what
+    // refuses. Asserting the reason changed is what proves the second check is
+    // doing work the first cannot.
+    expect(repaired.refusal.reason).toBe('schedule_input_mismatch');
   });
 });
