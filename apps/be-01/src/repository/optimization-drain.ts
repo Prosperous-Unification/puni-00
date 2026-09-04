@@ -349,18 +349,23 @@ export function reconcileOptimizationDrains(
   let waiting = 0;
 
   const sweep = (projectId: string, contractVersion?: string): void => {
-    reclaimed += db
-      .delete(solverSlot)
-      .where(
-        and(
-          eq(solverSlot.projectId, projectId),
-          ...(contractVersion === undefined
-            ? []
-            : [eq(solverSlot.contractVersion, contractVersion)]),
-          lte(solverSlot.admittedDeadlineAt, now),
-        ),
-      )
-      .run().changes;
+    // Counted by reading the rows rather than by the delete's own row count:
+    // `.run()` is typed `void` here, so `.changes` is reachable at runtime but
+    // untyped, and a number nobody can typecheck is a number nobody can trust.
+    // The two statements share a transaction so the count is of the rows this
+    // pass actually removed.
+    reclaimed += db.transaction((tx) => {
+      const expiring = and(
+        eq(solverSlot.projectId, projectId),
+        ...(contractVersion === undefined ? [] : [eq(solverSlot.contractVersion, contractVersion)]),
+        lte(solverSlot.admittedDeadlineAt, now),
+      );
+      const count = tx.select().from(solverSlot).where(expiring).all().length;
+      tx.delete(solverSlot).where(expiring).run();
+      return count;
+    });
+    // Outside that transaction on purpose: `finishOptimizationDrain` opens its
+    // own, and its precondition has to be read after the reclaim has committed.
     const outcome = finishOptimizationDrain(db, projectId, contractVersion);
     if (outcome === 'finished') finished += 1;
     if (outcome === 'waiting') waiting += 1;
