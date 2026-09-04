@@ -449,9 +449,37 @@ comparison UI) and start only after slice 6 is merged.
 - [ ] 6.4 A node without the routes answers a typed unavailable outcome; the
       client renders "not available on this node yet". Negative: return a bare 404
       and watch the client test show an error state instead.
+      **BLOCKED ON ORDER, not on a decision — established 2026-09-04 and written
+      down so the next run does not re-discover it.** Both halves of this item
+      are client-side and `apps/fe-01` has *no* saved-plan code at all
+      (`grep -rl 'saved-plans\|savedPlan' apps/fe-01/src` is empty): there is no
+      request for a node to refuse and no surface to render the refusal in. The
+      client's saved-plan API layer is built by **slice 8**, so 6.4 lands with
+      8.1 rather than before it, and 6.5's closing gate should not wait on it.
+      **The mechanism is settled here so 8.1 implements it in one pass:** the
+      discriminator is the served **OpenAPI document**, not a status code. A node
+      that predates the migration serves a document without the five paths, so a
+      client asks *before* it requests and never has to tell an absent route from
+      an absent plan. The alternative — a typed body on an unmatched route — was
+      rejected on a measured cost, not a guess about Elysia: `be-01` has **no
+      `onError` at any level today** (`grep -rn onError apps/be-01/src` finds
+      only a retention timer's callback and two controllers' inline `ValidationError`
+      arms), so typing an unmatched route means introducing app-wide error
+      handling, which changes the 404 shape of every route in the app and puts
+      ~1300 existing assertions in the blast radius of one client message.
+      `controller/openapi-document.test.ts`
+      already asserts the five paths are in what this app serves, which is the
+      positive half of the check the client will make. The negative stays exactly
+      as written — serve the document without the paths, and watch the client
+      test show an error state rather than "not available on this node yet".
 - [ ] 6.5 Gate: `bunx nx run-many -t test lint typecheck` on h2puni, and
       `bun x @fission-ai/openspec validate --all --json`. Record the output in
-      verify.md. **TASK-231 ends here.**
+      verify.md. **TASK-231 ends here.** Given 6.4's recorded ordering blocker,
+      the recommendation is that TASK-231 closes at this gate with 6.4 carried
+      into slice 8 — every *storage and route* obligation the task names is then
+      met, and the one open item is a client rendering with no client to render
+      it. That is a scope call, so it is written as a recommendation rather than
+      taken: whoever runs this gate decides, and records which they chose.
 
 ## 7. The diff
 
