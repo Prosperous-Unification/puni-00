@@ -2,9 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { eq } from 'drizzle-orm';
-
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { eq } from 'drizzle-orm';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
 import type { WriteStamp } from './index';
@@ -146,7 +145,10 @@ function generationRows(): string[] {
     .select()
     .from(optimizationGeneration)
     .all()
-    .map((row) => `${row.projectId}/${row.contractVersion}/${row.admissionState}/${row.cancelEpoch}`)
+    .map(
+      (row) =>
+        `${row.projectId}/${row.contractVersion}/${row.admissionState}/${String(row.cancelEpoch)}`,
+    )
     .sort();
 }
 
