@@ -147,12 +147,14 @@ describe('what a stored schedule refuses', () => {
     const payload = stored(realPlan());
     const first = payload.slices[0];
     if (first === undefined) throw new Error('broken fixture: no slices');
-    // The entry still describes `a`; the key now says `b`. Look either one up
-    // and you get the other's placement.
-    first.key = sliceKey('b', DEV);
+    // The entry still describes `a`; the key now names a slice that is not in
+    // the plan at all. Deliberately not `b`'s key — that collides with `b`'s own
+    // entry and the duplicate guard fires first, which is a different case and
+    // was watched passing for the wrong reason before this comment existed.
+    first.key = sliceKey('zzz', DEV);
 
     expect(() => decodeSchedule(payload)).toThrow(
-      `stored schedule: slices carries the key ${JSON.stringify(sliceKey('b', DEV))} against an entry whose own key is ${JSON.stringify(sliceKey('a', DEV))}`,
+      `stored schedule: slices carries the key ${JSON.stringify(sliceKey('zzz', DEV))} against an entry whose own key is ${JSON.stringify(sliceKey('a', DEV))}`,
     );
   });
 
