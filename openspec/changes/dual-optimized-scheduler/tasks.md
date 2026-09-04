@@ -734,6 +734,33 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       `sliceKey`, which belongs to no named tuple at all. The asserted counts in
       `wire-vocabulary.test.ts` are the ratchet either way, and 2.1 stays
       unticked until the decision lands.
+      **DECIDED (run 23): the union reading, and the nine survivors are a
+      rewrite list rather than a rule problem.** Three grounds, in order. It
+      accepts strictly less: 9 against 12, and every sentence it stops
+      rejecting was measured to be correct prose. It keeps the property rule
+      (b) was written for, because a name in no named tuple still fails — the
+      watched red is the proof, not the argument. And its one hole is closed
+      and mutation-proved rather than reasoned about. **Recorded as an
+      assumption, with what would falsify it:** a real drift whose stale name
+      is a legitimate member of some other named tuple that also contributes
+      two further names to the same run. That run is admitted, and no bar on
+      overlap count fixes it — the second tuple is genuinely present. If one is
+      ever found, the answer is the other branch: rewrite the sentences and
+      keep the single-winner reading, which cannot be fooled that way.
+      **THE NINE, so the next run starts from a list and not a measurement**
+      (line numbers at cd0596f8, and each names the non-member it carries):
+      tasks.md 84, the canonical-input fact list beside the slice fields —
+      notBefore, depReach, deadline; tasks.md 149, PARALLEL, a strategy, beside
+      width and poolIds; tasks.md 1426, the cache status value failed beside
+      its own columns; design.md 60, publication, a stored-row tag, beside the
+      term fields; design.md 103, decodeOptimizedResult, a function, beside the
+      cache columns; spec.md 355, the response status value unknown beside the
+      response fields; spec.md 520, the 3b.1 project-settings columns
+      schedule_engine and schedule_objective, which is the LAST tuple this
+      change genuinely has not named anywhere; and spec.md 570, the plan-read
+      block's own name beside its ten members. Four of those nine are a value
+      or a name standing next to the tuple it belongs to, and the cheapest
+      honest repair is a sentence break rather than a new vocabulary.
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
