@@ -28,7 +28,8 @@ from wbs_solver.validate import (  # noqa: E402
     validate_request,
 )
 
-FIXTURES = REPO_ROOT / "libs" / "contracts" / "solver" / "fixtures" / "request"
+CORPUS = REPO_ROOT / "libs" / "contracts" / "solver" / "fixtures"
+FIXTURES = CORPUS / "request"
 KEY_A = "wi-1\x00step-a"
 KEY_B = "wi-2\x00"
 
@@ -37,11 +38,123 @@ def valid_request() -> dict:
     return json.loads((FIXTURES / "valid-two-slices.json").read_text(encoding="utf-8"))
 
 
+def schema_legal_request_fixtures() -> list[str]:
+    """The corpus's own list, not a second one written here.
+
+    A fixture added to the manifest is picked up by the round-trip cases below
+    without anyone remembering to add it twice.
+    """
+    manifest = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
+    return [
+        entry["file"].split("/", 1)[1]
+        for entry in manifest["fixtures"]
+        if entry["branch"] == "request" and entry["valid"]
+    ]
+
+
 class SchemaAcceptsTheBaseline(unittest.TestCase):
     def test_the_fixture_this_module_mutates_is_valid_end_to_end(self) -> None:
         """If this ever fails, every other case in this file is vacuous."""
         request = validate_request((FIXTURES / "valid-two-slices.json").read_bytes())
         self.assertEqual([s["key"] for s in request["slices"]], [KEY_A, KEY_B])
+
+
+def leaf_types(value, path: str = "<root>") -> dict[str, str]:
+    """Every scalar leaf's Python type, keyed by path. Order-insensitive."""
+    if isinstance(value, dict):
+        out: dict[str, str] = {}
+        for key, item in value.items():
+            out.update(leaf_types(item, f"{path}/{key}"))
+        return out
+    if isinstance(value, list):
+        out = {}
+        for index, item in enumerate(value):
+            out.update(leaf_types(item, f"{path}/{index}"))
+        return out
+    return {path: type(value).__name__}
+
+
+class TheParseIsLossless(unittest.TestCase):
+    """5.3's request parse round-trip: what the solver reads is what was sent.
+
+    The three checks above this line are about *refusing* bad requests. This one
+    is about not quietly altering a good one — a different failure, and the more
+    dangerous of the two, because it has no symptom at the wire and surfaces
+    much later as a wrong plan or a `TypeError` inside CP-SAT.
+
+    The oracle is deliberately plain `json.loads`, without
+    `parse_request`'s `object_pairs_hook`. Comparing the hook's output against
+    itself would prove nothing; comparing it against the stdlib's own reading of
+    the same bytes is what makes a sanitising hook visible.
+    """
+
+    def test_every_schema_legal_corpus_request_round_trips_unchanged(self) -> None:
+        """Re-serialising the parse and reading it back gives the same document.
+
+        Watched red: make `_no_duplicate_members` sanitise its keys the way a
+        printable slice key looks (`key.replace("\\x00", "::")`) and all three
+        fixtures go red here, while `negative-printable-key.json` also stops
+        being refused by `KeySetEquality` above — one mutation, four failures,
+        which is the shape of a defect that would otherwise be silent.
+        """
+        names = schema_legal_request_fixtures()
+        self.assertGreaterEqual(len(names), 3, "the corpus lost its valid requests")
+        for name in names:
+            with self.subTest(fixture=name):
+                raw = (FIXTURES / name).read_bytes()
+                parsed = parse_request(raw)
+                self.assertEqual(json.loads(json.dumps(parsed)), json.loads(raw))
+
+    def test_the_number_kinds_survive(self) -> None:
+        """An integer stays `int` and a fraction stays `float`.
+
+        This is not pedantry about types. The model builds `IntVar` domains from
+        `durationUnits` and friends, so a `durationUnits` that arrived as `10.0`
+        is a failure hundreds of lines away from the line that caused it. The
+        opposite direction matters just as much: `stageBudgetSplit` is fractions
+        of a budget, and truncating those to `int` is a stage with no time.
+
+        Watched red: `parse_int=float` in `parse_request` — the whole document
+        goes float and every integer path here reports it.
+        """
+        raw = (FIXTURES / "valid-two-slices.json").read_bytes()
+        self.assertEqual(leaf_types(parse_request(raw)), leaf_types(json.loads(raw)))
+
+        parsed = parse_request(raw)
+        self.assertIsInstance(parsed["slices"][0]["durationUnits"], int)
+        self.assertNotIsInstance(parsed["slices"][0]["durationUnits"], bool)
+        self.assertTrue(all(isinstance(share, float) for share in parsed["stageBudgetSplit"]))
+
+    def test_a_null_member_is_preserved_rather_than_dropped(self) -> None:
+        """`deadlineUnits: null` is "no deadline", not "field omitted".
+
+        The schema `required`s both, so a parse that dropped its `None` values
+        would turn a legal request into a schema-invalid one — and it would do it
+        only to the requests that exercise the optional fields.
+
+        Watched red: return `{k: v for k, v in pairs if v is not None}` from the
+        hook; this case fails on the missing key, and the fixed-point case below
+        fails on the schema.
+        """
+        parsed = parse_request((FIXTURES / "valid-two-slices.json").read_bytes())
+        self.assertIn("deadlineUnits", parsed["slices"][0])
+        self.assertIsNone(parsed["slices"][0]["deadlineUnits"])
+        self.assertIsNone(parsed["slices"][0]["personId"])
+
+    def test_the_front_door_is_a_fixed_point(self) -> None:
+        """Serialising a validated request produces a request that validates.
+
+        Equality alone would be satisfied by a parse that returned some faithful
+        object the wire could not carry. This says the round trip lands back on
+        the wire: through the schema and the cross-field checks, not just through
+        `==`.
+        """
+        for name in ("valid-two-slices.json", "valid-quantised-baseline.json"):
+            with self.subTest(fixture=name):
+                once = validate_request((FIXTURES / name).read_bytes())
+                twice = validate_request(json.dumps(once).encode("utf-8"))
+                self.assertEqual(twice, once)
+                self.assertEqual([s["key"] for s in twice["slices"]], list(twice["fastHint"]))
 
 
 class DuplicateMembers(unittest.TestCase):
