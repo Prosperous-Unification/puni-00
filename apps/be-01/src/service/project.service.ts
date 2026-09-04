@@ -99,8 +99,11 @@ export class ProjectService {
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await this.opts.projects.create(project, steps, stamp);
-    return { project, steps };
+    // The store's answer rather than the seed: `create` fills the three
+    // settings from the column defaults, so the seed is a `NewProject` and only
+    // what came back is a whole project (tasks.md 3b.2).
+    const written = await this.opts.projects.create(project, steps, stamp);
+    return { project: written, steps };
   }
 
   /**
