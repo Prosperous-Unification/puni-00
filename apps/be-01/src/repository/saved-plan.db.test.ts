@@ -264,6 +264,66 @@ describe('SavedPlanRepository', () => {
     expect(after?.bodies).toEqual(before?.bodies);
   });
 
+  /**
+   * The authorisation lookup answers with both ids, from one row.
+   *
+   * `owner` is the project's owner *and* the creator here only because this
+   * suite seeds one account; the next test separates them, which is the case
+   * that distinguishes a real join from a query that returned the same id twice.
+   */
+  it('answers who may touch a plan with both principals', async () => {
+    await plans.write(bothSides({ createdById: 'owner' }), admit);
+
+    expect(await plans.principalsOf('sp-1')).toEqual({
+      savedPlanId: 'sp-1',
+      projectId: 'p1',
+      projectOwnerId: 'owner',
+      createdById: 'owner',
+    });
+  });
+
+  /**
+   * A plan saved by somebody who is not the project's owner — the case the whole
+   * separation exists for, and the one a self-join or a copied column would fail.
+   */
+  it('keeps the creator and the project owner apart', async () => {
+    const seed = openConnection(path);
+    await new UserRepository(seed.db).create(
+      { id: 'ada', username: 'Ada', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
+    seed.close();
+
+    await plans.write(bothSides({ createdBy: 'Ada Lovelace', createdById: 'ada' }), admit);
+
+    expect(await plans.principalsOf('sp-1')).toEqual({
+      savedPlanId: 'sp-1',
+      projectId: 'p1',
+      projectOwnerId: 'owner',
+      createdById: 'ada',
+    });
+  });
+
+  /**
+   * No live account claims it, and the answer is still an answer.
+   *
+   * `null` here is what sends the rule to the project owner, so a lookup that
+   * refused to answer for such a plan would make it permanently untouchable —
+   * which is the failure this whole header-only path exists to avoid.
+   */
+  it('answers with a null creator rather than not answering', async () => {
+    await plans.write(bothSides({ createdById: null }), admit);
+
+    expect((await plans.principalsOf('sp-1'))?.createdById).toBeNull();
+    expect((await plans.principalsOf('sp-1'))?.projectOwnerId).toBe('owner');
+  });
+
+  it('answers null for a plan that does not exist', async () => {
+    await plans.write(bothSides(), admit);
+
+    expect(await plans.principalsOf('sp-missing')).toBeNull();
+  });
+
   it('reports no_such_plan for a rename that matches nothing', async () => {
     await plans.write(bothSides(), admit);
 

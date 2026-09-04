@@ -4,7 +4,7 @@ import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
 import type { SavedPlanRow } from './schema';
-import { savedPlan, savedPlanBody } from './schema';
+import { project, savedPlan, savedPlanBody } from './schema';
 
 /**
  * How the writer obtains the connection it takes the write lock on.
@@ -139,6 +139,27 @@ export interface SavedPlanHoldingRow {
  * carry the same information and lose the name for it at every call site.
  */
 export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy';
+
+/**
+ * The two ids a rename or a delete has to be authorised against, and nothing
+ * else.
+ *
+ * A **header-only** shape, and the reason it is not
+ * {@link SavedPlanService.read}'s job: that path reads every stored byte and can
+ * answer `corrupt`, and a corrupt plan must still be renameable and deletable or
+ * it holds its project's quota forever with no way to reach it. Authorisation
+ * must therefore be answerable about a plan nobody can open.
+ *
+ * `createdById` is nullable and `projectOwnerId` is not — the project's owner
+ * exists whenever the project does, which is what makes it the fallback when no
+ * live account claims the plan.
+ */
+export interface SavedPlanPrincipals {
+  readonly savedPlanId: string;
+  readonly projectId: string;
+  readonly projectOwnerId: string;
+  readonly createdById: string | null;
+}
 
 /**
  * The byte length of a body, measured **once**, here.
@@ -398,6 +419,38 @@ export class SavedPlanRepository {
         .from(savedPlan)
         .where(eq(savedPlan.projectId, projectId))
         .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+    } finally {
+      connection.close();
+    }
+  }
+
+  /**
+   * Who may rename or delete one plan, as one row and no bodies.
+   *
+   * Joined to `project` rather than left to the caller, because the two ids are
+   * one question — "may this account touch this plan" — and two round trips
+   * across a `project` row that can be deleted between them would answer it
+   * about a project that no longer exists. `innerJoin`, so a header whose
+   * project is gone reads as no such plan, which is what a cascade leaves and
+   * what a route should say.
+   *
+   * Its own connection, like every other read here, and it takes no write lock:
+   * an authorisation check must never be the thing a live edit is queued behind.
+   */
+  async principalsOf(savedPlanId: string): Promise<SavedPlanPrincipals | null> {
+    const connection = this.opts.openConnection();
+    try {
+      const rows = await connection.db
+        .select({
+          savedPlanId: savedPlan.id,
+          projectId: savedPlan.projectId,
+          projectOwnerId: project.ownerId,
+          createdById: savedPlan.createdById,
+        })
+        .from(savedPlan)
+        .innerJoin(project, eq(project.id, savedPlan.projectId))
+        .where(eq(savedPlan.id, savedPlanId));
+      return rows[0] ?? null;
     } finally {
       connection.close();
     }
