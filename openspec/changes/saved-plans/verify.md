@@ -122,8 +122,8 @@ Run on **h2puni** (`/home/puni1/gate-task231`, `dirty=0`, `NX_DAEMON=false`,
 | -------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
 | `run-many -t test lint typecheck`, all 22 projects | `e21c92f7` | 20 of 22 green; two failures, both diagnosed below                                                  |
 | `run-many -t test lint typecheck -p be-01 mcp-01`  | `0fd70261` | exit 0 — be-01 **1301 pass / 0 fail** across 110 files, mcp-01 **106 pass / 0 fail** across 7 files |
-| `nx format:check --all`                            | `f7a8e7ee` | exit 0                                                                                               |
-| `openspec validate --all`                          | `f7a8e7ee` | **35 passed / 0 failed**                                                                             |
+| `nx format:check --all`                            | `f7a8e7ee` | exit 0                                                                                              |
+| `openspec validate --all`                          | `f7a8e7ee` | **35 passed / 0 failed**                                                                            |
 
 ### What the whole-workspace gate caught that sixteen per-project runs could not
 
@@ -135,8 +135,7 @@ derives its MCP tool set from the committed `apps/be-01/openapi.json`, and this
 change adds five paths to it, so the drift guard _"is 22 tools, so a route that
 appears must be decided about"_ went red along with the README count that is
 asserted against it. That guard is doing exactly its job. The decision recorded
-in `openapi-tools.test.ts`: **all five saved-plan operations become tools (22 →
-27) and `EXCLUDED_PATHS` stays at five.** No exclusion class reaches them — they
+in `openapi-tools.test.ts`: **all five saved-plan operations become tools (22 → 27) and `EXCLUDED_PATHS` stays at five.** No exclusion class reaches them — they
 are not `/api/auth/*`, not `/internal/*`, and unlike `/health`, `/metrics` and
 `/api/smoke/echo` they carry a plan. The `plan-commands` exclusion is the one
 that looks like it should apply and does not: it removed single-item plan
