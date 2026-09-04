@@ -1103,7 +1103,7 @@ libs/contracts` and bun scans recursively) and never typechecked or
       dependency. **Note for 2.1:** the response corpus has no unknown-key
       fixture (only `request/invalid-unknown-key.json`), so that case is
       covered by 2.5's raw-string cases and not by the corpus.
-- [ ] 2.4 `revalidateSolverResult(request, response)` — every offset present and
+- [x] 2.4 `revalidateSolverResult(request, response)` — every offset present and
       non-negative, every edge respected, every `notBeforeUnits` floor
       respected, no pool over capacity at any instant (checked against **all**
       of a slice's `poolIds`, since the whole width is spent in each), no
@@ -1152,7 +1152,31 @@ stageValue`, and all three terms recomputed with a `bigint` accumulator
       verdict at all (duplicate slice key, an edge naming no slice, a pool
       membership with no capacity, a slice with no baseline offset). Blaming
       the solver for those sends the repair to the wrong side of the seam.
-- [ ] 2.5 **Proven by** `solver-contract.test.ts`: a valid response passes;
+      **THE DEADLINE CLAUSE LANDED, run 47, and it is a SECOND ENTRY POINT —
+      that is a finding about the seam rather than a convenience.**
+      `revalidateOptimizedDeadlines(request, placed)` sits at the foot of
+      `revalidate-solver-result.ts`. It cannot live inside
+      `revalidateSolverResult` because that function is signed
+      `(request, response)` and the clause is stated on the MATERIALISED
+      schedule: `materialiseOptimized` needs `rows`, `edges`, `slices`,
+      `notBefore`, `poolSizes` and `reach` — the DOMAIN plan — and the wire
+      request carries only quantised slices. Folding it in would mean either
+      widening that signature or re-deriving the domain plan from the wire, and
+      re-deriving it would be a second copy of the canonicaliser. So the
+      composition is the caller's, in this order: re-validate the wire pair,
+      materialise, then check deadlines.
+      The arithmetic is `lastWorkdayOf(start, finish) <= deadlineUnits /
+      SOLVER_QUANTUM - 1`, in the real fractional domain. The `- 1` is
+      `deadlineUnitsOf`'s `(D + 1) x quantum` read backwards: the wire bound is
+      EXCLUSIVE on the finish, so the due day is one less than the day that
+      bound names. A missing placement is `malformed-request`, not
+      `deadline-violated` — the key sets are equal by construction once
+      `materialiseOptimized` has returned, so a gap is our bug.
+      **`deadline-violated` was added to `SOLVER_REVALIDATION_FAILURES` and to
+      `REVALIDATION_DISPOSITIONS`** (`invalid-output`); the per-seam `Record`
+      made the second one a compile error until it was decided, exactly as 2.5
+      designed it to.
+- [x] 2.5 **Proven by** `solver-contract.test.ts`: a valid response passes;
       each violation in 2.4 is rejected as invalid-output, one case each; and
       each of 2.3's six framing cases is fed to `parseSolverResponse` **as a raw
       string**, not through a child process — a process cannot reliably produce
@@ -1193,10 +1217,30 @@ stageValue`, and all three terms recomputed with a `bigint` accumulator
       (**assumption 1, run 11**, recorded in the module with its falsifier): it
       fires only on a request `buildSolverRequest` produced, so blaming the
       response would send the repair to the wrong side of the seam.
-      **Still untickable, and only for one reason:** 2.4's deadline clause is
-      not implemented — it waits on 4.9's `materialiseOptimized` — so one of
-      2.4's violations has no case here yet. Everything else 2.5 asks for is
-      landed and gated.
+      **The one reason 2.5 was untickable is gone (run 47): 2.4's deadline
+      clause exists and has its cases.** Eight of them in
+      `revalidate-solver-result.test.ts`, each violation paired with its
+      nearest legal neighbour in the house style: work running to the end of
+      its own due day is ACCEPTED and one day past it is rejected; a
+      fractional finish at 1.5 days spills into day 1 and breaks a day-0
+      deadline while a finish at exactly 1.0 does not; a `null` deadline is
+      unconstrained at 900 days; a missing placement and a fractional
+      `deadlineUnits` are both `malformed-request`; and the loop is proved to
+      read past its first slice.
+      **TWO WATCHED REDS, MEASURED on h2puni at `4e78ae45`**, each aimed at a
+      different half of the arithmetic, against the 31-test file:
+      compare `Math.floor(earliestFinish)` instead of `lastWorkdayOf` -> **29
+      pass / 2 fail**, and both failures are the exactly-met neighbours, which
+      is what "the check has been aimed" looks like; drop the `- 1` from
+      `deadlineUnits / SOLVER_QUANTUM` -> **29 pass / 2 fail**, and this time
+      both failures are the violation cases, including the fractional one. The
+      file was byte-restored with `cmp` between the two and again after, and
+      the gate checkout re-verified `dirty=0`.
+      **One repair on the way past:** the count test was named `covers all
+      fifteen tokens across the three seams` while the vocabulary held
+      seventeen, and `deadline-violated` made it eighteen. Both sides of its
+      assertion derive the number, so the count in the name was decoration that
+      could only go stale; it now names no number.
 - [x] 2.6 **Proven by** `solver-request.test.ts`: a null-`days` slice becomes
       `ASSUMED_SLICE_WORKDAYS`; a width-3 slice of 6 days' effort becomes 2
       days; a `whole-item` and an `anchor-slice` plan produce different edge
