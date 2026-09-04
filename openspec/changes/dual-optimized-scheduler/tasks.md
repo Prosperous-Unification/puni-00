@@ -180,6 +180,24 @@ check-that-cannot-fail failure R5 names.
       together: every pre-existing cache row describes a different function, and
       the bump is what evicts them — there is no data migration of cached
       results (`openspec/changes/work-item-deadline/design.md` §3.4).
+      **Three of the four clauses are already satisfied, verified in run 13
+      chunk 5 rather than assumed, and the fourth cannot be satisfied in this
+      slice.** Done: the constant is exported from the barrel
+      (`libs/domain/src/index.ts:8`, `export * from './contract-version'`); the
+      bump list in `contract-version.ts` names every item this task asks for
+      including **the canonicalizer** and the duration rule; and the bump itself
+      was performed — `7`, pinned from the other side by
+      `libs/contracts/solver/src/wire-contract-version.test.ts`, which asserts
+      both golden requests start with `"7+"`, so a change here without a change
+      there is a red test rather than a cache that quietly keeps its rows.
+      **Not done, and it is not this slice's to do:**
+      `contractVersion = "<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"` is built
+      at `build-solver-request.ts:214`, which is where the **request** is built.
+      There is no cache table yet — `budgetMs` and `contractVersion` become
+      cache-key *columns* in **task 4.2**, which is where "built where the cache
+      key is built" acquires a place to be true. This item stays unticked until
+      4.2 lands, and it stays unticked for that reason alone; nothing else in it
+      is outstanding.
 - [ ] 1.6 **Proven by** keying the existing Fast golden corpus on
       `SCHEDULER_CONTRACT_VERSION`. **Negative check, watched red** — change
       `ASSUMED_SLICE_WORKDAYS` without bumping the constant and watch the
