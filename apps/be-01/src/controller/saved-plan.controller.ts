@@ -165,6 +165,12 @@ function refuseUnknownBodyVersion({
  * lets a slow gateway stall every write in the process. Publishing from inside
  * the service would put it back inside both.
  *
+ * That is also why `app.ts` hands this the **undeferred** broadcaster. Nothing
+ * here is ever part of a command batch — `plan-commands` has no saved-plan
+ * command — so there is no transaction for the announcement to be atomic with,
+ * and routing it through the shared `DeferringBroadcaster` only made a
+ * committed write's event droppable by an unrelated batch's rollback.
+ *
  * The announcement is deliberately **not** conditional on the caller: every
  * successful save, rename and delete publishes, including the actor's own. The
  * actor's client will drop it as an echo of a read it has already done, and the

@@ -51,6 +51,13 @@ describe('the saved-plan routes', () => {
   let path: string;
   /** What would have gone to gw-01, for the broadcast cases (TASK-255). */
   let broadcast: RecordingBroadcaster;
+  /**
+   * The batch machinery {@link app} was built with, so the shared-hold case
+   * below can open a hold on the very `DeferringBroadcaster` the process
+   * shares — the only way to reproduce a batch running beside a saved-plan
+   * request.
+   */
+  let writes: ReturnType<typeof testWrites>;
 
   /**
    * One authenticated request. `headers` is set rather than merged: every
@@ -73,6 +80,7 @@ describe('the saved-plan routes', () => {
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     broadcast = recordingBroadcaster();
+    writes = testWrites(broadcast);
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db);
 
@@ -89,7 +97,7 @@ describe('the saved-plan routes', () => {
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(broadcast),
+      writes,
       migrationsApplied: true,
     });
 
@@ -675,6 +683,42 @@ describe('the saved-plan routes', () => {
       broadcast.published.length = 0;
       const deleted = await as(tokens['ada'], `/api/saved-plans/${saved}`, { method: 'DELETE' });
       expect(deleted.status).toBe(204);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+    });
+
+    /**
+     * The shared-hold drop, found independently by both review seats on PR 204
+     * (Gemini Critical, Sol Important) and confirmed against the code before it
+     * was written down.
+     *
+     * `DeferringBroadcaster.held` is **instance** state and there is exactly one
+     * instance in the process, so during any open hold *every* publish through
+     * it joins that batch's queue — including one from an HTTP route that has
+     * already committed its own transaction and is not part of the batch at all.
+     * A refused batch drops its queue (`plan-commands.ts` answers a refusal with
+     * `pending: []`), and the saved-plan event went with it. The save had
+     * happened; nobody was told.
+     *
+     * The hold here stands in for that batch: it is opened on the same shared
+     * broadcaster `buildApp` was given, the save runs inside it, and its queue
+     * is then discarded rather than sent — the rollback path exactly.
+     *
+     * Two assertions, because they fail for different reasons. `pending` empty
+     * says the event never entered the batch's queue, which is the property that
+     * makes it survivable; `published` says it actually reached gw-01 while the
+     * hold was still open. An implementation that queued the event and sent it
+     * later would pass the second and fail the first — and would still lose the
+     * event on the refusal this test is named for.
+     */
+    it('delivers a save made while an unrelated batch holds, and that batch then refuses', async () => {
+      broadcast.published.length = 0;
+
+      const { pending } = await writes.announcements.hold(async () => {
+        expect((await save('ada')).status).toBe(201);
+      });
+
+      // The refusal: the batch's own announcements are dropped, never sent.
+      expect(pending).toEqual([]);
       expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
     });
 

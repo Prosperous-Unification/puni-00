@@ -203,12 +203,16 @@ export function buildApp(opts: AppOptions) {
           opts.auth,
           opts.savedPlans,
           opts.projects,
-          // The same `DeferringBroadcaster` the command runner holds through, not
-          // a second one: a saved-plan write never runs inside a batch, so this
-          // always falls through to the inner broadcaster — but wrapping a
-          // different instance is the mistake `testWrites` documents, and there
-          // is no reason to leave a second one lying next to it.
-          opts.writes.announcements,
+          // Deliberately NOT the `DeferringBroadcaster` the command runner
+          // holds through. That is what shipped first, on the reasoning that a
+          // saved-plan write never runs inside a batch so the wrapper would
+          // always fall through — which confused "this route is not part of a
+          // batch" with "no batch is open". `held` is instance state on the one
+          // shared wrapper, so a save committing while an unrelated batch holds
+          // was queued into that batch and dropped when it refused. The inner
+          // broadcaster is the same object either way; what changes is that this
+          // route can no longer be captured by somebody else's transaction.
+          opts.writes.announcements.undeferred,
         ),
       )
       .use(stepController(opts.auth, opts.steps))

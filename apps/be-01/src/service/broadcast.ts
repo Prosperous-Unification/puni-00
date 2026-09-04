@@ -197,6 +197,28 @@ export class DeferringBroadcaster implements Broadcaster {
     for (const each of pending) await this.inner.publish(each.projectId, each.event);
   }
 
+  /**
+   * The broadcaster underneath, for a publisher that provably never runs inside
+   * a batch.
+   *
+   * {@link held} is **instance** state and `services.ts` builds exactly one of
+   * these, so during any open hold *every* publish through this object joins
+   * that batch's queue — including one from an HTTP route that committed its own
+   * transaction and has nothing to do with the batch. A refused batch drops its
+   * queue, and that route's event goes with it: the write happened and nobody
+   * was told. Saved-plan mutations shipped that way and both review seats on
+   * PR 204 found it independently (TASK-255).
+   *
+   * The condition for using this is a property of the CALLER, not of timing:
+   * `plan-commands` has no saved-plan command, so a saved-plan announcement can
+   * never belong to a batch and has nothing to be atomic with. Anything a
+   * command can reach — every service `services.ts` hands `announcements` to —
+   * must keep the wrapper, because for those the hold is the whole point.
+   */
+  get undeferred(): Broadcaster {
+    return this.inner;
+  }
+
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     const held = this.held;
     if (held === null) {
