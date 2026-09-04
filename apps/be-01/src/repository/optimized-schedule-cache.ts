@@ -6,11 +6,12 @@ import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { readGeneration } from './optimization-generation';
-import { toOptimizedScheduleCacheRow } from './optimizer-rows';
+import { toOptimizedScheduleCacheRow, toSolverSlotRow } from './optimizer-rows';
 import {
   optimizedScheduleCache,
   type SolverFailureReason,
   type SolverObjectiveName,
+  solverSlot,
 } from './schema';
 
 /**
@@ -259,4 +260,73 @@ export function readOptimizedPair(db: SQLiteBunDatabase, key: OptimizedCacheKey)
   }
 
   return pair;
+}
+
+/**
+ * Who a writer claims to be, and the whole of what {@link writerStillHolds}
+ * checks it against.
+ *
+ * `ownerId` and `attemptToken` are two facts and not one: the slot's primary
+ * key names the *seat*, `ownerId` names the coordinator sitting in it, and
+ * `attemptToken` names the attempt. A reclaimed owner that re-reserved the same
+ * seat has the same `ownerId` and a freshly minted token, which is precisely the
+ * case the token exists to fence.
+ */
+export interface SlotClaim {
+  readonly projectId: string;
+  readonly contractVersion: string;
+  readonly generation: number;
+  readonly objective: SolverObjectiveName;
+  readonly budgetMs: number;
+  readonly ownerId: string;
+  readonly attemptToken: string;
+}
+
+/**
+ * Whether the writer still holds the slot it is about to commit against
+ * (tasks.md 4.1's first condition).
+ *
+ * **This is the check that is not implied by the row existing.** A superseded
+ * run's slot row is deleted or re-reserved by whoever reclaimed it, so
+ * "my seat has a row in it" is true for the run that replaced me. Only the
+ * token distinguishes the two, and it is the fence that keeps a late write from
+ * a reclaimed child out of the cache: without it, six real children ran while
+ * SQLite counted two, and a stale outcome could overwrite a live one.
+ *
+ * It reads through {@link toSolverSlotRow}, so a `lifecycle` or `objective` no
+ * `CHECK` was in force for throws rather than being cast (tasks.md 3.8) — a
+ * corrupted slot row must not silently authorize a write.
+ *
+ * **`lifecycle` is deliberately not a condition.** A `starting` slot is a real
+ * reservation whose process has not been forked yet, and both phases are the
+ * writer's own seat; requiring `running` would refuse a legitimate write from a
+ * child that committed before its lifecycle row was advanced. **Falsified if**
+ * a `starting` row is ever reachable at commit time only through a defect, at
+ * which point the lifecycle becomes a fourth condition rather than a comment.
+ *
+ * The remaining conditions of 4.1's write — the generation still current, the
+ * cancel epoch unchanged, and `optimization_enabled` still 1 — are **not** here
+ * and cannot all be: `project.optimization_enabled` is slice **3b**, which is
+ * unimplemented, so the write half of 4.1 is blocked on a column that does not
+ * exist rather than on effort. This function is the condition that is complete
+ * today, proved on its own, and composed by that transaction when 3b lands.
+ */
+export function writerStillHolds(db: SQLiteBunDatabase, claim: SlotClaim): boolean {
+  const stored = db
+    .select()
+    .from(solverSlot)
+    .where(
+      and(
+        eq(solverSlot.projectId, claim.projectId),
+        eq(solverSlot.contractVersion, claim.contractVersion),
+        eq(solverSlot.generation, claim.generation),
+        eq(solverSlot.objective, claim.objective),
+        eq(solverSlot.budgetMs, claim.budgetMs),
+      ),
+    )
+    .get();
+  if (stored === undefined) return false;
+
+  const row = toSolverSlotRow(stored);
+  return row.ownerId === claim.ownerId && row.attemptToken === claim.attemptToken;
 }

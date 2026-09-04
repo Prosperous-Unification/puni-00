@@ -18,6 +18,7 @@ import {
   type OptimizedCacheKey,
   type OptimizedPair,
   readOptimizedPair,
+  writerStillHolds,
 } from './optimized-schedule-cache';
 import { optimizedScheduleCache } from './schema';
 
@@ -532,6 +533,167 @@ describe('the 3.8 boundary still throws on the read path', () => {
       expect(outcome.kind).toBe('failed');
       if (outcome.kind !== 'failed') throw new Error('unreachable');
       expect(outcome.reason).toBe('oom');
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe("the writer's own slot, which is 4.1's first condition", () => {
+  /**
+   * The fence that is not implied by the row existing. A reclaimed owner
+   * re-reserving the same seat has the same primary key and the same `ownerId`;
+   * only the freshly minted token tells the two attempts apart, and it is what
+   * keeps a late write from a reclaimed child out of the cache.
+   */
+  const CLAIM = {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation: 1,
+    objective: 'pri',
+    budgetMs: BUDGET,
+    ownerId: 'coordinator-a',
+    attemptToken: 'tok-1',
+  } as const;
+
+  function reserve(
+    path: string,
+    generation: number,
+    over: { ownerId?: string; attemptToken?: string; lifecycle?: string } = {},
+  ): void {
+    const db = openDatabase(path);
+    try {
+      db.run(
+        `INSERT INTO solver_slot
+           (project_id, contract_version, generation, objective, budget_ms,
+            owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+            cancel_requested_at, admitted_deadline_at)
+         VALUES ('p-1', '${CONTRACT}', ${String(generation)}, 'pri', ${String(BUDGET)},
+                 '${over.ownerId ?? CLAIM.ownerId}', '${over.attemptToken ?? CLAIM.attemptToken}',
+                 '${over.lifecycle ?? 'running'}', 4242, 1, 1, NULL, 99)`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  const holds = (path: string, claim = CLAIM): boolean =>
+    writerStillHolds(openDrizzle(path), claim);
+
+  it('holds when the seat carries this attempt', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      reserve(db.path, 1);
+
+      expect(holds(db.path)).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('does not hold when the seat is empty', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+
+      expect(holds(db.path)).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The case the token exists for, and the one a row-existence check passes:
+   * same project, same seat, same coordinator, second attempt.
+   */
+  it('does not hold when the same owner has re-reserved the seat', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      reserve(db.path, 1, { attemptToken: 'tok-2' });
+
+      expect(holds(db.path)).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('does not hold when another coordinator took the seat with this token', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      reserve(db.path, 1, { ownerId: 'coordinator-b' });
+
+      expect(holds(db.path)).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** A different generation is a different seat, not the same one moved on. */
+  it('does not hold against a slot reserved under another generation', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      reserve(db.path, 2);
+
+      expect(holds(db.path)).toBe(false);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * `starting` is a real reservation whose process has not been forked yet, so
+   * it authorizes a write. Requiring `running` would refuse a legitimate commit
+   * from a child that finished before its lifecycle row was advanced.
+   */
+  it('holds on a starting slot, because a reservation is not a process', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      const raw = openDatabase(db.path);
+      try {
+        raw.run(
+          `INSERT INTO solver_slot
+             (project_id, contract_version, generation, objective, budget_ms,
+              owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+              cancel_requested_at, admitted_deadline_at)
+           VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
+                   '${CLAIM.ownerId}', '${CLAIM.attemptToken}', 'starting', NULL, 1, 1, NULL, 99)`,
+        );
+      } finally {
+        raw.close();
+      }
+
+      expect(holds(db.path)).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** 3.8 again: a corrupted slot row must not silently authorize a write. */
+  it('throws naming the column when the slot lifecycle is unknown', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      const raw = openDatabase(db.path);
+      try {
+        raw.run('PRAGMA ignore_check_constraints = ON');
+        raw.run(
+          `INSERT INTO solver_slot
+             (project_id, contract_version, generation, objective, budget_ms,
+              owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+              cancel_requested_at, admitted_deadline_at)
+           VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
+                   '${CLAIM.ownerId}', '${CLAIM.attemptToken}', 'wedged', 1, 1, 1, NULL, 99)`,
+        );
+      } finally {
+        raw.close();
+      }
+
+      expect(() => holds(db.path)).toThrow(/solver_slot\.lifecycle.*wedged/);
     } finally {
       db.cleanup();
     }
