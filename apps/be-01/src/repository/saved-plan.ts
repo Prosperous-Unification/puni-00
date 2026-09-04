@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
@@ -118,6 +118,15 @@ export interface SavedPlanHoldingRow {
   readonly plans: number;
   readonly bytes: number;
 }
+
+/**
+ * What a rename or a delete found, said as an outcome rather than a boolean.
+ *
+ * Both statements are `UPDATE`/`DELETE ... WHERE id = ?` and both can match
+ * nothing, which is a fact the route has to turn into an answer. `false` would
+ * carry the same information and lose the name for it at every call site.
+ */
+export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy';
 
 /**
  * The byte length of a body, measured **once**, here.
@@ -336,6 +345,98 @@ export class SavedPlanRepository {
         // releases the snapshot on either path.
         tx.rollback();
       }
+    } finally {
+      connection.close();
+    }
+  }
+
+  /**
+   * Every saved plan a project holds, newest first — **headers only**.
+   *
+   * No body is read here and none can be: a project at the quota holds a
+   * hundred plans and tens of megabytes of bytes, and a list that joined the
+   * body table would load all of it to render a column of names. The header
+   * carries the lengths and the hashes, which is everything a list shows.
+   *
+   * Ordered by `created_at` descending with `id` as the tie-break, so two plans
+   * captured inside the same second have **an** order rather than SQLite's.
+   * The capture stamps the instant its read snapshot opened, and two saves of
+   * one project a moment apart is the ordinary case, not the exotic one.
+   *
+   * Takes a `Drizzle` rather than opening its own connection: the caller is a
+   * request path that already has one, and this reads a single index.
+   */
+  async listOf(db: Drizzle, projectId: string): Promise<SavedPlanRow[]> {
+    return db
+      .select()
+      .from(savedPlan)
+      .where(eq(savedPlan.projectId, projectId))
+      .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+  }
+
+  /**
+   * The one `UPDATE` this class issues, and it writes `name` alone.
+   *
+   * `.set({ name })` is not shorthand for brevity — `saved-plan-immutability.test.ts`
+   * scans this folder's `.set({ … })` literals and fails on any `saved_plan`
+   * column but this one, so the statement below is the guard's subject as well
+   * as the rename. A hash added to this object is caught there rather than in
+   * production, which is the point of writing the rename as one statement.
+   *
+   * On its own connection with the write lock refused rather than waited on,
+   * for {@link write}'s reason: a rename is a header row and must never hold a
+   * lock a live edit is queued behind.
+   */
+  async renameTo(savedPlanId: string, name: string): Promise<SavedPlanTouchOutcome> {
+    const connection = this.opts.openConnection();
+    try {
+      const db = connection.db;
+      refuseToWaitForWriteLock(db);
+      let touched: { id: string }[];
+      try {
+        touched = await db
+          .update(savedPlan)
+          .set({ name })
+          .where(eq(savedPlan.id, savedPlanId))
+          .returning({ id: savedPlan.id });
+      } catch (failure) {
+        if (!isWriteLockBusy(failure)) throw failure;
+        return 'snapshot_busy';
+      }
+      return touched.length === 0 ? 'no_such_plan' : 'touched';
+    } finally {
+      connection.close();
+    }
+  }
+
+  /**
+   * Deletes a saved plan's header; both body rows go with it.
+   *
+   * The cascade is `saved_plan_body`'s own foreign key (`schema.ts`) and not a
+   * second statement here, so there is no ordering to get wrong and no window
+   * in which a header is gone and its bytes are not. That is also why this is
+   * one statement rather than a transaction: SQLite applies the cascade inside
+   * the implicit one.
+   *
+   * Deleting is the only way a saved plan leaves, and it is permissioned like
+   * the rename — creator or project owner (6.1), decided above this line.
+   */
+  async deleteOf(savedPlanId: string): Promise<SavedPlanTouchOutcome> {
+    const connection = this.opts.openConnection();
+    try {
+      const db = connection.db;
+      refuseToWaitForWriteLock(db);
+      let removed: { id: string }[];
+      try {
+        removed = await db
+          .delete(savedPlan)
+          .where(eq(savedPlan.id, savedPlanId))
+          .returning({ id: savedPlan.id });
+      } catch (failure) {
+        if (!isWriteLockBusy(failure)) throw failure;
+        return 'snapshot_busy';
+      }
+      return removed.length === 0 ? 'no_such_plan' : 'touched';
     } finally {
       connection.close();
     }

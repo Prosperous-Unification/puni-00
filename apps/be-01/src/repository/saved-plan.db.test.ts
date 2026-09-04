@@ -172,4 +172,91 @@ describe('SavedPlanRepository', () => {
       4 + bodyByteLength('{"schedule":true}'),
     );
   });
+  /**
+   * The list is what a project's saved-plan page reads, and it reads headers.
+   *
+   * Both halves matter and neither implies the other: the rows come back
+   * newest first, and the bodies are **not** in them. A list that joined the
+   * body table would be green on the ordering alone while loading every stored
+   * byte to render a column of names.
+   */
+  it('lists a project\'s headers newest first and reads no body', async () => {
+    await plans.write(bothSides({ id: 'sp-old', createdAt: 1_756_000_000 }), admit);
+    await plans.write(bothSides({ id: 'sp-new', createdAt: 1_756_000_900 }), admit);
+
+    const rows = await plans.listOf(reader.db, 'p1');
+
+    expect(rows.map((row) => row.id)).toEqual(['sp-new', 'sp-old']);
+    expect(rows[0].inputBytes).toBe(bodyByteLength('{"input":true}'));
+    // The header is the whole row; a body would arrive as a property, and none
+    // does. Stated as a key check rather than as a comment because the join
+    // this forbids is the easy way to write `listOf`.
+    expect(Object.keys(rows[0])).not.toContain('bytes');
+  });
+
+  /**
+   * Two captures inside the same second are ordinary — `created_at` stamps the
+   * instant the read snapshot opened — so the tie-break is the difference
+   * between an order and SQLite's.
+   */
+  it('breaks a created_at tie by id rather than leaving it to the engine', async () => {
+    await plans.write(bothSides({ id: 'sp-b', createdAt: 1_756_000_000 }), admit);
+    await plans.write(bothSides({ id: 'sp-a', createdAt: 1_756_000_000 }), admit);
+
+    expect((await plans.listOf(reader.db, 'p1')).map((row) => row.id)).toEqual(['sp-a', 'sp-b']);
+  });
+
+  it('lists only the asked-for project', async () => {
+    await plans.write(bothSides({ id: 'sp-1' }), admit);
+
+    expect(await plans.listOf(reader.db, 'p-absent')).toEqual([]);
+  });
+
+  /**
+   * The rename writes `name` and nothing else. Asserting the new name alone
+   * would pass for a statement that also rewrote a hash, so the rest of the
+   * header is compared field by field against what the save wrote.
+   */
+  it('renames without touching any other header column', async () => {
+    await plans.write(bothSides(), admit);
+    const before = await plans.readOf('sp-1');
+
+    expect(await plans.renameTo('sp-1', 'after the rewire')).toBe('touched');
+
+    const after = await plans.readOf('sp-1');
+    expect(after?.header.name).toBe('after the rewire');
+    expect({ ...after?.header, name: '' }).toEqual({ ...before?.header, name: '' });
+    // The bodies are untouched too: the rename is a header statement, and a
+    // cascade or a second write here would be invisible to the header compare.
+    expect(after?.bodies).toEqual(before?.bodies);
+  });
+
+  it('reports no_such_plan for a rename that matches nothing', async () => {
+    await plans.write(bothSides(), admit);
+
+    expect(await plans.renameTo('sp-absent', 'whatever')).toBe('no_such_plan');
+    expect((await plans.readOf('sp-1'))?.header.name).toBe('before the rewire');
+  });
+
+  /**
+   * Deleting the header takes both bodies with it, through the schema's
+   * cascade rather than a second statement here.
+   */
+  it('deletes the header and both bodies cascade', async () => {
+    await plans.write(bothSides(), admit);
+
+    expect(await plans.deleteOf('sp-1')).toBe('touched');
+
+    expect(await plans.readOf('sp-1')).toBeNull();
+    expect(await plans.bodyOf(reader.db, 'sp-1', 'input')).toBeNull();
+    expect(await plans.bodyOf(reader.db, 'sp-1', 'schedule')).toBeNull();
+    expect(await plans.holdingOf(reader.db, 'p1')).toEqual({ plans: 0, bytes: 0 });
+  });
+
+  it('reports no_such_plan for a delete that matches nothing', async () => {
+    await plans.write(bothSides(), admit);
+
+    expect(await plans.deleteOf('sp-absent')).toBe('no_such_plan');
+    expect((await plans.listOf(reader.db, 'p1')).map((row) => row.id)).toEqual(['sp-1']);
+  });
 });
