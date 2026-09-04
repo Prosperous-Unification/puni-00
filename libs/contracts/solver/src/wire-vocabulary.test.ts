@@ -357,7 +357,13 @@ describe('the repository check — three of four descriptive artifacts', () => {
    */
   it('measures what the union reading of rule (b) would cost', () => {
     const union = COVERED_ARTIFACTS.flatMap((file) =>
-      checkArtifact(readFileSync(new URL(file, repoRoot), 'utf8'), file, vocabularies, ['b'], 'union'),
+      checkArtifact(
+        readFileSync(new URL(file, repoRoot), 'utf8'),
+        file,
+        vocabularies,
+        ['b'],
+        'union',
+      ),
     );
     expect(union).toHaveLength(9);
   });
