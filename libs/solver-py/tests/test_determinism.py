@@ -34,6 +34,7 @@ would be the first place it appeared.
 
 from __future__ import annotations
 
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -141,19 +142,27 @@ class TheLimitIsDeterministicAndNotTheWallClock(unittest.TestCase):
     `_configure` is private and imported anyway: the parameter it sets is the
     entire mechanism 5.5 rests on, and asserting it through a solve would mean
     asserting a duration, which is the one thing this clause forbids.
+
+    **An unset CP-SAT limit is `inf`, not `0`.** This file's first version
+    asserted `0.0` for the limit each configuration leaves alone and went red on
+    both, which is worth keeping written down: `0` is not "no limit" here, it is
+    "stop immediately", and `_configure`'s own comment already says a
+    zero-length budget would read as no limit — the opposite convention, one
+    layer away. So "in force" below means **finite**, and the assertion that the
+    other limit is `inf` is the assertion that it does not bind.
     """
 
     def test_the_pinned_configuration_sets_a_deterministic_limit_only(self) -> None:
         parameters = _configure(PINNED, budget_ms=30000.0).parameters
         self.assertEqual(parameters.max_deterministic_time, 8.0)
-        self.assertEqual(parameters.max_time_in_seconds, 0.0)
+        self.assertTrue(math.isinf(parameters.max_time_in_seconds))
         self.assertEqual(parameters.num_search_workers, 1)
         self.assertEqual(parameters.random_seed, 0)
 
     def test_a_production_configuration_sets_the_wall_clock_only(self) -> None:
         parameters = _configure(PRODUCTION, budget_ms=30000.0).parameters
         self.assertEqual(parameters.max_time_in_seconds, 30.0)
-        self.assertEqual(parameters.max_deterministic_time, 0.0)
+        self.assertTrue(math.isinf(parameters.max_deterministic_time))
         self.assertEqual(parameters.num_search_workers, 2)
 
     def test_the_two_limits_are_never_both_in_force(self) -> None:
@@ -169,7 +178,7 @@ class TheLimitIsDeterministicAndNotTheWallClock(unittest.TestCase):
                         ("max_deterministic_time", parameters.max_deterministic_time),
                         ("max_time_in_seconds", parameters.max_time_in_seconds),
                     )
-                    if value > 0
+                    if math.isfinite(value)
                 ]
                 self.assertEqual(len(in_force), 1, in_force)
 
