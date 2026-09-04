@@ -2084,6 +2084,32 @@ review`, no self-merge.
       wait counters come out of the one code path that produces them today,
       with resource edges and late times derived from the **optimized**
       placement rather than copied from Fast.
+      **FOUR SEAMS EXIST NOW (run 38), so `annotate` is a composition rather
+      than a fifth transcription.** `placeSlices` no longer decides any
+      per-slice fact inline: `resolveFloor(candidates)` is the floor rule
+      verbatim — the whole point of it being one function is that the struck
+      three-way split cannot come back through a second copy;
+      `annotateCapacity(key, boundBy, start, window, finishOf, placedAtOf)`
+      returns `capacityPredecessors`, `capacityTeamId` and the referent, with
+      both invariants and the `finish <= start` filter, and reaches the ledgers
+      through accessors precisely so a caller holding different arrays can use
+      it; `tileFinish(anchor, start, at, offsets)` is the anchor and the exact
+      `held.start + (offsets[at + 1] - offsets[held.at])` finish, which a
+      materialiser accumulating `start + days` would get wrong in the last bits
+      with nothing watching (seed 260); and
+      `resourcePredecessorOf(boundBy, busy, referent)` is the bar's one named
+      resource. Each is mutation-proved in the run-38 log.
+      **DO NOT BUILD THE SPLIT AS A PRODUCTION COMPOSITION.** `placeSlices`
+      stays ONE pass and `annotate` is a separate replay the materialiser
+      calls. Running `annotate(input, chooseStarts(input))` inside
+      `placeSlices` doubles Fast's placement loop, and `schedules 600 slices in
+      under 20ms` is modelled at a 3.81ms geometric mean with p99.99 13.3ms —
+      doubling puts the extrapolated p99.99 past the budget. (That benchmark
+      plan names no pools, so what doubles is the loop, not the joint-window
+      search; the conclusion is an extrapolation of the recorded model, not a
+      measured two-pass run.) The behaviour-preservation proof 4.9 asks for is
+      therefore a **test** asserting `annotate(input, chooseStarts(input))`
+      equals `placeSlices(input)` over the Fast golden corpus.
 - [ ] 4.10 The floor precedence is the complete ordered list `projectStart |
 predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       earlier list stopped at `notBefore` and would have labelled a
