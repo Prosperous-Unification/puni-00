@@ -760,6 +760,21 @@ check-that-cannot-fail failure R5 names.
       fixture whose exact sum is `Number.MAX_SAFE_INTEGER` round-trips, while
       the same fixture at one greater never spawns; a response altered by one
       at the boundary is rejected rather than rounded to the same value.
+      **MOVEMENT's half landed** with 2.11's baseline:
+      `preflightSolverRequest(slices, baselineOffsets)` maximises
+      `Σ |offset − baseline|` term by term as `max(b, horizonUnits − b)`, since
+      an offset lives in `[0, horizonUnits]` and reaches one end of the axis or
+      the other, never both. **Its overflow arm has no fixture, and that is a
+      finding rather than an omission:** the check runs only after the horizon
+      check passed, so every term is at most `2**31 − 1` and the sum needs about
+      **4.2 million slices** to reach `MAX_SAFE_INTEGER`. The guard is against a
+      future horizon bound, not a reachable plan, and the test asserts that term
+      count rather than claiming coverage it does not have. PRIORITY's arm keeps
+      its one-slice fixture because a weight is unbounded above. A slice with no
+      baseline entry **throws** — the three key sets are equal by construction,
+      so a gap is Bun's own bug and not a sentence to show a user; watched red,
+      the guard removed still throws but as `TypeError: Cannot convert undefined
+      to a BigInt`, naming nothing.
 - [ ] 2.11 The **quantised Fast baseline**: re-run Fast's placement over the
       rounded durations to produce `fastHint` and `baselineOffsets` in integer
       units, and take stage 1's upper bound from **that**, never from real
@@ -775,6 +790,38 @@ check-that-cannot-fail failure R5 names.
       quantised offsets: on this fixture `baselineOffsets` and `fastHint` must
       be the 30-unit integer values, never real Fast's 28.8-unit ones, checked
       against the golden request fixture and `solver-wire.v1.json`.
+      **Half landed** in `quantised-baseline.ts` (`quantisedFastBaseline`) and
+      `fixtures/request/valid-quantised-baseline.json`. The baseline is Fast's
+      own placement re-run through `schedule()` on a **rescaled input** — one
+      unit becomes one "day", each slice handed over with
+      `days = durationUnits(slice) × width` and its width untouched, so
+      `durationOf`'s `days / width` returns `(u × w) / w`, which is exactly `u`
+      wherever that product is a safe integer. Widths are people and pool sizes
+      are slots, so neither scales; floors do, and the fold stays inside
+      `schedule()` because `max(k·a, k·b) === k·max(a, b)` for `k > 0`.
+      **Watched red:** `durationUnits` swapped for the real duration → 4 of 8
+      tests fail, all at the safe-integer *product* guard
+      (`9.600000000000001 units across 5 people`), because a fraction times a
+      width is not a safe integer either — so the whole-unit *offset* check is a
+      second net over the placement rather than what makes the rescale exact.
+      The real-Fast contrast is asserted with the literals the arithmetic
+      actually produces, `0 / 9.600000000000001 / 19.200000000000003`, not the
+      clean 9.6/19.2 quoted above: the prefix sum of 0.2 drifts, so a converted
+      baseline would carry a number that is neither integral nor the one anybody
+      wrote down. **Still open here:** taking stage 1's upper bound from the
+      baseline is the assembly's, and the real-domain comparison is 4.11b's, so
+      this task stays unticked. **Deadlines are deliberately not applied to the
+      baseline** — they constrain the solver, not Fast — so "the hint is always
+      feasible" is a claim about edges, floors, pools and queues, and a plan
+      whose baseline misses a deadline is 3.1's `plan-infeasible`.
+      **Measured gap worth knowing before trusting a manifest entry:** the
+      **request** branch of the golden corpus has no TypeScript consumer —
+      `parse-solver-response.test.ts` filters to `branch === 'response'` and
+      nothing filters to `'request'`. Those fixtures exist for the Python
+      entrypoint's `jsonschema` pass, which does not exist yet, so adding an
+      entry does not mean the schema validates the file today. The fixture is
+      instead pinned structurally against `SOLVER_REQUEST_KEYS` and
+      `SOLVER_SLICE_KEYS`, which catches shape drift and not value-range drift.
 
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
