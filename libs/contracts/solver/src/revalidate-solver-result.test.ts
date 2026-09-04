@@ -2,10 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
-import {
-  revalidateOptimizedDeadlines,
-  revalidateSolverResult,
-} from './revalidate-solver-result';
+import { revalidateOptimizedDeadlines, revalidateSolverResult } from './revalidate-solver-result';
 import type {
   SolverObjectiveTerm,
   SolverObjectiveValues,
@@ -330,7 +327,9 @@ describe('the golden corpus proves the schema cannot answer this question', () =
 describe('revalidateOptimizedDeadlines', () => {
   const placedOf = (
     spans: Record<string, readonly [number, number]>,
-  ): { readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }> } => ({
+  ): {
+    readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }>;
+  } => ({
     slices: new Map(
       Object.entries(spans).map(([key, [earliestStart, earliestFinish]]) => [
         key,

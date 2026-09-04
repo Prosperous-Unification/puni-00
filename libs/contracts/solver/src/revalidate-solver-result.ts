@@ -452,7 +452,9 @@ export const revalidateSolverResult = (
  */
 export const revalidateOptimizedDeadlines = (
   request: SolverRequest,
-  placed: { readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }> },
+  placed: {
+    readonly slices: ReadonlyMap<string, { earliestStart: number; earliestFinish: number }>;
+  },
 ): RevalidatedSolverResult => {
   for (const slice of request.slices) {
     if (slice.deadlineUnits === null) continue;
