@@ -37,7 +37,6 @@ export interface GroupableSlice {
  * Proof: with the check removed, `refuses a slice for a work item that is not a
  * leaf` gets a schedule back in which the parent has become a node of its own
  * and its span no longer covers its children; watched 2026-08-09.
- */
  *
  * Generic over the slice type only so the caller gets its own back — the two
  * refusals read `workItemId` and `width` and nothing else.
