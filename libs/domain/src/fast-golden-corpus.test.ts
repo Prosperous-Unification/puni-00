@@ -78,13 +78,19 @@ describe('the stored bytes are the schedule, not an empty object', () => {
    * has looked — while the pass still spends the assumption on it: it runs
    * 2 → 4, and `c` starts at 4 rather than at 2.
    *
-   * WATCHED RED: move `ASSUMED_SLICE_WORKDAYS` and leave
-   * `SCHEDULER_CONTRACT_VERSION` alone. `reproduces every stored schedule byte
-   * for byte` fails, and so do these three numbers, which say in the failure
-   * message which rule moved. Regenerating the fixture without touching the
-   * version then fails `was produced under the version this tree declares`
-   * only once the version is bumped — which is the point: the two assertions
-   * are a ratchet, not a pair of independent checks.
+   * WATCHED RED, both halves MEASURED at `112aa297` on h2puni. Move
+   * `ASSUMED_SLICE_WORKDAYS` 2 → 3 and leave `SCHEDULER_CONTRACT_VERSION` at 7:
+   * domain **360 pass / 20 fail**, where 19 are the pre-existing hand-written
+   * date assertions and the twentieth is `reproduces every stored schedule byte
+   * for byte` — the only failure in the suite that is about the *key*. Bump the
+   * version to 8 without regenerating the fixture: **379 pass / 1 fail**, and
+   * that one is `was produced under the version this tree declares`.
+   *
+   * The three numbers below do NOT fail in either red, and the first draft of
+   * this comment claimed they did. They read `STORED`, which neither edit
+   * touches. They are a guard on the fixture rather than on the engine: they
+   * are what stops a regenerated corpus of four empty objects from satisfying
+   * the byte comparison.
    */
   it('spends the assumed duration on the slice nobody estimated', () => {
     const [, b] = unestimated.slices[1];
