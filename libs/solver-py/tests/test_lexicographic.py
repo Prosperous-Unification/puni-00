@@ -84,7 +84,12 @@ from test_model import a_request, a_slice, an_edge  # noqa: E402
 
 from wbs_solver.model import MAKESPAN, MOVEMENT, PRIORITY, build_model  # noqa: E402
 from wbs_solver.solve import SolverConfig, evaluate_terms, solve_request  # noqa: E402
-from wbs_solver.validate import check_cross_field, validate_against_schema  # noqa: E402
+from wbs_solver.validate import (  # noqa: E402
+    MAX_SAFE_INTEGER,
+    RequestRejected,
+    check_cross_field,
+    validate_against_schema,
+)
 
 CHAIN = 20
 W_DURATION = 15
@@ -307,8 +312,9 @@ class TheWeightedFormAnswersDifferently(unittest.TestCase):
 # unrepresentable — on a request the builder is obliged to accept.
 #
 # `solver-wire.v1.json` caps `horizonUnits` at 2³¹ − 1 and cross-field invariant
-# 8 caps the two objective worst cases, `Σ w(s) × horizonUnits` for PRIORITY and
-# `Σ |offset − baseline|` for MOVEMENT, at `Number.MAX_SAFE_INTEGER`. Those are
+# 8 caps the two objective worst cases, `Σ w(s) × (horizonUnits + durationUnits(s))`
+# for PRIORITY and `Σ |offset − baseline|` for MOVEMENT, at
+# `Number.MAX_SAFE_INTEGER`. Those are
 # per-term bounds. A weighted objective multiplies each term by a coefficient
 # and adds them, so invariant 8 says nothing at all about the sum — which is the
 # quantity CP-SAT has to represent.
@@ -321,10 +327,9 @@ class TheWeightedFormAnswersDifferently(unittest.TestCase):
 # `[0, 140]`. Both accessors used below agree, and one case asserts they do, so
 # a future reader who reaches for `[-1]` gets a red rather than a zero.
 
-# `Number.MAX_SAFE_INTEGER`, the bound invariant 8 and every `safeInteger` field
-# in the schema carry, and CP-SAT's own signed 64-bit ceiling. The first is the
-# wire's exactness bound; the second is what the solver can hold.
-MAX_SAFE_INTEGER = 9007199254740991
+# CP-SAT's own signed 64-bit ceiling, next to the wire's exactness bound
+# imported above. The first is what the solver can hold; the second is what
+# survives the round trip to the consumer that asked.
 INT64_MAX = 2**63 - 1
 
 # The schema's own maximum for `horizonUnits` — "Bounded by 2^31 − 1 here
@@ -332,8 +337,10 @@ INT64_MAX = 2**63 - 1
 HORIZON_CEILING = 2**31 - 1
 
 # The largest weight that keeps invariant 8's PRIORITY worst case under the bound
-# on a single-slice request at that horizon: 2²² × (2³¹ − 1) is 2⁵³ − 2²², and
-# one more unit of weight is what the case below measures.
+# on a single-slice request at that horizon. The worst case is over FINISHES, so
+# on a slice one unit long it is w × ((2³¹ − 1) + 1) = w × 2³¹: at 2²² − 1 that
+# is 9007197107257344 and inside the bound, and one more unit of weight is
+# exactly 2⁵³, which is what the case below measures.
 CEILING_WEIGHT = 2**22 - 1
 
 # Enough for these instances: each is one slice and every solve below proved
@@ -402,7 +409,7 @@ class TheCeilingRequestIsWireLegal(unittest.TestCase):
     def test_it_satisfies_invariant_8(self) -> None:
         request = at_the_ceiling()
         priority_worst_case = sum(
-            int(entry["priorityWeight"]) * request["horizonUnits"]
+            int(entry["priorityWeight"]) * (request["horizonUnits"] + int(entry["durationUnits"]))
             for entry in request["slices"]
         )
         movement_worst_case = sum(
@@ -494,32 +501,40 @@ class TheWeightedFormsOverflowHere(unittest.TestCase):
         )
 
 
-class Invariant8DoesNotBoundThePublishedPriority(unittest.TestCase):
-    """A defect found while building the guard, characterised rather than fixed.
+class Invariant8BoundsThePublishedPriority(unittest.TestCase):
+    """The defect run 19 characterised here, now closed, and its two halves kept apart.
 
-    Invariant 8 bounds `Σ w(s) × horizonUnits`. The model bounds PRIORITY by
-    `Σ w(s) × (horizonUnits + durationUnits)`, because `horizonUnits` bounds the
-    *start* and the term is over *finishes*. The difference is `Σ w(s) ×
-    durationUnits`, which invariant 8 does not mention — so a request the
-    builder must accept can produce a `priority.value` one unit past the
-    response schema's own `safeInteger`, and Bun would then refuse the response
-    it asked for.
+    The old invariant 8 bounded `Σ w(s) × horizonUnits`. The model bounds
+    PRIORITY by `Σ w(s) × (horizonUnits + durationUnits)`, because
+    `horizonUnits` bounds the *start* and the term is over *finishes*, so a
+    request satisfying the old bound could publish a `priority.value` one unit
+    past the response schema's own `safeInteger` — Bun refusing the response it
+    asked for. The bound now carries the `durationUnits` term and
+    `check_cross_field` re-derives it, so the request below is refused here
+    rather than in the builder alone.
 
-    Reachable, not merely a domain ceiling: the placement below is proved
-    OPTIMAL and the value is read off it. Left unfixed here on purpose — the
-    bound belongs to the Bun request builder and `solver-wire.v1.json`'s
-    invariant 8, a different component from this package, and widening it is a
-    wire change. Filed as its own task; this case exists so the behaviour cannot
-    change silently in the meantime.
+    **The model half is deliberately unchanged.** CP-SAT still proves that
+    placement OPTIMAL at `MAX_SAFE_INTEGER + 1` when the request is fed to it
+    directly, and it should: the value is inside int64 and the model is right
+    about its own arithmetic. Nothing in `model.py` was widened or clamped.
+    That is what makes the guard load-bearing rather than decorative — delete
+    the `+ durationUnits` term from `check_cross_field` and the first case goes
+    green while the second still reaches the unpublishable value.
     """
 
-    def test_a_request_satisfying_invariant_8_can_publish_an_unsafe_priority(self) -> None:
+    def test_the_request_is_now_refused_before_it_can_be_solved(self) -> None:
         weight = 2**22
         request = at_the_ceiling(weight, baseline_at_horizon=True)
-        validate_against_schema(request, "request")
-        check_cross_field(request)
+        validate_against_schema(request, "request")  # the schema still says yes
         self.assertLessEqual(weight * request["horizonUnits"], MAX_SAFE_INTEGER)
+        with self.assertRaises(RequestRejected) as caught:
+            check_cross_field(request)
+        self.assertIn("objective-overflow", str(caught.exception))
+        self.assertIn(str(MAX_SAFE_INTEGER + 1), str(caught.exception))
 
+    def test_the_model_still_reaches_the_unsafe_value_if_nothing_refuses_it(self) -> None:
+        """Reachable, not merely a domain ceiling: proved OPTIMAL, value read off it."""
+        request = at_the_ceiling(2**22, baseline_at_horizon=True)
         built = build_model(request)
         built.model.add(built.starts["a"] == HORIZON_CEILING)
         solver = cp_model.CpSolver()
@@ -527,9 +542,7 @@ class Invariant8DoesNotBoundThePublishedPriority(unittest.TestCase):
         solver.parameters.random_seed = 0
         solver.parameters.max_deterministic_time = CEILING_LIMIT
         self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
-        self.assertEqual(
-            int(solver.value(built.terms[PRIORITY])), MAX_SAFE_INTEGER + 1
-        )
+        self.assertEqual(int(solver.value(built.terms[PRIORITY])), MAX_SAFE_INTEGER + 1)
 
 
 if __name__ == "__main__":  # pragma: no cover
