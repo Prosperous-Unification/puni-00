@@ -87,6 +87,7 @@ function toProject<
     pertWeightPessimistic: number;
     solutionSlug: string | null;
     solutionUrl: string | null;
+    optimizationDeletePendingAt?: number | null;
   },
 >(
   row: T,
@@ -104,6 +105,7 @@ function toProject<
     | 'pertWeightPessimistic'
     | 'solutionSlug'
     | 'solutionUrl'
+    | 'optimizationDeletePendingAt'
   >,
   'createdBy' | 'updatedAt' | 'updatedBy'
 > & {
@@ -122,6 +124,12 @@ function toProject<
     pertWeightPessimistic,
     solutionSlug,
     solutionUrl,
+    // Named here only to keep it OFF the answer. It is the drain's internal
+    // fence, not a field of a project, and this mapper spreads whatever is left
+    // of the row — so a column added to `project` is published by default and
+    // has to be taken off deliberately, which is the same trap `createdBy`
+    // sprang on 2026-09-02.
+    optimizationDeletePendingAt: _optimizationDeletePendingAt,
     ...rest
   } = row;
   if (!isEstimateMethod(estimateMethod)) {
