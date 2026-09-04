@@ -349,6 +349,30 @@ check-that-cannot-fail failure R5 names.
       watched-red removals to **every** field named in 1.1, not only `reach`
       and slice order — each removal must be observed failing on the
       production path before the field is trusted.
+      **Both mutation cases landed in run 13 chunk 2; only the removals are
+      left.** Domain **402 pass / 0 fail across 31 files**.
+      **`parentId` needed a fifth base, `NESTED`**, because it is the one field
+      in 1.1 (a) that no placement reads: it decides **which leaves an authored
+      edge expands to**. The edge is authored on the parent `P` and under
+      `whole-item` reach lands on every leaf `P` owns, so moving `s` into `P`
+      hands it a predecessor it never named. The base carries no priorities and
+      no pools on purpose — an inherited priority or a shared queue would give
+      the reparenting a second route to the same placement and the case would
+      stop being about leaf expansion. Measured at `0046924b`: base `s` is
+      `0 → 2` `boundBy: "projectStart"`, reparented `s` is `2 → 4`
+      `boundBy: "predecessor"`, with `q` (`2 → 4`) and `r` (`0 → 2`) untouched.
+      **The `stepId` identity swap is a different fact from the intra-item
+      order swap already in 1.3, and the measurement is what separates them.**
+      The order swap reorders the durations: `[build 3d, design 2d]` gives
+      `build 0 → 3`, `design 3 → 5`. The identity swap keeps the array order and
+      both durations and exchanges only the labels, so the two blocks stay put
+      and every step the caller can name moves across them: base
+      `design 0 → 2`/`build 2 → 5`, swapped `build 0 → 2`/`design 2 → 5`, with
+      `b` (`7 → 9`) and `c` (`5 → 7`) unmoved because the work item's own
+      footprint is unchanged. A schedule is keyed by `sliceKey`
+      (`workItemId` NUL `stepId`), so a canonical form that dropped `stepId`
+      would hand one cache key to two plans that disagree about which step is
+      where.
 
 ## 2. Solver contract types, request builder, and the Bun re-validator
 

@@ -31,7 +31,9 @@ import { schedule, type Slice } from './schedule';
  * - **must not move the hash** — hash equal AND the schedule equal. The
  *   asymmetry in (c) lives or dies on these.
  *
- * Still to land: 1.9's `parentId` reparenting and `stepId` identity swap. The
+ * 1.9's `parentId` reparenting and `stepId` identity swap are here; what is
+ * still to land under 1.9 is 1.4's watched-red removal for **every** field 1.1
+ * names, not only `reach` and the slice order. The
  * deadline case is TASK-241's to make green —
  * `deadlines` is declared-pending here, proved present in the string and
  * proved inert in the engine, never silently skipped.
