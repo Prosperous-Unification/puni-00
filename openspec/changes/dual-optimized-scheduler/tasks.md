@@ -1694,7 +1694,7 @@ the columns own defaults` inserts a second row in raw SQL naming neither
       answers `200` to every settings PATCH while no client is ever told, and
       only a test looking specifically for the event can see it. This is **not**
       the `NewProject` trade in 3b.2 — there the call sites would each have
-      restated a *value* that could drift from the migration, here they pass a
+      restated a _value_ that could drift from the migration, here they pass a
       collaborator that cannot drift from anything. Test sites take a fresh
       `recordingBroadcaster()` rather than the suite's shared one, so setup
       through `ProjectService` cannot pollute a suite that counts published
@@ -1863,7 +1863,7 @@ review`, no self-merge.
       to answer `{ kind: 'ok', result: <empty plan> }`. Watched on h2puni at
       `4eebaa44`: **32 pass / 4 fail** against a 36 / 0 baseline for
       `optimized-cache.db.test.ts`, and `never lets a failed row satisfy a read,
-      and carries its reason` is one of the four — the other three all store a
+    and carries its reason` is one of the four — the other three all store a
       failure and read it back, so the relaxation cannot be made to look local.
       The `Proof:` comment sits on that case and names the branch, the rewrite
       and both counts.
