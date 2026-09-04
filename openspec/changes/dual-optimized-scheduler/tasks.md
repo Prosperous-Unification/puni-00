@@ -1651,6 +1651,15 @@ three project settings in the read payload`, which asserts the inverse by
 the columns own defaults` inserts a second row in raw SQL naming neither
       settings column and compares the two reads, so the constant and the
       `ADD COLUMN` defaults are proved equal rather than assumed.
+      **Repository patch half closed run 35 chunk 2** (`fa28a041`, 1262 green).
+      `ProjectPatch` carries the three, each moving on its own so a project
+      switched off keeps the engine and objective it was on. `update`'s
+      empty-patch guard stopped being one `=== undefined` line per key and
+      became `Object.values(patch).every(...)`: the list would have grown by
+      three here, and a key added without its line is a patch that silently
+      reads instead of writing. What is left of this item is the HTTP PATCH
+      contract in `project.controller.ts`/`project.service.ts` under the
+      existing project-write authorization, with 3b.3's event.
 - [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
       `ProjectService.update` when any of the three change, carrying the new
       values. `schedule_optimized` stays reserved for stored solver results.
