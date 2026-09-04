@@ -324,9 +324,21 @@ check-that-cannot-fail failure R5 names.
       **Still uncovered, named rather than claimed:** `SOLVER_QUANTUM` is not a
       `schedule()` input at all, so this corpus cannot reach it. Every other
       name on `contract-version.ts`'s bump list now has a case built for it.
-- [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
+- [x] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
+      **Landed in run 13 chunk 4** — `.orderBy(asc(workItem.id))` on the
+      work-item select alone; the four label joins already ordered by their own
+      label id (design.md D6) and are untouched. The repository-boundary half of
+      the proof landed with it in `work-item.db.test.ts`: two rows **written in
+      the opposite order to their ids**, read twice, asserting the ids come back
+      ascending and that the second read equals the first. The ids are written
+      literals rather than `crypto.randomUUID`, because the whole assertion is
+      about their order and a random pair agrees with insert order half the time
+      — the watched red would otherwise be a coin toss. **Watched red:** the
+      `orderBy` deleted from the production path → **31 pass / 1 fail**, and the
+      one failure is that test (green baseline 32 / 0; file restored, `dirty=0`).
+      be-01 **1131 pass / 0 fail across 87 files** at `76a4864f`.
 - [ ] 1.8 The `ORDER BY` proof asserts the **raw argument tuple**, not the hash
       (Sol r7 Important 11). The earlier plan reversed the stub driver's rows
       and expected two different hashes through
@@ -342,6 +354,20 @@ check-that-cannot-fail failure R5 names.
       Fast's own order-sensitive output for that fixture. **Watched red:** drop
       the `ORDER BY` from 1.7 and both assertions must fail while the hash
       assertion in 1.3 stays green.
+      **What is left after run 13 chunk 4, stated exactly.** 1.7 landed with the
+      **repository-boundary** half — `listByProject` answers in id order, two
+      reads agree, and the `orderBy` deleted gives 31 / 1 on that one test. That
+      is a real check and not the one this item asks for. Still owed: the same
+      reversed driver carried through `listByProject` → `slicesOf`, asserting the
+      `rows` and `slices` arrays **as `schedule()` receives them** are identical
+      between reads, plus the second assertion on Fast's own order-sensitive
+      output for that fixture. `slicesOf` is not exported
+      (`work-item.service.ts:187`; only `poolsFor` beside it is, "for the tests
+      alone"), and the tuple is assembled inside the plan read at
+      `work-item.service.ts:1391-1448`, so this is a service-level test with a
+      seam decision in front of it — export `slicesOf` the way `poolsFor` is
+      exported, or assert the tuple through the service's own plan read. That
+      choice is the first thing the next chunk settles.
 - [x] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
       a `parentId` reparenting that keeps every other field identical (it
       changes leaf expansion, inherited priority and floors), and a `stepId`
