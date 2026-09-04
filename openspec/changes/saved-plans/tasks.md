@@ -428,10 +428,24 @@ comparison UI) and start only after slice 6 is merged.
       it evaluates on a restricted one (owner only) fails both creator rows.
       Between them they are `canEdit` on the two project states, and neither
       passes.
-- [ ] 6.3 Account deletion leaves saved plans intact and still naming the creator,
+- [x] 6.3 Account deletion leaves saved plans intact and still naming the creator,
       because `created_by` is a value. Its second half, from 6.0: the same
       deletion nulls `created_by_id`, so the plan keeps the name and loses the
-      right, and the project owner can still rename and delete it.
+      right, and the project owner can still rename and delete it. The storage
+      half was already proved in `repository/saved-plan-created-by-id.db.test.ts`
+      and the rule half by the `null`-creator case in
+      `service/saved-plan-touch.db.test.ts`; **neither said they compose**, and
+      each was written against a state the other produces — the rule test saved a
+      plan *born* with no creator, which is not what a deletion leaves behind. So
+      the case landed here deletes a real account and then asks the rule, in that
+      order, having renamed as `ada` first so that "the right is gone" is a claim
+      about a right that was demonstrably there. **The right is dropped, not
+      transferred:** the third party is asserted beside the deleted id, because a
+      rule that widened to "anyone, once the creator is gone" passes a test that
+      only re-tries the creator. Negative: exactly that widening
+      (`createdById === null ||` in front of the disjunction) — 6 pass / 2 fail,
+      the two being this case and the older `null` one, both on the third-party
+      assertion.
 - [ ] 6.4 A node without the routes answers a typed unavailable outcome; the
       client renders "not available on this node yet". Negative: return a bare 404
       and watch the client test show an error state instead.
