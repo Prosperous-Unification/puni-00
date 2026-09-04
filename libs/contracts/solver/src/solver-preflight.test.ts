@@ -103,6 +103,47 @@ describe('preflightSolverRequest', () => {
     expect(preflight.failure).toBe('objective-overflow');
   });
 
+  it('bounds the priority worst case at the FINISH, not at the horizon', () => {
+    // Measured in TASK-219 run 20 chunk 1, on the solver itself: `horizonUnits`
+    // bounds a slice's START, and PRIORITY is a sum over FINISHES. So the worst
+    // case is Sum w(s) x (horizonUnits + durationUnits(s)), and the earlier
+    // Sum w(s) x horizonUnits was short by exactly Sum w(s) x durationUnits(s).
+    //
+    // This instance is the boundary and every number in it is real. Horizon is
+    // 2^31 - 1, the schema's own maximum; weight is 2^22. The old bound is
+    // 2^22 x (2^31 - 1) = 9007199250546688, which is under MAX_SAFE_INTEGER and
+    // was therefore accepted. The model's own PRIORITY ceiling is
+    // 2^22 x 2^31 = 2^53 = MAX_SAFE_INTEGER + 1, and a placement at the horizon
+    // reaching it was proved OPTIMAL by CP-SAT. Accepting this request means
+    // publishing a `priority.value` the response schema's own `safeInteger`
+    // refuses — Bun rejecting the response it asked for.
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX - 1, priorityWeight: 2 ** 22 })],
+      atZero,
+    );
+    expect(preflight.ok).toBe(false);
+    if (preflight.ok) throw new Error('unreachable');
+    expect(preflight.failure).toBe('objective-overflow');
+    expect(preflight.detail).toContain('9007199254740992');
+  });
+
+  it('accepts the same plan one unit of weight lower', () => {
+    // The boundary is a boundary, not a blanket refusal of large weights. At
+    // 2^22 - 1 the finish-based worst case is 9007197107257344, inside
+    // MAX_SAFE_INTEGER, and this is the request the case above is one unit from.
+    const preflight = preflightSolverRequest(
+      [
+        sliceOf({
+          durationUnits: 1,
+          notBeforeUnits: SOLVER_HORIZON_UNITS_MAX - 1,
+          priorityWeight: 2 ** 22 - 1,
+        }),
+      ],
+      atZero,
+    );
+    expect(preflight).toEqual({ ok: true, horizonUnits: SOLVER_HORIZON_UNITS_MAX });
+  });
+
   it('checks the horizon FIRST, so an over-horizon plan is not misreported', () => {
     // Both bounds are broken here. The horizon is the cause and the objective
     // failure is its consequence; naming the consequence would send a user to

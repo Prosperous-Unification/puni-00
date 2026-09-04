@@ -53,10 +53,24 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * check silently failing open rather than closed.
  *
  * The objective preflight is second because it multiplies by the horizon. Its
- * worst case is `Σ w(s) × horizonUnits`: every slice's priority weight paid at
- * the last representable instant. Above `Number.MAX_SAFE_INTEGER` an integer
- * stops surviving the round trip through Bun and JSON, so the weight the solver
- * optimises would not be the weight this builder computed.
+ * worst case is `Σ w(s) × (horizonUnits + durationUnits(s))`: every slice's
+ * priority weight paid at the last instant that slice can *finish*. Above
+ * `Number.MAX_SAFE_INTEGER` an integer stops surviving the round trip through
+ * Bun and JSON, so the weight the solver optimises would not be the weight this
+ * builder computed.
+ *
+ * **It is the FINISH, not the horizon, and the difference is load-bearing.**
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v1.json` clause 1, and
+ * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
+ * and a finish past the horizon is legal — the makespan's business, not an
+ * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly
+ * `Σ w(s) × durationUnits(s)`, and a bound that omitted that term admitted
+ * requests the solver can answer with a `priority.value` the response schema's
+ * own `safeInteger` refuses. Measured rather than reasoned (TASK-219 run 20):
+ * at `horizonUnits = 2³¹ − 1` and weight `2²²` the old bound is 9007199250546688
+ * and passes, while CP-SAT proves OPTIMAL a placement whose PRIORITY is
+ * 9007199254740992 — `Number.MAX_SAFE_INTEGER + 1`, one unit into the range
+ * that does not round-trip. Bun would have refused the response it asked for.
  *
  * **MOVEMENT's worst case is third**, and it is checked here now that 2.11's
  * quantised baseline exists to check it against. `Σ |offset − baseline|` is
@@ -81,11 +95,19 @@ export function preflightSolverRequest(
   let latestFloor = 0n;
   let totalDuration = 0n;
   let totalWeight = 0n;
+  let weightedDuration = 0n;
   for (const slice of slices) {
     const floor = BigInt(slice.notBeforeUnits);
     if (floor > latestFloor) latestFloor = floor;
-    totalDuration += BigInt(slice.durationUnits);
-    totalWeight += BigInt(slice.priorityWeight);
+    const duration = BigInt(slice.durationUnits);
+    const weight = BigInt(slice.priorityWeight);
+    totalDuration += duration;
+    totalWeight += weight;
+    // The `Σ w(s) × durationUnits(s)` half of the objective bound below,
+    // accumulated here because the other half needs the horizon this loop is
+    // still computing. In `bigint` for the same reason everything else is: the
+    // product of two safe integers is routinely not one.
+    weightedDuration += weight * duration;
   }
 
   const horizon = latestFloor + totalDuration;
@@ -97,7 +119,7 @@ export function preflightSolverRequest(
     };
   }
 
-  const objectiveWorstCase = totalWeight * horizon;
+  const objectiveWorstCase = totalWeight * horizon + weightedDuration;
   if (objectiveWorstCase > MAX_SAFE) {
     return {
       ok: false,
