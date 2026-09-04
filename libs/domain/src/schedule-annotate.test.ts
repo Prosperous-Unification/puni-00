@@ -3,11 +3,11 @@ import { describe, expect, it } from 'bun:test';
 import { FAST_GOLDEN_CASES } from './fast-golden-corpus';
 import {
   type PoolSizes,
-  schedule,
   type Schedule,
+  schedule,
   ScheduleInvalidOptimizedStartError,
-  sliceKey,
   type Slice,
+  sliceKey,
 } from './schedule';
 
 /**
@@ -222,6 +222,84 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
     // Nothing in this plan is capacity-bound once the optimizer has moved `b`
     // clear of the pool, so the header says so.
     expect(produced.waitingForCapacity).toBe(0);
+  });
+});
+
+/**
+ * The pool re-ask is the floor comparison one branch down, and it drifts for
+ * the same reason.
+ *
+ * Run 40 chunk 2 closed `pinFloor`'s floor comparison — `<` and `===` against
+ * two different roundings of one real number — and named the re-ask below it as
+ * the same shape, unproved. It is reachable, and the fixture needs nothing
+ * exotic: `a` is one slice of `1 / 48` of a day pinned at solver unit 7, so the
+ * pool releases at `7 / 48 + 1 / 48`, which is one ulp ABOVE unit 8. Pin `b`
+ * there — abutting on the solver's own integer axis, which is the commonest
+ * thing an optimizer does — and `window.start !== pinned` refused it.
+ *
+ * The two sides are the same two roundings the floor branch already reconciles:
+ * the pin divides back from `k / SOLVER_QUANTUM`, the release accumulated
+ * through `start + days / width`.
+ */
+describe('a pinned start the pool releases a ulp later', () => {
+  const rows = [leafRow('a', 10), leafRow('b', 20)];
+  const sizes: PoolSizes = new Map([['team', 1]]);
+  // `b` is short enough to fit in the gap before `a`, so its plan floor is 0
+  // and the pin is STRICTLY later than every floor it has — which is the only
+  // way into the re-ask branch at all.
+  const pooled = [
+    work('a', 1 / 48, { poolIds: ['team'] }),
+    work('b', 2 / 48, { poolIds: ['team'] }),
+  ];
+  const PINNED_A = 7 / 48;
+  const PINNED_B = 8 / 48;
+  /** What the pass itself computes for `a`'s finish: `start + days / width`. */
+  const RELEASE = PINNED_A + 1 / 48;
+
+  it("places the slice on the pool's own double rather than refusing it", () => {
+    const pinned = new Map([
+      [sliceKey('a', null), PINNED_A],
+      [sliceKey('b', null), PINNED_B],
+    ]);
+
+    // The drift is real arithmetic and not a constructed one: assert it here so
+    // the case fails loudly if a future change to `durationOf` or to the
+    // quantum moves the fixture off the ulp it is about, rather than passing
+    // vacuously as an ordinary abutment.
+    expect(RELEASE).toBeGreaterThan(PINNED_B);
+    expect(RELEASE - PINNED_B).toBeLessThan(1e-15);
+
+    const produced = schedule(rows, [], pooled, new Map(), sizes, 'whole-item', pinned);
+    const abutting = produced.slices.get(sliceKey('b', null));
+
+    // **The pool's double wins, not the pin's** — the same rule the floor
+    // branch takes one line up, for the same reason: the schedule stays on one
+    // axis, and a start one ulp inside a live reservation would leave the
+    // profile genuinely over-allocated.
+    expect(abutting?.earliestStart).toBe(RELEASE);
+    expect(abutting?.boundBy).toBe('optimizer');
+    // The re-ask from the pool's own instant is a fixpoint, so `binding` is
+    // empty and the render invariant holds additively — a ulp is not a wait,
+    // and naming `team` here would be a sentence about a block nothing held up.
+    expect(abutting?.capacityTeamId).toBeNull();
+    expect(abutting?.capacityPredecessorIds).toEqual([]);
+    expect(abutting?.resourcePredecessorId).toBeNull();
+    expect(produced.waitingForCapacity).toBe(0);
+  });
+
+  it('still refuses a pin one whole solver unit inside the reservation', () => {
+    // The guard on the window above, and the reason it cannot hide anything:
+    // the solver places integers, so a pin that genuinely has no room is short
+    // by at least `1 / SOLVER_QUANTUM` — 0.0208 of a day against a 1e-9 window,
+    // nine orders of magnitude. Widen `DRIFT` past a unit and this case fails.
+    const pinned = new Map([
+      [sliceKey('a', null), PINNED_A],
+      [sliceKey('b', null), PINNED_A],
+    ]);
+
+    expect(() => schedule(rows, [], pooled, new Map(), sizes, 'whole-item', pinned)).toThrow(
+      ScheduleInvalidOptimizedStartError,
+    );
   });
 });
 

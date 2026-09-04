@@ -1173,10 +1173,18 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
  *   against a 1e-9 window.
  * - **Strictly later** is `'optimizer'`, and only then. The pin is re-asked of
  *   the pool from its own instant: `jointWindowFor(…, pinned)` must answer
- *   `pinned`, which both proves the placement legal and hands back the
- *   `binding: []` window that keeps {@link annotateCapacity}'s render invariant
- *   true — a non-empty `binding` under `'optimizer'` would name a team on a
- *   slice no pool held up, and that invariant throws.
+ *   `pinned` — **within {@link withinDrift}, for the floor's reason and not a
+ *   second one**. A pool release is `start + days / width` accumulated and the
+ *   pin divides back from `k / SOLVER_QUANTUM`, so the two abut on the solver's
+ *   integer axis and miss by a ulp on the plan's: measured, `1 / 48` of a day
+ *   pinned at unit 7 releases one ulp above unit 8, and `!==` refused the
+ *   commonest thing an optimizer does. The accepted start is then the POOL's
+ *   double, and the window is re-asked from it so it is the search's own
+ *   fixpoint — `binding: []`, which is what keeps {@link annotateCapacity}'s
+ *   render invariant true, since a non-empty `binding` under `'optimizer'`
+ *   would name a team on a slice no pool held up and that invariant throws.
+ *   The window hides nothing: a pin that genuinely has no room is short by at
+ *   least one unit, 0.0208 of a day against 1e-9.
  * - **Strictly earlier** is not a schedule. A start below the resolved floor is
  *   below a predecessor's finish, a manual not-before, a person's queue or a
  *   pool's capacity, and there is no reading of it that is merely suboptimal.
@@ -1198,14 +1206,30 @@ function pinFloor(
       `${String(pinned)} is before its ${resolved.boundBy} floor at ${String(resolved.start)}`,
     );
   }
-  const window = windowFrom(pinned);
-  if (window.start !== pinned) {
+  let window = windowFrom(pinned);
+  if (!withinDrift(window.start, pinned)) {
     throw new ScheduleInvalidOptimizedStartError(
       key,
       `no room in its pools at ${String(pinned)}; the earliest is ${String(window.start)}`,
     );
   }
-  return { start: pinned, boundBy: 'optimizer' };
+  // The release and the pin are the same two roundings the floor branch above
+  // reconciles — the pin divides back from `k / SOLVER_QUANTUM`, the release
+  // accumulated through `start + days / width` — so the pool's own double wins
+  // here exactly as the floor's does there, and the schedule stays on one axis.
+  // Taking the pin instead would place a block one ulp inside a live
+  // reservation, which is a real over-allocation of the profile, however small.
+  //
+  // The re-ask is what makes that safe rather than merely tidy: `windowFrom`
+  // hands the caller's `window` back too, and a window whose start is later
+  // than the instant it was asked from carries a `binding` entry — a team named
+  // on a slice `'optimizer'` says nothing held up, which {@link annotateCapacity}
+  // throws on. Asked from its own answer the search is a fixpoint by
+  // construction (the block provably fits there, for the whole duration), so it
+  // returns the same instant with `binding: []` and costs one search on a
+  // branch nothing common takes.
+  if (window.start !== pinned) window = windowFrom(window.start);
+  return { start: window.start, boundBy: 'optimizer' };
 }
 
 /**
