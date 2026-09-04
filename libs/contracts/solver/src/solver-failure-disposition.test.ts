@@ -118,10 +118,10 @@ describe('pre-spawn failures are the recorded reason verbatim', () => {
  * whole list, so neither can be satisfied by a token-shaped exception.
  *
  * What did NOT fire is the part worth keeping. Every one of the other 164
- * passes, including the re-validator's own suite, which asserts the
- * *diagnosis* token and is unchanged; and including the vocabulary and totality
- * checks above, which pass because the wrong answer is a member of the column's
- * own enum. Nothing outside this file notices at all.
+ * passes, including the re-validator's own suite, which asserts the diagnosis
+ * token and is unchanged; and including the vocabulary and totality checks
+ * above, which pass because the wrong answer is a member of the column's own
+ * enum. Nothing outside this file notices at all.
  */
 describe('the same token means opposite things on either side of the spawn', () => {
   it('records objective-overflow before the spawn and invalid-output after it', () => {
