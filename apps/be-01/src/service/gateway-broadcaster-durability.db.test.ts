@@ -9,7 +9,7 @@ import { DrizzleEventLogRepo } from '../repository/event-log';
 import { runMigrations } from '../repository/migrate';
 import { subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
-import { PushClient } from './push-client';
+import type { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
 import { WriteLock } from './write-lock';
 
@@ -85,18 +85,33 @@ describe('the durable record of a project event', () => {
    * instant would need a fake command service whose only job is to hold this
    * same barrier.
    */
-  function refusingBatch(lock: WriteLock): { done: Promise<void>; refuse: () => void } {
-    let open!: () => void;
+  function openBatch(
+    lock: WriteLock,
+    outcome: 'commits' | 'refuses',
+  ): { done: Promise<void>; open: Promise<void>; settle: () => void } {
+    let letGo!: () => void;
+    let announceOpen!: () => void;
     const held = new Promise<void>((resolve) => {
-      open = resolve;
+      letGo = resolve;
+    });
+    // `WriteLock.run` schedules its callback on a microtask rather than running
+    // it inline, so a caller that merely called `run` has not opened anything
+    // yet. Awaiting this is what puts the publish inside the window instead of
+    // in front of it — without it the mutation below stays green, because
+    // `DrizzleEventLogRepo.recordEvent` runs its statement synchronously and
+    // wins the race.
+    const open = new Promise<void>((resolve) => {
+      announceOpen = resolve;
     });
     const transactions = drizzleOuterTransaction(db);
     const done = lock.run(async () => {
       transactions.begin();
+      announceOpen();
       await held;
-      transactions.rollback();
+      if (outcome === 'commits') transactions.commit();
+      else transactions.rollback();
     });
-    return { done, refuse: open };
+    return { done, open, settle: letGo };
   }
 
   it('survives an unrelated batch refusing while the publish is in flight', async () => {
@@ -105,11 +120,12 @@ describe('the durable record of a project event', () => {
     const subscription = subscriptionFor(projectId);
     expect(await eventLog.latestSeq(subscription)).toBe(-1);
 
-    const batch = refusingBatch(lock);
+    const batch = openBatch(lock, 'refuses');
+    await batch.open;
     // Issued while the batch's transaction is open — the window the defect
     // lived in. It queues behind the lock rather than recording into it.
     const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
-    batch.refuse();
+    batch.settle();
     await batch.done;
     await published;
 
@@ -130,19 +146,11 @@ describe('the durable record of a project event', () => {
     const projectId = 'p-2';
     const subscription = subscriptionFor(projectId);
 
-    let open!: () => void;
-    const held = new Promise<void>((resolve) => {
-      open = resolve;
-    });
-    const transactions = drizzleOuterTransaction(db);
-    const batch = lock.run(async () => {
-      transactions.begin();
-      await held;
-      transactions.commit();
-    });
+    const batch = openBatch(lock, 'commits');
+    await batch.open;
     const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
-    open();
-    await batch;
+    batch.settle();
+    await batch.done;
     await published;
 
     expect(await eventLog.latestSeq(subscription)).toBe(0);
@@ -172,8 +180,9 @@ describe('the durable record of a project event', () => {
     // A later holder starts while that push is still open. If the lock covered
     // it this would deadlock and the test would time out rather than fail.
     let ran = false;
-    await lock.run(async () => {
+    await lock.run(() => {
       ran = true;
+      return Promise.resolve();
     });
     expect(ran).toBe(true);
     // And the row was already durable before the push was let go, which is the

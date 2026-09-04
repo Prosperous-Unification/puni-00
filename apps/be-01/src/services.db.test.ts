@@ -10,9 +10,9 @@ import { DrizzleEventLogRepo } from './repository/event-log';
 import { runMigrations } from './repository/migrate';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
+import { WriteLock } from './service/write-lock';
 import { buildServices } from './services';
 import { projectRow } from './testing/project-fixture';
-import { WriteLock } from './service/write-lock';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
