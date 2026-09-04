@@ -363,4 +363,40 @@ describe("the materialiser's annotations, through the plan read", () => {
       capacityPredecessorIds: [],
     });
   });
+
+  it('names only the pool tenants that had actually finished by the pinned start', async () => {
+    // tasks.md 4.11 (e), the long-plus-short capacity-2 case, on the production
+    // path. Pool size 2. `long` runs 0–10 and `short` runs 0–5, so the pool is
+    // full for the first five days and `pinned` — which nothing else holds up —
+    // has a capacity floor at 5. The optimizer's offset agrees with it, so this
+    // slice stays `'capacity'` and its predecessor set is a real one.
+    //
+    // The set is `short` and NOT `long`: a conservative scan records every
+    // reservation live at a violated instant, but a reservation that is still
+    // running alongside this slice did not release the slot it took. Promoting
+    // it into the backward graph draws a `long` → `pinned` edge, which gives
+    // `long` a late finish earlier than its own early finish and puts negative
+    // float on the plan — a bar the UI would draw as overdue against nothing.
+    //
+    // Watched red: `annotateCapacity`'s
+    // `window.blocking.filter(finishesByStart)` reduced to `window.blocking`.
+    await capacity.set(projectId, PLATFORM, 2, WROTE);
+    const long = await leaf('Long', 10, PLATFORM);
+    const short = await leaf('Short', 5, PLATFORM);
+    const pinned = await leaf('Pinned', 2, PLATFORM);
+    const tree = await servedBy({ [sliceKey(pinned, stepId)]: units(5) });
+
+    const shortSlice = slicedFor(tree, short);
+    expect(slicedFor(tree, pinned)).toMatchObject({
+      earliestStart: 5,
+      boundBy: 'capacity',
+      capacityTeamId: PLATFORM,
+      capacityPredecessorIds: [shortSlice.id],
+    });
+    // The other half of the same claim, and the one a reader of the plan sees:
+    // `long` keeps a late finish at or after its early finish. Under the
+    // dropped filter it does not.
+    const longRow = rowFor(tree, long).schedule;
+    expect(longRow.latestFinish).toBeGreaterThanOrEqual(longRow.earliestFinish);
+  });
 });
