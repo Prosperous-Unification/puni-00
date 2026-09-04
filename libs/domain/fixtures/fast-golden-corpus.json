@@ -1,0 +1,393 @@
+{
+  "contractVersion": 7,
+  "cases": {
+    "chain-of-three": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 3,
+            "effort": 3,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 3,
+            "earliestFinish": 5,
+            "latestStart": 3,
+            "latestFinish": 5,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "c\u0000",
+          {
+            "workItemId": "c",
+            "stepId": null,
+            "duration": 4,
+            "effort": 4,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 5,
+            "earliestFinish": 9,
+            "latestStart": 5,
+            "latestFinish": 9,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 3,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 3,
+            "earliestFinish": 5,
+            "latestStart": 3,
+            "latestFinish": 5,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "c",
+          {
+            "duration": 4,
+            "estimated": true,
+            "earliestStart": 5,
+            "earliestFinish": 9,
+            "latestStart": 5,
+            "latestFinish": 9,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    },
+    "unestimated-middle": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": false,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "c\u0000",
+          {
+            "workItemId": "c",
+            "stepId": null,
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 4,
+            "earliestFinish": 5,
+            "latestStart": 4,
+            "latestFinish": 5,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "c",
+          {
+            "duration": 1,
+            "estimated": true,
+            "earliestStart": 4,
+            "earliestFinish": 5,
+            "latestStart": 4,
+            "latestFinish": 5,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    },
+    "pool-of-one": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "capacity",
+            "resourcePredecessorId": "a\u0000",
+            "capacityPredecessorIds": [
+              "a\u0000"
+            ],
+            "capacityTeamId": "team"
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 1,
+      "eventsVisited": 2
+    },
+    "floor-and-person": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 3,
+            "latestFinish": 5,
+            "float": 3,
+            "critical": false,
+            "personId": "p",
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 5,
+            "earliestFinish": 6,
+            "latestStart": 5,
+            "latestFinish": 6,
+            "float": 0,
+            "critical": true,
+            "personId": "p",
+            "boundBy": "notBefore",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 3,
+            "latestFinish": 5,
+            "float": 3,
+            "critical": false
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 1,
+            "estimated": true,
+            "earliestStart": 5,
+            "earliestFinish": 6,
+            "latestStart": 5,
+            "latestFinish": 6,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    }
+  }
+}
