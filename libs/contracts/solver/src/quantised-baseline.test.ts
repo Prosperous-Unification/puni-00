@@ -206,9 +206,9 @@ describe('quantisedFastBaseline', () => {
 
     // And it is the floor the wire carries, not merely a floor.
     const floors = leafFloorsOf(notBefore, indexTree(rows));
-    expect(
-      infeasibilities(offsets, slices, ['leaf'], [], { ...noConstraints, floors }),
-    ).toEqual([]);
+    expect(infeasibilities(offsets, slices, ['leaf'], [], { ...noConstraints, floors })).toEqual(
+      [],
+    );
   });
 
   it('keeps a width outside 48 divisors exact rather than drifting on it', () => {
@@ -298,11 +298,13 @@ describe('the quantised baseline as a solver response', () => {
    * the offsets disagreeing with the arithmetic rather than two readings of a
    * duration disagreeing with each other.
    */
-  const valuesFor = (
-    request: SolverRequest,
-    offsets: SolverOffsetMap,
-  ): SolverObjectiveValues => {
-    const term = (value: number) => ({ value, stageValue: value, bound: value, status: 'feasible' as const });
+  const valuesFor = (request: SolverRequest, offsets: SolverOffsetMap): SolverObjectiveValues => {
+    const term = (value: number) => ({
+      value,
+      stageValue: value,
+      bound: value,
+      status: 'feasible' as const,
+    });
     const finishOf = (slice: SolverRequest['slices'][number]) =>
       offsets[slice.key] + slice.durationUnits;
     return {
@@ -349,7 +351,10 @@ describe('the quantised baseline as a solver response', () => {
     // legal offset in the variable domain and an illegal one in the graph,
     // which is the distinction the placement rules exist to make — so the
     // refusal below is a dependency verdict rather than a domain one.
-    const broken = { ...request.fastHint, [sliceKey('B', 'dev')]: request.slices[0].notBeforeUnits };
+    const broken = {
+      ...request.fastHint,
+      [sliceKey('B', 'dev')]: request.slices[0].notBeforeUnits,
+    };
     const result = revalidateSolverResult(request, responseOf(request, broken));
 
     expect(result.ok).toBe(false);
