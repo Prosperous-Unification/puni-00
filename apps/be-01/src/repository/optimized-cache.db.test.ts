@@ -1247,6 +1247,217 @@ describe("4.1's conditional write, with all four conditions composed", () => {
       db.cleanup();
     }
   });
+
+  /**
+   * tasks.md 4.11b on the **production write path**: the guard's two arms, the
+   * mapping onto `publication`, and the ordering obligation that makes the guard
+   * mean anything.
+   *
+   * The decision itself is proved at the seam it is made in
+   * (`libs/domain/src/publication-guard.test.ts`, both mandated fixtures with
+   * three mutations). What is proved *here* is that the answer survives to a
+   * durable row and back: a floor row storing Fast's own schedule with
+   * real-domain values, a solver row keeping the run's quantised ones, and the
+   * fact that a row written before the guard runs can never be corrected.
+   *
+   * **The seat is fixed to `'pri'`** (`reserve`, and the `solver_slot` insert it
+   * writes), so every case below is a PRI variant and the primary term is
+   * `priority`. That is why 4.11b's second mandated fixture — an equal primary
+   * carrying a strictly *better secondary* — lives in the domain file and not
+   * here: its shape needs `makespan` as the primary. The arm it exercises, "a
+   * tie publishes the solver's schedule", is exercised here on a tie.
+   */
+  describe('4.11b — the publication guard reaching a durable row', () => {
+    /**
+     * 2.11's fixture: three serial `days=1, width=5` slices. `durationOf` is
+     * `1 / 5`, so real Fast runs 0 → 0.2 → 0.4 → 0.6 while the model the solver
+     * sees has every duration rounded up to a whole `SOLVER_QUANTUM` unit — 9.6
+     * rounds to 10 — and its optimum is 0, 10, 20 units. Worse in the real
+     * domain on BOTH terms: makespan 0.6167 against 0.6, priority 1.225
+     * against 1.2.
+     */
+    function widthFiveInput(): ScheduleInput {
+      const rows: PlannedRow[] = ['a', 'b', 'c'].map((id, at) => ({
+        id,
+        parentId: null,
+        position: (at + 1) * 10,
+        frozenNumber: null,
+        priority: null,
+      }));
+      const slices: Slice[] = ['a', 'b', 'c'].map((workItemId) => ({
+        workItemId,
+        stepId: null,
+        days: 1,
+        personId: null,
+        width: 5,
+        poolIds: [],
+      }));
+      return {
+        rows,
+        edges: [
+          { predecessorId: 'a', successorId: 'b' },
+          { predecessorId: 'b', successorId: 'c' },
+        ],
+        slices,
+        notBefore: new Map(),
+        poolSizes: new Map(),
+        reach: 'whole-item',
+        deadlines: new Map(),
+      };
+    }
+
+    const fastOf = (input: ScheduleInput): Schedule =>
+      schedule(input.rows, input.edges, input.slices, input.notBefore, input.poolSizes, input.reach);
+
+    const quantisedOptimumOf = (input: ScheduleInput): Schedule =>
+      schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        new Map([
+          [sliceKey('a', null), 0 / SOLVER_QUANTUM],
+          [sliceKey('b', null), 10 / SOLVER_QUANTUM],
+          [sliceKey('c', null), 20 / SOLVER_QUANTUM],
+        ]),
+      );
+
+    const UNWEIGHTED = () => 1;
+    const NO_MOVEMENT = () => 0;
+
+    /** What the run itself reported, in the solver's own integer units. */
+    const REPORTED: Readonly<Record<'makespan' | 'priority' | 'movement', StoredObjectiveValue>> = {
+      makespan: { value: 30, stageValue: 30, bound: 30, status: 'optimal' },
+      priority: { value: 60, stageValue: 60, bound: 60, status: 'optimal' },
+      movement: { value: 0, stageValue: null, bound: null, status: 'unknown' },
+    };
+
+    it('stores Fast own schedule as a quantisation-floor row when the solver lost to quantisation', () => {
+      const db = tempDb();
+      try {
+        admitted(db.path);
+        const input = widthFiveInput();
+        const decision = guardRealPublication(
+          input,
+          quantisedOptimumOf(input),
+          'priority',
+          UNWEIGHTED,
+          NO_MOVEMENT,
+        );
+        expect(decision.chosen).toBe('baseline');
+
+        const result = publishOptimizedResult(decision, REPORTED);
+        expect(commit(db.path, { kind: 'ok', result })).toBe('stored');
+
+        const pair = read(db.path);
+        if (pair.pri.kind !== 'ok') throw new Error('the floor row did not read back as ok');
+        const stored = pair.pri.result;
+
+        expect(stored.publication).toBe('quantisation-floor');
+        // The stored plan IS Fast's, not the solver's. A floor row presented as a
+        // solver win is exactly what `publication` is stored rather than
+        // inferred to prevent.
+        expect(stored.schedule).toEqual(fastOf(input));
+        // Every value recomputed in the real domain, on the schedule stored —
+        // asserted against the scorer rather than against a literal, because
+        // 0.2 + 0.2 + 0.2 !== 0.6 in IEEE-754.
+        const rescored = scoreReal(stored.schedule, UNWEIGHTED, NO_MOVEMENT);
+        expect(stored.objectiveValues.makespan.value).toBe(rescored.makespan);
+        expect(stored.objectiveValues.priority.value).toBe(rescored.priority);
+        expect(stored.objectiveValues.movement.value).toBe(rescored.movement);
+        // Fractional by construction, which is why 4.12b's numeric domain is
+        // per-publication: the safe-integer rule would have rejected this row.
+        expect(Number.isSafeInteger(stored.objectiveValues.priority.value)).toBe(false);
+        // No stage produced these numbers.
+        for (const term of ['makespan', 'priority', 'movement'] as const) {
+          expect(stored.objectiveValues[term].stageValue).toBeNull();
+          expect(stored.objectiveValues[term].bound).toBeNull();
+          expect(stored.objectiveValues[term].status).toBe('unknown');
+        }
+      } finally {
+        db.cleanup();
+      }
+    });
+
+    it('keeps the run own quantised numbers on a solver row when the primary ties', () => {
+      const db = tempDb();
+      try {
+        admitted(db.path);
+        const input = widthFiveInput();
+        // Fast scored against itself: the primary ties exactly, and a tie
+        // publishes the solver's schedule.
+        const decision = guardRealPublication(
+          input,
+          fastOf(input),
+          'priority',
+          UNWEIGHTED,
+          NO_MOVEMENT,
+        );
+        expect(decision.chosen).toBe('optimized');
+
+        expect(
+          commit(db.path, { kind: 'ok', result: publishOptimizedResult(decision, REPORTED) }),
+        ).toBe('stored');
+
+        const pair = read(db.path);
+        if (pair.pri.kind !== 'ok') throw new Error('the solver row did not read back as ok');
+        expect(pair.pri.result.publication).toBe('solver');
+        // The guard's real-domain scores measured the comparison; they are not
+        // what the run reported, and a solver row carries the report.
+        expect(pair.pri.result.objectiveValues).toEqual(REPORTED);
+      } finally {
+        db.cleanup();
+      }
+    });
+
+    /**
+     * The item's third watched red: **move the guard after the cache write and
+     * (i) fails with a `'solver'` row already durable.**
+     *
+     * This is the case that makes "before any cache write" a rule rather than a
+     * preference. `storeOptimizedOutcome` is not an upsert — `onConflictDoNothing`
+     * over a primary key that excludes `generation` — so the first write wins
+     * permanently, and a guard that ran afterwards would have nothing to correct.
+     */
+    it('cannot correct a solver row written before the guard ran', () => {
+      const db = tempDb();
+      try {
+        admitted(db.path);
+        const input = widthFiveInput();
+        const unguarded: OptimizedResult = {
+          publication: 'solver',
+          objectiveValues: REPORTED,
+          schedule: quantisedOptimumOf(input),
+        };
+
+        expect(commit(db.path, { kind: 'ok', result: unguarded })).toBe('stored');
+
+        // The guard now runs and says "substitute Fast" — too late.
+        const decision = guardRealPublication(
+          input,
+          quantisedOptimumOf(input),
+          'priority',
+          UNWEIGHTED,
+          NO_MOVEMENT,
+        );
+        expect(decision.chosen).toBe('baseline');
+        expect(
+          commit(db.path, { kind: 'ok', result: publishOptimizedResult(decision, REPORTED) }),
+        ).toBe('already-recorded');
+
+        const pair = read(db.path);
+        if (pair.pri.kind !== 'ok') throw new Error('the durable row did not read back as ok');
+        // Still the worse schedule, still tagged as a solver win.
+        expect(pair.pri.result.publication).toBe('solver');
+        expect(pair.pri.result.schedule).toEqual(quantisedOptimumOf(input));
+        expect(pair.pri.result.schedule).not.toEqual(fastOf(input));
+      } finally {
+        db.cleanup();
+      }
+    });
+  });
 });
 
 describe("4.1b's retention bound, which is a bound and not an exclusion", () => {
@@ -2059,217 +2270,6 @@ describe('the adapter a plan read asks', () => {
       // And the third answer is a miss on the HASH rather than on the project:
       // the same read against the stored plan is not a miss for `time`'s row.
       expect(scheduleInputHash(otherPlan)).not.toBe(scheduleInputHash(input));
-    } finally {
-      db.cleanup();
-    }
-  });
-});
-
-/**
- * tasks.md 4.11b on the **production write path**: the guard's two arms, the
- * mapping onto `publication`, and the ordering obligation that makes the guard
- * mean anything.
- *
- * The decision itself is proved at the seam it is made in
- * (`libs/domain/src/publication-guard.test.ts`, both mandated fixtures with
- * three mutations). What is proved *here* is that the answer survives to a
- * durable row and back: a floor row storing Fast's own schedule with
- * real-domain values, a solver row keeping the run's quantised ones, and the
- * fact that a row written before the guard runs can never be corrected.
- *
- * **The seat is fixed to `'pri'`** (`reserve`, and the `solver_slot` insert it
- * writes), so every case below is a PRI variant and the primary term is
- * `priority`. That is why 4.11b's second mandated fixture — an equal primary
- * carrying a strictly *better secondary* — lives in the domain file and not
- * here: its shape needs `makespan` as the primary. The arm it exercises, "a
- * tie publishes the solver's schedule", is exercised here on a tie.
- */
-describe('4.11b — the publication guard reaching a durable row', () => {
-  /**
-   * 2.11's fixture: three serial `days=1, width=5` slices. `durationOf` is
-   * `1 / 5`, so real Fast runs 0 → 0.2 → 0.4 → 0.6 while the model the solver
-   * sees has every duration rounded up to a whole `SOLVER_QUANTUM` unit — 9.6
-   * rounds to 10 — and its optimum is 0, 10, 20 units. Worse in the real
-   * domain on BOTH terms: makespan 0.6167 against 0.6, priority 1.225
-   * against 1.2.
-   */
-  function widthFiveInput(): ScheduleInput {
-    const rows: PlannedRow[] = ['a', 'b', 'c'].map((id, at) => ({
-      id,
-      parentId: null,
-      position: (at + 1) * 10,
-      frozenNumber: null,
-      priority: null,
-    }));
-    const slices: Slice[] = ['a', 'b', 'c'].map((workItemId) => ({
-      workItemId,
-      stepId: null,
-      days: 1,
-      personId: null,
-      width: 5,
-      poolIds: [],
-    }));
-    return {
-      rows,
-      edges: [
-        { predecessorId: 'a', successorId: 'b' },
-        { predecessorId: 'b', successorId: 'c' },
-      ],
-      slices,
-      notBefore: new Map(),
-      poolSizes: new Map(),
-      reach: 'whole-item',
-      deadlines: new Map(),
-    };
-  }
-
-  const fastOf = (input: ScheduleInput): Schedule =>
-    schedule(input.rows, input.edges, input.slices, input.notBefore, input.poolSizes, input.reach);
-
-  const quantisedOptimumOf = (input: ScheduleInput): Schedule =>
-    schedule(
-      input.rows,
-      input.edges,
-      input.slices,
-      input.notBefore,
-      input.poolSizes,
-      input.reach,
-      new Map([
-        [sliceKey('a', null), 0 / SOLVER_QUANTUM],
-        [sliceKey('b', null), 10 / SOLVER_QUANTUM],
-        [sliceKey('c', null), 20 / SOLVER_QUANTUM],
-      ]),
-    );
-
-  const UNWEIGHTED = () => 1;
-  const NO_MOVEMENT = () => 0;
-
-  /** What the run itself reported, in the solver's own integer units. */
-  const REPORTED: Readonly<Record<'makespan' | 'priority' | 'movement', StoredObjectiveValue>> = {
-    makespan: { value: 30, stageValue: 30, bound: 30, status: 'optimal' },
-    priority: { value: 60, stageValue: 60, bound: 60, status: 'optimal' },
-    movement: { value: 0, stageValue: null, bound: null, status: 'unknown' },
-  };
-
-  it('stores Fast own schedule as a quantisation-floor row when the solver lost to quantisation', () => {
-    const db = tempDb();
-    try {
-      admitted(db.path);
-      const input = widthFiveInput();
-      const decision = guardRealPublication(
-        input,
-        quantisedOptimumOf(input),
-        'priority',
-        UNWEIGHTED,
-        NO_MOVEMENT,
-      );
-      expect(decision.chosen).toBe('baseline');
-
-      const result = publishOptimizedResult(decision, REPORTED);
-      expect(commit(db.path, { kind: 'ok', result })).toBe('stored');
-
-      const pair = read(db.path);
-      if (pair.pri.kind !== 'ok') throw new Error('the floor row did not read back as ok');
-      const stored = pair.pri.result;
-
-      expect(stored.publication).toBe('quantisation-floor');
-      // The stored plan IS Fast's, not the solver's. A floor row presented as a
-      // solver win is exactly what `publication` is stored rather than
-      // inferred to prevent.
-      expect(stored.schedule).toEqual(fastOf(input));
-      // Every value recomputed in the real domain, on the schedule stored —
-      // asserted against the scorer rather than against a literal, because
-      // 0.2 + 0.2 + 0.2 !== 0.6 in IEEE-754.
-      const rescored = scoreReal(stored.schedule, UNWEIGHTED, NO_MOVEMENT);
-      expect(stored.objectiveValues.makespan.value).toBe(rescored.makespan);
-      expect(stored.objectiveValues.priority.value).toBe(rescored.priority);
-      expect(stored.objectiveValues.movement.value).toBe(rescored.movement);
-      // Fractional by construction, which is why 4.12b's numeric domain is
-      // per-publication: the safe-integer rule would have rejected this row.
-      expect(Number.isSafeInteger(stored.objectiveValues.priority.value)).toBe(false);
-      // No stage produced these numbers.
-      for (const term of ['makespan', 'priority', 'movement'] as const) {
-        expect(stored.objectiveValues[term].stageValue).toBeNull();
-        expect(stored.objectiveValues[term].bound).toBeNull();
-        expect(stored.objectiveValues[term].status).toBe('unknown');
-      }
-    } finally {
-      db.cleanup();
-    }
-  });
-
-  it('keeps the run own quantised numbers on a solver row when the primary ties', () => {
-    const db = tempDb();
-    try {
-      admitted(db.path);
-      const input = widthFiveInput();
-      // Fast scored against itself: the primary ties exactly, and a tie
-      // publishes the solver's schedule.
-      const decision = guardRealPublication(
-        input,
-        fastOf(input),
-        'priority',
-        UNWEIGHTED,
-        NO_MOVEMENT,
-      );
-      expect(decision.chosen).toBe('optimized');
-
-      expect(
-        commit(db.path, { kind: 'ok', result: publishOptimizedResult(decision, REPORTED) }),
-      ).toBe('stored');
-
-      const pair = read(db.path);
-      if (pair.pri.kind !== 'ok') throw new Error('the solver row did not read back as ok');
-      expect(pair.pri.result.publication).toBe('solver');
-      // The guard's real-domain scores measured the comparison; they are not
-      // what the run reported, and a solver row carries the report.
-      expect(pair.pri.result.objectiveValues).toEqual(REPORTED);
-    } finally {
-      db.cleanup();
-    }
-  });
-
-  /**
-   * The item's third watched red: **move the guard after the cache write and
-   * (i) fails with a `'solver'` row already durable.**
-   *
-   * This is the case that makes "before any cache write" a rule rather than a
-   * preference. `storeOptimizedOutcome` is not an upsert — `onConflictDoNothing`
-   * over a primary key that excludes `generation` — so the first write wins
-   * permanently, and a guard that ran afterwards would have nothing to correct.
-   */
-  it('cannot correct a solver row written before the guard ran', () => {
-    const db = tempDb();
-    try {
-      admitted(db.path);
-      const input = widthFiveInput();
-      const unguarded: OptimizedResult = {
-        publication: 'solver',
-        objectiveValues: REPORTED,
-        schedule: quantisedOptimumOf(input),
-      };
-
-      expect(commit(db.path, { kind: 'ok', result: unguarded })).toBe('stored');
-
-      // The guard now runs and says "substitute Fast" — too late.
-      const decision = guardRealPublication(
-        input,
-        quantisedOptimumOf(input),
-        'priority',
-        UNWEIGHTED,
-        NO_MOVEMENT,
-      );
-      expect(decision.chosen).toBe('baseline');
-      expect(
-        commit(db.path, { kind: 'ok', result: publishOptimizedResult(decision, REPORTED) }),
-      ).toBe('already-recorded');
-
-      const pair = read(db.path);
-      if (pair.pri.kind !== 'ok') throw new Error('the durable row did not read back as ok');
-      // Still the worse schedule, still tagged as a solver win.
-      expect(pair.pri.result.publication).toBe('solver');
-      expect(pair.pri.result.schedule).toEqual(quantisedOptimumOf(input));
-      expect(pair.pri.result.schedule).not.toEqual(fastOf(input));
     } finally {
       db.cleanup();
     }
