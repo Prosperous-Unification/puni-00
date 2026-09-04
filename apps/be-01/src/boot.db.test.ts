@@ -9,6 +9,9 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { bootBe01, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/auth.controller';
 import { runMigrations } from './repository/migrate';
+import type { AuthenticatedUser } from './service/auth.service';
+import type { GatewayBroadcaster } from './service/gateway-broadcaster';
+import type { WriteLock } from './service/write-lock';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -47,7 +50,11 @@ function tempDir(prefix: string): string {
  * whatever commit the checkout running the suite happens to be at, and an
  * assertion on that is an assertion on the developer's afternoon.
  */
-function boot(commitDir: string = tempDir('wbs-boot-nogit-'), oidc?: OidcRouteOptions): RunningBe {
+function boot(
+  commitDir: string = tempDir('wbs-boot-nogit-'),
+  oidc?: OidcRouteOptions,
+  localIdentity?: AuthenticatedUser,
+): RunningBe {
   const dir = tempDir('wbs-boot-');
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
@@ -59,6 +66,7 @@ function boot(commitDir: string = tempDir('wbs-boot-nogit-'), oidc?: OidcRouteOp
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
     oidc,
+    localIdentity,
     commitDir,
   });
   return running;
@@ -161,6 +169,105 @@ describe('bootBe01', () => {
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
     const second = await fetch(`http://localhost:${String(be.port)}/health`);
     expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
+  });
+
+  it('holds a command batch out while the broadcaster lock is taken', async () => {
+    // The one-lock wiring, observed rather than restated. `boot.ts` creates one
+    // `WriteLock` and passes it to `buildServices` (the broadcaster records
+    // under it) and to `buildApp` (`PlanCommandRunner` opens its outer
+    // transaction under it). That those are the SAME object is the whole
+    // durability guarantee — a second lock excludes nothing, and the batch's
+    // rollback goes back to erasing a durable event the push has already left
+    // with. Every existing test builds its own pair, so all of them stay green
+    // through a split; Sol's Important on PR 204.
+    //
+    // Proof it is not a restatement: `boot.ts` line 75 mutated to
+    // `lock: new WriteLock()` with line 126 left alone, which is a healthy pair
+    // of locks and the exact split this guards. The race below then resolves the
+    // wrong way round.
+    //
+    // Read off the real objects at both ends: the lock comes from the
+    // broadcaster `buildServices` constructed, and the waiting is done by the
+    // runner `buildApp` constructed, reached over its own HTTP route. Nothing
+    // here rebuilds the wiring it is checking.
+    //
+    // **It is an ordering race and not an elapsed-time sample, and the
+    // difference is the whole test.** A fixed sleep followed by "has it answered
+    // yet?" says nothing about *why* it had not: under the split mutation the
+    // request can lose the sample to a descheduled process, GC, loopback accept
+    // or Elysia's two auth passes and the case goes green while the invariant is
+    // broken — a false green on the sole regression protecting it. Sol's second
+    // Important on PR 204. So the barrier is the runner's own arrival at THIS
+    // lock object, observed by wrapping the instance's `run` for the length of
+    // the request. One lock: the wrapper fires and the response is still
+    // pending. Split lock: the runner takes the other object, the wrapper never
+    // fires, and the 200 wins the race.
+    const be = boot(undefined, undefined, {
+      id: 'local-dev',
+      username: 'local-dev',
+      scopes: ['read', 'write'],
+    });
+    // In production this is the `GatewayBroadcaster`; `undeferred` is the inner
+    // broadcaster the wrapper was built around.
+    const broadcaster = be.services.announcements.undeferred as GatewayBroadcaster;
+
+    let release!: () => void;
+    let announceTaken!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // `WriteLock.run` schedules its callback on a microtask rather than running
+    // it inline, so a caller that has merely called `run` holds nothing yet.
+    // Awaiting this is what puts the batch behind the turn instead of beside it
+    // — the same trap that made this change's first durability regression
+    // worthless.
+    const taken = new Promise<void>((resolve) => {
+      announceTaken = resolve;
+    });
+    const lock = broadcaster.lock;
+    const turn = lock.run(async () => {
+      announceTaken();
+      await held;
+    });
+    await taken;
+
+    // The seam, installed only after the turn is held so the wrapper cannot see
+    // this test's own call: an own property shadowing the prototype method for
+    // the length of the request, removed in `finally`.
+    let announceReached!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      announceReached = resolve;
+    });
+    const seam = lock as { run?: WriteLock['run'] };
+    const real = lock.run.bind(lock);
+    seam.run = <T>(work: () => Promise<T>): Promise<T> => {
+      announceReached();
+      return real(work);
+    };
+
+    // An empty batch: `execute` takes the lock before it looks at the commands
+    // at all, so nothing else needs to exist for this route to queue on it.
+    const batch = fetch(`http://localhost:${String(be.port)}/api/directory/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands: [] }),
+    });
+    let first: 'the runner queued on this lock' | 'the batch answered first';
+    try {
+      first = await Promise.race([
+        reached.then(() => 'the runner queued on this lock' as const),
+        batch.then(() => 'the batch answered first' as const),
+      ]);
+    } finally {
+      delete seam.run;
+      release();
+    }
+
+    expect(first).toBe('the runner queued on this lock');
+
+    await turn;
+    const res = await batch;
+    expect(res.status).toBe(200);
   });
 
   it('answers a resume from the log it opened', async () => {

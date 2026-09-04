@@ -3,6 +3,7 @@ import { type Broadcaster, type ProjectEvent, subscriptionFor } from './broadcas
 import { type Clock, clockOf } from './clock';
 import type { PushClient } from './push-client';
 import type { ReplayBuffer } from './replay-buffer';
+import type { WriteLock } from './write-lock';
 
 export interface GatewayBroadcasterOptions {
   /**
@@ -24,6 +25,26 @@ export interface GatewayBroadcasterOptions {
    * query, and the buffer would look healthy while being permanently empty.
    */
   buffer: ReplayBuffer;
+  /**
+   * The process's one {@link WriteLock} — **the same object** `buildApp` gets as
+   * `writes.lock`, not a second one.
+   *
+   * It is here for durability, not for mutual exclusion of the log. `eventLog`
+   * is built on the one shared `Drizzle` handle, which is also the handle a
+   * command batch holds its outer transaction open on (ADR 0007), so a
+   * `recordEvent` issued while that transaction is open becomes a savepoint
+   * inside it and the batch's rollback erases it — after the live push has
+   * already left the process. A connected collaborator then sees a change that a
+   * reconnecting one is never replayed, and the sequencer can reissue the number.
+   *
+   * `PlanCommandRunner` opens and closes that transaction strictly inside
+   * `lock.run` (`execute` and `walk` are its only two openers), so taking a turn
+   * on the lock is exactly "no outer transaction is open". Nothing else in the
+   * tree takes it.
+   *
+   * Only the durable half runs under it — see {@link GatewayBroadcaster.publish}.
+   */
+  lock: WriteLock;
   /** Called when the gateway could not be reached; the write itself already committed. */
   onPushFailed?: (err: unknown, subscription: string) => void;
 }
@@ -45,16 +66,60 @@ export class GatewayBroadcaster implements Broadcaster {
     this.clock = opts.clock ?? clockOf();
   }
 
+  /**
+   * The lock this broadcaster records under, read back off the constructed
+   * object.
+   *
+   * It exists so the *composition* can be asserted rather than the intention:
+   * {@link GatewayBroadcasterOptions.lock} says "the same object `buildApp` gets
+   * as `writes.lock`", and until this getter existed nothing could observe
+   * whether `boot.ts` had actually passed one object to both. A second lock
+   * excludes nothing and every existing test stayed green through it, because
+   * each one builds its own pair — the gap Sol's Important named on PR 204.
+   * `boot.db.test.ts` › `holds a command batch out while the broadcaster lock
+   * is taken` takes a turn on this lock and watches a real HTTP batch wait for
+   * it.
+   */
+  get lock(): WriteLock {
+    return this.opts.lock;
+  }
+
   latestSeq(projectId: string): Promise<number> {
     return this.opts.eventLog.latestSeq(subscriptionFor(projectId));
   }
 
+  /**
+   * Record durably and buffer, then push — the durable half under the
+   * {@link GatewayBroadcasterOptions.lock write lock}, the push outside it.
+   *
+   * The split is the whole point and the two halves are not interchangeable.
+   * **Under** the lock, because the log shares its connection with a batch's
+   * outer transaction and a record made inside one is a savepoint the batch's
+   * rollback takes with it. **Outside** it, because a push is a network call
+   * that `PushClient` retries six times over a 500ms→30s backoff — about a
+   * minute in the worst case — and a lock held across that stalls every write in
+   * the process. `PlanCommandRunner` states the second half of that rule for
+   * itself and `plan-commands.test.ts` › `lets go of the write lock before the
+   * broadcast leaves` holds it; this method is where the first half lives.
+   *
+   * It cannot deadlock, and that is checked rather than assumed: no publisher
+   * reaches here with the lock already held. A batch's announcements are queued
+   * by `DeferringBroadcaster` and drained by `send` after `execute` has let go;
+   * `WorkItemService.announceTree` diverts into its collector while collecting
+   * and `announceTreeNow` runs after `walk` returns; every other publisher is an
+   * HTTP route that never takes the lock at all.
+   */
   async publish(projectId: string, event: ProjectEvent): Promise<void> {
     const subscription = subscriptionFor(projectId);
-    const recorded = await this.opts.eventLog.recordEvent(subscription, event, this.clock.now());
-    this.opts.buffer.record(subscription, recorded.seq, event);
+    const seq = await this.opts.lock.run(async () => {
+      const recorded = await this.opts.eventLog.recordEvent(subscription, event, this.clock.now());
+      // Inside the turn with the record it describes: a buffer entry published
+      // before the row is durable is one a rollback could still take back.
+      this.opts.buffer.record(subscription, recorded.seq, event);
+      return recorded.seq;
+    });
     try {
-      await this.opts.push.push({ subscription, seq: recorded.seq, message: event });
+      await this.opts.push.push({ subscription, seq, message: event });
     } catch (err) {
       this.opts.onPushFailed?.(err, subscription);
     }

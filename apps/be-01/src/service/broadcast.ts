@@ -78,7 +78,36 @@ export type ProjectEvent =
    * therefore decided purely on whether a reader of this union is told the
    * truth.
    */
-  | { type: 'priority_bands_changed' };
+  | { type: 'priority_bands_changed' }
+  /**
+   * This project's list of saved plans has changed — one saved, renamed or
+   * deleted.
+   *
+   * **The plan itself never changes, and that is what this event is for.** A
+   * saved plan is immutable by construction, so unlike every other member of
+   * this union nothing a second reader already holds has gone stale. What has
+   * changed is the *set*: the shelf shows a plan that is not there, or is
+   * missing one that is, or is captioned with a name somebody else replaced.
+   *
+   * It carries nothing, for `directory_changed`'s reason: a client reads the
+   * project's saved plans as one list and the only useful thing to say is "read
+   * again". Carrying the new record would additionally leak it to every reader
+   * of the project including one who may not rename or delete it, which is a
+   * permission the list route already decides for itself.
+   *
+   * Its own type rather than folding into `tree_replaced`, and the distinction
+   * is load-bearing rather than cosmetic: **no date moved and no live row
+   * changed**. A reader that treated a save as a tree change would re-fetch and
+   * re-render a plan that is byte-identical to the one on screen, on every save
+   * any collaborator makes.
+   *
+   * There is a second reader of this event beyond the shelf. TASK-232's 8.4
+   * offers "this plan has changed since the comparison below was made" rather
+   * than swapping the comparison out; before this event existed that affordance
+   * could only be reached by the reader's *own* save, because nothing a
+   * collaborator did ever arrived.
+   */
+  | { type: 'saved_plans_changed' };
 
 /**
  * The subscription name carrying a project's edits.
@@ -166,6 +195,48 @@ export class DeferringBroadcaster implements Broadcaster {
   /** Publish what a hold queued, in the order it was queued. */
   async send(pending: readonly HeldAnnouncement[]): Promise<void> {
     for (const each of pending) await this.inner.publish(each.projectId, each.event);
+  }
+
+  /**
+   * The broadcaster underneath, for a publisher that provably never runs inside
+   * a batch.
+   *
+   * {@link held} is **instance** state and `services.ts` builds exactly one of
+   * these, so during any open hold *every* publish through this object joins
+   * that batch's queue — including one from an HTTP route that committed its own
+   * transaction and has nothing to do with the batch. A refused batch drops its
+   * queue, and that route's event goes with it: the write happened and nobody
+   * was told. Saved-plan mutations shipped that way and both review seats on
+   * PR 204 found it independently (TASK-255).
+   *
+   * The condition for using this is a property of the CALLER, not of timing:
+   * `plan-commands` has no saved-plan command, so a saved-plan announcement can
+   * never belong to a batch and has nothing to be atomic with. Anything a
+   * command *can* reach must keep the wrapper, because for those the hold is
+   * the whole point.
+   *
+   * Being handed `announcements` in `services.ts` is NOT that test, and saying
+   * so was this doc's own first mistake. `StepService` is wired to the wrapper
+   * and `PlanCommandKind` declares no step command at all, so `step_added`,
+   * `step_renamed` and `step_removed` are HTTP-only and carry this same drop
+   * today. That predates the saved-plan work and is filed rather than widened
+   * into it (TASK-256); the fix there is this accessor or a per-caller hold, and
+   * it is a decision about the batch contract rather than a wiring change.
+   *
+   * **Bypassing the queue is not by itself enough, and that was this accessor's
+   * second mistake.** Skipping the hold means the publish reaches
+   * `GatewayBroadcaster` while the batch's transaction is still open, and the
+   * event log shares its connection with that transaction — so the row went in
+   * as a savepoint and the batch's rollback erased it after the push had left.
+   * Sol's Critical on PR 204. The durable half is now the broadcaster's own
+   * problem and is solved for every publisher at once: it records under the
+   * write lock (`GatewayBroadcasterOptions.lock`) and pushes outside it. What is
+   * left here is the *capture* half alone — being queued into somebody else's
+   * batch and dropped with it — which is what this accessor is for and all it
+   * claims.
+   */
+  get undeferred(): Broadcaster {
+    return this.inner;
   }
 
   async publish(projectId: string, event: ProjectEvent): Promise<void> {

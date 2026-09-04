@@ -234,7 +234,20 @@ export interface SavedPlanListEntry {
  * vocabulary `statusForRefusal` already maps for every other route.
  */
 export type SavedPlanTouchResult =
-  | { readonly outcome: 'touched' }
+  /**
+   * The `projectId` is carried out rather than left to the caller to look up
+   * (TASK-255). `/api/saved-plans/:id` deliberately does not repeat the project
+   * in its path — a URL that named a project the plan does not belong to and was
+   * still answered would lie about what it addressed — so the controller has no
+   * other honest source for the id it must announce on.
+   *
+   * It comes from the authorisation read, which already selects
+   * `savedPlan.projectId` to reach the project's owner. Reading it again after
+   * the touch would be a second query and, for a delete, a query for a row that
+   * is gone; reading it before, separately, would open a window in which the
+   * announced project is not the one that was written.
+   */
+  | { readonly outcome: 'touched'; readonly projectId: string }
   | { readonly outcome: 'not_found' }
   | { readonly outcome: 'forbidden' }
   /** Another connection held the write lock. Nothing changed; a retry may succeed. */
@@ -247,8 +260,9 @@ export type SavedPlanTouchResult =
  * because `no_such_plan` and `not_found` are the same fact under two names and a
  * second copy is how one of them ends up answering `snapshot_busy` as a 404.
  */
-function touchResultOf(outcome: SavedPlanTouchOutcome): SavedPlanTouchResult {
-  return outcome === 'no_such_plan' ? { outcome: 'not_found' } : { outcome };
+function touchResultOf(outcome: SavedPlanTouchOutcome, projectId: string): SavedPlanTouchResult {
+  if (outcome === 'no_such_plan') return { outcome: 'not_found' };
+  return outcome === 'touched' ? { outcome, projectId } : { outcome };
 }
 
 /**
@@ -588,9 +602,12 @@ export class SavedPlanService {
    * somebody's record of it.
    */
   async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
-    const refusal = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
-    if (refusal !== null) return refusal;
-    return touchResultOf(await this.opts.plans.renameTo(savedPlanId, name));
+    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+    if ('refused' in checked) return checked.refused;
+    return touchResultOf(
+      await this.opts.plans.renameTo(savedPlanId, name),
+      checked.principals.projectId,
+    );
   }
 
   /**
@@ -602,9 +619,9 @@ export class SavedPlanService {
    * also destroy it and nobody else may do either.
    */
   async delete(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
-    const refusal = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
-    if (refusal !== null) return refusal;
-    return touchResultOf(await this.opts.plans.deleteOf(savedPlanId));
+    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+    if ('refused' in checked) return checked.refused;
+    return touchResultOf(await this.opts.plans.deleteOf(savedPlanId), checked.principals.projectId);
   }
 
   /**
@@ -622,11 +639,14 @@ export class SavedPlanService {
   private async refuseUnauthorisedTouch(
     savedPlanId: string,
     actorId: string,
-  ): Promise<SavedPlanTouchResult | null> {
+  ): Promise<{ refused: SavedPlanTouchResult } | { principals: SavedPlanPrincipals }> {
     const principals = await this.opts.plans.principalsOf(savedPlanId);
-    if (principals === null) return { outcome: 'not_found' };
-    if (!mayTouchSavedPlan(principals, actorId)) return { outcome: 'forbidden' };
-    return null;
+    if (principals === null) return { refused: { outcome: 'not_found' } };
+    if (!mayTouchSavedPlan(principals, actorId)) return { refused: { outcome: 'forbidden' } };
+    // The principals are handed back rather than dropped: they already carry the
+    // `projectId` the touch must be announced on, and re-reading it after a
+    // delete would be a query for a row that is gone (TASK-255).
+    return { principals };
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {

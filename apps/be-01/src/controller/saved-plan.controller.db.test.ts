@@ -13,6 +13,7 @@ import { AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
 import { defaultSavedPlanName } from '../service/saved-plan-default-name';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -48,6 +49,15 @@ describe('the saved-plan routes', () => {
   let projectId: string;
   /** The database file behind {@link app}, for the one test that damages it. */
   let path: string;
+  /** What would have gone to gw-01, for the broadcast cases (TASK-255). */
+  let broadcast: RecordingBroadcaster;
+  /**
+   * The batch machinery {@link app} was built with, so the shared-hold case
+   * below can open a hold on the very `DeferringBroadcaster` the process
+   * shares — the only way to reproduce a batch running beside a saved-plan
+   * request.
+   */
+  let writes: ReturnType<typeof testWrites>;
 
   /**
    * One authenticated request. `headers` is set rather than merged: every
@@ -69,6 +79,8 @@ describe('the saved-plan routes', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-http-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    broadcast = recordingBroadcaster();
+    writes = testWrites(broadcast);
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db);
 
@@ -85,7 +97,7 @@ describe('the saved-plan routes', () => {
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(),
+      writes,
       migrationsApplied: true,
     });
 
@@ -593,5 +605,143 @@ describe('the saved-plan routes', () => {
         });
       }
     }
+  });
+
+  /**
+   * What a collaborator hears (TASK-255).
+   *
+   * **Two projects rather than two sockets**, and that is the strongest thing a
+   * test at this level can say. gw-01 fans one project's stream out to every
+   * socket subscribed to `subscriptionFor(projectId)`, so what be-01 decides is
+   * not *who* receives an event but *which project's stream it lands on* —
+   * exactly one publish, carrying exactly one project id. A test that opened two
+   * sockets would be re-proving gw-01's fan-out, which
+   * `gateway-broadcaster.test.ts` already owns, and would prove nothing about
+   * this file.
+   *
+   * `published` is asserted **whole** with `toEqual` rather than searched. A
+   * `.some(...)` would pass on a save that also announced the second project,
+   * which is the defect AC #3 exists to catch.
+   */
+  describe('the broadcast', () => {
+    /** A second project, owned by the same account, that must hear nothing. */
+    const anotherProject = async (): Promise<string> => {
+      const created = await as(tokens['owner'], '/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Re-roof the barn' }),
+      });
+      return ((await created.json()) as { project: { id: string } }).project.id;
+    };
+
+    it('announces a save on the saved project, and on no other', async () => {
+      const other = await anotherProject();
+      broadcast.published.length = 0;
+
+      expect((await save('ada')).status).toBe(201);
+
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+      // Named separately, so a regression that broadcast to every project fails
+      // on a sentence that says which project was wrong.
+      expect(broadcast.published.map((each) => each.projectId)).not.toContain(other);
+    });
+
+    /**
+     * The negative that keeps the publish on the branch that changed something.
+     * `mallory` may not write to a restricted project, so this is a 403 — and a
+     * 403 has changed no list.
+     */
+    it('says nothing when the save is refused', async () => {
+      const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ restricted: true }),
+      });
+      expect(restricted.status).toBe(200);
+      broadcast.published.length = 0;
+
+      expect((await save('mallory')).status).toBe(403);
+
+      expect(broadcast.published).toEqual([]);
+    });
+
+    /**
+     * Rename and delete address the plan by its own id — `/api/saved-plans/:id`
+     * never names a project — so this is the case that proves the announced
+     * project id came from the plan's own row rather than from the URL, which
+     * could not have supplied it.
+     *
+     * The delete half has its own trap: the row is gone by the time the answer
+     * is written, so an implementation that looked the project up *after* the
+     * touch would announce `undefined` here and pass any assertion that only
+     * counted the events. `toEqual` on the whole array is what catches it.
+     */
+    it('announces a rename and a delete on the project the plan belongs to', async () => {
+      const saved = await savedIdOf(await save('ada'));
+      broadcast.published.length = 0;
+
+      const renamed = await as(tokens['ada'], `/api/saved-plans/${saved}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'after the rewire' }),
+      });
+      expect(renamed.status).toBe(200);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+
+      broadcast.published.length = 0;
+      const deleted = await as(tokens['ada'], `/api/saved-plans/${saved}`, { method: 'DELETE' });
+      expect(deleted.status).toBe(204);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+    });
+
+    /**
+     * The shared-hold drop, found independently by both review seats on PR 204
+     * (Gemini Critical, Sol Important) and confirmed against the code before it
+     * was written down.
+     *
+     * `DeferringBroadcaster.held` is **instance** state and there is exactly one
+     * instance in the process, so during any open hold *every* publish through
+     * it joins that batch's queue — including one from an HTTP route that has
+     * already committed its own transaction and is not part of the batch at all.
+     * A refused batch drops its queue (`plan-commands.ts` answers a refusal with
+     * `pending: []`), and the saved-plan event went with it. The save had
+     * happened; nobody was told.
+     *
+     * The hold here stands in for that batch: it is opened on the same shared
+     * broadcaster `buildApp` was given, the save runs inside it, and its queue
+     * is then discarded rather than sent — the rollback path exactly.
+     *
+     * Two assertions, because they fail for different reasons. `pending` empty
+     * says the event never entered the batch's queue, which is the property that
+     * makes it survivable; `published` says it actually reached gw-01 while the
+     * hold was still open. An implementation that queued the event and sent it
+     * later would pass the second and fail the first — and would still lose the
+     * event on the refusal this test is named for.
+     */
+    it('delivers a save made while an unrelated batch holds, and that batch then refuses', async () => {
+      broadcast.published.length = 0;
+
+      const { pending } = await writes.announcements.hold(async () => {
+        expect((await save('ada')).status).toBe(201);
+      });
+
+      // The refusal: the batch's own announcements are dropped, never sent.
+      expect(pending).toEqual([]);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+    });
+
+    /**
+     * The refusal half of rename and delete: a 403 has renamed nothing, so it
+     * announces nothing. Paired with the case above, this is what keeps the
+     * publish on the branch that changed the list rather than on the route.
+     */
+    it('says nothing when a rename is refused', async () => {
+      const saved = await savedIdOf(await save('ada'));
+      broadcast.published.length = 0;
+
+      const refused = await as(tokens['mallory'], `/api/saved-plans/${saved}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'not mine to name' }),
+      });
+      expect(refused.status).toBe(403);
+      expect(broadcast.published).toEqual([]);
+    });
   });
 });

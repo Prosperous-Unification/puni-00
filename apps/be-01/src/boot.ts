@@ -66,8 +66,13 @@ export function bootBe01(opts: BootOptions): RunningBe {
   // per-connection pragmas (WAL, busy_timeout) are set and asserted.
   const connection = openConnection(opts.dbPath);
   const db = connection.db;
+  // One lock for the process, created before the services because the
+  // broadcaster records under it: `buildApp` gets this same object as
+  // `writes.lock` below, and a second one would exclude nothing.
+  const writeLock = new WriteLock();
   const services = buildServices({
     db,
+    lock: writeLock,
     logger: opts.logger,
     jwtKey: opts.jwtKey,
     gwUrl: opts.gwUrl,
@@ -118,7 +123,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     probeDatabase: () => probeSchema(db),
     writes: {
       transactions: drizzleOuterTransaction(db),
-      lock: new WriteLock(),
+      lock: writeLock,
       announcements: services.announcements,
     },
     // Read per call, not captured here: dev's deploy is a `git reset` under

@@ -113,6 +113,44 @@ describe('subscribeToProject', () => {
     expect(changes).toBe(1);
   });
 
+  it('carries a collaborator’s saved-plan mutation through as its own changed fact', () => {
+    /*
+      TASK-255, AC #2 and #4. `saved_plans_changed` is an event type this file
+      has never seen, and this is the only link between be-01's publish and the
+      shelf that reads a frame's `type` at all — so the whole client half of the
+      broadcast turns on `changedFactOf` treating an unfamiliar type as a change
+      rather than as a frame it cannot read.
+
+      Asserting the *fact* rather than a count is what makes this a measurement
+      instead of a second copy of the case above. A `changedFactOf` that
+      returned `null` for an unknown type would still increment a counter and
+      the shelf would still refresh, because it ignores the payload — but every
+      later reader of `changed`, including anything that wants to know which of
+      the plan and the shelf moved, would be told nothing did.
+    */
+    const h = harness();
+    const changed: (string | null | undefined)[] = [];
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, onChange: (fact) => changed.push(fact) },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    // Byte for byte what gw-01's `/internal/push` sends: `subscription`, `seq`,
+    // and be-01's own `ProjectEvent` as `message`. That route types `message` as
+    // `unknown` (`InternalPushRequest`), so it is not a gate a new event type has
+    // to be added to — this side is the only one that inspects it.
+    h.latest().handlers.onMessage(
+      JSON.stringify({
+        subscription: SUBSCRIPTION,
+        seq: 12,
+        message: { type: 'saved_plans_changed' },
+      }),
+    );
+
+    expect(changed).toEqual(['saved_plans_changed']);
+  });
+
   it('reopens after a close it did not ask for, and resumes from what it saw', () => {
     const h = harness();
     const stream = subscribeToProject(

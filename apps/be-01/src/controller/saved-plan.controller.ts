@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
+import type { Broadcaster } from '../service/broadcast';
 import type { ProjectService } from '../service/project.service';
 import { canEdit } from '../service/project.service';
 import type {
@@ -154,11 +155,46 @@ function refuseUnknownBodyVersion({
  * and `createdById` is `user.id`, the reference the permission rule reads. A
  * body-supplied creator would let any caller mint a record naming somebody else
  * and, worse, hand themselves the right to rename it.
+ *
+ * **A mutation announces itself, and the announcement is *here* rather than in
+ * the service** (TASK-255). `saved_plans_changed` is published after the service
+ * has answered, which is after its transaction has committed and after it has
+ * let go of the write lock — the rule `PlanCommandRunner` states for itself and
+ * the reason `DeferringBroadcaster` exists: a push to gw-01 is a network call
+ * with a six-attempt 500ms→30s backoff behind it, and a lock held across one
+ * lets a slow gateway stall every write in the process. Publishing from inside
+ * the service would put it back inside both.
+ *
+ * That is also why `app.ts` hands this the **undeferred** broadcaster. Nothing
+ * here is ever part of a command batch — `plan-commands` has no saved-plan
+ * command — so there is no transaction for the announcement to be atomic with,
+ * and routing it through the shared `DeferringBroadcaster` only made a
+ * committed write's event droppable by an unrelated batch's rollback.
+ *
+ * The announcement is deliberately **not** conditional on the caller: every
+ * successful save, rename and delete publishes, including the actor's own. The
+ * alternative — a broadcaster that knows who asked — would put an identity into
+ * a transport contract that has never carried one.
+ *
+ * What the actor's client does with its own event is **re-read on it**, not drop
+ * it as an echo; this comment said the opposite until Sol's Minor on PR 204.
+ * The distinction is not pedantic, because the echo story implies the actor is
+ * already up to date and there is nothing left to solve. There is: the actor
+ * waits for their own event to reach gw-01 and come back before the row they
+ * just created appears, at the one moment the shelf is most obviously wrong.
+ * That is closed on the client and not here — `watchShelf` returns a `refresh`
+ * for the call site to drive directly, and its superseded-answer guard is what
+ * makes that refresh safe racing the broadcast (`fe-01`'s
+ * `lib/saved-plan-shelf.ts`).
+ *
+ * Refusals publish nothing, and that is the whole of the ordering rule this
+ * needs: the event is emitted on exactly the branches that changed the list.
  */
 export function savedPlanController(
   auth: AuthService,
   plans: SavedPlanService,
   projects: ProjectService,
+  announcements: Broadcaster,
 ) {
   const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api' })
@@ -186,6 +222,7 @@ export function savedPlanController(
           createdById: user.id,
         });
         if (outcome.outcome === 'saved') {
+          await announcements.publish(params.id, { type: 'saved_plans_changed' });
           set.status = 201;
           return { savedPlan: outcome.record };
         }
@@ -269,7 +306,10 @@ export function savedPlanController(
       '/saved-plans/:id',
       async ({ params, body, user, set }) => {
         const outcome = await plans.rename(params.id, user.id, body.name);
-        if (outcome.outcome === 'touched') return { savedPlanId: params.id, name: body.name };
+        if (outcome.outcome === 'touched') {
+          await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
+          return { savedPlanId: params.id, name: body.name };
+        }
         set.status = statusForTouch(outcome.outcome);
         return { error: outcome.outcome };
       },
@@ -280,6 +320,7 @@ export function savedPlanController(
       async ({ params, user, set }) => {
         const outcome = await plans.delete(params.id, user.id);
         if (outcome.outcome === 'touched') {
+          await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
           set.status = 204;
           return null;
         }

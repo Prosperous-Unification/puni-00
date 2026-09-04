@@ -39,6 +39,7 @@ import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
 import { StepService } from './step.service';
 import { WorkItemService } from './work-item.service';
+import { WriteLock } from './write-lock';
 
 /**
  * The step service, against real SQLite.
@@ -592,6 +593,7 @@ describe('step events', () => {
       broadcast: new GatewayBroadcaster({
         eventLog,
         buffer,
+        lock: new WriteLock(),
         // Nowhere to push, deliberately: the replay must come from what was
         // recorded, not from a delivery that happened to succeed.
         push: new PushClient({ gwUrl: 'http://gw.invalid', secret: 's'.repeat(32) }),
