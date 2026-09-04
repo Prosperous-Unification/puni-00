@@ -77,6 +77,34 @@ function weightColumns(weights: PertWeights): {
  * stored weights that cannot average a triple` failing beside it on the same
  * assertion.
  */
+/**
+ * Columns of `project` that are stored and never published.
+ *
+ * `optimizationDeletePendingAt` is the optimizer drain's cross-process fence
+ * (tasks.md 3.1b): internal state, not a field of a project, and no boundary
+ * returns it.
+ */
+const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt'] as const;
+
+/**
+ * A row with {@link INTERNAL_PROJECT_COLUMNS} taken off, for
+ * {@link withoutAuditColumns}' reason and by its method.
+ *
+ * {@link toProject} is generic over its row and spreads whatever is left of it,
+ * so a column added to `project` is published **by default** and has to be
+ * taken off deliberately — the trap `createdBy` sprang on 2026-09-02, caught
+ * both times by the same guard in `project.db.test.ts`.
+ */
+function withoutInternalColumns<T extends object>(
+  row: T,
+): Omit<T, (typeof INTERNAL_PROJECT_COLUMNS)[number]> {
+  const dropped = new Set<string>(INTERNAL_PROJECT_COLUMNS);
+  return Object.fromEntries(Object.entries(row).filter(([name]) => !dropped.has(name))) as Omit<
+    T,
+    (typeof INTERNAL_PROJECT_COLUMNS)[number]
+  >;
+}
+
 function toProject<
   T extends {
     estimateMethod: string;
@@ -124,12 +152,6 @@ function toProject<
     pertWeightPessimistic,
     solutionSlug,
     solutionUrl,
-    // Named here only to keep it OFF the answer. It is the drain's internal
-    // fence, not a field of a project, and this mapper spreads whatever is left
-    // of the row — so a column added to `project` is published by default and
-    // has to be taken off deliberately, which is the same trap `createdBy`
-    // sprang on 2026-09-02.
-    optimizationDeletePendingAt: _optimizationDeletePendingAt,
     ...rest
   } = row;
   if (!isEstimateMethod(estimateMethod)) {
@@ -156,7 +178,7 @@ function toProject<
     // Named by {@link withoutAuditColumns} rather than spread whole: this
     // mapper is generic over its row, so it has no column list of its own, and
     // `...rest` published `createdBy` and `updatedAt` until 2026-09-02.
-    ...withoutAuditColumns(rest),
+    ...withoutInternalColumns(withoutAuditColumns(rest)),
     estimateMethod,
     depReach,
     estimateRounding,
