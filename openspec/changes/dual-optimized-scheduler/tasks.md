@@ -672,7 +672,7 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       `objectiveValues` and the two status enums, the response's and the
       per-term one. Then the four table tuples — the cache
       composite key, the plan-read optimization block, the
-      optimization_generation row and the solver_queue row. And four
+      `optimization_generation` row and the `solver_queue` row. And four
       **neighbour** tuples this change names outside the wire and outside a
       table: the **domain** slice (`schedule.ts:31`), the hashed `PlannedRow`
       facts (`canonical-schedule-input.ts:184`), the spawn fencing triple, and
@@ -719,8 +719,8 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       vocabularies a run overlaps — which keeps what rule (b) is for, since a
       name belonging to no named tuple at all still fails, and drops what the
       measurement says is not drift. **Falsifier for the union reading:** a
-      real drift where an obsolete field name is also a legitimate member of a
-      _different_ named tuple; that would pass under the union and is the case
+      real drift where an obsolete field name is also a legitimate member of
+      some other named tuple; that would pass under the union and is the case
       to look for before choosing it. The asserted count in
       `wire-vocabulary.test.ts` is the ratchet either way, and 2.1 stays
       unticked until the decision lands.
