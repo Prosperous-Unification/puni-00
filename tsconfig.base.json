@@ -47,6 +47,9 @@
       "@wbs/contracts/solver/optimized-result": [
         "libs/contracts/solver/src/optimized-result-dto.ts"
       ],
+      "@wbs/contracts/solver/materialise-optimized": [
+        "libs/contracts/solver/src/materialise-optimized.ts"
+      ],
       "@wbs/deploy-contract": ["tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@wbs/tool-compose": ["tools/tool-compose/src/index.ts"],
       "@wbs/tool-env": ["tools/tool-remote-scripts/src/lib/env.ts"],
