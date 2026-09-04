@@ -1,4 +1,4 @@
-"""Request validation: the schema, then the four things the schema cannot say.
+"""Request validation: the schema, then the five things the schema cannot say.
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
@@ -38,6 +38,17 @@ yet; `tests/test_validate.py` builds one by mutating a valid request, and a
 fixture belongs in the shared corpus when 2.1's cross-suite contract test is
 extended.
 
+And a fifth, the schema's own invariant 8: **the objective worst cases
+`Σ w(s) × (horizonUnits + durationUnits(s))` and `Σ max(b, horizonUnits − b)`
+are both at most `Number.MAX_SAFE_INTEGER`.** The schema calls each field a
+`safeInteger` one at a time and can say nothing about a product or a sum of
+them. The Bun request builder refuses these before it spawns anything, so no
+request it sends reaches this check — which is the argument for having it
+rather than against: a request arriving by any other route would otherwise be
+solved, and the OPTIMAL response would carry an `objectiveValues[*].value` that
+the *response* branch of this same schema refuses. An exit 64 naming the
+request beats a well-formed answer nobody can accept.
+
 Every failure raises `RequestRejected`, which `cli.main` turns into exit 64 with
 the message on stderr and nothing on stdout.
 """
@@ -53,6 +64,19 @@ from jsonschema import Draft202012Validator
 
 SCHEMA_FILENAME = "solver-wire.v1.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
+
+
+MAX_SAFE_INTEGER = 9007199254740991
+"""`Number.MAX_SAFE_INTEGER`, written out because Python has no such ceiling.
+
+Python integers are arbitrary precision, so none of the sums below can overflow
+here — which is exactly why the bound has to be a literal rather than something
+derived from the language. It belongs to the *other* consumers: `#/$defs/
+safeInteger` in the schema, `BigInt(Number.MAX_SAFE_INTEGER)` in the Bun
+preflight, and the response's own `objectiveValues[*].value`. A request whose
+worst case is above it is one whose answer Bun could not accept, and computing
+it exactly here is the only way to say so before the solve rather than after.
+"""
 
 
 class RequestRejected(ValueError):
@@ -117,7 +141,7 @@ def validate_against_schema(message: dict[str, Any], branch: str = "request") ->
 
 
 def check_cross_field(request: dict[str, Any]) -> None:
-    """The four invariants the schema cannot express. See the module docstring."""
+    """The five invariants the schema cannot express. See the module docstring."""
     slice_keys = [s["key"] for s in request["slices"]]
     key_set = set(slice_keys)
     if len(key_set) != len(slice_keys):
@@ -147,6 +171,49 @@ def check_cross_field(request: dict[str, Any]) -> None:
                 raise RequestRejected(
                     f"edges[{index}].{endpoint} {edge[endpoint]!r} is not a slice key"
                 )
+
+    # Invariant 8, last because the four above are about the request's SHAPE
+    # and this one is about its arithmetic — a plan with a missing offset key
+    # should hear about the missing key, not about a product computed from it.
+    #
+    # PRIORITY'S WORST CASE IS OVER FINISHES, NOT OVER THE HORIZON.
+    # `horizonUnits` bounds a slice's start; PRIORITY is `Σ w(s) · finish(s)`
+    # and a finish past the horizon is legal, so the true ceiling exceeds
+    # `Σ w(s) × horizonUnits` by exactly `Σ w(s) × durationUnits(s)`. Measured
+    # on the solver in TASK-219 run 20: at horizon 2³¹ − 1 and weight 2²² the
+    # horizon-only bound is 9007199250546688 and accepts, while CP-SAT proves
+    # OPTIMAL a placement publishing 9007199254740992 — one unit past the
+    # `safeInteger` the response branch of this same schema demands.
+    priority_worst_case = sum(
+        slice_["priorityWeight"] * (horizon + slice_["durationUnits"])
+        for slice_ in request["slices"]
+    )
+    if priority_worst_case > MAX_SAFE_INTEGER:
+        raise RequestRejected(
+            f"objective-overflow: priority worst case {priority_worst_case} exceeds "
+            f"Number.MAX_SAFE_INTEGER {MAX_SAFE_INTEGER}"
+        )
+
+    # MOVEMENT is `Σ |offset − baseline|`, maximised term by term: an offset
+    # lives in [0, horizonUnits], so the furthest a slice can be dragged from
+    # baseline `b` is `max(b, horizonUnits − b)` — one end of the axis or the
+    # other, never both, which is why this is a max and not a sum of the two.
+    # Summing over `baselineOffsets` rather than over `slices` is safe only
+    # because key-set equality was checked above.
+    #
+    # It cannot fire at today's ceiling: every term is <= horizonUnits by the
+    # check above, and the schema caps that at 2³¹ − 1, so the sum needs over
+    # four million slices to reach MAX_SAFE_INTEGER. It is here so the two
+    # arms of invariant 8 stay the same shape — if that ceiling is ever
+    # raised, neither arm silently lags the other.
+    movement_worst_case = sum(
+        max(offset, horizon - offset) for offset in request["baselineOffsets"].values()
+    )
+    if movement_worst_case > MAX_SAFE_INTEGER:
+        raise RequestRejected(
+            f"objective-overflow: movement worst case {movement_worst_case} exceeds "
+            f"Number.MAX_SAFE_INTEGER {MAX_SAFE_INTEGER}"
+        )
 
 
 def validate_request(raw: bytes) -> dict[str, Any]:

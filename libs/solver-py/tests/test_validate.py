@@ -21,6 +21,7 @@ REPO_ROOT = PACKAGE_ROOT.parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from wbs_solver.validate import (  # noqa: E402
+    MAX_SAFE_INTEGER,
     RequestRejected,
     check_cross_field,
     parse_request,
@@ -231,6 +232,117 @@ class HorizonBound(unittest.TestCase):
         request["fastHint"][KEY_B] = request["horizonUnits"]
         validate_against_schema(request, "request")
         check_cross_field(request)
+
+
+class ObjectiveOverflow(unittest.TestCase):
+    """Invariant 8, whose Python arm did not exist until now.
+
+    The Bun builder already refuses these before it spawns anything, so no
+    request it sends can reach this check. That is the argument for having it,
+    not against: the schema calls both fields `safeInteger` individually and
+    says nothing about their product, so a request that arrives by any other
+    route — a replayed corpus fixture, a second builder, someone running
+    `python -m wbs_solver` by hand — would otherwise be *solved*, and the
+    OPTIMAL response would carry a `priority.value` the response branch of this
+    same schema refuses. An exit 64 naming the request beats a well-formed
+    answer nobody can accept.
+    """
+
+    def priority_request(self, weight: int) -> dict:
+        """Run 20's measured boundary, as a request the schema accepts.
+
+        `horizonUnits` at the schema's own maximum 2**31 - 1, one slice one
+        unit long carrying all the weight and the other carrying none, so the
+        worst case is exactly `weight * 2**31` and the boundary sits on a
+        power of two rather than near one.
+        """
+        request = valid_request()
+        request["horizonUnits"] = 2**31 - 1
+        request["slices"][0]["durationUnits"] = 1
+        request["slices"][0]["priorityWeight"] = weight
+        request["slices"][1]["priorityWeight"] = 0
+        return request
+
+    def test_a_priority_worst_case_past_max_safe_integer_is_refused(self) -> None:
+        request = self.priority_request(2**22)
+        validate_against_schema(request, "request")  # every field is a legal safeInteger
+        with self.assertRaises(RequestRejected) as caught:
+            check_cross_field(request)
+        message = str(caught.exception)
+        self.assertIn("objective-overflow", message)
+        self.assertIn("9007199254740992", message)
+
+    def test_the_horizon_only_bound_would_have_accepted_that_same_request(self) -> None:
+        """Why the case above is the boundary and not just a big number.
+
+        Arithmetic rather than a fixture, because the point is about a bound
+        that is no longer in the code: PRIORITY is a sum over FINISHES, and
+        `horizonUnits` bounds a START. The old horizon-only bound is under
+        MAX_SAFE_INTEGER for exactly this request, so a check written that way
+        passes it — and CP-SAT then proves OPTIMAL a placement publishing the
+        value one unit above. Delete the `+ durationUnits` term from
+        `check_cross_field` and the case above goes green while the solver
+        stays wrong.
+        """
+        request = self.priority_request(2**22)
+        horizon = request["horizonUnits"]
+        horizon_only = sum(s["priorityWeight"] * horizon for s in request["slices"])
+        over_finishes = sum(
+            s["priorityWeight"] * (horizon + s["durationUnits"]) for s in request["slices"]
+        )
+        self.assertEqual(horizon_only, 9007199250546688)
+        self.assertLessEqual(horizon_only, MAX_SAFE_INTEGER)
+        self.assertEqual(over_finishes, MAX_SAFE_INTEGER + 1)
+
+    def test_the_same_plan_one_unit_of_weight_lower_is_accepted(self) -> None:
+        """A boundary, not a blanket refusal of large weights."""
+        request = self.priority_request(2**22 - 1)
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+        self.assertEqual(
+            sum(
+                s["priorityWeight"] * (request["horizonUnits"] + s["durationUnits"])
+                for s in request["slices"]
+            ),
+            9007197107257344,
+        )
+
+    def test_a_plan_with_no_weights_passes_whatever_the_horizon(self) -> None:
+        """Most plans. Nobody prioritised anything and the product is zero."""
+        request = self.priority_request(0)
+        request["slices"][0]["durationUnits"] = request["horizonUnits"]
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+
+    def test_the_movement_arm_cannot_fire_below_millions_of_slices(self) -> None:
+        """Stated as arithmetic because the fixture would be 4.2M slices.
+
+        Invariant 3 has already bounded every offset by `horizonUnits` when
+        this runs, so each `max(b, horizon - b)` term is at most `horizonUnits`
+        and the schema caps that at 2**31 - 1. The sum therefore needs that
+        many terms to reach MAX_SAFE_INTEGER. The movement arm is a guard
+        against a future horizon ceiling, not against a plan anybody has, and
+        the honest form of that sentence is this assertion — deleting the arm
+        reddens nothing else in this file.
+        """
+        horizon_max = 2**31 - 1
+        self.assertGreater(MAX_SAFE_INTEGER // horizon_max, 4_000_000)
+
+    def test_the_movement_worst_case_is_one_end_of_the_axis_or_the_other(self) -> None:
+        """`Σ |offset − baseline|`, maximised term by term, is a max and not a
+        sum of both directions: a slice dragged to 0 is not also dragged to the
+        horizon. Checked on the shipped request rather than on a rewrite of it.
+        """
+        request = self.priority_request(1)
+        horizon = request["horizonUnits"]
+        request["baselineOffsets"] = {KEY_A: 0, KEY_B: horizon}
+        request["fastHint"] = dict(request["baselineOffsets"])
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+        self.assertEqual(
+            sum(max(b, horizon - b) for b in request["baselineOffsets"].values()),
+            2 * horizon,
+        )
 
 
 class EdgeEndpoints(unittest.TestCase):
