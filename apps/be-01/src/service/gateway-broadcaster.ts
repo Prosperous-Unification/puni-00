@@ -66,6 +66,24 @@ export class GatewayBroadcaster implements Broadcaster {
     this.clock = opts.clock ?? clockOf();
   }
 
+  /**
+   * The lock this broadcaster records under, read back off the constructed
+   * object.
+   *
+   * It exists so the *composition* can be asserted rather than the intention:
+   * {@link GatewayBroadcasterOptions.lock} says "the same object `buildApp` gets
+   * as `writes.lock`", and until this getter existed nothing could observe
+   * whether `boot.ts` had actually passed one object to both. A second lock
+   * excludes nothing and every existing test stayed green through it, because
+   * each one builds its own pair — the gap Sol's Important named on PR 204.
+   * `boot.db.test.ts` › `holds a command batch out while the broadcaster lock
+   * is taken` takes a turn on this lock and watches a real HTTP batch wait for
+   * it.
+   */
+  get lock(): WriteLock {
+    return this.opts.lock;
+  }
+
   latestSeq(projectId: string): Promise<number> {
     return this.opts.eventLog.latestSeq(subscriptionFor(projectId));
   }

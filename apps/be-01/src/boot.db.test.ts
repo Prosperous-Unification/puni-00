@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { bootBe01, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/auth.controller';
 import { runMigrations } from './repository/migrate';
+import type { AuthenticatedUser } from './service/auth.service';
+import type { GatewayBroadcaster } from './service/gateway-broadcaster';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -47,7 +49,11 @@ function tempDir(prefix: string): string {
  * whatever commit the checkout running the suite happens to be at, and an
  * assertion on that is an assertion on the developer's afternoon.
  */
-function boot(commitDir: string = tempDir('wbs-boot-nogit-'), oidc?: OidcRouteOptions): RunningBe {
+function boot(
+  commitDir: string = tempDir('wbs-boot-nogit-'),
+  oidc?: OidcRouteOptions,
+  localIdentity?: AuthenticatedUser,
+): RunningBe {
   const dir = tempDir('wbs-boot-');
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
@@ -59,6 +65,7 @@ function boot(commitDir: string = tempDir('wbs-boot-nogit-'), oidc?: OidcRouteOp
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
     oidc,
+    localIdentity,
     commitDir,
   });
   return running;
@@ -161,6 +168,74 @@ describe('bootBe01', () => {
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
     const second = await fetch(`http://localhost:${String(be.port)}/health`);
     expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
+  });
+
+  it('holds a command batch out while the broadcaster lock is taken', async () => {
+    // The one-lock wiring, observed rather than restated. `boot.ts` creates one
+    // `WriteLock` and passes it to `buildServices` (the broadcaster records
+    // under it) and to `buildApp` (`PlanCommandRunner` opens its outer
+    // transaction under it). That those are the SAME object is the whole
+    // durability guarantee — a second lock excludes nothing, and the batch's
+    // rollback goes back to erasing a durable event the push has already left
+    // with. Every existing test builds its own pair, so all of them stay green
+    // through a split; Sol's Important on PR 204.
+    //
+    // Proof it is not a restatement: `boot.ts` line 75 mutated to
+    // `lock: new WriteLock()` with line 126 left alone, which is a healthy pair
+    // of locks and the exact split this guards. The batch below then answers
+    // while the broadcaster's turn is still held and the wait assertion fails.
+    //
+    // Read off the real objects at both ends: the lock comes from the
+    // broadcaster `buildServices` constructed, and the waiting is done by the
+    // runner `buildApp` constructed, reached over its own HTTP route. Nothing
+    // here rebuilds the wiring it is checking.
+    const be = boot(undefined, undefined, {
+      id: 'local-dev',
+      username: 'local-dev',
+      scopes: ['read', 'write'],
+    });
+    // In production this is the `GatewayBroadcaster`; `undeferred` is the inner
+    // broadcaster the wrapper was built around.
+    const broadcaster = be.services.announcements.undeferred as GatewayBroadcaster;
+
+    let release!: () => void;
+    let announceTaken!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // `WriteLock.run` schedules its callback on a microtask rather than running
+    // it inline, so a caller that has merely called `run` holds nothing yet.
+    // Awaiting this is what puts the batch behind the turn instead of beside it
+    // — the same trap that made this change's first durability regression
+    // worthless.
+    const taken = new Promise<void>((resolve) => {
+      announceTaken = resolve;
+    });
+    const turn = broadcaster.lock.run(async () => {
+      announceTaken();
+      await held;
+    });
+    await taken;
+
+    let answered = false;
+    // An empty batch: `execute` takes the lock before it looks at the commands
+    // at all, so nothing else needs to exist for this route to queue on it.
+    const batch = fetch(`http://localhost:${String(be.port)}/api/directory/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands: [] }),
+    }).then((res) => {
+      answered = true;
+      return res;
+    });
+    await Bun.sleep(250);
+
+    expect(answered).toBe(false);
+
+    release();
+    await turn;
+    const res = await batch;
+    expect(res.status).toBe(200);
   });
 
   it('answers a resume from the log it opened', async () => {
