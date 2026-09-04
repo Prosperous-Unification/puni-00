@@ -2110,7 +2110,25 @@ review`, no self-merge.
       measured two-pass run.) The behaviour-preservation proof 4.9 asks for is
       therefore a **test** asserting `annotate(input, chooseStarts(input))`
       equals `placeSlices(input)` over the Fast golden corpus.
-- [ ] 4.10 The floor precedence is the complete ordered list `projectStart |
+      **BUILT AND PROVED (run 39), except its name.** `placeSlices` takes an
+      optional `pinnedStarts: readonly number[]` and `schedule()` an optional
+      `pinnedStarts: ReadonlyMap<string, number>` keyed by slice key; the loop
+      stays one loop and the four seams above run unchanged and once. The fifth
+      seam, `pinFloor(key, resolved, pinned, windowFrom)`, holds the whole
+      three-way comparison — equal keeps the resolved `boundBy`, strictly later
+      is `'optimizer'` after `jointWindowFor(…, pinned)` answers `pinned`, and
+      strictly earlier is `ScheduleInvalidOptimizedStartError`. The re-ask on
+      the later branch also **replaces** the window with the pin's own, whose
+      `binding` is empty by construction, which is what keeps
+      `annotateCapacity`'s render invariant true under a non-`capacity` floor.
+      The behaviour-preservation test is green over all eight corpus cases,
+      comparing `slices`, `workItems` and both wait counters rather than the
+      dates. **What is still open is the entry point:**
+      `materialiseOptimized(canonicalInput, offsets)` by that name, dequantising
+      the offsets and resolving solver node ids onto slice keys, belongs to
+      4.11's wiring — today the caller must hand `schedule()` a map of day
+      values it has already dequantised itself.
+- [x] 4.10 The floor precedence is the complete ordered list `projectStart |
 predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       earlier list stopped at `notBefore` and would have labelled a
       person-bound or capacity-bound optimized slice `optimizer`, erasing its
@@ -2122,6 +2140,15 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       invariant holds: under `'optimizer'`, `resourcePredecessorId` is null,
       `capacityPredecessorIds` is empty and `capacityTeamId` is null, so
       "set exactly when `boundBy === 'capacity'`" is still true.
+      **DONE (run 39).** `ScheduleFloor` and fe's `BindingFloor` both carry the
+      member, `FLOOR_SENTENCE.optimizer` is `Placed here by the optimizer` — the
+      one sentence naming no cause, because an optimizer's objective is a whole
+      plan's trade-off and no per-slice reason survives it — and `floorWordsOf`
+      answers it from the arm that needs nothing from the caller. The render
+      invariant is asserted rather than argued: the idled-slice case checks
+      `resourcePredecessorId` null, `capacityPredecessorIds` empty,
+      `capacityTeamId` null and `waitingForCapacity` 0. Removing the switch arm
+      reddens `says in words what a start is held by` alone (1 of 130).
 - [ ] 4.10b **Two orders, not one** (Sol r7 Important 7). Ledger replay is
       chronological (ascending start, canonical tie-break); the order handed to
       `lateTimes` is a **topological** order of the augmented graph — plan
@@ -2136,7 +2163,20 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       and immediately reads `late[next].latestStart`, reaches the predecessor
       before the successor has a `Late`. Fast is audited for the same hazard in
       this slice and fixed the same way if `placeSlices`' placement order can
-      produce it. **Watched red:** a two-slice fixture with a zero-duration
+      produce it.
+      **Half of this is answered by run 39's design and half is still open.**
+      The materialiser drains the **eligible set** in ascending
+      `(start, canonical slice order)`, and because that set is Kahn's ready set
+      — a node is admitted only once its plan predecessors are placed — the one
+      order it produces is chronological *and* topological, so the hazard cannot
+      arise on this path rather than being detected on it. That is measured, not
+      argued: forcing the drain back to Fast's priority comparator makes a legal
+      optimized schedule (a person's two slices swapped against their
+      priorities) **throw** `invalid optimized start`, because the second slice
+      is then below a person floor its own replay created. What is NOT yet
+      written is this task's own watched red — the zero-duration predecessor
+      whose id sorts after its successor — and Fast's audit for the same
+      hazard. **Watched red:** a two-slice fixture with a zero-duration
       predecessor whose id sorts **after** its successor, sharing one start —
       passing chronological order to `lateTimes` must throw or produce a wrong
       `latestStart`, and the topological order must not.
