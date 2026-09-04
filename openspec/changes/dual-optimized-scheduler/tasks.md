@@ -229,6 +229,16 @@ check-that-cannot-fail failure R5 names.
       **Still uncovered, named rather than claimed:** numbering semantics have
       no case aimed at them, and `SOLVER_QUANTUM` is not a `schedule()` input at
       all, so this corpus cannot reach it.
+      **One qualifier on numbering, established but not proved (run 11).** It is
+      *reachable*: `schedule()` calls `deriveNumbers(rows)` at
+      `schedule.ts:1890` and spends the result at `:1902` as the **third of
+      four leveling tie-breaks** (time, priority, number, `at`). So it changes
+      output only where leveling reorders tied slices — and `pool-of-one` is
+      exactly that shape: two slices tied at 0 with no priority, competing for
+      one slot. Whether the stored bytes for that case actually turn on the
+      number, rather than falling through to `at`, was **not** measured; the
+      next run should either prove it with a red on the comparator or add a case
+      that isolates the tie.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
