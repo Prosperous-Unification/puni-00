@@ -2446,7 +2446,7 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       the offsets it MOVES. A solver answers for every slice, so `servedBy`
       fills the rest from `quantisedFastBaseline`, and moving a slice moves its
       own successor's floor with it.
-- [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
+- [x] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
       It runs **after 4.9's materialisation and before any cache write**, in
@@ -2484,9 +2484,46 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       epsilon-free `>` over two differently-ordered float sums could substitute
       Fast for an answer that was not worse. Three mutations, each reddening
       exactly one case: iterate the `Map`, weight the START instead of the
-      finish, drop the `Math.abs`. What is still owed here is everything else —
-      steps (a) and (c), the two fixtures, and the three watched reds above.
-- [ ] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
+      finish, drop the `Math.abs`.
+      **THE ITEM IS CLOSED (run 45).** Steps (a) and (c) are
+      `libs/domain/src/publication-guard.ts`; the mapping onto `publication` is
+      `publishOptimizedResult` in `optimized-result-dto.ts`; the fixtures and
+      the three watched reds are `publication-guard.test.ts` (4 cases) and the
+      `4.11b` block inside `optimized-cache.db.test.ts`'s 4.1 write describe
+      (3 cases).
+      **ONE SENTENCE ABOVE IS NOT TRUE OF THE CODE, and the code is right.**
+      "(c) … substitute the Baseline's own materialised schedule and store it
+      with `publication: 'quantisation-floor'`" reads as though the guard
+      writes that string. It does not: the guard is in `libs/domain` and
+      answers `chosen: 'optimized' | 'baseline'`, because
+      `OPTIMIZED_PUBLICATIONS` is `libs/contracts/solver`'s vocabulary and a
+      second copy of those two literals in the engine is the copy that
+      disagrees after an edit — the same direction the quantum and the wire
+      units are already kept out of that library in.
+      `publishOptimizedResult` is the one-line boundary that maps
+      `'optimized' → 'solver'` and `'baseline' → 'quantisation-floor'`, and it
+      is production code rather than a line each caller writes because the two
+      arms are **not symmetric**: a solver row keeps the run's own quantised
+      integers, a floor row keeps none of them.
+      **Step (a) is computed inside the guard, from the run's own
+      `ScheduleInput`, not handed in.** A `baseline: Schedule` parameter would
+      have been shorter and would have let a caller satisfy the type while
+      comparing against another plan's answer — a version of the exact failure
+      the guard exists to catch. "Over the same canonical input" is structural.
+      **WHERE THE SECOND FIXTURE ACTUALLY LIVES.** The equal-primary /
+      better-secondary case needs `makespan` as the primary, and the write
+      path's seat is hard-coded to `'pri'` (`reserve`'s `solver_slot` insert),
+      so every db case is a PRI variant. It is proved at the decision seam
+      instead, with the `>` → `>=` mutation reddening it **alone**; the write
+      path proves the *tie* arm. Recorded rather than papered over: the
+      paragraph above says "both on the production write path", and one of
+      them is not.
+      **The measured mutations, all on h2puni.** Domain (4/0 unmutated):
+      predicate `>` → `>=` **3/1**, the optimized side scored as the baseline
+      **1/3**, the substitution dropped **3/1**. Write path (60/0 unmutated):
+      the floor arm keeping the solver report **59/1**, the arm test inverted
+      **58/2**.
+- [x] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
       (Sol r7 Critical 6). `objectiveValues` is what records how far a
       partially staged run got, and the publication guard must persist
       `'quantisation-floor'`, but `Schedule` carries neither and the cache had
@@ -2574,7 +2611,17 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       order is the placement order: the optimized replay and real Fast place the
       same slices in different orders by construction, IEEE-754 addition is not
       associative, and 4.11b's predicate is an epsilon-free `>` that one ulp of
-      iteration order would decide. Tick this when the case runs against it.
+      iteration order would decide.
+      **THE CASE RAN AGAINST IT, run 45 chunk 2, and the item is closed.** The
+      width-5 floor row is stored through `storeOptimizedOutcome` and read back
+      through `readOptimizedPair` in `optimized-cache.db.test.ts`'s `4.11b`
+      block: the reloaded `schedule` is asserted **equal to real Fast's**, and
+      each reloaded `value` is asserted `toBe` — `Object.is`, so bit-equal —
+      against `scoreReal` **re-run on the reloaded schedule**, never against a
+      literal. `Number.isSafeInteger(priority.value)` is asserted **false** on
+      that row, which is the per-`publication` numeric domain doing its job:
+      the blanket safe-integer rule would have rejected the row the guard must
+      store.
 - [x] 4.11c **The capacity arrow's referent is the chosen pool, and it is
       tested** (Sol r13 Minor 5 renumbered this from a duplicate `4.11b`;
       `4.11b` is the real-domain publication guard and is referenced as such
