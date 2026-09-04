@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CapacityStore,
+  DirectoryStore,
   EstimateStore,
   ProjectStore,
   WorkItemStore,
@@ -39,13 +40,25 @@ import { WorkItemService, type WorkItemServiceOptions } from './work-item.servic
 
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
-/** The one team any pooled case here draws from. */
+/** The one team a single-pool case here draws from. */
 const PLATFORM = 'team-platform';
+/**
+ * The two pools 4.11 (d)'s contended slice spends a slot in at once.
+ *
+ * Named so the two orders a reader might confuse stay visibly apart, which is
+ * `schedule-joint-capacity.test.ts`'s own convention: `team-alpha` sorts first
+ * and the case below puts the right answer on `team-beta` on purpose, so a
+ * first-sorted reading of `capacityTeamId` and a latest-finisher reading give
+ * different answers.
+ */
+const ALPHA = 'team-alpha';
+const BETA = 'team-beta';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let capacity: CapacityStore;
+let directory: DirectoryStore;
 let serviceOptions: WorkItemServiceOptions;
 let projectId: string;
 let stepId: string;
@@ -62,7 +75,7 @@ let laterStepId: string;
 
 beforeEach(async () => {
   const harness = inMemoryServices();
-  ({ projects, workItems, estimates, capacity } = harness.stores);
+  ({ projects, workItems, estimates, capacity, directory } = harness.stores);
   serviceOptions = { ...harness.stores, broadcast: harness.broadcast };
   const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
   stepId = crypto.randomUUID();
@@ -90,8 +103,18 @@ beforeEach(async () => {
  * Whole days on purpose: every number these cases assert is a workday offset,
  * and a three-point estimate that averaged to a fraction would make the
  * expected values arithmetic the reader has to redo.
+ *
+ * `priority` is the leveller's first tie-break and every leaf here shares a
+ * position, so a case whose answer depends on which of two same-day slices
+ * takes a scarce slot first must say so rather than inherit the float ordering
+ * underneath. 4.11 (d) is the one that does; everything else leaves it alone.
  */
-async function leaf(name: string, days: number, serviceTeamId: string | null = null) {
+async function leaf(
+  name: string,
+  days: number,
+  serviceTeamId: string | null = null,
+  priority = 50,
+) {
   const id = crypto.randomUUID();
   await workItems.insert(
     {
@@ -102,7 +125,7 @@ async function leaf(name: string, days: number, serviceTeamId: string | null = n
       name,
       notes: '',
       frozenNumber: null,
-      priority: 50,
+      priority,
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
       serviceTeamId,
@@ -117,6 +140,33 @@ async function leaf(name: string, days: number, serviceTeamId: string | null = n
     { workItemId: id, stepId, optimistic: days, realistic: days, pessimistic: days },
     WROTE,
   );
+  return id;
+}
+
+/**
+ * A leaf that spends a slot in SEVERAL pools at once.
+ *
+ * Written as an insert plus a `patch`, which reads like ceremony and is not:
+ * `WorkItemStore.insert` takes a `WorkItem`, and a `WorkItem` carries the
+ * singular `serviceTeamId` and no set at all. The SQLite repository's private
+ * `joinRowsFor` will read a `teamIds` property off the row it is handed, but
+ * that shape is not on the port, the in-memory twin's `joinFor` does not read
+ * it, and a fixture that passed one got a slice with **no pools** and a case
+ * that measured the wrong thing without failing (watched 2026-09-04, run 43:
+ * the resulting `poolIds: []` was misread as the joint search taking the
+ * minimum of its pools). The set's supported write path is the patch, which
+ * both the store and its twin implement — and which validates the teams
+ * against the directory, so they have to exist first.
+ */
+async function multiPoolLeaf(
+  name: string,
+  days: number,
+  teamIds: readonly string[],
+  priority = 50,
+) {
+  const id = await leaf(name, days, null, priority);
+  const labelled = await workItems.patch(id, { teamIds }, WROTE);
+  if (!labelled.ok) throw new Error(`could not label ${name}: ${labelled.reason}`);
   return id;
 }
 
@@ -212,6 +262,25 @@ function slicedFor(
 ): NonNullable<typeof tree>['slices'][number] {
   const found = tree?.slices.find((one) => one.workItemId === workItemId);
   if (found === undefined) throw new Error(`no slice for ${workItemId}`);
+  return found;
+}
+
+/**
+ * One work item's slice on a named step, or a throw.
+ *
+ * {@link slicedFor} answers the first slice a row has, which is its Dev one.
+ * Every leaf here also carries an unestimated QA slice, and in a pooled case
+ * that slice takes a slot from the same pools — so the reservation a contended
+ * block actually waits for is often the QA one, and a fixture that named the
+ * Dev slice would assert against a reservation that released two days earlier.
+ */
+function slicedForStep(
+  tree: Awaited<ReturnType<WorkItemService['tree']>>,
+  workItemId: string,
+  step: string,
+): NonNullable<typeof tree>['slices'][number] {
+  const found = tree?.slices.find((one) => one.workItemId === workItemId && one.stepId === step);
+  if (found === undefined) throw new Error(`no slice for ${workItemId} on ${step}`);
   return found;
 }
 
@@ -408,5 +477,108 @@ describe("the materialiser's annotations, through the plan read", () => {
     // dropped filter it does not.
     const longRow = rowFor(tree, long).schedule;
     expect(longRow.latestFinish).toBeGreaterThanOrEqual(longRow.earliestFinish);
+  });
+
+  it('names the later of the two pools that jointly held a slice, and both their releases', async () => {
+    // tasks.md 4.11 (d), the contended two-pool case on the production path.
+    //
+    // `pinned` draws from BOTH pools and each holds one, so it needs a slot in
+    // each and starts at the instant the LATER of them frees — which is the
+    // whole point of the item: the joint window is later than either pool's own
+    // earliest fit. Alpha frees at day 4 and Beta at day 6, so the floor is 6.
+    //
+    // The arithmetic, spelled out because every leaf carries an unestimated QA
+    // slice worth `ASSUMED_SLICE_WORKDAYS` and that slice takes a slot from the
+    // same pool its Dev slice did:
+    //
+    //   Alpha: `Alpha tenant` Dev 0–2, its QA 2–4   → Alpha free at 4
+    //   Beta:  `Beta tenant`  Dev 0–4, its QA 4–6   → Beta  free at 6
+    //   pinned Dev therefore 6–8, and its own QA 8–10.
+    //
+    // The tenants carry a lower `priority` number than `pinned` so that order
+    // is the fixture's statement rather than the float ordering's: all three
+    // leaves share a position and start on day 0, so without it the tie is
+    // broken by float and `pinned` can take both slots first — measured, and
+    // the case then reads 4 rather than 6 for a reason that has nothing to do
+    // with what it is about.
+    //
+    // The pin sits ON that floor rather than above it, which the item requires
+    // and which is what leaves the slice `'capacity'` with capacity fields to
+    // assert on: above the floor `pinFloor` re-asks the window from its own
+    // answer, the binding comes back empty by construction, and there is
+    // nothing left for `annotateCapacity`'s gate to gate on (that is 4.11 (c)'s
+    // decision, one case up). So the offsets here are the plan's own baseline —
+    // spelled rather than left implicit, so a fixture that drifted fails on the
+    // pinned start instead of quietly asserting a different plan.
+    //
+    // Three watched reds, each reddening this case alone:
+    //
+    // - `jointWindowFor`'s multi-pool loop asking `poolIds.slice(0, 1)` — the
+    //   second pool never consulted — which answers 4;
+    // - the same loop's `window.start > best` flipped to `<`, which is the
+    //   other reading of a set ("either pool will do") and also answers 4;
+    // - `annotateCapacity`'s `finishesByStart` narrowed from `<= start` to
+    //   `=== start`, which keeps only Beta's QA: the set accumulates across the
+    //   search's ROUNDS, and Alpha's reservations released at 2 and 4 are as
+    //   much a reason this block could not start on day 0 as Beta's is.
+    //
+    // And two measured negatives, recorded because each looks like a proof this
+    // case makes and is not:
+    //
+    // - `reserve` restricted to `poolIds[0]` leaves all six green. Every tenant
+    //   here names ONE pool, so the per-pool WRITE has no second pool to lose;
+    //   `pinned` is the only multi-pool block and nothing is placed after it
+    //   that its own reservations would hold up. That half of decision 3 is
+    //   `schedule-joint-capacity.test.ts`'s, not this file's.
+    // - `capacityTeamId` taken as the first sorted BINDING pool also leaves all
+    //   six green, and the reason is structural rather than a gap in the
+    //   fixture: a pool that had room at the accepted start is not a binding
+    //   pool at all, so `window.binding` here is `[BETA]` alone and every
+    //   reading of a one-element set agrees. Two pools bind only when both
+    //   released at the accepted instant, where their latest valid finishers
+    //   tie and the pool-id tie-break is the rule — which is the tied-pool case
+    //   in `schedule-joint-capacity.test.ts`. `team-alpha` sorting first still
+    //   earns its name here: it is what makes `capacityTeamId: BETA` a claim
+    //   about which pool ran out rather than about which id sorts first.
+    await directory.addTeam({ id: ALPHA, name: 'Alpha' }, WROTE);
+    await directory.addTeam({ id: BETA, name: 'Beta' }, WROTE);
+    await capacity.set(projectId, ALPHA, 1, WROTE);
+    await capacity.set(projectId, BETA, 1, WROTE);
+    const alpha = await leaf('Alpha tenant', 2, ALPHA, 10);
+    const beta = await leaf('Beta tenant', 4, BETA, 10);
+    const pinned = await multiPoolLeaf('Pinned', 2, [ALPHA, BETA], 90);
+    // Its own QA slice moves with it, which is this file's fixture rule: a case
+    // states the offsets it moves and `servedBy` fills the rest from the
+    // baseline, so a slice left behind would be pinned under its own floor.
+    const tree = await servedBy({
+      [sliceKey(pinned, stepId)]: units(6),
+      [sliceKey(pinned, laterStepId)]: units(8),
+    });
+
+    const held = slicedForStep(tree, pinned, stepId);
+    expect(held).toMatchObject({
+      earliestStart: 6,
+      earliestFinish: 8,
+      boundBy: 'capacity',
+      capacityTeamId: BETA,
+    });
+    // Alpha's own earliest fit, named so a failure reads as the min-of-the-pools
+    // answer it would be rather than as an arbitrary wrong number.
+    expect(held.earliestStart).not.toBe(4);
+    // Every reservation either pool had to release, which is **all four** of
+    // the tenants' slices and not just the two the pools were holding at day 6:
+    // the joint search accumulates across its rounds, and Alpha's Dev slice at
+    // 0–2 is as much a reason this block could not start on day 0 as its QA
+    // slice at 2–4 is a reason it could not start on day 2. Measured; the four
+    // are the answer this file states rather than the two a "what was live at
+    // the accepted instant" reading would give.
+    expect([...held.capacityPredecessorIds].sort()).toEqual(
+      [
+        slicedForStep(tree, alpha, stepId).id,
+        slicedForStep(tree, alpha, laterStepId).id,
+        slicedForStep(tree, beta, stepId).id,
+        slicedForStep(tree, beta, laterStepId).id,
+      ].sort(),
+    );
   });
 });
