@@ -2,8 +2,8 @@ import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
-import { canEdit } from '../service/project.service';
 import type { ProjectService } from '../service/project.service';
+import { canEdit } from '../service/project.service';
 import type { SavedPlanService, SavedPlanTouchResult } from '../service/saved-plan.service';
 
 /**
