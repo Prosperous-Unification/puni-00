@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
 
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
-import { computeFastGoldenCorpus, FAST_GOLDEN_CASES } from './fast-golden-corpus';
+import {
+  computeFastGoldenCorpus,
+  FAST_GOLDEN_CASES,
+  serializeSchedule,
+} from './fast-golden-corpus';
+import { schedule, ScheduleInvalidOptimizedStartError } from './schedule';
 
 /**
  * Task 1.6(a): the guard that makes the optimized cache key honest.
@@ -99,5 +104,69 @@ describe('the stored bytes are the schedule, not an empty object', () => {
     expect(b.earliestStart).toBe(2);
     expect(b.earliestFinish).toBe(4);
     expect(c.earliestStart).toBe(4);
+  });
+});
+
+/**
+ * Task 1.6(c): the no-op proof, and it does not have the shape the plan asked
+ * for. The plan says "with the seventh argument defaulted to an empty map,
+ * every existing corpus case SHALL produce a byte-identical schedule" — the
+ * re-key must not be able to hide a placement change smuggled in with it.
+ *
+ * Run 11 recorded that `schedule()` had six parameters and that the seventh
+ * canonical argument, `deadlines`, had not reached its signature, so (c) could
+ * not be run at all. A seventh parameter has since arrived, and it is
+ * `pinnedStarts` (task 4.9's optimized materialiser), not `deadlines`.
+ *
+ * Measured, not assumed: an empty map is NOT a no-op for `pinnedStarts` and
+ * cannot be made one. `schedule.ts:2303` reads `pinnedStarts === undefined` as
+ * "this is Fast" and anything else as "a solver answered", then demands a start
+ * for every node — so an empty map means "the solver returned no start for any
+ * slice" and is refused with `ScheduleInvalidOptimizedStartError`. That refusal
+ * is the design, not a gap: a partial answer is an answer to a different
+ * question.
+ *
+ * So (c) is proven in the only form the code admits, in two halves. The first
+ * is the no-op the plan wanted: the seventh parameter's arrival moved no corpus
+ * byte, proven by passing it explicitly as `undefined`. The second is why the
+ * plan's own wording cannot be taken literally: the empty map is loud, so the
+ * corpus can never be re-keyed through the optimized path by accident.
+ */
+describe('the seventh parameter did not move a corpus byte', () => {
+  const stored = STORED.cases;
+
+  it('reproduces every stored schedule with pinnedStarts passed as undefined', () => {
+    const cases: Record<string, unknown> = {};
+    for (const each of FAST_GOLDEN_CASES) {
+      cases[each.name] = serializeSchedule(
+        schedule(
+          each.rows,
+          each.edges,
+          each.slices,
+          each.notBefore ?? new Map(),
+          each.poolSizes ?? new Map(),
+          each.reach ?? 'whole-item',
+          undefined,
+        ),
+      );
+    }
+    expect(cases).toEqual(stored);
+  });
+
+  it('refuses an empty map on every case rather than treating it as Fast', () => {
+    expect(FAST_GOLDEN_CASES.length).toBeGreaterThan(0);
+    for (const each of FAST_GOLDEN_CASES) {
+      expect(() =>
+        schedule(
+          each.rows,
+          each.edges,
+          each.slices,
+          each.notBefore ?? new Map(),
+          each.poolSizes ?? new Map(),
+          each.reach ?? 'whole-item',
+          new Map(),
+        ),
+      ).toThrow(ScheduleInvalidOptimizedStartError);
+    }
   });
 });
