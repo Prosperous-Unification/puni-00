@@ -325,6 +325,28 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
     });
 
     /**
+     * The two edges below are **redirections**, not additions, and 1.9's
+     * watched-red sweep is what put them here: with `an authored edge added` as
+     * the only edge case, deleting `predecessorId` from the canonical string
+     * left the whole suite green at 22 pass / 0 fail, and so did deleting
+     * `successorId`. An added edge lengthens the array, so the hash moves on the
+     * array's *length* whichever half of the pair is missing — the case could
+     * not see which end of the edge it was proving.
+     *
+     * A redirection holds the edge count at one and moves a single end, so each
+     * removal collides the base with its own mutation.
+     */
+    movesAPlacement('an edge redirected to a different successor', {
+      ...BASE,
+      edges: [{ predecessorId: 'a', successorId: 'c' }],
+    });
+
+    movesAPlacement('an edge redirected from a different predecessor', {
+      ...BASE,
+      edges: [{ predecessorId: 'c', successorId: 'b' }],
+    });
+
+    /**
      * `position`, on {@link TIED}, because it reaches a placement only through
      * the number tie-break. The proof is the swap: make the number order agree
      * with the array order instead of contradicting it, and the slice that was
