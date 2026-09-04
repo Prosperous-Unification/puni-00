@@ -1752,6 +1752,26 @@ review`, no self-merge.
       each then hits its own row, and the injected spawner sees exactly two
       solves across ten alternating reads. **Watched red:** restore the
       exclusive rule and (b)'s spawn count must rise with every read.
+      **State, run 34: both rules are implemented and (a) is proved; (b) is
+      not, and cannot be here.** Rule 1 is `allocateGeneration`'s existing
+      delete; rule 2 is `MAX_LIVE_BUDGETS` in
+      `optimized-schedule-cache.ts`, enforced inside 4.1's write transaction
+      only on the path where an insert actually landed, ordered by `createdAt`
+      then `budgetMs` (both descending — two rows written in one millisecond
+      would otherwise evict whichever SQLite happened to return first) and
+      deleted by full primary key. `Proof:` `optimized-cache.db.test.ts`,
+      proof (a) — three raised budgets plus a `contractVersion` bump with no
+      plan edit leaves 90k and 120k under blue and 60k under green — plus the
+      state the exclusive rule made impossible: two budgets under ONE contract
+      version both surviving and both servable. **(b) needs the injected
+      spawner, which is 4.2's and does not exist**, so its spawn count and the
+      watched red under it stay open; the row-level half of the same claim is
+      what landed. Three mutations red their own case: raising the bound to 3,
+      dropping `contractVersion` from the bound's scope (in the count *and*
+      the delete — dropping it from the count alone changes nothing, because
+      the delete's own `contractVersion` predicate masks it, so that predicate
+      is defence in depth rather than the load-bearing one), and ordering
+      ascending so the newest is evicted.
 - [ ] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
       **zero calls on the injected spawner** (asserted on the spawner, not on
       elapsed time); a changed effort, edge or pool → miss; a `contractVersion`
