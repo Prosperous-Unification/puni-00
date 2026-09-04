@@ -4,7 +4,7 @@ import { deriveNumbers, type PlannedRow } from './derive-numbers';
 import { leafFloorsOf } from './leaf-constraints';
 import { sliceGraphEdges } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
-import { snapWorkdays } from './workday';
+import { snapWorkdays, withinDrift } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
 export interface DependencyEdge {
@@ -1156,10 +1156,21 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
  * struck version of it — comparing the pinned start to the **joint window**
  * instead of to the resolved floor — is a mistake that reads as correct.
  *
- * - **Equal** is the common case, and it keeps the resolved `boundBy`. An
- *   optimizer that leaves a slice where the plan already put it has explained
- *   nothing about it; the predecessor, the person or the pool that held it is
- *   still what a reader is owed.
+ * - **Equal** is the common case, and it keeps the resolved `boundBy` — and the
+ *   resolved `start`, not the pin's own double. An optimizer that leaves a slice
+ *   where the plan already put it has explained nothing about it; the
+ *   predecessor, the person or the pool that held it is still what a reader is
+ *   owed. **Equal means {@link withinDrift}, not `===`**, because the two sides
+ *   are two different roundings of the same real number: the pin divides back
+ *   from `k / SOLVER_QUANTUM` and the floor accumulated through `days / width`.
+ *   With `===` here the plan's OWN quantised baseline came back as a refusal —
+ *   `0.08333333333333333 is before its stepOrder floor at 0.08333333333333334`,
+ *   on `days: 5/12, width: 5` — and one ulp the other way labelled a slice
+ *   sitting on its floor `'optimizer'`. Neither is rare: 106,142 of 480,000
+ *   (width, offset) pairs drift one way or the other (run 40 chunk 2). The
+ *   window cannot hide a real violation, because the solver places integers and
+ *   a genuinely early start is early by at least one unit, 0.0208 of a day
+ *   against a 1e-9 window.
  * - **Strictly later** is `'optimizer'`, and only then. The pin is re-asked of
  *   the pool from its own instant: `jointWindowFor(…, pinned)` must answer
  *   `pinned`, which both proves the placement legal and hands back the
@@ -1180,7 +1191,7 @@ function pinFloor(
   pinned: number | undefined,
   windowFrom: (from: number) => JointWindow,
 ): { start: number; boundBy: ScheduleFloor } {
-  if (pinned === undefined || pinned === resolved.start) return resolved;
+  if (pinned === undefined || withinDrift(pinned, resolved.start)) return resolved;
   if (pinned < resolved.start) {
     throw new ScheduleInvalidOptimizedStartError(
       key,

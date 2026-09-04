@@ -138,6 +138,33 @@ export function snapWorkdays(workdays: number): number {
 }
 
 /**
+ * Whether two workday values denote the **same** point on the axis, up to the
+ * same accumulated drift {@link snapWorkdays} exists for.
+ *
+ * The sibling of that function for the case it cannot serve: it snaps a value
+ * towards a WHOLE day, and two numbers can be one ulp apart at 0.083 of a day
+ * with no whole number anywhere near them. That is exactly where the optimized
+ * materialiser lands. A solver offset divides back to `k / SOLVER_QUANTUM`
+ * while Fast reached the same real point through `days / width`, and the two
+ * roundings need not produce the same double: over every width 1–1000 and
+ * offset 1–480 whose real duration is an exact unit multiple, 53,451 of 480,000
+ * pairs put the dequantised value strictly below Fast's and 52,691 strictly
+ * above (measured 2026-09-04). Compared with a bare `<` the first group made
+ * `schedule()` refuse the plan's own quantised baseline, and the second labelled
+ * a slice sitting on its floor `'optimizer'`.
+ *
+ * **The window is safe here with nine orders to spare, and that is an argument
+ * rather than a hope.** The smallest gap this comparison must still be able to
+ * SEE is one solver unit — the solver places integers, so a start that is
+ * genuinely early is early by at least `1 / SOLVER_QUANTUM` of a day, about
+ * 0.0208 — while {@link DRIFT} is 1e-9. Widening it to 0.5 would swallow a real
+ * unit; at 1e-9 it cannot swallow anything the model can express.
+ */
+export function withinDrift(a: number, b: number): boolean {
+  return Math.abs(a - b) < DRIFT;
+}
+
+/**
  * The whole workday a span standing at `offset` begins on: {@link snapWorkdays},
  * then floor.
  *

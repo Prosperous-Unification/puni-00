@@ -12,6 +12,7 @@ import {
   nextWorkday,
   snapWorkdays,
   wholeDaysCovering,
+  withinDrift,
   workdaysBetween,
 } from './workday';
 
@@ -250,5 +251,23 @@ describe('workdaysBetween', () => {
 
   it('ignores the weekend between two dates', () => {
     expect(workdaysBetween(FRIDAY, MONDAY)).toBe(1);
+  });
+});
+
+describe('withinDrift', () => {
+  it('reads two roundings of one real number as the same point', () => {
+    // The pair that made `schedule()` refuse the plan's own quantised baseline:
+    // `days: 5/12, width: 5` is exactly 4 solver units, and 4 / 48 and
+    // (5 / 12) / 5 are one ulp apart.
+    expect(withinDrift(4 / 48, 5 / 12 / 5)).toBe(true);
+    expect(4 / 48 === 5 / 12 / 5).toBe(false);
+  });
+
+  it('still sees a gap of one solver unit, which is the smallest real one', () => {
+    // The window is only safe because the solver places integers: a start that
+    // is genuinely early is early by at least 1/48 of a day, seven orders above
+    // the window. Widen DRIFT past that and this fails.
+    expect(withinDrift(0, 1 / 48)).toBe(false);
+    expect(withinDrift(2, 2 - 1 / 48)).toBe(false);
   });
 });
