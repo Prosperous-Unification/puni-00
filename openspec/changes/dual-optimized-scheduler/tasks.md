@@ -81,8 +81,9 @@ string[]`, never a singular `poolId`);
 - [x] 1.3 **Proven by** `schedule-input-hash.test.ts`, one **tie-sensitive**
       mutation case per canonical fact — each fixture is built so the mutated
       fact actually moves a placement, otherwise a hash that ignores it still
-      passes. Cases: estimate, edge, as-written priority on a parent, `width`,
-      `notBefore` floor, `personId`, pool size, **`depReach` flipped**, **two
+      passes. The cases are one per canonical fact. Estimate; edge; as-written
+      priority on a parent; `width`; a `notBefore` floor; `personId`; pool size;
+      **`depReach` flipped**; **two
       slices of one work item swapped**, **`poolIds` widened from one pool to
       two**, **a work-item `deadline` set on a parent that binds no leaf until
       a later move** (tie-sensitive because Fast's ready-slice ordering gains a
@@ -146,8 +147,8 @@ string[]`, never a singular `poolId`);
       pool-free it reaches the schedule through `durationOf`'s `days / width`
       arm, so 4 days across a width of 2 is two and the successor starts at 2
       rather than 4. Domain **399 pass / 0 fail across 31 files**.
-      **`poolIds` widened from one pool to two landed in run 13 chunk 1, on a
-      fourth base `PARALLEL`, and closes this item.** It needs its own base for
+      **`poolIds` widened from one pool to two landed in run 13 chunk 1 and
+      closes this item; its fourth base is `PARALLEL`.** It needs its own base for
       the same reason `width` did: every slice in `BASE` sits on the single pool
       `team`, so the only pool a second entry could name is one no slice holds,
       and a pool nobody queues for delays nothing — giving it an occupant would
@@ -527,7 +528,7 @@ does not exist on type 'typeof import(".../index")'`. So the barrel test
       typecheck target 1, suite 373/1, and `libs/contracts`'s own typecheck 1
       on `TS2305` because a real consumer now imports it. Second red: the barrel's `export * from
 './solver-quantum'` commented out, 335/1 on the quantum case alone.
-- [ ] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
+- [x] 2.1 `libs/contracts/solver/solver-wire.v1.json` is the **single
       normative definition** of the request and the response — prose in this
       file, in design.md and in the long-form note is descriptive only (Sol r6
       Critical 1, Sol r7 Critical 5).
@@ -590,8 +591,8 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       the design denies, and that is what closed candidate (a).
       **The `status`-to-payload conditional came out of the matrix's `n/a`
       column, not out of the enum:** `feasible` carries `offsets` and
-      `objectiveValues`, `unknown` and `infeasible` carry **neither**, because
-      `value` is defined only on a published schedule; `offsets` is _absent_
+      `objectiveValues`; the other two run outcomes carry **neither**, because
+      `value` is defined only on a published schedule. `offsets` is _absent_
       rather than `{}`, since an empty map passes the schema and then fails the
       key-set invariant one layer later, reporting a vocabulary decision as a
       corrupt payload. So `required` on the response names only `wireVersion`
@@ -706,86 +707,76 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       the three covered artifacts, in
       `libs/contracts/solver/src/wire-vocabulary.ts` (run 22; the `af05ead1`
       prototype was a statement about that head alone).
-      **Rule (b) is measured and not yet gated, and the blocker changed in run 23.** It was seventeen divergences, none of them drift, blamed on six
-      unnamed tuples. Seven vocabularies were then added from their defining
-      artifacts and the count fell to **twelve** — so five were attribution
-      failures and are closed. The twelve that remain are ONE finding and no
-      further naming can move them: each is a run spanning two vocabularies
-      **both of which are now named**, and attribution picks a single winner by
-      overlap, so every member of the other tuple is reported as unexpected
-      whatever set it belongs to. **DECISION OWED HERE, not in the check:**
-      either those twelve sentences are rewritten so no run spans two tuples,
-      or rule (b)'s subset test is taken against the **union** of the
-      vocabularies a run overlaps — which keeps what rule (b) is for, since a
-      name belonging to no named tuple at all still fails, and drops what the
-      measurement says is not drift. **Both readings are implemented and
-      measured (run 23): `'best'` reports 12, `'union'` reports 9.** Neither is
-      zero, so the union is a rule to adopt or refuse on its merits and NOT a
-      way out of the twelve; whichever is chosen, some sentences are rewritten
-      before rule (b) can gate. **The falsifier fired, and it is now a test
-      rather than a sentence.** Its first form — admit any member of any named
-      vocabulary — passed this response enumeration carrying a cache column:
-      <!-- wire-fields:fixture -->"The response carries `wireVersion`, `status`, `offsets` and `resultJson`."
-      It passed because the cache tuple
-      cleared a two-name overlap on the strength of the drifting name itself.
-      So admission excludes the member being judged: a vocabulary admits a name
-      only when it contributes `MIN_OVERLAP` OTHER names. Under that form the
-      falsifier is caught in both readings and the watched red still reds on
-      `sliceKey`, which belongs to no named tuple at all. The asserted counts in
-      `wire-vocabulary.test.ts` are the ratchet either way, and 2.1 stays
-      unticked until the decision lands.
-      **DECIDED (run 23): the union reading, and the nine survivors are a
-      rewrite list rather than a rule problem.** Three grounds, in order. It
-      accepts strictly less: 9 against 12, and every sentence it stops
-      rejecting was measured to be correct prose. It keeps the property rule
+      **Rule (b) gates too, under the union reading, and 2.1 is closed (run
+      24).** The history is worth keeping because each step was a different
+      kind of error. It began as seventeen divergences, none of them drift,
+      blamed on six unnamed tuples. Run 23 added seven vocabularies read from
+      their defining artifacts and the count fell to twelve, so five were
+      attribution failures. The twelve that remained were one finding that no
+      further naming could move: each was a run spanning two vocabularies both
+      of which were named, and attribution picks a single winner by overlap, so
+      every member of the other tuple was reported as unexpected whatever set
+      it belonged to.
+      **DECIDED (run 23): the union reading** — rule (b)'s subset test taken
+      against the union of the vocabularies a run overlaps, admitting a name
+      only through a vocabulary that contributes `MIN_OVERLAP` names _besides_
+      it. Three grounds. It accepts strictly less. It keeps the property rule
       (b) was written for, because a name in no named tuple still fails — the
       watched red is the proof, not the argument. And its one hole is closed
-      and mutation-proved rather than reasoned about. **Recorded as an
-      assumption, with what would falsify it:** a real drift whose stale name
-      is a legitimate member of some other named tuple that also contributes
-      two further names to the same run. That run is admitted, and no bar on
-      overlap count fixes it — the second tuple is genuinely present. If one is
-      ever found, the answer is the other branch: rewrite the sentences and
-      keep the single-winner reading, which cannot be fooled that way.
+      and mutation-proved: the first form admitted a response enumeration
+      carrying a cache column, because that tuple cleared a bare two-name
+      overlap on the strength of the drifting name itself.
+      **Recorded as an assumption, with what would falsify it:** a real drift
+      whose stale name is a legitimate member of some other named tuple that
+      also contributes two further names to the same run. That run is admitted
+      and no bar on overlap count fixes it, because the second tuple is
+      genuinely present. If one is ever found, the answer is the other branch:
+      rewrite the sentences and keep the single-winner reading, which cannot be
+      fooled that way.
       **The first ground was true of the sentence count and false of the names
-      until run 24, and the counts could not show it.** As shipped, `'union'`
-      admitted a name only through the overlap bar, and never granted the
-      attributed vocabulary any standing of its own — so a run whose winner
-      overlapped by exactly two had both of those names reported, names the
-      single-winner reading admits by definition. Measured at `a7446cd2`:
-      tasks.md 149 reported one name under `'best'` and three under `'union'`,
-      and three further sentences grew the same way, among them this task's own
-      response conditional. The union was weaker on **sentences** and stricter
-      on **names**, which is not the reading this task adopted. Admission now
-      starts from the attributed vocabulary and the overlap bar only adds to
-      it. Both counts are unchanged at 12 and 9 — which is exactly why a total
-      could not see this, and why the property is now asserted per sentence:
-      a name accepted under `'best'` is never rejected under `'union'`.
-      Mutation-proved on the tree this chunk commits: restoring the shipped
-      predicate turns 206/0 into 204/2, and the two reds are that guard and its
-      unit half and nothing else — every count assertion stays green through
-      it, which is the measurement, not the argument.
-      **THE NINE, so the next run starts from a list and not a measurement**
-      (line numbers at THIS chunk's head, and each names the non-member it
-      carries; run 23's were at `cd0596f8` and this paragraph's own growth had
-      already moved one of them).
-      **Run 23's list named eight of them and this is the ninth**: tasks.md
-      592, this task's own status-to-payload conditional, where the three
-      run-outcome values stand beside the response field names — the fifth time
-      2.1's prose has failed 2.1's check, and the only one of the five that was
-      inside the measured count while the written list omitted it.
-      Then tasks.md 84, the canonical-input fact list beside the slice fields —
-      notBefore, depReach, deadline; tasks.md 149, PARALLEL, a strategy, beside
-      width and poolIds; tasks.md 1488, the cache status value failed beside
-      its own columns; design.md 60, publication, a stored-row tag, beside the
-      term fields; design.md 103, decodeOptimizedResult, a function, beside the
-      cache columns; spec.md 355, the response status value unknown beside the
-      response fields; spec.md 520, the 3b.1 project-settings columns
-      schedule_engine and schedule_objective, which is the LAST tuple this
-      change genuinely has not named anywhere; and spec.md 570, the plan-read
-      block's own name beside its ten members. Five of those nine are a value
-      or a name standing next to the tuple it belongs to, and the cheapest
-      honest repair is a sentence break rather than a new vocabulary.
+      until run 24, and no count could have shown it.** As shipped, admission
+      ran only through the overlap bar and never granted the **attributed**
+      vocabulary standing of its own, so a run whose winner overlapped by
+      exactly two had both of those names reported — names the single-winner
+      reading admits by definition. Measured at `a7446cd2`: four sentences grew
+      that way, among them this task's own response conditional. The union was
+      weaker on **sentences** and stricter on **names**, which is not the
+      reading this task adopted. Admission now starts from the attributed
+      vocabulary and the overlap bar only adds to it. Both counts were
+      unchanged by the repair, which is why the property is asserted **per
+      sentence** — a name accepted under `'best'` is never rejected under
+      `'union'` — with a unit half naming the cause. Mutation-proved: restoring
+      the shipped predicate turns 206/0 into 204/2, and the two reds are that
+      guard and its unit half, every count assertion green straight through.
+      **Then the nine survivors were rewritten, and run 23's list of them named
+      eight.** The ninth was this task's own status-to-payload conditional,
+      where the three run-outcome values stood beside the response field names
+      — the fifth time 2.1's prose failed 2.1's check, and the only one of the
+      five that sat inside the measured count while the written list omitted
+      it. Every repair was a **sentence break** rather than a new vocabulary,
+      and the measurement after each says what it cost: rule (b) under the
+      union went 9 → 4 → 1 → **0**, and under the single-winner reading 12 → 3.
+      Both counts are asserted, so either moves only deliberately.
+      **The gate now runs `['a', 'b']` under `'union'` over the three covered
+      artifacts**, which is what closes this task: an amended field list in
+      prose, and a run mixing two tuples, are both red at every head.
+      **ONE TUPLE IS STILL UNNAMED AND IS NOW UNGUARDED, which is the honest
+      cost of the last repair.** spec.md's per-table `CHECK` list mixed the
+      cache columns, the `project` row's own two settings columns and the
+      slot/queue columns in one run. Splitting it per table drops the settings
+      pair below rule (b)'s attribution floor — three names overlapping no
+      vocabulary are not attributed at all — so the check no longer reports it
+      and also cannot catch drift in it. It is not named because **there is no
+      artifact to read it from yet**: 3b.1 has not landed those columns, and
+      reading a vocabulary out of the sentence that mentions it is the exact
+      failure rule (b) exists to catch. **Follow-up, owned by 3b.1:** when the
+      migration lands, add the settings tuple as a vocabulary sourced from
+      `apps/be-01/src/repository/schema.ts` and re-measure.
+      **A line-number list inside the file it describes is a moving target**,
+      and run 24 hit it twice in one chunk — amending this paragraph shifted a
+      cited sentence, and writing the corrected number shifted it again. Closed
+      with a same-length substitution and a re-measurement. Cite content, not
+      line numbers, in any list that lives in its own subject.
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
@@ -1485,8 +1476,8 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       creates the four tables; it is idempotent on an already-migrated file; a
       rollback and re-apply leave every pre-existing table intact; the outgoing
       release's queries still run after the migration; each CHECK rejects its
-      malformed row (an `ok` row with a NULL `resultJson`, a `failed` row
-      with one, an unknown `objective`); and deleting a project cascades its
+      malformed row (an `ok` row with a NULL `resultJson`; a `failed` row
+      with one; an unknown `objective`); and deleting a project cascades its
       cache rows away only through `finishOptimizationDrain` after the real
       slot count reaches zero.
 - [ ] 3.5 **Negative check, watched red** — drop the status/nullability CHECK

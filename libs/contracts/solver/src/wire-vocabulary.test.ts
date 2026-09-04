@@ -274,11 +274,14 @@ describe('rules (b) and (c), and the tags themselves', () => {
 describe('the repository check — three of four descriptive artifacts', () => {
   const vocabularies = allVocabularies(schema);
 
-  it.each(COVERED_ARTIFACTS.map((f) => [f]))('%s: every tagged span equals its set', (file) => {
-    const text = readFileSync(new URL(file, repoRoot), 'utf8');
-    const divergences = checkArtifact(text, file, vocabularies, ['a']);
-    expect(report(divergences, [file as string])).toContain('no divergent enumeration');
-  });
+  it.each(COVERED_ARTIFACTS.map((f) => [f]))(
+    '%s: every tagged span equals its set and every untagged run is a subset',
+    (file) => {
+      const text = readFileSync(new URL(file, repoRoot), 'utf8');
+      const divergences = checkArtifact(text, file, vocabularies, ['a', 'b'], 'union');
+      expect(report(divergences, [file as string])).toContain('no divergent enumeration');
+    },
+  );
 
   /**
    * Rule (b) is not the gate, and this pins why rather than leaving it to the
@@ -301,7 +304,7 @@ describe('the repository check — three of four descriptive artifacts', () => {
     const ruleB = COVERED_ARTIFACTS.flatMap((file) =>
       checkArtifact(readFileSync(new URL(file, repoRoot), 'utf8'), file, vocabularies, ['b']),
     );
-    expect(ruleB).toHaveLength(12);
+    expect(ruleB).toHaveLength(3);
     expect(ruleB.every((d) => d.rule === 'b')).toBe(true);
   });
 
@@ -365,7 +368,7 @@ describe('the repository check — three of four descriptive artifacts', () => {
         'union',
       ),
     );
-    expect(union).toHaveLength(9);
+    expect(union).toHaveLength(0);
   });
 
   /**
