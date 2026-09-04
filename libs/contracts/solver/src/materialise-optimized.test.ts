@@ -106,20 +106,43 @@ describe('materialiseOptimized', () => {
     expect(placed.waitingForCapacity).toBe(fast.waitingForCapacity);
   });
 
-  it('refuses an offset that is not a whole unit', () => {
+  /**
+   * The fractional offset is deliberately **above** every floor of its slice and
+   * the rest of the plan is deliberately feasible around it.
+   *
+   * The first version of this case put 24.5 on `A/two`, where it divides to
+   * 0.51 workdays and lands below `A/one`'s finish — so `schedule()` refused it
+   * for its own reason and the case passed with this file's guard deleted
+   * (measured, run 40 chunk 1: mutation M2 was green against it). Pinned on the
+   * first slice instead, 24.5 units is 0.51 workdays against a `projectStart`
+   * floor of 0, which is a legal `'optimizer'` start — nothing but the guard
+   * refuses it, and what it is refused for is being half a unit off the axis
+   * every other start in the model sits on.
+   */
+  it('refuses an offset that is not a whole unit even where the plan would accept it', () => {
     expect(() =>
-      materialise({ [key.one]: 0, [key.two]: 24.5, [key.three]: SOLVER_QUANTUM * 4 }),
+      materialise({
+        [key.one]: 24.5,
+        [key.two]: SOLVER_QUANTUM * 2,
+        [key.three]: SOLVER_QUANTUM * 4,
+      }),
     ).toThrow(ScheduleInvalidOptimizedStartError);
   });
 
-  it('refuses a negative offset', () => {
+  /**
+   * A negative offset is below `projectStart` on every plan, so `schedule()`
+   * would refuse it too — this case pins WHICH refusal answers, because the two
+   * say different things to whoever reads the log. Asserting the class alone
+   * would pass with the guard deleted.
+   */
+  it('refuses a negative offset in its own words rather than as a floor violation', () => {
     expect(() =>
       materialise({
         [key.one]: -SOLVER_QUANTUM,
         [key.two]: SOLVER_QUANTUM * 3,
         [key.three]: SOLVER_QUANTUM * 4,
       }),
-    ).toThrow(ScheduleInvalidOptimizedStartError);
+    ).toThrow(/is not a whole non-negative unit offset/);
   });
 
   it('refuses an offset key the plan has no slice for', () => {
