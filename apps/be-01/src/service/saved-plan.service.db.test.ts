@@ -185,9 +185,9 @@ describe('SavedPlanService.save', () => {
    * The account the route will authorise against reaches the stored row.
    *
    * Asserted off the header rather than off `result.record`, because the record
-   * is what the service *assembled* and this is about what the repository
-   * *wrote*: a `values()` that silently omitted the column would return a
-   * perfectly correct record beside a row full of nulls.
+   * is what the service assembled and this is about what the repository wrote:
+   * a `values()` that silently omitted the column would return a perfectly
+   * correct record beside a row full of nulls.
    */
   it('carries the saving account through save to the stored header', async () => {
     const result = await service().save({
