@@ -2228,6 +2228,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       open_which_is_what_unproved_means` stays green under the second — the
       status lies there while the bound is still honest, which is the right
       split.
+
 - [ ] 5.7 **Negative check, watched red** — let the solver read the wall clock
       instead of `baselineOffsets` and watch 5.4's oracle case fail; separately
       collapse the staged optimization into a weighted sum and watch the
