@@ -105,8 +105,19 @@
  * both modes and 2.1's watched red still reds on `sliceKey`, which belongs to no
  * named tuple at all.
  *
- * That is 2.1's to settle, not this module's; the counts above are the ratchet
- * either way and both are asserted.
+ * **And that form had a second defect, which the counts could not show (run
+ * 24).** Admission ran *only* through the overlap bar, so the attributed
+ * vocabulary had no standing of its own: a run whose winner overlapped by
+ * exactly two reported both of those names as unexpected — names `'best'`
+ * admits by definition. `'union'` was therefore not the weaker reading 2.1
+ * adopted it for; it was weaker on *sentences* and stricter on *names*.
+ * Measured at `a7446cd2`, tasks.md 149 read `PARALLEL` under `'best'` and
+ * `PARALLEL, poolIds, width` under `'union'`. Admission now starts from the
+ * attributed vocabulary and the overlap bar only *adds* to it, which leaves
+ * both counts where they were and makes the union a genuine superset. The
+ * property is asserted per sentence, because a total cannot see it.
+ *
+ * The counts above are the ratchet either way and both are asserted.
  */
 
 export type VocabularyName =
@@ -620,11 +631,11 @@ export function checkArtifact(
     const best = attribute(members, vocabularies);
     if (!best || best.overlap < 2) continue;
     const admits = (member: string): boolean =>
-      subsetMode === 'best'
-        ? best.vocabulary.members.has(member)
-        : [...vocabularies.values()].some(
-            (v) => v.members.has(member) && overlapWith(members, v) - 1 >= MIN_OVERLAP,
-          );
+      best.vocabulary.members.has(member) ||
+      (subsetMode === 'union' &&
+        [...vocabularies.values()].some(
+          (v) => v.members.has(member) && overlapWith(members, v) - 1 >= MIN_OVERLAP,
+        ));
     const unexpected = [...members].filter((m) => !admits(m)).sort();
     if (unexpected.length === 0) continue;
     divergences.push({

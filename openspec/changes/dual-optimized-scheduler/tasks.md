@@ -747,18 +747,43 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       overlap count fixes it — the second tuple is genuinely present. If one is
       ever found, the answer is the other branch: rewrite the sentences and
       keep the single-winner reading, which cannot be fooled that way.
+      **The first ground was true of the sentence count and false of the names
+      until run 24, and the counts could not show it.** As shipped, `'union'`
+      admitted a name only through the overlap bar, and never granted the
+      attributed vocabulary any standing of its own — so a run whose winner
+      overlapped by exactly two had both of those names reported, names the
+      single-winner reading admits by definition. Measured at `a7446cd2`:
+      tasks.md 149 reported one name under `'best'` and three under `'union'`,
+      and three further sentences grew the same way, among them this task's own
+      response conditional. The union was weaker on **sentences** and stricter
+      on **names**, which is not the reading this task adopted. Admission now
+      starts from the attributed vocabulary and the overlap bar only adds to
+      it. Both counts are unchanged at 12 and 9 — which is exactly why a total
+      could not see this, and why the property is now asserted per sentence:
+      a name accepted under `'best'` is never rejected under `'union'`.
+      Mutation-proved on the tree this chunk commits: restoring the shipped
+      predicate turns 206/0 into 204/2, and the two reds are that guard and its
+      unit half and nothing else — every count assertion stays green through
+      it, which is the measurement, not the argument.
       **THE NINE, so the next run starts from a list and not a measurement**
-      (line numbers at cd0596f8, and each names the non-member it carries):
-      tasks.md 84, the canonical-input fact list beside the slice fields —
+      (line numbers at THIS chunk's head, and each names the non-member it
+      carries; run 23's were at `cd0596f8` and this paragraph's own growth had
+      already moved one of them).
+      **Run 23's list named eight of them and this is the ninth**: tasks.md
+      592, this task's own status-to-payload conditional, where the three
+      run-outcome values stand beside the response field names — the fifth time
+      2.1's prose has failed 2.1's check, and the only one of the five that was
+      inside the measured count while the written list omitted it.
+      Then tasks.md 84, the canonical-input fact list beside the slice fields —
       notBefore, depReach, deadline; tasks.md 149, PARALLEL, a strategy, beside
-      width and poolIds; tasks.md 1426, the cache status value failed beside
+      width and poolIds; tasks.md 1488, the cache status value failed beside
       its own columns; design.md 60, publication, a stored-row tag, beside the
       term fields; design.md 103, decodeOptimizedResult, a function, beside the
       cache columns; spec.md 355, the response status value unknown beside the
       response fields; spec.md 520, the 3b.1 project-settings columns
       schedule_engine and schedule_objective, which is the LAST tuple this
       change genuinely has not named anywhere; and spec.md 570, the plan-read
-      block's own name beside its ten members. Four of those nine are a value
+      block's own name beside its ten members. Five of those nine are a value
       or a name standing next to the tuple it belongs to, and the cheapest
       honest repair is a sentence break rather than a new vocabulary.
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in

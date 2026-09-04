@@ -390,6 +390,55 @@ describe('the repository check — three of four descriptive artifacts', () => {
     }
   });
 
+  /**
+   * 2.1's first ground for adopting the union is that it **accepts strictly
+   * less**, and until run 24 that was true of the sentence count and false of
+   * the names. `'union'` admitted `m` only through a vocabulary contributing
+   * `MIN_OVERLAP` names besides `m`, and it never granted the attributed
+   * vocabulary that standing — so a run whose winner overlapped by exactly two
+   * had both of those two reported as unexpected, names `'best'` admits by
+   * definition. Measured at `a7446cd2`: tasks.md 149 reported `PARALLEL` under
+   * `'best'` and `PARALLEL, poolIds, width` under `'union'`, and three more
+   * sentences grew the same way.
+   *
+   * So this is the property the decision rests on, asserted per sentence rather
+   * than as a total: a name `'best'` accepts is never rejected by `'union'`.
+   * A count comparison cannot see this — both readings were 12 and 9 before and
+   * after the repair.
+   */
+  it('never rejects under the union a name the single-winner reading admits', () => {
+    for (const file of COVERED_ARTIFACTS) {
+      const text = readFileSync(new URL(file, repoRoot), 'utf8');
+      const key = (d: { line: number }): number => d.line;
+      const best = new Map(
+        checkArtifact(text, file, vocabularies, ['b'], 'best').map((d) => [key(d), d.unexpected]),
+      );
+      for (const union of checkArtifact(text, file, vocabularies, ['b'], 'union')) {
+        const admitted = best.get(key(union)) ?? [];
+        expect({ file, line: union.line, unexpected: union.unexpected }).toEqual({
+          file,
+          line: union.line,
+          unexpected: union.unexpected.filter((m) => admitted.includes(m)),
+        });
+      }
+    }
+  });
+
+  /**
+   * The unit half of the same property, so a regression says *why* rather than
+   * only where. `width` and `poolIds` are `slice` members and `slice` is the
+   * attributed vocabulary here, but it contributes only those two names — one
+   * besides whichever is being judged — so the overlap bar alone excludes them.
+   */
+  it('admits the attributed vocabulary without making it clear the overlap bar', () => {
+    const run = 'It takes `width`, `poolIds` and `PARALLEL`.';
+    for (const mode of ['best', 'union'] as const) {
+      const divergences = checkArtifact(run, 'f.md', vocabularies, ['b'], mode);
+      expect(divergences).toHaveLength(1);
+      expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['PARALLEL']);
+    }
+  });
+
   /** 2.1's watched red survives the union reading; `sliceKey` is nobody's member. */
   it('still rejects the superseded slice sentence under the union reading', () => {
     const divergences = checkArtifact(
