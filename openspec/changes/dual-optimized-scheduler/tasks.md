@@ -2102,9 +2102,9 @@ review`, no self-merge.
       **DO NOT BUILD THE SPLIT AS A PRODUCTION COMPOSITION.** `placeSlices`
       stays ONE pass and `annotate` is a separate replay the materialiser
       calls. Running `annotate(input, chooseStarts(input))` inside
-      `placeSlices` doubles Fast's placement loop, and `schedules 600 slices in
-      under 20ms` is modelled at a 3.81ms geometric mean with p99.99 13.3ms —
-      doubling puts the extrapolated p99.99 past the budget. (That benchmark
+      `placeSlices` doubles Fast's placement loop, and the 600-slice benchmark's
+      20ms budget is modelled at a 3.81ms geometric mean with p99.99 13.3ms, so
+      doubling puts the extrapolated p99.99 past it. (That benchmark
       plan names no pools, so what doubles is the loop, not the joint-window
       search; the conclusion is an extrapolation of the recorded model, not a
       measured two-pass run.) The behaviour-preservation proof 4.9 asks for is
