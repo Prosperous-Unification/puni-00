@@ -1634,14 +1634,23 @@ the read payload and the write API — none of which slice 4 waits on.
       `project.controller.ts`/`project.service.ts` under the **existing
       project-write authorization** — these are project settings, so a reader
       may not change them.
-      **Half open after run 33 chunk 1.** The three columns exist and are
-      deliberately **withheld** from the read payload: `toProject` spreads
-      whatever is left of its row, so the moment the columns landed they were
-      published untyped and unvalidated through a `Project` that does not
-      declare them — caught by `carries the columns the Project type declares
-and no others`. They sit in `INTERNAL_PROJECT_COLUMNS` with
+      **Read half closed run 35 chunk 1** (`37bd608d`, 1260 green); the PATCH
+      contract is what remains. `Project` declares the three, `toProject`
+      destructures and validates the two text ones, `listFor` selects them, and
       `withholds the optimizer settings until the read payload declares them`
-      naming them, so this item must delete that case rather than pass silently.
+      is **deleted** rather than left to pass — replaced by `publishes the
+      three project settings in the read payload`, which asserts the inverse by
+      name and still refuses `optimizationDeletePendingAt`.
+      **The write shape split off from the read shape.** `create` now takes a
+      `NewProject` — `Project` without the three settings, each optional — and
+      fills them from `DEFAULT_PROJECT_SETTINGS` before the INSERT, answering
+      the completed row rather than its own input. Requiring them on the create
+      path instead would have made twenty call sites and fixtures each restate
+      `false`/`fast`/`pri`, any one of which could drift from the migration
+      without a test noticing; `a project created without settings agrees with
+      the columns own defaults` inserts a second row in raw SQL naming neither
+      settings column and compares the two reads, so the constant and the
+      `ADD COLUMN` defaults are proved equal rather than assumed.
 - [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
       `ProjectService.update` when any of the three change, carrying the new
       values. `schedule_optimized` stays reserved for stored solver results.
@@ -1673,7 +1682,7 @@ review`, no self-merge.
       file comparing the whole stored `CREATE TABLE`, so a dropped `CHECK` is a
       diff. Watched: deleting the `schedule_engine` drop line reddens three of
       the four cases.
-- [ ] 3b.8 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
+- [x] 3b.8 `CHECK (optimization_enabled IN (0,1))`, `CHECK (schedule_engine IN
 ('fast','optimized'))`, `CHECK (schedule_objective IN ('pri','time'))`,
       and explicit read-time validators `isScheduleEngine` /
       `isScheduleObjective` in the project mapper that throw naming column and
@@ -1693,6 +1702,24 @@ review`, no self-merge.
       and each is a column constraint on an `ALTER TABLE … ADD COLUMN` — a
       table extra would describe a `CREATE TABLE` no migration writes.
       `isScheduleEngine` / `isScheduleObjective` wait on 3b.2's mapper.
+
+      **Validator half closed run 35 chunk 1** (`37bd608d`). `isScheduleEngine`
+      lives in `optimizer-rows.ts` beside the other stored-enum validators and
+      over a new `SCHEDULE_ENGINES` in `schema.ts`; both refusals go through
+      that file's `unknownStoredValue`, so `project.schedule_engine` reads the
+      same sentence as every optimizer column. **There is no
+      `isScheduleObjective`**, and the name in this item is superseded:
+      `project.schedule_objective` stores the vocabulary `isSolverObjective`
+      already checks, so it is a fourth validated **column** rather than a
+      second validator over the same two strings — the growth
+      `optimizer-rows.ts`'s own header forbids after Fable r18 Important 1.
+      `optimization_enabled` gets no validator either: drizzle reads it through
+      `{ mode: 'boolean' }` and can only produce `true` or `false`, so its
+      `CHECK` is the whole guard and 3b.5 already watched it.
+      **Watched red** on h2puni at `37bd608d`, `bun test project.db.test.ts`,
+      baseline 28 pass / 0 fail: the guard removed and the value cast →
+      27 / 1 for `schedule_engine`, and 27 / 1 again for `schedule_objective`,
+      each reddening only its own case.
 
 - [x] 4.1 Repository functions: read the pair for the full key; write an `ok`
       row; write a `failed` row; allocate the next generation in the
