@@ -32,11 +32,18 @@ function statusForTouch(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touch
  * Save, list, read, rename and delete, over HTTP (task 6.1).
  *
  * **Two prefixes' worth of paths on one instance, deliberately.** A plan is
- * created and listed inside its project — `/api/projects/:projectId/saved-plans`
- * — and read, renamed and deleted by its own id, `/api/saved-plans/:id`.
- * Repeating the project id on the second three would let a caller name a project
- * the plan does not belong to and still be answered, which is a URL that lies
- * about what it addressed.
+ * created and listed inside its project — `/api/projects/:id/saved-plans` — and
+ * read, renamed and deleted by its own id, `/api/saved-plans/:id`. Repeating the
+ * project id on the second three would let a caller name a project the plan does
+ * not belong to and still be answered, which is a URL that lies about what it
+ * addressed.
+ *
+ * **The first parameter is `:id` and not the `:projectId` that would read
+ * better**, because the router refuses to build otherwise: `memoirist` keys a
+ * parameter by its position, `projectController` already registered
+ * `/api/projects/:id`, and a second name at that position throws at
+ * `composeGeneralHandler` — a startup failure, not a 404. The name is therefore
+ * the router's to choose, and only the JSDoc can say which id it is.
  *
  * **`projectController`'s authenticated-read / authorised-write split, with one
  * exception that is the whole point of this task.** Reading is open to every
@@ -62,12 +69,12 @@ export function savedPlanController(
   return new Elysia({ prefix: '/api' })
     .use(callerGuard(auth))
     .post(
-      '/projects/:projectId/saved-plans',
+      '/projects/:id/saved-plans',
       async ({ params, body, user, set }) => {
         // The project is read here rather than left to the service, because
         // the service's `no_project` cannot tell "there is no such project"
         // from "you may not write to it" — it never learns who is asking.
-        const found = await projects.read(params.projectId);
+        const found = await projects.read(params.id);
         if (found === null) {
           set.status = 404;
           return { error: 'not_found' };
@@ -77,7 +84,7 @@ export function savedPlanController(
           return { error: 'forbidden' };
         }
         const outcome = await plans.save({
-          projectId: params.projectId,
+          projectId: params.id,
           name: body.name,
           createdBy: user.username,
           createdById: user.id,
@@ -102,17 +109,17 @@ export function savedPlanController(
       { ...signedIn, body: planName() },
     )
     .get(
-      '/projects/:projectId/saved-plans',
+      '/projects/:id/saved-plans',
       async ({ params, set }) => {
         // The project is read for one reason: an unknown project and a project
         // with no saved plans both list as `[]`, and a client cannot tell a
         // mistyped id from an empty shelf.
-        const found = await projects.read(params.projectId);
+        const found = await projects.read(params.id);
         if (found === null) {
           set.status = 404;
           return { error: 'not_found' };
         }
-        return { savedPlans: await plans.list(params.projectId) };
+        return { savedPlans: await plans.list(params.id) };
       },
       signedIn,
     )
