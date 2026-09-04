@@ -39,6 +39,12 @@ const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
+// The two saved-plan migrations main added between LOOKUP_INDEXES and this
+// slice's own. A rollback to LOOKUP_INDEXES reverses them too, so they are
+// named here rather than filtered out — the list is the literal answer
+// `rollbackTo` gave.
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+const SAVED_PLAN = '20260903190000_add_saved_plan';
 
 /**
  * What `20260904100000_add_optimizer_tables` adds, enumerated rather than
@@ -203,6 +209,8 @@ describe('the optimizer migration', () => {
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
       ]);
 
       const rolledBack = tables(db.path);

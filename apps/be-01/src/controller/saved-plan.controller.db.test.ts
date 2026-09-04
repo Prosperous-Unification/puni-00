@@ -86,7 +86,12 @@ describe('the saved-plan routes', () => {
 
     app = buildApp({
       auth: new AuthService({ users: new UserRepository(connection.db), jwtKey: TEST_JWT_KEY }),
-      projects: new ProjectService({ projects }),
+      // The same recorder the rest of this app is built on, not a second one:
+      // `ProjectServiceOptions.broadcast` is required (project.service.ts), and
+      // production hands every service one announcer. A private recorder here
+      // would compile and would quietly put this app's project events somewhere
+      // nothing in the file can read.
+      projects: new ProjectService({ projects, broadcast }),
       savedPlans: savedPlanServiceOn(path),
       steps: testStepService(),
       workItems: testWorkItemService(),
