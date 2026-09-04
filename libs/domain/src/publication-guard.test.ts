@@ -10,7 +10,7 @@ import { SOLVER_QUANTUM } from './solver-quantum';
  *
  * The two fixtures the item mandates are here in the domain, where the
  * comparison happens; the production write path is where they are proved
- * *durable*, and that is the next chunk. What these prove is the decision
+ * DURABLE, and that is the next chunk. What these prove is the decision
  * itself: the width-5 case, where the quantisation-optimal answer is worse in
  * the real domain and the Baseline must be substituted, and the
  * equal-primary/better-secondary case, where it must not be.
@@ -81,7 +81,15 @@ describe('(i) the width-5 case: quantisation costs more than the search won', ()
   ]);
 
   it('substitutes the Baseline when the optimized primary is strictly worse', () => {
-    const optimized = schedule(rows, chain, slices, new Map(), new Map(), 'whole-item', quantisedOptimum);
+    const optimized = schedule(
+      rows,
+      chain,
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      quantisedOptimum,
+    );
 
     const decision = guardRealPublication(input, optimized, 'makespan', UNWEIGHTED, NO_MOVEMENT);
 

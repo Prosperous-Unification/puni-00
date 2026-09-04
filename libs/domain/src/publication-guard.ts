@@ -1,6 +1,6 @@
 import type { ScheduleInput } from './canonical-schedule-input';
-import { type RealObjectiveValues, scoreReal } from './score-real';
 import { type Schedule, schedule } from './schedule';
+import { type RealObjectiveValues, scoreReal } from './score-real';
 
 /**
  * Which of the two schedules the guard chose.
