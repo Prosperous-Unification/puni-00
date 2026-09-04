@@ -35,6 +35,14 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
  * migration is the first thing any rollback reverses.
  */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+/**
+ * The newest: the three project settings the optimizer is steered by, on
+ * `project`. Additive forward and dropped column by named column on the way
+ * back, so it now **heads** every descending reversal list below and tails
+ * every ascending one — the newest migration is the first thing any rollback
+ * reverses.
+ */
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -50,6 +58,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    PROJECT_SETTINGS,
     OPTIMIZER_TABLES,
     LOOKUP_INDEXES,
     AUDIT_COLUMNS,
@@ -144,6 +153,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -202,6 +212,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,

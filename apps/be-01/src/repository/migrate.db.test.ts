@@ -218,6 +218,14 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
  * migration is the first thing any rollback reverses.
  */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+/**
+ * The newest: the three project settings the optimizer is steered by, on
+ * `project`. Additive forward and dropped column by named column on the way
+ * back, so it now **heads** every descending reversal list below and tails
+ * every ascending one — the newest migration is the first thing any rollback
+ * reverses.
+ */
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -322,6 +330,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -653,6 +662,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -1126,6 +1136,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -1364,6 +1375,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -1656,6 +1668,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -1884,6 +1897,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -2157,6 +2171,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -2412,6 +2427,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -2658,6 +2674,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -3010,6 +3027,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -3152,6 +3170,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      PROJECT_SETTINGS,
       OPTIMIZER_TABLES,
       LOOKUP_INDEXES,
       AUDIT_COLUMNS,
@@ -3305,6 +3324,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -3592,6 +3612,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -3681,6 +3702,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      PROJECT_SETTINGS,
       OPTIMIZER_TABLES,
       LOOKUP_INDEXES,
       AUDIT_COLUMNS,
@@ -3905,6 +3927,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,

@@ -227,6 +227,61 @@ export const project = sqliteTable(
      * against a column its own release does not have.
      */
     optimizationDeletePendingAt: integer('optimization_delete_pending_at'),
+    /**
+     * Whether this project may spend solver time at all — the master switch
+     * every optimizer admission predicate reads, and the reason the optimizer
+     * costs nothing on a database that has merely been migrated.
+     *
+     * **Defaulted to false, and that default is the whole safety property.**
+     * Every project that already exists takes `false` at migration time, so
+     * deploying the optimizer starts no solver anywhere until somebody turns it
+     * on for one named project. A column added ON, or added nullable and
+     * backfilled afterwards, would start solvers for the entire database on the
+     * deploy — see the watched red in tasks.md 3b.5, which flips this default
+     * and watches the unmigrated-row case fail.
+     *
+     * **The `CHECK`s for this column and the two below it live in
+     * `20260904140000_add_project_settings/migration.sql` and not in this
+     * table's extras.** `project` already exists, so each constraint is a column
+     * constraint on an `ALTER TABLE … ADD COLUMN`; declaring them here as
+     * table-level {@link check}s would describe a `CREATE TABLE` no migration
+     * writes. The database holds them either way, which is the point — a
+     * constraint the database does not hold is a convention the next writer can
+     * break — and `project-settings.db.test.ts` reads them back off
+     * `sqlite_master` rather than trusting this file.
+     */
+    optimizationEnabled: integer('optimization_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    /**
+     * Which of the two engines this project's schedule is produced by: `fast`,
+     * the heuristic that has always run, or `optimized`, the CP-SAT solver.
+     *
+     * Text rather than an integer for {@link estimateMethod}'s reason — a
+     * database anyone opens says `optimized` instead of `1` — and refused on
+     * read the same way (`isScheduleEngine`, tasks.md 3b.8). Defaulted to
+     * `fast`, which is the behaviour every existing project already had, so
+     * this column alone moves no plan.
+     *
+     * Separate from {@link optimizationEnabled} because the two answer different
+     * questions: this one is which engine the project *wants*, and that one is
+     * whether it is allowed to spend solver time at all. A project may be
+     * switched off with `optimized` still recorded, and it must come back to
+     * `optimized` rather than to a default when it is switched on again.
+     */
+    scheduleEngine: text('schedule_engine').notNull().default('fast'),
+    /**
+     * Which of the two objectives the optimizer minimises for this project:
+     * `pri`, priority order, or `time`, makespan.
+     *
+     * Text and refused-on-read for {@link scheduleEngine}'s reason, and the same
+     * two-member vocabulary the cache, the slot table and the queue store under
+     * `objective` — one project setting selects which of the cached pair is the
+     * published one. Defaulted to `pri`, the order the Fast engine already
+     * produces, so an existing project switched to `optimized` gets an optimised
+     * version of the plan it had rather than a different plan.
+     */
+    scheduleObjective: text('schedule_objective').notNull().default('pri'),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },

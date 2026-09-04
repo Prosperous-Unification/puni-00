@@ -26,8 +26,17 @@ import { optimizedScheduleCache } from './schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
-/** The migration under test, and the newest in the folder. */
+/** The migration under test; `PROJECT_SETTINGS` below it is now the newest. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+
+/**
+ * The migration that lands immediately after this one: slice 3b.1's three
+ * project settings columns. Named here only so the ordering and rollback claims
+ * below stay about *this* migration's position rather than about whichever
+ * folder happens to be last.
+ */
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
@@ -145,8 +154,20 @@ describe('the optimizer migration', () => {
     }
   });
 
-  it('is the newest in the folder, so it heads every rollback', () => {
-    expect(readMigrationFolders(FOLDER).at(-1)?.name).toBe(OPTIMIZER_TABLES);
+  /**
+   * The position claim, rewritten when 3b.1's project-settings migration landed
+   * after this one: this migration is no longer last in the folder, so "newest"
+   * is the wrong assertion and would have to be rewritten again by the next
+   * slice. What actually matters to this file is the **adjacency** — that
+   * nothing was inserted between the optimizer tables and the settings columns,
+   * because a folder ordered any other way would apply the four tables after
+   * the columns that steer them.
+   */
+  it('is applied immediately before the project-settings migration', () => {
+    const names = readMigrationFolders(FOLDER).map((folder) => folder.name);
+
+    expect(names.at(-1)).toBe(PROJECT_SETTINGS);
+    expect(names.at(-2)).toBe(OPTIMIZER_TABLES);
   });
 
   it('is idempotent on an already-migrated file', () => {
@@ -177,7 +198,12 @@ describe('the optimizer migration', () => {
       runMigrations(db.path, FOLDER);
       const migrated = tables(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([OPTIMIZER_TABLES]);
+      // Newest first, so the settings columns come off before the tables they
+      // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
+      expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        PROJECT_SETTINGS,
+        OPTIMIZER_TABLES,
+      ]);
 
       const rolledBack = tables(db.path);
       for (const table of ADDED_TABLES) expect(rolledBack).not.toContain(table);
