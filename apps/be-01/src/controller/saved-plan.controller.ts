@@ -290,7 +290,10 @@ export function savedPlanController(
       '/saved-plans/:id',
       async ({ params, body, user, set }) => {
         const outcome = await plans.rename(params.id, user.id, body.name);
-        if (outcome.outcome === 'touched') return { savedPlanId: params.id, name: body.name };
+        if (outcome.outcome === 'touched') {
+          await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
+          return { savedPlanId: params.id, name: body.name };
+        }
         set.status = statusForTouch(outcome.outcome);
         return { error: outcome.outcome };
       },
@@ -301,6 +304,7 @@ export function savedPlanController(
       async ({ params, user, set }) => {
         const outcome = await plans.delete(params.id, user.id);
         if (outcome.outcome === 'touched') {
+          await announcements.publish(outcome.projectId, { type: 'saved_plans_changed' });
           set.status = 204;
           return null;
         }

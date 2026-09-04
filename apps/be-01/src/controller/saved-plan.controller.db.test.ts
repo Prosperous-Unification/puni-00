@@ -654,5 +654,46 @@ describe('the saved-plan routes', () => {
 
       expect(broadcast.published).toEqual([]);
     });
+
+    /**
+     * Rename and delete address the plan by its own id — `/api/saved-plans/:id`
+     * never names a project — so this is the case that proves the announced
+     * project id came from the plan's own row rather than from the URL, which
+     * could not have supplied it.
+     */
+    it('announces a rename and a delete on the project the plan belongs to', async () => {
+      const saved = await savedIdOf(await save('ada'));
+      broadcast.published.length = 0;
+
+      const renamed = await as(tokens['ada'], `/api/saved-plans/${saved}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'after the rewire' }),
+      });
+      expect(renamed.status).toBe(200);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+
+      broadcast.published.length = 0;
+      const deleted = await as(tokens['ada'], `/api/saved-plans/${saved}`, { method: 'DELETE' });
+      expect(deleted.status).toBe(204);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+    });
+
+    /**
+     * The delete half's own trap: the row is gone by the time the answer is
+     * written, so an implementation that looked the project up *after* the touch
+     * would announce `undefined` here and pass any assertion that only counted
+     * the events.
+     */
+    it('says nothing when a rename is refused', async () => {
+      const saved = await savedIdOf(await save('ada'));
+      broadcast.published.length = 0;
+
+      const refused = await as(tokens['mallory'], `/api/saved-plans/${saved}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'not mine to name' }),
+      });
+      expect(refused.status).toBe(403);
+      expect(broadcast.published).toEqual([]);
+    });
   });
 });
