@@ -1875,6 +1875,7 @@ review`, no self-merge.
       about the read — a new generation deleting every prior row for the
       project including its `failed` ones, and an undo to a previous hash — plus
       the overwrite half of the `failed` sentence. Those are chunk 2's.
+
 - [x] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
       names the relaxed predicate. Serving a failure marker as a schedule would

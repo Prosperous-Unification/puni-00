@@ -1217,11 +1217,7 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
     return { spawn: (request) => void calls.push(request), calls };
   }
 
-  function readAndSpawn(
-    path: string,
-    spawn: Spawner,
-    key: OptimizedCacheKey = KEY,
-  ): OptimizedPair {
+  function readAndSpawn(path: string, spawn: Spawner, key: OptimizedCacheKey = KEY): OptimizedPair {
     return readOptimizedPairAndSpawn(openDrizzle(path), key, spawn);
   }
 
