@@ -2204,8 +2204,8 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       `boundBy: 'capacity'` with an empty `capacityPredecessorIds` and a null
       `capacityTeamId`, failing the render invariant.
       **THE WIRING IS BUILT (run 40); the six proofs above are not.**
-      `materialiseOptimized(rows, edges, slices, notBefore, poolSizes, reach,
-      offsets)` lives in `libs/contracts/solver/src/materialise-optimized.ts`,
+      `materialiseOptimized` takes Fast's own six arguments plus the offsets and
+      lives in `libs/contracts/solver/src/materialise-optimized.ts`,
       beside `quantisedFastBaseline` and as its exact inverse — the baseline
       multiplies Fast's workday axis up to whole units for the wire, this
       divides the units the solver answers in back down and hands them to
