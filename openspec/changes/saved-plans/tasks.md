@@ -278,19 +278,42 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 5. The read path
 
-- [ ] 5.1 `SavedPlanService.read` returns stored bytes. **The no-recompute test:**
+- [x] 5.1 `SavedPlanService.read` returns stored bytes. **The no-recompute test:**
       write a body under a recorded older `scheduler_algorithm_id`, read it back,
       and assert the response is the stored bytes with **no call into
       `schedule()`** — a spy on the scheduler, not a comparison of dates, because
       a reader that re-derives from stored settings passes a date comparison.
       Extends `schedule-identity.test.ts` and `live-plan-identity.test.ts` rather
       than re-baselining either.
-- [ ] 5.1b **Every read recomputes each body's SHA-256 over the stored bytes**
+- [x] 5.1b **Every read recomputes each body's SHA-256 over the stored bytes**
       and compares it with the header; a mismatch is a typed refusal naming the
       saved plan and the body, never a repair or a default (R5). Negative: flip
       one byte of a stored body with raw SQL and watch the read refuse. Without
       this the stored hashes are decoration — 2.4 is a source scan and cannot see
       a disk fault or an out-of-band write.
+      **Landed (run 13, chunk 1).** `SavedPlanService.read` fetches through the
+      new `SavedPlanRepository.readOf`, which returns the header and both bodies
+      under **one** `BEGIN DEFERRED` — three rows in two tables that a `DELETE`
+      cascades across, so two unsynchronised reads would report a hash fault for
+      an ordinary deletion. Verification is a free function over the stored
+      record (`readOfStored`) plus a pure `verifyBody`, so its branches are
+      testable by handing them bytes. The **absent** schedule is read off the
+      header's null columns, never inferred from a missing body row: inferring
+      it the other way turns a half-deleted body into a legitimately
+      schedule-less plan.
+      **The seam 5.1 needs:** `SavedPlanServiceOptions.schedule` (defaulted to
+      `schedulePlanInput`, so no production caller passes one). A reader that
+      re-derived would compute the same dates the writer did, so no assertion on
+      *values* can separate it from a reader of bytes — only whether
+      `schedule()` was called.
+      **Both negatives watched at `9fddc916` and reverted.** (1) Dropping the
+      input recomputation reddened exactly two tests — the flipped byte and the
+      missing body row — and left the schedule-side refusal green, because that
+      check is its own call. (2) Making `read` capture and schedule the live
+      project reddened exactly the two tests that assert the spy count, and left
+      all four integrity tests green. Neither negative reddened the other's
+      tests, which is what says the two properties are independently held.
+
 - [ ] 5.2 A schedule body whose `schedule_input_sha256` differs from
       `input_sha256` is refused rather than rendered. Negative: make the writer
       store the wrong hash and watch the read refuse. This check only means
