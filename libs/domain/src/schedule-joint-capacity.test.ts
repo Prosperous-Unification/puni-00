@@ -329,3 +329,53 @@ describe('a block labelled with two teams waits for both of them', () => {
     expect(planned(found, `b${String(blocks - 1)}`).earliestFinish).toBe(events);
   });
 });
+
+/**
+ * The arrow's tie rule, which was a claim until this file (run 38, chunk 4):
+ * reversing `placedAtOf(blocker) < placedAtOf(referent)` in `annotateCapacity`
+ * changed nothing in 415 domain cases. `capacityPredecessorIds` carries the
+ * whole valid set and is well covered; `resourcePredecessorId` is the single
+ * end the reader is looking at, and the rule that picks it between two blockers
+ * finishing at the same instant is **placement order, not node index** — the
+ * pass's own total order rather than the canonical one.
+ *
+ * The fixture separates those two deliberately. `b` carries the better
+ * priority, so the levelled pass places it first; `a` sorts first by key. A
+ * rule reading node index, or the reversed tie, answers `a`. The rule the code
+ * states answers `b`.
+ */
+describe('which end the capacity arrow points at when two blockers tie', () => {
+  it('names the blocker placed first, not the one whose key sorts first', () => {
+    // Two slots, two two-day blocks: both start on day 0 and both finish on
+    // day 2, which is the tie this case exists for.
+    const rows = [item('a', { priority: 5 }), item('b', { priority: 1 }), item('x')];
+    const slices = [
+      slice('a', 2, { poolIds: [ALPHA] }),
+      slice('b', 2, { poolIds: [ALPHA] }),
+      slice('x', 1, { poolIds: [ALPHA] }),
+    ];
+
+    const found = schedule(rows, [], slices, new Map(), new Map([[ALPHA, 2]]));
+
+    const a = planned(found, 'a');
+    const b = planned(found, 'b');
+    const x = planned(found, 'x');
+
+    // The tie is real, and both blockers are valid: each finishes exactly at
+    // `x`'s accepted start, so `finishesByStart` keeps both.
+    expect(a.earliestFinish).toBe(2);
+    expect(b.earliestFinish).toBe(2);
+    expect(x.boundBy).toBe('capacity');
+    expect(x.earliestStart).toBe(2);
+    expect(blockersOf(x)).toEqual(['a', 'b']);
+    expect(x.capacityTeamId).toBe(ALPHA);
+
+    // The two orders disagree here, which is what makes the assertion below a
+    // rule rather than a coincidence.
+    expect(sliceKey('a', DEV) < sliceKey('b', DEV)).toBe(true);
+
+    // `b` went first because its priority is better, so `b` is the end the
+    // arrow points at.
+    expect(x.resourcePredecessorId).toBe(sliceKey('b', DEV));
+  });
+});
