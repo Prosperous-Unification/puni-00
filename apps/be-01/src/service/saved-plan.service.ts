@@ -2,6 +2,12 @@ import { createHash } from 'node:crypto';
 
 import {
   canonicalisePlanInput,
+  diffPlans,
+  normalisePlanInputForward,
+  type PlanDiff,
+  PlanInputVersionError,
+  type PlanScheduleValue,
+  type PlanSide,
   type Schedule,
   ScheduleCycleError,
   serialiseCanonicalPlanInput,
@@ -18,6 +24,7 @@ import type {
 } from '../repository/saved-plan';
 import { bodyByteLength } from '../repository/saved-plan';
 import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
+import { defaultSavedPlanName } from './saved-plan-default-name';
 import { planInputRowsOf } from './saved-plan-input';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
 import {
@@ -47,7 +54,20 @@ export type SavedPlanScheduleAbsentReason = 'pending' | 'infeasible' | 'unavaila
 /** What one save asks for. The bodies are read, never passed in. */
 export interface SavedPlanSaveRequest {
   readonly projectId: string;
-  readonly name: string;
+  /**
+   * Optional, per assumption A-1: "save writes immediately with the server
+   * timestamp as the default name, and naming is an edit afterwards, not a
+   * modal". Absent means {@link defaultSavedPlanName} over this save's
+   * `created_at` — chosen **here** and never by a caller, because no clock but
+   * the one that stamps the record may name it.
+   *
+   * `undefined` rather than `null`, and that is the narrower of the two on
+   * purpose: `null` in this codebase means "no such thing" as a stored fact
+   * (see {@link SavedPlanSaveRequest.createdById}), whereas an absent name is a
+   * caller declining to choose one and getting a real name anyway. No saved
+   * plan is ever nameless.
+   */
+  readonly name?: string;
   /** The saver's display name, stored by value — never a `users` reference. */
   readonly createdBy: string;
   /**
@@ -119,6 +139,39 @@ export interface SavedPlanRead {
   readonly input: SavedPlanReadBody;
   readonly schedule: SavedPlanReadSchedule;
 }
+
+/**
+ * Which side of a comparison a caller named (task 7.3b).
+ *
+ * A tagged union rather than `string | 'current'`, because the two are not the
+ * same kind of thing and a plan whose id happened to be the literal `current`
+ * would otherwise silently address the live plan.
+ */
+export type SavedPlanSideRef =
+  | { readonly kind: 'current' }
+  | { readonly kind: 'saved'; readonly savedPlanId: string };
+
+/**
+ * What a comparison answers.
+ *
+ * The refusals name the *side* that produced them, because the two sides fail
+ * independently and a caller shown "not found" with no id cannot tell which of
+ * its two pickers to correct.
+ */
+export type SavedPlanCompareOutcome =
+  | { readonly outcome: 'compared'; readonly diff: PlanDiff }
+  | { readonly outcome: 'no_project' }
+  | { readonly outcome: 'not_found'; readonly savedPlanId: string }
+  | {
+      readonly outcome: 'corrupt';
+      readonly savedPlanId: string;
+      readonly refusal: SavedPlanIntegrityRefusal;
+    };
+
+/** One resolved side, or the refusal {@link SavedPlanCompareOutcome} carries out. */
+type SavedPlanSideOutcome =
+  | { readonly outcome: 'side'; readonly side: PlanSide }
+  | Exclude<SavedPlanCompareOutcome, { outcome: 'compared' }>;
 
 /**
  * The three answers a read has.
@@ -322,6 +375,59 @@ export class SavedPlanService {
   }
 
   /**
+   * The live plan as a comparison side. Writes nothing and consumes no quota.
+   *
+   * **It reuses {@link captureAndAttempt}, which is the save path's own
+   * capture**, rather than reads of its own (task 7.3). Spec requires `current`
+   * to come through the same canonical function the save uses, and the reason
+   * is concrete: a `current` built from the projection's twelve awaited reads
+   * lacks the registry and junction rows *by value*, so every saved-vs-current
+   * comparison would report the saved side's tags, types and external systems
+   * as removed. The diff's own completeness property never catches that — it
+   * mutates `CanonicalPlanInput` values directly and never runs this path.
+   *
+   * Reuse also gives `current` the one `BEGIN DEFERRED` read snapshot. Without
+   * it a torn `current` renders a comparison against a live plan that never
+   * existed — the display-side twin of the defect the torn-read test (3.2)
+   * exists to catch.
+   *
+   * **`current` carries a schedule, and it is not an absent one** (task 7.3a).
+   * Spec's stored-schedule bound lawfully permits returning `unavailable` here,
+   * and that would answer "no schedule was saved" about the live side of this
+   * feature's primary direction. So the schedule is `schedule()`'s return over
+   * the values just captured — computed **outside** the read snapshot, as
+   * {@link captureAndAttempt} already arranges for the save path — labelled
+   * with the algorithm identity currently in force, with a `ScheduleCycleError`
+   * mapping to `infeasible` on the same derivation a save records.
+   *
+   * The body is round-tripped through {@link serialiseScheduleBody} rather than
+   * handed over as the built object. The live side must compare against a
+   * stored side on identical serialization terms; comparing a live object
+   * against parsed stored bytes would report every difference the serializer
+   * normalises away as a real one.
+   */
+  async projectCurrentPlan(projectId: string): Promise<PlanSide | null> {
+    const attempt = await this.captureAndAttempt(projectId);
+    if (attempt === null) return null;
+    const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
+    if (!attempt.schedule.present) {
+      return { input, schedule: { present: false, absentReason: attempt.schedule.absentReason } };
+    }
+    // The captured project's own start date, not today's — `scheduleWrite`'s
+    // rule, for the same reason: re-rendering against a start that has since
+    // moved would restate the plan.
+    const built = buildScheduleBody(attempt.schedule.planned, attempt.reads.project.startDate);
+    return {
+      input,
+      schedule: {
+        present: true,
+        algorithmId: built.algorithmId,
+        body: JSON.parse(serialiseScheduleBody(built)) as PlanScheduleValue,
+      },
+    };
+  }
+
+  /**
    * A project's saved plans, newest first — headers only, and **unverified**.
    *
    * The asymmetry with {@link read} is the point and not an oversight. `read`
@@ -348,6 +454,120 @@ export class SavedPlanService {
       scheduleBytes: row.scheduleBytes,
       scheduleAbsentReason: row.scheduleAbsentReason,
     }));
+  }
+
+  /**
+   * Compares two sides of one project's plan (task 7.3b's service half).
+   *
+   * **Both sides are resolved against `projectId`, and a saved plan that
+   * belongs elsewhere answers `not_found`.** The project id is not decoration
+   * on this route the way it would be on {@link read}: `current` has no id of
+   * its own and can only mean "the live plan of the project named in the path",
+   * so the path's project is load-bearing here. Once it is, a side that names a
+   * plan of some *other* project has to be refused rather than compared, or the
+   * route quietly compares two projects and reports every work item of each as
+   * added and removed — and, worse, a caller who may read project A's plans
+   * could name one of them beside `current` on project B.
+   *
+   * `not_found` rather than a distinct "wrong project": the caller learns
+   * exactly what a caller naming a plan id that does not exist learns, which is
+   * the same rule {@link read}'s single-prefix URL enforces structurally.
+   *
+   * **The stored side is parsed here and normalised forward** (task 7.4), never
+   * rewritten. {@link readOfStored} has already refused a version outside
+   * `SUPPORTED_INPUT_BODY_VERSIONS`, so today's normalisation is the identity
+   * and its three refusals are unreachable from this path — stated rather than
+   * claimed as coverage. It is called anyway because the day a second version
+   * exists is the day this call is the only thing standing between an old body
+   * and a diff that reports a removed field as a change nobody made.
+   */
+  async compare(
+    projectId: string,
+    left: SavedPlanSideRef,
+    right: SavedPlanSideRef,
+  ): Promise<SavedPlanCompareOutcome> {
+    const leftSide = await this.sideOf(projectId, left);
+    if (leftSide.outcome !== 'side') return leftSide;
+    const rightSide = await this.sideOf(projectId, right);
+    if (rightSide.outcome !== 'side') return rightSide;
+    return { outcome: 'compared', diff: diffPlans(leftSide.side, rightSide.side) };
+  }
+
+  /**
+   * One side of {@link compare}, or the refusal that stands in for it.
+   *
+   * `current` answering `null` is `no_project`: {@link projectCurrentPlan}
+   * returns it when the project is gone, which is the same fact the route's own
+   * project read would have found a moment earlier.
+   */
+  private async sideOf(projectId: string, ref: SavedPlanSideRef): Promise<SavedPlanSideOutcome> {
+    if (ref.kind === 'current') {
+      const side = await this.projectCurrentPlan(projectId);
+      return side === null ? { outcome: 'no_project' } : { outcome: 'side', side };
+    }
+    /*
+      **Scope before bytes**, and the order is the finding.
+
+      This check used to sit *after* `read`, which verifies every stored byte
+      and can answer `corrupt`. A corrupt saved plan belonging to **another**
+      project therefore left here as 422 `corrupt` — naming the foreign id and
+      its condition — where every foreign plan is promised the same
+      indistinguishable 404 an unknown id gets. Sol's I2 on PR 202: the path's
+      project id was authoritative on the healthy path and not on the error
+      paths, which is where a prober would look.
+
+      `principalsOf` is the right read for it and already exists for exactly
+      this shape of question: one header row, no bodies parsed, no hashes
+      recomputed. It is what `refuseUnauthorisedTouch` authorises rename and
+      delete off, and for the reason stated there — a plan too damaged to open
+      must still be answerable *about*.
+
+      No second scope check after the read: `project_id` is written once and
+      never updated (`saved-plan.ts`: "No `UPDATE` is issued here, ever", and
+      rename touches `name` alone), so the two reads cannot disagree about
+      which project owns a plan.
+    */
+    const principals = await this.opts.plans.principalsOf(ref.savedPlanId);
+    // `?.` covers both refusals in one read, and they are the same refusal: a
+    // plan that is not there and a plan that is somebody else's are both
+    // `not_found` here, deliberately, so neither can be told from the other.
+    if (principals?.projectId !== projectId) {
+      return { outcome: 'not_found', savedPlanId: ref.savedPlanId };
+    }
+    const found = await this.read(ref.savedPlanId);
+    if (found.outcome === 'not_found')
+      return { outcome: 'not_found', savedPlanId: ref.savedPlanId };
+    if (found.outcome === 'corrupt') {
+      return { outcome: 'corrupt', savedPlanId: ref.savedPlanId, refusal: found.refusal };
+    }
+    /*
+      `planSideOfRead` normalises the stored input forward, and that throws.
+
+      `normalisePlanInputForward` refuses a version it cannot bring to this
+      build's — unparseable, from the future, or with no upgrade step — by
+      throwing `PlanInputVersionError`, and nothing caught it here. Elysia
+      answered **500** for a database state the code anticipates by name, which
+      R5 forbids: a plan this node cannot read is a modelled refusal, not a
+      crash. Gemini's F-02 on PR 202. It joins the other three integrity
+      refusals and leaves as the same 422 the route already sends for `corrupt`.
+    */
+    try {
+      return { outcome: 'side', side: planSideOfRead(found.plan) };
+    } catch (failure) {
+      if (!(failure instanceof PlanInputVersionError)) throw failure;
+      return {
+        outcome: 'corrupt',
+        savedPlanId: ref.savedPlanId,
+        refusal: {
+          reason: 'input_version_unreadable',
+          savedPlanId: ref.savedPlanId,
+          body: 'input',
+          storedVersion: failure.storedVersion,
+          readerVersion: failure.readerVersion,
+          versionReason: failure.reason,
+        },
+      };
+    }
   }
 
   /**
@@ -440,7 +660,11 @@ export class SavedPlanService {
     const record: SavedPlanWrite = {
       id: this.opts.newId(),
       projectId: request.projectId,
-      name: request.name,
+      // A-1's default, off the `createdAt` above rather than a second clock
+      // read: the name and the timestamp it claims to be are one value. `??`
+      // and not `||`, so a caller who genuinely sends `''` is refused by the
+      // route's `minLength: 1` instead of being quietly renamed here.
+      name: request.name ?? defaultSavedPlanName(createdAt),
       createdBy: request.createdBy,
       createdById: request.createdById,
       createdAt,
@@ -519,6 +743,28 @@ export class SavedPlanService {
  * inferred from a missing body row. Inferring it the other way would turn a
  * body a cascade half-deleted into a legitimately schedule-less plan.
  */
+/**
+ * A verified read, as a comparison side (task 7.3b).
+ *
+ * The bytes are parsed here and **nowhere else**: {@link SavedPlanService.read}
+ * hands over the stored bytes unparsed on purpose, so the one place that turns
+ * them into values is the one place that also runs them forward through
+ * {@link normalisePlanInputForward}. Splitting those two apart is how a body
+ * comes to be diffed at its stored shape against a reader that has moved on.
+ */
+function planSideOfRead(plan: SavedPlanRead): PlanSide {
+  return {
+    input: normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
+    schedule: plan.schedule.present
+      ? {
+          present: true,
+          algorithmId: plan.schedule.algorithmId,
+          body: JSON.parse(plan.schedule.body.bytes) as PlanScheduleValue,
+        }
+      : { present: false, absentReason: plan.schedule.absentReason },
+  };
+}
+
 function readOfStored(stored: StoredSavedPlan): SavedPlanReadOutcome {
   const header = stored.header;
   // Task 5.5, and **before** the hash check on purpose: a body this reader

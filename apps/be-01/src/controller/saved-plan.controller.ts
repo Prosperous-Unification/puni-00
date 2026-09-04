@@ -4,7 +4,12 @@ import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
 import type { ProjectService } from '../service/project.service';
 import { canEdit } from '../service/project.service';
-import type { SavedPlanService, SavedPlanTouchResult } from '../service/saved-plan.service';
+import type {
+  SavedPlanService,
+  SavedPlanSideRef,
+  SavedPlanTouchResult,
+} from '../service/saved-plan.service';
+import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
 
 /**
  * A function rather than a constant, for `project.controller.ts`'s reason:
@@ -12,6 +17,33 @@ import type { SavedPlanService, SavedPlanTouchResult } from '../service/saved-pl
  * module-level literal is shared mutable state between every app in the process.
  */
 const planName = () => t.Object({ name: t.String({ minLength: 1 }) });
+
+/**
+ * The save body, where the name is **optional** — assumption A-1.
+ *
+ * Separate from {@link planName} rather than reusing it with `t.Optional`,
+ * because rename and save disagree here and the disagreement is the point: a
+ * rename with no name is a caller asking for nothing and is refused, while a
+ * save with no name is A-1's normal path and gets the server's timestamp
+ * ({@link SavedPlanService.save}). `minLength: 1` still applies to any name a
+ * caller does send, so `""` is a 422 on both routes and never a silent default.
+ */
+const saveBody = () => t.Object({ name: t.Optional(t.String({ minLength: 1 })) });
+
+/** {@link planName}'s reason, for the compare route's two query parameters. */
+const compareSides = () =>
+  t.Object({ left: t.String({ minLength: 1 }), right: t.String({ minLength: 1 }) });
+
+/**
+ * The literal `current`, or a saved-plan id — task 7.3b's two side pickers.
+ *
+ * The literal is reserved rather than looked up: a saved plan whose id happened
+ * to be `current` would otherwise address the live plan, and an id space this
+ * route does not control is not one to take a keyword out of by accident.
+ */
+function sideRef(side: string): SavedPlanSideRef {
+  return side === 'current' ? { kind: 'current' } : { kind: 'saved', savedPlanId: side };
+}
 
 /**
  * The status a `SavedPlanTouchResult` other than `touched` is answered with.
@@ -29,7 +61,63 @@ function statusForTouch(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touch
 }
 
 /**
- * Save, list, read, rename and delete, over HTTP (task 6.1).
+ * The one error these routes catch: a stored body at a schema version this
+ * build does not know. Gemini's F-02 on PR 202.
+ *
+ * **The finding is real and the mechanism the review named is not.**
+ * `PlanInputVersionError` is unreachable from compare — `readOfStored` refuses
+ * an unsupported version before anything normalises forward. What actually
+ * escapes is {@link UnknownSavedPlanBodyVersionError}, thrown out of
+ * `readOfStored`, caught by nobody, and answered **500** by Elysia. It reaches
+ * every route that reads a stored plan, not compare alone: `GET
+ * /saved-plans/:id` gets it too.
+ *
+ * **Answered here rather than folded into the read outcome, and 501 rather than
+ * the 422 the first version of this repair proposed.** `saved-plan-integrity.ts`
+ * argues the distinction and it is the whole of the fix: `corrupt` and the
+ * schedule refusals are facts about *one record* — these bytes are damaged,
+ * these dates belong to another project — and a route answers them about that
+ * plan. An unknown body version is a fact about the **build**: every record at
+ * that version is unreadable here and nothing about this one is wrong.
+ * Answering `corrupt` would tell a reader their saved plan is damaged when the
+ * plan is intact and the server is old, and would send an operator looking for
+ * bytes that were never lost.
+ *
+ * 501 for the meaning HTTP already gives it — the server does not implement
+ * what the request needs. Modelled, so R5's rule against unmodelled statuses
+ * for anticipated database states is satisfied, and distinct from the 503 a
+ * retry may clear: this one clears when the node is upgraded, not when it is
+ * asked again.
+ *
+ * `undefined` for everything else, which is `work-item.controller.ts`'s
+ * convention: an error these routes do not model must not be flattened into one
+ * they do.
+ *
+ * A named handler and not an inline arrow, because inline it is a 30-line
+ * comment inside a method chain and Prettier reparenthesises the whole builder
+ * around it — 293 changed lines for a 45-line repair, and a diff nobody can
+ * review is a worse gate than no diff at all.
+ */
+function refuseUnknownBodyVersion({
+  error,
+  set,
+}: {
+  error: unknown;
+  set: { status?: number | string };
+}): unknown {
+  if (!(error instanceof UnknownSavedPlanBodyVersionError)) return undefined;
+  set.status = 501;
+  return {
+    error: 'unsupported_body_version',
+    savedPlanId: error.savedPlanId,
+    body: error.body,
+    version: error.version,
+    supported: error.supported,
+  };
+}
+
+/**
+ * Save, list, read, rename, delete and compare, over HTTP (tasks 6.1, 7.3b).
  *
  * **Two prefixes' worth of paths on one instance, deliberately.** A plan is
  * created and listed inside its project — `/api/projects/:id/saved-plans` — and
@@ -37,6 +125,13 @@ function statusForTouch(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touch
  * project id on the second three would let a caller name a project the plan does
  * not belong to and still be answered, which is a URL that lies about what it
  * addressed.
+ *
+ * **Compare is on the project prefix and that is not the same exception.**
+ * `current` has no id of its own, so "the live plan" is only meaningful against
+ * the project in the path — the id is load-bearing rather than repeated. The
+ * rule the second prefix enforces structurally is therefore enforced here by a
+ * check instead: a side naming a plan of another project answers `not_found`
+ * (see {@link SavedPlanService.compare}).
  *
  * **The first parameter is `:id` and not the `:projectId` that would read
  * better**, because the router refuses to build otherwise: `memoirist` keys a
@@ -68,6 +163,7 @@ export function savedPlanController(
   const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api' })
     .use(callerGuard(auth))
+    .onError(refuseUnknownBodyVersion)
     .post(
       '/projects/:id/saved-plans',
       async ({ params, body, user, set }) => {
@@ -106,7 +202,7 @@ export function savedPlanController(
         set.status = 409;
         return { error: 'quota', refusal: outcome.refusal };
       },
-      { ...signedIn, body: planName() },
+      { ...signedIn, body: saveBody() },
     )
     .get(
       '/projects/:id/saved-plans',
@@ -122,6 +218,34 @@ export function savedPlanController(
         return { savedPlans: await plans.list(params.id) };
       },
       signedIn,
+    )
+    .get(
+      '/projects/:id/saved-plans/compare',
+      async ({ params, query, set }) => {
+        // The project's read rule, and it is not decoration here: `current` has
+        // no id of its own, so this route is the one place a caller can ask for
+        // a *restricted* project's live plan. `signedIn` below is half of the
+        // rule; this read is the other half, and answers 404 before the service
+        // learns a project id it would otherwise capture from.
+        const found = await projects.read(params.id);
+        if (found === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        const outcome = await plans.compare(params.id, sideRef(query.left), sideRef(query.right));
+        if (outcome.outcome === 'compared') return { diff: outcome.diff };
+        if (outcome.outcome === 'corrupt') {
+          // `read`'s 422, for `read`'s reason: the plan is there and the bytes
+          // will not repair themselves on a retry.
+          set.status = 422;
+          return { error: 'corrupt', savedPlanId: outcome.savedPlanId, refusal: outcome.refusal };
+        }
+        set.status = 404;
+        return outcome.outcome === 'no_project'
+          ? { error: 'not_found' }
+          : { error: 'not_found', savedPlanId: outcome.savedPlanId };
+      },
+      { ...signedIn, query: compareSides() },
     )
     .get(
       '/saved-plans/:id',

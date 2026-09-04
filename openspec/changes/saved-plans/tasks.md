@@ -500,7 +500,7 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 7. The diff
 
-- [ ] 7.1 `diffPlans(left, right)` in `libs/domain`. Each side is a
+- [x] 7.1 `diffPlans(left, right)` in `libs/domain`. Each side is a
       `CanonicalPlanInput`, **its schedule body** (or the recorded absent
       reason), **and its `scheduler_algorithm_id`** — because spec requires
       schedule-side differences to be reported and a schedule is not a field of
@@ -510,13 +510,13 @@ comparison UI) and start only after slice 6 is merged.
       field set from, so a side object carrying only input + body would drop the
       one field spec names explicitly. On the `current` side these three come
       from 7.3, not from a stored record. One function, both directions.
-- [ ] 7.2 Property test: added, removed, renamed, reparented and reordered items;
+- [x] 7.2 Property test: added, removed, renamed, reparented and reordered items;
       changed uncertainty, effort, actuals, progress, measures, ownership,
       dependencies, settings, dates, **and freeze** (`frozen_number` set, cleared
       and changed — spec names it and this list omitted it). Reordering siblings
       is a _change_, and re-serializing an unchanged plan is _no_ change — assert
       both.
-- [ ] 7.2b **The diff-completeness property, which is what stops the capture
+- [x] 7.2b **The diff-completeness property, which is what stops the capture
       becoming write-only data.** Over a generated plan, mutate **any single
       field** of `CanonicalPlanInput` in turn and assert the diff is non-empty and
       names the field — with the field set **derived from the value**, not written
@@ -526,7 +526,7 @@ comparison UI) and start only after slice 6 is merged.
       "no change" while being faithfully stored. Negative: drop `frozen_number`
       and then a tag id from `diffPlans`' comparison and watch the property name
       each missing field.
-- [ ] 7.2c **The schedule-side analogue of 7.2b.** Mutate any single field of the
+- [x] 7.2c **The schedule-side analogue of 7.2b.** Mutate any single field of the
       stored schedule body in turn — dates, offsets, every `Scheduled` /
       `ScheduledSlice` key, the top-level counts, the absent reason and
       `scheduler_algorithm_id` — and assert the diff is non-empty and names it,
@@ -536,7 +536,7 @@ comparison UI) and start only after slice 6 is merged.
       `schedule()`'s semantics changed between them. Negative: build `diffPlans`
       over the inputs alone and watch every schedule mutation report "no change"
       — which is what the pre-6056baf2 signature would have shipped.
-- [ ] 7.3 `projectCurrentPlan()` materialises the live plan through
+- [x] 7.3 `projectCurrentPlan()` materialises the live plan through
       `canonicalisePlanInput`, writes nothing, and consumes no quota. **It reuses
       `SavedPlanCaptureRepository.readPlanInput` — 3.1's read set, both halves,
       inside one `BEGIN DEFERRED` snapshot — rather than reads of its own.** Spec
@@ -550,7 +550,7 @@ comparison UI) and start only after slice 6 is merged.
       live plan that never existed — the display-side twin of the defect 3.2
       exists to catch. Test: compare against `current`, assert no row was
       written, and assert the `current` value carries the registry rows by value.
-- [ ] 7.3a **`current` carries a schedule, produced here.** `projectCurrentPlan()`
+- [x] 7.3a **`current` carries a schedule, produced here.** `projectCurrentPlan()`
       returns the third side-field 7.1 takes as well as the input: `schedule()`'s
       return over the values it just captured, run **outside** the read snapshot
       as 3.3 requires of the save path, labelled with the algorithm identity
@@ -575,7 +575,7 @@ comparison UI) and start only after slice 6 is merged.
       calling `schedule()` inside 7.3's held `BEGIN DEFERRED` ships green and
       every saved-vs-current comparison — this feature's hot path — holds the
       read snapshot open for the length of a levelling run.
-- [ ] 7.3b **The compare route**, on `savedPlanController` under the project's
+- [x] 7.3b **The compare route**, on `savedPlanController` under the project's
       read rule: two sides, each a saved-plan id or `current`. It has to be a
       route — `current` needs 7.3's server-side capture over 3.1's read set, so
       the diff cannot run client-side. Extend 6.2's permission matrix to this sixth
@@ -585,35 +585,145 @@ comparison UI) and start only after slice 6 is merged.
       third-party cases fail — this is the one permission that can expose a
       restricted project's _live_ plan, through `current`, so its guard owes the
       same proof every other check here does.
-- [ ] 7.4 Cross-version diff: a stored v*n* body against a live v*n+1* projection
+- [x] 7.4 Cross-version diff: a stored v*n* body against a live v*n+1* projection
       normalises forward in memory; the stored bytes are unchanged afterwards
       (asserted by hash). An unknown version fails loudly. Negative: rewrite the
       stored body during normalisation and watch 4.2's hash assertion fail.
 
 ## 8. The surfaces
 
-- [ ] 8.1 A saved-plan list per project: name, who saved it, when, whether a
+- [x] 8.1 A saved-plan list per project: name, who saved it, when, whether a
       schedule was saved. Refreshes on the existing broadcast.
-- [ ] 8.2 Save writes immediately with the server timestamp as the default name
+      _(`SavedPlanList` + `watchShelf`/`useSavedPlanShelf`; the broadcast
+      re-reads, the superseded read is dropped, and a node without the routes
+      is never subscribed to.)_
+- [x] 8.2 Save writes immediately with the server timestamp as the default name
       (A-1); renaming is an edit on the created record, not a modal in the way of
-      the save.
-- [ ] 8.3 The comparison surface: two side pickers, each a saved plan or
+      the save. **Save half** closed at `d591b3f0`: be-01 defaults the name off
+      the `created_at` it writes, `useSavedPlanSave` sends no name, and no modal
+      precedes the press. **Rename half** closed at `19e2388d`: a ✎ on each shelf
+      row swaps the name for a field armed on the name it already has and
+      selected whole, Enter or blur commits, Escape cancels. The field is a
+      component mounted on arming rather than an inline callback ref, which is
+      `ProjectPage`'s own lesson — a ref recreated each render reattaches on
+      every keystroke and a selection there would put the draft back under the
+      next character. A draft that trims to nothing, or to the name the row
+      already has, is a cancel and sends nothing. Each typed outcome keeps its
+      type to the sentence, as 8.5 does for save and compare: `touched` says
+      nothing because the new name is the confirmation, `not_found` says the
+      plan was deleted, `forbidden` and `snapshot_busy` say themselves.
+      **Two negatives watched.** Delete the cancel rule and the second case
+      fails looking for a ✎ named after a row whose name a blank rename had
+      already emptied. Delete the re-read that follows every rename and two
+      cases fail: the new name never reaches the shelf, and the read count does
+      not grow — be-01 publishes nothing about saved plans, so a rename is the
+      second write this surface makes that no broadcast will ever report.
+- [x] 8.3 The comparison surface: two side pickers, each a saved plan or
       `current`; the diff rendered by category; **the absent reason rendered per
       side**, "no schedule was saved" only for a _saved_ side with no body, and
       `current` + `infeasible` saying the live plan cannot be scheduled —
       nothing about `current` was ever saved, so the saved-side copy would state
       the wrong fact about a cyclic live plan.
-- [ ] 8.4 **Stale but not replaced.** A broadcast arrives while a comparison is
+      _(Model in `lib/saved-plan-compare.ts` — per-side resolution, the two
+      sentences, category grouping, `current`/`current` refused — and the
+      surface in `components/wbs/saved-plan-compare.tsx`: two pickers, the two
+      halves rendered apart by category, each side's absence sentence. Both
+      gated.)_
+- [x] 8.4 **Stale but not replaced.** A broadcast arrives while a comparison is
       open: the refresh affordance appears and the rendered comparison does not
-      change until it is used. Negative: refetch into the open comparison and
-      watch the test catch the swap.
-- [ ] 8.5 Typed refusals surface as themselves: `snapshot_busy` says the plan is
-      being written to and to try again; a quota refusal names the limit reached.
+      change until it is used. Tests, both in `saved-plans-panel.test.tsx`: the
+      offer appears and the diff on screen does not move, then using it brings
+      the comparison up to date and spends the offer. Staleness is
+      `comparison.rows !== rows`, identity rather than contents — the shelf
+      reads exactly when something happened to it, and `right` is usually
+      `current`, so the side that went stale is the one the shelf cannot
+      describe. The refresh is a counter (`asked`) in the compare effect's
+      dependency array rather than a flag, so two clicks are two runs.
+      **Both negatives watched.** Put `rows` back into that dependency array and
+      both cases fail on the missing `Compare again` button — the comparison had
+      already been swapped, which is the bug this task names. Take `asked` back
+      out and the second fails looking for the second answer's diff path: an
+      offer that does nothing.
+- [x] 8.5 Typed refusals surface as themselves, on both sides of the panel.
+      **Save half** (run 9): `snapshot_busy` says the plan is being written to
+      and to press Save again in a moment; a quota refusal carries be-01's own
+      sentence about the limit and invites no retry, because no retry clears it.
+      **Compare half** (run 10): `not_found` and `corrupt` each keep their type
+      all the way to the words. Until then the panel flattened both into
+      `{ kind: 'error', code }`, so a plan a collaborator had just deleted was
+      reported to the reader as a code in brackets. `not_found` with an id says
+      the plan was deleted and to pick another; with no id it says the project
+      has no saved plans, and offers no pick, because no choice among these
+      pickers can fix a refusal about the project. `corrupt` names the plan and
+      be-01's refusal word and sends the reader at the other picker rather than
+      at the same button, since rereading stored bytes gives the same answer.
+      **Negative watched:** put the flattening back and all three compare cases
+      fail on the whole sentence rather than on a fragment of it — the rendered
+      alert is still be-01's outcome word in brackets where the reader should
+      have been told the plan was deleted.
 
 ## 9. Close
 
-- [ ] 9.1 Measure the largest real plan's body size against the 8 MiB limit and
+**THE MOUNT HAS LANDED (2026-09-04, `0631d0f7`), AND THIS PARAGRAPH RECORDS WHAT
+IT WAS FOR.** Until then `SavedPlanList`, `useSavedPlanSave`, `useSavedPlanShelf`
+and `SavedPlanComparison` all passed their own cases and no screen rendered any
+of them: every 8.x tick above was a tick on a component that works, not on a
+surface a user can reach, and slice 9 could not close over that. `ProjectPage`
+now renders `SavedPlansPanel` under `WbsTable` for the open project, proven by
+`project-page.test.tsx` — the heading is inside `<main>` and after the table, and
+the shelf's own row is on screen. Deleting the mount reddens exactly those two
+cases and nothing else (44 pass / 2 fail, measured).
+
+Two constraints the mount carries, each measured rather than argued:
+
+- The panel is **bounded and `shrink-0`**. `<main>` hands its height to its one
+  `flex-1` child and `table-frame.ts` needs that child to be the table; a
+  sibling with the flex default `min-height: auto` would let a long history push
+  the table's share towards nothing.
+- The panel is keyed `key={selected}`. Its compare pair is pinned in `useState`
+  (AC #4), so carried across a project switch it holds the _previous_ project's
+  saved-plan id and the compare effect — `projectId` is in its dependencies —
+  asks be-01 about a checkpoint the new project does not contain. Watched, with
+  the key removed: `expected { saved: 'sp1' } to deeply equal { saved: 'sp9' }`.
+  A `list` assertion cannot see this — the shelf re-reads on a project change by
+  itself, so the whole file still passed 46/46 against one.
+
+- [x] 9.1 Measure the largest real plan's body size against the 8 MiB limit and
       record the number (A-3's falsifier).
+
+      **50,975 bytes — 0.61% of the limit, 164.6× headroom** (2026-09-04,
+      h2puni). Measured over all **161** projects in the deployed database by
+      running the save path itself: `SavedPlanCaptureRepository.readPlanInput`,
+      `planInputRowsOf`, `canonicalisePlanInput`, `serialiseCanonicalPlanInput`
+      and `bodyByteLength`, in that order, against a copy of the file. Nothing
+      in the measurement reimplements a shape, so every number below is a number
+      a save would have measured for itself.
+
+      | Project | Work items | Body bytes | % of 8 MiB |
+      | --- | --- | --- | --- |
+      | `ustsu` | 63 | 50,975 | 0.6077% |
+      | `claire cloud probe 15 Aug — A scheduling` | 79 | 39,197 | 0.4673% |
+      | `TASK-239 offscreen 2026-09-03T2231` | 60 | 18,774 | 0.2238% |
+      | `Core plan 0829085303` | 44 | 15,546 | 0.1853% |
+
+      **A-3 is not falsified, and the density says by how much.** The largest
+      body is 809 bytes per work item; 8 MiB is therefore about **10,300 work
+      items in one project**, against a corpus whose largest is 63 and whose 161
+      projects hold 927 between them. The limit binds no real project and would
+      need a two-order-of-magnitude change in how the tool is used before it did.
+
+      **Which database is the real one, because the deployment's names invert
+      the usual reading.** `be-01-green` (the `wbs.` origin) mounts
+      `/home/puni1/wbs/data/wbs.db`, which is 36 KiB, was last written on
+      2026-08-24, and holds **five tables** — `__drizzle_migrations`,
+      `event_log`, `event_sequencer`, `examples`, `sqlite_sequence` — and no
+      `project` table at all, so the measurement run against it dies on `no such
+      table: project`. The 35-table database with every real project in it is
+      `dev-be-01-blue`'s `/home/puni1/wbs-dev/data/wbs.db` (27 MB, written
+      within the hour). A measurement pointed at the "prod" path alone would
+      have reported zero projects and called the limit unreachable on no
+      evidence.
+
 - [ ] 9.2 Gate: `bunx nx run-many -t test lint typecheck` on h2puni plus
       `bun x @fission-ai/openspec validate --all --json`, output recorded in
       verify.md with the failure-proof table filled in.

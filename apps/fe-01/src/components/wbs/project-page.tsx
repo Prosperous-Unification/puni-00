@@ -16,14 +16,31 @@ import { subscribeToProject } from '@/lib/project-stream';
 import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
 
+import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
+import { useRendererForViewport } from './plan-renderer';
 import { entryMeta, matchingProjects, projectCardMeta } from './project-picker';
+import {
+  browserSavedPlansDeps,
+  SavedPlansPanel,
+  type SavedPlansPanelDeps,
+} from './saved-plans-panel';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
   token: string;
   /** Injected in tests; the app lets it default to the real one. */
   api?: ProjectApi;
+  /**
+   * The saved-plan shelf's wiring — injected in tests, the real one by default.
+   *
+   * A second override rather than a field on `api`, because the two answer
+   * different halves of be-01: `ProjectApi` is the plan's routes and this is
+   * the checkpoint routes, which a node may not have at all
+   * ({@link SavedPlansPanelDeps}'s `available`). Merging them would make a
+   * node without saved plans a `ProjectApi` that cannot be built.
+   */
+  savedPlansDeps?: SavedPlansPanelDeps;
   /**
    * Who else is in the project, for the right-hand end of the header bar.
    *
@@ -243,8 +260,193 @@ function ProjectNameField({
  * scrolling instead and the heading row scrolls away with it, which is the
  * failure `table-frame.ts` describes.
  */
-export function ProjectPage({ token, api: apiOverride, presence, account, nav }: ProjectPageProps) {
+
+/**
+ * The saved-plan shelf: a disclosure in the app header's project row, beside
+ * the picker, Rename and New project.
+ *
+ * **Its own component, and the reason is a bug this had.** The disclosure needs
+ * `useClosedByPointerOutside`, whose effect reads `ref.current` once with an
+ * empty dependency list — so the hook has to mount in the same commit as the
+ * `<details>` it is given. Held on {@link ProjectPage} instead (which renders
+ * first with no project selected and therefore no shelf), `panel.current` is
+ * `null` when the effect runs, the effect returns early, the `pointerdown`
+ * listener is **never** registered, and the panel can only be closed from its
+ * own chip. Caught by the Gemini seat on PR 202 as F-01. Every other caller of
+ * that hook (`wbs-table.tsx`'s Views, Columns, Facets and Export) is a component
+ * that renders its own `<details>` unconditionally, which is what this now is.
+ *
+ * **And its own component is also why the second fault was cheap to repair.**
+ * It shipped `absolute right-4 bottom-2 z-40` against `<main>`, which sat it on
+ * top of the chart's `[data-gantt-fullscreen-toggle]` and
+ * `[data-gantt-svg-download]` — the last two children of a control strip that
+ * packs from the left, so no other corner is better — and put `z-40` above the
+ * full-screen chart's `aria-modal` layer. Gemini F-03 and Sol I4, found
+ * independently. The repair is to stop floating, and `z-50` on the panel is
+ * what the chart's modal now outranks.
+ *
+ * **Costing the plan column nothing is not a preference, and this is the
+ * fourth shape to try for it.** The first three each failed to a browser
+ * measurement that already existed, and the list is the argument for where it
+ * ended up:
+ *
+ * 1. *A flex sibling of the table* (`mt-2 max-h-64 shrink-0`): `shrink-0` did
+ *    exactly what it says — ~76px off the one column whose whole invariant is
+ *    reaching the bottom of the window. Four measurements said so at once —
+ *    `header.spec.ts:272` wanted the frame >= 634 and got 601, `:289` and
+ *    `plan-surface.spec.ts:278` both wanted <= 16px under the surface and got
+ *    76, and `plan-surface.spec.ts:318` said the same for a plan that fills the
+ *    frame. Raising those thresholds is the wrong repair:
+ *    `plan-surface.spec.ts:300` exists to say that what reaches the bottom must
+ *    be the chart itself, "not a control strip that parted company with it".
+ *    Above the table is no better — `:272` measures the frame's own
+ *    `clientHeight`, so height lost anywhere in the column fails it the same —
+ *    and inside the scrolling frame is ruled out by `plan-surface.spec.ts:288`,
+ *    which requires `frame.scrollHeight === frame.clientHeight` on a short plan.
+ * 2. *A floating chip over `<main>`*: the two findings above.
+ * 3. *A plain control in the plan toolbar*, handed to the table's own row.
+ *    "It costs the column no height because that row already exists" is true
+ *    only **while the row does not gain a line**, and it does: the row has a
+ *    measured width budget with a named margin for exactly one more control,
+ *    and "Saved plans" spent it. Run
+ *    [33871922414](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/33871922414)
+ *    at `14a1a070`, 2 failed / 281 passed —
+ *    `project-settings.spec.ts:77` ("the toolbar keeps its 1280 budget with one
+ *    settings control") measures `[data-toolbar]`'s children against 1265px and
+ *    a fifth disclosure puts it over, and `gantt.spec.ts:2605`
+ *    ("re-measures the room when the toolbar wraps under a new control") needs
+ *    the bar to be **one** row at 768 before the drag that adds `Reset layout`
+ *    makes it two — with this control on it the bar is already two, so the
+ *    wrap the case is about cannot be observed.
+ * 4. *The app header's project row*, which is where it is. The header is
+ *    `shrink-0` with `md:flex-nowrap` and a `max-w` picker that takes the
+ *    slack, so a control added here changes no height at any laptop width — it
+ *    narrows the picker instead of wrapping (`header.spec.ts`, "keeps the
+ *    header to one row at every laptop width"). It costs `[data-toolbar]`
+ *    nothing because it is not in it, and it costs the plan column nothing
+ *    because it is not in that either: the header is outside `<main>`.
+ *
+ * **And the header is where it belongs rather than merely where it fits.**
+ * These are the plans saved for *this project*, and the row it now sits in is
+ * the project's own — pick a project, rename it, start a new one, read its
+ * history.
+ *
+ * **On a phone it is not in that row, and the reason is 21.4 measured pixels.**
+ * The header's project group takes a line of its own below `md`, and with the
+ * shelf on it that line costs 36px: the phone header is 137px in three rows and
+ * `[data-plan-cards]` starts at 195. `mobile.spec.ts:850` needs the card
+ * scroller's top at 173.6 or less — the sheet is capped at `85vh`, so its top
+ * is 126.6, and a card's `Plan actions` trigger sits 55px below the scroller's
+ * own top edge, which is where the last card lands at the scroll ceiling. So
+ * the guard's goal was *unreachable*, not unreached, and no padding closes it:
+ * `[data-plan-cards]` is `flex-1 min-h-0` and padding is not shrinkable, so
+ * past its 641px the content box clamps to 0 and `scrollHeight - clientHeight`
+ * does not move (13372 both times, measured on h2puni 2026-09-04).
+ *
+ * Taking the shelf off that row drops the header to 101 and the scroller to
+ * 159 — clearing the criterion by 14.6px — and puts the remaining three
+ * controls back on row 1 at 132.125px, so run 16's 25px of horizontal overflow
+ * does not come back with them. Both numbers are a browser's, from a throwaway
+ * probe run before this shape was written rather than a CI cycle after it.
+ *
+ * So the shelf is drawn by whichever surface the viewport is already using: the
+ * header's project row on a table viewport, and the phone's `Plan actions`
+ * sheet on a cards one. {@link useRendererForViewport} decides, so exactly one
+ * of the two is mounted at any width and neither is a hidden duplicate. Below
+ * `md` it cannot simply be *absent* — AC #2 is "saved plans are available
+ * chronologically", and a phone is the surface this task exists for.
+ */
+function SavedPlanShelf({
+  projectId,
+  deps,
+  placement,
+}: {
+  projectId: string;
+  /**
+   * Required, and it is CI that says so. `SavedPlansPanel.deps` is not
+   * optional, so an optional prop here forwarded `SavedPlansPanelDeps |
+   * undefined` into it — `fe-01:typecheck` TS2322 at
+   * `project-page.tsx(298,50)`, red on the run at `adb58ad9` and invisible on
+   * h2puni, which OOM-killed that target three times running. The one caller
+   * has always passed the memoised `savedPlans`, which is never `undefined`.
+   */
+  deps: SavedPlansPanelDeps;
+  /**
+   * Which surface is drawing it, which is the whole of what differs between
+   * the two: the panel *floats* over the page from the header, and *flows*
+   * inside the sheet.
+   *
+   * A phone cannot have the floating one. It is `absolute right-0 w-96` — 384px
+   * anchored to the chip's right edge — so on a 390px screen it paints off the
+   * left of the viewport, which is the horizontal overflow four e2e cases
+   * already fail on. Inside the sheet there is nothing to float over anyway:
+   * the sheet is a bottom sheet that already owns the width, so the panel is
+   * an ordinary block in it and the sheet grows by exactly what is open.
+   */
+  placement: 'header' | 'sheet';
+}): ReactNode {
+  const inSheet = placement === 'sheet';
+  return (
+    /*
+      `shrink-0` for the reason the brand and the two fold-in buttons beside it
+      carry one: above `md` the header is `flex-nowrap`, and what absorbs a new
+      control is the picker's `max-w` slack. Shrinkable, this chip would give up
+      its own width first and the label would clip before the picker gave an
+      inch. In the sheet the chip is instead the full width of the sheet, which
+      is what the controls beside it are.
+    */
+    <details
+      ref={useClosedByPointerOutside()}
+      data-saved-plans
+      className={inSheet ? 'w-full' : 'relative shrink-0'}
+    >
+      <summary
+        className={
+          inSheet
+            ? 'border-input flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm select-none'
+            : 'border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none'
+        }
+        data-hint="The plans saved for this project, and what changed since one of them"
+      >
+        Saved plans
+      </summary>
+      <div
+        data-saved-plans-panel
+        className={
+          inSheet
+            ? 'mt-1 max-h-80 w-full overflow-y-auto rounded-md border p-3 text-sm'
+            : 'bg-popover absolute right-0 z-50 mt-1 max-h-80 w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md'
+        }
+      >
+        <SavedPlansPanel projectId={projectId} deps={deps} />
+      </div>
+    </details>
+  );
+}
+
+export function ProjectPage({
+  token,
+  api: apiOverride,
+  savedPlansDeps: savedPlansOverride,
+  presence,
+  account,
+  nav,
+}: ProjectPageProps) {
   const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
+  /**
+   * The shelf's wiring, memoised — and the memo is load-bearing rather than
+   * tidy.
+   *
+   * `browserSavedPlansDeps` builds a fresh object every call, and the panel
+   * puts that object in two dependency arrays (`useSavedPlanShelf`'s watch and
+   * the compare effect). Unmemoised it would be a new identity on every render
+   * of this page — every keystroke in the picker — so the shelf would resubscribe
+   * and the comparison would refetch while somebody was typing a project name.
+   */
+  const savedPlans = useMemo(
+    () => savedPlansOverride ?? browserSavedPlansDeps(token),
+    [savedPlansOverride, token],
+  );
   /**
    * Who else is in the selected project, and whether the socket saying so is
    * up.
@@ -539,11 +741,99 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
   };
 
   /**
+   * Which of the two plan surfaces this viewport is drawing, asked here for the
+   * one thing this page decides with it: where {@link SavedPlanShelf} is
+   * mounted.
+   *
+   * The same hook {@link WbsTable} uses, and deliberately not a prop threaded
+   * down from it: it is `useSyncExternalStore` over one `resize` subscription
+   * and a pure function of `window.innerWidth`/`innerHeight`, so two callers
+   * cannot disagree within a render, and the second subscription costs a
+   * listener rather than a source of truth.
+   *
+   * A CSS `hidden md:block` pair would be cheaper and is wrong here: it leaves
+   * both shelves mounted, so `[data-saved-plans]` matches twice, two
+   * `useSavedPlanShelf` watches subscribe, and every e2e selector on that
+   * attribute becomes a strict-mode violation the moment the phone's sheet is
+   * open.
+   */
+  const renderer = useRendererForViewport();
+  /**
+   * The project's history, mounted by whichever surface is drawing the plan.
+   *
+   * Absent off a project for the reason {@link AppHeader}'s `project` slot
+   * gives for the whole row: a control that belongs to a project is absent off
+   * the project rather than drawn dead — and `projectId` is a `string` in
+   * {@link SavedPlanShelf}, so absence is the type as well as the taste.
+   *
+   * The key remounts it per project. The panel pins its compare pair once, on
+   * the first shelf that arrives (AC #4: a comparison must not be swapped under
+   * the reader), and that pin is `useState` — kept across a project switch it
+   * would hold a saved-plan id belonging to the project just left, and the
+   * first compare of the new project would ask be-01 about a checkpoint that is
+   * not in it. Crossing the renderer breakpoint remounts it for the same
+   * reason, and that is a resize somebody performed, not an update arriving
+   * under them.
+   *
+   * **Prefixed, and the bare `key={selected}` this carried in the toolbar is a
+   * bug in the header row.** `ProjectNameField` two slots up is keyed
+   * `rename.projectId`, and those are static JSX children — one array, one key
+   * map. While a rename is armed on the open project both keys are that
+   * project's id, React reports "Encountered two children with the same key,
+   * `p2`", and the omission it warns about is real: cancelling the rename left
+   * the field mounted with its draft intact. Four cases in
+   * `project-page.test.tsx` went red on it at `c1b51324` (`cancels on Escape`,
+   * `a blur that changed nothing cancels`, `an emptied draft cancels`, `a draft
+   * armed for another project does not follow the create`) — all four are
+   * cancels, because a cancel is the update whose whole job is to unmount that
+   * child.
+   */
+  const savedPlanShelf =
+    selected === null ? null : (
+      <SavedPlanShelf
+        key={`saved-plans-${selected}`}
+        projectId={selected}
+        deps={savedPlans}
+        placement={renderer === 'cards' ? 'sheet' : 'header'}
+      />
+    );
+  /**
    * The project controls, as one group of the header bar.
    *
    * `min-w-0` on the box and on the group is what lets the picker be the part
    * that gives way: without it a flex item refuses to shrink below its content
    * and the bar wraps at the width the longest project name asks for.
+   *
+   * **`flex-1`, and the phone's sideways scroll is closed by the shelf leaving
+   * this row rather than by the row taking a line of its own.** The five red
+   * pixel cases at `22464b72` were one defect measured five times — the page
+   * 415px wide in a 390px viewport, 25px over, in `gantt.spec.ts:1449`,
+   * `header.spec.ts:345`, `mobile.spec.ts:255`, `:404` and `:965`, every one an
+   * overflow assertion and none of them the 44px touch-target assertion that
+   * sits two lines above one of them and passed.
+   *
+   * The mechanism was `flex-1`'s `flex-basis: 0%`. {@link AppHeader} wraps below
+   * `md`, but a zero-basis item never *asks* for a line: it is handed whatever
+   * is left over — about 135px beside the brand and the account group — and
+   * `min-w-0` lets it be squeezed to that. Its own children then decide the
+   * width, and three of the *four* were `shrink-0` (`✎`, `+`,
+   * {@link SavedPlanShelf}, ~160px with the gaps). What does not fit does not
+   * wrap; it paints past the viewport.
+   *
+   * `basis-full md:basis-0` fixed that by making the group ask for its own
+   * line, and the line cost 36px of header — which `mobile.spec.ts:850` cannot
+   * afford, for the arithmetic {@link SavedPlanShelf} carries. So the fix is
+   * the other half of the same sentence: **the shelf did not create the squeeze,
+   * it exceeded it** — at ~76px of `shrink-0` children the group still fit. Off
+   * a cards viewport the group is three children with 64px unshrinkable against
+   * ~156px free on row 1 at 390, and a browser measured the whole group at
+   * 132.125px there with `scrollWidth === clientWidth` on the header and no
+   * page overflow at all.
+   *
+   * Above `md` nothing about this changed at any point: the header is
+   * `flex-nowrap`, `flex-1` is what it always was, and the picker's `max-w`
+   * slack absorbs the shelf at every laptop width (`header.spec.ts`, "keeps the
+   * header to one row at every laptop width").
    */
   const projectControls = (
     <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -791,6 +1081,12 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
       >
         +
       </Button>
+      {/*
+        The project's history, on a table viewport only — on a cards one it is
+        in the phone's `Plan actions` sheet instead, and `savedPlanShelf` has
+        why that is 21.4 measured pixels rather than a preference.
+      */}
+      {renderer === 'table' && savedPlanShelf}
     </div>
   );
 
@@ -809,8 +1105,12 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
         so without it the table's own height would push this box past the
         bottom of the screen and the frame would never be the thing that
         scrolls.
+
+        `relative` stays: the shelf's panel is absolutely positioned, and
+        several of the table's own menus are too, so this column is the
+        containing block they are all measured against.
       */}
-      <main className="flex min-h-0 flex-1 flex-col px-4 py-2">
+      <main className="relative flex min-h-0 flex-1 flex-col px-4 py-2">
         {error !== null && (
           <p role="alert" className="text-destructive mb-2 text-sm">
             {error}
@@ -825,6 +1125,10 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
             projectName={selectedProject?.name}
             api={api}
             subscribe={subscribe}
+            // Rendered by the table only on a cards viewport, which is the
+            // same answer `renderer` above gives — one hook, one store, so the
+            // header's arm and this one are complementary and never both.
+            savedPlansShelf={savedPlanShelf}
           />
         )}
       </main>
