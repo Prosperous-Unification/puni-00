@@ -39,8 +39,11 @@ import { WorkItemService, type WorkItemServiceOptions } from './work-item.servic
 
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
-/** The one team any pooled case here draws from. */
+/** The one team any single-pool case here draws from. */
 const PLATFORM = 'team-platform';
+/** The two pools 4.11 (d)'s contended slice draws from. Sorted, and deliberately so. */
+const ALPHA = 'team-alpha';
+const BETA = 'team-beta';
 
 let projects: ProjectStore;
 let workItems: WorkItemStore;
@@ -109,6 +112,43 @@ async function leaf(name: string, days: number, serviceTeamId: string | null = n
       serviceId: null,
       maxParallel: 1,
       revision: 0,
+    },
+    [],
+    WROTE,
+  );
+  await estimates.set(
+    { workItemId: id, stepId, optimistic: days, realistic: days, pessimistic: days },
+    WROTE,
+  );
+  return id;
+}
+
+/**
+ * A leaf drawing from SEVERAL pools at once.
+ *
+ * `insert` already accepts `teamIds` beside `serviceTeamId` and writes the join
+ * rows from it, so a multi-pool slice needs no second write path — the singular
+ * column is the one-team shorthand and the list is the general case.
+ */
+async function multiPoolLeaf(name: string, days: number, teamIds: readonly string[]) {
+  const id = crypto.randomUUID();
+  await workItems.insert(
+    {
+      id,
+      projectId,
+      parentId: null,
+      position: 10,
+      name,
+      notes: '',
+      frozenNumber: null,
+      priority: 50,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      serviceTeamId: null,
+      serviceId: null,
+      maxParallel: 1,
+      revision: 0,
+      teamIds,
     },
     [],
     WROTE,
@@ -408,5 +448,40 @@ describe("the materialiser's annotations, through the plan read", () => {
     // dropped filter it does not.
     const longRow = rowFor(tree, long).schedule;
     expect(longRow.latestFinish).toBeGreaterThanOrEqual(longRow.earliestFinish);
+  });
+  it('names the latest-finishing of the pools that jointly held a slice back', async () => {
+    // tasks.md 4.11 (d), the contended two-pool case on the production path.
+    // `pinned` draws from BOTH pools and each is size 1, so it needs a slot in
+    // each: ALPHA frees one at day 4 and BETA at day 6, and the JOINT window is
+    // day 6 — later than either pool's own earliest fit, which is the whole
+    // point of the case. The optimizer's offset agrees with that floor, so the
+    // slice stays `'capacity'` and there are capacity fields to assert on.
+    //
+    // Three separate claims, each with its own way of being wrong:
+    //
+    // - the second pool is reserved into as well as the first (start 6, not 4);
+    // - `capacityPredecessorIds` accumulates BOTH releases, not only the ones
+    //   at exactly the pinned instant — `alpha` released at 4 and is still a
+    //   reason this slice waited;
+    // - `capacityTeamId` names the LATEST finisher, not the first pool by id.
+    //   `team-alpha` sorts first and `team-beta` is the one that held the slice
+    //   to day 6, so a first-sorted reading and a latest-finisher reading give
+    //   different answers here on purpose.
+    await capacity.set(projectId, ALPHA, 1, WROTE);
+    await capacity.set(projectId, BETA, 1, WROTE);
+    const alpha = await leaf('Alpha tenant', 4, ALPHA);
+    const beta = await leaf('Beta tenant', 6, BETA);
+    const pinned = await multiPoolLeaf('Pinned', 2, [ALPHA, BETA]);
+    const tree = await servedBy({ [sliceKey(pinned, stepId)]: units(6) });
+
+    const held = slicedFor(tree, pinned);
+    expect(held).toMatchObject({
+      earliestStart: 6,
+      boundBy: 'capacity',
+      capacityTeamId: BETA,
+    });
+    expect([...held.capacityPredecessorIds].sort()).toEqual(
+      [slicedFor(tree, alpha).id, slicedFor(tree, beta).id].sort(),
+    );
   });
 });
