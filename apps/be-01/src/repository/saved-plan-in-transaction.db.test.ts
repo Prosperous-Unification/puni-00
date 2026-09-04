@@ -3,11 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { sql } from 'drizzle-orm';
 
 import { projectRow } from '../testing/project-fixture';
 import type { Connection } from './db';
-import { openConnection } from './db';
+import { openConnection, refuseToWaitForWriteLock } from './db';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -80,12 +79,12 @@ describe('the quota is read inside the transaction that would write', () => {
   const rivalCommits = (id: string): boolean => {
     const rival = openConnection(path);
     try {
-      // `busy_timeout` **0**, set after `openConnection`'s assertion rather than
-      // instead of it: the refusal under test is the immediate one, and at this
-      // file's default of 3 s the wait alone outlives bun's per-test budget. It
-      // is also the setting 4.4 and 4.5 build the real refusal on, so the rival
-      // here fails the way a second save is meant to.
-      rival.db.run(sql.raw('PRAGMA busy_timeout = 0'));
+      // `busy_timeout` **0**, through the same function the writer itself uses,
+      // set after `openConnection`'s assertion rather than instead of it: the
+      // refusal under test is the immediate one, and at the connection default
+      // of 5 s the wait alone outlives bun's per-test budget. One spelling of
+      // the setting, so a rival here fails the way a second save is meant to.
+      refuseToWaitForWriteLock(rival.db);
       rival.db
         .insert(savedPlan)
         .values({
@@ -120,14 +119,16 @@ describe('the quota is read inside the transaction that would write', () => {
     // One held, a limit of two: the save under test is the last one that fits,
     // which is the state where a rival slipping in is the difference between
     // holding two and holding three.
-    expect(await plans().write(record('sp-held'), () => Promise.resolve(null))).toBeNull();
+    expect(await plans().write(record('sp-held'), () => Promise.resolve(null))).toEqual({
+      outcome: 'written',
+    });
 
     // Collected into arrays rather than assigned to nullable locals: an
     // assignment inside a callback stays `null` to TypeScript's narrowing, and
     // the length also says the check ran exactly once.
     const saw: SavedPlanHoldingRow[] = [];
     const rivalGotIn: boolean[] = [];
-    const refusal = await plans().write<'over'>(record('sp-last'), (holding) => {
+    const attempt = await plans().write<'over'>(record('sp-last'), (holding) => {
       saw.push(holding);
       // Attempted at exactly the instant the count has been read and the row
       // has not been written yet — the window the bound lives or dies in.
@@ -143,7 +144,7 @@ describe('the quota is read inside the transaction that would write', () => {
     // is a different connection to the same file, which is what blue and green
     // are.
     expect(rivalGotIn).toEqual([false]);
-    expect(refusal).toBeNull();
+    expect(attempt).toEqual({ outcome: 'written' });
 
     // Two, not three: the last slot went to the save that held the lock.
     expect((await headers()).map((row) => row.id).sort()).toEqual(['sp-held', 'sp-last']);

@@ -72,7 +72,7 @@ describe('SavedPlanRepository', () => {
   it('writes one header and both bodies, and the header carries the lengths', async () => {
     const plan = bothSides();
 
-    expect(await plans.write(plan, admit)).toBeNull();
+    expect(await plans.write(plan, admit)).toEqual({ outcome: 'written' });
 
     const holding = await plans.holdingOf(reader.db, 'p1');
     expect(holding.plans).toBe(1);
@@ -94,7 +94,7 @@ describe('SavedPlanRepository', () => {
       schedule: { present: false, absentReason: 'pending' },
     });
 
-    expect(await plans.write(plan, admit)).toBeNull();
+    expect(await plans.write(plan, admit)).toEqual({ outcome: 'written' });
 
     expect(await plans.bodyOf(reader.db, 'sp-1', 'schedule')).toBeNull();
     expect(await plans.bodyOf(reader.db, 'sp-1', 'input')).toBe('{"input":true}');
@@ -121,9 +121,8 @@ describe('SavedPlanRepository', () => {
     };
 
     expect(await plans.write(bothSides(), refuse)).toEqual({
-      limit: 'plan_count',
-      asked: 1,
-      allowed: 0,
+      outcome: 'refused',
+      refusal: { limit: 'plan_count', asked: 1, allowed: 0 },
     });
 
     expect(sawIncoming).toBe(

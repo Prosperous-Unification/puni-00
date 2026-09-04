@@ -42,17 +42,25 @@ export interface SavedPlanSaveRequest {
 }
 
 /**
- * The three answers a save has, as a union.
+ * The four answers a save has, as a union.
  *
  * `refused` carries the quota refusal rather than a boolean because the caller
  * has to say *which* limit was hit; `no_project` is separate from `refused`
  * because a project that does not exist is not a project over its quota, and a
  * route maps them to different statuses.
+ *
+ * `snapshot_busy` is separate from `refused` for the same reason and a stronger
+ * one: a quota refusal is a fact about the project that will still be true in a
+ * second, and this one is a fact about *this instant* that a retry may find
+ * gone. A surface that folded them together would offer "try again" for a
+ * project at its hundredth plan, or fail to offer it here (task 8.5).
  */
 export type SavedPlanSaveOutcome =
   | { readonly outcome: 'saved'; readonly record: SavedPlanWrite }
   | { readonly outcome: 'refused'; readonly refusal: SavedPlanQuotaRefusal }
-  | { readonly outcome: 'no_project' };
+  | { readonly outcome: 'no_project' }
+  /** Another connection held the write lock. Nothing was written; a retry may succeed. */
+  | { readonly outcome: 'snapshot_busy' };
 
 export interface SavedPlanServiceOptions {
   readonly capture: SavedPlanCaptureRepository;
@@ -156,12 +164,20 @@ export class SavedPlanService {
       input,
       schedule,
     };
-    const refusal = await this.opts.plans.write<SavedPlanQuotaRefusal>(record, (holding, incoming) =>
-      Promise.resolve(holdingRefusal(holding, incoming, this.quota)),
+    const written = await this.opts.plans.write<SavedPlanQuotaRefusal>(
+      record,
+      (holding, incoming) => Promise.resolve(holdingRefusal(holding, incoming, this.quota)),
     );
-    return refusal === null
-      ? { outcome: 'saved', record }
-      : { outcome: 'refused', refusal };
+    // Switched over rather than tested for `null`, so a fourth repository
+    // outcome would stop compiling here instead of being read as a save.
+    switch (written.outcome) {
+      case 'written':
+        return { outcome: 'saved', record };
+      case 'refused':
+        return { outcome: 'refused', refusal: written.refusal };
+      case 'snapshot_busy':
+        return { outcome: 'snapshot_busy' };
+    }
   }
 
   /**

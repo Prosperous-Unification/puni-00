@@ -1,7 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 
+import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
-import { drizzleOuterTransaction } from './db';
+import { drizzleOuterTransaction, refuseToWaitForWriteLock } from './db';
 import { savedPlan, savedPlanBody } from './schema';
 
 /**
@@ -75,6 +76,25 @@ export interface SavedPlanWrite {
   readonly input: SavedPlanBodyWrite;
   readonly schedule: SavedPlanScheduleWrite;
 }
+
+/**
+ * What one call to {@link SavedPlanRepository.write} did — three states, as a
+ * union rather than `Refusal | null`.
+ *
+ * A nullable refusal has room for two answers and there are three: written,
+ * refused by the caller's own check, and refused by SQLite because another
+ * connection holds the write lock. Folding the third into `null` would report a
+ * save that did not happen; folding it into `Refusal` would make every caller's
+ * refusal type carry a case that is not about that caller's rule. Widening the
+ * return instead makes the new state unignorable — a caller that still reads
+ * the answer as a nullable stops compiling, which is how `snapshot_busy` got in
+ * front of the service rather than past it.
+ */
+export type SavedPlanWriteOutcome<Refusal> =
+  | { readonly outcome: 'written' }
+  | { readonly outcome: 'refused'; readonly refusal: Refusal }
+  /** `BEGIN IMMEDIATE` met a lock another connection holds. Nothing was written. */
+  | { readonly outcome: 'snapshot_busy' };
 
 /** What a project already holds, for the in-transaction quota check. */
 export interface SavedPlanHoldingRow {
@@ -156,11 +176,25 @@ export class SavedPlanRepository {
    * The rollback is unconditional on failure and the connection is closed on
    * every path. A body write that throws leaves no header behind: that is 4.3's
    * subject, and it is a property of this ordering rather than of a later test.
+   *
+   * **A save never waits for the write lock.** `busy_timeout` is turned off on
+   * this connection first, so a lock another connection holds refuses this
+   * attempt in about a millisecond instead of blocking on it for five seconds.
+   * The mechanism is SQLite's own lock and not a marker in this process:
+   * blue and green are two processes on one file during a swap, and a set of
+   * in-flight project ids in either of them is invisible to the other. What the
+   * refusal buys is that no save ever *holds* the lock while waiting, which is
+   * the behaviour that would queue every live edit in the project behind two
+   * body writes (design.md, "Fail-fast, not queue").
+   *
+   * Only `BEGIN` is watched for it. A `SQLITE_BUSY` out of a later statement is
+   * not this condition — the lock is already held by then — so it stays an
+   * unknown and is thrown.
    */
   async write<Refusal>(
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
-  ): Promise<Refusal | null> {
+  ): Promise<SavedPlanWriteOutcome<Refusal>> {
     const inputBytes = bodyByteLength(plan.input.bytes);
     const scheduleBytes = plan.schedule.present
       ? bodyByteLength(plan.schedule.body.bytes)
@@ -168,8 +202,16 @@ export class SavedPlanRepository {
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
+      refuseToWaitForWriteLock(db);
       const tx = drizzleOuterTransaction(db);
-      tx.begin();
+      try {
+        tx.begin();
+      } catch (failure) {
+        if (!isWriteLockBusy(failure)) throw failure;
+        // Nothing was written and no transaction is open, so there is nothing
+        // to roll back — `BEGIN` is the statement that failed.
+        return { outcome: 'snapshot_busy' };
+      }
       try {
         const refusal = await check(
           await this.holdingOf(db, plan.projectId),
@@ -181,7 +223,7 @@ export class SavedPlanRepository {
           // committing a transaction opened to write and then refused would
           // read, in a log, as a save that happened.
           tx.rollback();
-          return refusal;
+          return { outcome: 'refused', refusal };
         }
         await db.insert(savedPlan).values({
           id: plan.id,
@@ -208,7 +250,7 @@ export class SavedPlanRepository {
             .values({ savedPlanId: plan.id, kind: 'schedule', bytes: plan.schedule.body.bytes });
         }
         tx.commit();
-        return null;
+        return { outcome: 'written' };
       } catch (failure) {
         tx.rollback();
         throw failure;

@@ -18,6 +18,31 @@ export function isForeignKeyViolation(err: unknown): boolean {
 }
 
 /**
+ * Whether a thrown error is SQLite refusing to take the write lock because
+ * another connection already holds it.
+ *
+ * **Not a string test, unlike the two either side of it, and deliberately so.**
+ * Probed against the shipped `bun:sqlite` on h2puni: a `BEGIN IMMEDIATE`
+ * refused at `busy_timeout = 0` throws a `SQLiteError` carrying
+ * `code: "SQLITE_BUSY"` and `errno: 5`, and it arrives in 1 ms. The code is the
+ * identity SQLite itself assigns the condition; `database is locked` is one
+ * rendering of it that a later bun is free to reword, and `SQLITE_LOCKED`
+ * (errno 6) is a *different* condition whose message a loose test would fold
+ * into this one. Constraint violations get a string test because bun reports
+ * them without a code; this one has a code, so it uses it.
+ *
+ * The caller that turns this into a refusal must have taken the lock with
+ * waiting turned off — see `db.refuseToWaitForWriteLock`. At the default
+ * `busy_timeout` the same error still arrives, five seconds later, which is the
+ * serialising behaviour the refusal exists to prevent rather than to report.
+ */
+export function isWriteLockBusy(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const { code } = err as Error & { readonly code?: unknown };
+  return code === 'SQLITE_BUSY';
+}
+
+/**
  * The physical columns of one unique index, spelled the way SQLite quotes them
  * in a violation message: `table.column`, in the index's own order.
  *
