@@ -2286,6 +2286,29 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       names a team on a slice no pool held up. Three mutations, each reddening
       exactly one case (`schedule-annotate.test.ts`): drop the re-ask, return
       the pin's double, or widen the comparison to 0.5.
+      **THE SIX PROOFS ARE BLOCKED ON A SEAM THAT DOES NOT EXIST, and this is
+      verified rather than suspected (run 41 chunk 3).** Every one of them says
+      "on the production path" or "through the real plan-read payload", and that
+      payload cannot serve an optimized schedule today:
+      `apps/be-01/src/service/work-item.service.ts:1456` calls
+      `schedule(rows, edges, slices, notBefore, slotsOf, project.depReach)` —
+      six arguments, no seventh — so `pinnedStarts` is always `undefined` and
+      the pass it drives is always Fast. The file imports nothing from
+      `repository/optimized-schedule-cache.ts`, and **`readOptimizedPair` and
+      `readOptimizedPairAndSpawn` have no production caller anywhere in
+      `apps/be-01`** — grepped over the whole app excluding tests and their own
+      module. 4.1's read half is a repository function with its own tests and
+      nothing above it.
+      So the next run's first move is the seam, not the fixtures: the plan read
+      must take the cache key it already has the inputs for, read the pair,
+      dequantise through `materialiseOptimized`, and hand the result to
+      `schedule()` as the seventh argument — falling back to Fast on a miss, a
+      `failed` row, a stale generation or a `corrupt` decode, each of which 4.1
+      through 4.8 already decide. Only then can (a)–(f) assert on a payload
+      rather than on the domain type, which is the whole point of this item.
+      **Do not write them one layer down as a substitute:** an assertion against
+      `schedule()` directly is 4.9's proof again under a new name, and 4.9 is
+      already closed.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
