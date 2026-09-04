@@ -543,12 +543,22 @@ check-that-cannot-fail failure R5 names.
       domain lint 0, typecheck 0, **365 pass / 0 fail across 28 files** at
       `74fa84a5`; contracts lint 0, typecheck 0, **118 pass / 0 fail across 11
       files** at `59ee41bf`; dirty=0, 0 emitted `.js`.
-      **Still unbuilt in 2.2:** the **grouping** `buildSolverEdges` and
-      `buildSolverSlices` both take as a lookup — `groupByWorkItem` is still
-      private to `schedule.ts`, and the assembly owes either its publication or
-      an argued equivalent, because the two builders' keys only line up while
-      the grouping preserves the canonical list's per-leaf order (asserted by
-      the `buildSolverEdges` oracle case, not assumed);
+      **The grouping is published too (2026-09-04)**, and it was the last
+      prerequisite the assembly had: `libs/domain/src/slice-groups.ts` exports
+      `groupSlicesByLeaf`, moved out of `groupByWorkItem` with both refusals —
+      a slice for a non-leaf, and a width that is not a whole number of people —
+      and `groupByWorkItem` now calls it and keeps only the `offsets` half,
+      which is `durationOf`'s calendar arithmetic and has no place on the wire.
+      It is generic over the slice type so `schedule()` and the request builder
+      share one grouping over two shapes. This is the same argument as the edge
+      seam and it is not decorative: an edge names its ends by leaf and
+      **position**, so two groupings would disagree about which slice a position
+      is — silently, inside a request Bun itself wrote. Watched red: the width
+      refusal disabled in the moved file gives 367 pass / 3 fail, of which
+      exactly one is the new file's own case (it adds five, 365 → 370), so two
+      are the pre-existing `schedule` cases and the pass genuinely consumes the
+      moved refusal.
+      **Still unbuilt in 2.2:**
       `baselineOffsets`/`fastHint` (2.11's quantised baseline, which cannot
       precede it) with MOVEMENT's preflight; and the assembly itself.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
