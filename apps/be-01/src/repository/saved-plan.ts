@@ -2,7 +2,8 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
-import { drizzleOuterTransaction, refuseToWaitForWriteLock } from './db';
+import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
+import type { SavedPlanRow } from './schema';
 import { savedPlan, savedPlanBody } from './schema';
 
 /**
@@ -95,6 +96,22 @@ export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'refused'; readonly refusal: Refusal }
   /** `BEGIN IMMEDIATE` met a lock another connection holds. Nothing was written. */
   | { readonly outcome: 'snapshot_busy' };
+
+/**
+ * One saved plan exactly as it is stored — header row, and each side's bytes.
+ *
+ * Both bodies are nullable because both absences are real and mean different
+ * things: a schedule-less save writes no `schedule` row at all, and a missing
+ * `input` row is a fault. Deciding which is which is the reader's business, not
+ * this shape's, so it reports what it found rather than a verdict.
+ */
+export interface StoredSavedPlan {
+  readonly header: SavedPlanRow;
+  readonly bodies: {
+    readonly input: string | null;
+    readonly schedule: string | null;
+  };
+}
 
 /** What a project already holds, for the in-transaction quota check. */
 export interface SavedPlanHoldingRow {
@@ -269,5 +286,58 @@ export class SavedPlanRepository {
     // Absent for real here, unlike the aggregate above: a schedule-less save
     // writes no `schedule` row at all, which is the point of the body table.
     return rows.length === 0 ? null : rows[0].bytes;
+  }
+
+  /**
+   * One saved plan's header and both stored bodies, read as of one instant.
+   *
+   * **The bytes come back untouched.** Nothing here parses a body, checks a
+   * hash or looks at a version: this class's job is to hand over what is on
+   * disk, and every judgement about whether it is trustworthy belongs to the
+   * service, where it can be tested without a database. A repository that
+   * validated would also be a repository that could quietly decline to return
+   * the bytes a corruption report needs to name.
+   *
+   * **Header and bodies ride one read snapshot.** They are three rows in two
+   * tables and a `DELETE` cascades across both, so two unsynchronised reads can
+   * see a header whose bodies are already gone and report a hash fault for an
+   * ordinary deletion. `BEGIN DEFERRED` costs nothing here and removes that
+   * reading entirely.
+   *
+   * On its own connection, opened and closed on every path, for the reason
+   * {@link SavedPlanCaptureRepository} states at length: `boot.ts` opens one
+   * handle for the process, and a transaction held on it encloses whatever
+   * every other in-flight request is doing.
+   */
+  async readOf(savedPlanId: string): Promise<StoredSavedPlan | null> {
+    const connection = this.opts.openConnection();
+    try {
+      const db = connection.db;
+      const tx = drizzleReadTransaction(db);
+      tx.begin();
+      try {
+        const headers = await db.select().from(savedPlan).where(eq(savedPlan.id, savedPlanId));
+        if (headers.length === 0) return null;
+        const rows = await db
+          .select({ kind: savedPlanBody.kind, bytes: savedPlanBody.bytes })
+          .from(savedPlanBody)
+          .where(eq(savedPlanBody.savedPlanId, savedPlanId));
+        const bytesOf = (kind: 'input' | 'schedule'): string | null => {
+          const row = rows.find((candidate) => candidate.kind === kind);
+          return row === undefined ? null : row.bytes;
+        };
+        return {
+          header: headers[0],
+          bodies: { input: bytesOf('input'), schedule: bytesOf('schedule') },
+        };
+      } finally {
+        // A read transaction has nothing to commit, and `COMMIT` on one that a
+        // throw left open would be a second error on the way out. Rolling back
+        // releases the snapshot on either path.
+        tx.rollback();
+      }
+    } finally {
+      connection.close();
+    }
   }
 }

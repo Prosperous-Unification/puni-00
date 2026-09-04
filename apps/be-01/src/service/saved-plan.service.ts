@@ -12,10 +12,13 @@ import type {
   SavedPlanRepository,
   SavedPlanScheduleWrite,
   SavedPlanWrite,
+  StoredSavedPlan,
 } from '../repository/saved-plan';
 import { bodyByteLength } from '../repository/saved-plan';
 import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { planInputRowsOf } from './saved-plan-input';
+import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
+import { verifyBody } from './saved-plan-integrity';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from './saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA, holdingRefusal } from './saved-plan-quota';
 import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
@@ -62,6 +65,57 @@ export type SavedPlanSaveOutcome =
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
   | { readonly outcome: 'snapshot_busy' };
 
+/** One side of a saved plan, as it was read back and verified. */
+export interface SavedPlanReadBody {
+  /** The version those bytes were written under, off the header. */
+  readonly schemaVersion: number;
+  /** The stored bytes, unparsed and unmodified. */
+  readonly bytes: string;
+  /** The header's hash, which this read recomputed over {@link bytes} and matched. */
+  readonly sha256: string;
+}
+
+/**
+ * The schedule side of a read — present with its bytes, or absent with a reason.
+ *
+ * A union for the same reason {@link SavedPlanScheduleWrite} is one: the two
+ * states have disjoint fields, and a caller that has to test five nullable
+ * columns to learn which it holds is a caller that will get it wrong once.
+ */
+export type SavedPlanReadSchedule =
+  | {
+      readonly present: true;
+      readonly body: SavedPlanReadBody;
+      /** The `input_sha256` these dates were computed from, as stored. */
+      readonly inputSha256: string;
+      readonly algorithmId: string;
+    }
+  | { readonly present: false; readonly absentReason: string };
+
+/** One saved plan, handed back as it was stored. */
+export interface SavedPlanRead {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly createdBy: string;
+  readonly createdAt: number;
+  readonly input: SavedPlanReadBody;
+  readonly schedule: SavedPlanReadSchedule;
+}
+
+/**
+ * The three answers a read has.
+ *
+ * `corrupt` is separate from `not_found` because they are different facts about
+ * different things: one plan does not exist, the other exists and cannot be
+ * trusted, and a surface that folded them would tell a user their saved plan
+ * was never there.
+ */
+export type SavedPlanReadOutcome =
+  | { readonly outcome: 'read'; readonly plan: SavedPlanRead }
+  | { readonly outcome: 'not_found' }
+  | { readonly outcome: 'corrupt'; readonly refusal: SavedPlanIntegrityRefusal };
+
 export interface SavedPlanServiceOptions {
   readonly capture: SavedPlanCaptureRepository;
   readonly plans: SavedPlanRepository;
@@ -74,6 +128,17 @@ export interface SavedPlanServiceOptions {
    * A literal at the call site is a limit each caller may spell differently.
    */
   readonly quota?: SavedPlanQuota;
+  /**
+   * The scheduler the **save** path runs over its detached reads.
+   *
+   * Injected for one reason, and it is the read path's (task 5.1): a reader
+   * that re-derives dates from stored settings passes every comparison of dates
+   * a test could make, because it computes the same answer the writer did. The
+   * only observation that separates it from a reader returning stored bytes is
+   * whether `schedule()` was *called*, and that needs a seam. Defaulted to
+   * {@link schedulePlanInput}, so no production caller passes one.
+   */
+  readonly schedule?: (reads: PlanInputReads) => Schedule;
 }
 
 /**
@@ -122,9 +187,36 @@ function bodyWrite(bytes: string, schemaVersion: number): SavedPlanBodyWrite {
  */
 export class SavedPlanService {
   private readonly quota: SavedPlanQuota;
+  private readonly schedule: (reads: PlanInputReads) => Schedule;
 
   constructor(private readonly opts: SavedPlanServiceOptions) {
     this.quota = opts.quota ?? DEFAULT_SAVED_PLAN_QUOTA;
+    this.schedule = opts.schedule ?? schedulePlanInput;
+  }
+
+  /**
+   * Hands back one saved plan's stored bytes, or says why it will not.
+   *
+   * **Nothing is recomputed and nothing is parsed** (task 5.1). The bodies go
+   * out as the bytes on disk, and this method holds no scheduler, no clock and
+   * no plan input: the whole value of a saved plan is that it answers with what
+   * was true when it was saved, and a reader that re-derived anything would
+   * answer with what is true now while looking identical on every field a test
+   * usually asserts.
+   *
+   * **What it does do is check** (task 5.1b). Every read recomputes SHA-256
+   * over each body's stored bytes and compares it with the header, because a
+   * hash nothing recomputes is a comment. 2.4's guard is a source scan — it
+   * proves no `UPDATE` is written in this repository, and cannot see a disk
+   * fault, a restored backup or a write from outside this process. A mismatch
+   * is a typed refusal naming the plan and the body; it is never repaired and
+   * never defaulted, because the bytes are the record and this code has no
+   * standing to guess what they should have been.
+   */
+  async read(savedPlanId: string): Promise<SavedPlanReadOutcome> {
+    const stored = await this.opts.plans.readOf(savedPlanId);
+    if (stored === null) return { outcome: 'not_found' };
+    return readOfStored(stored);
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
@@ -205,7 +297,7 @@ export class SavedPlanService {
     try {
       await captureAndSchedulePlan(this.opts.capture, projectId, (reads: PlanInputReads) => {
         try {
-          const planned = schedulePlanInput(reads);
+          const planned = this.schedule(reads);
           attempts.push({ reads, schedule: { present: true, planned } });
           return planned;
         } catch (failure) {
@@ -219,6 +311,88 @@ export class SavedPlanService {
     }
     return attempts.length === 0 ? null : attempts[0];
   }
+}
+
+/**
+ * Verifies one stored saved plan and shapes it, or refuses it.
+ *
+ * A free function over {@link StoredSavedPlan} rather than a method, so the
+ * whole verification is testable by handing it bytes — including the states a
+ * database cannot easily be made to produce — while the service method above
+ * stays the one line that fetches.
+ *
+ * The header decides which sides exist and the bodies are checked against it:
+ * `schedule_sha256` is null exactly when no schedule was saved (the
+ * `saved_plan_schedule_all_or_nothing` check makes that an invariant of the
+ * table, not a hope), so an absent schedule is read off the header rather than
+ * inferred from a missing body row. Inferring it the other way would turn a
+ * body a cascade half-deleted into a legitimately schedule-less plan.
+ */
+function readOfStored(stored: StoredSavedPlan): SavedPlanReadOutcome {
+  const header = stored.header;
+  const inputRefusal = verifyBody(header.id, 'input', stored.bodies.input, header.inputSha256);
+  if (inputRefusal !== null) return { outcome: 'corrupt', refusal: inputRefusal };
+  // Narrowed by the check above rather than asserted: `verifyBody` returns a
+  // `body_missing` refusal for null, so reaching here means the bytes are there.
+  const inputBytes = stored.bodies.input ?? '';
+
+  const schedule = scheduleOfStored(stored);
+  if (schedule.outcome === 'corrupt') return schedule;
+
+  return {
+    outcome: 'read',
+    plan: {
+      id: header.id,
+      projectId: header.projectId,
+      name: header.name,
+      createdBy: header.createdBy,
+      createdAt: header.createdAt,
+      input: {
+        schemaVersion: header.inputSchemaVersion,
+        bytes: inputBytes,
+        sha256: header.inputSha256,
+      },
+      schedule: schedule.schedule,
+    },
+  };
+}
+
+/** The schedule half of {@link readOfStored}, verified the same way. */
+function scheduleOfStored(
+  stored: StoredSavedPlan,
+): { outcome: 'ok'; schedule: SavedPlanReadSchedule } | { outcome: 'corrupt'; refusal: SavedPlanIntegrityRefusal } {
+  const header = stored.header;
+  if (
+    header.scheduleSha256 === null ||
+    header.scheduleSchemaVersion === null ||
+    header.scheduleInputSha256 === null ||
+    header.schedulerAlgorithmId === null
+  ) {
+    return {
+      outcome: 'ok',
+      // The check constraint makes this non-null whenever the four above are
+      // null. `?? 'unavailable'` is the one default in this file and it is for
+      // a row that could not have been written by this code; a reader that
+      // threw here would refuse a plan over a reason string rather than over
+      // anything about the plan's own bytes.
+      schedule: { present: false, absentReason: header.scheduleAbsentReason ?? 'unavailable' },
+    };
+  }
+  const refusal = verifyBody(header.id, 'schedule', stored.bodies.schedule, header.scheduleSha256);
+  if (refusal !== null) return { outcome: 'corrupt', refusal };
+  return {
+    outcome: 'ok',
+    schedule: {
+      present: true,
+      body: {
+        schemaVersion: header.scheduleSchemaVersion,
+        bytes: stored.bodies.schedule ?? '',
+        sha256: header.scheduleSha256,
+      },
+      inputSha256: header.scheduleInputSha256,
+      algorithmId: header.schedulerAlgorithmId,
+    },
+  };
 }
 
 /**
