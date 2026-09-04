@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  allVocabularies,
+  checkArtifact,
   COVERED_ARTIFACTS,
   EXCLUDED_SHAPES,
   FIXTURE_TAG,
-  TABLE_VOCABULARIES,
-  UNCOVERED_ARTIFACT,
-  allVocabularies,
-  checkArtifact,
   report,
   scanEnumerations,
+  TABLE_VOCABULARIES,
+  UNCOVERED_ARTIFACT,
   wireVocabularies,
 } from './wire-vocabulary';
 
@@ -88,9 +88,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
     const forked = JSON.parse(JSON.stringify(schema)) as {
       $defs: { response: { allOf: { else: { not: { anyOf: { required: string[] }[] } } }[] } };
     };
-    (
-      forked.$defs.response.allOf[0] as { else: { not: { anyOf: { required: string[] }[] } } }
-    ).else.not.anyOf[0] = {
+    forked.$defs.response.allOf[0].else.not.anyOf[0] = {
       required: ['neverRequiredAnywhere'],
     };
     expect(() => wireVocabularies(forked)).toThrow(/neverRequiredAnywhere/);
@@ -200,10 +198,10 @@ describe('the brace form is the one both design.md and spec.md actually use', ()
       unexpected: string[];
       line: number;
     }[];
-    expect(only?.rule).toBe('a');
-    expect(only?.unexpected).toEqual(['proof']);
-    expect(only?.missing).toEqual(['status']);
-    expect(only?.line).toBe(1);
+    expect(only.rule).toBe('a');
+    expect(only.unexpected).toEqual(['proof']);
+    expect(only.missing).toEqual(['status']);
+    expect(only.line).toBe(1);
   });
 
   it('does not read a braced list of fewer than three, or one holding prose', () => {
@@ -230,8 +228,8 @@ describe('rules (b) and (c), and the tags themselves', () => {
       vocabulary: string;
       unexpected: string[];
     }[];
-    expect(only?.rule).toBe('b');
-    expect(only?.unexpected).toEqual(['smuggled']);
+    expect(only.rule).toBe('b');
+    expect(only.unexpected).toEqual(['smuggled']);
   });
 
   /** Rule (c): the stored shapes answer to 4.12b's codec requirement, not to the wire. */
@@ -270,8 +268,8 @@ describe('the repository check — three of four descriptive artifacts', () => {
   const vocabularies = allVocabularies(schema);
 
   it.each(COVERED_ARTIFACTS.map((f) => [f]))('%s: every tagged span equals its set', (file) => {
-    const text = readFileSync(new URL(file as string, repoRoot), 'utf8');
-    const divergences = checkArtifact(text, file as string, vocabularies, ['a']);
+    const text = readFileSync(new URL(file, repoRoot), 'utf8');
+    const divergences = checkArtifact(text, file, vocabularies, ['a']);
     expect(report(divergences, [file as string])).toContain('no divergent enumeration');
   });
 

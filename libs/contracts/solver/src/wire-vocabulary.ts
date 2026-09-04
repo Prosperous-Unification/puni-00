@@ -62,7 +62,7 @@
  *
  * - the **domain** slice tuple (`workItemId, stepId, days, personId, width,
  *   poolIds, notBefore, depReach, deadline`) — 4 sentences, attributed to the
- *   *wire* slice because the two overlap on `personId`, `width` and `poolIds`;
+ *   wire* slice because the two overlap on `personId`, `width` and `poolIds`;
  * - `solver_slot` and the fencing triple `generation, cancelEpoch,
  *   attemptToken` (3.2, 6.11) — 2 sentences, attributed to
  *   `optimization_generation`;
@@ -149,7 +149,7 @@ interface CodeSpan {
  * `wireVocabularies` asserts that coincidence instead of relying on it.
  */
 export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabulary> {
-  const defs = (schema as { $defs?: Record<string, unknown> })?.$defs;
+  const defs = (schema as { $defs?: Record<string, unknown> }).$defs;
   if (!defs) throw new Error('solver-wire.v1.json has no $defs');
 
   const requiredAt = (name: string): string[] => {
@@ -342,7 +342,7 @@ export function tagSpans(text: string): TagSpan[] {
   for (let m = TAG.exec(text); m !== null; m = TAG.exec(text)) {
     const at = m.index;
     if (codeSpans.some((c) => at >= c.start && at < c.end)) continue;
-    raw.push({ name: m[1] as string, from: at + m[0].length });
+    raw.push({ name: m[1], from: at + m[0].length });
   }
   return raw.map((tag, i) => {
     const nextTag = raw[i + 1]?.from ?? text.length;
@@ -358,10 +358,9 @@ export function tagSpans(text: string): TagSpan[] {
 export function sentenceEnd(text: string, from: number): number {
   const codeSpans = inlineCodeSpans(text);
   for (let i = from; i < text.length; i += 1) {
-    const ch = text[i] as string;
+    const ch = text[i];
     if (ch !== '.' && ch !== '!' && ch !== '?') continue;
-    const next = text[i + 1];
-    if (next !== undefined && !/\s/.test(next)) continue;
+    if (i + 1 < text.length && !/\s/.test(text[i + 1])) continue;
     if (codeSpans.some((c) => i >= c.start && i < c.end)) continue;
     return i + 1;
   }
@@ -372,7 +371,7 @@ function inlineCodeSpans(text: string): CodeSpan[] {
   const spans: CodeSpan[] = [];
   const re = /`([^`\n]+)`/g;
   for (let m = re.exec(text); m !== null; m = re.exec(text)) {
-    spans.push({ text: m[1] as string, start: m.index, end: m.index + m[0].length });
+    spans.push({ text: m[1], start: m.index, end: m.index + m[0].length });
   }
   return spans;
 }
@@ -394,7 +393,7 @@ function isConnector(gap: string): boolean {
 function bracedMembers(code: string): string[] | null {
   const m = /^[{[(]\s*([^{}[\]()]+?)\s*[)\]}]$/.exec(code.trim());
   if (!m) return null;
-  const parts = (m[1] as string).split(',').map((p) => p.trim());
+  const parts = m[1].split(',').map((p) => p.trim());
   if (parts.length < 3) return null;
   return parts.every((p) => IDENTIFIER.test(p)) ? parts : null;
 }
@@ -421,8 +420,8 @@ export function scanEnumerations(text: string, file: string): Enumeration[] {
   let run: CodeSpan[] = [];
   const flush = (): void => {
     if (run.length >= 3) {
-      const first = run[0] as CodeSpan;
-      const last = run[run.length - 1] as CodeSpan;
+      const first = run[0];
+      const last = run[run.length - 1];
       emit(
         run.map((s) => s.text),
         first.start,
@@ -443,8 +442,7 @@ export function scanEnumerations(text: string, file: string): Enumeration[] {
       flush();
       continue;
     }
-    const previous = run[run.length - 1];
-    if (previous && !isConnector(text.slice(previous.end, span.start))) flush();
+    if (run.length > 0 && !isConnector(text.slice(run[run.length - 1].end, span.start))) flush();
     run.push(span);
   }
   flush();
@@ -501,7 +499,7 @@ export function checkArtifact(
         unexpected,
         message:
           `tagged '${found.tag}' (${vocabulary.source}) but the enumeration is not that set: ` +
-          `${describeDifference(missing, unexpected)}`,
+          describeDifference(missing, unexpected),
       });
       continue;
     }
@@ -520,7 +518,7 @@ export function checkArtifact(
       unexpected,
       message:
         `untagged enumeration overlaps '${best.vocabulary.name}' (${best.vocabulary.source}) on ` +
-        `${best.overlap} of ${members.size} names but is not a subset of it: names ${unexpected.join(', ')}`,
+        `${String(best.overlap)} of ${String(members.size)} names but is not a subset of it: names ${unexpected.join(', ')}`,
     });
   }
 
@@ -553,7 +551,7 @@ function attribute(
  */
 export function report(divergences: readonly Divergence[], covered: readonly string[]): string {
   const lines = [
-    `wire-vocabulary: checked ${covered.length} of 4 descriptive artifacts`,
+    `wire-vocabulary: checked ${String(covered.length)} of 4 descriptive artifacts`,
     ...covered.map((f) => `  covered:   ${f}`),
     `  UNCOVERED: ${UNCOVERED_ARTIFACT}`,
     `             ${UNCOVERED_ARTIFACT_REASON}`,
@@ -563,7 +561,7 @@ export function report(divergences: readonly Divergence[], covered: readonly str
     return lines.join('\n');
   }
   for (const d of divergences) {
-    lines.push(`  ${d.file}:${d.line} [rule ${d.rule}] ${d.message}`);
+    lines.push(`  ${d.file}:${String(d.line)} [rule ${d.rule}] ${d.message}`);
   }
   return lines.join('\n');
 }
