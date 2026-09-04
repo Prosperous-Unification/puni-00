@@ -164,6 +164,14 @@ const rowFor = (number: string): HTMLElement => {
 /** Three named root rows: `010 Strip`, `020 Sand`, `030 Paint`. */
 async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
+  // These layout mechanics deliberately exercise the refs-shown geometry while
+  // retaining the original hidden Teams/Services/Types baseline.
+  for (const projectId of ['p1', 'p2']) {
+    const key = `wbs.hiddenColumns.${projectId}`;
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, JSON.stringify(['team', 'service', 'type']));
+    }
+  }
 
   const api = fakeApi();
   render(<WbsTable projectId="p1" api={api} />);
@@ -181,6 +189,11 @@ async function threeRoots() {
     await waitFor(() => {
       expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
     });
+    if (number === '010') {
+      api.linkTo(api.rows[0]?.id ?? '', [
+        { systemId: 'github', url: 'https://example.test/layout' },
+      ]);
+    }
   }
   unfoldStep('Dev');
   return api;
@@ -1523,6 +1536,7 @@ describe('the chart height this browser has dragged', () => {
 describe('the columns a reader has hidden', () => {
   /** Where the hide-list lives for the project every test in here opens. */
   const KEY = 'wbs.hiddenColumns.p1';
+  const RESET_MARKER = 'wbs.linksResetShown.p1';
 
   /** The columns on screen, by id, in table order. */
   const headerIds = (): string[] =>
@@ -1547,7 +1561,6 @@ describe('the columns a reader has hidden', () => {
   const DEFAULT_ON_SCREEN = (stepIds: readonly string[]) => [
     'drag',
     'number',
-    'refs',
     'name',
     'depends',
     'priority',
@@ -1574,13 +1587,238 @@ describe('the columns a reader has hidden', () => {
     expect(screen.queryByLabelText('Services for 010')).toBeNull();
   });
 
-  itDom('shows the same default set on a full directory', async () => {
-    localStorage.removeItem(KEY);
+  itDom(
+    'keeps Links hidden on a first visit even when the project already has a link',
+    async () => {
+      localStorage.removeItem(KEY);
+      const api = fakeApi();
+      const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+      api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+      expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
+      expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+      expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+      expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+
+      cleanup();
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+      expect(headerIds()).toContain('refs');
+    },
+  );
+
+  itDom('drops every reset marker except JSON true', async () => {
+    for (const claimed of ['false', '"true"', '3', '{}', '{not json']) {
+      cleanup();
+      localStorage.setItem(RESET_MARKER, claimed);
+      await oneRow();
+      expect(headerIds()).not.toContain('refs');
+      expect(localStorage.getItem(RESET_MARKER)).toBeNull();
+    }
+  });
+
+  itDom('keeps each project’s reset marker while the selected project changes', async () => {
+    localStorage.setItem(RESET_MARKER, 'true');
     const api = fakeApi();
-    await api.addTeam('Platform');
-    await api.addService('Checkout');
-    await oneRow(api);
-    expect(headerIds()).toEqual(DEFAULT_ON_SCREEN(['step-dev', 'step-qa']));
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'One row' });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    expect(headerIds()).toContain('refs');
+
+    view.rerender(<WbsTable projectId="p2" api={api} />);
+    await waitFor(() => {
+      expect(headerIds()).not.toContain('refs');
+    });
+    expect(localStorage.getItem(RESET_MARKER)).toBe('true');
+    expect(localStorage.getItem('wbs.linksResetShown.p2')).toBeNull();
+
+    view.rerender(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(headerIds()).toContain('refs');
+    });
+  });
+
+  itDom('offers no reset until the first tree read succeeds, including an empty tree', async () => {
+    localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
+    const api = fakeApi();
+    const empty = await api.tree('p1');
+    let release!: (tree: typeof empty) => void;
+    const held = new Promise<typeof empty>((resolve) => {
+      release = resolve;
+    });
+    const read = vi.fn(() => held);
+    api.tree = read;
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(read).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+
+    act(() => {
+      release(empty);
+    });
+    expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+  });
+
+  itDom('retains the last successful reset target when a later refresh fails', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/held' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    click('Add work item');
+    await waitFor(() => {
+      expect(document.querySelector('[data-stale-tree]')).not.toBeNull();
+    });
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom('changes only the reset target when the first or last link changes', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Linked' });
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/1' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+
+    api.linkTo(row.id, []);
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    expect(headerIds()).toContain('refs');
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(headerIds()).not.toContain('refs');
+
+    api.linkTo(row.id, [{ systemId: 'github', url: 'https://example.test/2' }]);
+    click('Add work item');
+    await screen.findByLabelText('Name of 030');
+    expect(headerIds()).not.toContain('refs');
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom(
+    'uses the last landed tree while first-link and last-link reads are in flight',
+    async () => {
+      const linkedApi = fakeApi();
+      const linkedRow = await linkedApi.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Linked',
+      });
+      linkedApi.linkTo(linkedRow.id, [
+        { systemId: 'github', url: 'https://example.test/before-removal' },
+      ]);
+      render(<WbsTable projectId="p1" api={linkedApi} />);
+      await screen.findByLabelText('Name of 010');
+
+      const linkedTree = linkedApi.tree.bind(linkedApi);
+      linkedApi.linkTo(linkedRow.id, []);
+      const withoutLink = await linkedTree('p1');
+      let releaseRemoval!: (tree: typeof withoutLink) => void;
+      const heldRemoval = new Promise<typeof withoutLink>((resolve) => {
+        releaseRemoval = resolve;
+      });
+      const removalRead = vi.fn(() => heldRemoval);
+      linkedApi.tree = removalRead;
+      click('Add work item');
+      await waitFor(() => {
+        expect(removalRead).toHaveBeenCalledTimes(1);
+      });
+
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+      linkedApi.tree = linkedTree;
+      act(() => {
+        releaseRemoval(withoutLink);
+      });
+      expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+      expect(headerIds()).toContain('refs');
+      click('Reset layout');
+      expect(headerIds()).not.toContain('refs');
+
+      cleanup();
+      localStorage.clear();
+      const emptyApi = fakeApi();
+      const emptyRow = await emptyApi.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Unlinked',
+      });
+      render(<WbsTable projectId="p1" api={emptyApi} />);
+      await screen.findByLabelText('Name of 010');
+      fireEvent.click(within(openColumns()).getByLabelText('Links'));
+      expect(headerIds()).toContain('refs');
+
+      const emptyTree = emptyApi.tree.bind(emptyApi);
+      emptyApi.linkTo(emptyRow.id, [{ systemId: 'github', url: 'https://example.test/first' }]);
+      const withLink = await emptyTree('p1');
+      let releaseAddition!: (tree: typeof withLink) => void;
+      const heldAddition = new Promise<typeof withLink>((resolve) => {
+        releaseAddition = resolve;
+      });
+      const additionRead = vi.fn(() => heldAddition);
+      emptyApi.tree = additionRead;
+      click('Add work item');
+      await waitFor(() => {
+        expect(additionRead).toHaveBeenCalledTimes(1);
+      });
+
+      click('Reset layout');
+      expect(headerIds()).not.toContain('refs');
+      emptyApi.tree = emptyTree;
+      act(() => {
+        releaseAddition(withLink);
+      });
+      expect(await screen.findByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
+      expect(headerIds()).not.toContain('refs');
+      click('Reset layout');
+      expect(headerIds()).toContain('refs');
+    },
+  );
+
+  itDom('finds a linked descendant in the whole tree after its branch is collapsed', async () => {
+    const api = fakeApi();
+    const parent = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Parent',
+    });
+    const child = await api.createWorkItem('p1', {
+      parentId: parent.id,
+      afterId: null,
+      name: 'Linked child',
+    });
+    api.linkTo(child.id, [{ systemId: 'github', url: 'https://example.test/child' }]);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010.1');
+    click('Collapse all');
+    expect(screen.queryByLabelText('Name of 010.1')).toBeNull();
+
+    click('Reset layout');
+    expect(headerIds()).toContain('refs');
+  });
+
+  itDom('lets an explicit column choice replace and clear the reset marker', async () => {
+    localStorage.setItem(RESET_MARKER, 'true');
+    await oneRow();
+    expect(headerIds()).toContain('refs');
+    const panel = openColumns();
+    fireEvent.click(within(panel).getByLabelText('Priority'));
+    expect(localStorage.getItem(RESET_MARKER)).toBeNull();
+    expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'priority']));
   });
 
   itDom('keeps a hidden column hidden across a reload', async () => {
@@ -1685,7 +1923,7 @@ describe('the columns a reader has hidden', () => {
     expect(offered(panel)).toEqual([
       // First, where the column is: between `#` and Name, and on by default —
       // a column hidden by default is a feature nobody finds (design D5).
-      { label: 'Links', checked: true },
+      { label: 'Links', checked: false },
       { label: 'Depends on', checked: true },
       { label: 'Priority', checked: true },
       { label: 'Teams', checked: false },
@@ -1713,11 +1951,11 @@ describe('the columns a reader has hidden', () => {
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).not.toContain('depends');
       expect(screen.queryByLabelText('Add a dependency to 010')).toBeNull();
-      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'depends']));
+      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type', 'depends']));
 
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).toContain('depends');
-      expect(stored()).toBe(JSON.stringify(['team', 'service', 'type']));
+      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type']));
       // Proof: `rememberHiddenColumns` left out of the toggle, this failed on
       // `expected null to be '["team","service","depends"]'`. Watched, 2026-08-28.
     },
@@ -1731,7 +1969,7 @@ describe('the columns a reader has hidden', () => {
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
     expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['service', 'type', 'step-qa']));
+    expect(stored()).toBe(JSON.stringify(['refs', 'service', 'type', 'step-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {

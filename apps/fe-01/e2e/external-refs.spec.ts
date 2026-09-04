@@ -123,6 +123,12 @@ async function seed(page: Page): Promise<Seed> {
     },
   ]);
   await page.reload();
+  // A linked project still starts from the data-independent baseline. Wait for
+  // the whole tree to land, then use the same one-time Reset layout gesture a
+  // reader uses to opt into the contextual target.
+  await expect(page.getByLabel('Name of 010')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset layout' }).click();
   await expect(page.getByLabel('Links for 010')).toBeVisible();
   return { projectId, systemOf };
 }

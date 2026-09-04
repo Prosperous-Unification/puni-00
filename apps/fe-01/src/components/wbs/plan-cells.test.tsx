@@ -2368,6 +2368,11 @@ describe('the service cell', () => {
 });
 
 describe('the links column', () => {
+  // These cases exercise Links itself, not whether a first-visit layout hides
+  // it. Give them the same explicit reader choice as every other column-specific
+  // suite so the contextual default cannot erase the surface under test.
+  beforeEach(showEveryColumn);
+
   /** The seeded vocabulary's ids, as `fakeApi` mints them and be-01 seeds them. */
   const JIRA = 'sys-jira';
   const GH_PR = 'sys-gh-pr';
