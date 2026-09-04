@@ -3,7 +3,7 @@ import {
   encodeOptimizedResult,
   type OptimizedResult,
 } from '@wbs/contracts/solver/optimized-result';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { readGeneration } from './optimization-generation';
@@ -555,6 +555,89 @@ export function storeOptimizedOutcome(
       .returning({ objective: optimizedScheduleCache.objective })
       .all();
 
-    return inserted.length === 1 ? 'stored' : 'already-recorded';
+    if (inserted.length !== 1) return 'already-recorded';
+
+    enforceLiveBudgetBound(tx, {
+      projectId: claim.projectId,
+      objective: claim.objective,
+      contractVersion: claim.contractVersion,
+      inputHash: write.inputHash,
+    });
+    return 'stored';
   });
+}
+
+/**
+ * How many budgets one project keeps per objective per live contract version
+ * (tasks.md 4.1b, rule 2).
+ *
+ * **A bound, not an exclusion, and the difference is a livelock.** The rule this
+ * replaced deleted every row whose `(inputHash, budgetMs)` differed from the one
+ * committing. A config change is not a code change, so blue and green can read
+ * `60000` and `120000` under one `contractVersion` — and each release then
+ * deleted the other's row on every store, alternating solves for ever on a plan
+ * nobody edited while holding the concurrency ceilings busy. The per-contract
+ * generation table cannot fix that, because both releases share the contract
+ * version; only a bound can, because under a bound both rows survive.
+ *
+ * Two, so the pair of budgets a blue/green swap has in flight both fit. With
+ * both objectives that is at most four outcome rows per project per live
+ * contract version — never "two rows total".
+ */
+const MAX_LIVE_BUDGETS = 2;
+
+/** The tuple 4.1b's bound counts within: everything but `budgetMs`. */
+interface LiveBudgetKey {
+  readonly projectId: string;
+  readonly objective: SolverObjectiveName;
+  readonly contractVersion: string;
+  readonly inputHash: string;
+}
+
+/**
+ * Keeps the {@link MAX_LIVE_BUDGETS} most recently written budgets for one
+ * {@link LiveBudgetKey} and deletes the rest.
+ *
+ * Ordered by `createdAt` and then by `budgetMs`, both descending. The second
+ * key is not decoration: two rows written in the same millisecond are ordinary
+ * in a test and possible under a coarse clock, and without a tie-break the
+ * survivor would be whichever order SQLite happened to return — a bound that
+ * deletes a different row on two runs of the same input. Descending `budgetMs`
+ * on the tie keeps the larger budget, which is the more expensive answer to
+ * recompute.
+ *
+ * Deletes by full primary key rather than by a `NOT IN` on `budgetMs`, so the
+ * statement can only reach rows this function has actually seen and counted.
+ *
+ * Called only after an insert that actually landed. On the
+ * `already-recorded` path nothing was added, so nothing can have gone over.
+ */
+function enforceLiveBudgetBound(tx: Transaction, key: LiveBudgetKey): void {
+  const live = tx
+    .select({ budgetMs: optimizedScheduleCache.budgetMs })
+    .from(optimizedScheduleCache)
+    .where(
+      and(
+        eq(optimizedScheduleCache.projectId, key.projectId),
+        eq(optimizedScheduleCache.objective, key.objective),
+        eq(optimizedScheduleCache.contractVersion, key.contractVersion),
+        eq(optimizedScheduleCache.inputHash, key.inputHash),
+      ),
+    )
+    .orderBy(desc(optimizedScheduleCache.createdAt), desc(optimizedScheduleCache.budgetMs))
+    .all();
+
+  for (const surplus of live.slice(MAX_LIVE_BUDGETS)) {
+    tx.delete(optimizedScheduleCache)
+      .where(
+        and(
+          eq(optimizedScheduleCache.projectId, key.projectId),
+          eq(optimizedScheduleCache.objective, key.objective),
+          eq(optimizedScheduleCache.contractVersion, key.contractVersion),
+          eq(optimizedScheduleCache.inputHash, key.inputHash),
+          eq(optimizedScheduleCache.budgetMs, surplus.budgetMs),
+        ),
+      )
+      .run();
+  }
 }

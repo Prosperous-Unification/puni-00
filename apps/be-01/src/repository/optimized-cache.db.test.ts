@@ -1042,3 +1042,139 @@ describe("4.1's conditional write, with all four conditions composed", () => {
     }
   });
 });
+
+describe("4.1b's retention bound, which is a bound and not an exclusion", () => {
+  const CLAIM = {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation: 1,
+    objective: 'pri',
+    budgetMs: BUDGET,
+    ownerId: 'coordinator-a',
+    attemptToken: 'tok-1',
+  } as const;
+
+  /** One seat per budget, because the slot's primary key carries `budgetMs`. */
+  function reserve(path: string, budgetMs: number, contractVersion = CONTRACT): void {
+    const db = openDatabase(path);
+    try {
+      db.run(
+        `INSERT INTO solver_slot
+           (project_id, contract_version, generation, objective, budget_ms,
+            owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+            cancel_requested_at, admitted_deadline_at)
+         VALUES ('p-1', '${contractVersion}', 1, 'pri', ${String(budgetMs)},
+                 'coordinator-a', 'tok-1', 'running', 4242, 1, 1, NULL, 99)`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  function enable(path: string): void {
+    const db = openDatabase(path);
+    try {
+      db.run(`UPDATE project SET optimization_enabled = 1 WHERE id = 'p-1'`);
+    } finally {
+      db.close();
+    }
+  }
+
+  function commit(
+    path: string,
+    budgetMs: number,
+    now: number,
+    contractVersion = CONTRACT,
+  ): OutcomeWriteResult {
+    return storeOptimizedOutcome(openDrizzle(path), {
+      claim: { ...CLAIM, budgetMs, contractVersion },
+      inputHash: HASH,
+      admittedCancelEpoch: 0,
+      outcome: { kind: 'failed', reason: 'timeout' },
+      now,
+    });
+  }
+
+  /** Every stored `(contract_version, budget_ms)` for the one objective. */
+  function liveBudgets(path: string): { contract: string; budget: number }[] {
+    const db = openDatabase(path);
+    try {
+      return (
+        db
+          .query(
+            `SELECT contract_version AS contract, budget_ms AS budget
+               FROM optimized_schedule_cache WHERE objective = 'pri'
+              ORDER BY contract_version, budget_ms`,
+          )
+          .all() as { contract: string; budget: number }[]
+      ).map((row) => ({ contract: row.contract, budget: row.budget }));
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * 4.1b proof (a): raise `budgetMs` three times and bump `contractVersion`
+   * with no plan edit at all — same project, same objective, same input hash —
+   * and at most two rows survive per project per objective per live contract
+   * version. The bound is per contract version, so the bumped release's own
+   * row is *not* evicted by the old one's: that is the blue/green half.
+   */
+  it('keeps two budgets per live contract version and evicts the oldest', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      enable(db.path);
+
+      for (const [budget, at] of [
+        [60_000, 10],
+        [90_000, 20],
+        [120_000, 30],
+      ] as const) {
+        reserve(db.path, budget);
+        expect(commit(db.path, budget, at)).toBe('stored');
+      }
+
+      // The bumped release, sharing the file and the plan.
+      const green = '8+1.0.0';
+      allocateGeneration(openDrizzle(db.path), 'p-1', green, HASH, 40);
+      reserve(db.path, 60_000, green);
+      expect(commit(db.path, 60_000, 50, green)).toBe('stored');
+
+      expect(liveBudgets(db.path)).toEqual([
+        { contract: green, budget: 60_000 },
+        { contract: CONTRACT, budget: 90_000 },
+        { contract: CONTRACT, budget: 120_000 },
+      ]);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The livelock the exclusive rule caused, as the state that used to be
+   * impossible: two budgets under ONE contract version both survive, so
+   * neither release deletes the other's row and neither re-solves.
+   */
+  it('lets two releases reading different budgets keep a row each', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      enable(db.path);
+      reserve(db.path, 60_000);
+      expect(commit(db.path, 60_000, 10)).toBe('stored');
+      reserve(db.path, 120_000);
+      expect(commit(db.path, 120_000, 20)).toBe('stored');
+
+      expect(liveBudgets(db.path)).toEqual([
+        { contract: CONTRACT, budget: 60_000 },
+        { contract: CONTRACT, budget: 120_000 },
+      ]);
+      // And both are servable, which is what makes the spawn count stop rising.
+      expect(read(db.path, { ...KEY, budgetMs: 60_000 }).pri.kind).toBe('failed');
+      expect(read(db.path, { ...KEY, budgetMs: 120_000 }).pri.kind).toBe('failed');
+    } finally {
+      db.cleanup();
+    }
+  });
+});
