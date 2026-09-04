@@ -42,6 +42,12 @@ export * from './progress';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+// The exact-input hash and the string it is taken over (tasks.md 1.1, 1.2).
+// Exported here from run 42, when the plan read became the first caller outside
+// this library: the cache key's `inputHash` names one plan, and a second
+// canonicalisation written app-side to avoid this line is the copy that orders
+// an argument differently and serves another plan's schedule.
+export * from './canonical-schedule-input';
 // The real-domain scorer (tasks.md 4.11b, 4.12b), beside `schedule` because it
 // reads nothing but a `Schedule` and exists so the publication guard's two
 // sides are summed over the same slices in the same order.

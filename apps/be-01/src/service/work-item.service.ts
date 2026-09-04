@@ -26,8 +26,10 @@ import {
 import {
   schedule,
   ScheduleCycleError,
+  type Schedule,
   type Scheduled,
   type ScheduledSlice,
+  type ScheduleInput,
   type Slice,
   sliceKey,
 } from '@wbs/domain';
@@ -77,6 +79,7 @@ import {
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
+import type { OptimizedScheduleReader } from './optimized-schedule-reader';
 import { canEdit } from './project.service';
 import {
   type Days,
@@ -97,6 +100,21 @@ import {
  * absent schedule and a zero-day one look identical to a caller, and only one of
  * them is a plan.
  */
+/**
+ * The deadlines the plan read has to offer the hash, which is none of them.
+ *
+ * `ScheduleInput` declares the member because 1.1 hashes it and the wire
+ * carries it; the `deadline` column, `deadlineOffsetOf` and the effective fold
+ * that would populate it are **TASK-241's**, not this task's (tasks.md, the
+ * boundary at the top). An empty map is the true value here rather than a
+ * placeholder: a plan with no deadlines stated hashes the same on both sides of
+ * that task, so a row written today is still readable after it lands.
+ *
+ * Frozen into a module constant rather than built per read so the empty case
+ * cannot be handed a map somebody later writes into.
+ */
+const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
+
 const UNSCHEDULED: Scheduled = {
   duration: 0,
   estimated: false,
@@ -780,6 +798,24 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
+  /**
+   * Where a published solver schedule is looked up, or absent — tasks.md 4.11's
+   * seam, and the only thing on this service that knows the optimizer exists.
+   *
+   * **Optional, unlike every required collaborator above, and for the opposite
+   * reason.** Those are required because a service built without one answers
+   * with a silence indistinguishable from the truth. Here the silence *is* the
+   * truth: a deployment with no optimized cache wired in has no published
+   * solver schedules, and every project is `optimization_enabled = false` by
+   * 3b.1's column default anyway. Requiring it would make sixteen construction
+   * sites pass a reader that can only answer `null`.
+   *
+   * A function rather than an interface with one method, matching
+   * {@link WorkItemServiceOptions.capacity}'s `slotsFor` shape at the point of
+   * use: there is one question, and a named port type carries the whole of the
+   * documentation an interface would.
+   */
+  optimized?: OptimizedScheduleReader;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock?: Clock;
 }
@@ -1135,6 +1171,32 @@ export class WorkItemService {
   }
 
   /**
+   * The published solver schedule for exactly this plan, or `null` — tasks.md
+   * 4.11's three refusals and the read behind them.
+   *
+   * **`optimizationEnabled` and `scheduleEngine` are two conditions, not one**
+   * (3b.1's own words): the flag is whether this project may spend solver time
+   * at all, the engine is which one it wants, and a project switched off keeps
+   * `optimized` recorded so it returns to it. Reading only the engine would
+   * serve a stored schedule to a project an administrator has just switched
+   * off; reading only the flag would serve one to a project that asked for
+   * Fast. Both are read here rather than inside the reader because the reader
+   * is handed no project row.
+   *
+   * The whole `ScheduleInput` goes down verbatim, including `poolSizes` and
+   * `reach` — the plan read's own arguments to `schedule()` one line below. A
+   * key built from anything else would name a different plan than the one about
+   * to be scheduled, which is the ABA the `inputHash` exists to fence.
+   */
+  private publishedOptimized(project: Project, input: ScheduleInput): Schedule | null {
+    const read = this.opts.optimized;
+    if (read === undefined) return null;
+    if (!project.optimizationEnabled) return null;
+    if (project.scheduleEngine !== 'optimized') return null;
+    return read({ projectId: project.id, objective: project.scheduleObjective, input });
+  }
+
+  /**
    * Every work item in the project, each carrying the number derived for it,
    * ordered as the tree reads.
    *
@@ -1417,6 +1479,26 @@ export class WorkItemService {
         notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
       }
     }
+    // tasks.md 4.11's seam, and the reason `readOptimizedPair` finally has a
+    // production caller. Asked **before** the `try` on purpose: everything the
+    // cache models — a miss, a `failed` row, a superseded generation, a
+    // `corrupt` payload — comes back as `null` and falls through to Fast below,
+    // so anything this throws is a defect and must surface as one rather than
+    // be caught by a block whose only modelled failure is a dependency cycle.
+    //
+    // A served schedule is necessarily acyclic: the write path materialises
+    // through `schedule()` itself, which throws on a cycle before anything is
+    // stored, so a plan that would raise `ScheduleCycleError` here has no row
+    // to serve. The cycle banner is not lost by taking this branch.
+    const optimized = this.publishedOptimized(project, {
+      rows,
+      edges,
+      slices,
+      notBefore,
+      poolSizes: slotsOf,
+      reach: project.depReach,
+      deadlines: NO_DEADLINES,
+    });
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     /**
@@ -1453,7 +1535,8 @@ export class WorkItemService {
       // memoised on the first plan read — the read hoisted out of the run — and
       // `each project is scheduled by its own reach` failed on `Expected: 5 /
       // Received: 3` for the second project's successor; watched 2026-08-29.
-      const planned = schedule(rows, edges, slices, notBefore, slotsOf, project.depReach);
+      const planned =
+        optimized ?? schedule(rows, edges, slices, notBefore, slotsOf, project.depReach);
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;
