@@ -1307,7 +1307,14 @@ describe("4.1's conditional write, with all four conditions composed", () => {
     }
 
     const fastOf = (input: ScheduleInput): Schedule =>
-      schedule(input.rows, input.edges, input.slices, input.notBefore, input.poolSizes, input.reach);
+      schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+      );
 
     const quantisedOptimumOf = (input: ScheduleInput): Schedule =>
       schedule(
