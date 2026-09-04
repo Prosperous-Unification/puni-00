@@ -753,3 +753,71 @@ describe('the closed-state predicate admission and dequeue share', () => {
     expect(readOptimizationClosedState(db, 'p-2', BLUE)).toBeNull();
   });
 });
+
+describe('two coordinators against one file, which is the point of all of it', () => {
+  /** Green: a second connection to the same database, with its own everything. */
+  let green: Drizzle;
+
+  beforeEach(() => {
+    green = openDrizzle(path);
+  });
+
+  it('refuses on the second coordinator throughout the whole drain, not just at the end', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null);
+    expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBeNull();
+
+    // 3.9b's second watched red, at the repository layer. The interval the red
+    // targets is the one BETWEEN the drain opening and the row physically
+    // going: after the zero-slot observation and before the final deletion.
+    // Green must refuse at every instant in it, and the reason it can is that
+    // the closed state is a row in SQLite rather than something blue knows.
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+    expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBe('draining');
+
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('waiting');
+    expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBe('draining');
+
+    releaseSolverSlot(db, releaseOf(BLUE, 'pri'));
+    expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBe('absent');
+  });
+
+  it('sees a project deletion from the other coordinator and still admits its neighbour', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBe('deleting');
+    expect(readOptimizationClosedState(green, 'p-2', BLUE)).toBeNull();
+  });
+
+  it('lets the other coordinator’s release finish the drain this one began', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    seedSlot(BLUE, 'pri', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // The child belongs to green, so green is who releases it — and the finish
+    // is not the initiator's job precisely so that this works.
+    expect(releaseSolverSlot(green, releaseOf(BLUE, 'pri'))).toEqual({
+      released: true,
+      retirement: 'finished',
+      deletion: 'finished',
+    });
+    expect(projectIds()).toEqual(['p-2']);
+  });
+
+  it('lets a different coordinator reconcile a drain the first one died inside', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null, 'p-1', 500);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // 3.9b's third watched red with the restart made real: the coordinator that
+    // began this is gone, and the one sweeping never saw it happen.
+    const pass = reconcileOptimizationDrains(green, 600);
+
+    expect(pass.reclaimed).toBe(1);
+    expect(projectIds()).toEqual(['p-2']);
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
+  });
+});
