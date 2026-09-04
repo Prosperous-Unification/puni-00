@@ -1176,7 +1176,7 @@ check-that-cannot-fail failure R5 names.
       so a gap is Bun's own bug and not a sentence to show a user; watched red,
       the guard removed still throws but as `TypeError: Cannot convert undefined
       to a BigInt`, naming nothing.
-- [ ] 2.11 The **quantised Fast baseline**: re-run Fast's placement over the
+- [x] 2.11 The **quantised Fast baseline**: re-run Fast's placement over the
       rounded durations to produce `fastHint` and `baselineOffsets` in integer
       units, and take stage 1's upper bound from **that**, never from real
       Fast. **Watched red** — the fixture that proves the earlier plan was
@@ -1217,11 +1217,40 @@ check-that-cannot-fail failure R5 names.
       bound on stage 1's term"). The assembly discharges its half by carrying
       `baselineOffsets` and `fastHint`, which it now does and which
       `golden-request.test.ts` compares with the checked-in fixture. The
-      real-domain comparison is 4.11b's. What is genuinely left here is the
-      **feasibility assertion**: "the hint is feasible" has no test, and the
-      checker for it already exists — `revalidateSolverResult` is the same
-      constraint pass that gates a published solver result, so feeding the
-      baseline offsets back through it is the proof. **Deadlines are deliberately not applied to the
+      real-domain comparison is 4.11b's.
+      **The feasibility assertion landed in run 14 chunk 2 (`1cb7a2ec`) and
+      closes this item.** `the quantised baseline as a solver response` in
+      `quantised-baseline.test.ts` builds the real request through
+      `buildSolverRequest`, wraps `request.fastHint` as a `feasible`
+      `SolverResponse`, and asserts `revalidateSolverResult` returns
+      `{ ok: true, published: true }`.
+      **It is deliberately not written against this file's own
+      `infeasibilities()` helper**, which reads two rules — floors and edges —
+      and says nothing about pools, people or the variable domain. "Feasible"
+      is a claim about the pass that gates a *published* result, so a baseline
+      that satisfied a feasibility rule written in the test file and violated
+      the one on the wire would be refused in production and green here.
+      `request.fastHint` is asserted equal to the baseline first, so a builder
+      that stopped copying one into the other could not pass by validating the
+      other map, and **MOVEMENT is asserted to be exactly 0** — the response's
+      offsets *are* the request's `baselineOffsets`, so `Σ |start − baseline|`
+      is a map compared with itself and needs no oracle. The fixture is the
+      assembly one (floor on a parent, authored edge, two-step leaf, shared
+      pool of two, person queue), not `fiveWide`: a feasibility claim checked
+      on a plan with no pool and no person is a claim about a third of the
+      pass.
+      **Two watched reds on the production path, measured on h2puni at
+      `1cb7a2ec` against a green 157 / 0 across 15 files.** `scaleFloors`
+      dropped from `quantisedFastBaseline` (unscaled floors on the unit axis) →
+      **154 pass / 3 fail**: both new cases plus the pre-existing floor-scaling
+      one, and the second new case fails by reporting `floor-violated` where it
+      demands `edge-violated` — the refusal it names is the one it gets only
+      while the rest of the baseline is sound. `poolSizes` replaced by an empty
+      map → **147 pass / 10 fail**, both new cases among them. That second red
+      is the one that justifies the choice of checker: `infeasibilities()`
+      never looks at a pool, so a pool-blind baseline is invisible to it and
+      caught here.
+      **Deadlines are deliberately not applied to the
       baseline** — they constrain the solver, not Fast — so "the hint is always
       feasible" is a claim about edges, floors, pools and queues, and a plan
       whose baseline misses a deadline is 3.1's `plan-infeasible`.
