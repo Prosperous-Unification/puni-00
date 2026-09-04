@@ -41,7 +41,9 @@ const fakeClock = () => {
 };
 
 /** Answers `snapshot_busy` for the first `busyTimes` calls, then `no_project`. */
-const saverBusyFor = (busyTimes: number): SavedPlanSaver & { readonly seen: SavedPlanSaveRequest[] } => {
+const saverBusyFor = (
+  busyTimes: number,
+): SavedPlanSaver & { readonly seen: SavedPlanSaveRequest[] } => {
   const seen: SavedPlanSaveRequest[] = [];
   return {
     seen,

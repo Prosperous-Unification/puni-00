@@ -389,14 +389,23 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       pertWeightRealistic: values.project.pertWeightRealistic,
       pertWeightPessimistic: values.project.pertWeightPessimistic,
     },
-    workItems: sorted(values.workItems, byString((row) => row.id)).map((row) => ({
+    workItems: sorted(
+      values.workItems,
+      byString((row) => row.id),
+    ).map((row) => ({
       id: row.id,
       parentId: row.parentId,
       position: row.position,
       name: row.name,
       notes: row.notes,
-      typeIds: sorted(row.typeIds, byString((id: string) => id)),
-      tagIds: sorted(row.tagIds, byString((id: string) => id)),
+      typeIds: sorted(
+        row.typeIds,
+        byString((id: string) => id),
+      ),
+      tagIds: sorted(
+        row.tagIds,
+        byString((id: string) => id),
+      ),
       externalRefs: sorted(
         row.externalRefs,
         byString(
@@ -416,7 +425,10 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       startNoEarlierThan: row.startNoEarlierThan,
       startNoEarlierThanReason: row.startNoEarlierThanReason,
     })),
-    steps: sorted(values.steps, byString((row) => row.id)).map((row) => ({
+    steps: sorted(
+      values.steps,
+      byString((row) => row.id),
+    ).map((row) => ({
       id: row.id,
       name: row.name,
       position: row.position,
@@ -511,7 +523,10 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       label: row.label,
       defaultValue: row.defaultValue,
     })),
-    capacity: sorted(values.capacity, byString((row) => row.teamId)).map((row) => ({
+    capacity: sorted(
+      values.capacity,
+      byString((row) => row.teamId),
+    ).map((row) => ({
       teamId: row.teamId,
       people: row.people,
     })),
@@ -522,7 +537,10 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
 }
 
 function namedRows(rows: readonly CanonicalNamedRow[]): CanonicalNamedRow[] {
-  return sorted(rows, byString((row) => row.id)).map((row) => ({ id: row.id, name: row.name }));
+  return sorted(
+    rows,
+    byString((row) => row.id),
+  ).map((row) => ({ id: row.id, name: row.name }));
 }
 
 /**

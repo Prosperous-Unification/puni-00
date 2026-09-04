@@ -26,7 +26,7 @@ scheduler code restates history.
 - Two independently versioned, hashed bodies — the **canonical plan input**
   (settings, tree, steps, estimates, actuals, measures, ownership, dependencies,
   capacity, priority bands) and the **frozen schedule** (nullable; ISO dates
-  *and* offsets, the whole `Scheduled`/`ScheduledSlice` field set, plus the
+  _and_ offsets, the whole `Scheduled`/`ScheduledSlice` field set, plus the
   algorithm identity).
 - The capture runs inside **one SQLite read snapshot**: the live projection reads
   in thirteen awaited calls (`work-item.service.ts:1285-1312`, `:1364-1385`),

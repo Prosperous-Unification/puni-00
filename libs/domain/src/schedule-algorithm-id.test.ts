@@ -116,12 +116,7 @@ const CORPUS: readonly ScheduleCase[] = [
   },
   {
     name: 'diamond under a parent, edges declared on the parent',
-    rows: [
-      item('p', null, 10),
-      item('p1', 'p', 10),
-      item('p2', 'p', 20),
-      item('after', null, 20),
-    ],
+    rows: [item('p', null, 10), item('p1', 'p', 10), item('p2', 'p', 20), item('after', null, 20)],
     edges: [{ predecessorId: 'p', successorId: 'after' }],
     slices: [slice('p1', DEV, 3), slice('p2', DEV, 4), slice('after', DEV, 2)],
   },
@@ -145,10 +140,7 @@ const CORPUS: readonly ScheduleCase[] = [
     name: 'one person on two independent work items',
     rows: [item('a', null, 10), item('b', null, 20)],
     edges: [],
-    slices: [
-      slice('a', DEV, 3, { personId: 'kat' }),
-      slice('b', DEV, 2, { personId: 'kat' }),
-    ],
+    slices: [slice('a', DEV, 3, { personId: 'kat' }), slice('b', DEV, 2, { personId: 'kat' })],
   },
   {
     name: 'a pool of two holding a width-two block',

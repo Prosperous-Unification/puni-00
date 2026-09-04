@@ -26,8 +26,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 const OPENED_AT = 1_756_000_123;
 
-const sha256 = (bytes: string): string =>
-  createHash('sha256').update(bytes, 'utf8').digest('hex');
+const sha256 = (bytes: string): string => createHash('sha256').update(bytes, 'utf8').digest('hex');
 
 /**
  * Task 4.2 — **immutability asserted by hash, not by field list.**

@@ -148,7 +148,10 @@ describe('the stored schedule body', () => {
       ? { startsOn: null, endsOn: null }
       : {
           startsOn: addWorkdays(startDate, firstWorkdayOf(timing.earliestStart)),
-          endsOn: addWorkdays(startDate, lastWorkdayOf(timing.earliestStart, timing.earliestFinish)),
+          endsOn: addWorkdays(
+            startDate,
+            lastWorkdayOf(timing.earliestStart, timing.earliestFinish),
+          ),
         };
 
   /**

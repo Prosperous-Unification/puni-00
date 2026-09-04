@@ -90,7 +90,7 @@ comparison UI) and start only after slice 6 is merged.
       (`work-item.service.ts:1381`) is keyed by team id, so a team with stated
       capacity and no junction row at all — ordinary in early planning, which is
       this feature's target window — has no captured name; and the projection's
-      people read is filtered to *assigned* ids (`:1309-1311`), so a
+      people read is filtered to _assigned_ ids (`:1309-1311`), so a
       `person_team` row for an unassigned person names someone captured nowhere.
       Either leaves a stored id whose label needs a live read the first
       requirement forbids, and is unrecoverable once the row is deleted.
@@ -126,7 +126,7 @@ comparison UI) and start only after slice 6 is merged.
       checkout on 2026-09-03 and is recorded in design.md under "The topology
       found". In short: `boot.ts:64` opens exactly one connection for the whole
       process, `bun:sqlite` has no pool, and every store read opens with `await
-      Promise.resolve()` — a real microtask yield before the query. A
+    Promise.resolve()` — a real microtask yield before the query. A
       `BEGIN DEFERRED` held on that shared handle therefore encloses every
       statement any other in-flight request issues until it commits, which makes
       a stranger's write the capture's to commit or to roll back. Take the
@@ -242,18 +242,18 @@ comparison UI) and start only after slice 6 is merged.
       records with different `created_at` values. **Interleave a live edit
       between the refusal and the retry's acquisition and assert the retry's
       stored input contains it** — two records with different `created_at` is
-      also what a retry reusing the *refused* attempt's already-detached values
+      also what a retry reusing the _refused_ attempt's already-detached values
       produces, so without this the "fresh save over a new read snapshot" SHALL
       stays green while unimplemented and a user's retry stores the plan as of
       the attempt that failed.
       **Landed** as `saveWithBoundedRetry` in `service/saved-plan-retry.ts`,
-      deliberately *outside* `SavedPlanService.save`: `save` is fail-fast by
+      deliberately _outside_ `SavedPlanService.save`: `save` is fail-fast by
       contract and folding the loop into it would take that contract away from
       every internal caller, including a route that wants to report the
       contention to a user who can decide for themselves. Each attempt is a
       whole new `save`, so the fresh read snapshot and the fresh `created_at`
       come from `save`'s own top and nothing here can reuse the refused
-      attempt's work. The budget is stated as what it is — no attempt *starts*
+      attempt's work. The budget is stated as what it is — no attempt _starts_
       once it is gone and no wait is entered that would end past it — rather
       than as a promise that the call returns in 5 s, which a slow capture
       would quietly break. Backoff 50→500 ms doubling, because a retry is not
@@ -261,7 +261,7 @@ comparison UI) and start only after slice 6 is merged.
       and only then asks for the lock.
       **Negative watched, and it is the one the paragraph above argues for:**
       moving the interleaved edit out of the retry's wait to after the whole
-      retry finished left *seven* expect() calls green — two records, and
+      retry finished left _seven_ expect() calls green — two records, and
       `created_at` values that differ — and reddened only
       `inputBytes).toContain('wi-3')`, whose received value listed `wi-1` and
       `wi-2` alone. So the two weaker assertions cannot stand in for it, which
@@ -270,7 +270,7 @@ comparison UI) and start only after slice 6 is merged.
       naming which limit was hit; the count and total are read in the same
       transaction that would write. Two negatives, both watched: move the check
       after the header insert and watch the "no partial record" assertion fail;
-      move the count check *outside* `BEGIN IMMEDIATE` and watch two concurrent
+      move the count check _outside_ `BEGIN IMMEDIATE` and watch two concurrent
       saves at 99 of 100 both commit.
 - [x] 4.7 The three limits are configuration read at construction, not literals at
       the call site. Test: raise the count limit in config and watch the same save
@@ -304,7 +304,7 @@ comparison UI) and start only after slice 6 is merged.
       **The seam 5.1 needs:** `SavedPlanServiceOptions.schedule` (defaulted to
       `schedulePlanInput`, so no production caller passes one). A reader that
       re-derived would compute the same dates the writer did, so no assertion on
-      *values* can separate it from a reader of bytes — only whether
+      _values_ can separate it from a reader of bytes — only whether
       `schedule()` was called.
       **Both negatives watched at `9fddc916` and reverted.** (1) Dropping the
       input recomputation reddened exactly two tests — the flipped byte and the
@@ -338,7 +338,7 @@ comparison UI) and start only after slice 6 is merged.
       does: the byte check passes and the LINK refuses, because
       `schedule_input_sha256` still names the input that was actually scheduled.
       One `UPDATE` cannot make a tampered record consistent. The test now
-      asserts the refusal *reason changes*, which is what proves the second
+      asserts the refusal _reason changes_, which is what proves the second
       check does work the first cannot.
       **5.2's watched negative:** removing the link check reddened exactly two
       tests — 5.2's own and the restated-hash one — and nothing else.
@@ -351,7 +351,7 @@ comparison UI) and start only after slice 6 is merged.
       **5.4's watched negative landed on exactly the three:** making `read`
       capture and schedule the live project whenever the header's schedule is
       null reddened all three reason cases and left every other test green. The
-      live project *does* schedule — this file's other tests save dates from
+      live project _does_ schedule — this file's other tests save dates from
       it — so a reader that fell back had something to fall back to, which is
       what makes zero scheduler calls an assertion rather than a coincidence.
       **5.3 has no watched negative and is not claimed to.** It is a regression
@@ -360,8 +360,8 @@ comparison UI) and start only after slice 6 is merged.
       365-day prune reaching a saved plan — fails here instead of in production.
       Stated rather than dressed up as a proof.
 
-- [x] 5.5 Body schema version: a body at version *n* still reads after the reader
-      moves to *n+1*; an unknown version throws a typed error naming it (R5 —
+- [x] 5.5 Body schema version: a body at version _n_ still reads after the reader
+      moves to _n+1_; an unknown version throws a typed error naming it (R5 —
       never defaulted away). Negative: parse optimistically and watch the unknown
       version slip through.
 
@@ -419,7 +419,7 @@ comparison UI) and start only after slice 6 is merged.
       `controller/saved-plan.controller.db.test.ts`: four callers × five routes ×
       two project states, each row collected into one object and compared whole
       so a wrong rule reports every cell it moved. **The cell that carries the
-      task is `restricted` × the creator** — refused a *new* plan by `canEdit`
+      task is `restricted` × the creator** — refused a _new_ plan by `canEdit`
       and still allowed to rename and delete the ones she made, which no single
       rule produces. The negative is **two** substitutions, because
       `mayTouchSavedPlan` cannot see `restricted` and so cannot spell the
@@ -436,7 +436,7 @@ comparison UI) and start only after slice 6 is merged.
       and the rule half by the `null`-creator case in
       `service/saved-plan-touch.db.test.ts`; **neither said they compose**, and
       each was written against a state the other produces — the rule test saved a
-      plan *born* with no creator, which is not what a deletion leaves behind. So
+      plan _born_ with no creator, which is not what a deletion leaves behind. So
       the case landed here deletes a real account and then asks the rule, in that
       order, having renamed as `ada` first so that "the right is gone" is a claim
       about a right that was demonstrably there. **The right is dropped, not
@@ -451,7 +451,7 @@ comparison UI) and start only after slice 6 is merged.
       and watch the client test show an error state instead.
       **BLOCKED ON ORDER, not on a decision — established 2026-09-04 and written
       down so the next run does not re-discover it.** Both halves of this item
-      are client-side and `apps/fe-01` has *no* saved-plan code at all
+      are client-side and `apps/fe-01` has _no_ saved-plan code at all
       (`grep -rl 'saved-plans\|savedPlan' apps/fe-01/src` is empty): there is no
       request for a node to refuse and no surface to render the refusal in. The
       client's saved-plan API layer is built by **slice 8**, so 6.4 lands with
@@ -459,7 +459,7 @@ comparison UI) and start only after slice 6 is merged.
       **The mechanism is settled here so 8.1 implements it in one pass:** the
       discriminator is the served **OpenAPI document**, not a status code. A node
       that predates the migration serves a document without the five paths, so a
-      client asks *before* it requests and never has to tell an absent route from
+      client asks _before_ it requests and never has to tell an absent route from
       an absent plan. The alternative — a typed body on an unmatched route — was
       rejected on a measured cost, not a guess about Elysia: `be-01` has **no
       `onError` at any level today** (`grep -rn onError apps/be-01/src` finds
@@ -476,7 +476,7 @@ comparison UI) and start only after slice 6 is merged.
       `bun x @fission-ai/openspec validate --all --json`. Record the output in
       verify.md. **TASK-231 ends here.** Given 6.4's recorded ordering blocker,
       the recommendation is that TASK-231 closes at this gate with 6.4 carried
-      into slice 8 — every *storage and route* obligation the task names is then
+      into slice 8 — every _storage and route_ obligation the task names is then
       met, and the one open item is a client rendering with no client to render
       it. That is a scope call, so it is written as a recommendation rather than
       taken: whoever runs this gate decides, and records which they chose.
@@ -497,7 +497,7 @@ comparison UI) and start only after slice 6 is merged.
       changed uncertainty, effort, actuals, progress, measures, ownership,
       dependencies, settings, dates, **and freeze** (`frozen_number` set, cleared
       and changed — spec names it and this list omitted it). Reordering siblings
-      is a *change*, and re-serializing an unchanged plan is *no* change — assert
+      is a _change_, and re-serializing an unchanged plan is _no_ change — assert
       both.
 - [ ] 7.2b **The diff-completeness property, which is what stops the capture
       becoming write-only data.** Over a generated plan, mutate **any single
@@ -545,7 +545,7 @@ comparison UI) and start only after slice 6 is merged.
       lawfully permits until 7.3a exists — and watch that test report "no
       schedule was saved" on the live side while every input-side assertion,
       7.2b and 7.2c all stay green, because none of them runs this path.
-      **Second case: a saved plan with an *absent* schedule against `current`.**
+      **Second case: a saved plan with an _absent_ schedule against `current`.**
       Assert `current` still carries its live schedule and identity beside the
       saved side's absent reason. Nothing else exercises that shape, and the
       "saved while optimization was pending" scenario governs it, so a build
@@ -553,7 +553,7 @@ comparison UI) and start only after slice 6 is merged.
       would otherwise ship with every named test green.
       **3.3's handle-liveness assertion runs on this scheduling call too**, with
       the same watched negative: spec requires `current`'s schedule to be
-      computed *outside* the read snapshot exactly as the save path computes its
+      computed _outside_ the read snapshot exactly as the save path computes its
       own, and 3.3's spy covers the save path only. Without it an implementer
       calling `schedule()` inside 7.3's held `BEGIN DEFERRED` ships green and
       every saved-vs-current comparison — this feature's hot path — holds the
@@ -566,7 +566,7 @@ comparison UI) and start only after slice 6 is merged.
       and the other is `current` on a restricted project. Negative: mount the
       compare route without the read rule and watch the matrix's anonymous and
       third-party cases fail — this is the one permission that can expose a
-      restricted project's *live* plan, through `current`, so its guard owes the
+      restricted project's _live_ plan, through `current`, so its guard owes the
       same proof every other check here does.
 - [ ] 7.4 Cross-version diff: a stored v*n* body against a live v*n+1* projection
       normalises forward in memory; the stored bytes are unchanged afterwards
@@ -582,7 +582,7 @@ comparison UI) and start only after slice 6 is merged.
       the save.
 - [ ] 8.3 The comparison surface: two side pickers, each a saved plan or
       `current`; the diff rendered by category; **the absent reason rendered per
-      side**, "no schedule was saved" only for a *saved* side with no body, and
+      side**, "no schedule was saved" only for a _saved_ side with no body, and
       `current` + `infeasible` saying the live plan cannot be scheduled —
       nothing about `current` was ever saved, so the saved-side copy would state
       the wrong fact about a cyclic live plan.

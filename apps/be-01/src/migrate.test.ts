@@ -24,7 +24,7 @@ describe('migrate lifecycle', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
-    savedPlans: testSavedPlanService(),
+      savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',

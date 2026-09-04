@@ -560,7 +560,9 @@ function readOfStored(stored: StoredSavedPlan): SavedPlanReadOutcome {
 /** The schedule half of {@link readOfStored}, verified the same way. */
 function scheduleOfStored(
   stored: StoredSavedPlan,
-): { outcome: 'ok'; schedule: SavedPlanReadSchedule } | { outcome: 'corrupt'; refusal: SavedPlanIntegrityRefusal } {
+):
+  | { outcome: 'ok'; schedule: SavedPlanReadSchedule }
+  | { outcome: 'corrupt'; refusal: SavedPlanIntegrityRefusal } {
   const header = stored.header;
   if (
     header.scheduleSha256 === null ||

@@ -64,7 +64,7 @@ describe('one plan’s history, over HTTP', () => {
       projects: testProjectService(projects),
       steps: testStepService(),
       workItems: testWorkItemService(),
-    savedPlans: testSavedPlanService(),
+      savedPlans: testSavedPlanService(),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),

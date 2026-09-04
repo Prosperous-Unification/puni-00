@@ -144,9 +144,7 @@ describe('saved_plan.created_by_id', () => {
     const bodies = openDatabase(path);
     try {
       expect(
-        bodies
-          .query<{ n: number }, []>(`SELECT count(*) AS n FROM saved_plan_body`)
-          .get()?.n ?? 0,
+        bodies.query<{ n: number }, []>(`SELECT count(*) AS n FROM saved_plan_body`).get()?.n ?? 0,
       ).toBe(1);
     } finally {
       bodies.close();

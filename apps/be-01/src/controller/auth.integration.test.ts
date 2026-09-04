@@ -128,7 +128,7 @@ describe('GET /api/auth/me', () => {
       auth: local,
       projects: testProjectService(),
       workItems: testWorkItemService(),
-    savedPlans: testSavedPlanService(),
+      savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',

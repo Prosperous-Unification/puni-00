@@ -92,15 +92,7 @@ describe('a save that meets a held write lock is refused, not queued behind it',
   ): Promise<{ readonly finished: Promise<number> }> => {
     const readyPath = join(dir, `${planId}.held`);
     const holder = Bun.spawn({
-      cmd: [
-        process.execPath,
-        HOLDER,
-        path,
-        'p1',
-        planId,
-        String(HELD_FOR_MS),
-        readyPath,
-      ],
+      cmd: [process.execPath, HOLDER, path, 'p1', planId, String(HELD_FOR_MS), readyPath],
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -110,7 +102,9 @@ describe('a save that meets a held write lock is refused, not queued behind it',
       // A ceiling on the wait, so a holder that died on startup fails as itself
       // rather than as a test that hung until the runner killed it.
       if (Date.now() - startedWaiting > 10_000) {
-        throw new Error(`the holder never took the lock: ${await new Response(holder.stderr).text()}`);
+        throw new Error(
+          `the holder never took the lock: ${await new Response(holder.stderr).text()}`,
+        );
       }
       await Bun.sleep(5);
     }

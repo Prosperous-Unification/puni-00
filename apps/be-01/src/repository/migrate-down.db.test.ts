@@ -856,7 +856,11 @@ describe('rollbackTo, against a real database', () => {
       const newest = readMigrationFolders(FOLDER).at(-1)?.name;
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
-      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([CREATED_BY_ID, SAVED_PLAN, LOOKUP_INDEXES]);
+      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        CREATED_BY_ID,
+        SAVED_PLAN,
+        LOOKUP_INDEXES,
+      ]);
       expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);

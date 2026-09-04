@@ -247,7 +247,7 @@ describe('reading a saved plan back', () => {
     expect(read.outcome).toBe('not_found');
   });
 
-  it('refuses a schedule whose stored input hash is not this record\'s (5.2)', async () => {
+  it("refuses a schedule whose stored input hash is not this record's (5.2)", async () => {
     // Both bodies still hash to their own header columns; what is wrong is the
     // *link* between them. `verifyBody` cannot see this and neither can 2.4's
     // source scan — that guard proves nothing rewrites the column, not that the
@@ -368,7 +368,7 @@ describe('reading a saved plan back', () => {
     expect(thrown.savedPlanId).toBe('sp-1');
   });
 
-  it('checks the schedule body\'s version too, not just the input\'s', async () => {
+  it("checks the schedule body's version too, not just the input's", async () => {
     // Two columns, two checks. A reader that only guarded the input would parse
     // an unknown schedule body optimistically, which is the exact slip 5.5's
     // negative describes.

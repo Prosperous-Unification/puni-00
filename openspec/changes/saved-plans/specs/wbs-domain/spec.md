@@ -161,7 +161,7 @@ The bound is the open transaction, not the caller's whole attempt. A caller
 retry that acquires the lock **after** the rival save has committed is a fresh
 save of the now-current plan and SHALL be allowed to succeed: it captures a new
 read snapshot and writes a record of a plan that did exist at that instant. What
-is forbidden is a second save *waiting on* the first — that is the serialisation
+is forbidden is a second save _waiting on_ the first — that is the serialisation
 that holds live edits behind two body writes.
 
 `schedule()` SHALL run over values already read out of that snapshot, never
@@ -316,7 +316,7 @@ between two saves whose inputs are byte-identical while the comparison reports
 no change: the feature's motivating question answered wrongly.
 
 **`current` has a schedule, and it is not an absent one.** The paragraph above
-bounds each side by its *stored* schedule and `current` stores nothing, so this
+bounds each side by its _stored_ schedule and `current` stores nothing, so this
 requirement states what the live side carries. `current`'s schedule SHALL be
 `schedule()`'s return over the values the same read snapshot captured, computed
 outside that snapshot exactly as the save path computes its own, labelled with
@@ -348,8 +348,8 @@ saved-vs-current comparison — the primary direction of this feature — report
 - **WHEN** two sides differ in exactly one field of the canonical plan input
 - **THEN** the comparison is non-empty and names that field, whichever field it is
 
-A body written at schema version *n* SHALL still be readable after the reader
-moves to *n+1*, by normalising forward in memory. Stored bytes SHALL NOT be
+A body written at schema version _n_ SHALL still be readable after the reader
+moves to _n+1_, by normalising forward in memory. Stored bytes SHALL NOT be
 rewritten. An unrecognised body version SHALL fail loudly rather than be parsed.
 
 #### Scenario: two saved plans
@@ -366,8 +366,8 @@ rewritten. An unrecognised body version SHALL fail loudly rather than be parsed.
 
 #### Scenario: an older body version
 
-- **WHEN** a body stored at schema version *n* is diffed after the reader moved to
-  *n+1*
+- **WHEN** a body stored at schema version _n_ is diffed after the reader moved to
+  _n+1_
 - **THEN** it is normalised forward in memory for the diff and its stored bytes are
   unchanged
 

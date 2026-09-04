@@ -379,7 +379,10 @@ describe('capturing a project’s plan input', () => {
       // read 9 — the step edit.
       stepName: side(seededStep !== undefined, seededStep?.name === 'before'),
       // read 12 — the directory cascade: the person, and its `person_team` row.
-      unassignedPerson: side(true, read.people.some((each) => each.id === 'pp-unassigned')),
+      unassignedPerson: side(
+        true,
+        read.people.some((each) => each.id === 'pp-unassigned'),
+      ),
       // read 15 — the registry rename, the case with no revision column behind it.
       tagName: side(seededTag !== undefined, seededTag?.name === 'urgent'),
     };

@@ -17,12 +17,12 @@ gains the term in slice 1.
 
 Three facts on `main` decide everything below.
 
-| Fact                                    | Where                                                      | Consequence |
-| --------------------------------------- | ---------------------------------------------------------- | ----------- |
-| `plan_event` is a log of **commands**   | `schema.ts:1767`; `command-journal.ts:105` writes it        | Replay would be a second implementation of every command's inverse |
-| …and it is pruned at 365 days           | `PLAN_EVENT_RETENTION_DAYS`, `repository/index.ts:1893`     | A saved plan built on it would expire |
-| Dates are **derived**, never stored     | `schedule()` pure, `libs/domain/src/schedule.ts:1771`       | Re-deriving later restates history |
-| No whole-plan version counter exists    | `project.revision` excludes work items, `schema.ts:207-215` | A saved plan cannot be a pointer |
+| Fact                                  | Where                                                       | Consequence                                                        |
+| ------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| `plan_event` is a log of **commands** | `schema.ts:1767`; `command-journal.ts:105` writes it        | Replay would be a second implementation of every command's inverse |
+| …and it is pruned at 365 days         | `PLAN_EVENT_RETENTION_DAYS`, `repository/index.ts:1893`     | A saved plan built on it would expire                              |
+| Dates are **derived**, never stored   | `schedule()` pure, `libs/domain/src/schedule.ts:1771`       | Re-deriving later restates history                                 |
+| No whole-plan version counter exists  | `project.revision` excludes work items, `schema.ts:207-215` | A saved plan cannot be a pointer                                   |
 
 So a saved plan is a **materialised document**. Not a pointer (nothing to point
 at), not a re-derivation (the deriving code is about to change under TASK-219 and
@@ -42,7 +42,7 @@ saved_plan_body       saved_plan_id, kind ('input' | 'schedule'), bytes
 
 Two bodies rather than one because they version and fail independently:
 
-- "no schedule was saved" is exactly *the schedule row is absent*, with a reason,
+- "no schedule was saved" is exactly _the schedule row is absent_, with a reason,
   rather than a sentinel inside a blob;
 - `schedule_input_sha256 = input_sha256` is a checkable claim, so a schedule can
   never be rendered against an input it was not computed from;
@@ -79,7 +79,7 @@ and person rows those junctions and the capacity map name**. That last class is
 one hop further than it looks: `slotsFor` is keyed by team id and needs no
 junction row, so a capacity-only team — ordinary in the early planning this
 feature targets — is named by no junction at all; and the projection's people
-read is filtered to *assigned* ids, so a person named only by a captured
+read is filtered to _assigned_ ids, so a person named only by a captured
 `person_team` row is captured nowhere. None of these is among the thirteen. The
 read set is therefore bounded by `CanonicalPlanInput`, not by
 the projection, and a capture-only read left outside the snapshot reproduces the
@@ -93,7 +93,7 @@ revision at all (`priority-band.ts:22-24`).
 
 So the capture runs inside **one SQLite read snapshot** (`BEGIN DEFERRED` on a
 read connection under WAL, held across every read of the projection). One
-in-flight save per project is *not* the fix — it excludes another save and
+in-flight save per project is _not_ the fix — it excludes another save and
 nothing else.
 
 `schedule()` runs **outside** that snapshot, over values already read out of it.
@@ -107,7 +107,7 @@ a comparison is when the plan was looked at.
 **Write order: per-body byte checks → `BEGIN IMMEDIATE` → count and total quota
 checks → header → input body → schedule body → commit.** The byte checks depend
 on nothing in the database and may run first. The count and total must be read
-*inside* the write transaction: outside it, two saves at 99 of 100 both pass and
+_inside_ the write transaction: outside it, two saves at 99 of 100 both pass and
 both commit, and the bound is broken while "refused before any row is written"
 stays technically true.
 
@@ -129,11 +129,11 @@ a timeout, not a lock:
 So a save opens `BEGIN IMMEDIATE` with `busy_timeout` **0** on a connection of its
 own: an immediate `SQLITE_BUSY` is the typed `snapshot_busy` refusal, and there is
 no window in which a second save waits. The 5-second bound applies to the save's
-*total* attempt including a bounded retry the caller may make, never to a single
+_total_ attempt including a bounded retry the caller may make, never to a single
 blocking acquire.
 
 **The retry and "refused, not serialised" are the same rule, not two.** What the
-refusal buys is that no save ever *holds the lock while waiting* — that is the
+refusal buys is that no save ever _holds the lock while waiting_ — that is the
 behaviour that would queue live edits behind two body writes. `SQLITE_BUSY` under
 `busy_timeout` 0 cannot say whether the holder is a rival save or a live edit, so
 a caller retry necessarily retries both, and that is correct: a retry that
@@ -141,7 +141,7 @@ acquires after the rival committed is a **fresh save over a new read snapshot**,
 not the refused one resurrected, and the record it writes describes a plan that
 did exist at that later instant. The project then holds two records, which is the
 honest outcome, not a broken bound. The forbidden shape is the single blocking
-acquire, which produces two records from *one* contended attempt and holds edits
+acquire, which produces two records from _one_ contended attempt and holds edits
 for the length of it. The spec requirement and its two scenarios are written to
 that boundary.
 
@@ -183,7 +183,7 @@ it and the answer is worse than "not already there":
 
 **This inverts the hazard 3.1 was written against.** The danger here is not a
 pool handing each read its own snapshot; it is a single connection on which a
-held `BEGIN DEFERRED` encloses *everything else the process does* until it
+held `BEGIN DEFERRED` encloses _everything else the process does_ until it
 commits. A concurrent write would land inside the capture's transaction, where
 its durability becomes the capture's to grant and a rollback of the capture takes
 a stranger's committed-looking edit with it. That is a stronger reason for a
@@ -194,8 +194,8 @@ dedicated read connection than the one this document started with, and it is why
 enclosure above followed from the single connection plus the microtask yield, and
 nothing had run that watched a foreign write appear inside a capture transaction.
 3.2's first negative now has:
-`saved-plan-capture.db.test.ts`, *"encloses that same write when the capture is
-run on the shared process handle"*. One scenario is run twice, differing only in
+`saved-plan-capture.db.test.ts`, _"encloses that same write when the capture is
+run on the shared process handle"_. One scenario is run twice, differing only in
 the connection the capture is handed. On its own connection, a stranger's
 `UPDATE tag SET name = 'renamed'` survives the capture's rollback and a third
 connection reads `renamed`. On the process handle, the identical write is inside
@@ -208,7 +208,7 @@ staged.
 
 ### The three write-path requirements (TASK-231 4.0, 2026-09-03)
 
-The topology above answers the *what*; these are the three obligations 4.1–4.6
+The topology above answers the _what_; these are the three obligations 4.1–4.6
 inherit from it, stated separately because each is violable on its own.
 
 **(i) The save's write connection is not the live-edit write handle.** Today
@@ -223,11 +223,11 @@ is committed and released before `BEGIN IMMEDIATE` opens.** Not an ordering
 preference — **measured on h2puni, 2026-09-03**, `/home/puni1/t231-probe/promote2.ts`,
 a scenario per fresh database file:
 
-| Scenario | `busy_timeout=0` | `busy_timeout=3000` |
-| --- | --- | --- |
+| Scenario                                                                                   | `busy_timeout=0`                      | `busy_timeout=3000`                   |
+| ------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------- |
 | `BEGIN DEFERRED`, read, **another connection commits**, then write on the same transaction | `SQLITE_BUSY_SNAPSHOT` after **0 ms** | `SQLITE_BUSY_SNAPSHOT` after **0 ms** |
-| the same promotion with no foreign write in between | succeeds | succeeds |
-| release the read with `COMMIT`, then `BEGIN IMMEDIATE` on that same connection | succeeds in 1 ms | succeeds in 1 ms |
+| the same promotion with no foreign write in between                                        | succeeds                              | succeeds                              |
+| release the read with `COMMIT`, then `BEGIN IMMEDIATE` on that same connection             | succeeds in 1 ms                      | succeeds in 1 ms                      |
 
 Three things follow, and only the first was already believed here. A `DEFERRED`
 read promoted in place fails once **any** other connection has committed since
@@ -240,7 +240,7 @@ write lock in a millisecond immediately afterwards.
 
 **A method note, because the first attempt at this produced a false negative.**
 The probe originally reused one database file across all six scenarios and
-reported the `busy_timeout=3000` promotion as *succeeding*, which would have read
+reported the `busy_timeout=3000` promotion as _succeeding_, which would have read
 as "the timeout rescues it". It did not reproduce once each scenario got its own
 file. A shared fixture across rounds of a concurrency probe is not a smaller
 probe, it is a different one.
@@ -279,7 +279,7 @@ and they must not compare as unchanged.
 `current` is the live plan run through the same canonical projection, in memory,
 written nowhere — **and it has a schedule like any other side.** It is
 `schedule()`'s return over the values 7.3 captured, computed outside the read
-snapshot as the save path computes its own, labelled with the *current*
+snapshot as the save path computes its own, labelled with the _current_
 algorithm identity, with a dependency cycle mapping to the same `infeasible`
 absent reason a save records. Leaving it undefined is not neutral: spec bounds
 schedule coverage by each side's stored schedule and `current` stores nothing,
@@ -293,7 +293,7 @@ the API takes two sides and there is no compare-to-live endpoint.
 Cross-version diffs **normalise forward only**: an older body is upgraded in
 memory to the newest schema for the diff. Stored bytes are never rewritten — that
 is the same rule as the immutability requirement, seen from the reader. A body
-version the reader does not know fails loudly. (A future schema that *removes* a
+version the reader does not know fails loudly. (A future schema that _removes_ a
 field needs an explicit down-conversion rule written at that change, not now.)
 
 An open comparison does not swap under the reader: the list refreshes on the
@@ -362,14 +362,14 @@ one line.
 
 ## Assumptions carried in, with what would falsify each
 
-| # | Assumption | Wrong if |
-| - | ---------- | -------- |
-| A-1 | Name is optional; save writes immediately with the server timestamp as the default name, and naming is an edit afterwards, not a modal | users routinely rename within a minute of saving |
-| A-2 | Save is fail-fast at 5 s, never queued or chunked | normal projects miss the 5 s bound routinely, seen as `snapshot_busy` on first attempt |
-| A-3 | 8 MiB per body, 100 saved plans or 64 MiB per project | a normal project exceeds 8 MiB in one body — measure against the largest real plan before the limit ships |
-| A-4 | `current` is projected, never stored, and consumes no quota | users expect a comparison they looked at to be retrievable later |
-| A-5 | Cross-version diffs normalise forward only | a future schema removes a field rather than adding one |
-| A-6 | The domain term is **Saved plan**, not "snapshot" | CONTEXT.md's Plan document entry drops `snapshot` from its _Avoid_ list |
+| #   | Assumption                                                                                                                                                                                | Wrong if                                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1 | Name is optional; save writes immediately with the server timestamp as the default name, and naming is an edit afterwards, not a modal                                                    | users routinely rename within a minute of saving                                                                                                                      |
+| A-2 | Save is fail-fast at 5 s, never queued or chunked                                                                                                                                         | normal projects miss the 5 s bound routinely, seen as `snapshot_busy` on first attempt                                                                                |
+| A-3 | 8 MiB per body, 100 saved plans or 64 MiB per project                                                                                                                                     | a normal project exceeds 8 MiB in one body — measure against the largest real plan before the limit ships                                                             |
+| A-4 | `current` is projected, never stored, and consumes no quota                                                                                                                               | users expect a comparison they looked at to be retrievable later                                                                                                      |
+| A-5 | Cross-version diffs normalise forward only                                                                                                                                                | a future schema removes a field rather than adding one                                                                                                                |
+| A-6 | The domain term is **Saved plan**, not "snapshot"                                                                                                                                         | CONTEXT.md's Plan document entry drops `snapshot` from its _Avoid_ list                                                                                               |
 | A-8 | "Creator" for permission is a nullable `created_by_id` reference beside `created_by`; a saved plan whose creator's account is gone is renameable and deletable by the project owner alone | owners routinely need to tidy up plans left by departed accounts and find the fallback insufficient, or a deployment wants creator rights to survive account deletion |
 
 Origin and full argument: `notes/wbs-brief-2026-09-03-plan-snapshots.md` §5 in
@@ -384,7 +384,7 @@ instant of the save and deliberately not a `users` reference — that is what ma
 "People stay named" above true, and 6.3's property depends on it.
 
 An id cannot be checked against a display name, and checking the actor's
-*current* display name against it is worse than useless: renaming an account
+_current_ display name against it is worse than useless: renaming an account
 would silently grant or revoke the right, and two accounts sharing a display name
 would share it. So the rule as written could not be built.
 
@@ -392,7 +392,7 @@ would share it. So the rule as written could not be built.
 reference answers "may this account rename it", the value answers "who made
 this", and the two questions stop sharing one column. Account deletion nulls the
 reference and leaves the value, so 6.3 is unchanged and now has a second half
-worth asserting. `NULL` means the creator's account is gone *or* the plan predates
+worth asserting. `NULL` means the creator's account is gone _or_ the plan predates
 the column, which are the same thing for permission purposes: fall back to the
 project owner, who exists whenever the project does. The migration is one
 nullable column with no backfill.

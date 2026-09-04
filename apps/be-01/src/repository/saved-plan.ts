@@ -255,9 +255,7 @@ export class SavedPlanRepository {
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
   ): Promise<SavedPlanWriteOutcome<Refusal>> {
     const inputBytes = bodyByteLength(plan.input.bytes);
-    const scheduleBytes = plan.schedule.present
-      ? bodyByteLength(plan.schedule.body.bytes)
-      : null;
+    const scheduleBytes = plan.schedule.present ? bodyByteLength(plan.schedule.body.bytes) : null;
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
@@ -321,7 +319,11 @@ export class SavedPlanRepository {
   }
 
   /** One saved plan's stored body, or `null` when it has none of that kind. */
-  async bodyOf(db: Drizzle, savedPlanId: string, kind: 'input' | 'schedule'): Promise<string | null> {
+  async bodyOf(
+    db: Drizzle,
+    savedPlanId: string,
+    kind: 'input' | 'schedule',
+  ): Promise<string | null> {
     const rows = await db
       .select({ bytes: savedPlanBody.bytes })
       .from(savedPlanBody)

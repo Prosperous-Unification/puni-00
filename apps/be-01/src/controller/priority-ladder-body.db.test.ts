@@ -99,7 +99,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       history: testHistoryService(projectStore),
       steps: testStepService(),
       workItems: testWorkItemService(),
-    savedPlans: testSavedPlanService(),
+      savedPlans: testSavedPlanService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),

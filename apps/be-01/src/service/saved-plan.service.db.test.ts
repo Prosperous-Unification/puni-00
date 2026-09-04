@@ -28,8 +28,7 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 /** The instant the service is told the snapshot opened. */
 const OPENED_AT = 1_756_000_123;
 
-const sha256 = (bytes: string): string =>
-  createHash('sha256').update(bytes, 'utf8').digest('hex');
+const sha256 = (bytes: string): string => createHash('sha256').update(bytes, 'utf8').digest('hex');
 
 describe('SavedPlanService.save', () => {
   let dir: string;
@@ -222,8 +221,14 @@ describe('SavedPlanService.save', () => {
   it('saves a cyclic plan with no schedule and the reason infeasible', async () => {
     const seed = openConnection(path);
     const deps = new DependencyRepository(seed.db);
-    await deps.add({ id: 'd-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' }, wrote);
-    await deps.add({ id: 'd-2', projectId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' }, wrote);
+    await deps.add(
+      { id: 'd-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+      wrote,
+    );
+    await deps.add(
+      { id: 'd-2', projectId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' },
+      wrote,
+    );
     seed.close();
 
     const result = await save();

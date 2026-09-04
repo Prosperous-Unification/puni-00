@@ -150,7 +150,11 @@ describe('SavedPlanRepository', () => {
     let sawIncoming = -1;
     const refuse = (holding: { plans: number; bytes: number }, incoming: number) => {
       sawIncoming = incoming;
-      return Promise.resolve({ limit: 'plan_count' as const, asked: holding.plans + 1, allowed: 0 });
+      return Promise.resolve({
+        limit: 'plan_count' as const,
+        asked: holding.plans + 1,
+        allowed: 0,
+      });
     };
 
     expect(await plans.write(bothSides(), refuse)).toEqual({
@@ -213,7 +217,7 @@ describe('SavedPlanRepository', () => {
    * body table would be green on the ordering alone while loading every stored
    * byte to render a column of names.
    */
-  it('lists a project\'s headers newest first and reads no body', async () => {
+  it("lists a project's headers newest first and reads no body", async () => {
     await plans.write(bothSides({ id: 'sp-old', createdAt: 1_756_000_000 }), admit);
     await plans.write(bothSides({ id: 'sp-new', createdAt: 1_756_000_900 }), admit);
 
