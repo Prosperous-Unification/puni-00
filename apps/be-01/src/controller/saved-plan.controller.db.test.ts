@@ -153,7 +153,10 @@ describe('the saved-plan routes', () => {
   it('lets the creator and the project owner rename, and refuses a third party', async () => {
     const id = await savedIdOf(await save('ada'));
     const rename = (who: string, name: string) =>
-      as(tokens[who], `/api/saved-plans/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+      as(tokens[who], `/api/saved-plans/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
 
     expect((await rename('mallory', 'mine now')).status).toBe(403);
     expect((await rename('ada', 'hers')).status).toBe(200);
@@ -166,9 +169,9 @@ describe('the saved-plan routes', () => {
   it('answers 204 on a delete and 404 on the read that follows', async () => {
     const id = await savedIdOf(await save('ada'));
 
-    expect((await as(tokens['mallory'], `/api/saved-plans/${id}`, { method: 'DELETE' })).status).toBe(
-      403,
-    );
+    expect(
+      (await as(tokens['mallory'], `/api/saved-plans/${id}`, { method: 'DELETE' })).status,
+    ).toBe(403);
     expect((await as(tokens['ada'], `/api/saved-plans/${id}`, { method: 'DELETE' })).status).toBe(
       204,
     );
