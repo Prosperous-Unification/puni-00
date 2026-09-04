@@ -9,6 +9,18 @@ import {
   solverQueue,
 } from './schema';
 
+/** The handle a caller's own transaction hands to {@link readGeneration}. */
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * A database handle or an open transaction on one.
+ *
+ * {@link readGeneration} takes this because 4.1's conditional write reads the
+ * generation row from *inside* the transaction that inserts against it; on the
+ * outer handle it would be answering about a state the insert never sees.
+ */
+type GenerationReader = SQLiteBunDatabase | Transaction;
+
 /**
  * The generation identity, allocated and read per `(projectId, contractVersion)`.
  *
@@ -34,7 +46,7 @@ export type { OptimizationGenerationRow };
  * cast into the caller's typed field (tasks.md 3.8).
  */
 export function readGeneration(
-  db: SQLiteBunDatabase,
+  db: GenerationReader,
   projectId: string,
   contractVersion: string,
 ): OptimizationGenerationRow | null {

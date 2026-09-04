@@ -1,5 +1,6 @@
 import {
   decodeOptimizedResult,
+  encodeOptimizedResult,
   type OptimizedResult,
 } from '@wbs/contracts/solver/optimized-result';
 import { and, eq } from 'drizzle-orm';
@@ -9,18 +10,33 @@ import { readGeneration } from './optimization-generation';
 import { toOptimizedScheduleCacheRow, toSolverSlotRow } from './optimizer-rows';
 import {
   optimizedScheduleCache,
+  project,
   type SolverFailureReason,
   type SolverObjectiveName,
   solverSlot,
 } from './schema';
 
+/** The handle a caller's own transaction hands to the helpers below. */
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
 /**
- * The read half of tasks.md 4.1: the stored outcome of both objectives for one
- * full cache key.
+ * A database handle or an open transaction on one.
  *
- * The write half — the conditional inserts, the attempt-token assertion and
- * 4.1b's retention — is deliberately not here yet. This is the side the plan
- * read needs first, and it is the side that decides what `corrupt` means.
+ * Every predicate below takes this rather than a bare {@link SQLiteBunDatabase}
+ * because 4.1's write composes all four of them *inside one transaction*. A
+ * predicate that could only be called on the outer handle would read a state
+ * the insert never sees, which is the entire failure the predicates exist to
+ * prevent.
+ */
+type Reader = SQLiteBunDatabase | Transaction;
+
+/**
+ * Tasks.md 4.1, both halves: the stored outcome of both objectives for one full
+ * cache key, and the guarded write that puts one there.
+ *
+ * 4.1b's retention bound is the one part still absent. It is a rule about which
+ * *other* rows survive a commit rather than about this commit, and it is
+ * separately numbered.
  */
 
 /**
@@ -232,7 +248,7 @@ function outcomeOf(row: {
  * plan; this predicate fences a stale *generation*, and they are different
  * facts.
  */
-export function readOptimizedPair(db: SQLiteBunDatabase, key: OptimizedCacheKey): OptimizedPair {
+export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): OptimizedPair {
   const pair: Record<SolverObjectiveName, CachedOutcome> = { pri: MISS, time: MISS };
 
   const current = readGeneration(db, key.projectId, key.contractVersion);
@@ -304,14 +320,13 @@ export interface SlotClaim {
  * a `starting` row is ever reachable at commit time only through a defect, at
  * which point the lifecycle becomes a fourth condition rather than a comment.
  *
- * The remaining conditions of 4.1's write — the generation still current, the
- * cancel epoch unchanged, and `optimization_enabled` still 1 — are **not** here
- * and cannot all be: `project.optimization_enabled` is slice **3b**, which is
- * unimplemented, so the write half of 4.1 is blocked on a column that does not
- * exist rather than on effort. This function is the condition that is complete
- * today, proved on its own, and composed by that transaction when 3b lands.
+ * The remaining conditions of 4.1's write live in
+ * {@link admissionStillCurrent} (the generation and the cancel epoch) and
+ * {@link optimizationStillEnabled} (the project switch). Each is proved on its
+ * own and all three are composed, inside one transaction, by
+ * {@link storeOptimizedOutcome}.
  */
-export function writerStillHolds(db: SQLiteBunDatabase, claim: SlotClaim): boolean {
+export function writerStillHolds(db: Reader, claim: SlotClaim): boolean {
   const stored = db
     .select()
     .from(solverSlot)
@@ -373,14 +388,173 @@ export interface AdmissionClaim {
  * at which point it is a condition here and the drain has to say so.
  *
  * The fourth condition of 4.1's write — `optimization_enabled` still 1 — is
- * **not here and cannot be**: that column belongs to slice 3b.1, which is
- * unimplemented. The write transaction composes this, {@link writerStillHolds}
- * and that predicate when the column exists.
+ * {@link optimizationStillEnabled}, kept separate because it is a fact about
+ * the *project* rather than about this attempt's generation.
+ * {@link storeOptimizedOutcome} composes all three inside one transaction.
  */
-export function admissionStillCurrent(db: SQLiteBunDatabase, claim: AdmissionClaim): boolean {
+export function admissionStillCurrent(db: Reader, claim: AdmissionClaim): boolean {
   const current = readGeneration(db, claim.projectId, claim.contractVersion);
   if (current === null) return false;
   return (
     current.generation === claim.generation && current.cancelEpoch === claim.admittedCancelEpoch
   );
+}
+
+/**
+ * Whether this project is still allowed to spend solver time at all — 4.1's
+ * fourth and last write condition.
+ *
+ * **This is the condition that blocked the write half of 4.1 for three runs**,
+ * and it is not interchangeable with the other three. The slot token fences a
+ * *superseded attempt*, the generation and cancel epoch fence a *superseded
+ * input*; this one fences a project whose owner switched the optimizer off
+ * while a solve that was legitimately admitted was still running. Nothing else
+ * in the pipeline observes that, because admission happened before the switch
+ * was thrown — so without it a project can be switched off and still acquire a
+ * fresh optimized plan seconds later, which is the one behaviour the switch
+ * exists to forbid.
+ *
+ * A **missing** project row is not enabled. `optimized_schedule_cache` cascades
+ * on `project.id`, so a claim against a project that is gone is a claim by a
+ * run whose whole key has already been deleted; returning `true` there would
+ * re-create a row for a deleted project between the cascade and the commit.
+ *
+ * The column is `integer … NOT NULL DEFAULT 0` with
+ * `CHECK (optimization_enabled IN (0, 1))` in the database
+ * (`20260904140000_add_project_settings`), so there is no third value for the
+ * boolean mapping to be lossy about and this needs no 3.8 boundary of its own.
+ * The default is what makes the predicate safe on a release that has never
+ * heard of the switch: every existing project reads `false` until somebody
+ * turns it on.
+ */
+export function optimizationStillEnabled(db: Reader, projectId: string): boolean {
+  const row = db
+    .select({ enabled: project.optimizationEnabled })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .get();
+  if (row === undefined) return false;
+  return row.enabled;
+}
+
+/**
+ * What a finished attempt has to store: a solved result, or the reason it did
+ * not solve.
+ *
+ * `plan-infeasible` is a third stored `status` and is deliberately **not** a
+ * member. Its payload is a certificate whose codec belongs to slice 7 and does
+ * not exist, so admitting it here would mean writing a row this release cannot
+ * read back — `readOptimizedPair` would serve it as `corrupt`. It joins this
+ * union in the same change that lands `decodePlanInfeasible`.
+ */
+export type OutcomeToStore =
+  | { readonly kind: 'ok'; readonly result: OptimizedResult }
+  | { readonly kind: 'failed'; readonly reason: SolverFailureReason };
+
+/**
+ * One finished attempt's commit, carrying every fact the four predicates and
+ * the row itself need.
+ *
+ * `claim` is the {@link SlotClaim} the attempt has been holding all along
+ * rather than a fresh set of key fields, because the seat and the row must be
+ * the *same* project, contract version, generation, objective and budget. Two
+ * parallel copies of those five columns would let a caller commit against a
+ * seat it does not hold by mistyping one of them, and every predicate below
+ * would still pass.
+ */
+export interface OutcomeWrite {
+  readonly claim: SlotClaim;
+  readonly inputHash: string;
+  readonly admittedCancelEpoch: number;
+  readonly outcome: OutcomeToStore;
+  readonly now: number;
+}
+
+/**
+ * What happened to a commit, as three distinguishable facts rather than a
+ * boolean.
+ *
+ * `superseded` and `already-recorded` are not the same event and a caller has
+ * to tell them apart: the first says this attempt lost its right to write and
+ * its work is discarded, the second says this key already carries an outcome —
+ * which, after the retry path lands, is a completed sibling rather than a
+ * defect. A boolean would collapse "I was overtaken" into "my write was a
+ * no-op" and lose the only signal a coordinator has that its own fencing is
+ * working.
+ */
+export type OutcomeWriteResult = 'stored' | 'superseded' | 'already-recorded';
+
+/**
+ * The write half of tasks.md 4.1: a conditional insert of one attempt's
+ * outcome, guarded by all four conditions inside one transaction.
+ *
+ * **Not an upsert, and that is the whole design.** A superseded run must not be
+ * able to store, evict, overwrite an `ok` with a `failed`, or emit a second
+ * outcome record for one key. `onConflictDoNothing` is what makes the last of
+ * those true: the primary key is
+ * `(projectId, inputHash, objective, contractVersion, budgetMs)` and does
+ * **not** include `generation`, so two generations of the same key collide by
+ * construction. The legitimate replacement path is not an overwrite either —
+ * `allocateGeneration` deletes that contract version's older-generation cache
+ * rows in its own transaction, so a newer generation finds the key empty.
+ *
+ * **All four predicates are re-read inside the transaction, not passed in.**
+ * The caller read them minutes ago when it was admitted; what matters is
+ * whether they hold at the instant of the insert, and SQLite's write
+ * transaction is what makes the read and the insert one observation. That is
+ * also why {@link readOptimizedPair}, {@link writerStillHolds},
+ * {@link admissionStillCurrent} and {@link optimizationStillEnabled} all take a
+ * {@link Reader}: they are called on `tx` here and on the handle elsewhere.
+ *
+ * **The order is cheapest-fence-first and is not arbitrary.** The slot token is
+ * the condition that fails most often (every reclaimed child), the generation
+ * and cancel epoch next, the project switch last because it changes rarely.
+ * All three are single-row primary-key lookups, so the ordering buys clarity
+ * rather than time — but a reader tracing a `superseded` return reaches the
+ * likely cause first.
+ *
+ * 4.1b's retention bound is deliberately not here: it is a rule about which
+ * *other* rows survive a commit, it is separately numbered, and folding it in
+ * would make this function's contract two claims instead of one.
+ */
+export function storeOptimizedOutcome(
+  db: SQLiteBunDatabase,
+  write: OutcomeWrite,
+): OutcomeWriteResult {
+  const { claim, outcome } = write;
+  return db.transaction((tx) => {
+    if (!writerStillHolds(tx, claim)) return 'superseded';
+    if (
+      !admissionStillCurrent(tx, {
+        projectId: claim.projectId,
+        contractVersion: claim.contractVersion,
+        generation: claim.generation,
+        admittedCancelEpoch: write.admittedCancelEpoch,
+      })
+    ) {
+      return 'superseded';
+    }
+    if (!optimizationStillEnabled(tx, claim.projectId)) return 'superseded';
+
+    const inserted = tx
+      .insert(optimizedScheduleCache)
+      .values({
+        projectId: claim.projectId,
+        inputHash: write.inputHash,
+        objective: claim.objective,
+        contractVersion: claim.contractVersion,
+        budgetMs: claim.budgetMs,
+        generation: claim.generation,
+        status: outcome.kind,
+        resultJson:
+          outcome.kind === 'ok' ? JSON.stringify(encodeOptimizedResult(outcome.result)) : null,
+        failureReason: outcome.kind === 'failed' ? outcome.reason : null,
+        createdAt: write.now,
+      })
+      .onConflictDoNothing()
+      .returning({ objective: optimizedScheduleCache.objective })
+      .all();
+
+    return inserted.length === 1 ? 'stored' : 'already-recorded';
+  });
 }

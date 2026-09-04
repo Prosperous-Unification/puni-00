@@ -19,7 +19,10 @@ import {
   type CachedOutcome,
   type OptimizedCacheKey,
   type OptimizedPair,
+  type OutcomeToStore,
+  type OutcomeWriteResult,
   readOptimizedPair,
+  storeOptimizedOutcome,
   writerStillHolds,
 } from './optimized-schedule-cache';
 import { optimizedScheduleCache } from './schema';
@@ -809,6 +812,231 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
       }
 
       expect(current(db.path, { ...ADMITTED, generation })).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe("4.1's conditional write, with all four conditions composed", () => {
+  const CLAIM = {
+    projectId: 'p-1',
+    contractVersion: CONTRACT,
+    generation: 1,
+    objective: 'pri',
+    budgetMs: BUDGET,
+    ownerId: 'coordinator-a',
+    attemptToken: 'tok-1',
+  } as const;
+
+  /** The seat the writer holds, exactly as the coordinator reserves it. */
+  function reserve(path: string, over: { attemptToken?: string } = {}): void {
+    const db = openDatabase(path);
+    try {
+      db.run(
+        `INSERT INTO solver_slot
+           (project_id, contract_version, generation, objective, budget_ms,
+            owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+            cancel_requested_at, admitted_deadline_at)
+         VALUES ('p-1', '${CONTRACT}', 1, 'pri', ${String(BUDGET)},
+                 '${CLAIM.ownerId}', '${over.attemptToken ?? CLAIM.attemptToken}',
+                 'running', 4242, 1, 1, NULL, 99)`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  function setEnabled(path: string, enabled: 0 | 1): void {
+    const db = openDatabase(path);
+    try {
+      db.run(`UPDATE project SET optimization_enabled = ${String(enabled)} WHERE id = 'p-1'`);
+    } finally {
+      db.close();
+    }
+  }
+
+  function bumpCancelEpoch(path: string): void {
+    const db = openDatabase(path);
+    try {
+      db.run(
+        `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1
+         WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * A prepared database with one allocated generation, the seat reserved and
+   * the project switched on — the state a legitimate commit starts from.
+   */
+  function admitted(path: string): number {
+    const generation = prepared(path);
+    reserve(path);
+    setEnabled(path, 1);
+    return generation;
+  }
+
+  function commit(
+    path: string,
+    outcome: OutcomeToStore,
+    over: { attemptToken?: string; generation?: number; admittedCancelEpoch?: number } = {},
+  ): OutcomeWriteResult {
+    return storeOptimizedOutcome(openDrizzle(path), {
+      claim: {
+        ...CLAIM,
+        attemptToken: over.attemptToken ?? CLAIM.attemptToken,
+        generation: over.generation ?? CLAIM.generation,
+      },
+      inputHash: HASH,
+      admittedCancelEpoch: over.admittedCancelEpoch ?? 0,
+      outcome,
+      now: 1_700,
+    });
+  }
+
+  it('stores an ok row the pair read serves back whole', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      const plan = realPlan();
+      // Load-bearing: over an empty plan the schedule assertion below is vacuous.
+      expect(plan.slices.size).toBe(3);
+      const source = solverResult(plan);
+
+      expect(commit(db.path, { kind: 'ok', result: source })).toBe('stored');
+
+      const pair = read(db.path);
+      expect(pair.time.kind).toBe('miss');
+      expect(pair.pri.kind).toBe('ok');
+      if (pair.pri.kind !== 'ok') throw new Error('unreachable');
+      expect(pair.pri.result.objectiveValues).toEqual(source.objectiveValues);
+      expect(pair.pri.result.schedule).toEqual(plan);
+      expect(pair.pri.generation).toBe(1);
+      expect(pair.pri.createdAt).toBe(1_700);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('stores a failed row carrying its reason and no payload', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('stored');
+
+      const pair = read(db.path);
+      expect(pair.pri.kind).toBe('failed');
+      if (pair.pri.kind !== 'failed') throw new Error('unreachable');
+      expect(pair.pri.reason).toBe('timeout');
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The condition the token exists for: the seat was reclaimed and re-reserved
+   * by a second attempt, so this writer's own token is no longer in it.
+   */
+  it('refuses a writer whose seat carries a newer attempt, and stores nothing', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      const reclaimed = openDatabase(db.path);
+      try {
+        reclaimed.run(`UPDATE solver_slot SET attempt_token = 'tok-2' WHERE project_id = 'p-1'`);
+      } finally {
+        reclaimed.close();
+      }
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('superseded');
+      expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a writer whose generation has been superseded, and stores nothing', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 2);
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('superseded');
+      expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a writer admitted under an older cancel epoch, and stores nothing', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      bumpCancelEpoch(db.path);
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('superseded');
+      expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The fourth predicate, and the one no other fence covers: admission
+   * happened while the project was on, and the owner switched it off while the
+   * solve was still running. Every other condition still holds here — same
+   * seat, same token, same generation, same cancel epoch.
+   */
+  it('refuses a commit against a project whose optimizer was switched off mid-solve', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      setEnabled(db.path, 0);
+
+      expect(commit(db.path, { kind: 'ok', result: solverResult(realPlan()) })).toBe('superseded');
+      expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** The default every existing project already carries, never turned on. */
+  it('refuses a commit against a project that was never switched on', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      reserve(db.path);
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('superseded');
+      expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.1's headline sentence: a superseded run cannot overwrite an `ok` with a
+   * `failed`. The primary key omits `generation`, so the two collide by
+   * construction and the insert is conditional rather than an upsert.
+   */
+  it('does not overwrite a stored ok with a failed for the same key', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      const source = solverResult(realPlan());
+      expect(commit(db.path, { kind: 'ok', result: source })).toBe('stored');
+
+      expect(commit(db.path, { kind: 'failed', reason: 'timeout' })).toBe('already-recorded');
+
+      expect(storedRowCount(db.path)).toBe(1);
+      const pair = read(db.path);
+      expect(pair.pri.kind).toBe('ok');
+      if (pair.pri.kind !== 'ok') throw new Error('unreachable');
+      expect(pair.pri.createdAt).toBe(1_700);
     } finally {
       db.cleanup();
     }
