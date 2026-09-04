@@ -398,7 +398,7 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 6. Routes, permissions, rollout
 
-- [ ] 6.0 `created_by_id`, nullable, beside `created_by` — the reference the
+- [x] 6.0 `created_by_id`, nullable, beside `created_by` — the reference the
       permission rule asks and the value the record keeps, separated (assumption
       A-8, design.md). One migration, no backfill: existing rows read `NULL`,
       which means the same as a deleted creator and falls back to the project
