@@ -1158,9 +1158,15 @@ stageValue`, and all three terms recomputed with a `bigint` accumulator
       `revalidate-solver-result.ts`. It cannot live inside
       `revalidateSolverResult` because that function is signed
       `(request, response)` and the clause is stated on the MATERIALISED
-      schedule: `materialiseOptimized` needs `rows`, `edges`, `slices`,
-      `notBefore`, `poolSizes` and `reach` — the DOMAIN plan — and the wire
-      request carries only quantised slices. Folding it in would mean either
+      schedule: `materialiseOptimized` is signed on the DOMAIN plan — six
+      positional arguments of planned rows, dependency edges, slices,
+      not-before dates, pool sizes and dependency reach — while the wire
+      request carries only quantised slices. (Those names are deliberately
+      prose here rather than a run of code spans: they are one function's
+      parameter list, and as an identifier enumeration rule (b) attributes them
+      to the wire `request` tuple they partly overlap and reports a divergence
+      that is not one. The signature itself is the source, at
+      `materialise-optimized.ts:75`.) Folding it in would mean either
       widening that signature or re-deriving the domain plan from the wire, and
       re-deriving it would be a second copy of the canonicaliser. So the
       composition is the caller's, in this order: re-validate the wire pair,
