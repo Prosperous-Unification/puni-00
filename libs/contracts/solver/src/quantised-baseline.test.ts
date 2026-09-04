@@ -72,9 +72,16 @@ const infeasibilities = (
     slices.filter((slice) => slice.workItemId === leafId);
   const found: string[] = [];
   const at = (key: string): number => {
-    const start = offsets[key];
-    if (start === undefined) found.push(`no offset for ${key.replace('\u0000', '/')}`);
-    return start ?? 0;
+    // `Object.hasOwn` rather than `=== undefined`: `SolverOffsetMap` indexes to
+    // `number`, so the narrowing form is dead to the type checker and eslint
+    // deletes it — `buildSolverEdges`' bounds check names the same trap. A
+    // missing key would otherwise read as `undefined`, compare false against
+    // every bound, and let an absent slice pass as feasible.
+    if (!Object.hasOwn(offsets, key)) {
+      found.push(`no offset for ${key.replace('\u0000', '/')}`);
+      return 0;
+    }
+    return offsets[key];
   };
   for (const slice of wire) {
     if (at(slice.key) < slice.notBeforeUnits) {
