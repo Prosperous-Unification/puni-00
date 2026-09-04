@@ -7,7 +7,7 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import { shortIsoDate } from '../src/components/wbs/short-date';
 import {
   DAY_ENVELOPE,
-  DEFAULT_COLUMN_SET,
+  FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
@@ -18,6 +18,7 @@ import {
   NUMBER_ENVELOPE,
   numberIndentFor,
   PINNED_COLUMN_IDS,
+  resetHiddenColumns,
   widthFor,
 } from '../src/components/wbs/table-frame';
 import { createProject } from './create-project';
@@ -30,6 +31,10 @@ import { createProject } from './create-project';
  * `the earliest-start column is as narrow as the plan lets it be`.
  */
 const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
+const LINKS_SHOWN_HIDDEN_COLUMNS = resetHiddenColumns(true);
+const LINKS_SHOWN_COLUMN_SET = FIXED_COLUMNS.filter(
+  (id) => !LINKS_SHOWN_HIDDEN_COLUMNS.includes(id),
+);
 
 /**
  * The tallest a row holding one line of text may be laid out, in px.
@@ -198,6 +203,15 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
   await createProject(page);
+  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
+  if (projectId === null) throw new Error('no project id after creating the plan');
+  await page.evaluate(
+    ({ id, hidden }) => {
+      localStorage.setItem(`wbs.hiddenColumns.${id}`, JSON.stringify(hidden));
+    },
+    { id: projectId, hidden: LINKS_SHOWN_HIDDEN_COLUMNS },
+  );
+  await page.reload();
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
@@ -947,6 +961,34 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('the table, measured by a browser', () => {
+  test('takes the hidden Links width out of the fresh layout without leaving a pinned gap', async ({
+    page,
+  }) => {
+    await page.setViewportSize(NARROW);
+    await scrollFrameTo(page, SCROLLED);
+    const shown = await measuredLefts(page, PINNED_IDS);
+    expect(shown['refs'] - shown['number']).toBe(widthFor('number', SEEDED_PLAN));
+    expect(shown['name'] - shown['refs']).toBe(widthFor('refs', SEEDED_PLAN));
+    expect(shown['name']).toBe(169);
+
+    await page.evaluate(() => {
+      const projectId = localStorage.getItem('wbs.project');
+      if (projectId === null) throw new Error('no selected project');
+      localStorage.removeItem(`wbs.hiddenColumns.${projectId}`);
+      localStorage.removeItem(`wbs.linksResetShown.${projectId}`);
+    });
+    await page.reload();
+    await expect(page.getByLabel('Name of 010')).toBeVisible();
+    await expect(page.locator('thead th[data-column="refs"]')).toHaveCount(0);
+    await scrollFrameTo(page, SCROLLED);
+
+    const hidden = await measuredLefts(page, ['drag', 'number', 'name']);
+    expect(hidden['drag']).toBe(shown['drag']);
+    expect(hidden['number']).toBe(shown['number']);
+    expect(hidden['name']).toBe(shown['name'] - widthFor('refs', SEEDED_PLAN));
+    expect(hidden['name']).toBe(129);
+  });
+
   test('leaves a picture of the table for the eye that has to judge the widths', async ({
     page,
   }, testInfo) => {
@@ -1489,8 +1531,11 @@ test.describe('the table, measured by a browser', () => {
      */
     await page.setViewportSize(NARROW);
     await scrollFrameTo(page, SCROLLED);
-    // Nothing to reset until something has been dragged, so the control is not
-    // there to be pressed: a button that provably does nothing reads as broken.
+    // The suite deliberately seeds Links shown, while this project has no refs;
+    // first take that explicit fixture layout back to the contextual baseline.
+    // Only then is there nothing to reset until a width has been dragged.
+    await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
+    await page.getByRole('button', { name: 'Reset layout' }).click();
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
 
     await dragColumnEdge(page, 'number', 40);
@@ -1499,11 +1544,11 @@ test.describe('the table, measured by a browser', () => {
     expect((await columnGeometry(page, 'number')).declared).toBe(
       `${String(widthFor('number', SEEDED_PLAN))}px`,
     );
-    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+    await expect(page.locator('thead th[data-column="refs"]')).toHaveCount(0);
+    expect(await measuredLefts(page, ['drag', 'number', 'name'])).toEqual({
       drag: declaredLeft('drag'),
       number: declaredLeft('number'),
-      refs: declaredLeft('refs'),
-      name: declaredLeft('name'),
+      name: declaredLeft('name') - widthFor('refs', SEEDED_PLAN),
     });
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
   });
@@ -2059,9 +2104,11 @@ test.describe('the table, measured by a browser', () => {
     const twoSteps = await stepIdsOnScreen();
     expect(twoSteps).toHaveLength(2);
     const two = await budget();
-    expect(two.declaredMinWidth).toBe(`${String(foldedTableMinWidth(twoSteps, SEEDED_PLAN))}px`);
+    expect(two.declaredMinWidth).toBe(
+      `${String(foldedTableMinWidth(twoSteps, SEEDED_PLAN, LINKS_SHOWN_HIDDEN_COLUMNS))}px`,
+    );
     expect(two.declaredWidth, 'the declared width is the cap, not the floor').toBe(
-      `min(100%, ${String(frameLayout([...DEFAULT_COLUMN_SET, ...FLEXIBLE_COLUMNS, ...twoSteps.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
+      `min(100%, ${String(frameLayout([...LINKS_SHOWN_COLUMN_SET, ...FLEXIBLE_COLUMNS, ...twoSteps.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
     );
     // And the two really are different numbers, or the assertion above and the
     // one below are the same assertion written twice.
@@ -2085,7 +2132,7 @@ test.describe('the table, measured by a browser', () => {
     expect(threeSteps).toHaveLength(3);
     const three = await budget();
     expect(three.declaredMinWidth).toBe(
-      `${String(foldedTableMinWidth(threeSteps, SEEDED_PLAN))}px`,
+      `${String(foldedTableMinWidth(threeSteps, SEEDED_PLAN, LINKS_SHOWN_HIDDEN_COLUMNS))}px`,
     );
     expect(three.frameScrollWidth, 'three folded steps must scroll a 1280 laptop').toBeGreaterThan(
       three.frameClientWidth,
@@ -2130,7 +2177,9 @@ test.describe('the table, measured by a browser', () => {
     const oneStep = await stepIdsOnScreen();
     expect(oneStep).toHaveLength(1);
     const one = await budget();
-    expect(one.declaredMinWidth).toBe(`${String(foldedTableMinWidth(oneStep, SEEDED_PLAN))}px`);
+    expect(one.declaredMinWidth).toBe(
+      `${String(foldedTableMinWidth(oneStep, SEEDED_PLAN, LINKS_SHOWN_HIDDEN_COLUMNS))}px`,
+    );
     expect(
       one.frameScrollWidth,
       'one folded step fits a 1280 laptop with room to spare',
@@ -2140,7 +2189,7 @@ test.describe('the table, measured by a browser', () => {
     // literals: each step costs one folded column, the floors go up in that
     // step, and the frame is between the second and the third.
     const floors = [oneStep, twoSteps, threeSteps].map((ids) =>
-      foldedTableMinWidth(ids, SEEDED_PLAN),
+      foldedTableMinWidth(ids, SEEDED_PLAN, LINKS_SHOWN_HIDDEN_COLUMNS),
     );
     expect(floors[1] - floors[0]).toBe(floors[2] - floors[1]);
     expect(floors[1]).toBeLessThanOrEqual(one.frameClientWidth);

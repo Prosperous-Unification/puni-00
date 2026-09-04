@@ -1,0 +1,47 @@
+-- `saved_plan.created_by_id` — the account the permission rule asks about,
+-- beside the display name the record keeps.
+--
+-- Assumption A-8 in `openspec/changes/saved-plans/design.md`. One column cannot
+-- answer both questions. `created_by` is a **value**, copied at the instant of
+-- the save and deliberately carrying no foreign key, so a saved plan stays
+-- readable and still names its author after that account is deleted — the same
+-- terms as the `keep` decision for people, 2026-09-03. A permission check
+-- against that value is a display-name comparison, and two accounts sharing a
+-- display name would share the right to rename and delete each other's
+-- permanent records. So the reference is a second column, and it is the only
+-- thing task 6.1's rule is allowed to read.
+--
+-- **Nullable, with no backfill.** Every row that exists when this runs reads
+-- `NULL`, which is not a gap to be filled later: it means exactly what a
+-- deleted creator means, "no live account claims this plan", and the rule falls
+-- back to the project owner, who exists whenever the project does. There is no
+-- honest value to backfill with — `created_by` is a name, and resolving a name
+-- to an id is the guess this separation exists to refuse.
+--
+-- `ON DELETE SET NULL`, not `CASCADE` and not `RESTRICT`: deleting an account
+-- must neither destroy the permanent record nor be blocked by it. The plan
+-- keeps the name and loses the right, which is task 6.3's second half.
+--
+-- Additive, like every forward migration in this repo, so blue and green can
+-- share one SQLite file through a swap. The outgoing release neither selects
+-- nor inserts this column, and a nullable column with no default is invisible
+-- to its `INSERT ... (columns)` statements.
+--
+-- **Stamped 20260904020000**, later than every folder on this branch
+-- (`20260903190000_add_saved_plan`, which this depends on) and later than every
+-- folder on main. Two migrations shared `20260814100000` on 2026-08-14;
+-- drizzle's `created_at` is the folder's numeric prefix and
+-- `migrationsToRollback` filters on a strict `created_at >`, so a colliding
+-- stamp silently reverses nothing. `duplicateMigrationStamps` in
+-- `migrate-down.ts` is the mechanical check; this stamp was chosen against it.
+--
+-- A separate folder rather than an edit to `20260903190000_add_saved_plan`:
+-- drizzle identifies an applied migration by a hash over the whole file, so
+-- editing a committed folder makes every database that already ran it
+-- unreachable by the migrator. That the saved-plan tables have not shipped yet
+-- is not a reason to rely on it.
+--
+-- SQLite permits a `REFERENCES` clause in `ADD COLUMN` while `foreign_keys` is
+-- ON only when the new column defaults to NULL, which this one does.
+-- `20260821000000_add_service` adds `work_item.service_id` the same way.
+ALTER TABLE `saved_plan` ADD `created_by_id` text REFERENCES `users`(`id`) ON DELETE SET NULL;

@@ -25,6 +25,9 @@ const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 /** The newest, and the first thing every rollback below reverses. */
 const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
 /** The newest: the audit columns, so it heads every descending reversal below. */
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/** The newest: `saved_plan.created_by_id`, so it heads every descending reversal below. */
+const SAVED_PLAN = '20260903190000_add_saved_plan';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
@@ -60,6 +63,8 @@ function beforeIdentity(dbPath: string): void {
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
     PROJECT_SETTINGS,
     OPTIMIZER_TABLES,
+    CREATED_BY_ID,
+    SAVED_PLAN,
     LOOKUP_INDEXES,
     AUDIT_COLUMNS,
     RENAME_ROLE_TO_STEP,
@@ -155,6 +160,8 @@ describe('the OIDC identity migration', () => {
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -214,6 +221,8 @@ describe('the OIDC identity migration', () => {
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,

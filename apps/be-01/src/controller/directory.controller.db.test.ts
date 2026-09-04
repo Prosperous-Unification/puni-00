@@ -29,6 +29,7 @@ import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixtu
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -64,6 +65,7 @@ beforeEach(async () => {
   stepStore = new StepRepository(db);
 
   app = buildApp({
+    savedPlans: testSavedPlanService(),
     directory: new DirectoryService({ directory: store, broadcast: recordingBroadcaster() }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),

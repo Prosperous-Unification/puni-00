@@ -212,6 +212,16 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * Additive forward and dropped whole on the way back, so it heads the folder
  * order and every descending reversal list below.
  */
+const SAVED_PLAN = '20260903190000_add_saved_plan';
+/**
+ * The newest, and the one that separates the two `created_by` questions:
+ * `saved_plan.created_by_id`, the account the permission rule reads, beside
+ * the display name the record keeps by value (assumption A-8). One nullable
+ * column added and dropped whole, so it heads every descending reversal list
+ * below and tails the ascending folder order.
+ */
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
@@ -499,6 +509,8 @@ describe('readMigrationFolders', () => {
       RENAME_ROLE_TO_STEP,
       AUDIT_COLUMNS,
       LOOKUP_INDEXES,
+      SAVED_PLAN,
+      CREATED_BY_ID,
       OPTIMIZER_TABLES,
       PROJECT_SETTINGS,
     ]);
@@ -609,6 +621,8 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        SAVED_PLAN,
+        CREATED_BY_ID,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
       ]);
@@ -618,6 +632,8 @@ describe('rollbackTo, against a real database', () => {
       expect(reversed).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -710,6 +726,8 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        SAVED_PLAN,
+        CREATED_BY_ID,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
       ]);
@@ -784,6 +802,8 @@ describe('rollbackTo, against a real database', () => {
       expect(reversed).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -866,6 +886,8 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
       ]);
       expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
@@ -933,6 +955,8 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
+        CREATED_BY_ID,
+        SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,

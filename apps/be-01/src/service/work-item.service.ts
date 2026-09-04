@@ -203,12 +203,21 @@ export function poolsFor(
 }
 
 /**
- * Exported for the tests alone, exactly as {@link poolsFor} beside it is, and
- * for the same kind of reason: `dual-optimized-scheduler/tasks.md` §1.8 requires
- * the `ORDER BY` proof to assert the **raw `schedule()` argument tuple** — the
- * `rows` and `slices` arrays as Fast receives them — rather than a hash of them,
- * because 1.1(c) normalises the row order away by design and a hash assertion
- * there can never fail. The only production caller is the plan read below.
+ * The slices a plan runs, from rows that are already in memory.
+ *
+ * Exported since `saved-plan-schedule.ts` — a **second** production caller —
+ * needs the same slicing the live projection gets. A saved plan that computed
+ * its own slices would be a second arithmetic over one estimate rule, and the
+ * bar a saved plan draws would drift from the bar the live plan draws for the
+ * same numbers. There is one `slicesOf`, and both callers pass it detached
+ * values.
+ *
+ * The tests reach it directly too, exactly as {@link poolsFor} beside it does
+ * and for the same kind of reason: `dual-optimized-scheduler/tasks.md` §1.8
+ * requires the `ORDER BY` proof to assert the **raw `schedule()` argument
+ * tuple** — the `rows` and `slices` arrays as Fast receives them — rather than
+ * a hash of them, because 1.1(c) normalises the row order away by design and a
+ * hash assertion there can never fail.
  */
 export function slicesOf(
   rows: readonly WorkItem[],

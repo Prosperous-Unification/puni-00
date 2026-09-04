@@ -31,6 +31,7 @@ import { personAdded } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -90,6 +91,7 @@ beforeEach(async () => {
   );
 
   app = buildApp({
+    savedPlans: testSavedPlanService(),
     directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),

@@ -108,6 +108,8 @@ describe('ProjectRepository', () => {
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
       '20260904140000_add_project_settings',
       '20260904100000_add_optimizer_tables',
+      '20260904020000_add_saved_plan_created_by_id',
+      '20260903190000_add_saved_plan',
       '20260902120000_add_lookup_indexes',
       '20260901120000_add_audit_columns',
       '20260831120000_rename_role_to_step',

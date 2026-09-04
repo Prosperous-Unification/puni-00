@@ -2018,6 +2018,133 @@ export const optimizedScheduleCache = sqliteTable(
   ],
 );
 
+/**
+ * One project's whole plan, copied by value at one instant — the header.
+ *
+ * A **Saved plan** (CONTEXT.md), not a snapshot and not a Plan document: it never
+ * leaves the database, is never imported, and is never applied to any project.
+ *
+ * It is a **materialised document** rather than a pointer, and the design says
+ * why in one line each: `plan_event` is a log of commands and is pruned at 365
+ * days, dates are derived and never stored, and no whole-plan version counter
+ * exists — `project.revision` deliberately excludes work items (`:207-215`).
+ * There is nothing to point at, and re-deriving later restates history.
+ * `openspec/changes/saved-plans/design.md`, "The shape of the problem".
+ *
+ * **Two bodies, not one blob** ({@link savedPlanBody}), because they version and
+ * fail independently: "no schedule was saved" is exactly *the schedule row is
+ * absent* with a reason beside it here, rather than a sentinel inside a blob;
+ * `schedule_input_sha256 = input_sha256` is a checkable claim, so a schedule can
+ * never be rendered against an input it was not computed from; and a new plan
+ * field does not invalidate every stored schedule.
+ *
+ * **`created_by` is a value, not a reference.** Deleting an account must not
+ * orphan or erase a permanent record — the same `keep` decision Dany made for
+ * people on 2026-09-03, which is why assignments and people are captured by
+ * value too and a departed person still owns what they owned.
+ *
+ * **`project_id` cascades**, for `plan_event`'s stated reason (`:1759-1765`):
+ * blue and green share one SQLite file during a swap, and an outgoing release
+ * that knows nothing of this table must not have its plain `DELETE FROM project`
+ * blocked by a reference it cannot see.
+ *
+ * **Nothing here may be `UPDATE`d except `name`.** The hashes are the integrity
+ * of the whole record — one `UPDATE` of `schedule_input_sha256` would satisfy the
+ * "computed from this input" check for a schedule computed from a different one —
+ * so the immutability guard covers this table's every other column as well as all
+ * of {@link savedPlanBody}. `name` is the deliberate exception: a save writes
+ * immediately with the server timestamp as the default name (assumption A-1) and
+ * naming it is an edit afterwards.
+ */
+export const savedPlan = sqliteTable(
+  'saved_plan',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    /** Defaulted to the server timestamp at save and renameable afterwards. */
+    name: text('name').notNull(),
+    /**
+     * Who saved it, **by value** — the display name at the instant of the save,
+     * never a `users` reference. See the type doc.
+     */
+    createdBy: text('created_by').notNull(),
+    /**
+     * Who saved it, **by reference** — the account, for the permission rule, and
+     * the only column that rule may read (assumption A-8, `design.md`).
+     *
+     * Separate from {@link savedPlan.createdBy} because one column cannot answer
+     * both questions. That one is a display name; comparing an actor's id
+     * against a display name is not a permission check, and two accounts sharing
+     * a name would share the right to rename and delete each other's permanent
+     * records.
+     *
+     * `NULL` means **no live account claims this plan** — the creator's account
+     * was deleted, or the plan predates this column, which are the same fact for
+     * permission purposes. Both fall back to the project owner, who exists
+     * whenever the project does. `on delete set null` rather than `cascade` is
+     * what makes deletion keep the record and drop only the right.
+     */
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * The instant the capture's read snapshot **opened**, not the instant the
+     * transaction committed. A slow capture makes the two differ, and the honest
+     * label on a comparison is when the plan was looked at.
+     */
+    createdAt: integer('created_at').notNull(),
+    /** `CanonicalPlanInput`'s schema version, as the body was written under. */
+    inputSchemaVersion: integer('input_schema_version').notNull(),
+    /** The input body's **length in bytes**; the bytes themselves are in the body row. */
+    inputBytes: integer('input_bytes').notNull(),
+    /** SHA-256 over the input body's stored bytes. Recomputed on every read. */
+    inputSha256: text('input_sha256').notNull(),
+    /** Null exactly when no schedule was saved — see {@link savedPlan.scheduleAbsentReason}. */
+    scheduleSchemaVersion: integer('schedule_schema_version'),
+    scheduleBytes: integer('schedule_bytes'),
+    scheduleSha256: text('schedule_sha256'),
+    /**
+     * The `input_sha256` the saved schedule was computed from.
+     *
+     * Equal to {@link savedPlan.inputSha256} for every schedule this code writes;
+     * stored rather than assumed so a reader can *check* it, and refuse to render
+     * dates against an input that did not produce them.
+     */
+    scheduleInputSha256: text('schedule_input_sha256'),
+    /**
+     * Which scheduling algorithm produced the saved dates.
+     *
+     * A header column rather than a field of the schedule body, and read by the
+     * comparison: two sides with byte-identical inputs and different dates are
+     * exactly what a `schedule()` semantics change produces, and they must not
+     * compare as unchanged.
+     */
+    schedulerAlgorithmId: text('scheduler_algorithm_id'),
+    /** Why there is no schedule, when there is none. Null exactly when there is one. */
+    scheduleAbsentReason: text('schedule_absent_reason'),
+  },
+  (t) => [
+    // The list surface: one project's saved plans, newest first, which is the
+    // only order they are ever read in.
+    index('saved_plan_project_time').on(t.projectId, t.createdAt),
+    // The schedule side is present as a whole or absent as a whole. Five columns
+    // that can disagree are five ways to store "half a schedule", and the reader
+    // would have to pick which of them to believe.
+    check(
+      'saved_plan_schedule_all_or_nothing',
+      sql`(
+        (${t.scheduleSchemaVersion} IS NULL AND ${t.scheduleBytes} IS NULL
+          AND ${t.scheduleSha256} IS NULL AND ${t.scheduleInputSha256} IS NULL
+          AND ${t.schedulerAlgorithmId} IS NULL AND ${t.scheduleAbsentReason} IS NOT NULL)
+        OR
+        (${t.scheduleSchemaVersion} IS NOT NULL AND ${t.scheduleBytes} IS NOT NULL
+          AND ${t.scheduleSha256} IS NOT NULL AND ${t.scheduleInputSha256} IS NOT NULL
+          AND ${t.schedulerAlgorithmId} IS NOT NULL AND ${t.scheduleAbsentReason} IS NULL)
+      )`,
+    ),
+  ],
+);
+
 export type OptimizedScheduleCacheRow = typeof optimizedScheduleCache.$inferSelect;
 
 /**
@@ -2158,3 +2285,37 @@ export const solverQueue = sqliteTable(
 );
 
 export type SolverQueueRow = typeof solverQueue.$inferSelect;
+export type SavedPlanRow = typeof savedPlan.$inferSelect;
+
+/**
+ * The bytes of one side of a saved plan — the plan input, or the schedule.
+ *
+ * Its own table rather than two blob columns on the header so that the absent
+ * schedule is *an absent row*, and so the two sides can be read separately: a
+ * list surface wants fourteen headers and none of the megabytes behind them.
+ *
+ * **No `UPDATE` ever targets this table.** That is the whole immutability
+ * property and it is stated as one line a test can assert, which is what the
+ * `keep` decision for people bought: nothing rewrites a written body, ever.
+ *
+ * The header reference cascades for the same blue/green reason the header's own
+ * project reference does, one hop further along.
+ */
+export const savedPlanBody = sqliteTable(
+  'saved_plan_body',
+  {
+    savedPlanId: text('saved_plan_id')
+      .notNull()
+      .references(() => savedPlan.id, { onDelete: 'cascade' }),
+    /** `input` or `schedule`. */
+    kind: text('kind').notNull(),
+    /** The serialized body, exactly as hashed. Never rewritten. */
+    bytes: text('bytes').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.savedPlanId, t.kind] }),
+    check('saved_plan_body_kind', sql`${t.kind} IN ('input', 'schedule')`),
+  ],
+);
+
+export type SavedPlanBodyRow = typeof savedPlanBody.$inferSelect;

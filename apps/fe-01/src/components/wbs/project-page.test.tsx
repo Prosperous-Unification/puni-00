@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import type { SavedPlanListEntryView } from '@/lib/saved-plan-api';
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { recordCalls } from '@/testing/record-calls';
@@ -9,6 +10,7 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
 import { ProjectPage } from './project-page';
+import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -178,7 +180,40 @@ const THREE: ProjectListEntry[] = [
   },
 ];
 
-const pageWith = (api: ProjectApi) => render(<ProjectPage token="t" api={api} />);
+/** One saved plan, so a selected project's shelf has a row to show. */
+const CHECKPOINT: SavedPlanListEntryView = {
+  id: 'sp1',
+  name: 'before the re-plan',
+  createdBy: 'ada',
+  createdAt: MADE_ON,
+  inputBytes: 4096,
+  scheduleBytes: 2048,
+  scheduleAbsentReason: null,
+};
+
+/**
+ * The shelf's wiring, faked — handed to **every** render in this file.
+ *
+ * Not only to the case that asserts the panel: selecting a project mounts
+ * `SavedPlansPanel`, and without an override it would build the real HTTP deps
+ * and put a `fetch` at a relative URL into jsdom on any test that picks or
+ * creates a project. The default is what production uses and this is what the
+ * page around it is tested with, which is the same bargain `api` already makes
+ * one prop up.
+ */
+const fakeSavedPlansDeps = (
+  rows: readonly SavedPlanListEntryView[] = [CHECKPOINT],
+): SavedPlansPanelDeps => ({
+  available: () => Promise.resolve(true),
+  list: () => Promise.resolve([...rows]),
+  subscribe: () => ({ unsubscribe: () => undefined }),
+  save: () => Promise.resolve({ outcome: 'saved', savedPlan: CHECKPOINT }),
+  compare: () => Promise.resolve({ outcome: 'compared', diff: { input: [], schedule: [] } }),
+  rename: () => Promise.resolve({ outcome: 'touched' }),
+});
+
+const pageWith = (api: ProjectApi, savedPlansDeps: SavedPlansPanelDeps = fakeSavedPlansDeps()) =>
+  render(<ProjectPage token="t" api={api} savedPlansDeps={savedPlansDeps} />);
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
@@ -345,6 +380,212 @@ describe('the header bar', () => {
     expect(grid).not.toBeNull();
     expect(bar.contains(grid)).toBe(false);
     expect(document.querySelector('main')?.contains(grid)).toBe(true);
+  });
+});
+
+/**
+ * Slice 9's prerequisite: every part of slice 8 was gated on its own and no
+ * screen rendered any of it, so the suites were green over a feature that could
+ * not be reached by clicking.
+ */
+describe('the saved-plan shelf is on the project page', () => {
+  itDom('renders the shelf in the header once a project is open', async () => {
+    pageWith(fakeProjects(TWO));
+
+    // Before a project is picked there is no history to show — and no project
+    // id to ask be-01 about, which is the honest reason the panel is absent
+    // rather than empty.
+    expect(screen.queryByText('Saved plans', { selector: 'summary' })).toBeNull();
+
+    await selectProject('p2');
+
+    /*
+      The shelf is a disclosure in the app header's project row now, and closed
+      is its rest state.
+
+      **Four shapes, each killed by a measurement that already existed.** As an
+      `mt-2 shrink-0` flex sibling it took ~76px off the one column that has to
+      reach the bottom of the window, and four browser measurements failed at
+      once (`header.spec.ts:272`/`:289`, `plan-surface.spec.ts:278`/`:318`).
+      Floating it over `<main>`'s bottom-right paid that bill but landed on the
+      chart's own controls (Gemini F-03 / Sol I4 on PR 202). The plan toolbar
+      paid both — and spent a third budget nobody had put on the bill:
+      `project-settings.spec.ts:77` holds `[data-toolbar]`'s children to 1265px
+      with a named margin for exactly one more control, and `gantt.spec.ts:2605`
+      needs that bar to be **one** row at 768 before the drag that adds `Reset
+      layout` makes it two. Both went red at `14a1a070` (2 failed / 281 passed).
+      The header's project row is the fourth and the settled one **above `md`**:
+      `flex-nowrap` with a `max-w` picker that absorbs the width, outside
+      `<main>` entirely. Below `md` it is the phone's `Plan actions` sheet
+      instead, because the line this row takes there costs 36px that
+      `mobile.spec.ts:850` cannot spare — the case below holds that half.
+
+      jsdom lays nothing out, so those six measurements stay the real guard for
+      the pixels. What this file can hold is where the chip lives, which is what
+      the pixels follow from — so both halves are asserted: in the banner, and
+      **not** in either copy of the toolbar. The negative is the load-bearing
+      one; it is the shape that was red on CI.
+    */
+    const chip = await screen.findByText('Saved plans', { selector: 'summary' });
+    const shelfDisclosure = chip.closest('details');
+    expect(shelfDisclosure?.closest('[data-toolbar], [data-toolbar-sheet]')).toBeNull();
+    expect(shelfDisclosure?.closest('header')).not.toBeNull();
+    // Beside the project's own controls, in one row, rather than merely
+    // somewhere in the bar: `New project` is the nearest of them and the only
+    // one that is there whether a rename is armed or not.
+    expect(
+      within(shelfDisclosure?.parentElement ?? document.body).getByRole('button', {
+        name: 'New project',
+      }),
+    ).toBeDefined();
+
+    fireEvent.click(chip);
+
+    const heading = await screen.findByRole('heading', { name: 'Saved plans' });
+    // In the banner landmark, which is the half `main?.contains(heading)`
+    // asserted until the chip left the plan column. A screen reader gets to
+    // skip a banner, and the plan's history is chrome about the project rather
+    // than part of the plan on screen.
+    const banner = document.querySelector('header');
+    expect(banner?.contains(heading)).toBe(true);
+    expect(document.querySelector('main')?.contains(heading)).toBe(false);
+    // Above the grid, not below it — the inverse of what this asserted while
+    // the shelf floated at the bottom of `<main>`, and the assertion survived
+    // three moves because document order is what a screen reader reads. The
+    // panel opens over the plan rather than under it.
+    const grid = document.querySelector('[data-grid]');
+    if (grid === null) throw new Error('the table did not render');
+    expect(
+      grid.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeGreaterThan(0);
+    // The shelf's own read landed, so this is the wired panel and not an empty
+    // heading: `before the re-plan` is the row the fake answers with.
+    //
+    // Scoped to the list, and the ambiguity is the evidence. Unscoped this
+    // failed on `Found multiple elements with the text: /before the re-plan/` —
+    // the row **and** the comparison's side name, which is the whole panel
+    // wired rather than a heading with a list under it.
+    const shelf = await screen.findByRole('list', { name: 'Saved plans' });
+    expect(within(shelf).getByText('before the re-plan')).toBeDefined();
+  });
+
+  itDom('closes the shelf when a pointer goes down outside it', async () => {
+    /*
+      The regression this exists for, and it shipped once.
+
+      `useClosedByPointerOutside` reads its ref **once**, in a `useEffect` with
+      an empty dependency list, so the hook has to mount in the same commit as
+      the `<details>` it is handed. Held on `ProjectPage` — which renders first
+      with no project selected and so no shelf — `panel.current` was `null` when
+      the effect ran, it returned early, and the `pointerdown` listener was never
+      registered: the panel could only be closed from its own chip and otherwise
+      floated over the plan for good. Gemini's F-01 on PR 202, and the fix is
+      `SavedPlanShelf` owning the hook.
+
+      Watched failing 2026-09-04, h2puni, `dirty=0` apart from the one file:
+      `project-page.tsx` restored to `4bd9e95b` (the hook hoisted onto
+      `ProjectPage`) under this file at `956265a6` fails right here, at
+      `expect(disclosure.open).toBe(false)` — 1 failed, 46 skipped of 47. So the
+      case is bound to the fault and not to the fix.
+    */
+    pageWith(fakeProjects(TWO));
+    await selectProject('p2');
+
+    const chip = await screen.findByText('Saved plans', { selector: 'summary' });
+    const disclosure = chip.closest('details');
+    if (disclosure === null) throw new Error('the chip is not inside a disclosure');
+
+    fireEvent.click(chip);
+    expect(disclosure.open).toBe(true);
+
+    // Capture-phase `pointerdown` on the document is what the hook listens for,
+    // so that is what this fires — a `click` would prove nothing about it.
+    fireEvent.pointerDown(document.body);
+    expect(disclosure.open).toBe(false);
+  });
+
+  itDom('does not compare the new project against the old project’s checkpoint', async () => {
+    /*
+      The `key={selected}` on the panel, asserted from the outside.
+
+      The panel pins its compare pair once, in `useState`, so that a
+      collaborator's save cannot re-point a picker the reader left alone
+      (AC #4). Carried across a project switch that same pin is a saved-plan id
+      belonging to the project just left, and the compare effect — which *does*
+      re-run, because `projectId` is in its dependencies — would then ask be-01
+      to compare the new project against a checkpoint that is not in it.
+
+      Asserted on `compare`'s arguments and not on `list`'s: the shelf re-reads
+      on a project change by itself, so a `list` assertion goes green with the
+      key deleted. Measured — with `key={selected}` removed the whole file still
+      passed 46/46 on the `list` form, and this form fails on `expected 'sp1'
+      to be 'sp9'`.
+    */
+    const OTHER: SavedPlanListEntryView = { ...CHECKPOINT, id: 'sp9', name: 'the other project’s' };
+    const compared: [string, unknown][] = [];
+    const deps: SavedPlansPanelDeps = {
+      ...fakeSavedPlansDeps(),
+      list: (projectId: string) => Promise.resolve([projectId === 'p2' ? CHECKPOINT : OTHER]),
+      compare: (projectId, left) => {
+        compared.push([projectId, left]);
+        return Promise.resolve({ outcome: 'compared', diff: { input: [], schedule: [] } });
+      },
+    };
+    pageWith(fakeProjects(TWO), deps);
+
+    await selectProject('p2');
+    await waitFor(() => {
+      expect(compared).toContainEqual(['p2', { saved: 'sp1' }]);
+    });
+
+    await selectProject('p1');
+    await waitFor(() => {
+      expect(compared.some(([projectId]) => projectId === 'p1')).toBe(true);
+    });
+    // Every question asked about p1 is asked about p1's own checkpoint. Not
+    // just the last one: a stale pair asked once and corrected is still a read
+    // of somebody else's plan.
+    for (const [projectId, left] of compared) {
+      if (projectId === 'p1') expect(left).toEqual({ saved: 'sp9' });
+    }
+  });
+
+  itDom('leaves the header alone on a cards viewport, where the sheet has it', async () => {
+    /*
+      **The one pixel red slice 9 ended on, held as a placement rule.**
+
+      `mobile.spec.ts:850` asks the card sheet's trigger to be above the sheet
+      it opens, and at `5e59b29d` it was 13.39px below it. Measured on h2puni
+      rather than argued: the `85vh` cap puts the sheet's top at 126.6 on a
+      390×844 phone, a card's trigger sits 55px under `[data-plan-cards]`'s own
+      top edge at the scroll ceiling, and that scroller started at 195 — so the
+      goal was unreachable and the shelf's line in the header was 36 of the
+      missing 21.4px. Off that row the header measured 137 → 101 and the
+      scroller 195 → 159.
+
+      jsdom lays nothing out, so this cannot assert those numbers. What it can
+      assert is the fact they follow from, which is also the thing a later edit
+      would silently undo: below the renderer's breakpoint the header carries no
+      shelf — and with the sheet shut there is **no shelf in the document at
+      all**, which is what tells a mount apart from a `hidden md:block` pair
+      that leaves a second copy in the DOM for every `[data-saved-plans]`
+      selector to find. `plan-cards.test.tsx` holds the other half, that the
+      sheet is where it went.
+    */
+    const wide = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    try {
+      pageWith(fakeProjects(TWO));
+      await selectProject('p2');
+
+      // The project's own controls are still there — this is the shelf leaving
+      // the row, not the row leaving the header.
+      expect(screen.getByRole('button', { name: 'New project' }).closest('header')).not.toBeNull();
+      expect(document.querySelectorAll('header [data-saved-plans]')).toHaveLength(0);
+      expect(document.querySelectorAll('[data-saved-plans]')).toHaveLength(0);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: wide, configurable: true });
+    }
   });
 });
 

@@ -64,6 +64,7 @@ import { type ColumnHintState, hintFor, STEP_FINAL_HINT } from './column-hints';
 import {
   CreatablePicker,
   pickableLabel,
+  PICKER_PANEL_STYLE,
   PickerList,
   type PickerOption,
   pickerOptionId,
@@ -169,7 +170,6 @@ import {
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
-  DEFAULT_HIDDEN_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
   floorFor,
@@ -178,10 +178,12 @@ import {
   GANTT_DOCK_SLACK,
   hideableColumnIds,
   hierarchyIndentFor,
+  INITIAL_HIDDEN_COLUMNS,
   NUMBER_ENVELOPE,
   numberIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
+  resetHiddenColumns,
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
@@ -221,6 +223,19 @@ export interface WbsTableProps {
    * socket; supplied in the app.
    */
   subscribe?: (projectId: string, handlers: SubscriptionHandlers) => ProjectStream;
+  /**
+   * The saved-plan shelf, for the phone's `Plan actions` sheet — and rendered
+   * **only** there, in the `cards` arm below.
+   *
+   * A `ReactNode` the page hands down rather than a component this file builds:
+   * the shelf needs the checkpoint routes and the project the picker has open,
+   * and both live in `ProjectPage`. Threading them here would give the table
+   * two more props it never reads.
+   *
+   * Optional because the table is driven by a fake in tests and mounted on its
+   * own in several of them. Absent, the sheet is exactly what it was.
+   */
+  savedPlansShelf?: ReactNode;
 }
 
 export interface SubscriptionHandlers {
@@ -1223,6 +1238,12 @@ const hiddenColumnsKey = (projectId: string): string => `wbs.hiddenColumns.${pro
 const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =>
   remembered(hiddenColumnsKey(projectId), isStringArray);
 
+/** A reset that showed Links survives reload without freezing the whole hide-list. */
+const linksResetShownKey = (projectId: string): string => `wbs.linksResetShown.${projectId}`;
+
+const storedLinksResetShown = (projectId: string): Remembered<true> =>
+  remembered(linksResetShownKey(projectId), (value): value is true => value === true);
+
 /**
  * The hide-list this browser last saved for `projectId`, or the default hidden
  * columns where it has never saved one.
@@ -1254,7 +1275,11 @@ const storedHiddenColumns = (projectId: string): Remembered<readonly string[]> =
  * be null`. Watched, 2026-08-28.
  */
 function rememberedHiddenColumns(projectId: string): readonly string[] {
-  return storedHiddenColumns(projectId).readAndDrop() ?? DEFAULT_HIDDEN_COLUMNS;
+  const explicit = storedHiddenColumns(projectId).readAndDrop();
+  if (explicit !== null) return explicit;
+  return storedLinksResetShown(projectId).readAndDrop() === true
+    ? resetHiddenColumns(true)
+    : INITIAL_HIDDEN_COLUMNS;
 }
 
 /**
@@ -1266,6 +1291,7 @@ function rememberedHiddenColumns(projectId: string): readonly string[] {
  */
 function rememberHiddenColumns(projectId: string, hidden: readonly string[]): void {
   storedHiddenColumns(projectId).write(hidden);
+  storedLinksResetShown(projectId).forget();
 }
 
 /**
@@ -1278,6 +1304,13 @@ function rememberHiddenColumns(projectId: string, hidden: readonly string[]): vo
  */
 function forgetHiddenColumns(projectId: string): void {
   storedHiddenColumns(projectId).forget();
+}
+
+/** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */
+function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): void {
+  const marker = storedLinksResetShown(projectId);
+  if (hasAnyExternalRefs) marker.write(true);
+  else marker.forget();
 }
 
 /**
@@ -2752,7 +2785,13 @@ function PlanRow({
  * create or a move can renumber rows this component never touched, and guessing
  * which would be a second implementation of the derivation as well.
  */
-export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
+export function WbsTable({
+  projectId,
+  projectName,
+  api,
+  subscribe,
+  savedPlansShelf,
+}: WbsTableProps) {
   /**
    * The project this render belongs to, readable by work that outlives the
    * render which started it.
@@ -2764,6 +2803,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const activeProject = useRef(projectId);
   activeProject.current = projectId;
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
+  /** The project whose whole tree most recently completed a successful read. */
+  const treeReadProject = useRef<string | null>(null);
   /**
    * Everything the chart is drawn from, as **one** read delivered it.
    *
@@ -3690,6 +3731,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
       const drawn = toTree(tree.workItems);
       setWorkItems(drawn);
+      treeReadProject.current = projectId;
       // The open hover card, settled against the rows that just arrived. The
       // previous placements are read into a local **before** the ref is replaced:
       // React may run the updater below after this call returns, and reading the
@@ -4126,6 +4168,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     walk(workItems);
     return out;
   }, [workItems]);
+
+  const hasSuccessfulTreeRead = treeReadProject.current === projectId;
+  const hasAnyExternalRefs = useMemo(() => flat.some((row) => row.externalRefs.length > 0), [flat]);
+  const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
 
   /**
    * The row the ref editor is open on, or null while none is — including the
@@ -4894,8 +4940,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   function resetLayout(): void {
     setWidthOverrides(new Map());
     forgetWidthOverrides(projectId);
-    setStoredHiddenColumns(DEFAULT_HIDDEN_COLUMNS);
+    setStoredHiddenColumns(resetTargetHiddenColumnIds);
     forgetHiddenColumns(projectId);
+    rememberLinksResetTarget(projectId, hasAnyExternalRefs);
     resetGanttSettings();
   }
 
@@ -4906,8 +4953,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * reader ticked things in is not a difference.
    */
   const columnsDiffer =
-    hiddenColumnIds.length !== DEFAULT_HIDDEN_COLUMNS.length ||
-    hiddenColumnIds.some((id) => !DEFAULT_HIDDEN_COLUMNS.includes(id));
+    hiddenColumnIds.length !== resetTargetHiddenColumnIds.length ||
+    hiddenColumnIds.some((id) => !resetTargetHiddenColumnIds.includes(id));
 
   /**
    * The whole plan as a document, taken at the moment it is asked for.
@@ -8280,23 +8327,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       e.preventDefault();
                     }}
                     style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      margin: 0,
-                      padding: 0,
-                      listStyle: 'none',
-                      // Tokens and not `#fff`/`#ccc`: this list is the one
-                      // popover in the app that never took the palette, so on a
-                      // dark page it stayed a white card with near-white text on
-                      // it — 1.05:1, measured. `CreatablePicker`'s `PickerList`
-                      // has read `--popover` since it was written; this is the
-                      // same surface saying the same thing.
-                      background: 'var(--popover)',
+                      // {@link PICKER_PANEL_STYLE} and not a copy of it. This
+                      // list is the one the four reference cells do **not**
+                      // share a component with, and the copy it used to carry
+                      // had drifted: no radius, no shadow, no `overflow:
+                      // hidden`, so the same gesture drew a flat square list
+                      // here and a rounded card three columns over. The tokens
+                      // that copy did get right — `--popover` over `#fff`, on a
+                      // dark page 1.05:1 measured — are in the shared style now.
+                      ...PICKER_PANEL_STYLE,
+                      // `--popover-foreground` is this list's own: the reference
+                      // panel inherits the cell's colour and reads correctly
+                      // doing it, and changing that is not what was asked for.
                       color: 'var(--popover-foreground)',
-                      border: '1px solid var(--border)',
-                      maxHeight: 200,
-                      overflowY: 'auto',
+                      // The table's own popover layer, which is 10 everywhere in
+                      // this file. `CreatablePicker` stacks its list at 15 —
+                      // that is its surface's number, not this one's.
                       zIndex: 10,
                       // Wider than its own column on purpose, since that column
                       // is 110px: an entry is a work item's number and its name,
@@ -11347,6 +11393,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           <option value="pessimistic">pessimistic</option>
         </select>
       </label>
+      {/*
+        No slot here for plan-level controls the table does not own, and that
+        is a measurement rather than an omission. The saved-plan shelf held one
+        between `adb58ad9` and this change; `project-settings.spec.ts:77` puts
+        `[data-toolbar]`'s children against a 1265px budget with a named margin
+        for exactly one more control, and a fifth disclosure spent it — the row
+        gained a line, and `gantt.spec.ts:2605` could no longer watch the wrap
+        it is about, because the bar was already wrapped before the drag. The
+        shelf is in the app header's project row now; `SavedPlanShelf` in
+        `project-page.tsx` carries the full list of shapes and what each cost.
+      */}
     </>
   );
 
@@ -11399,6 +11456,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   Reset layout
                 </Button>
               )}
+              {/*
+                The saved-plan shelf, which on a phone lives here and nowhere
+                else — the header's project row cannot afford it, and
+                `SavedPlanShelf` carries the 21.4px that says so.
+
+                Last in the sheet and not in `toolbarControls`, for that
+                array's own reason turned around: it is rendered by *both*
+                faces, and this control is on this one only. Above `md` the
+                shelf is in the app header, and this arm is not rendered at all.
+              */}
+              {savedPlansShelf}
             </div>
           </PlanToolbarSheet>
         </div>
@@ -11433,21 +11501,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             card has no columns` failed on `expected <button …(2)></button> to
             be null` — the control on the sheet at 390px. Watched, 2026-08-09.
           */}
-          {(widthOverrides.size > 0 ||
-            columnsDiffer ||
-            ganttHeightPx !== null ||
-            ganttDayPx !== DAY_PX ||
-            !ganttLabelsShown) && (
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
-              onClick={resetLayout}
-            >
-              Reset layout
-            </Button>
-          )}
+          {hasSuccessfulTreeRead &&
+            (widthOverrides.size > 0 ||
+              columnsDiffer ||
+              ganttHeightPx !== null ||
+              ganttDayPx !== DAY_PX ||
+              !ganttLabelsShown) && (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
+                onClick={resetLayout}
+              >
+                Reset layout
+              </Button>
+            )}
         </div>
       )}
 

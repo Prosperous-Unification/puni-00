@@ -76,6 +76,15 @@ const FOLDER = import.meta.dir;
 // happened, where a general `updated_at` would say only that something did.
 // `optimization-drain.db.test.ts` pins the one this drain writes, including that
 // a re-run does not move an instant already stamped.
+// `savedPlan` and `savedPlanBody` join them for `planEvent`'s reason, one step
+// further: a saved plan records an act too, and it records it **by value**.
+// The header carries its own `created_by` — the display name at the instant of
+// the save, deliberately not a `users` reference — and its own `created_at`,
+// the instant the capture's read snapshot opened rather than the instant the
+// row was written. `auditOnCreate` would stamp a second, later pair of the same
+// two facts, and a reader would have to pick. Nothing updates either table:
+// `saved_plan_body` is never rewritten at all, which is the whole immutability
+// property (`schema.ts`), and a rename touches the header's `name` alone.
 const EXEMPT = new Set([
   'eventLog',
   'commandJournal',
@@ -90,6 +99,8 @@ const EXEMPT = new Set([
   'optimizationGeneration',
   'solverSlot',
   'optimizedScheduleCache',
+  'savedPlan',
+  'savedPlanBody',
 ]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
