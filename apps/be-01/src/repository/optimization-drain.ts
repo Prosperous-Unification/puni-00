@@ -3,7 +3,13 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
 import type { WriteStamp } from './index';
-import { optimizationGeneration, project, solverQueue, solverSlot } from './schema';
+import {
+  optimizationGeneration,
+  optimizedScheduleCache,
+  project,
+  solverQueue,
+  solverSlot,
+} from './schema';
 
 /**
  * Phase 1 of the two-phase cancel-and-drain (tasks.md 3.9b).
@@ -164,5 +170,127 @@ export function beginOptimizationDrain(
         ),
       )
       .all().length;
+  });
+}
+
+/**
+ * What one attempt at phase 2 did, and why it did nothing when it did nothing.
+ *
+ * Three of the four are ordinary and none is an error: `finish` is called from
+ * three places that race each other on purpose — the initiator, every slot
+ * release, and the reconciler — so most calls are expected to find the work
+ * already done or not yet finishable.
+ *
+ * - `finished` — this call deleted the target.
+ * - `waiting` — the closed state holds and affected slot rows remain. The
+ *   children are still running and their capacity is still theirs.
+ * - `open` — the durable closed state does **not** hold, so there is nothing to
+ *   finish. This is the one that must never delete: a project with no slots is
+ *   the ordinary state of most projects, and a `finish` that deleted on a
+ *   zero-slot observation alone would delete a live project the moment anybody
+ *   called it.
+ * - `absent` — the target is already gone. The loser of a race, and a no-op.
+ */
+export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent';
+
+/**
+ * Phase 2 of the two-phase cancel-and-drain (tasks.md 3.9b).
+ *
+ * **Finish is not the initiator's job.** A crash between `begin` and `finish`
+ * left the project hidden with admission closed for ever, and admission is
+ * exactly what a draining project rejects, so no later read could sweep it.
+ * Three callers therefore run this same transaction: the initiator, every slot
+ * release and reclaim sweep that removes the last affected row, and
+ * `reconcileOptimizationDrains()` on its interval. All three are idempotent and
+ * safe to race, and **none of them reopens admission** — there is no path from
+ * `draining` back to `open` in this file.
+ *
+ * **The precondition is the lock.** The closed state and the zero-slot
+ * observation are read inside the same transaction as the delete, and SQLite
+ * will not let that transaction upgrade to a write on a stale read: a
+ * concurrent commit in between makes the upgrade busy rather than letting it
+ * proceed. So the loser of a race either blocks or comes back and observes the
+ * row already gone, and never deletes on a view of the world that has moved.
+ *
+ * **What the delete takes.** Deleting the project row is the whole story — the
+ * generation, slot, queue and cache rows all reference it `ON DELETE CASCADE`.
+ * Retiring one contract version is not, because nothing references the
+ * generation row: its queue rows went at `begin`, and its cache rows are taken
+ * here, explicitly.
+ *
+ * **Assumption A-1, and what would falsify it.** Retiring a contract version
+ * deletes that version's cache rows. They can never be read again — the cache
+ * key carries `contractVersion` and no live release carries the retired one —
+ * and 4.1b's retention bound is stated *per live contract version*, so a
+ * retired version's rows fall outside every bound there is and accumulate one
+ * release at a time, for ever. The cost of taking them is that a **rollback**
+ * to a retired release starts on a cold cache and re-solves once per objective,
+ * bounded by the budget the configuration already accepts. An unbounded leak
+ * against a bounded re-solve is the trade this makes. It is falsified if
+ * rolling back is routine rather than an incident: then the re-solve recurs and
+ * keeping the rows is worth the growth.
+ */
+export function finishOptimizationDrain(
+  db: SQLiteBunDatabase,
+  projectId: string,
+  contractVersion?: string,
+): OptimizationDrainFinish {
+  return db.transaction((tx) => {
+    const outstanding = (): number =>
+      tx
+        .select()
+        .from(solverSlot)
+        .where(
+          and(
+            eq(solverSlot.projectId, projectId),
+            ...(contractVersion === undefined
+              ? []
+              : [eq(solverSlot.contractVersion, contractVersion)]),
+          ),
+        )
+        .all().length;
+
+    if (contractVersion === undefined) {
+      const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+      if (target === undefined) return 'absent';
+      if (target.optimizationDeletePendingAt === null) return 'open';
+      if (outstanding() > 0) return 'waiting';
+
+      tx.delete(project).where(eq(project.id, projectId)).run();
+      return 'finished';
+    }
+
+    const generation = tx
+      .select()
+      .from(optimizationGeneration)
+      .where(
+        and(
+          eq(optimizationGeneration.projectId, projectId),
+          eq(optimizationGeneration.contractVersion, contractVersion),
+        ),
+      )
+      .get();
+    if (generation === undefined) return 'absent';
+    if (generation.admissionState !== 'draining') return 'open';
+    if (outstanding() > 0) return 'waiting';
+
+    tx.delete(optimizedScheduleCache)
+      .where(
+        and(
+          eq(optimizedScheduleCache.projectId, projectId),
+          eq(optimizedScheduleCache.contractVersion, contractVersion),
+        ),
+      )
+      .run();
+
+    tx.delete(optimizationGeneration)
+      .where(
+        and(
+          eq(optimizationGeneration.projectId, projectId),
+          eq(optimizationGeneration.contractVersion, contractVersion),
+        ),
+      )
+      .run();
+    return 'finished';
   });
 }

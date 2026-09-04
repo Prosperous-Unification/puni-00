@@ -8,9 +8,15 @@ import { eq } from 'drizzle-orm';
 import { type Drizzle, openDatabase, openDrizzle } from './db';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
-import { beginOptimizationDrain } from './optimization-drain';
+import { beginOptimizationDrain, finishOptimizationDrain } from './optimization-drain';
 import { allocateGeneration, readGeneration } from './optimization-generation';
-import { optimizationGeneration, project, solverQueue, solverSlot } from './schema';
+import {
+  optimizationGeneration,
+  optimizedScheduleCache,
+  project,
+  solverQueue,
+  solverSlot,
+} from './schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -155,6 +161,41 @@ function generationRows(): string[] {
 function deletePendingAt(projectId: string): number | null {
   const row = db.select().from(project).where(eq(project.id, projectId)).get();
   return row?.optimizationDeletePendingAt ?? null;
+}
+
+function seedCache(contractVersion: string, projectId = 'p-1'): void {
+  db.insert(optimizedScheduleCache)
+    .values({
+      projectId,
+      inputHash: 'h1',
+      objective: 'pri',
+      contractVersion,
+      budgetMs: 60000,
+      generation: 1,
+      status: 'ok',
+      resultJson: '{}',
+      failureReason: null,
+      createdAt: 1,
+    })
+    .run();
+}
+
+function cacheRows(): string[] {
+  return db
+    .select()
+    .from(optimizedScheduleCache)
+    .all()
+    .map((row) => `${row.projectId}/${row.contractVersion}`)
+    .sort();
+}
+
+function projectIds(): string[] {
+  return db
+    .select()
+    .from(project)
+    .all()
+    .map((row) => row.id)
+    .sort();
 }
 
 describe('beginning a contract retirement', () => {
@@ -318,5 +359,113 @@ describe('beginning a project deletion', () => {
     expect(deletePendingAt('p-1')).toBeNull();
     expect(deletePendingAt('p-2')).toBeNull();
     expect(generationRows()).toEqual([]);
+  });
+});
+
+describe('finishing a contract retirement', () => {
+  it('deletes the drained generation and that release’s cache, and no other’s', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    seedCache(BLUE);
+    seedCache(GREEN);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('finished');
+
+    expect(generationRows()).toEqual([`p-1/${GREEN}/open/0`]);
+    // A-1: nothing references the generation row, so retirement has no cascade
+    // and takes the retired release's cache rows itself. They can never be read
+    // again — the cache key carries the contract version — and 4.1b's retention
+    // bound is stated per LIVE contract version, so left alone they accumulate
+    // one release at a time for ever.
+    expect(cacheRows()).toEqual([`p-1/${GREEN}`]);
+  });
+
+  it('waits while a slot of that release is still counted, and deletes nothing', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    seedSlot(BLUE, 'pri', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('waiting');
+
+    expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
+    expect(cacheRows()).toEqual([`p-1/${BLUE}`]);
+  });
+
+  it('refuses a release nobody drained, however few slots it has', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+
+    // Zero slots is the ordinary state of an idle release. Deleting on that
+    // observation alone would retire a live contract version the moment anybody
+    // called finish, which is why the closed state is read too.
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('open');
+
+    expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
+    expect(cacheRows()).toEqual([`p-1/${BLUE}`]);
+  });
+
+  it('is a no-op on a release already finished by whoever won the race', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('finished');
+
+    // The initiator, every slot release and the reconciler all call this. Most
+    // calls are expected to find the work already done.
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('absent');
+  });
+});
+
+describe('finishing a project deletion', () => {
+  it('deletes the project and lets the cascade take everything under it', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    seedCache(BLUE, 'p-2');
+    seedQueue(BLUE, 1, 'p-2');
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
+
+    // Here the cascade IS the mechanism, because every optimizer table
+    // references `project` with `ON DELETE CASCADE`.
+    expect(projectIds()).toEqual(['p-2']);
+    expect(generationRows()).toEqual([`p-2/${BLUE}/open/0`]);
+    expect(cacheRows()).toEqual([`p-2/${BLUE}`]);
+    expect(queueRowsByProject()).toEqual([`p-2/${BLUE}`]);
+  });
+
+  it('waits while any of the project’s slots is still counted', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    seedSlot(GREEN, 'time', null);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // A project's outstanding count spans every release it has, so a green
+    // child keeps a deletion waiting even with blue empty.
+    expect(finishOptimizationDrain(db, 'p-1')).toBe('waiting');
+
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(slotRowsByProject()).toEqual([`p-1/${GREEN}/time/20`]);
+  });
+
+  it('refuses a project nobody is deleting, which is most projects', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+
+    // The single most destructive thing this function could do. `p-1` has no
+    // slots — the ordinary state — and no marker, so it is not a drain that
+    // finished, it is a project going about its business.
+    expect(finishOptimizationDrain(db, 'p-1')).toBe('open');
+
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
+  });
+
+  it('is a no-op on a project that is already gone', () => {
+    expect(finishOptimizationDrain(db, 'ghost')).toBe('absent');
+
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
   });
 });
