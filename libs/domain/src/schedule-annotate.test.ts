@@ -224,3 +224,47 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
     expect(produced.waitingForCapacity).toBe(0);
   });
 });
+
+describe('4.10b: chronological order is not topological, and the ready set is', () => {
+  /**
+   * The hazard 4.10b names, built rather than argued: a **zero-duration**
+   * predecessor whose slice key sorts **after** its successor's, sharing one
+   * start. `durationOf` preserves an explicit `days: 0` and `windowFor` treats a
+   * zero duration as legal no-work, so `z` finishes on the day it starts and `a`
+   * may begin there too. Sorted by `(start, key)` the pair comes out `a, z` —
+   * backwards — and `lateTimes` walks its order from the end, reading
+   * `late[next].latestStart` immediately, so it would reach `z` before `a` had a
+   * `Late` at all.
+   *
+   * It cannot happen, and this is Fast's audit for it: the order both passes
+   * hand to `lateTimes` is the **eligible set's** drain order, and the eligible
+   * set is Kahn's ready set — `a` is not admitted until `z` is placed. So
+   * precedence beats the comparator by construction, whichever comparator it is,
+   * which is why the optimized replay may sort by start without inheriting the
+   * hazard.
+   *
+   * Watched red: `leveled.order` sorted by `(start, key)` before `lateTimes` and
+   * this case is the one that breaks.
+   */
+  it('gives a zero-duration predecessor its late times, though its key sorts last', () => {
+    const rows = [leafRow('a', 10), leafRow('z', 20)];
+    const slices = [work('a', 3), work('z', 0)];
+    const edges = [{ predecessorId: 'z', successorId: 'a' }];
+
+    const produced = schedule(rows, edges, slices);
+    const first = produced.slices.get(sliceKey('z', null));
+    const second = produced.slices.get(sliceKey('a', null));
+
+    expect(first?.earliestStart).toBe(0);
+    expect(first?.earliestFinish).toBe(0);
+    expect(second?.earliestStart).toBe(0);
+    expect(second?.earliestFinish).toBe(3);
+    // The backward pass reached both, in an order that had `a` before `z`.
+    expect(first?.latestStart).toBe(0);
+    expect(first?.latestFinish).toBe(0);
+    expect(second?.latestStart).toBe(0);
+    expect(second?.latestFinish).toBe(3);
+    expect(first?.critical).toBe(true);
+    expect(second?.critical).toBe(true);
+  });
+});
