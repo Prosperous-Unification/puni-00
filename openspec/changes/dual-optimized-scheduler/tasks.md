@@ -2309,6 +2309,36 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       **Do not write them one layer down as a substitute:** an assertion against
       `schedule()` directly is 4.9's proof again under a new name, and 4.9 is
       already closed.
+      **THE SEAM IS BUILT (run 42), AND IT DOES NOT MATERIALISE.** The paragraph
+      above says the plan read should "dequantise through `materialiseOptimized`
+      and hand the result to `schedule()` as the seventh argument". That was
+      written before 4.12b changed what a row holds, and it is now wrong by one
+      layer: `OptimizedResult.schedule` is an already-materialised `Schedule`
+      (`optimized-result-dto.ts`), and 4.11b's guard runs "after 4.9's
+      materialisation and before any cache write" — so `materialiseOptimized`
+      belongs on the WRITE path, and the read path decodes a whole schedule.
+      A read that re-materialised would need offsets no row stores.
+      What landed instead: `OptimizedScheduleReader`, a port in
+      `apps/be-01/src/service/optimized-schedule-reader.ts` taking the plan's
+      own `ScheduleInput` plus the project id and objective, answering
+      `Schedule | null`. `WorkItemService` takes one as an OPTIONAL collaborator
+      and asks it before the pass, and the pass became
+      `optimized ?? schedule(...)`. Three refusals, each its own line and each
+      its own case: no reader wired in, `optimization_enabled` false,
+      `schedule_engine` not `optimized`. The four states the cache distinguishes
+      all arrive as `null` and all fall through to Fast, so 4.1–4.8's rules stay
+      in one place. `canonical-schedule-input` is now exported from the domain
+      barrel, since the plan read is its first caller outside `libs/domain`.
+      `deadlines` is passed as a module-level empty map naming TASK-241.
+      **Proven by** `apps/be-01/src/service/optimized-plan-read.test.ts`, six
+      cases, and three mutations each reddening exactly one of them: serve Fast
+      unconditionally; delete the enabled refusal; delete the engine refusal.
+      The ask is asserted field by field — objective, rows, slice keys, and the
+      empty deadline map — because a key built from anything but the pass's own
+      arguments names a different plan than the one about to be scheduled.
+      **What (a)–(f) still need is a fixture that publishes an annotated
+      optimized schedule through this port**, which is now a test-side stub
+      away rather than blocked on production wiring.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
