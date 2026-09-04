@@ -472,7 +472,7 @@ comparison UI) and start only after slice 6 is merged.
       positive half of the check the client will make. The negative stays exactly
       as written — serve the document without the paths, and watch the client
       test show an error state rather than "not available on this node yet".
-- [ ] 6.5 Gate: `bunx nx run-many -t test lint typecheck` on h2puni, and
+- [x] 6.5 Gate: `bunx nx run-many -t test lint typecheck` on h2puni, and
       `bun x @fission-ai/openspec validate --all --json`. Record the output in
       verify.md. **TASK-231 ends here.** Given 6.4's recorded ordering blocker,
       the recommendation is that TASK-231 closes at this gate with 6.4 carried
@@ -480,6 +480,23 @@ comparison UI) and start only after slice 6 is merged.
       met, and the one open item is a client rendering with no client to render
       it. That is a scope call, so it is written as a recommendation rather than
       taken: whoever runs this gate decides, and records which they chose.
+      **DECIDED 2026-09-04, run 18: taken as recommended.** TASK-231 closes here
+      and 6.4 goes to slice 8 with 8.1. Full output in verify.md under "6.5 —
+      the closing gate": be-01 1301/0 and mcp-01 106/0 at `0fd70261`,
+      `format:check --all` and `openspec validate --all` (35/0) green at
+      `f7a8e7ee`.
+      **WIDENING THE GATE TO ALL 22 PROJECTS FOUND A DEFECT SIXTEEN `-p be-01`
+      RUNS COULD NOT SEE, and that is the finding of this item.** `mcp-01`
+      derives its MCP tool set from the committed `apps/be-01/openapi.json`;
+      five new paths tripped its drift guard and the README count asserted
+      against it. Decided: all five saved-plan operations become tools (22 → 27)
+      and `EXCLUDED_PATHS` stays at five — no exclusion class reaches them, and
+      the `plan-commands` exclusion that looks like it should does not, because
+      a saved plan is a separate resource rather than an edit to a plan and no
+      batch command creates one, so excluding its writes would leave no way to
+      save at all. `fe-01:lint` also went red and is NOT a code defect: `Killed`
+      by the OOM killer at `mem_available_pct` 15. `--parallel=1` is what let
+      the other 21 projects through.
 
 ## 7. The diff
 

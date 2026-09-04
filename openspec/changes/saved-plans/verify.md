@@ -111,3 +111,105 @@ round 2. The `openai/gpt-5.6-sol` seat was attempted at the head of every round
 from 4 on and refused in under a second each time with the same Codex
 harness tool-policy error, so the peer column names the model that actually
 read the artifacts rather than the one the routing policy prefers.
+
+## 6.5 — the closing gate, 2026-09-04
+
+Run on **h2puni** (`/home/puni1/gate-task231`, `dirty=0`, `NX_DAEMON=false`,
+`--skip-nx-cache`, `TMPDIR=/home/puni1/gate-tmp`, head asserted with
+`rev-parse` after each reset). Nothing was built or run on h1claw.
+
+| Gate                                               | Head       | Result                                                                                              |
+| -------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| `run-many -t test lint typecheck`, all 22 projects | `e21c92f7` | 20 of 22 green; two failures, both diagnosed below                                                  |
+| `run-many -t test lint typecheck -p be-01 mcp-01`  | `0fd70261` | exit 0 — be-01 **1301 pass / 0 fail** across 110 files, mcp-01 **106 pass / 0 fail** across 7 files |
+| `nx format:check --all`                            | `f7a8e7ee` | exit 0                                                                                               |
+| `openspec validate --all`                          | `f7a8e7ee` | **35 passed / 0 failed**                                                                             |
+
+### What the whole-workspace gate caught that sixteen per-project runs could not
+
+Runs 1–17 gated `-p be-01`. Widening to all 22 projects turned up two reds and
+one of them was real.
+
+**`mcp-01:test`, 2 failures — a real defect, now fixed at `0fd70261`.** `mcp-01`
+derives its MCP tool set from the committed `apps/be-01/openapi.json`, and this
+change adds five paths to it, so the drift guard _"is 22 tools, so a route that
+appears must be decided about"_ went red along with the README count that is
+asserted against it. That guard is doing exactly its job. The decision recorded
+in `openapi-tools.test.ts`: **all five saved-plan operations become tools (22 →
+27) and `EXCLUDED_PATHS` stays at five.** No exclusion class reaches them — they
+are not `/api/auth/*`, not `/internal/*`, and unlike `/health`, `/metrics` and
+`/api/smoke/echo` they carry a plan. The `plan-commands` exclusion is the one
+that looks like it should apply and does not: it removed single-item plan
+_edits_ because a model gets one batch write and must not pick the slow path,
+whereas a saved plan is a separate resource with its own id, quota and
+lifecycle, and no command in the batch vocabulary creates one — excluding its
+writes would leave no way to save at all.
+
+**`fe-01:lint`, `Killed` — the host, not the code.** The OOM killer, at
+`mem_available_pct` 15 (~1.8G of 15.6G). h2puni's `/tmp` and `/dev/shm` are
+tmpfs and together held ~10G of scratch from runs dated 26–31 August; `/tmp` was
+full enough that an unrelated `sed` on that box failed with "Disk quota
+exceeded" while the filesystem itself was 52% used with 70G free. This is the
+same condition that OOM-killed lane e's combined lint+typecheck earlier the same
+day. `--parallel=1` is what let the other 21 projects through, and is why the
+be-01 suite completed at all. Recorded as a host bottleneck, not absorbed.
+
+### Two defects found by reading, outside any gate
+
+**A literal NUL byte in a TypeScript source file** (`c095b6e6`).
+`service/saved-plan-input.ts` carried a raw `0x00` byte inside the composite map
+key `${workItemId}<NUL>${stepId}`, so git classified the file as binary: it
+showed as `Bin 0 -> 11026 bytes` in every diff, could not be reviewed as text,
+and needed `git apply --binary` to patch. Written as the escape ` ` the
+character is identical and the file is text again. The key is an in-memory `Map`
+key only (lines 165, 171–173, 176) — never persisted, never digested — so the
+runtime value is byte-identical either way.
+
+**Prettier is not idempotent on `tasks.md`** (`f7a8e7ee`). After the bulk
+format, `format:check --all` stayed red on that one file, and `--write` followed
+by `--check` still warned: one line oscillated between two and four spaces of
+indent. The cause is an inline code span split across a line break inside a
+nested list item — the span opened at the end of one line and closed on the
+next. Joined onto one line there is nothing left to re-indent.
+
+CI's `Format` step is `nx format:check --all`, not a changed-files check, so the
+per-chunk prettier of runs 1–17 never saw the call sites run 16 threaded
+`savedPlans` through: 26 files needed formatting at `9afe7363`.
+
+### Review seats
+
+| Seat   | Model                   | Head       | Verdict                                                |
+| ------ | ----------------------- | ---------- | ------------------------------------------------------ |
+| Gemini | `agy` (Antigravity CLI) | `c095b6e6` | **APPROVE** — no Critical, Important or Minor findings |
+| Peer   | `openai/gpt-5.6-sol`    | `c095b6e6` | **unavailable** — `peer-review-skipped`                |
+
+The Gemini verdict is a verified artifact: `queue/reviews/task231-gemini.txt`,
+10243 bytes, SHA-256
+`ed28d5c1c3c462888a9ccf272214b91d680224f87baed5cb042a81ea9704fdda`, seat
+`gemini/antigravity-cli`. It cites `saved-plan.controller.ts:68-71`,
+`middleware/caller.ts:50-51` and `app.ts:182-185` for the finding that
+authentication halts an anonymous caller with 401 on all five routes before any
+project read, permission rule or existence check — so a 403 never tells a
+stranger the project exists.
+
+The first Gemini attempt failed with `rc=126`, `Argument list too long`: the
+seat passes its prompt as one argv argument and the full 177KB non-test diff
+exceeds the per-argument limit. The bounded 53KB authorisation-critical prompt
+went through. That is a caller-side size limit, not a seat failure.
+
+The `openai/gpt-5.6-sol` peer seat was attempted twice at the exact head and
+refused both times in under half a second with _"Codex agent harness cannot
+enforce this conversation's tool policy"_ — the same error this file already
+records against TASK-230's rounds 4 through 8. Recorded as
+`peer-review-skipped` per the worker procedure; a completed peer verdict's
+Critical or Important findings would still block.
+
+### Scope call taken here
+
+**TASK-231 closes at this gate with 6.4 carried into slice 8.** Run 17 wrote 6.5
+as a recommendation rather than a decision, because moving an item out is a
+scope call; this run takes it. Every _storage and route_ obligation the task
+names is met and proved. 6.4's two halves are both client-side and `apps/fe-01`
+has no saved-plan code at all, so the one open item is a client rendering with
+no client to render it — its mechanism is settled in its own checkbox so 8.1
+lands it in one pass.
