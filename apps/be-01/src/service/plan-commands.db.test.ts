@@ -139,7 +139,7 @@ beforeEach(async () => {
     announcements,
   };
   runner = new PlanCommandRunner(runnerOptions);
-  const created = await new ProjectService({ projects: projectStore }).create(
+  const created = await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).create(
     'Rewire the shed',
     ownerId,
   );
@@ -669,7 +669,7 @@ describe('the priority a create writes', () => {
     // on the service, ignoring its `projectId` after the first call — and this
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
-    const other = await new ProjectService({ projects: projectStore }).create('Tile it', ownerId);
+    const other = await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).create('Tile it', ownerId);
     const plain = applied(
       await runner.run(other.project.id, ownerId, [
         { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Grout' },

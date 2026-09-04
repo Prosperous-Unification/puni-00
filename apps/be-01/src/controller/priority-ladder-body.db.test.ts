@@ -91,7 +91,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     const auth = new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY });
     app = buildApp({
       auth,
-      projects: new ProjectService({ projects: projectStore }),
+      projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({ projects: projectStore, bands, broadcast }),

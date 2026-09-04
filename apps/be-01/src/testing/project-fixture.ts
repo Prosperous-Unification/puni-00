@@ -10,6 +10,7 @@ import type {
 } from '../repository';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
+import { recordingBroadcaster } from './broadcast-fixture';
 
 /**
  * A `Project` row carrying every field the schema requires.
@@ -180,5 +181,5 @@ export function inMemoryProjects(
 
 /** A ProjectService over the in-memory store, for tests that only need `buildApp` to construct. */
 export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
-  return new ProjectService({ projects });
+  return new ProjectService({ projects, broadcast: recordingBroadcaster() });
 }

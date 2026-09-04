@@ -148,7 +148,10 @@ export function buildServices(opts: ServicesOptions): BeServices {
       passwordSessions: opts.passwordSessions,
       localIdentity: opts.localIdentity,
     }),
-    projects: new ProjectService({ clock, projects: projectStore }),
+    // The same broadcaster once more, so `project_settings_changed` takes its
+    // place in the project's one sequence beside the step, capacity and tree
+    // events (tasks.md 3b.3).
+    projects: new ProjectService({ clock, projects: projectStore, broadcast: announcements }),
     // The same broadcaster again: a capacity event takes its place in the
     // project's one sequence, so a client resuming from a work item's sequence is
     // not replayed a capacity change it has seen — or handed none it has not.

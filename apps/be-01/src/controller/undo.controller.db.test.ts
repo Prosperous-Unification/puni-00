@@ -72,7 +72,7 @@ beforeEach(() => {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
-    projects: new ProjectService({ projects }),
+    projects: new ProjectService({ projects, broadcast: recordingBroadcaster() }),
     steps: new StepService({
       projects,
       steps: new StepRepository(db),

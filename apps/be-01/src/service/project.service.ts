@@ -10,6 +10,7 @@ import type {
   Step,
 } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
+import type { Broadcaster } from './broadcast';
 import { type Clock, clockOf } from './clock';
 
 /**
@@ -32,6 +33,21 @@ export interface ProjectServiceOptions {
   projects: ProjectStore;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock?: Clock;
+  /**
+   * Where `project_settings_changed` goes (tasks.md 3b.3).
+   *
+   * **Required, and sixteen call sites paid for it.** Optional-with-a-no-op-
+   * default was the cheaper edit and it fails in exactly the way that matters:
+   * a service constructed without one goes on answering `200` to every settings
+   * PATCH while no client is ever told, and no test that does not specifically
+   * look for the event can see the difference. Required makes the compiler ask
+   * the question once, at every construction, including the production wiring
+   * in `services.ts`. This is not the `NewProject` trade (3b.2): there the
+   * twenty sites would each have restated a *value* that could drift from the
+   * migration, and here they pass a collaborator that cannot drift from
+   * anything.
+   */
+  broadcast: Broadcaster;
 }
 
 /**
@@ -185,6 +201,38 @@ export class ProjectService {
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
+    // After the write and only on success, so nothing is announced that the
+    // store refused or that landed on a project that had gone. `forbidden` and
+    // both `not_found` arms return above this line, which is what makes
+    // tasks.md 3b.4's "refused and emits nothing" a property of the code rather
+    // than of the test that checks it.
+    if (settingsMoved(project, updated)) {
+      await this.opts.broadcast.publish(id, {
+        type: 'project_settings_changed',
+        optimizationEnabled: updated.optimizationEnabled,
+        scheduleEngine: updated.scheduleEngine,
+        scheduleObjective: updated.scheduleObjective,
+      });
+    }
     return { ok: true, value: updated };
   }
+}
+
+/**
+ * Whether the write moved any of the three settings.
+ *
+ * The **stored rows** are compared, before and after, rather than asking which
+ * keys the patch named. A PATCH that re-sends the values a project already has
+ * — which is what a settings panel with three controls does every time one of
+ * them is touched — named the keys and changed nothing, and announcing that
+ * would wake every open client to repaint what it is already showing. The
+ * inverse mistake is not available here: no other field can move these three,
+ * so a row comparison cannot report a change nobody made.
+ */
+function settingsMoved(before: Project, after: Project): boolean {
+  return (
+    before.optimizationEnabled !== after.optimizationEnabled ||
+    before.scheduleEngine !== after.scheduleEngine ||
+    before.scheduleObjective !== after.scheduleObjective
+  );
 }

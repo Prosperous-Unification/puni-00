@@ -118,7 +118,7 @@ beforeEach(async () => {
     { at: 2, by: strangerId },
   );
 
-  const created = await new ProjectService({ projects: projectStore }).create('Shed', ownerId);
+  const created = await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).create('Shed', ownerId);
   projectId = created.project.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
@@ -206,7 +206,7 @@ describe('StepService.rename', () => {
   });
 
   it('refuses a step that belongs to another project', async () => {
-    const other = await new ProjectService({ projects: projectStore }).create('Roof', ownerId);
+    const other = await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).create('Roof', ownerId);
     const theirs = (await stepStore.listByProject(other.project.id)).at(0);
     if (theirs === undefined) throw new Error('the other project was created without steps');
 

@@ -74,7 +74,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
     app = buildApp({
       auth,
-      projects: new ProjectService({ projects: projectStore }),
+      projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
       directory: new DirectoryService({ directory: directoryStore, broadcast }),
       capacity: new CapacityService({
         projects: projectStore,
@@ -164,7 +164,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
   /** A project of `ownerId`'s, and a team, both real rows. */
   async function plan(name = 'Rewire the shed'): Promise<string> {
-    const created = await new ProjectService({ projects: projectStore }).create(name, ownerId);
+    const created = await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).create(name, ownerId);
     return created.project.id;
   }
 
@@ -286,7 +286,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     // pretending the project is absent would contradict the next GET.
     const projectId = await plan();
     const platform = await team('Platform');
-    await new ProjectService({ projects: projectStore }).update(projectId, ownerId, {
+    await new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }).update(projectId, ownerId, {
       restricted: true,
     });
     const registered = await app.handle(

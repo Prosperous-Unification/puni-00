@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -28,7 +29,7 @@ function buildHarness() {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     auth: testAuthService(inMemoryUsers()),
-    projects: new ProjectService({ projects: projectStore }),
+    projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
     steps: testStepService(projectStore),
     workItems: plan.service,
     replay: testReplay().replay,
