@@ -2254,10 +2254,13 @@ function floorWordsOf(
   startsOn: string | null,
 ): string {
   switch (slice.boundBy) {
+    // `optimizer` sits beside the two that need nothing from the caller, and
+    // for the same reason: it points at no other row, no person and no team.
+    // Task 4.10. The comment is ABOVE the group rather than between the labels
+    // because a comment between two `case`s reads to eslint's `no-fallthrough`
+    // as a body on the one above it, and it errored here.
     case 'projectStart':
     case 'stepOrder':
-    // Beside the two that need nothing from the caller, and for the same
-    // reason: it points at no other row, no person and no team. Task 4.10.
     case 'optimizer':
       return FLOOR_SENTENCE[slice.boundBy];
     // The one arm whose words depend on facts this function is not handed by
