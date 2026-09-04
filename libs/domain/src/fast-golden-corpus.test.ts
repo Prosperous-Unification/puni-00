@@ -55,8 +55,13 @@ describe('the Fast golden corpus keys itself on the contract version', () => {
  * the guard actually depends on rather than trusting the shape.
  */
 describe('the stored bytes are the schedule, not an empty object', () => {
+  interface PlacedProbe {
+    readonly estimated: boolean;
+    readonly earliestStart: number;
+    readonly earliestFinish: number;
+  }
   const unestimated = STORED.cases['unestimated-middle'] as {
-    slices: [string, Record<string, unknown>][];
+    slices: [string, PlacedProbe][];
   };
 
   it('carries one entry per slice with its placement on it', () => {

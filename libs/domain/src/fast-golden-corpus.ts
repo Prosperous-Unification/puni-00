@@ -3,7 +3,7 @@
  *
  * This is task 1.6(a), and it exists because the thing that phrase used to
  * point at could not do the job. `schedule-identity.test.ts` is a
- * *differential* corpus — a generated plan through today's engine and through a
+ * differential corpus — a generated plan through today's engine and through a
  * copy of the `role-crud` engine in the same file — so it compares two
  * implementations inside one commit and stores nothing. There is no artefact
  * for a cache key to protect, and worse, its oracle imports the live
@@ -25,8 +25,8 @@
  */
 
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
-import type { PlannedRow } from './derive-numbers';
 import type { DependencyReach } from './dependency-reach';
+import type { PlannedRow } from './derive-numbers';
 import { type DependencyEdge, type PoolSizes, type Schedule, schedule, type Slice } from './schedule';
 
 /** One corpus case: a whole `schedule()` argument tuple under a stable name. */
