@@ -1918,7 +1918,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       `solver-wire.v1.json`'s response `$comment` states for every outcome the
       schema cannot encode.
 
-- [ ] 5.2 Objectives, stated as executable mathematics rather than prose:
+- [x] 5.2 Objectives, stated as executable mathematics rather than prose:
       `MAKESPAN = max finish`; `PRIORITY = Σ priorityWeight(s) · finish(s)`;
       `MOVEMENT = Σ |start(s) − baselineOffsets[s]|`. PRI minimizes
       `(PRIORITY, MAKESPAN, MOVEMENT)`, Time minimizes
@@ -1933,6 +1933,46 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       matrix is the single authority; this task restates none of it. Never a
       weighted sum, which overflows on realistic horizons. Neither is a total order; ties
       exist and are not broken reproducibly in production.
+
+      **Landed** as `libs/solver-py/src/wbs_solver/model.py` (the constraint
+      system and the three terms) and `solve.py` (the staging). The split is not
+      tidiness: the matrix _constrains_ a term after a stage has proved
+      something about it, so the terms have to be addressable objects before any
+      staging code can exist.
+
+      **The constraint set is read off `revalidate-solver-result.ts`, not
+      invented.** A rule the model is missing is a solve thrown away as
+      `invalid-output`; a rule it adds is a plan reported infeasible that Bun
+      would have accepted. Six clauses in that file's own order, each naming the
+      clause it mirrors, plus the one it does not carry —
+      `finish <= deadlineUnits`, whose own header assigns it to 2.4, and which is
+      what makes the matrix's `INFEASIBLE, k = 1` row a property of the plan.
+
+      **Three decisions this item did not name**, recorded in the task log with
+      what would falsify each: zero-duration slices get no interval at all
+      (matching the re-validator's sweep, which drops zero-length placements
+      before counting); the three terms are `IntVar`s pinned by equalities
+      rather than `LinearExpr`s, because an equality against a relaxation is not
+      an equality and `MOVEMENT` needs `AddAbsEquality` for the same reason; and
+      `num_search_workers`/`random_seed` are a `SolverConfig` constructor
+      argument rather than a wire field, since `solver-wire.v1.json` is closed
+      and its own `$comment` already treats process-level settings —
+      `childDeadlineAt`, `attemptToken` — as arguments rather than message
+      members. Reading that config at the process boundary is 5.4b's.
+
+      **`stage_disposition(status, stage, has_incumbent)` is pure**, because
+      four of the six rows are unreachable through a real solve of an instance
+      small enough to be an oracle: a budget that reliably exhausts is the flake
+      5.6 exists to avoid, and a later-stage INFEASIBLE cannot be produced
+      without a wrong model. Every row is asserted as an argument; the reachable
+      rows are also driven end to end.
+
+      **`UNKNOWN` with an incumbent is honoured and never occurs here.** CP-SAT
+      answers `FEASIBLE` whenever the search found a solution and stopped early,
+      and `UNKNOWN` only when it found none. The two rows prescribe the
+      identical constraint and the identical per-term status, so the collapse is
+      a property of this solver rather than of the table.
+
 - [ ] 5.3 **Proven by** the Python suite (CI only) — unit: each of the three
       cost terms computed on a hand-built instance, both stagings, request
       parse round-trip, response serialization.
