@@ -216,7 +216,7 @@ string[]`, never a singular `poolId`);
       composition root that constructs `publishedScheduleReaderOf` must pass
       `contractVersionOf(solverVersion)` and not a string of its own. Tick 1.5
       when it does.
-- [ ] 1.6 **Proven by** keying the existing Fast golden corpus on
+- [x] 1.6 **Proven by** keying the existing Fast golden corpus on
       `SCHEDULER_CONTRACT_VERSION`. **Negative check, watched red** — change
       `ASSUMED_SLICE_WORKDAYS` without bumping the constant and watch the
       corpus fail. This is the guard that makes the cache key honest: without
@@ -360,6 +360,30 @@ number, then on step order`, a test written directly for this rule. The
       **Still uncovered, named rather than claimed:** `SOLVER_QUANTUM` is not a
       `schedule()` input at all, so this corpus cannot reach it. Every other
       name on `contract-version.ts`'s bump list now has a case built for it.
+      **(c) IS CLOSED, run 47, and it does not have the shape the plan asked
+      for — that is the finding, not a shortcut.** Run 11 recorded (c) as
+      blocked because `schedule()` had six parameters and the seventh canonical
+      argument, `deadlines`, had not reached its signature. A seventh parameter
+      has since arrived with **4.9**, and it is `pinnedStarts`, not `deadlines`.
+      **An empty map is NOT a no-op for it and cannot be made one:**
+      `schedule.ts:2303` reads `pinnedStarts === undefined` as "this is Fast"
+      and anything else as "a solver answered", then demands a start for every
+      node — so `new Map()` means "the solver returned no start for any slice"
+      and is refused with `ScheduleInvalidOptimizedStartError`. The plan's
+      wording therefore cannot be executed literally; it would assert the
+      opposite of the design.
+      **So (c) landed as two halves in `fast-golden-corpus.test.ts`**: the
+      no-op the plan wanted, proven by passing the seventh parameter explicitly
+      as `undefined` and reproducing all eight stored cases byte for byte; and
+      the refusal, asserted on **every** case, which is what stops the corpus
+      being re-keyed through the optimized path by accident.
+      **Watched red, MEASURED on h2puni at `17c52e89`** rather than argued —
+      the exact silent bug the second half exists to forbid: widen line 2303 to
+      `pinnedStarts === undefined || pinnedStarts.size === 0`, making an empty
+      map a quiet no-op, and the file goes **6 pass / 1 fail**, the one failure
+      being `refuses an empty map on every case rather than treating it as
+      Fast`. Green at the same head: **7 pass / 0 fail, 24 expect() calls**.
+      The mutation was reverted and the gate checkout re-verified `dirty=0`.
 - [x] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
