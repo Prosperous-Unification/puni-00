@@ -79,7 +79,10 @@ const added = async (name: string, teamIds: readonly string[]): Promise<Person> 
 
 /** A second project with one work item, so a team can be held in two at once. */
 async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
-  const created = await new ProjectService({ projects, broadcast: recordingBroadcaster() }).create('Roof', ownerId);
+  const created = await new ProjectService({ projects, broadcast: recordingBroadcaster() }).create(
+    'Roof',
+    ownerId,
+  );
   const workItemOf = crypto.randomUUID();
   await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), [], wrote());
   return { projectOf: created.project.id, workItemOf };
@@ -119,7 +122,10 @@ beforeEach(async () => {
     { at: 1, by: ownerId },
   );
 
-  const created = await new ProjectService({ projects, broadcast: recordingBroadcaster() }).create('Rollout', ownerId);
+  const created = await new ProjectService({ projects, broadcast: recordingBroadcaster() }).create(
+    'Rollout',
+    ownerId,
+  );
   projectId = created.project.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
