@@ -78,7 +78,7 @@ check-that-cannot-fail failure R5 names.
       (`openspec/changes/work-item-deadline/design.md` §3.4).
       Reuses the existing `sliceKey`/`indexTree`/`expandToLeaves` normalizers.
 - [x] 1.2 `scheduleInputHash(plan)` = SHA-256 of 1.1.
-- [ ] 1.3 **Proven by** `schedule-input-hash.test.ts`, one **tie-sensitive**
+- [x] 1.3 **Proven by** `schedule-input-hash.test.ts`, one **tie-sensitive**
       mutation case per canonical fact — each fixture is built so the mutated
       fact actually moves a placement, otherwise a hash that ignores it still
       passes. Cases: estimate, edge, as-written priority on a parent, `width`,
@@ -146,10 +146,21 @@ check-that-cannot-fail failure R5 names.
       pool-free it reaches the schedule through `durationOf`'s `days / width`
       arm, so 4 days across a width of 2 is two and the successor starts at 2
       rather than 4. Domain **399 pass / 0 fail across 31 files**.
-      **Still open on this item:** the `poolIds` **widened from one pool to
-      two** mutation. The `poolIds` case that landed is the unchanged-hash one
-      (reordered and de-duplicated); the widening mutation is a different fact
-      and is not written yet. The remaining
+      **`poolIds` widened from one pool to two landed in run 13 chunk 1, on a
+      fourth base `PARALLEL`, and closes this item.** It needs its own base for
+      the same reason `width` did: every slice in `BASE` sits on the single pool
+      `team`, so the only pool a second entry could name is one no slice holds,
+      and a pool nobody queues for delays nothing — giving it an occupant would
+      mean editing `poolSizes` and the slice list as well, three mutations in the
+      case that exists to carry one. `PARALLEL` is two leaves, no edge, on
+      **disjoint** one-slot pools `alpha` and `beta`, simultaneous in the base;
+      widening `y` to hold `alpha` too puts both in one queue of one.
+      **Measured, not reasoned** (`bun` probe against the gate checkout at
+      `af03678e`): base `x` and `y` are both `0 → 2`,
+      `waitingForCapacity: 0`; widened, `y` is `2 → 4` with
+      `boundBy: "capacity"`, `capacityTeamId: "alpha"`,
+      `capacityPredecessorIds: ["x\0"]` and `waitingForCapacity: 1`. Domain
+      **400 pass / 0 fail across 31 files**. The remaining
       unchanged-hash cases - Engine, Objective, the toggle, the display variant,
       the clock, the acting user - are **structurally** excluded rather than
       untested: none of them is a member of `ScheduleInput`, so there is nothing
