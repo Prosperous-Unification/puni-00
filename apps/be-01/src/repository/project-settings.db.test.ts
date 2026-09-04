@@ -114,14 +114,12 @@ function seedProject(path: string, id: string): void {
 function settingsOf(path: string, id: string): Record<string, unknown> | null {
   const db = openDatabase(path);
   try {
-    return (
-      db
-        .query(
-          `SELECT optimization_enabled, schedule_engine, schedule_objective
+    return db
+      .query(
+        `SELECT optimization_enabled, schedule_engine, schedule_objective
            FROM project WHERE id = '${id}'`,
-        )
-        .get() as Record<string, unknown> | null
-    );
+      )
+      .get() as Record<string, unknown> | null;
   } finally {
     db.close();
   }
@@ -203,9 +201,9 @@ describe('the project settings migration', () => {
       runMigrations(db.path, FOLDER);
       seedProject(db.path, 'p-1');
 
-      expect(refusal(db.path, `UPDATE project SET optimization_enabled = 2 WHERE id = 'p-1'`)).toContain(
-        'CHECK',
-      );
+      expect(
+        refusal(db.path, `UPDATE project SET optimization_enabled = 2 WHERE id = 'p-1'`),
+      ).toContain('CHECK');
       expect(
         refusal(db.path, `UPDATE project SET schedule_engine = 'turbo' WHERE id = 'p-1'`),
       ).toContain('CHECK');
