@@ -1,4 +1,8 @@
-import { SOLVER_HORIZON_UNITS_MAX, type SolverSlice } from './wire-types';
+import {
+  SOLVER_HORIZON_UNITS_MAX,
+  type SolverOffsetMap,
+  type SolverSlice,
+} from './wire-types';
 
 /**
  * The two arithmetic refusals that must happen **before a process is spawned**
@@ -58,11 +62,26 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * stops surviving the round trip through Bun and JSON, so the weight the solver
  * optimises would not be the weight this builder computed.
  *
- * **MOVEMENT's own worst case, `Σ |offset − baseline|`, is NOT checked here**
- * and is owed: it needs `baselineOffsets`, which is 2.11's quantised baseline
- * and does not exist yet. Recorded rather than silently skipped.
+ * **MOVEMENT's worst case is third**, and it is checked here now that 2.11's
+ * quantised baseline exists to check it against. `Σ |offset − baseline|` is
+ * maximised term by term: an offset lives in `[0, horizonUnits]`, so the
+ * furthest any slice can be dragged from its baseline `b` is
+ * `max(b, horizonUnits − b)` — one end of the axis or the other, never both,
+ * which is why this is a max and not a sum of the two. It is last because it
+ * needs the horizon the first check produces, and it is the same
+ * `objective-overflow` token as PRIORITY's because it is the same fault: a term
+ * the solver would optimise that Bun could not have computed exactly.
+ *
+ * A slice with no baseline entry **throws** rather than returning a failure.
+ * The key sets of `slices[]`, `baselineOffsets` and `fastHint` are equal by
+ * construction — one grouping produces all three — so a gap is this package's
+ * own bug and not a state of the user's plan, and every failure token here is a
+ * sentence a client shows somebody.
  */
-export function preflightSolverRequest(slices: readonly SolverSlice[]): SolverPreflight {
+export function preflightSolverRequest(
+  slices: readonly SolverSlice[],
+  baselineOffsets: SolverOffsetMap,
+): SolverPreflight {
   let latestFloor = 0n;
   let totalDuration = 0n;
   let totalWeight = 0n;
@@ -88,6 +107,28 @@ export function preflightSolverRequest(slices: readonly SolverSlice[]): SolverPr
       ok: false,
       failure: 'objective-overflow',
       detail: `priority worst case ${objectiveWorstCase.toString()} exceeds Number.MAX_SAFE_INTEGER`,
+    };
+  }
+
+  let movementWorstCase = 0n;
+  for (const slice of slices) {
+    // `Object.hasOwn` rather than `=== undefined`: `SolverOffsetMap` indexes to
+    // `number`, so the narrowing form is dead to the type checker and eslint
+    // deletes it — a missing key would otherwise be read as `undefined`,
+    // `BigInt(undefined)` would throw somewhere with nothing to name, and the
+    // gap in the key set would never be reported as the gap it is.
+    if (!Object.hasOwn(baselineOffsets, slice.key)) {
+      throw new Error(`no baseline offset for slice ${slice.key.replace('\u0000', '/')}`);
+    }
+    const baseline = BigInt(baselineOffsets[slice.key]);
+    const away = baseline > horizon - baseline ? baseline : horizon - baseline;
+    movementWorstCase += away;
+  }
+  if (movementWorstCase > MAX_SAFE) {
+    return {
+      ok: false,
+      failure: 'objective-overflow',
+      detail: `movement worst case ${movementWorstCase.toString()} exceeds Number.MAX_SAFE_INTEGER`,
     };
   }
 

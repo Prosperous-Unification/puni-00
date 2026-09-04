@@ -15,26 +15,37 @@ const sliceOf = (over: Partial<SolverSlice> = {}): SolverSlice => ({
   ...over,
 });
 
+/**
+ * One entry for the one key every slice above carries — the tests below are
+ * about the horizon and the priority product, and a baseline of zero leaves
+ * MOVEMENT's own worst case at `horizonUnits` per slice, which none of them is
+ * near. MOVEMENT gets its own block at the end.
+ */
+const atZero = { k: 0 };
+
 describe('preflightSolverRequest', () => {
   it('is the SERIAL bound: the latest floor plus every duration', () => {
     const preflight = preflightSolverRequest([
       sliceOf({ durationUnits: 10, notBeforeUnits: 5 }),
       sliceOf({ durationUnits: 7, notBeforeUnits: 100 }),
-    ]);
+    ], atZero);
     expect(preflight).toEqual({ ok: true, horizonUnits: 117 });
   });
 
   it('seeds the floor with zero, so a plan with no manual floors has a horizon', () => {
     // The common case: an unseeded max over an empty set has no value.
-    expect(preflightSolverRequest([sliceOf({ durationUnits: 3 })])).toEqual({
+    expect(preflightSolverRequest([sliceOf({ durationUnits: 3 })], atZero)).toEqual({
       ok: true,
       horizonUnits: 3,
     });
-    expect(preflightSolverRequest([])).toEqual({ ok: true, horizonUnits: 0 });
+    expect(preflightSolverRequest([], atZero)).toEqual({ ok: true, horizonUnits: 0 });
   });
 
   it('accepts a horizon exactly at the maximum', () => {
-    const preflight = preflightSolverRequest([sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })]);
+    const preflight = preflightSolverRequest(
+      [sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })],
+      atZero,
+    );
     expect(preflight).toEqual({ ok: true, horizonUnits: SOLVER_HORIZON_UNITS_MAX });
   });
 
@@ -42,7 +53,7 @@ describe('preflightSolverRequest', () => {
     const preflight = preflightSolverRequest([
       sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX }),
       sliceOf({ durationUnits: 1 }),
-    ]);
+    ], atZero);
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -51,7 +62,7 @@ describe('preflightSolverRequest', () => {
   it('counts a floor toward the horizon, not only the durations', () => {
     const preflight = preflightSolverRequest([
       sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX }),
-    ]);
+    ], atZero);
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -65,7 +76,7 @@ describe('preflightSolverRequest', () => {
       sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
       sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER }),
       sliceOf({ durationUnits: 1 }),
-    ]);
+    ], atZero);
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -78,7 +89,7 @@ describe('preflightSolverRequest', () => {
     // surviving the round trip through Bun and JSON.
     const preflight = preflightSolverRequest([
       sliceOf({ durationUnits: 1_000_000_000, priorityWeight: 10_000_000 }),
-    ]);
+    ], atZero);
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('objective-overflow');
@@ -90,7 +101,7 @@ describe('preflightSolverRequest', () => {
     // their priorities when the plan is simply too long.
     const preflight = preflightSolverRequest([
       sliceOf({ durationUnits: Number.MAX_SAFE_INTEGER, priorityWeight: 1_000_000 }),
-    ]);
+    ], atZero);
     expect(preflight.ok).toBe(false);
     if (preflight.ok) throw new Error('unreachable');
     expect(preflight.failure).toBe('horizon-overflow');
@@ -100,7 +111,42 @@ describe('preflightSolverRequest', () => {
     // Nobody prioritised anything, which is most plans. The product is zero and
     // the objective bound is not in play.
     expect(
-      preflightSolverRequest([sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })]).ok,
+      preflightSolverRequest([sliceOf({ durationUnits: SOLVER_HORIZON_UNITS_MAX })], atZero).ok,
     ).toBe(true);
+  });
+});
+
+describe("preflightSolverRequest's MOVEMENT bound", () => {
+  const two = [
+    sliceOf({ key: 'a', durationUnits: 60 }),
+    sliceOf({ key: 'b', durationUnits: 40 }),
+  ];
+
+  it('accepts a baseline anywhere on the axis', () => {
+    // Horizon 100. Worst case is max(b, 100 - b) per slice — 70 and 100 — which
+    // is nowhere near MAX_SAFE_INTEGER and must not be refused.
+    expect(preflightSolverRequest(two, { a: 30, b: 100 })).toEqual({
+      ok: true,
+      horizonUnits: 100,
+    });
+  });
+
+  it('throws on a slice with no baseline, rather than reporting it to a user', () => {
+    // The key sets are equal by construction — one grouping produces slices,
+    // baselineOffsets and fastHint — so a gap is this package's bug. Every
+    // failure token here is a sentence a client shows somebody; this is not one.
+    expect(() => preflightSolverRequest(two, { a: 0 })).toThrow(/no baseline offset for slice b/);
+  });
+
+  it('cannot overflow below roughly four million slices, which is why no test spends one', () => {
+    // Stated as arithmetic rather than as a fixture, because the fixture does
+    // not exist: the check runs only after the horizon passed, so every term is
+    // at most SOLVER_HORIZON_UNITS_MAX and the sum needs that many terms to
+    // reach MAX_SAFE_INTEGER. The guard is therefore against a future horizon
+    // bound, not against a plan anybody has — and the honest version of that
+    // sentence is this assertion, not a comment.
+    const termsNeeded = Math.ceil(Number.MAX_SAFE_INTEGER / SOLVER_HORIZON_UNITS_MAX);
+    expect(termsNeeded).toBeGreaterThan(4_000_000);
+    expect(SOLVER_HORIZON_UNITS_MAX * 4_000_000).toBeLessThan(Number.MAX_SAFE_INTEGER);
   });
 });
