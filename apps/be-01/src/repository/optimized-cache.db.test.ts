@@ -1355,4 +1355,121 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
       db.cleanup();
     }
   });
+
+  /**
+   * 4.2's eviction half, and the honest reading of "a failed row is overwritten
+   * by the next run for that key". Nothing UPDATEs it: the primary key omits
+   * `generation` and 4.1's insert is `onConflictDoNothing`, so the replacement
+   * path is `allocateGeneration`'s delete and nothing else. A Retry allocates,
+   * the prior rows go — `failed` ones included, because the delete is scoped by
+   * project and contract version and says nothing about status — and the very
+   * next read asks for both objectives again.
+   */
+  it('clears every prior row for the project when a generation is allocated, failed ones included', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+      storeRow(db.path, {
+        objective: 'time',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+      });
+      expect(storedRowCount(db.path)).toBe(2);
+
+      const settled = recorder();
+      readAndSpawn(db.path, settled.spawn);
+      allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, HASH, 2);
+
+      const after = recorder();
+      const pair = readAndSpawn(db.path, after.spawn);
+
+      // The settled pair asked for nothing: `ok` is an answer and so is `failed`.
+      expect(settled.calls).toEqual([]);
+      expect(storedRowCount(db.path)).toBe(0);
+      expect(pair.pri).toEqual({ kind: 'miss' });
+      expect(pair.time).toEqual({ kind: 'miss' });
+      expect(after.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.2's undo. Editing to a second hash and undoing back to the first leaves
+   * the original key looking untouched, and it is not: the answer computed for
+   * it was cleared by the edit's own allocation, and the intermediate answer
+   * belongs to a hash nobody is asking about. Both read as a miss and both are
+   * asked for, which is the only correct behaviour — the plan is back where it
+   * was, but no solve for it survives.
+   */
+  it('misses an undo to a previous hash and asks for both again', () => {
+    const db = tempDb();
+    try {
+      const first = prepared(db.path);
+      storeOk(db.path, first, 'pri');
+      storeOk(db.path, first, 'time');
+
+      const edited = allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 2);
+      storeRow(db.path, {
+        objective: 'pri',
+        generation: edited,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        failureReason: null,
+        inputHash: 'h2',
+      });
+      const undone = allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, HASH, 3);
+      expect(undone).toBeGreaterThan(edited);
+
+      const back = recorder();
+      const pair = readAndSpawn(db.path, back.spawn);
+
+      expect(storedRowCount(db.path)).toBe(0);
+      expect(pair.pri).toEqual({ kind: 'miss' });
+      expect(pair.time).toEqual({ kind: 'miss' });
+      expect(back.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+      // And the hash it was edited to is not served either.
+      const intermediate = recorder();
+      const other = readAndSpawn(db.path, intermediate.spawn, { ...KEY, inputHash: 'h2' });
+      expect(other.pri).toEqual({ kind: 'miss' });
+      expect(intermediate.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The delete's scope, proved through the spawner rather than through a row
+   * count: allocating for green must not clear blue's answer, or the two
+   * releases evict each other on every deploy and each re-solves for ever —
+   * the livelock 4.1b's bound exists to prevent, reached through rule 1 instead
+   * of rule 2. Blue still hits, and a hit spawns nothing.
+   */
+  it("leaves another contract version's rows alone, so the other release still hits", () => {
+    const db = tempDb();
+    try {
+      const blue = prepared(db.path);
+      storeOk(db.path, blue, 'pri');
+      storeOk(db.path, blue, 'time');
+
+      const green = { ...KEY, contractVersion: '8+1.0.0' };
+      const cold = recorder();
+      readAndSpawn(db.path, cold.spawn, green);
+      allocateGeneration(openDrizzle(db.path), 'p-1', green.contractVersion, HASH, 2);
+
+      const stillBlue = recorder();
+      const pair = readAndSpawn(db.path, stillBlue.spawn);
+
+      expect(cold.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+      expect(stillBlue.calls).toEqual([]);
+      expect(pair.pri.kind).toBe('ok');
+      expect(pair.time.kind).toBe('ok');
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
 });
