@@ -1866,7 +1866,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
 
 ## 5. The `wbs-solver` Python package
 
-- [ ] 5.1 New versioned package with a lock file, OR-Tools CP-SAT declared, one
+- [x] 5.1 New versioned package with a lock file, OR-Tools CP-SAT declared, one
       `solve` entrypoint over stdin/stdout. No import surface, no daemon, no
       port. Version readable by the coordinator for `contractVersion`. The
       entrypoint calls `prctl(PR_SET_PDEATHSIG, SIGKILL)` **before** reading
@@ -1875,6 +1875,48 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       install: 6.2b's launcher wrapper sets it before the bind and the setting
       survives the `exec` onto the same pid (Fable r14 Minor 4). It is kept as
       defence in depth for the direct-spawn smoke test, where no launcher ran.
+
+      **Landed** at `libs/solver-py/`, distribution `wbs-solver`, import
+      package `wbs_solver`. Three things this item left open had to be decided,
+      because nothing in these artifacts names them, and they are recorded in
+      the task log with what would falsify each: the **location** (`libs/`, with
+      no `project.json` yet — 5.11 owns the Nx target, and a half-wired target
+      that runs nothing is worse than an absent one); the **runtime**, CPython
+      3.14 exactly, since design.md's packaging paragraph says the image
+      installs "the pinned Python runtime" and h2puni runs 3.14.4 with ortools
+      9.15.6755 publishing cp314 wheels; and the **lock format**, pip
+      `--require-hashes` rather than `uv.lock`, because `uv` is absent from the
+      gate host and `pip install --dry-run --report` already emits the exact
+      resolution with hashes.
+
+      **The version was not a choice.** `0.1.0` is what the golden request
+      corpus was checked in spending, before this package existed
+      (`solverVersion: "0.1.0"`, `contractVersion: "7+0.1.0"`).
+      `wire-contract-version.test.ts` deliberately asserts only the
+      `contractVersion` **prefix** because the suffix belongs to this package;
+      `tests/test_version.py` is the other half of that pin and reads the same
+      two fixtures from Python.
+
+      **`--version` is the coordinator's read.** Bare, newline-terminated,
+      nothing else on stdout, and it does not touch stdin — proved against a
+      pipe nobody writes to, since a `--version` that read stdin would block a
+      probe rather than answer it.
+
+      **The lock is installed, not merely resolved:**
+      `pip install --require-hashes -r requirements.lock` exits 0 and
+      `ortools 9.15.6755` imports from that environment.
+
+      **Watched reds, all measured:** `set_parent_death_signal()` moved to after
+      `read_request` fails both ordering cases; `__version__` bumped fails both
+      corpus fixtures; a deleted `--hash=` line fails the lock check. The real
+      `prctl` call is exercised against the real libc in a fourth case, so the
+      ordering pair cannot pass over a function that does nothing.
+
+      **`solve.solve_request` raises and is 5.2's.** A stub that answered would
+      make 5.2 green against nothing; the entrypoint exits 70 with the message
+      on stderr and **nothing** on stdout, which is the rule
+      `solver-wire.v1.json`'s response `$comment` states for every outcome the
+      schema cannot encode.
 - [ ] 5.2 Objectives, stated as executable mathematics rather than prose:
       `MAKESPAN = max finish`; `PRIORITY = Σ priorityWeight(s) · finish(s)`;
       `MOVEMENT = Σ |start(s) − baselineOffsets[s]|`. PRI minimizes
