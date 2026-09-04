@@ -1860,6 +1860,7 @@ review`, no self-merge.
       reddens this case on its own `asked` assertion plus both row-level cases,
       49 / 0 down to 46 / 3 on h2puni at `68dd999d`. Lowering the bound to 1
       reddens the same three, which is the same claim from the other side.
+
 - [x] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
       **zero calls on the injected spawner** (asserted on the spawner, not on
       elapsed time); a changed effort, edge or pool → miss; a `contractVersion`

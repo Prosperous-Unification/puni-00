@@ -1258,7 +1258,7 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
       const budgets = [60_000, 120_000];
       const asked: number[] = [];
       for (let round = 0; round < 10; round += 1) {
-        const budgetMs = budgets[round % budgets.length] as number;
+        const budgetMs = budgets[round % budgets.length];
         const release = recorder();
         readAndSpawn(db.path, release.spawn, { ...KEY, budgetMs });
         // `time` never commits here, so ignore it and follow the one objective
