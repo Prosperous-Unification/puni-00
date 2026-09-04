@@ -114,7 +114,12 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
   };
 
   const save = (quota: SavedPlanQuota) =>
-    service(quota).save({ projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace' });
+    service(quota).save({
+      projectId: 'p1',
+      name: 'once more',
+      createdBy: 'Ada Lovelace',
+      createdById: null,
+    });
 
   const headers = () => reader.db.select().from(savedPlan);
   const bodies = () => reader.db.select().from(savedPlanBody);

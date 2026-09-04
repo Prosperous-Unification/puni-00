@@ -40,6 +40,7 @@ const record = (id: string): SavedPlanWrite => ({
   projectId: 'p1',
   name: id,
   createdBy: 'Ada Lovelace',
+  createdById: null,
   createdAt: 1_756_000_123,
   input: { schemaVersion: 1, bytes: '{"schemaVersion":1}', sha256: 'a'.repeat(64) },
   schedule: { present: false, absentReason: 'pending' },

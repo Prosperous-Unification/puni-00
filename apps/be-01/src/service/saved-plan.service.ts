@@ -48,6 +48,15 @@ export interface SavedPlanSaveRequest {
   readonly name: string;
   /** The saver's display name, stored by value — never a `users` reference. */
   readonly createdBy: string;
+  /**
+   * The saving account, by reference — what task 6.1's permission rule reads.
+   *
+   * Required and nullable, never optional: `null` says "no account is behind
+   * this save", which is the same fact a deleted creator leaves and falls back
+   * to the project owner. A caller that forgets the field must not compile into
+   * that fallback silently. See {@link SavedPlanWrite.createdById}.
+   */
+  readonly createdById: string | null;
 }
 
 /**
@@ -322,6 +331,7 @@ export class SavedPlanService {
       projectId: request.projectId,
       name: request.name,
       createdBy: request.createdBy,
+      createdById: request.createdById,
       createdAt,
       input,
       schedule,

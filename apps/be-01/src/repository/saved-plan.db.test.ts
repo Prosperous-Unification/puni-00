@@ -24,6 +24,7 @@ const bothSides = (overrides: Partial<SavedPlanWrite> = {}): SavedPlanWrite => (
   projectId: 'p1',
   name: 'before the rewire',
   createdBy: 'Ada Lovelace',
+  createdById: null,
   createdAt: 1_756_000_000,
   input: { schemaVersion: 1, bytes: '{"input":true}', sha256: 'in-hash' },
   schedule: {
@@ -89,6 +90,38 @@ describe('SavedPlanRepository', () => {
    * project holding it reads as holding the input's bytes rather than as
    * holding none — the `coalesce` inside the sum.
    */
+  /**
+   * The permission reference reaches the row, and the value beside it is a
+   * different string.
+   *
+   * Both halves matter. `created_by_id` arriving as `null` for every save is the
+   * failure the required-and-nullable field on {@link SavedPlanWrite} exists to
+   * make uncompilable, and it is exactly what a forgotten `.values()` entry
+   * would produce — a column drizzle simply omits, which SQLite fills with the
+   * default. And the two are asserted as *different* strings, because a fixture
+   * whose name and id agreed would pass against an insert that wrote the display
+   * name into both columns, which is the confusion A-8 exists to prevent.
+   */
+  it('carries the saving account to the row, beside the display name', async () => {
+    await plans.write(bothSides({ createdBy: 'Ada Lovelace', createdById: 'owner' }), admit);
+
+    const stored = await plans.readOf('sp-1');
+    expect(stored?.header.createdById).toBe('owner');
+    expect(stored?.header.createdBy).toBe('Ada Lovelace');
+  });
+
+  /**
+   * `null` is a save with no account behind it, and it is storable — the state
+   * every existing fixture in this file writes. Without this the column could be
+   * `NOT NULL` and nothing here would notice, because a plan whose creator's
+   * account is later deleted has to keep existing.
+   */
+  it('stores a save with no account behind it', async () => {
+    await plans.write(bothSides({ createdById: null }), admit);
+
+    expect((await plans.readOf('sp-1'))?.header.createdById).toBeNull();
+  });
+
   it('writes no schedule body when there is no schedule, and still counts the input', async () => {
     const plan = bothSides({
       schedule: { present: false, absentReason: 'pending' },

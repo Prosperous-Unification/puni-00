@@ -99,7 +99,12 @@ describe('SavedPlanService.save', () => {
     });
 
   const save = () =>
-    service().save({ projectId: 'p1', name: 'before the rewire', createdBy: 'Ada Lovelace' });
+    service().save({
+      projectId: 'p1',
+      name: 'before the rewire',
+      createdBy: 'Ada Lovelace',
+      createdById: null,
+    });
 
   // Unfiltered on purpose, and not only because a service test may not import
   // `drizzle-orm`: each case writes at most one saved plan, so "the rows this
@@ -176,11 +181,37 @@ describe('SavedPlanService.save', () => {
     expect(parsed.workItems.map((row) => row.id)).toEqual(['wi-1', 'wi-2']);
   });
 
+  /**
+   * The account the route will authorise against reaches the stored row.
+   *
+   * Asserted off the header rather than off `result.record`, because the record
+   * is what the service *assembled* and this is about what the repository
+   * *wrote*: a `values()` that silently omitted the column would return a
+   * perfectly correct record beside a row full of nulls.
+   */
+  it('carries the saving account through save to the stored header', async () => {
+    const result = await service().save({
+      projectId: 'p1',
+      name: 'before the rewire',
+      createdBy: 'Ada Lovelace',
+      createdById: 'owner',
+    });
+
+    expect(result.outcome).toBe('saved');
+    const rows = await headers();
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.createdById).toBe('owner');
+    // Different strings on purpose: equal ones would pass against an insert that
+    // wrote the display name into the reference column.
+    expect(rows[0]?.createdBy).toBe('Ada Lovelace');
+  });
+
   it('answers no_project for a project that does not exist, and writes nothing', async () => {
     const result = await service().save({
       projectId: 'missing',
       name: 'x',
       createdBy: 'Ada Lovelace',
+      createdById: null,
     });
 
     expect(result.outcome).toBe('no_project');
@@ -226,6 +257,7 @@ describe('SavedPlanService.save', () => {
       projectId: 'p1',
       name: 'too big',
       createdBy: 'Ada Lovelace',
+      createdById: null,
     });
 
     expect(result.outcome).toBe('refused');
@@ -254,6 +286,7 @@ describe('SavedPlanService.save', () => {
       projectId: 'p1',
       name: 'fits',
       createdBy: 'Ada Lovelace',
+      createdById: null,
     });
 
     expect(result.outcome).toBe('saved');
@@ -280,7 +313,12 @@ describe('SavedPlanService.save', () => {
           mostBytesPerProject: 64 * 1024 * 1024,
         },
       });
-    const request = { projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace' };
+    const request = {
+      projectId: 'p1',
+      name: 'once more',
+      createdBy: 'Ada Lovelace',
+      createdById: null,
+    };
 
     expect((await capped(1).save(request)).outcome).toBe('saved');
     const refused = await capped(1).save(request);

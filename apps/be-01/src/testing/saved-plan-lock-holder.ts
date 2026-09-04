@@ -51,6 +51,7 @@ async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
     projectId,
     name: planId,
     createdBy: 'The other process',
+    createdById: null,
     createdAt: 1_756_000_200,
     input: { schemaVersion: 1, bytes: '{"schemaVersion":1}', sha256: 'c'.repeat(64) },
     schedule: { present: false, absentReason: 'pending' },

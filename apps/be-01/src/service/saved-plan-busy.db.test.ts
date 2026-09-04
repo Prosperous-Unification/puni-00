@@ -150,6 +150,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
       projectId: 'p1',
       name: 'once more',
       createdBy: 'Ada Lovelace',
+      createdById: null,
     });
     const tookMs = Date.now() - startedAttempt;
 

@@ -107,7 +107,12 @@ describe('a saved plan does not move when the live plan does', () => {
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
       newId: () => id,
       now: () => OPENED_AT,
-    }).save({ projectId: 'p1', name: 'before the rewire', createdBy: 'Ada Lovelace' });
+    }).save({
+      projectId: 'p1',
+      name: 'before the rewire',
+      createdBy: 'Ada Lovelace',
+      createdById: null,
+    });
 
   /** The five edits task 4.2 names, each reaching the capture by its own route. */
   const moveTheLivePlan = async (): Promise<void> => {

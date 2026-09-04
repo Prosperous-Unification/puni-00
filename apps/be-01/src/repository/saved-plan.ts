@@ -69,6 +69,18 @@ export interface SavedPlanWrite {
   /** The display name at the instant of the save, by value — never a `users` reference. */
   readonly createdBy: string;
   /**
+   * The saving account, **by reference** — the only column task 6.1's permission
+   * rule may read (assumption A-8).
+   *
+   * Required and nullable rather than optional, deliberately. `null` is a real
+   * answer — a save with no authenticated account behind it — and it is the same
+   * answer a deleted creator leaves: the rule falls back to the project owner.
+   * An optional field would let a caller omit it by accident and get that
+   * fallback for every plan it writes, which is the whole permission rule
+   * quietly switched off. Stating it is cheap; forgetting it must not compile.
+   */
+  readonly createdById: string | null;
+  /**
    * The instant the capture's read snapshot **opened**, not the instant this
    * transaction commits. A slow capture makes the two differ, and the honest
    * label on a comparison is when the plan was looked at.
@@ -256,6 +268,7 @@ export class SavedPlanRepository {
           projectId: plan.projectId,
           name: plan.name,
           createdBy: plan.createdBy,
+          createdById: plan.createdById,
           createdAt: plan.createdAt,
           inputSchemaVersion: plan.input.schemaVersion,
           inputBytes,

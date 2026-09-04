@@ -193,7 +193,7 @@ describe('a refused save retried inside its budget saves the project as it is th
     let edits = 0;
     const outcome = await saveWithBoundedRetry(
       saver,
-      { projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace' },
+      { projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace', createdById: null },
       {
         // The loop's wait is this test's interleaving point, chosen because it
         // is the only instant that is *provably* between the refusal and the

@@ -222,7 +222,12 @@ describe('SavedPlanService.save is atomic', () => {
       // nothing about what a failure *at this boundary* leaves behind.
       let refused: unknown = null;
       try {
-        await service.save({ projectId: 'p1', name: 'lost', createdBy: 'Ada' });
+        await service.save({
+          projectId: 'p1',
+          name: 'lost',
+          createdBy: 'Ada',
+          createdById: null,
+        });
       } catch (thrown) {
         refused = thrown;
       }

@@ -12,6 +12,7 @@ const REQUEST: SavedPlanSaveRequest = {
   projectId: 'p1',
   name: 'once more',
   createdBy: 'Ada Lovelace',
+  createdById: null,
 };
 
 const BUSY: SavedPlanSaveOutcome = { outcome: 'snapshot_busy' };

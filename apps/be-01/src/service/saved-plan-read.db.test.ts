@@ -145,6 +145,7 @@ describe('reading a saved plan back', () => {
       projectId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
+      createdById: null,
     });
     if (saved.outcome !== 'saved') throw new Error(`expected a save, got ${saved.outcome}`);
     reader.db.run(
@@ -303,6 +304,7 @@ describe('reading a saved plan back', () => {
           projectId: 'p1',
           name: `no schedule: ${absentReason}`,
           createdBy: 'Ada Lovelace',
+          createdById: null,
           createdAt: OPENED_AT,
           input: { schemaVersion: 1, bytes, sha256: bodySha256(bytes) },
           schedule: { present: false, absentReason },

@@ -92,7 +92,7 @@ describe("listing a project's saved plans", () => {
     });
 
   const save = (id: string, at: number, name: string, projectId = 'p1') =>
-    service(id, at).save({ projectId, name, createdBy: 'Ada Lovelace' });
+    service(id, at).save({ projectId, name, createdBy: 'Ada Lovelace', createdById: null });
 
   /**
    * A service that only ever reads. `newId` and `now` are still required, and
