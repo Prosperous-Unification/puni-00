@@ -188,6 +188,22 @@ def stage_budgets_ms(total_ms: int, split: Sequence[float]) -> list[float]:
     return [total_ms * float(share) for share in split]
 
 
+def donated_budget_ms(share_ms: float, spent_ms: float) -> float:
+    """What a stage hands to the next one: its share, less what it spent.
+
+    Pure and exported for the same reason `stage_disposition` is. The only way
+    to observe donation through a solve is to assert on elapsed wall clock,
+    which is a measurement rather than a proof and is the flake 5.6 is written
+    to avoid — so the arithmetic is asserted as arguments instead.
+
+    Clamped at zero because a stage can overrun its share: `max_time_in_seconds`
+    bounds the search, not the presolve and the model build around it, and a
+    negative carry would silently take budget away from a later stage that never
+    had it.
+    """
+    return max(0.0, share_ms - spent_ms)
+
+
 def _configure(config: SolverConfig, budget_ms: float) -> cp_model.CpSolver:
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = config.num_search_workers
@@ -261,7 +277,7 @@ def solve_request(
         # thing that changes between solves.
         built.model.minimize(built.terms[term_name])
         status = solver.solve(built.model)
-        carry_ms = max(0.0, budget_ms - solver.wall_time * 1000.0)
+        carry_ms = donated_budget_ms(budget_ms, solver.wall_time * 1000.0)
         found = status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
         row = stage_disposition(status, stage, found)
 

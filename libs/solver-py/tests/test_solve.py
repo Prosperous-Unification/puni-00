@@ -58,6 +58,7 @@ from wbs_solver.solve import (  # noqa: E402
     ROW_STOP_PUBLISH,
     SolveFailed,
     SolverConfig,
+    donated_budget_ms,
     evaluate_terms,
     solve_request,
     stage_budgets_ms,
@@ -360,6 +361,18 @@ class TheBudgetSplit(unittest.TestCase):
         are shares of a worst case rather than reservations."""
         shares = stage_budgets_ms(1000, [0.6, 0.25, 0.15])
         self.assertLessEqual(sum(shares), 1000.0)
+
+    def test_an_early_stage_donates_exactly_what_it_did_not_spend(self) -> None:
+        self.assertEqual(donated_budget_ms(18000.0, 500.0), 17500.0)
+
+    def test_a_stage_that_spends_its_whole_share_donates_nothing(self) -> None:
+        self.assertEqual(donated_budget_ms(18000.0, 18000.0), 0.0)
+
+    def test_an_overrun_never_takes_budget_from_the_next_stage(self) -> None:
+        """`max_time_in_seconds` bounds the search, not the presolve and the
+        model build around it, so a stage can spend more than its share. A
+        negative carry would silently shorten a later stage that never had it."""
+        self.assertEqual(donated_budget_ms(18000.0, 19000.0), 0.0)
 
 
 class UnencodableOutcomes(unittest.TestCase):
