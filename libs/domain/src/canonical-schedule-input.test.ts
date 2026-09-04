@@ -31,11 +31,8 @@ import { schedule, type Slice } from './schedule';
  * - **must not move the hash** — hash equal AND the schedule equal. The
  *   asymmetry in (c) lives or dies on these.
  *
- * Still to land: `width`, which needs its own base — every slice here sits on a
- * pool of one, so widening a slice moved nothing and the case was written, run
- * and removed rather than checked in green and unfalsifiable. 1.9's `parentId`
- * reparenting and `stepId` identity swap are open too. The deadline case is
- * TASK-241's to make green —
+ * Still to land: 1.9's `parentId` reparenting and `stepId` identity swap. The
+ * deadline case is TASK-241's to make green —
  * `deadlines` is declared-pending here, proved present in the string and
  * proved inert in the engine, never silently skipped.
  */
@@ -132,6 +129,30 @@ const TIED: ScheduleInput = {
   slices: [step('x', null, 2), step('y', null, 2)],
   notBefore: new Map(),
   poolSizes: new Map([['team', 1]]),
+  reach: 'whole-item',
+  deadlines: new Map(),
+};
+
+/**
+ * A third base, for `width`.
+ *
+ * Every slice in {@link BASE} sits on a pool of one, so widening one to 2 asks a
+ * one-slot pool for two slots and the placement does not move — the case was
+ * written against `BASE` first, came back byte-identical, and was removed rather
+ * than repaired by also changing `poolSizes`, which would have made it two
+ * mutations in one case. This base carries **no pools at all**, so `width`
+ * reaches the schedule through the only other route it has: `durationOf`'s
+ * `days / width` arm.
+ */
+const CHAINED: ScheduleInput = {
+  rows: [row('x', null, 10, null), row('y', null, 20, null)],
+  edges: [{ predecessorId: 'x', successorId: 'y' }],
+  slices: [
+    { workItemId: 'x', stepId: null, days: 4, personId: null, width: 1, poolIds: [] },
+    { workItemId: 'y', stepId: null, days: 2, personId: null, width: 1, poolIds: [] },
+  ],
+  notBefore: new Map(),
+  poolSizes: new Map(),
   reach: 'whole-item',
   deadlines: new Map(),
 };
@@ -248,6 +269,25 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
       };
       expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(TIED));
       expect(run(mutated)).not.toEqual(run(TIED));
+    });
+
+    /**
+     * `width`, on {@link CHAINED}, through `durationOf`'s `days / width` arm:
+     * 4 days across a width of 2 is two, so `y` — which waits for `x` — starts
+     * at 2 rather than at 4. No pool is involved, which is the point: the
+     * `BASE` version of this case asked a one-slot pool for two slots and moved
+     * nothing.
+     */
+    it('the width of one slice widened — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...CHAINED,
+        slices: [
+          { workItemId: 'x', stepId: null, days: 4, personId: null, width: 2, poolIds: [] },
+          { workItemId: 'y', stepId: null, days: 2, personId: null, width: 1, poolIds: [] },
+        ],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(CHAINED));
+      expect(run(mutated)).not.toEqual(run(CHAINED));
     });
 
     /**

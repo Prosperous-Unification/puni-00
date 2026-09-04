@@ -140,10 +140,16 @@ check-that-cannot-fail failure R5 names.
       repaired, because neither may be rebuilt: `x`@20 frozen `005` and `y`@10
       frozen `010` come back verbatim and `x` now sorts first. Domain **398 pass
       / 0 fail across 31 files**.
-      **Still open on this item:** `width` only, which needs its own base
-      because every slice in the main fixture sits on a pool of one, so
-      widening one moved nothing and a simultaneous `poolSizes` mutation would
-      stop it being a one-mutation-per-fact case. The remaining
+      **`width` landed in chunk 5, on a third base `CHAINED` with NO pools at
+      all** — that is what makes it a one-mutation-per-fact case. Against the
+      main fixture it asked a one-slot pool for two slots and moved nothing;
+      pool-free it reaches the schedule through `durationOf`'s `days / width`
+      arm, so 4 days across a width of 2 is two and the successor starts at 2
+      rather than 4. Domain **399 pass / 0 fail across 31 files**.
+      **Still open on this item:** the `poolIds` **widened from one pool to
+      two** mutation. The `poolIds` case that landed is the unchanged-hash one
+      (reordered and de-duplicated); the widening mutation is a different fact
+      and is not written yet. The remaining
       unchanged-hash cases - Engine, Objective, the toggle, the display variant,
       the clock, the acting user - are **structurally** excluded rather than
       untested: none of them is a member of `ScheduleInput`, so there is nothing
