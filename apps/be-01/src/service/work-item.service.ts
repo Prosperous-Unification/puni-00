@@ -184,7 +184,15 @@ export function poolsFor(
   return { poolIds, slots };
 }
 
-function slicesOf(
+/**
+ * Exported for the tests alone, exactly as {@link poolsFor} beside it is, and
+ * for the same kind of reason: `dual-optimized-scheduler/tasks.md` §1.8 requires
+ * the `ORDER BY` proof to assert the **raw `schedule()` argument tuple** — the
+ * `rows` and `slices` arrays as Fast receives them — rather than a hash of them,
+ * because 1.1(c) normalises the row order away by design and a hash assertion
+ * there can never fail. The only production caller is the plan read below.
+ */
+export function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,

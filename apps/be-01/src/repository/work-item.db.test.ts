@@ -4,6 +4,9 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { effectiveTeamsOf } from '@wbs/domain';
+
+import { slicesOf } from '../service/work-item.service';
 import { personAdded } from '../testing/directory-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
@@ -212,6 +215,54 @@ describe('the order the work-item select answers in', () => {
 
     expect(first.map((each) => each.id)).toEqual([earlier.id, later.id]);
     expect(second.map((each) => each.id)).toEqual(first.map((each) => each.id));
+  });
+
+  /**
+   * Task 1.8, and it asserts the **raw argument tuple** rather than its hash.
+   * The earlier plan compared two `scheduleInputHash` values across a reversed
+   * driver; 1.1(c) groups slices by work item and sorts rows by id, and the spec
+   * separately *requires* the hash to be equal when only the underlying row
+   * order differs — so that assertion could never fail, which is the
+   * check-that-cannot-fail R5 names.
+   *
+   * What Fast actually receives is this: `listByProject` → `slicesOf` → the
+   * `rows` and `slices` arguments. `slicesOf` walks the rows in order, so the
+   * slice order is the row order, and the intra-item order is real step
+   * precedence. Both arrays are asserted here in `work_item.id` order, and both
+   * go red when the `ORDER BY` is removed.
+   *
+   * No estimate is written, deliberately: `slicesOf` emits one slice per leaf
+   * per project step whether or not anybody has estimated it, so an estimate
+   * would be a second moving part in an assertion about order.
+   */
+  it('hands Fast rows and slices in id order, not in the order they were written', async () => {
+    const later = { ...row(null, 10, 'Written first'), id: 'ffffffff-0000-4000-8000-000000000003' };
+    const earlier = {
+      ...row(null, 20, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000004',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+    const project = projectRow({ id: projectId, ownerId });
+
+    const rows = await repo.listByProject(projectId);
+    const slices = slicesOf(
+      rows,
+      await estimates.listByProject(projectId),
+      new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
+      [stepId],
+      {
+        method: project.estimateMethod,
+        pertWeights: project.pertWeights,
+        rounding: project.estimateRounding,
+      },
+      new Map(),
+      effectiveTeamsOf(rows),
+      new Map(),
+    );
+
+    expect(rows.map((each) => each.id)).toEqual([earlier.id, later.id]);
+    expect(slices.map((each) => each.workItemId)).toEqual([earlier.id, later.id]);
   });
 });
 
