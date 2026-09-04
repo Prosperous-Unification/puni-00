@@ -7,18 +7,23 @@ import {
   type PlannedRow,
   schedule,
   type Slice,
+  sliceKey,
   SOLVER_QUANTUM,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildSolverEdges } from './build-solver-edges';
+import { buildSolverRequest } from './build-solver-request';
 import { buildSolverSlices, type LeafConstraintMaps } from './build-solver-slices';
 import { quantisedFastBaseline } from './quantised-baseline';
+import { revalidateSolverResult } from './revalidate-solver-result';
 import {
   SOLVER_REQUEST_KEYS,
   SOLVER_SLICE_KEYS,
+  type SolverObjectiveValues,
   type SolverOffsetMap,
   type SolverRequest,
+  type SolverResponse,
 } from './wire-types';
 
 const row = (id: string, position: number, parentId: string | null = null): PlannedRow => ({
@@ -229,6 +234,126 @@ describe('quantisedFastBaseline', () => {
     expect(() =>
       quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item'),
     ).toThrow(/no exact duration on the unit axis/);
+  });
+});
+
+/**
+ * 2.11's feasibility assertion, and it is deliberately **not** written against
+ * {@link infeasibilities}.
+ *
+ * That helper is this file's own reading of two rules — floors and edges — and
+ * it says nothing about pools, people or the variable domain. "The hint is
+ * feasible" is a claim about the constraint pass that gates a *published*
+ * solver result, and that pass exists: `revalidateSolverResult` is what stands
+ * between a wrong solver and a served schedule (2.4). Feeding the baseline back
+ * through it is therefore the proof, and it is the only form of the proof that
+ * cannot drift from the thing it is protecting — a baseline that satisfied a
+ * feasibility rule written here and violated the one on the wire would be
+ * refused in production and green in this file.
+ *
+ * **MOVEMENT is structurally zero and is asserted as such**, because the
+ * response's offsets *are* the request's `baselineOffsets`:
+ * `Σ |start − baseline|` over a map compared with itself. It is the one term
+ * that needs no oracle, and a non-zero value would mean the request carried a
+ * baseline other than the one the hint was built from — which is exactly the
+ * key-set-and-values divergence `buildSolverRequest` refuses on shape and
+ * nobody was checking on value.
+ */
+describe('the quantised baseline as a solver response', () => {
+  /**
+   * Deliberately the assembly fixture rather than `fiveWide`: a floor written
+   * on a parent, an authored edge, a two-step leaf, a shared pool of two and a
+   * person queue. `fiveWide` proves the rounding and reaches none of those, and
+   * a feasibility claim checked on a plan with no pool and no person is a claim
+   * about a third of the pass.
+   */
+  const rows: readonly PlannedRow[] = [
+    row('P', 0),
+    row('A', 0, 'P'),
+    { ...row('B', 1, 'P'), priority: 1 },
+  ];
+  const edges: readonly DependencyEdge[] = [{ predecessorId: 'A', successorId: 'B' }];
+  const slices: readonly Slice[] = [
+    sliceOf('A', 'design', 2, { poolIds: ['team-x'] }),
+    sliceOf('A', 'dev', 4, { poolIds: ['team-x'], width: 2 }),
+    sliceOf('B', 'dev', 3, { personId: 'ann' }),
+  ];
+  const notBefore = new Map([['P', 3]]);
+  const poolSizes = new Map([['team-x', 2]]);
+
+  const requestFor = (baselineOffsets: SolverOffsetMap): SolverRequest => {
+    const built = buildSolverRequest(
+      { rows, edges, slices, notBefore, poolSizes, reach: 'whole-item', deadlines: new Map() },
+      'pri',
+      { baselineOffsets, solverVersion: '0.1.0', budgetMs: 30_000 },
+    );
+    if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
+    return built.request;
+  };
+
+  /**
+   * The three cost terms of 5.2 computed from the **request's own** projections
+   * — `durationUnits` and `priorityWeight` as `buildSolverSlices` wrote them,
+   * never as this file would compute them — so an objective mismatch here is
+   * the offsets disagreeing with the arithmetic rather than two readings of a
+   * duration disagreeing with each other.
+   */
+  const valuesFor = (
+    request: SolverRequest,
+    offsets: SolverOffsetMap,
+  ): SolverObjectiveValues => {
+    const term = (value: number) => ({ value, stageValue: value, bound: value, status: 'feasible' as const });
+    const finishOf = (slice: SolverRequest['slices'][number]) =>
+      offsets[slice.key] + slice.durationUnits;
+    return {
+      makespan: term(Math.max(0, ...request.slices.map(finishOf))),
+      priority: term(
+        request.slices.reduce((sum, slice) => sum + slice.priorityWeight * finishOf(slice), 0),
+      ),
+      movement: term(
+        request.slices.reduce(
+          (sum, slice) => sum + Math.abs(offsets[slice.key] - request.baselineOffsets[slice.key]),
+          0,
+        ),
+      ),
+    };
+  };
+
+  const responseOf = (request: SolverRequest, offsets: SolverOffsetMap): SolverResponse => ({
+    wireVersion: 1,
+    status: 'feasible',
+    offsets,
+    objectiveValues: valuesFor(request, offsets),
+  });
+
+  it('passes the re-validator that gates a published result, which is what feasible means', () => {
+    const baseline = quantisedFastBaseline(rows, edges, slices, notBefore, poolSizes, 'whole-item');
+    const request = requestFor(baseline);
+
+    // The hint is what the solver is handed as its starting point, so it is the
+    // hint that has to be feasible — asserted equal to the baseline first, so a
+    // builder that stopped copying one into the other could not make this test
+    // pass by validating the other map.
+    expect(request.fastHint).toEqual(baseline);
+    expect(revalidateSolverResult(request, responseOf(request, request.fastHint))).toEqual({
+      ok: true,
+      published: true,
+    });
+    expect(valuesFor(request, request.fastHint).movement.value).toBe(0);
+  });
+
+  it('is a check that can fail: one slice pulled under its predecessor is refused', () => {
+    const baseline = quantisedFastBaseline(rows, edges, slices, notBefore, poolSizes, 'whole-item');
+    const request = requestFor(baseline);
+    // `B/dev` waits on the whole of `A`. Moved back onto the floor it is a
+    // legal offset in the variable domain and an illegal one in the graph,
+    // which is the distinction the placement rules exist to make — so the
+    // refusal below is a dependency verdict rather than a domain one.
+    const broken = { ...request.fastHint, [sliceKey('B', 'dev')]: request.slices[0].notBeforeUnits };
+    const result = revalidateSolverResult(request, responseOf(request, broken));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.failure).toBe('edge-violated');
   });
 });
 
