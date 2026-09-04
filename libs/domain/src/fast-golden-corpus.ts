@@ -63,7 +63,7 @@ const work = (
 });
 
 /**
- * Seven cases, chosen so each one can lose something a different engine change
+ * Eight cases, chosen so each one can lose something a different engine change
  * would break. A corpus of one plan is a corpus that only notices whatever that
  * plan happens to exercise.
  */
@@ -155,6 +155,33 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
       work('c', 1, { width: 3 }),
       work('d', 2, { width: 3 }),
     ],
+  },
+  {
+    // Numbering semantics — the last name on `contract-version.ts`'s bump list
+    // that no case above could reach. `deriveNumbers` is spent at
+    // `schedule.ts:1890` and read at `:1902` as the **third of four** leveling
+    // tie-breaks (priority, start, float, number, `at`), so it changes output
+    // only where leveling reorders slices tied on the first three.
+    //
+    // `pool-of-one` is that shape and still cannot see it, for a reason worth
+    // writing down: its rows are declared in position order, so the number
+    // order and the plan's own order agree and the number decides nothing it
+    // was not already going to decide. THIS CASE IS `pool-of-one` WITH THE TWO
+    // ORDERS PULLED APART — `b` sits at position 10 and `a` at 20, so
+    // `deriveNumbers` gives `b` = `010` and `a` = `020`, while `index.leafIds`
+    // is the `rows` **array** order (`schedule.ts:326`) and puts `a`'s node
+    // first.
+    //
+    // The last tie-break cannot save it either: `node.at` is the slice's index
+    // **within its own work item** (`schedule.ts:1813`), so with one slice each
+    // both are 0. Priority is absent, both start at 0 and both carry zero
+    // float, which leaves the number as the only line in `goesFirst` that
+    // separates these two nodes at all.
+    name: 'inverted-numbering-tie',
+    rows: [leaf('a', 20), leaf('b', 10)],
+    edges: [],
+    slices: [work('a', 2, { poolIds: ['team'] }), work('b', 2, { poolIds: ['team'] })],
+    poolSizes: new Map([['team', 1]]),
   },
 ];
 

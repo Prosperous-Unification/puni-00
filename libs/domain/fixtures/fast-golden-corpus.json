@@ -739,6 +739,87 @@
       "waitingForPerson": 0,
       "waitingForCapacity": 0,
       "eventsVisited": 0
+    },
+    "inverted-numbering-tie": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "capacity",
+            "resourcePredecessorId": "b\u0000",
+            "capacityPredecessorIds": [
+              "b\u0000"
+            ],
+            "capacityTeamId": "team"
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 2,
+            "earliestFinish": 4,
+            "latestStart": 2,
+            "latestFinish": 4,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 2,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 1,
+      "eventsVisited": 2
     }
   }
 }
