@@ -17,6 +17,7 @@ import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import type { PlanInputReads } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
+import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
 import { bodySha256 } from './saved-plan-integrity';
@@ -92,6 +93,10 @@ describe('reading a saved plan back', () => {
     runMigrations(path, FOLDER);
     const seed = openConnection(path);
     const db = seed.db;
+    await new UserRepository(db).create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
     await new ProjectRepository(db).create(
       projectRow({
         id: 'p1',
