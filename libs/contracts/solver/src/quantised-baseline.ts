@@ -96,14 +96,20 @@ export function quantisedFastBaseline(
   const offsets: Record<string, number> = {};
   for (const [key, slice] of placed.slices) {
     const { earliestStart } = slice;
-    // The one thing the rescale is for. A start that is not a whole unit means
-    // some duration reached the placement unrounded, and the offset would go to
-    // the wire as a `type: integer` violation of a request Bun itself wrote —
-    // diagnosed there as a malformed request rather than here as the rescale
-    // coming apart. Safe-integer rather than `Number.isInteger` because the
-    // objective sums these and `2**53` is where a sum stops being able to tell
-    // two offsets apart. `sliceKey`'s NUL is written as an ESCAPE below and
-    // never typed — a literal one makes git call the file binary, and this
+    // The second net, and MEASURED to be the second rather than assumed to be
+    // the first: with the rounding dropped from `onTheUnitAxis` — real
+    // durations on the unit axis — four of this file's tests fail, and every
+    // one of them fails at that function's product guard, `slice A is
+    // 9.600000000000001 units across 5 people`. An unrounded duration is
+    // caught before the placement runs, because a fractional duration times a
+    // width is not a safe integer either. So this check is not what makes the
+    // rescale exact; it is what stops a PLACEMENT that somehow produced a
+    // fractional start from putting it on the wire as a `type: integer`
+    // violation of a request Bun itself wrote, to be diagnosed there as a
+    // malformed request. Safe-integer rather than `Number.isInteger` because
+    // the objective sums these and `2**53` is where a sum stops being able to
+    // tell two offsets apart. `sliceKey`'s NUL is written as an ESCAPE below
+    // and never typed — a literal one makes git call the file binary, and this
     // package has walked into that twice.
     if (!Number.isSafeInteger(earliestStart) || earliestStart < 0) {
       throw new Error(
@@ -137,6 +143,12 @@ function onTheUnitAxis(slice: Slice): Slice {
   // representable, and everything downstream — integer offsets, an integer
   // MOVEMENT, a hint CP-SAT can hold — rests on that exactness. A plan this big
   // is refused before it can be silently mis-scheduled instead.
+  //
+  // It is also, measured, the guard that catches the rounding going missing at
+  // all: with `durationUnits` swapped for the real duration, this throws on
+  // `9.600000000000001 units across 5 people` before any slice is placed, and
+  // four of this file's tests go red there. A fraction times a width is not a
+  // safe integer, so the two faults arrive at the same door.
   if (!Number.isSafeInteger(days)) {
     throw new Error(
       `slice ${slice.workItemId} is ${String(units)} units across ${String(slice.width)} people, which has no exact duration on the unit axis`,
