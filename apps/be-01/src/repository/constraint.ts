@@ -31,15 +31,29 @@ export function isForeignKeyViolation(err: unknown): boolean {
  * into this one. Constraint violations get a string test because bun reports
  * them without a code; this one has a code, so it uses it.
  *
+ * **The chain is walked, and that is not defensive.** Measured: probed directly
+ * against `bun:sqlite` the `SQLiteError` is what is thrown, but the statement
+ * this classifies is issued through drizzle, which catches it and throws
+ * `DrizzleError: Failed to run the query 'BEGIN IMMEDIATE'` with the original
+ * as its `cause`. A test against the outer error alone was watched failing on
+ * exactly that: the refusal escaped as an unhandled `DrizzleError` instead. The
+ * depth bound is there because a `cause` chain is caller-supplied data and a
+ * cycle in it would hang this function.
+ *
  * The caller that turns this into a refusal must have taken the lock with
  * waiting turned off — see `db.refuseToWaitForWriteLock`. At the default
  * `busy_timeout` the same error still arrives, five seconds later, which is the
  * serialising behaviour the refusal exists to prevent rather than to report.
  */
 export function isWriteLockBusy(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const { code } = err as Error & { readonly code?: unknown };
-  return code === 'SQLITE_BUSY';
+  let at: unknown = err;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (!(at instanceof Error)) return false;
+    const { code, cause } = at as Error & { readonly code?: unknown };
+    if (code === 'SQLITE_BUSY') return true;
+    at = cause;
+  }
+  return false;
 }
 
 /**
