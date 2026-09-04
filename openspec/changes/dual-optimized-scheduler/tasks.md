@@ -2386,7 +2386,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       `test_model` and `test_bound`. It protects most of the corpus, not one
       case.
 
-- [ ] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
+- [x] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
       bounded 2-6 slice fixture, sufficiently large coefficients encode the
       same lexicographic order exactly, so PRI/Time disagreement proves
       nothing about staged versus weighted. The mutation instead substitutes
@@ -2448,14 +2448,57 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       the *question*. The staged loop is immune, because MOVEMENT is last under
       both objectives and only ever breaks ties the first two terms left open.
 
-      **Left for the next run:** the integer-overflow guard on the weighted
-      form's own bound. The wire's cross-field invariant 8 bounds
-      `Σ w × horizonUnits` and `Σ |offset − baseline|` against
-      MAX_SAFE_INTEGER, but a *weighted* objective multiplies those by the
-      coefficients, so a request that passes invariant 8 can still overflow the
-      weighted form. Tooling note from run 19's probe: `IntVar.proto.domain[-1]`
-      read **0** for all three terms and is the wrong way to get a term's upper
-      bound — find the right accessor before writing the case.
+      **Overflow guard closed run 20 chunk 1** (`be3bfa29`, 171 green), and
+      **5.10 is now ticked.** Eleven cases in the same file, on one slice at the
+      wire's own ceilings: `horizonUnits` 2³¹ − 1 (the schema's stated maximum)
+      and weight 2²² − 1, the largest that keeps invariant 8's PRIORITY worst
+      case under MAX_SAFE_INTEGER. The request is proved wire-legal against the
+      schema and the cross-field checks, and each term's own domain ceiling is
+      inside MAX_SAFE_INTEGER — so the staged loop, which minimises one term at
+      a time and whose objective is therefore a single variable, is exactly what
+      invariant 8 already protects. `CpModel.validate()` accepts it and the
+      solve proves OPTIMAL.
+
+      **THE FINDING, and run 20 predicted it wrong: fitting in int64 is not the
+      same as being solvable.** `LARGER` (10⁶/10³/1) has a worst case of
+      9007197109406975131647 and is past int64 outright, as expected. But
+      `DOMINATING` (1000/100/1) has a worst case of **9007197324153192447**,
+      comfortably *inside* int64 — and CP-SAT refuses it too, with "Possible
+      integer overflow in objective". Its check is over the model's declared
+      domains and is more conservative than the exact arithmetic. The
+      prediction and the measurement are both asserted, because the arithmetic
+      bound is what a reader would otherwise trust.
+
+      **The general statement, asserted rather than illustrated:** a weighted
+      form is faithful only while one unit of the first term outweighs the whole
+      range of the rest, so the smallest faithful `c₁` at `c₂ = c₃ = 1` is
+      `ub(MAKESPAN) + ub(MOVEMENT) + 1` = 4294967296 — and that times PRIORITY's
+      own ceiling lands four orders of magnitude past int64. At the wire's
+      ceilings, faithfulness and representability are not both available. This
+      is why the staged loop is not merely one implementation of the weighted
+      one.
+
+      **TOOLING, resolved.** Run 19's `IntVar.proto.domain[-1]` reading 0 was
+      not a wrong field: `.proto.domain` is a protobuf repeated-scalar *view*,
+      and a **negative index into it returns 0** instead of the last element
+      (ortools 9.15.6755, measured on a variable whose domain is `[0, 140]`:
+      `[-1]` → 0, `list(...)[-1]` → 140). Use `list(var.proto.domain)[-1]` or
+      `var.domain.max()`; a case asserts the two agree, so reaching for `[-1]`
+      again is a red rather than a zero.
+
+      **A DEFECT FOUND WHILE BUILDING THE GUARD — characterised here, filed
+      separately, not fixed.** Invariant 8 bounds `Σ w × horizonUnits`; the
+      model bounds PRIORITY by `Σ w × (horizonUnits + durationUnits)`, because
+      the horizon bounds the *start* and the term is over *finishes*. The
+      difference, `Σ w × durationUnits`, invariant 8 does not mention. At weight
+      2²² the request satisfies invariant 8 (9007199250546688 ≤ MAX_SAFE_INTEGER)
+      and a placement at the horizon — **proved OPTIMAL, not a domain ceiling** —
+      publishes `priority.value` = 9007199254740992, exactly one past the
+      response schema's own `safeInteger`. Bun would refuse the response it
+      asked for. The bound belongs to the Bun request builder and
+      `solver-wire.v1.json`, a different component from this package, and
+      widening it is a wire change; `Invariant8DoesNotBoundThePublishedPriority`
+      pins the behaviour so it cannot move silently in the meantime.
 
 - [ ] 5.11 Packaging into the deployed artifact: the Dagger/image path installs
       the pinned Python runtime and the locked OR-Tools environment, copies
