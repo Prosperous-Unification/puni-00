@@ -234,12 +234,23 @@ describe('bars', () => {
   it('says in words what a start is held by', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('a', 0, 1), rowAt('b', 1, 2), rowAt('c', 2, 3), rowAt('d', 3, 4)],
+        rows: [
+          rowAt('a', 0, 1),
+          rowAt('b', 1, 2),
+          rowAt('c', 2, 3),
+          rowAt('d', 3, 4),
+          rowAt('e', 5, 6),
+        ],
         slices: [
           sliceAt('a-dev', 'a', 0, 1),
           sliceAt('b-dev', 'b', 1, 2, { boundBy: 'predecessor' }),
           sliceAt('c-dev', 'c', 2, 3, { boundBy: 'stepOrder' }),
           sliceAt('d-dev', 'd', 3, 4, { boundBy: 'notBefore' }),
+          // Task 4.10's seventh floor. It reaches the same arm as the two that
+          // need nothing from the caller, and before this it reached the
+          // `default:` and threw the panel into its error boundary — which is
+          // exactly what `capacity` did until `capacity-write-paths`.
+          sliceAt('e-dev', 'e', 5, 6, { boundBy: 'optimizer' }),
         ],
       }),
     );
@@ -249,6 +260,7 @@ describe('bars', () => {
       'Waits for a dependency’s first estimated step',
       'Waits for an earlier step on this item',
       'Held by its start-no-earlier-than date',
+      'Placed here by the optimizer',
     ]);
   });
 
