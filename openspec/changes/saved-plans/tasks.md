@@ -217,7 +217,7 @@ comparison UI) and start only after slice 6 is merged.
 - [x] 4.3 Atomicity. Inject a failure between header and input body, between
       input body and schedule body, and at commit; assert no header, no body, and
       an untouched live plan in all three.
-- [ ] 4.4 **Build** the concurrency refusal, then test it: `BEGIN IMMEDIATE` with
+- [x] 4.4 **Build** the concurrency refusal, then test it: `BEGIN IMMEDIATE` with
       `busy_timeout` 0, an immediate `SQLITE_BUSY` mapped to the typed refusal, so
       no second save ever waits. It must be **SQLite-visible**, not an in-process
       marker — blue and green are two processes on one file. The test runs on two
