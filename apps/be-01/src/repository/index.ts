@@ -141,7 +141,7 @@ export interface Project {
    * Which engine this project's schedule is produced by — the heuristic that
    * has always run, or the CP-SAT solver. Separate from
    * {@link Project.optimizationEnabled}: this is the engine the project
-   * *wants*, and a project switched off keeps `optimized` recorded so it comes
+   * wants, and a project switched off keeps `optimized` recorded so it comes
    * back to it rather than to a default.
    */
   scheduleEngine: ScheduleEngine;

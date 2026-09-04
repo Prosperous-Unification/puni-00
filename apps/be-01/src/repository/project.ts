@@ -28,8 +28,14 @@ import type {
 } from './index';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
 import { bumpedProject } from './revision';
-import { project, projectAccess, step, users } from './schema';
-import type { ScheduleEngine, SolverObjectiveName } from './schema';
+import {
+  project,
+  projectAccess,
+  type ScheduleEngine,
+  type SolverObjectiveName,
+  step,
+  users,
+} from './schema';
 import { STEP_COLUMNS } from './step';
 
 /**

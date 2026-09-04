@@ -625,6 +625,12 @@ describe('what a project read publishes', () => {
       injected.close();
     }
 
-    await expect(repo.findById(made.id)).rejects.toThrow(`${message}: ${stored}`);
+    let refusedOnRead: string | null = null;
+    try {
+      await repo.findById(made.id);
+    } catch (error) {
+      refusedOnRead = error instanceof Error ? error.message : String(error);
+    }
+    expect(refusedOnRead).toBe(`${message}: ${stored}`);
   });
 });

@@ -294,7 +294,7 @@ export type ProjectRow = typeof project.$inferSelect;
  * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
  *
  * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
- * *project* vocabulary and not an optimizer-table one: no row in the four
+ * project vocabulary and not an optimizer-table one: no row in the four
  * optimizer tables stores an engine. The objective deliberately has no twin —
  * `project.schedule_objective` stores the same `'pri' | 'time'`
  * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
