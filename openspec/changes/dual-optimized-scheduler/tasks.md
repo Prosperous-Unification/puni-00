@@ -1237,7 +1237,7 @@ stageValue`, and all three terms recomputed with a `bigint` accumulator
       file was byte-restored with `cmp` between the two and again after, and
       the gate checkout re-verified `dirty=0`.
       **One repair on the way past:** the count test was named `covers all
-      fifteen tokens across the three seams` while the vocabulary held
+    fifteen tokens across the three seams` while the vocabulary held
       seventeen, and `deadline-violated` made it eighteen. Both sides of its
       assertion derive the number, so the count in the name was decoration that
       could only go stale; it now names no number.
