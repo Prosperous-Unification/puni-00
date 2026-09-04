@@ -1,4 +1,5 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
+import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
 import { type ScheduleInput, sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
@@ -160,13 +161,21 @@ async function askedInput(): Promise<ScheduleInput> {
 /**
  * The payload of a plan read served by the real materialiser over `offsets`.
  *
- * `offsets` is keyed by `sliceKey` and measured in solver units, which is the
+ * `moved` is keyed by `sliceKey` and measured in solver units, which is the
  * wire's own shape — `materialiseOptimized` divides by {@link SOLVER_QUANTUM}
- * and hands the result to `schedule()` as pinned starts. Every slice in the
- * plan must appear: a map missing one is refused by the placement pass, and
- * that refusal is 4.9's, proved there.
+ * and hands the result to `schedule()` as pinned starts.
+ *
+ * **Every slice the plan has must carry an offset**, because a solver answers
+ * for all of them and `materialiseOptimized` refuses a map that misses one.
+ * The unmoved ones therefore come from `quantisedFastBaseline` — the plan's own
+ * hint, and the one offset set that is legal by construction — and `moved`
+ * overrides only the slices a case is about. Spelling every offset in the case
+ * instead made the fixtures depend on how many steps the project happens to
+ * have: a second step added for 4.11 (f) silently gave every other leaf a
+ * second slice, and three cases that had spelled one offset each began throwing
+ * `this plan has no such slice`'s converse. Measured 2026-09-04.
  */
-async function servedBy(offsets: Readonly<Record<string, number>>) {
+async function servedBy(moved: Readonly<Record<string, number>>) {
   const input = await askedInput();
   const materialised = materialiseOptimized(
     input.rows,
@@ -175,7 +184,17 @@ async function servedBy(offsets: Readonly<Record<string, number>>) {
     input.notBefore,
     input.poolSizes,
     input.reach,
-    offsets,
+    {
+      ...quantisedFastBaseline(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+      ),
+      ...moved,
+    },
   );
   const service = new WorkItemService({ ...serviceOptions, optimized: () => materialised });
   const tree = await service.tree(projectId);
