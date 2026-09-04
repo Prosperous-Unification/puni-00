@@ -157,6 +157,39 @@ const CHAINED: ScheduleInput = {
   deadlines: new Map(),
 };
 
+/**
+ * A fourth base, for `poolIds` **widened from one pool to two**.
+ *
+ * The widening cannot be shown on {@link BASE} for the same reason `width`
+ * could not: every slice there sits on the one pool `team`, so the only pool a
+ * second entry could name is one no slice holds, and a pool nobody is queueing
+ * for delays nothing. Giving it an occupant would mean editing `poolSizes` and
+ * the slice list too, which is two more mutations in a case whose whole
+ * discipline is one.
+ *
+ * So: two leaves, no edge between them, on **disjoint** one-slot pools. They
+ * are simultaneous in the base — that is the fact the mutation destroys.
+ * Widening `y` to also hold `alpha` puts both leaves in one queue of one, and
+ * `jointWindowFor`'s multi-pool loop (`schedule.ts:928`) makes the later one
+ * wait for the whole of the earlier. Nothing about the pools' sizes or their
+ * membership changes; one slice asks for one more team.
+ */
+const PARALLEL: ScheduleInput = {
+  rows: [row('x', null, 10, null), row('y', null, 20, null)],
+  edges: [],
+  slices: [
+    { workItemId: 'x', stepId: null, days: 2, personId: null, width: 1, poolIds: ['alpha'] },
+    { workItemId: 'y', stepId: null, days: 2, personId: null, width: 1, poolIds: ['beta'] },
+  ],
+  notBefore: new Map(),
+  poolSizes: new Map([
+    ['alpha', 1],
+    ['beta', 1],
+  ]),
+  reach: 'whole-item',
+  deadlines: new Map(),
+};
+
 describe('canonicalScheduleInput / scheduleInputHash', () => {
   it('is a 64-character hex digest, and the same input twice is the same digest', () => {
     const digest = scheduleInputHash(BASE);
@@ -288,6 +321,35 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
       };
       expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(CHAINED));
       expect(run(mutated)).not.toEqual(run(CHAINED));
+    });
+
+    /**
+     * `poolIds` widened from one pool to two, on {@link PARALLEL}. The
+     * companion to the unchanged-hash `poolIds` case below: reordering the set
+     * and repeating a member must not move the hash, and adding a member the
+     * slice did not hold must.
+     *
+     * The widened slice does not merely acquire a second team — it joins that
+     * team's queue, and `alpha` already has an occupant. `x` and `y` stop being
+     * simultaneous.
+     */
+    it('poolIds widened from one pool to two — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...PARALLEL,
+        slices: [
+          { workItemId: 'x', stepId: null, days: 2, personId: null, width: 1, poolIds: ['alpha'] },
+          {
+            workItemId: 'y',
+            stepId: null,
+            days: 2,
+            personId: null,
+            width: 1,
+            poolIds: ['beta', 'alpha'],
+          },
+        ],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(PARALLEL));
+      expect(run(mutated)).not.toEqual(run(PARALLEL));
     });
 
     /**
