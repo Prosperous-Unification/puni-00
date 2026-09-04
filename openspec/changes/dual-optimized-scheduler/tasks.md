@@ -1801,7 +1801,7 @@ review`, no self-merge.
       generation/cancel-epoch pair 2, and making the insert unconditional 1.
       **Still open under 4.1b:** the `MAX_LIVE_BUDGETS` retention bound, which
       is a rule about which other rows survive a commit.
-- [ ] 4.1b Retention, both rules. (1) Allocation deletes that contract
+- [x] 4.1b Retention, both rules. (1) Allocation deletes that contract
       version's older-generation cache rows. (2) A committing outcome keeps the
       `MAX_LIVE_BUDGETS = 2` most recently written budgets for
       `(projectId, objective, contractVersion, inputHash)` and deletes the
@@ -1844,6 +1844,22 @@ review`, no self-merge.
       the delete's own `contractVersion` predicate masks it, so that predicate
       is defence in depth rather than the load-bearing one), and ordering
       ascending so the newest is evicted.
+
+      **(b) closed run 37 chunk 4, once 4.2's spawner existed.** Two releases
+      read one file at 60 s and 120 s, alternating, ten times; each asks for a
+      solve on its own first read and never again, so the spawner sees exactly
+      two calls in ten reads and both releases end on a hit. The loop stores the
+      outcome whenever a read asks for one, which is what a coordinator does, so
+      the spawn count IS the solve count.
+      **The rows are `ok` and not `failed`, and that is the whole difference
+      between a proof and a vacuous case:** a `failed` row suppresses an
+      auto-spawn all by itself (4.4), so with the failed rows the existing
+      row-level case uses, the count would be two whether the rows survived or
+      not. **Watched red:** the exclusive rule restored — the bound replaced by
+      "delete every row whose `budgetMs` differs from the one committing" —
+      reddens this case on its own `asked` assertion plus both row-level cases,
+      49 / 0 down to 46 / 3 on h2puni at `68dd999d`. Lowering the bound to 1
+      reddens the same three, which is the same claim from the other side.
 - [x] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
       **zero calls on the injected spawner** (asserted on the spawner, not on
       elapsed time); a changed effort, edge or pool → miss; a `contractVersion`
