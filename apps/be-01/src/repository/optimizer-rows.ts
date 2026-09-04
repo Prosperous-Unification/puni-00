@@ -1,11 +1,11 @@
 import {
   OPTIMIZATION_ADMISSION_STATES,
+  type OptimizationAdmissionState,
   OPTIMIZED_SCHEDULE_STATUSES,
+  type OptimizedScheduleStatus,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
   SOLVER_SLOT_LIFECYCLES,
-  type OptimizationAdmissionState,
-  type OptimizedScheduleStatus,
   type SolverFailureReason,
   type SolverObjectiveName,
   type SolverSlotLifecycle,
