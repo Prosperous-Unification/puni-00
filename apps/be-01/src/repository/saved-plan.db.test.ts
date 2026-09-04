@@ -184,7 +184,7 @@ describe('SavedPlanRepository', () => {
     await plans.write(bothSides({ id: 'sp-old', createdAt: 1_756_000_000 }), admit);
     await plans.write(bothSides({ id: 'sp-new', createdAt: 1_756_000_900 }), admit);
 
-    const rows = await plans.listOf(reader.db, 'p1');
+    const rows = await plans.listOf('p1');
 
     expect(rows.map((row) => row.id)).toEqual(['sp-new', 'sp-old']);
     expect(rows[0].inputBytes).toBe(bodyByteLength('{"input":true}'));
@@ -203,13 +203,13 @@ describe('SavedPlanRepository', () => {
     await plans.write(bothSides({ id: 'sp-b', createdAt: 1_756_000_000 }), admit);
     await plans.write(bothSides({ id: 'sp-a', createdAt: 1_756_000_000 }), admit);
 
-    expect((await plans.listOf(reader.db, 'p1')).map((row) => row.id)).toEqual(['sp-a', 'sp-b']);
+    expect((await plans.listOf('p1')).map((row) => row.id)).toEqual(['sp-a', 'sp-b']);
   });
 
   it('lists only the asked-for project', async () => {
     await plans.write(bothSides({ id: 'sp-1' }), admit);
 
-    expect(await plans.listOf(reader.db, 'p-absent')).toEqual([]);
+    expect(await plans.listOf('p-absent')).toEqual([]);
   });
 
   /**
@@ -257,6 +257,6 @@ describe('SavedPlanRepository', () => {
     await plans.write(bothSides(), admit);
 
     expect(await plans.deleteOf('sp-absent')).toBe('no_such_plan');
-    expect((await plans.listOf(reader.db, 'p1')).map((row) => row.id)).toEqual(['sp-1']);
+    expect((await plans.listOf('p1')).map((row) => row.id)).toEqual(['sp-1']);
   });
 });

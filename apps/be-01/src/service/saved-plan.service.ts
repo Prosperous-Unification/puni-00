@@ -122,6 +122,41 @@ export type SavedPlanReadOutcome =
   | { readonly outcome: 'not_found' }
   | { readonly outcome: 'corrupt'; readonly refusal: SavedPlanIntegrityRefusal };
 
+/**
+ * One row of a project's saved-plan list.
+ *
+ * **No body and no integrity verdict**, and both absences are deliberate. The
+ * list is the index of a project's permanent records: verifying a hundred plans
+ * to render a hundred names would read every stored byte on a page nobody asked
+ * to open a plan from, and a list is exactly where {@link SavedPlanService.read}
+ * has not been called yet. A corrupt plan is therefore listed like any other and
+ * says so when it is opened — which is the honest order, because a plan that
+ * cannot be read still exists, still occupies its quota and still has to be
+ * deletable.
+ *
+ * The hashes and lengths ride along because the header already carries them:
+ * they cost nothing here and a surface that shows a plan's size has them.
+ */
+export interface SavedPlanListEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly createdBy: string;
+  readonly createdAt: number;
+  readonly inputBytes: number;
+  /** The schedule side's stored length, or `null` for a schedule-less save. */
+  readonly scheduleBytes: number | null;
+  /**
+   * Why there is no schedule, or `null` when there is one.
+   *
+   * `string` and not {@link SavedPlanScheduleAbsentReason}, matching the read
+   * path exactly: the column is `text`, and `readOfStored` deliberately passes
+   * an unrecognised reason through rather than refusing a plan over a label
+   * that says nothing about its bytes. A list that narrowed harder than the
+   * read would hide a plan the read is willing to hand over.
+   */
+  readonly scheduleAbsentReason: string | null;
+}
+
 export interface SavedPlanServiceOptions {
   readonly capture: SavedPlanCaptureRepository;
   readonly plans: SavedPlanRepository;
@@ -223,6 +258,35 @@ export class SavedPlanService {
     const stored = await this.opts.plans.readOf(savedPlanId);
     if (stored === null) return { outcome: 'not_found' };
     return readOfStored(stored);
+  }
+
+  /**
+   * A project's saved plans, newest first — headers only, and **unverified**.
+   *
+   * The asymmetry with {@link read} is the point and not an oversight. `read`
+   * recomputes both digests because it is handing over bytes somebody will act
+   * on; this hands over an index, and verifying it would mean reading every
+   * stored body of every plan to draw a list of names. A plan whose bytes are
+   * damaged is listed like any other and refuses when it is opened, which is
+   * also the only behaviour under which a corrupt plan can be found and deleted
+   * rather than becoming a row that occupies quota and cannot be reached.
+   *
+   * The absent reason is passed through as stored, not narrowed to the three
+   * this build knows. That is `readOfStored`'s rule and this stays consistent
+   * with it: refusing a list because one row's reason string is unfamiliar
+   * would deny access to every other plan in the project over a label.
+   */
+  async list(projectId: string): Promise<SavedPlanListEntry[]> {
+    const rows = await this.opts.plans.listOf(projectId);
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdBy: row.createdBy,
+      createdAt: row.createdAt,
+      inputBytes: row.inputBytes,
+      scheduleBytes: row.scheduleBytes,
+      scheduleAbsentReason: row.scheduleAbsentReason,
+    }));
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {

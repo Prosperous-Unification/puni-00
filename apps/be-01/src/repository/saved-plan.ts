@@ -363,15 +363,31 @@ export class SavedPlanRepository {
    * The capture stamps the instant its read snapshot opened, and two saves of
    * one project a moment apart is the ordinary case, not the exotic one.
    *
-   * Takes a `Drizzle` rather than opening its own connection: the caller is a
-   * request path that already has one, and this reads a single index.
+   * On its own connection, like {@link readOf} and unlike {@link holdingOf}.
+   * The division is what the read is *for*, not what it costs: `holdingOf` and
+   * `bodyOf` take a `Drizzle` because they run **inside** a caller's
+   * transaction, where a second connection would read a snapshot the write lock
+   * does not cover. This one is a route's whole answer, and a controller in
+   * this app holds services rather than a database handle — a signature that
+   * asked for one would push `boot.ts`'s process connection through the
+   * controller layer to reach it.
+   *
+   * No read transaction: this is one statement against one table, which SQLite
+   * already runs atomically. `readOf` needs `BEGIN DEFERRED` because a header
+   * and its bodies are three rows in two tables and a cascade can land between
+   * two unsynchronised reads; there is no second read here to synchronise with.
    */
-  async listOf(db: Drizzle, projectId: string): Promise<SavedPlanRow[]> {
-    return db
-      .select()
-      .from(savedPlan)
-      .where(eq(savedPlan.projectId, projectId))
-      .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+  async listOf(projectId: string): Promise<SavedPlanRow[]> {
+    const connection = this.opts.openConnection();
+    try {
+      return await connection.db
+        .select()
+        .from(savedPlan)
+        .where(eq(savedPlan.projectId, projectId))
+        .orderBy(desc(savedPlan.createdAt), savedPlan.id);
+    } finally {
+      connection.close();
+    }
   }
 
   /**
