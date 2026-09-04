@@ -12,11 +12,11 @@
  *
  * `failureReason` is a CHECK-constrained column
  * (`openspec/changes/dual-optimized-scheduler/design.md`, cache identity), so
- * getting the mapping wrong is not a cosmetic fault: it is an insert that the
- * database rejects, or worse, a plausible token that sends the repair to the
- * wrong engineer.
+ * getting the mapping wrong is not cosmetic: it is an insert the database
+ * rejects, or worse, a plausible token that sends the repair to the wrong
+ * engineer.
  *
- * **The trap this module exists to close.** `objective-overflow` is a member of
+ * The trap this module exists to close: `objective-overflow` is a member of
  * BOTH `SOLVER_PREFLIGHT_FAILURES` and `SOLVER_REVALIDATION_FAILURES`, and the
  * two mean opposite things. Before the spawn it is the coordinator's reason
  * verbatim — nothing ran, the request cannot be carried by the wire's integers,
@@ -25,17 +25,20 @@
  * `invalid-output`. A mapping written by matching the token to the column's
  * vocabulary — which the token does match — is wrong in one of the two
  * directions and looks right in both.
+ *
+ * Each seam maps through a `Record` over its own failure union rather than a
+ * conditional, so a code added to any of the three lists is a type error here
+ * until somebody decides what it means. A conditional would have defaulted it
+ * silently, which is how a token reaches the column with nobody having chosen
+ * it.
  */
 
 import { SOLVER_PARSE_FAILURES, type SolverParseFailure } from './parse-solver-response';
 import {
-  SOLVER_PREFLIGHT_FAILURES,
-  type SolverPreflightFailure,
-} from './solver-preflight';
-import {
   SOLVER_REVALIDATION_FAILURES,
   type SolverRevalidationFailure,
 } from './revalidate-solver-result';
+import { SOLVER_PREFLIGHT_FAILURES, type SolverPreflightFailure } from './solver-preflight';
 
 /**
  * The coordinator's `failureReason` vocabulary, verbatim from the CHECK
@@ -66,8 +69,12 @@ export type SolverFailureReason = (typeof SOLVER_FAILURE_REASONS)[number];
  * came back was not one well-formed response line, which is the definition of
  * output that cannot be used.
  */
-export const dispositionOfParseFailure = (_failure: SolverParseFailure): SolverFailureReason =>
-  'invalid-output';
+const PARSE_DISPOSITIONS: Readonly<Record<SolverParseFailure, SolverFailureReason>> = {
+  'empty-output': 'invalid-output',
+  'not-one-line': 'invalid-output',
+  'malformed-json': 'invalid-output',
+  'schema-violation': 'invalid-output',
+};
 
 /**
  * Pre-spawn. Both codes are the coordinator's reason verbatim — the spec calls
@@ -76,13 +83,13 @@ export const dispositionOfParseFailure = (_failure: SolverParseFailure): SolverF
  * started. `solver-preflight.ts`'s own header says the same thing from the
  * other side: "the failure token is the thing the cached row records".
  *
- * The identity here is a *coincidence of vocabulary*, not a rule that tokens
- * pass through. Read `dispositionOfRevalidationFailure` before assuming it
- * generalises.
+ * The identity here is a coincidence of vocabulary, not a rule that tokens pass
+ * through. Read `REVALIDATION_DISPOSITIONS` before assuming it generalises.
  */
-export const dispositionOfPreflightFailure = (
-  failure: SolverPreflightFailure,
-): SolverFailureReason => failure;
+const PREFLIGHT_DISPOSITIONS: Readonly<Record<SolverPreflightFailure, SolverFailureReason>> = {
+  'horizon-overflow': 'horizon-overflow',
+  'objective-overflow': 'objective-overflow',
+};
 
 /**
  * Post-spawn. Ten of the eleven are `invalid-output`: the solver returned a
@@ -99,20 +106,43 @@ export const dispositionOfPreflightFailure = (
  * blaming the response would send the repair to the wrong side of the seam,
  * which is the whole reason the code was split out.
  *
- * ASSUMPTION 1 (this run). The spec's `failureReason` vocabulary was written
- * for run outcomes and never names our own request builder, so no requirement
- * text picks between `internal-error` and `invalid-output` for this code.
+ * ASSUMPTION 1 (run 11). The spec's `failureReason` vocabulary was written for
+ * run outcomes and never names our own request builder, so no requirement text
+ * picks between `internal-error` and `invalid-output` for this code.
  * `internal-error` is chosen because the fault is on our side of the seam and
- * the design already uses that reason for "not a solver answer" (an image
- * built without the package fails the spawn `internal-error`, spec line 536).
- * FALSIFIED BY: a coordinator requirement in section 6/7 that names a
- * different reason for an unjudgeable request, or by `malformed-request`
- * becoming reachable from a solver-authored artefact rather than only from
- * `buildSolverRequest`.
+ * the design already uses that reason for "not a solver answer" — an image
+ * built without the package fails the spawn `internal-error`
+ * (`specs/scheduler-optimization/spec.md`, packaging scenario). FALSIFIED BY: a
+ * coordinator requirement in section 6/7 naming a different reason for an
+ * unjudgeable request, or by `malformed-request` becoming reachable from a
+ * solver-authored artefact rather than only from `buildSolverRequest`.
  */
+const REVALIDATION_DISPOSITIONS: Readonly<
+  Record<SolverRevalidationFailure, SolverFailureReason>
+> = {
+  'malformed-request': 'internal-error',
+  'offset-key-mismatch': 'invalid-output',
+  'offset-domain': 'invalid-output',
+  'edge-violated': 'invalid-output',
+  'floor-violated': 'invalid-output',
+  'pool-overcapacity': 'invalid-output',
+  'assignee-double-booked': 'invalid-output',
+  'objective-domain': 'invalid-output',
+  'objective-overflow': 'invalid-output',
+  'objective-regression': 'invalid-output',
+  'objective-mismatch': 'invalid-output',
+};
+
+export const dispositionOfParseFailure = (failure: SolverParseFailure): SolverFailureReason =>
+  PARSE_DISPOSITIONS[failure];
+
+export const dispositionOfPreflightFailure = (
+  failure: SolverPreflightFailure,
+): SolverFailureReason => PREFLIGHT_DISPOSITIONS[failure];
+
 export const dispositionOfRevalidationFailure = (
   failure: SolverRevalidationFailure,
-): SolverFailureReason => (failure === 'malformed-request' ? 'internal-error' : 'invalid-output');
+): SolverFailureReason => REVALIDATION_DISPOSITIONS[failure];
 
 /**
  * Every failure token this directory can produce, tagged with the seam that

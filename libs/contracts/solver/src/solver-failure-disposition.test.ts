@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
 
 import { SOLVER_PARSE_FAILURES } from './parse-solver-response';
-import { SOLVER_PREFLIGHT_FAILURES } from './solver-preflight';
 import { SOLVER_REVALIDATION_FAILURES } from './revalidate-solver-result';
 import {
   SOLVER_FAILURE_DISPOSITIONS,
@@ -12,6 +11,7 @@ import {
   dispositionOfPreflightFailure,
   dispositionOfRevalidationFailure,
 } from './solver-failure-disposition';
+import { SOLVER_PREFLIGHT_FAILURES } from './solver-preflight';
 
 /**
  * 2.5's remaining clause: "each violation in 2.4 is rejected as
@@ -32,15 +32,15 @@ const DESIGN = readFileSync(
 );
 
 /** The `failureReason` CHECK constraint's own list, in its own order. */
-const checkConstraintVocabulary = (): readonly string[] => {
-  const match = DESIGN.match(/failure_reason IS NULL OR failure_reason IN \(([^)]*)\)/);
+const checkConstraintVocabulary = (): string[] => {
+  const match = /failure_reason IS NULL OR failure_reason IN \(([^)]*)\)/.exec(DESIGN);
   if (!match) throw new Error('design.md no longer declares a failure_reason CHECK constraint');
   return match[1].split(',').map((token) => token.trim().replace(/^'|'$/g, ''));
 };
 
 describe('the failure-reason vocabulary is the column the row is written into', () => {
   it('matches design.md CHECK constraint exactly, in order', () => {
-    expect([...SOLVER_FAILURE_REASONS]).toEqual([...checkConstraintVocabulary()]);
+    expect(SOLVER_FAILURE_REASONS.map(String)).toEqual(checkConstraintVocabulary());
   });
 
   it('carries no duplicate', () => {
@@ -107,11 +107,13 @@ describe('pre-spawn failures are the recorded reason verbatim', () => {
  * matched the token to the column's vocabulary would pass the first and fail
  * the second while looking correct in both places.
  *
- * WATCHED RED: change `dispositionOfRevalidationFailure` to pass
- * `objective-overflow` through the way the preflight's does — the single most
- * plausible edit, since the token is a legal `failureReason` — and only the
- * second assertion here fails. Nothing else in the suite notices: the
- * re-validator's own tests assert the *diagnosis* token, which is unchanged.
+ * WATCHED RED: set `REVALIDATION_DISPOSITIONS['objective-overflow']` to
+ * `'objective-overflow'` — the single most plausible edit, since the token is
+ * itself a legal `failureReason` and the entry beside it in the preflight table
+ * says exactly that. Only the second assertion here fails. Nothing else in the
+ * suite notices: the re-validator's own tests assert the *diagnosis* token,
+ * which is unchanged, and the vocabulary and totality checks above both still
+ * pass because the wrong answer is a member of the column's own enum.
  */
 describe('the same token means opposite things on either side of the spawn', () => {
   it('records objective-overflow before the spawn and invalid-output after it', () => {
