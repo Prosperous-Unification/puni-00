@@ -2002,10 +2002,16 @@ describe('the adapter a plan read asks', () => {
   });
 
   it('answers nothing for a failed row, a corrupt payload and a plan nothing was stored for', () => {
-    // Proof: `outcome.kind === 'ok' ? ... : null` replaced by a cast that serves
-    // `outcome.result?.schedule ?? null` and this failed — a `failed` row has no
-    // result and a `corrupt` one has an unusable payload, so the three answers
-    // stopped being alike. Watched 2026-09-04.
+    // The three misses are the whole content of this case, and the obvious
+    // mutation is NOT its watched red — measured, not argued. Replacing
+    // `outcome.kind === 'ok' ? outcome.result.schedule : null` with
+    // `outcome.result?.schedule ?? null` leaves all 57 green, because no
+    // non-`ok` outcome carries a `result` at all: the two forms are equivalent
+    // over every state 4.1's decoder can produce, and the `kind` test is chosen
+    // for saying so out loud rather than for being the only thing that works.
+    // The reds this case does have are M4 (a fixed `inputHash`, which reddens
+    // the serving case) and M6 (`pair.pri` for the asked objective, which
+    // reddens the case above). Watched 2026-09-04.
     const db = tempDb();
     try {
       const generation = prepared(db.path);
