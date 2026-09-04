@@ -1141,10 +1141,12 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
       reserve(db.path, 60_000, green);
       expect(commit(db.path, 60_000, 50, green)).toBe('stored');
 
+      // Ordered by `contract_version` then `budget_ms`, so blue's two rows
+      // come first: '7+1.0.0' sorts before '8+1.0.0'.
       expect(liveBudgets(db.path)).toEqual([
-        { contract: green, budget: 60_000 },
         { contract: CONTRACT, budget: 90_000 },
         { contract: CONTRACT, budget: 120_000 },
+        { contract: green, budget: 60_000 },
       ]);
     } finally {
       db.cleanup();
