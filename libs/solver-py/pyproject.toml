@@ -1,0 +1,70 @@
+# The `wbs-solver` distribution: OR-Tools CP-SAT behind one short-lived
+# stdin/stdout CLI (design.md "Runner", tasks.md 5.1).
+#
+# WHY THIS SHAPE
+#
+# No import surface, no daemon, no port. be-01 spawns a process, writes one
+# JSON request, reads one JSON response, and the process exits. So this file
+# declares exactly one runtime contract — the console script — and the package
+# exports nothing a caller could reach any other way.
+#
+# `version` is NOT dynamic and NOT a placeholder. It is `0.1.0` because the
+# golden request corpus was checked in carrying `solverVersion: "0.1.0"` and
+# `contractVersion: "7+0.1.0"` before this package existed
+# (libs/contracts/solver/fixtures/request/*.json,
+# libs/contracts/solver/src/wire-contract-version.test.ts). Bumping it here
+# without re-keying that corpus is a red test on both sides of the wire, which
+# is the point. It is declared once, in src/wbs_solver/__init__.py, and read
+# from there by setuptools so the running interpreter and the installed
+# distribution metadata cannot disagree — the coordinator reads the installed
+# metadata for the `solverVersion` half of `contractVersion` (5.11), and the
+# suite reads `__version__`.
+#
+# `requires-python` is a single minor version, not a range. design.md's
+# packaging paragraph says the image installs "the pinned Python runtime"; a
+# range would advertise interpreters the lock file does not cover and nothing
+# tests. 3.14 is what h2puni runs (3.14.4) and ortools 9.15.6755 publishes
+# cp314 wheels for it, so gate and image agree without a second toolchain.
+#
+# Dependencies are pinned to `==` here as well as in requirements.lock. The
+# lock is the hash-verified install path; these pins are what a reader of the
+# metadata sees, and a disagreement between the two is caught by
+# tests/test_lock.py rather than discovered at deploy time.
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wbs-solver"
+dynamic = ["version"]
+description = "CP-SAT placement for the wbs-tool dual-objective scheduler: one stdin/stdout solve"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  # The solver. CP-SAT only; nothing here uses the routing or graph libraries
+  # that ship in the same wheel.
+  "ortools==9.15.6755",
+  # Request validation against the copy of solver-wire.v1.json installed beside
+  # this package (design.md "Solver wire contract — one versioned schema, four
+  # consumers"). Pinned because a resolver-chosen jsonschema is a resolver
+  # chosen validation verdict.
+  "jsonschema==4.26.0",
+]
+
+[project.scripts]
+# The solve entrypoint. `wbs-solver-launcher` (6.2b) is a second console script
+# in this same distribution and is deliberately absent until that task lands —
+# 5.11's second watched red is an image carrying this script without that one,
+# so declaring it early would make that red unreachable.
+wbs-solver = "wbs_solver.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "wbs_solver.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# The schema copy the entrypoint validates against travels inside the wheel.
+# Landed by the chunk that adds validation, not by this one.
+wbs_solver = ["*.json"]
