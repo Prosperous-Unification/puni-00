@@ -5,11 +5,11 @@ import { describe, expect, it } from 'bun:test';
 import { SOLVER_PARSE_FAILURES } from './parse-solver-response';
 import { SOLVER_REVALIDATION_FAILURES } from './revalidate-solver-result';
 import {
-  SOLVER_FAILURE_DISPOSITIONS,
-  SOLVER_FAILURE_REASONS,
   dispositionOfParseFailure,
   dispositionOfPreflightFailure,
   dispositionOfRevalidationFailure,
+  SOLVER_FAILURE_DISPOSITIONS,
+  SOLVER_FAILURE_REASONS,
 } from './solver-failure-disposition';
 import { SOLVER_PREFLIGHT_FAILURES } from './solver-preflight';
 
@@ -17,7 +17,7 @@ import { SOLVER_PREFLIGHT_FAILURES } from './solver-preflight';
  * 2.5's remaining clause: "each violation in 2.4 is rejected as
  * **invalid-output**". The violations themselves are cased one-by-one in
  * `revalidate-solver-result.test.ts`; what was untestable until now is the
- * *disposition*, because `invalid-output` existed only in doc comments.
+ * disposition, because `invalid-output` existed only in doc comments.
  *
  * The vocabulary is not asserted against a second hand-written list here. It is
  * read out of `design.md`'s CHECK constraint, which is the text the migration
