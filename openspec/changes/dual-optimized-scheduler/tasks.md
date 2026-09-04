@@ -177,6 +177,32 @@ check-that-cannot-fail failure R5 names.
       corpus needs a deterministic canonicaliser before it has bytes at all.
       `JSON.stringify` on a `Map` yields `{}` and would check in a corpus that
       passes against every possible engine.
+      **(a) AND THE WATCHED RED ARE LANDED (run 11, chunk 3, `bcf86887`).**
+      `libs/domain/src/fast-golden-corpus.ts` holds four hand-written plans —
+      `chain-of-three`, `unestimated-middle`, `pool-of-one`,
+      `floor-and-person` — plus `serializeSchedule`, which sorts both `Map`s
+      into entry arrays so the output has bytes at all.
+      `libs/domain/fixtures/fast-golden-corpus.json` is those schedules and the
+      version they were produced under, and `fast-golden-corpus.test.ts` refuses
+      a mismatch in **either** direction. Inputs are hand-written on purpose: a
+      generator would be the third copy of the engine's input rules, and the
+      corpus's own inputs must not be able to drift from the plans it claims to
+      describe.
+      **Both halves of the ratchet measured on h2puni at `112aa297`**, not
+      argued: `ASSUMED_SLICE_WORKDAYS` 2 → 3 with the version left at 7 →
+      **360 pass / 20 fail**, of which 19 are the pre-existing date assertions
+      and the twentieth is `reproduces every stored schedule byte for byte`, the
+      only failure in the suite that is about the key; `SCHEDULER_CONTRACT_VERSION`
+      7 → 8 with the fixture left alone → **379 pass / 1 fail**, and that one is
+      `was produced under the version this tree declares`. Gate at `bcf86887`:
+      domain lint 0, typecheck 0, **380 pass / 0 fail across 30 files**
+      (375/29 before), contracts **167/0**, 0 emitted `.js`.
+      **Still open: (b) is answered differently than planned, and (c) is
+      blocked.** (b) asked for the generator to be reachable outside a
+      `.test.ts`; the corpus does not use a generator at all, so that
+      requirement is void rather than met — `schedule-identity.test.ts` keeps its
+      own generator and its differential role, unchanged. (c) waits on 4.9's
+      signature change, per the correction above.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
