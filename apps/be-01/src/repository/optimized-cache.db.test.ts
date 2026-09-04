@@ -174,6 +174,22 @@ function read(path: string, key: OptimizedCacheKey = KEY): OptimizedPair {
   return readOptimizedPair(openDrizzle(path), key);
 }
 
+/**
+ * Records every request, so a count and an order are both assertable.
+ *
+ * At module scope because 4.1b's proof (b) counts spawns too — it is the item
+ * that was waiting for this seam to exist, and a second copy of four lines
+ * would be two definitions of what "a solve was asked for" means.
+ */
+function recorder(): { spawn: Spawner; calls: SpawnRequest[] } {
+  const calls: SpawnRequest[] = [];
+  return { spawn: (request) => void calls.push(request), calls };
+}
+
+function readAndSpawn(path: string, spawn: Spawner, key: OptimizedCacheKey = KEY): OptimizedPair {
+  return readOptimizedPairAndSpawn(openDrizzle(path), key, spawn);
+}
+
 describe('what a stored pair reads as', () => {
   it('serves both objectives for the full key, objectiveValues and plan intact', () => {
     const db = tempDb();
@@ -1082,7 +1098,11 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
     const db = openDatabase(path);
     try {
       db.run(
-        `INSERT INTO solver_slot
+        // OR REPLACE, because proof (b) below re-takes the seat every time a
+        // read asks for a solve — under the mutation that is nine more times,
+        // and a primary-key conflict there would fail the case for the wrong
+        // reason.
+        `INSERT OR REPLACE INTO solver_slot
            (project_id, contract_version, generation, objective, budget_ms,
             owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
             cancel_requested_at, admitted_deadline_at)
@@ -1202,6 +1222,66 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
       db.cleanup();
     }
   });
+
+  /** The same write with a servable payload, which is what proof (b) needs. */
+  function commitOk(path: string, budgetMs: number, now: number): OutcomeWriteResult {
+    return storeOptimizedOutcome(openDrizzle(path), {
+      claim: { ...CLAIM, budgetMs },
+      inputHash: HASH,
+      admittedCancelEpoch: 0,
+      outcome: { kind: 'ok', result: solverResult(realPlan()) },
+      now,
+    });
+  }
+
+  /**
+   * 4.1b proof (b), which waited on 4.2's spawner and now has it.
+   *
+   * Two releases read the same file at different budgets, alternating, ten
+   * times. Each asks for a solve on its own first read and never again: **two
+   * calls on the spawner, in ten reads.** The rows are `ok` here rather than
+   * `failed` — the case is vacuous otherwise, because a `failed` row suppresses
+   * an auto-spawn all by itself (4.4) and the count would be two whether the
+   * rows survived or not.
+   *
+   * The loop stores the outcome whenever a read asks for one, which is what a
+   * coordinator does; so the spawn count IS the solve count, and under the
+   * exclusive rule this replaced it rises with the reads rather than stopping
+   * at two.
+   */
+  it('sees exactly two solves across ten alternating reads by two releases', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+      enable(db.path);
+
+      const budgets = [60_000, 120_000];
+      const asked: number[] = [];
+      for (let round = 0; round < 10; round += 1) {
+        const budgetMs = budgets[round % budgets.length] as number;
+        const release = recorder();
+        readAndSpawn(db.path, release.spawn, { ...KEY, budgetMs });
+        // `time` never commits here, so ignore it and follow the one objective
+        // the bound is scoped to.
+        if (release.calls.some((call) => call.objective === 'pri')) {
+          asked.push(budgetMs);
+          reserve(db.path, budgetMs);
+          expect(commitOk(db.path, budgetMs, 100 + round)).toBe('stored');
+        }
+      }
+
+      expect(asked).toEqual([60_000, 120_000]);
+      expect(liveBudgets(db.path)).toEqual([
+        { contract: CONTRACT, budget: 60_000 },
+        { contract: CONTRACT, budget: 120_000 },
+      ]);
+      // Both releases end on a hit, which is the state the bound buys.
+      expect(read(db.path, { ...KEY, budgetMs: 60_000 }).pri.kind).toBe('ok');
+      expect(read(db.path, { ...KEY, budgetMs: 120_000 }).pri.kind).toBe('ok');
+    } finally {
+      db.cleanup();
+    }
+  });
 });
 
 /**
@@ -1212,16 +1292,6 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
  * waited would be a test that passes on a slow machine and on a broken one.
  */
 describe("4.2's injected spawner, asserted on the calls and not on the clock", () => {
-  /** Records every request, so a count and an order are both assertable. */
-  function recorder(): { spawn: Spawner; calls: SpawnRequest[] } {
-    const calls: SpawnRequest[] = [];
-    return { spawn: (request) => void calls.push(request), calls };
-  }
-
-  function readAndSpawn(path: string, spawn: Spawner, key: OptimizedCacheKey = KEY): OptimizedPair {
-    return readOptimizedPairAndSpawn(openDrizzle(path), key, spawn);
-  }
-
   function storeOk(path: string, generation: number, objective: 'pri' | 'time'): void {
     storeRow(path, {
       objective,
