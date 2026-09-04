@@ -3,16 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { eq } from 'drizzle-orm';
 
-import type { Connection } from '../repository/db';
-import { openConnection } from '../repository/db';
+import { openConnection, openDatabase } from '../repository/db';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
-import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
@@ -41,7 +38,13 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 describe('renaming and deleting a saved plan', () => {
   let dir: string;
   let path: string;
-  let reader: Connection;
+  /**
+   * A raw handle, not a `Connection`: `drizzle-orm` is a restricted import in
+   * `service/` — the rule that keeps query building in `repository/` — so the
+   * two observations below are written as SQL rather than as a query builder
+   * this layer is not allowed to hold.
+   */
+  let reader: ReturnType<typeof openDatabase>;
 
   const item = (id: string, position: number) => ({
     id,
@@ -77,7 +80,7 @@ describe('renaming and deleting a saved plan', () => {
     );
     await new WorkItemRepository(db).insert(item('wi-1', 10), [], wrote);
     seed.close();
-    reader = openConnection(path);
+    reader = openDatabase(path);
   });
 
   afterEach(() => {
@@ -106,20 +109,19 @@ describe('renaming and deleting a saved plan', () => {
       createdById,
     });
 
-  const nameOf = async (id: string): Promise<string | null> => {
-    const rows = await reader.db
-      .select({ name: savedPlan.name })
-      .from(savedPlan)
-      .where(eq(savedPlan.id, id));
-    return rows[0]?.name ?? null;
+  const nameOf = (id: string): string | null => {
+    const row = reader.query('SELECT name FROM saved_plan WHERE id = ?').get(id) as
+      | { name: string }
+      | undefined
+      | null;
+    return row?.name ?? null;
   };
 
-  const bodyCount = async (id: string): Promise<number> => {
-    const rows = await reader.db
-      .select({ id: savedPlanBody.savedPlanId })
-      .from(savedPlanBody)
-      .where(eq(savedPlanBody.savedPlanId, id));
-    return rows.length;
+  const bodyCount = (id: string): number => {
+    const row = reader
+      .query('SELECT count(*) AS n FROM saved_plan_body WHERE saved_plan_id = ?')
+      .get(id) as { n: number };
+    return row.n;
   };
 
   it('lets the creator rename their own plan', async () => {
@@ -128,7 +130,7 @@ describe('renaming and deleting a saved plan', () => {
     expect(await service().rename('sp-1', 'ada', 'after the rewire')).toEqual({
       outcome: 'touched',
     });
-    expect(await nameOf('sp-1')).toBe('after the rewire');
+    expect(nameOf('sp-1')).toBe('after the rewire');
   });
 
   /**
@@ -144,7 +146,7 @@ describe('renaming and deleting a saved plan', () => {
     expect(await service().rename('sp-1', 'owner', 'after the rewire')).toEqual({
       outcome: 'touched',
     });
-    expect(await nameOf('sp-1')).toBe('after the rewire');
+    expect(nameOf('sp-1')).toBe('after the rewire');
   });
 
   it('refuses a third party, and writes nothing', async () => {
@@ -153,11 +155,11 @@ describe('renaming and deleting a saved plan', () => {
     expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({
       outcome: 'forbidden',
     });
-    expect(await nameOf('sp-1')).toBe('before the rewire');
+    expect(nameOf('sp-1')).toBe('before the rewire');
 
     expect(await service().delete('sp-1', 'mallory')).toEqual({ outcome: 'forbidden' });
-    expect(await nameOf('sp-1')).toBe('before the rewire');
-    expect(await bodyCount('sp-1')).toBe(2);
+    expect(nameOf('sp-1')).toBe('before the rewire');
+    expect(bodyCount('sp-1')).toBe(2);
   });
 
   /**
@@ -172,20 +174,20 @@ describe('renaming and deleting a saved plan', () => {
     expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({
       outcome: 'forbidden',
     });
-    expect(await nameOf('sp-1')).toBe('before the rewire');
+    expect(nameOf('sp-1')).toBe('before the rewire');
 
     expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({ outcome: 'touched' });
-    expect(await nameOf('sp-1')).toBe('tidied up');
+    expect(nameOf('sp-1')).toBe('tidied up');
   });
 
   it('deletes the header and its bodies', async () => {
     await save('sp-1', 'ada');
-    expect(await bodyCount('sp-1')).toBe(2);
+    expect(bodyCount('sp-1')).toBe(2);
 
     expect(await service().delete('sp-1', 'ada')).toEqual({ outcome: 'touched' });
 
-    expect(await nameOf('sp-1')).toBeNull();
-    expect(await bodyCount('sp-1')).toBe(0);
+    expect(nameOf('sp-1')).toBeNull();
+    expect(bodyCount('sp-1')).toBe(0);
   });
 
   /**
@@ -196,16 +198,16 @@ describe('renaming and deleting a saved plan', () => {
    */
   it('renames and deletes a plan whose stored bytes are damaged', async () => {
     await save('sp-1', 'ada');
-    reader.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE saved_plan_id = 'sp-1'`);
+    reader.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE saved_plan_id = 'sp-1'`);
     expect((await service().read('sp-1')).outcome).toBe('corrupt');
 
     expect(await service().rename('sp-1', 'ada', 'damaged, and still mine')).toEqual({
       outcome: 'touched',
     });
-    expect(await nameOf('sp-1')).toBe('damaged, and still mine');
+    expect(nameOf('sp-1')).toBe('damaged, and still mine');
 
     expect(await service().delete('sp-1', 'ada')).toEqual({ outcome: 'touched' });
-    expect(await nameOf('sp-1')).toBeNull();
+    expect(nameOf('sp-1')).toBeNull();
   });
 
   /**
