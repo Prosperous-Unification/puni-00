@@ -239,23 +239,24 @@ describe("the materialiser's annotations, through the plan read", () => {
     // it, and it still held nothing up. A team named here would draw an arrow
     // from a bar that waited for nobody.
     //
-    // The pin is placed where the annotation could plausibly go wrong rather
-    // than somewhere safe: pool size 1, the only other tenant releasing its
-    // slot at exactly day 3, and the optimizer's pin on that instant. So the
-    // conservative scan inside `annotateCapacity` DOES see a reservation that
-    // finishes by this start — it is a capacity predecessor by every test the
-    // function applies except the one that matters, which is that this slice
-    // never waited for the pool.
+    // The pool has room — size 2 with one other tenant — so the pin is legal
+    // and the re-ask inside `pinFloor` returns its own instant with an empty
+    // binding, which is what makes the invariant true rather than lucky.
     //
-    // Watched red: `annotateCapacity`'s `boundBy === 'capacity' ?
-    // window.blocking.filter(finishesByStart) : []` reduced to
-    // `window.blocking.filter(finishesByStart)` — the gate that makes the set
-    // a statement about *why* the slice is where it is rather than about what
-    // happened to be running. This failed on `capacityPredecessorIds`
-    // receiving the holding slice's id where `[]` was expected. Watched
-    // 2026-09-04.
-    await capacity.set(projectId, PLATFORM, 1, WROTE);
-    const hold = await leaf('Hold', 3, PLATFORM);
+    // **MEASURED, NOT ARGUED, AND NOT YET A WATCHED RED.** The pin must be
+    // strictly above the slice's own capacity floor or `pinFloor` hands back
+    // `resolved` untouched and the slice is `'capacity'`, not `'optimizer'` —
+    // measured 2026-09-04 on the tighter fixture this case was first written
+    // with (pool size 1, the other tenant releasing at exactly the pinned
+    // instant), which came back `boundBy: 'capacity'` with the team named,
+    // correctly. Above the floor the conservative scan has no reservation left
+    // that finishes by the start, so deleting `annotateCapacity`'s
+    // `boundBy === 'capacity'` gate leaves this green: the case states the
+    // invariant on the production path and does not yet pin the gate. The
+    // fixture that does both is a pool the optimizer idles PAST rather than
+    // one it clears, and it is the next chunk's.
+    await capacity.set(projectId, PLATFORM, 2, WROTE);
+    const hold = await leaf('Hold', 6, PLATFORM);
     const rewire = await leaf('Rewire', 2, PLATFORM);
     const tree = await servedBy({
       [sliceKey(hold, stepId)]: units(0),
