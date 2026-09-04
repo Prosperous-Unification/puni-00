@@ -118,7 +118,13 @@ describe('preflightSolverRequest', () => {
     // publishing a `priority.value` the response schema's own `safeInteger`
     // refuses — Bun rejecting the response it asked for.
     const preflight = preflightSolverRequest(
-      [sliceOf({ durationUnits: 1, notBeforeUnits: SOLVER_HORIZON_UNITS_MAX - 1, priorityWeight: 2 ** 22 })],
+      [
+        sliceOf({
+          durationUnits: 1,
+          notBeforeUnits: SOLVER_HORIZON_UNITS_MAX - 1,
+          priorityWeight: 2 ** 22,
+        }),
+      ],
       atZero,
     );
     expect(preflight.ok).toBe(false);
