@@ -2203,6 +2203,37 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       the three-way `w.start === pinnedStart` split and the slice must report
       `boundBy: 'capacity'` with an empty `capacityPredecessorIds` and a null
       `capacityTeamId`, failing the render invariant.
+      **THE WIRING IS BUILT (run 40); the six proofs above are not.**
+      `materialiseOptimized(rows, edges, slices, notBefore, poolSizes, reach,
+      offsets)` lives in `libs/contracts/solver/src/materialise-optimized.ts`,
+      beside `quantisedFastBaseline` and as its exact inverse — the baseline
+      multiplies Fast's workday axis up to whole units for the wire, this
+      divides the units the solver answers in back down and hands them to
+      `schedule()` as `pinnedStarts`. It is NOT a second `libs/domain` entry
+      point on purpose: `schedule()` already owns the one placement pass, and
+      the quantum is a fact about CP-SAT that the domain is deliberately kept
+      clear of. There is no node-id resolution step to build — the wire's
+      `offsets` are keyed by `sliceKey` already, so the whole conversion is the
+      division plus two refusals.
+      **Two refusals are this boundary's own and `schedule()` cannot make
+      either.** An offset that is not a whole non-negative unit divides to a
+      start half a unit off the axis every other start sits on, and where that
+      start is above its floor the plan accepts it — measured, not argued: with
+      the fractional offset on the SECOND slice `schedule()` refused it for its
+      own reason and the case stayed green with the guard deleted (M2), so the
+      case now pins it on the first slice against a `projectStart` floor of 0.
+      And an offset key naming no slice in the plan is invisible to
+      `schedule()`, which reads `pinnedStarts` through its node list and so can
+      only refuse the converse; the surplus check therefore runs AFTER the
+      placement, against `placed.slices`, because that map IS the node set and a
+      key set derived here would be a second copy of the leaf grouping.
+      **OPEN, NAMED, NOT SMUGGLED:** `offset / SOLVER_QUANTUM` is correctly
+      rounded, but `pinFloor` compares it against Fast's accumulated
+      `days / width` floors with `===` and `<`. A floor whose exact value is a
+      unit multiple but whose double drifted a ulp above it turns a feasible pin
+      into `ScheduleInvalidOptimizedStartError`. `snapWorkdays`' 1e-9 window is
+      the tool; it needs its own fixture and its own watched red and did not get
+      one here.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
