@@ -215,9 +215,20 @@ check-that-cannot-fail failure R5 names.
       `duration: 2.5` and a finish at 3.5, which a corpus of whole numbers
       cannot tell apart from a rule that rounds. **Watched red for the new
       case:** flip that case to `whole-item` → **379 pass / 1 fail**, the one
-      being the byte comparison. Still uncovered and named rather than claimed:
-      `snapWorkdays` and numbering semantics have no case aimed at them, and
-      `SOLVER_QUANTUM` is not a `schedule()` input at all.
+      being the byte comparison.
+      **A seventh case, `diamond-float-thirds`, closes `snapWorkdays`
+      (`81625301`).** It is the one call in `schedule.ts` (line 1612,
+      `slack = snapWorkdays(latestStart - earliestStart)`), so the case is a
+      diamond whose short branch carries real slack and whose widths are 3, to
+      make every duration a repeating third. **Watched red:** drop the
+      `snapWorkdays` from that line → **371 pass / 9 fail**, and the corpus's
+      byte comparison is among them. Unlike the `ASSUMED_SLICE_WORKDAYS` red,
+      the corpus is *not* the only check that notices this one — four existing
+      float and drift tests catch it too — which is worth stating rather than
+      overselling the corpus.
+      **Still uncovered, named rather than claimed:** numbering semantics have
+      no case aimed at them, and `SOLVER_QUANTUM` is not a `schedule()` input at
+      all, so this corpus cannot reach it.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
