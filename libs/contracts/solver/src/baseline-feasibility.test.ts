@@ -200,10 +200,18 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
    * rank and two widths decide them, and a hand-written constant would turn
    * any placement change into an objective failure wearing a placement name.
    */
-  const valuesOf = (request: ReturnType<typeof richRequest>, offsets: Readonly<Record<string, number>>) => {
+  const valuesOf = (
+    request: ReturnType<typeof richRequest>,
+    offsets: Readonly<Record<string, number>>,
+  ) => {
     const finishOf = (slice: (typeof request.slices)[number]) =>
       offsets[slice.key] + slice.durationUnits;
-    const term = (value: number) => ({ value, stageValue: null, bound: null, status: 'unknown' as const });
+    const term = (value: number) => ({
+      value,
+      stageValue: null,
+      bound: null,
+      status: 'unknown' as const,
+    });
     return {
       makespan: term(Math.max(0, ...request.slices.map(finishOf))),
       priority: term(
@@ -248,7 +256,10 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
     // onto the floor it is a legal offset in the variable domain and an illegal
     // one in the graph, which is the distinction the placement rules exist to
     // make — so the refusal is a dependency verdict rather than a domain one.
-    const broken = { ...request.fastHint, [request.slices[2].key]: request.slices[0].notBeforeUnits };
+    const broken = {
+      ...request.fastHint,
+      [request.slices[2].key]: request.slices[0].notBeforeUnits,
+    };
     const refused = revalidateSolverResult(request, richResponse(request, broken));
     expect(refused.ok).toBe(false);
     if (refused.ok) throw new Error('expected a refusal');
