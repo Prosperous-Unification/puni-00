@@ -124,22 +124,55 @@ const sortedPairs = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
  * leaf, and on a width below 1. A canonicalizer that accepted input
  * `schedule()` refuses would hand out a cache key for a call that cannot run.
  *
- * **Proof (task 1.4), both watched reds measured on h2puni at `b5e64717`
- * against a green 393 pass / 0 fail:**
+ * **Proof (tasks 1.4 and 1.9): one watched red per field, every removal made
+ * on this file and run against the real suite.** Task 1.9 required the sweep to
+ * cover *every* field named above rather than `reach` and the slice order
+ * alone — a field nobody has watched fail is a field nobody has tested. Each
+ * row below deletes exactly one entry from the returned object, runs
+ * `canonical-schedule-input.test.ts`, and restores the file; measured on h2puni
+ * at `05b78008` against a green **25 pass / 0 fail**:
  *
- * `reach: input.reach` REMOVED from the returned object → **391 pass / 2
- * fail**: `depReach flipped to anchor-slice` (the two arms of the reach now
- * hash the same while placing `b` differently — a stale schedule served as
- * current) and `puts every one of the seven arguments in the string, maps
- * included`, which is the structural guard catching the same hole a second
- * way.
+ * | removed | result | the case that caught it |
+ * | --- | --- | --- |
+ * | `rows[].parentId` | 23 / 1 | a leaf reparented under the edge's successor |
+ * | `rows[].position` | 23 / 1 | position swapped between two tied leaves |
+ * | `rows[].frozenNumber` | 22 / 2 | two frozen numbers that contradict position |
+ * | `rows[].priority` | 23 / 1 | a parent's as-written priority |
+ * | `edges[].predecessorId` | 23 / 1 | an edge redirected from a different predecessor |
+ * | `edges[].successorId` | 23 / 1 | an edge redirected to a different successor |
+ * | `slices[].stepId` | 23 / 1 | two stepIds of one work item exchanged |
+ * | `slices[].days` | 22 / 2 | an estimate changed; days null is not days zero |
+ * | `slices[].personId` | 23 / 1 | one person on two slices that did not share one |
+ * | `slices[].width` | 23 / 1 | the width of one slice widened |
+ * | `slices[].poolIds` | 23 / 1 | poolIds widened from one pool to two |
+ * | `notBefore` | 22 / 2 | the notBefore floor moved above the predecessor |
+ * | `poolSizes` | 22 / 2 | the pool grew to two slots |
+ * | `reach` | 22 / 2 | depReach flipped to anchor-slice |
+ * | `deadlines` | 22 / 2 | a deadline the engine cannot yet read (TASK-241) |
  *
- * The slices entry REPLACED by a flat list of every slice sorted byte-wise —
- * that is, the grouping and the preserved intra-item order both dropped for a
- * global sorted set → **392 pass / 1 fail**, and it is exactly `two slices of
- * one work item swapped`. Nothing else in the suite notices, which is the
- * measurement worth keeping: the intra-item order is a scheduling fact that no
- * other test in `libs/domain` connects to the cache key.
+ * The five two-fail rows are the field's own case plus `puts every one of the
+ * seven arguments in the string, maps included`, the structural guard catching
+ * the same hole a second way.
+ *
+ * **Two fields have no isolated red, and the sweep is how that was found:**
+ * `rows[].id` and `slices[].workItemId` each come back **25 pass / 0 fail**,
+ * and so does removing **both** in the earlier revision that had no rename
+ * case. They are mutually redundant rather than untested — the rows entry is
+ * sorted by `id`, `schedule()` refuses a leaf with no slice at all (`no slice
+ * for work item z`, probed directly), so the slice-bearing items are exactly
+ * the leaves under the same sort, and every non-leaf id appears as some child's
+ * `parentId`. Either field reconstructs the other. What they carry jointly is a
+ * work item's **identity**, which `a work item renamed` now pins: `rows[].id`
+ * alone 25/0, `slices[].workItemId` alone 25/0, **both together 24 / 1** and it
+ * is that case. Both stay, because a schedule is keyed by `sliceKey` and a
+ * rename moves every row a caller can read.
+ *
+ * **The slice grouping has its own red, and it is not a field.** Replacing the
+ * whole slices entry with a flat list of every slice sorted byte-wise — the
+ * grouping and the preserved intra-item order both dropped — gave **392 pass /
+ * 1 fail** at `b5e64717`, exactly `two slices of one work item swapped` and
+ * nothing else. The intra-item order is a scheduling fact no other test in
+ * `libs/domain` connects to the cache key.
  */
 export function canonicalScheduleInput(input: ScheduleInput): string {
   const { leafIds } = indexTree(input.rows);

@@ -342,7 +342,7 @@ check-that-cannot-fail failure R5 names.
       Fast's own order-sensitive output for that fixture. **Watched red:** drop
       the `ORDER BY` from 1.7 and both assertions must fail while the hash
       assertion in 1.3 stays green.
-- [ ] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
+- [x] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
       a `parentId` reparenting that keeps every other field identical (it
       changes leaf expansion, inherited priority and floors), and a `stepId`
       identity swap between two slices of one work item. Extend 1.4's
@@ -373,6 +373,29 @@ check-that-cannot-fail failure R5 names.
       (`workItemId` NUL `stepId`), so a canonical form that dropped `stepId`
       would hand one cache key to two plans that disagree about which step is
       where.
+      **The removals landed in run 13 chunk 3, and the sweep paid for itself
+      twice.** Seventeen removals, each made on `canonical-schedule-input.ts`
+      itself and run against the real suite, then restored (`dirty=0` after every
+      pass). The table is in the file's `Proof` block. Two findings:
+      **(1) `edges[].predecessorId` and `edges[].successorId` were both
+      unobserved** — 22 pass / 0 fail each. `an authored edge added` was the only
+      edge case, and an added edge lengthens the array, so the hash moved on the
+      array's *length* whichever half of the pair was missing: the case could not
+      see which end of the edge it proved. Two **redirections** fixed it — the
+      edge count stays at one and a single end moves, so each removal collides
+      the base with its own mutation, and each now gives 23 / 1.
+      **(2) `rows[].id` and `slices[].workItemId` have no isolated red and are
+      mutually redundant**, provably rather than accidentally: the rows entry is
+      sorted by `id`; `schedule()` refuses a leaf with no slice at all (`no slice
+      for work item z`, probed directly), so the slice-bearing items are exactly
+      the leaves under the same sort; and every non-leaf id appears as some
+      child's `parentId`. Either field reconstructs the other, so no
+      one-mutation case can separate them, and inventing one that quietly moved a
+      second field would have been worse than saying so. What they carry
+      **jointly** is a work item's identity, and `a work item renamed` now pins
+      it — measured at `05b78008`: `rows[].id` alone **25 / 0**,
+      `slices[].workItemId` alone **25 / 0**, both together **24 / 1** and it is
+      that case. Domain **403 pass / 0 fail across 31 files**.
 
 ## 2. Solver contract types, request builder, and the Bun re-validator
 
