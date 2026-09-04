@@ -724,8 +724,9 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       way out of the twelve; whichever is chosen, some sentences are rewritten
       before rule (b) can gate. **The falsifier fired, and it is now a test
       rather than a sentence.** Its first form — admit any member of any named
-      vocabulary — passed `wireVersion`, `status`, `offsets` and `resultJson`,
-      a response enumeration carrying a cache column, because the cache tuple
+      vocabulary — passed this response enumeration carrying a cache column:
+      <!-- wire-fields:fixture -->"The response carries `wireVersion`, `status`, `offsets` and `resultJson`."
+      It passed because the cache tuple
       cleared a two-name overlap on the strength of the drifting name itself.
       So admission excludes the member being judged: a vocabulary admits a name
       only when it contributes `MIN_OVERLAP` OTHER names. Under that form the
