@@ -350,7 +350,7 @@ check-that-cannot-fail failure R5 names.
       files at `af05ead1` and reported no divergent enumeration; it has not
       been re-run since, so that is a statement about that head and not
       about this one.
-- [ ] 2.2 `buildSolverRequest(plan, objective, baseline)` in
+- [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**
       <!-- wire-fields:slice -->Each slice carries `key` (`sliceKey()`'s result), an **integer** `durationUnits` (2.8)
@@ -573,9 +573,34 @@ check-that-cannot-fail failure R5 names.
       exactly one is the new file's own case (it adds five, 365 → 370), so two
       are the pre-existing `schedule` cases and the pass genuinely consumes the
       moved refusal.
-      **Still unbuilt in 2.2:**
-      `baselineOffsets`/`fastHint` (2.11's quantised baseline, which cannot
-      precede it) with MOVEMENT's preflight; and the assembly itself.
+      **The assembly landed (2026-09-04) and 2.2 is done**, in
+      `build-solver-request.ts`. Almost nothing in it is its own, which is the
+      measure of the slices above: every one of the thirteen required members
+      comes from a seam that owns its rule. Its own content is the **order** and
+      **one refusal**. The order is content — `groupSlicesByLeaf` runs before
+      any projection, so a slice belonging to a parent is refused naming the
+      *plan* rather than being keyed first and refused later by a message about
+      positions in a group, and so the edge builder reads the identical
+      grouping. The refusal is the direction nothing guarded anywhere:
+      `preflightSolverRequest` throws on a slice with no baseline entry, which
+      is `slices ⊆ baselineOffsets`, and a baseline key **no slice names** had
+      no reader at all — `revalidate-solver-result.ts` indexes
+      `request.baselineOffsets[key]` by the request's slices, so it walks the
+      same subset direction. Watched red: the check disabled gives 145 pass / 1
+      fail and the one failure is the new case; nothing else in 146 tests
+      notices.
+      **Its third argument is a record, not `baseline`, and that is argued
+      rather than drifted:** `contractVersion` is
+      `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"`, and neither
+      `solverVersion` nor `budgetMs` is a fact about the plan — three of the
+      thirteen members are facts about the process about to start.
+      `baselineOffsets` stays **passed in** rather than computed inside, which
+      is the substance of the original name: PRI and Time are two calls over one
+      plan, MOVEMENT is measured against the baseline in both, and computing it
+      twice is two chances to score the two runs against different schedules.
+      `baselineOffsets` and `fastHint` are deliberately the same map — two
+      questions with one answer today, kept apart on the wire so a later warm
+      start cannot silently move the objective's origin.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
@@ -808,9 +833,19 @@ check-that-cannot-fail failure R5 names.
       actually produces, `0 / 9.600000000000001 / 19.200000000000003`, not the
       clean 9.6/19.2 quoted above: the prefix sum of 0.2 drifts, so a converted
       baseline would carry a number that is neither integral nor the one anybody
-      wrote down. **Still open here:** taking stage 1's upper bound from the
-      baseline is the assembly's, and the real-domain comparison is 4.11b's, so
-      this task stays unticked. **Deadlines are deliberately not applied to the
+      wrote down. **Still open here, corrected 2026-09-04 by reading the two
+      tasks rather than remembering them:** taking stage 1's upper bound from
+      the baseline is **5.9's**, not the assembly's — the wire has no bound
+      field, all thirteen request members are listed in 2.1, and 5.9 spells the
+      obligation out ("supplied as both a CP-SAT solution hint and an upper
+      bound on stage 1's term"). The assembly discharges its half by carrying
+      `baselineOffsets` and `fastHint`, which it now does and which
+      `golden-request.test.ts` compares with the checked-in fixture. The
+      real-domain comparison is 4.11b's. What is genuinely left here is the
+      **feasibility assertion**: "the hint is feasible" has no test, and the
+      checker for it already exists — `revalidateSolverResult` is the same
+      constraint pass that gates a published solver result, so feeding the
+      baseline offsets back through it is the proof. **Deadlines are deliberately not applied to the
       baseline** — they constrain the solver, not Fast — so "the hint is always
       feasible" is a claim about edges, floors, pools and queues, and a plan
       whose baseline misses a deadline is 3.1's `plan-infeasible`.
