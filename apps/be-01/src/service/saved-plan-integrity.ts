@@ -160,10 +160,10 @@ export class UnknownSavedPlanBodyVersionError extends Error {
 /**
  * Throws unless the version is one this reader knows.
  *
- * `supported` is a parameter rather than read off the constants inside, so the
- * *property* — an older member passes, a stranger throws — is testable without
- * inventing a schema version that does not exist yet. The production call sites
- * pass the two lists above.
+ * `supported` is a parameter rather than read off the constants inside, so that
+ * the rule itself — an older member passes, a stranger throws — is testable
+ * without inventing a schema version that does not exist yet. The production
+ * call sites pass the two lists above.
  */
 export function assertKnownBodyVersion(
   savedPlanId: string,

@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import { describe, expect, it } from 'bun:test';
-
 import { CANONICAL_PLAN_INPUT_SCHEMA_VERSION } from '@wbs/domain';
+import { describe, expect, it } from 'bun:test';
 
 import {
   assertKnownBodyVersion,
