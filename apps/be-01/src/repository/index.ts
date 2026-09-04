@@ -359,6 +359,15 @@ export interface ProjectPatch {
   startDate?: IsoDate | null;
   /** `null` detaches the plan from its external solution. */
   solutionRef?: { slug: string; url: string } | null;
+  /**
+   * The three project settings (tasks.md 3b.2). Each moves on its own: a
+   * project may be switched off without forgetting which engine and objective
+   * it was on, which is the whole reason they are three columns rather than
+   * one nullable engine.
+   */
+  optimizationEnabled?: boolean;
+  scheduleEngine?: ScheduleEngine;
+  scheduleObjective?: SolverObjectiveName;
 }
 
 export interface WorkItem {

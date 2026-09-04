@@ -442,16 +442,11 @@ export class ProjectRepository implements ProjectStore {
   async update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null> {
     // An empty patch would make drizzle emit `SET` with no assignments, which
     // SQLite rejects — so a request that changes nothing reads instead.
-    if (
-      patch.name === undefined &&
-      patch.restricted === undefined &&
-      patch.estimateMethod === undefined &&
-      patch.depReach === undefined &&
-      patch.pertWeights === undefined &&
-      patch.estimateRounding === undefined &&
-      patch.startDate === undefined &&
-      patch.solutionRef === undefined
-    ) {
+    // Read off the patch rather than from a list of its fields: the list was
+    // one line per `ProjectPatch` key, and a key added without a line here is a
+    // patch that silently reads instead of writing. `Object.values` cannot
+    // forget a field (tasks.md 3b.2, which added three at once).
+    if (Object.values(patch).every((value) => value === undefined)) {
       return this.findById(id);
     }
     // The bump rides in the same `SET` as the change it describes, so a patch

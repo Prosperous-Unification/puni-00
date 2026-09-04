@@ -159,6 +159,9 @@ export function inMemoryProjects(
         estimateRounding: patch.estimateRounding ?? existing.estimateRounding,
         startDate: patch.startDate === undefined ? existing.startDate : patch.startDate,
         solutionRef: patch.solutionRef === undefined ? existing.solutionRef : patch.solutionRef,
+        optimizationEnabled: patch.optimizationEnabled ?? existing.optimizationEnabled,
+        scheduleEngine: patch.scheduleEngine ?? existing.scheduleEngine,
+        scheduleObjective: patch.scheduleObjective ?? existing.scheduleObjective,
       };
       projects.set(id, updated);
       return Promise.resolve(updated);

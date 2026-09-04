@@ -557,6 +557,81 @@ describe('what a project read publishes', () => {
    * Proof: with `DEFAULT_PROJECT_SETTINGS.engine` changed to `optimized`, the
    * two reads disagree and this fails on `scheduleEngine`.
    */
+  /**
+   * Each setting patched on its own, and read back off the database rather than
+   * off `update`'s own answer (tasks.md 3b.2, 3b.4).
+   *
+   * Three separate patches rather than one carrying all three, because the
+   * columns are independent by design: a project switched off must keep the
+   * engine and objective it was on, so it comes back to them rather than to a
+   * default when it is switched on again. One combined patch would pass against
+   * an `update` that wrote all three from whichever key it saw first.
+   *
+   * The reload is the point. `update` returns its own `RETURNING` row, so a
+   * patch that never reached the column would still be answered correctly by
+   * the same statement that failed to write it.
+   *
+   * Proof: with `optimizationEnabled` dropped from the `SET` — spread as
+   * `...fields` — this fails on the first reload.
+   */
+  it('patches each project setting on its own, and each survives a reload', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+
+    await repo.update(made.id, { optimizationEnabled: true }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'fast',
+      scheduleObjective: 'pri',
+    });
+
+    await repo.update(made.id, { scheduleEngine: 'optimized' }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'pri',
+    });
+
+    const settled = await repo.update(made.id, { scheduleObjective: 'time' }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'time',
+    });
+    // Three writes, three bumps: a settings patch is a write to the project
+    // like any other, and a reader holding revision 1 must not be able to
+    // overwrite it blind.
+    expect(settled?.revision).toBe(made.revision + 3);
+  });
+
+  /**
+   * A patch that says nothing reads instead of writing (tasks.md 3b.2).
+   *
+   * The guard used to be one `=== undefined` line per `ProjectPatch` key, which
+   * this item would have grown by three; a key added without its line is a
+   * patch that silently reads. It is now `Object.values(...).every(...)`, and
+   * this case is what says so: the empty patch must leave the revision where it
+   * was, and the settings patch beside it must not.
+   *
+   * Proof: with the guard deleted, the empty patch reaches drizzle and the case
+   * fails on `SET` with no assignments rather than on the revision.
+   */
+  it('reads rather than writes when the patch names nothing, settings included', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+
+    const untouched = await repo.update(made.id, {}, wrote());
+    expect(untouched?.revision).toBe(made.revision);
+
+    const explicitlyAbsent = await repo.update(
+      made.id,
+      { optimizationEnabled: undefined, scheduleEngine: undefined },
+      wrote(),
+    );
+    expect(explicitlyAbsent?.revision).toBe(made.revision);
+
+    const written = await repo.update(made.id, { optimizationEnabled: true }, wrote());
+    expect(written?.revision).toBe(made.revision + 1);
+  });
+
   it('creates a project without settings agreeing with the columns own defaults', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
     const throughCreate = await repo.findById(made.id);
