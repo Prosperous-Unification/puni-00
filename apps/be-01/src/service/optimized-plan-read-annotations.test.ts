@@ -48,6 +48,16 @@ let capacity: CapacityStore;
 let serviceOptions: WorkItemServiceOptions;
 let projectId: string;
 let stepId: string;
+/**
+ * The project's second step, so a slice can have a floor that is neither the
+ * project start nor a pool.
+ *
+ * Step order is an edge in this engine (`slicesOf`), so a work item's QA slice
+ * sits on a `stepOrder` floor at its Dev slice's finish — the cheapest real
+ * floor a payload fixture can build, needing no dependency rows and no
+ * project start date.
+ */
+let laterStepId: string;
 
 beforeEach(async () => {
   const harness = inMemoryServices();
@@ -55,9 +65,13 @@ beforeEach(async () => {
   serviceOptions = { ...harness.stores, broadcast: harness.broadcast };
   const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
   stepId = crypto.randomUUID();
+  laterStepId = crypto.randomUUID();
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    [
+      { id: stepId, projectId: project.id, name: 'Dev', position: 10 },
+      { id: laterStepId, projectId: project.id, name: 'QA', position: 20 },
+    ],
     WROTE,
   );
   projectId = project.id;
@@ -100,6 +114,16 @@ async function leaf(name: string, days: number, serviceTeamId: string | null = n
   );
   await estimates.set(
     { workItemId: id, stepId, optimistic: days, realistic: days, pessimistic: days },
+    WROTE,
+  );
+  return id;
+}
+
+/** The same leaf, estimated on both steps, so it carries a `stepOrder` floor. */
+async function twoStepLeaf(name: string, days: number, serviceTeamId: string | null = null) {
+  const id = await leaf(name, days, serviceTeamId);
+  await estimates.set(
+    { workItemId: id, stepId: laterStepId, optimistic: days, realistic: days, pessimistic: days },
     WROTE,
   );
   return id;
@@ -275,5 +299,40 @@ describe("the materialiser's annotations, through the plan read", () => {
     // so the assertion above is about the pinned slice and not about a plan
     // that lost its capacity annotations wholesale.
     expect(slicedFor(tree, hold)).toMatchObject({ earliestStart: 0, capacityTeamId: null });
+  });
+
+  it('leaves a slice pinned on its own floor labelled by that floor, not by the optimizer', async () => {
+    // tasks.md 4.11 (f), the converse of (b) and the case the three-way split
+    // in `pinFloor` exists for: an offset that agrees with where the plan was
+    // going to put the slice anyway. The solver returns a start for EVERY
+    // slice, so this is not a corner — it is what most of a solver answer looks
+    // like, and calling all of it `'optimizer'` would make the label mean
+    // "was in the answer" rather than "the optimizer chose this".
+    //
+    // The floor is `stepOrder`: the QA slice cannot begin before the same work
+    // item's Dev slice finishes, and the pool has room (size 2, one tenant), so
+    // capacity is not what is holding it.
+    //
+    // Watched red: `pinFloor`'s early return reduced from
+    // `pinned === undefined || withinDrift(pinned, resolved.start)` to
+    // `pinned === undefined`, so a pin equal to its own floor falls through to
+    // the window and comes back `'optimizer'`.
+    await capacity.set(projectId, PLATFORM, 2, WROTE);
+    const rewire = await twoStepLeaf('Rewire', 2, PLATFORM);
+    const tree = await servedBy({
+      [sliceKey(rewire, stepId)]: units(0),
+      [sliceKey(rewire, laterStepId)]: units(2),
+    });
+
+    const later = tree.slices.find(
+      (each) => each.workItemId === rewire && each.stepId === laterStepId,
+    );
+    expect(later).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 4,
+      boundBy: 'stepOrder',
+      capacityTeamId: null,
+      capacityPredecessorIds: [],
+    });
   });
 });
