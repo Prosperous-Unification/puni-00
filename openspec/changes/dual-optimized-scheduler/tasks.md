@@ -2035,6 +2035,7 @@ review`, no self-merge.
       failure of scoping: every case that reads a payload the decoder refuses
       is a case about this function, and there are six of them besides the
       spawn count.
+
 - [ ] 4.9 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
       is what produces the `schedule` member of `resultJson`; the offsets map
       is never persisted or
