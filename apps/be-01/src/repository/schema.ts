@@ -1927,7 +1927,10 @@ export const optimizedScheduleCache = sqliteTable(
     primaryKey({
       columns: [t.projectId, t.inputHash, t.objective, t.contractVersion, t.budgetMs],
     }),
-    check('optimized_schedule_cache_status', sql`${t.status} IN ('ok', 'failed', 'plan-infeasible')`),
+    check(
+      'optimized_schedule_cache_status',
+      sql`${t.status} IN ('ok', 'failed', 'plan-infeasible')`,
+    ),
     check('optimized_schedule_cache_objective', sql`${t.objective} IN ('pri', 'time')`),
     check(
       'optimized_schedule_cache_payload',
@@ -1976,7 +1979,10 @@ export const optimizationGeneration = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.projectId, t.contractVersion] }),
-    check('optimization_generation_admission_state', sql`${t.admissionState} IN ('open', 'draining')`),
+    check(
+      'optimization_generation_admission_state',
+      sql`${t.admissionState} IN ('open', 'draining')`,
+    ),
   ],
 );
 
