@@ -1118,10 +1118,14 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
  * points at one end a reader can look at, a float computation cannot drop a
  * single edge without reporting slack that is not there.
  *
- * `boundBy` decides which ledger answers, and `person` is asked first because a
- * slice can carry both: a team's slot is spent whether or not somebody is named
- * on the work, and the floor order already settled which of the two the sentence
- * is about.
+ * `boundBy` decides which ledger answers. **The order of the two branches is not
+ * a rule and carries no meaning** — `boundBy` holds exactly one floor, so they
+ * are disjoint by construction; swapping them is an equivalent program, measured
+ * rather than assumed (run 38, chunk 7: asking `capacity` first reddens 0 of
+ * 416). What IS load-bearing is the `boundBy === 'person'` guard on `busy`: a
+ * slice whose assignee happened to be busy but which a **pool** held up must
+ * name the pool's referent, not the person. Drop that guard and three cases
+ * redden, the Fast golden corpus among them.
  *
  * **Lifted out of {@link placeSlices} for 4.9**, with {@link resolveFloor},
  * {@link annotateCapacity} and {@link tileFinish}: the optimized materialiser
