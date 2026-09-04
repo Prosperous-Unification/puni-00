@@ -3,6 +3,7 @@ import type { DependencyReach } from './dependency-reach';
 import { deriveNumbers, type PlannedRow } from './derive-numbers';
 import { leafFloorsOf } from './leaf-constraints';
 import { sliceGraphEdges } from './slice-edges';
+import { groupSlicesByLeaf } from './slice-groups';
 import { snapWorkdays } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
@@ -433,63 +434,21 @@ interface WorkItemSlices {
 }
 
 /**
- * The slices grouped by the leaf they belong to, in the order they were handed
- * over — which is the project's step order, and therefore the order they run in.
+ * The slices grouped by the leaf they belong to, with each group's running
+ * start offsets.
  *
- * Throws on a slice for something that is not a leaf of `rows`. A parent has no
- * work of its own and a work item from another project has no place in this
- * graph at all; scheduling either would be answering a question about a plan
- * that was not asked for. R5: this is malformed input, not a missing default.
- *
- * Proof: with the check removed, `refuses a slice for a work item that is not a
- * leaf` gets a schedule back in which the parent has become a node of its own
- * and its span no longer covers its children; watched 2026-08-09.
+ * The grouping and both of its refusals moved to {@link groupSlicesByLeaf}, so
+ * that the solver request builder groups the same way this pass does — an edge
+ * names its ends by leaf and position, and two groupings would disagree about
+ * which slice a position is. What is left here is the `offsets` half, which is
+ * `durationOf`'s calendar arithmetic and has no place on the wire.
  */
 function groupByWorkItem(
   leafIds: readonly string[],
   slices: readonly Slice[],
 ): Map<string, WorkItemSlices> {
-  const leaves = new Set(leafIds);
-  const grouped = new Map<string, Slice[]>();
-  for (const slice of slices) {
-    if (!leaves.has(slice.workItemId)) {
-      throw new Error(`slice for ${slice.workItemId}, which is not a leaf of this project`);
-    }
-    // A width is people, and the smallest number of people that can do work is
-    // one. Refused **here**, at the boundary the slices enter the engine
-    // through, because `durationOf` divides by it: a width of 0 is `Infinity`
-    // days for a slice with effort and `NaN` for one without, and neither is
-    // refused anywhere downstream — `windowFor` short-circuits on a zero width
-    // and reserves nothing, `CapacityTooNarrowError` does not fire because
-    // `0 > 0` is false, and the plan comes back with every date `Infinity` and
-    // nothing to say why. R5: malformed trusted data throws rather than being
-    // divided by.
-    //
-    // Unreachable through the API as of this change — both write paths refuse a
-    // 0 — which is exactly why it is here rather than nowhere: this engine
-    // refuses the impossible at its own boundary, and a validation that is the
-    // *only* guard is one schema edit away from not being one. Named as the
-    // open P2 of PR #48's cross-review.
-    //
-    // Proof: this check deleted and `refuses a slice claiming no people at all`
-    // failed — the plan came back with `duration: Infinity`,
-    // `earliestFinish: Infinity`, `latestStart: NaN` and `float: NaN`, and no
-    // refusal anywhere. Deleted again for `refuses a width that is not a whole
-    // number of people`, which came back with `duration: 2.4` — six days over
-    // two and a half people. Both watched 2026-08-12.
-    if (!Number.isInteger(slice.width) || slice.width < 1) {
-      throw new Error(
-        `slice for ${slice.workItemId} claims a width of ${String(slice.width)}: ` +
-          `a width is people, and duration is effort divided by it`,
-      );
-    }
-    const group = grouped.get(slice.workItemId);
-    if (group === undefined) grouped.set(slice.workItemId, [slice]);
-    else group.push(slice);
-  }
-
   const sliced = new Map<string, WorkItemSlices>();
-  for (const [workItemId, group] of grouped) {
+  for (const [workItemId, group] of groupSlicesByLeaf(leafIds, slices)) {
     const offsets = [0];
     for (const slice of group) offsets.push(offsets[offsets.length - 1] + durationOf(slice));
     sliced.set(workItemId, { slices: group, offsets });

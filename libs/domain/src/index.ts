@@ -41,6 +41,10 @@ export * from './schedule';
 // `schedule.ts` because the solver request builder must derive the same graph,
 // and a second copy is the copy that gets the join backwards.
 export * from './slice-edges';
+// The grouping both `schedule()` and the solver request builder start from.
+// One grouping, because an edge names its ends by leaf and POSITION and two
+// groupings would disagree about which slice a position is.
+export * from './slice-groups';
 // The one place the solver's integer time axis is defined, and the only
 // quantisation of `durationOf` anywhere. It lives here rather than in
 // `schedule.ts` because the quantum is a fact about CP-SAT and not about the
