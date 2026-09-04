@@ -319,6 +319,70 @@ function finishDrainIn(
   return 'finished';
 }
 
+/**
+ * Why an admission or a dequeue must refuse, or `null` when neither is closed.
+ *
+ * - `deleting` — the project carries `optimization_delete_pending_at`. Reported
+ *   in preference to `draining` when both hold, because a deletion closes every
+ *   release of the project and saying so is the more useful of two true things.
+ * - `draining` — that contract version alone is retiring. Its siblings are
+ *   unaffected, which is the whole difference between the two targets.
+ * - `absent` — there is no generation row, or no project. **This is a refusal,
+ *   not a shrug**, and it is the one that is easy to get wrong: `finish` deletes
+ *   the generation row, so a caller that read absence as "nothing closed here"
+ *   would admit work for a contract version that has just been retired, one
+ *   transaction after the drain it was supposed to respect completed.
+ */
+export type OptimizationClosedReason = 'deleting' | 'draining' | 'absent';
+
+/**
+ * The closed-state predicate 3.9b puts in front of both admission and dequeue.
+ *
+ * **One predicate rather than two copies**, because 3.9b's second watched red
+ * removes "either closed-state predicate" and requires work to start between
+ * the zero-slot observation and the final delete — a red that only means
+ * something if there is a single thing to remove. Admission (6.2) and dequeue
+ * (6.3) both reject unless the matching generation is `open` and the project
+ * carries no delete marker; the rest of the dequeue's re-check — generation
+ * currency, `cancelEpoch`, the project toggle — is 6.3's own and is not here.
+ *
+ * Read inside the caller's transaction so the two reads and the caller's insert
+ * commit together. {@link readOptimizationClosedState} is the same read for a
+ * caller with no transaction of its own, and opens one for the same reason:
+ * the marker and the admission state must be observed as of one instant.
+ */
+function closedStateIn(
+  tx: Transaction,
+  projectId: string,
+  contractVersion: string,
+): OptimizationClosedReason | null {
+  const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+  if (target === undefined) return 'absent';
+  if (target.optimizationDeletePendingAt !== null) return 'deleting';
+
+  const generation = tx
+    .select()
+    .from(optimizationGeneration)
+    .where(
+      and(
+        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.contractVersion, contractVersion),
+      ),
+    )
+    .get();
+  if (generation === undefined) return 'absent';
+  return generation.admissionState === 'open' ? null : 'draining';
+}
+
+/** {@link closedStateIn} for a caller that has no transaction open. */
+export function readOptimizationClosedState(
+  db: SQLiteBunDatabase,
+  projectId: string,
+  contractVersion: string,
+): OptimizationClosedReason | null {
+  return db.transaction((tx) => closedStateIn(tx, projectId, contractVersion));
+}
+
 /** Which slot row a release means, and which attempt is entitled to release it. */
 export interface SolverSlotRelease {
   readonly projectId: string;

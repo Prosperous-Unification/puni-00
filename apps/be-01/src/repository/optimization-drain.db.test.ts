@@ -11,6 +11,7 @@ import { runMigrations } from './migrate';
 import {
   beginOptimizationDrain,
   finishOptimizationDrain,
+  readOptimizationClosedState,
   reconcileOptimizationDrains,
   releaseSolverSlot,
 } from './optimization-drain';
@@ -692,5 +693,63 @@ describe('reconciling drains nobody finished', () => {
     expect(first.finished).toBeGreaterThan(0);
     expect(second).toEqual({ reclaimed: 0, finished: 0, waiting: 0 });
     expect(projectIds()).toEqual(['p-2']);
+  });
+});
+
+describe('the closed-state predicate admission and dequeue share', () => {
+  it('lets an ordinary allocated release through, which is every admission', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBeNull();
+  });
+
+  it('refuses the retired release and lets its sibling through', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // A retirement is per contract version, and that is the whole difference
+    // between the two targets: green keeps admitting through the swap.
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('draining');
+    expect(readOptimizationClosedState(db, 'p-1', GREEN)).toBeNull();
+  });
+
+  it('says deleting rather than draining when the project is going', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // Both are true — a deletion closes every release — and the marker is the
+    // more useful of the two to report, because it is about the project.
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('deleting');
+    expect(readOptimizationClosedState(db, 'p-2', BLUE)).toBe('absent');
+  });
+
+  it('refuses a release that finish has already retired', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+    expect(finishOptimizationDrain(db, 'p-1', BLUE)).toBe('finished');
+
+    // The trap: `finish` DELETES the generation row, so a predicate reading
+    // absence as "nothing closed here" would admit work for a contract version
+    // one transaction after the drain it was supposed to respect completed.
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
+  });
+
+  it('refuses a project that is already gone', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
+
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
+    expect(projectIds()).toEqual(['p-2']);
+  });
+
+  it('keeps a bystander project admitting while its neighbour drains', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('deleting');
+    expect(readOptimizationClosedState(db, 'p-2', BLUE)).toBeNull();
   });
 });
