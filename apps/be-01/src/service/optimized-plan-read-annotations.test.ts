@@ -296,18 +296,28 @@ describe("the materialiser's annotations, through the plan read", () => {
     // and the re-ask inside `pinFloor` returns its own instant with an empty
     // binding, which is what makes the invariant true rather than lucky.
     //
-    // **MEASURED, NOT ARGUED, AND NOT YET A WATCHED RED.** The pin must be
-    // strictly above the slice's own capacity floor or `pinFloor` hands back
-    // `resolved` untouched and the slice is `'capacity'`, not `'optimizer'` —
-    // measured 2026-09-04 on the tighter fixture this case was first written
-    // with (pool size 1, the other tenant releasing at exactly the pinned
-    // instant), which came back `boundBy: 'capacity'` with the team named,
-    // correctly. Above the floor the conservative scan has no reservation left
-    // that finishes by the start, so deleting `annotateCapacity`'s
-    // `boundBy === 'capacity'` gate leaves this green: the case states the
-    // invariant on the production path and does not yet pin the gate. The
-    // fixture that does both is a pool the optimizer idles PAST rather than
-    // one it clears, and it is the next chunk's.
+    // **THIS CASE STATES THE INVARIANT AND DELIBERATELY DOES NOT PIN IT.
+    // Measured, not assumed.** Two facts, both established on 2026-09-04:
+    //
+    // 1. The pin must be strictly above the slice's own capacity floor, or
+    //    `pinFloor` hands `resolved` back untouched and the slice is
+    //    `'capacity'` — correctly. Written first on the tighter fixture this
+    //    item implies (pool size 1, the other tenant releasing at exactly the
+    //    pinned instant), it came back `boundBy: 'capacity'` with the team
+    //    named. `named only the pool tenants that had actually finished by the
+    //    pinned start` below is that state, kept as its own case.
+    // 2. Above the floor, `pinFloor` re-asks the window from its own answer, so
+    //    the accepted window has an empty binding BY CONSTRUCTION. There is
+    //    then nothing for `annotateCapacity`'s `boundBy === 'capacity'` gate to
+    //    gate: deleting it leaves this green, because `window.blocking` is
+    //    already empty. The gate's own watched red therefore lives where it
+    //    bites — `libs/domain/src/schedule-annotate.test.ts`, and (e) below for
+    //    the filter inside it.
+    //
+    // What this case is for is the projection: an `'optimizer'` slice arrives
+    // in the payload with `capacityTeamId: null` and no predecessors, so the
+    // render invariant a Gantt arrow depends on survives the DTO. A mutation
+    // that reddens it would have to be in the payload build, not the engine.
     await capacity.set(projectId, PLATFORM, 2, WROTE);
     const hold = await leaf('Hold', 6, PLATFORM);
     const rewire = await leaf('Rewire', 2, PLATFORM);

@@ -2370,6 +2370,31 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       passes no `optimized` reader, so every deployment is still Fast. Wiring it
       needs the `budgetMs` and `solverVersion` a release runs, which is slice 6's
       to supply.
+      **FOUR OF THE SIX ARE PROVED THROUGH THE PAYLOAD (run 43).**
+      `apps/be-01/src/service/optimized-plan-read-annotations.test.ts` drives
+      the REAL `materialiseOptimized` over the plan read's own `ScheduleInput`,
+      via the `@wbs/contracts/solver/{materialise-optimized,quantised-baseline}`
+      aliases this run added. State: **(a)**, **(b)**, **(e)** and **(f)** each
+      have a case and a watched red — (a) `timing` taken from a fresh Fast pass,
+      reddens (a) alone; (b) `pinFloor` returning the floor's own label under the
+      optimizer's date, reddens all three cases that read the label; (e)
+      `annotateCapacity`'s `finishesByStart` filter dropped, reddens (e) alone;
+      (f) `pinFloor`'s `withinDrift` early return dropped, reddens (f) alone.
+      **(c) is a STATEMENT, not a pinned proof, and that is now a decision
+      rather than an omission:** above its floor `pinFloor` re-asks the window
+      from its own answer, so the binding is empty by construction and
+      `annotateCapacity`'s `boundBy === 'capacity'` gate has nothing to gate on
+      an `'optimizer'` slice — the gate's red lives in
+      `schedule-annotate.test.ts` and in (e). What the payload case adds is that
+      the invariant survives the DTO.
+      **(d) IS THE ONE STILL UNWRITTEN.** It needs a leaf naming TWO pools,
+      which is the only fixture shape that file does not build; (e)'s shape is
+      the template, and the pin must sit ON the joint capacity floor or the
+      slice is `'optimizer'` and carries no capacity fields to assert on.
+      **A fixture rule the file learned the hard way:** a case may state only
+      the offsets it MOVES. A solver answers for every slice, so `servedBy`
+      fills the rest from `quantisedFastBaseline`, and moving a slice moves its
+      own successor's floor with it.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
