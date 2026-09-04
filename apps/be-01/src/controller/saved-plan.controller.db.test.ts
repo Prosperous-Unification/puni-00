@@ -46,14 +46,18 @@ describe('the saved-plan routes', () => {
   let tokens: Record<string, string>;
   let projectId: string;
 
-  const as = (token: string, path: string, init: RequestInit = {}) =>
+  /**
+   * One authenticated request. `headers` is set rather than merged: every
+   * caller here wants exactly these two, and `RequestInit['headers']` may be an
+   * array of pairs, which spreading into an object turns into indices.
+   */
+  const as = (token: string, path: string, init: Omit<RequestInit, 'headers'> = {}) =>
     app.handle(
       new Request(`http://localhost${path}`, {
         ...init,
         headers: {
           authorization: `Bearer ${token}`,
           'content-type': 'application/json',
-          ...(init.headers ?? {}),
         },
       }),
     );
