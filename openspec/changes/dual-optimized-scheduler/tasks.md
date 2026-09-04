@@ -2168,7 +2168,7 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       The materialiser drains the **eligible set** in ascending
       `(start, canonical slice order)`, and because that set is Kahn's ready set
       — a node is admitted only once its plan predecessors are placed — the one
-      order it produces is chronological *and* topological, so the hazard cannot
+      order it produces is chronological _and_ topological, so the hazard cannot
       arise on this path rather than being detected on it. That is measured, not
       argued: forcing the drain back to Fast's priority comparator makes a legal
       optimized schedule (a person's two slices swapped against their
