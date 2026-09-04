@@ -3,6 +3,7 @@ import {
   encodeOptimizedResult,
   type OptimizedResult,
 } from '@wbs/contracts/solver/optimized-result';
+import { type Schedule, type ScheduleInput, scheduleInputHash } from '@wbs/domain';
 import { and, desc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -751,4 +752,70 @@ function enforceLiveBudgetBound(tx: Transaction, key: LiveBudgetKey): void {
       )
       .run();
   }
+}
+
+/**
+ * The two key columns a plan read must not name, and the reader owns.
+ *
+ * Both are **deployment** facts rather than plan facts. `budgetMs` is a key
+ * column and not a detail, so a blue/green pair on two budgets is two rows;
+ * `contractVersion` is the COMPOSITE the writer stores —
+ * `"<SCHEDULER_CONTRACT_VERSION>+<solverVersion>"`, as
+ * `build-solver-request.ts` builds it — and not the bare domain constant, so a
+ * release running a new solver against unchanged Fast semantics does not read
+ * the previous solver's answers.
+ *
+ * Taken as constructor arguments and not as members of the ask, because the
+ * plan read knows neither and a plan read that guessed either would serve an
+ * answer computed under a configuration this release is not running.
+ */
+export interface PublishedScheduleOptions {
+  readonly contractVersion: string;
+  readonly budgetMs: number;
+}
+
+/**
+ * tasks.md 4.11's adapter: the production implementation of the plan read's
+ * `OptimizedScheduleReader`, and `readOptimizedPair`'s first caller above the
+ * repository.
+ *
+ * **Structurally typed rather than importing the service's port type.** The
+ * service layer depends on the repository and not the other way round, so
+ * naming `OptimizedScheduleReader` here would invert that for a type alias.
+ * The composition root assigns this to `WorkItemServiceOptions.optimized`, and
+ * TypeScript checks the shape at that assignment — which is the layer the
+ * mistake would be made at anyway.
+ *
+ * **Four kinds collapse to `null` here and that is the whole mapping.** A miss,
+ * a `failed` row, a `plan-infeasible` certificate and a `corrupt` payload are
+ * four different facts to a reader deciding whether to spawn (4.2, 4.4) and one
+ * fact to a plan read: there is no schedule to publish, so Fast answers. This
+ * function must never spawn — an automatic read that started a solve is the
+ * timer-shaped coupling slice 4 refuses, and `readOptimizedPairAndSpawn` is a
+ * separate entry point precisely so that is a property of which function was
+ * called.
+ *
+ * The hash is taken **here**, over the plan read's own `ScheduleInput`, because
+ * this is the one place that turns a plan into a key. A caller that passed a
+ * hash would be a second caller of 1.1/1.2 whose argument order could drift
+ * from the writer's with both sides still green.
+ */
+export function publishedScheduleReaderOf(
+  db: Reader,
+  options: PublishedScheduleOptions,
+): (ask: {
+  readonly projectId: string;
+  readonly objective: SolverObjectiveName;
+  readonly input: ScheduleInput;
+}) => Schedule | null {
+  return (ask) => {
+    const pair = readOptimizedPair(db, {
+      projectId: ask.projectId,
+      inputHash: scheduleInputHash(ask.input),
+      contractVersion: options.contractVersion,
+      budgetMs: options.budgetMs,
+    });
+    const outcome = pair[ask.objective];
+    return outcome.kind === 'ok' ? outcome.result.schedule : null;
+  };
 }

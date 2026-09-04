@@ -7,7 +7,15 @@ import {
   type OptimizedResult,
   RESULT_DTO_VERSION,
 } from '@wbs/contracts/solver/optimized-result';
-import { type PlannedRow, type Schedule, schedule, type Slice } from '@wbs/domain';
+import {
+  encodeSchedule,
+  type PlannedRow,
+  type Schedule,
+  schedule,
+  type ScheduleInput,
+  scheduleInputHash,
+  type Slice,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
@@ -21,6 +29,7 @@ import {
   type OptimizedPair,
   type OutcomeToStore,
   type OutcomeWriteResult,
+  publishedScheduleReaderOf,
   readOptimizedPair,
   readOptimizedPairAndSpawn,
   retryOptimizedPair,
@@ -1899,6 +1908,137 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
       expect(edited.calls.every((call) => call.key.inputHash === 'h2')).toBe(true);
       expect(pair.pri).toEqual({ kind: 'miss' });
       expect(storedRowCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+/**
+ * The plan read's own input, and the hash the adapter keys on.
+ *
+ * Built from {@link realPlan}'s rows and slices so the stored schedule and the
+ * key it is stored under describe one plan; a fixture whose hash was taken over
+ * a different shape would make the miss cases pass for the wrong reason.
+ */
+function planInput(): ScheduleInput {
+  const rows: PlannedRow[] = ['a', 'b', 'c'].map((id, at) => ({
+    id,
+    parentId: null,
+    position: (at + 1) * 10,
+    frozenNumber: null,
+    priority: null,
+  }));
+  const slices: Slice[] = ['a', 'b', 'c'].map((workItemId) => ({
+    workItemId,
+    stepId: 'step-dev',
+    days: 2,
+    personId: null,
+    width: 1,
+    poolIds: ['team-platform'],
+  }));
+  return {
+    rows,
+    edges: [],
+    slices,
+    notBefore: new Map(),
+    poolSizes: new Map([['team-platform', 1]]),
+    reach: 'whole-item',
+    deadlines: new Map(),
+  };
+}
+
+describe('the adapter a plan read asks', () => {
+  it('serves the published objective’s stored schedule, keyed on the plan it was given', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      const plan = realPlan();
+      const input = planInput();
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(plan))),
+        failureReason: null,
+        inputHash: scheduleInputHash(input),
+      });
+      const read = publishedScheduleReaderOf(openDrizzle(db.path), {
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      });
+      const served = read({ projectId: 'p-1', objective: 'pri', input });
+      // Load-bearing: over an empty plan the comparison below is vacuous.
+      expect(plan.slices.size).toBe(3);
+      expect(served === null ? null : encodeSchedule(served)).toEqual(encodeSchedule(plan));
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('answers nothing for the objective that is not the published one', () => {
+    // The pair holds two rows and a project publishes one of them. Reading the
+    // other would show a planner the schedule of an objective they did not pick.
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      const input = planInput();
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        failureReason: null,
+        inputHash: scheduleInputHash(input),
+      });
+      const read = publishedScheduleReaderOf(openDrizzle(db.path), {
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      });
+      expect(read({ projectId: 'p-1', objective: 'time', input })).toBeNull();
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('answers nothing for a failed row, a corrupt payload and a plan nothing was stored for', () => {
+    // Proof: `outcome.kind === 'ok' ? ... : null` replaced by a cast that serves
+    // `outcome.result?.schedule ?? null` and this failed — a `failed` row has no
+    // result and a `corrupt` one has an unusable payload, so the three answers
+    // stopped being alike. Watched 2026-09-04.
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      const input = planInput();
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+        inputHash: scheduleInputHash(input),
+      });
+      storeRow(db.path, {
+        objective: 'time',
+        generation,
+        status: 'ok',
+        resultJson: '{"dtoVersion":1}',
+        failureReason: null,
+        inputHash: scheduleInputHash(input),
+      });
+      const read = publishedScheduleReaderOf(openDrizzle(db.path), {
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      });
+      const otherPlan: ScheduleInput = { ...input, rows: input.rows.slice(0, 2) };
+      expect([
+        read({ projectId: 'p-1', objective: 'pri', input }),
+        read({ projectId: 'p-1', objective: 'time', input }),
+        read({ projectId: 'p-1', objective: 'pri', input: otherPlan }),
+      ]).toEqual([null, null, null]);
+      // And the third answer is a miss on the HASH rather than on the project:
+      // the same read against the stored plan is not a miss for `time`'s row.
+      expect(scheduleInputHash(otherPlan)).not.toBe(scheduleInputHash(input));
     } finally {
       db.cleanup();
     }
