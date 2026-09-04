@@ -398,18 +398,28 @@ comparison UI) and start only after slice 6 is merged.
 
 ## 6. Routes, permissions, rollout
 
+- [ ] 6.0 `created_by_id`, nullable, beside `created_by` — the reference the
+      permission rule asks and the value the record keeps, separated (assumption
+      A-8, design.md). One migration, no backfill: existing rows read `NULL`,
+      which means the same as a deleted creator and falls back to the project
+      owner. Negative: point the rule at `created_by` and watch two accounts
+      sharing a display name share the right.
 - [ ] 6.1 Save, list, read, rename, delete on `savedPlanController`, following
       `projectController`'s authenticated-read / authorised-write split. Rename
       writes `name` and nothing else, and is permissioned like delete (creator or
       project owner) — on an unrestricted project every authenticated account can
       write (`project.service.ts:30-40`), so the ordinary write rule would let any
-      account relabel anyone's permanent record.
+      account relabel anyone's permanent record. **Creator is `created_by_id`,
+      never `created_by`** (6.0): the latter is a display name, and an actor id
+      compared against one is not a permission check.
 - [ ] 6.2 Permission matrix test: anonymous, unrestricted, restricted, creator,
       owner, third party against each of the **five** routes. Negative: give
       rename the project's ordinary write rule and watch the third-party case
       fail.
 - [ ] 6.3 Account deletion leaves saved plans intact and still naming the creator,
-      because `created_by` is a value.
+      because `created_by` is a value. Its second half, from 6.0: the same
+      deletion nulls `created_by_id`, so the plan keeps the name and loses the
+      right, and the project owner can still rename and delete it.
 - [ ] 6.4 A node without the routes answers a typed unavailable outcome; the
       client renders "not available on this node yet". Negative: return a bare 404
       and watch the client test show an error state instead.

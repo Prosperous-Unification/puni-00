@@ -370,6 +370,36 @@ one line.
 | A-4 | `current` is projected, never stored, and consumes no quota | users expect a comparison they looked at to be retrievable later |
 | A-5 | Cross-version diffs normalise forward only | a future schema removes a field rather than adding one |
 | A-6 | The domain term is **Saved plan**, not "snapshot" | CONTEXT.md's Plan document entry drops `snapshot` from its _Avoid_ list |
+| A-8 | "Creator" for permission is a nullable `created_by_id` reference beside `created_by`; a saved plan whose creator's account is gone is renameable and deletable by the project owner alone | owners routinely need to tidy up plans left by departed accounts and find the fallback insufficient, or a deployment wants creator rights to survive account deletion |
 
 Origin and full argument: `notes/wbs-brief-2026-09-03-plan-snapshots.md` §5 in
-the ops workspace; A-6 is decided here.
+the ops workspace; A-6 is decided here, and A-8 below.
+
+### A-8, decided here (TASK-231 run 14, 2026-09-04)
+
+Task 6.1 permissions rename and delete as "creator or project owner".
+`canEdit(project, actorId)` (`project.service.ts`) is the owner half. **There was
+no creator half**: `saved_plan.created_by` is a display name captured at the
+instant of the save and deliberately not a `users` reference — that is what makes
+"People stay named" above true, and 6.3's property depends on it.
+
+An id cannot be checked against a display name, and checking the actor's
+*current* display name against it is worse than useless: renaming an account
+would silently grant or revoke the right, and two accounts sharing a display name
+would share it. So the rule as written could not be built.
+
+**Decided:** a nullable `created_by_id` column beside `created_by` — the
+reference answers "may this account rename it", the value answers "who made
+this", and the two questions stop sharing one column. Account deletion nulls the
+reference and leaves the value, so 6.3 is unchanged and now has a second half
+worth asserting. `NULL` means the creator's account is gone *or* the plan predates
+the column, which are the same thing for permission purposes: fall back to the
+project owner, who exists whenever the project does. The migration is one
+nullable column with no backfill.
+
+**Rejected: owner-only.** No migration, and strictly safer than the ordinary
+project write rule 6.1 warns about — but it takes from the person who saved a
+plan on an unrestricted project the ability to delete their own record, and it
+would make 6.2's `creator` column untestable by making it identical to the
+third-party one. That is a product decision, and this is not the place to take it
+by omission.
