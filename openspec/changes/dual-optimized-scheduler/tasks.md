@@ -1854,6 +1854,27 @@ review`, no self-merge.
       previous hash misses; and a row whose `resultJson` fails to decode is
       **left in place** and reads as `corrupt` (4.8), never deleted and never
       treated as a miss.
+
+      **The spawner exists, run 37 chunk 1.** It is a repository-level
+      injection and not the coordinator's: `readOptimizedPairAndSpawn` reads the
+      pair and then calls an injected `Spawner` once per objective that has no
+      answer, so the count is assertable in this file without admission, slots
+      or a queue. The policy is the pure exported `objectivesToAutoSpawn`, which
+      spawns on `miss` and on nothing else — `ok` is the answer, `failed` and
+      `plan-infeasible` are answers about the solve and the plan, and `corrupt`
+      is a defect whose row 4.8 keeps. It iterates `SOLVER_OBJECTIVES` rather
+      than naming the two, so the request order is the stored vocabulary's.
+      Each request carries the key the read ran against rather than a rebuilt
+      one, because `budgetMs` is a key column: a spawner given the project and
+      the objective alone could not tell which of 4.1b's two live budgets asked.
+      `Proof:` five cases — a full hit spawns nothing, a cold key asks for both
+      in order, one committed objective asks for exactly the other, a raised
+      budget asks again rather than serving the 60 s row, and a failed row
+      beside a corrupt one asks for nothing while both rows survive.
+      **Still open here:** the two cases that are about eviction rather than
+      about the read — a new generation deleting every prior row for the
+      project including its `failed` ones, and an undo to a previous hash — plus
+      the overwrite half of the `failed` sentence. Those are chunk 2's.
 - [x] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
       names the relaxed predicate. Serving a failure marker as a schedule would

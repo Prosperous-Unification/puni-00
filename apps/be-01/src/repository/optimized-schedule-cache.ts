@@ -11,6 +11,7 @@ import { toOptimizedScheduleCacheRow, toSolverSlotRow } from './optimizer-rows';
 import {
   optimizedScheduleCache,
   project,
+  SOLVER_OBJECTIVES,
   type SolverFailureReason,
   type SolverObjectiveName,
   solverSlot,
@@ -275,6 +276,79 @@ export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): Optimized
     pair[row.objective] = outcomeOf(row);
   }
 
+  return pair;
+}
+
+/**
+ * Everything the seam below hands a spawner, and nothing it has to look up.
+ *
+ * The `key` is the one the read ran against rather than a rebuilt one, because
+ * `budgetMs` and `contractVersion` are key columns: a spawner given the project
+ * and the objective alone would have to guess which of the two live budgets a
+ * blue/green pair asked for, and 4.1b's whole point is that those are two rows.
+ */
+export interface SpawnRequest {
+  readonly key: OptimizedCacheKey;
+  readonly objective: SolverObjectiveName;
+}
+
+/**
+ * tasks.md 4.2's injected spawner, as this layer sees it.
+ *
+ * It returns nothing on purpose. Admission, the slot ceilings and the queue are
+ * 6.x's, and a repository read that could observe whether a solve *started*
+ * would be a read that waits on one — which is the timer-shaped coupling the
+ * whole cache exists to avoid. What is assertable here is the call, which is
+ * exactly what 4.2 asks to be asserted on ("on the spawner, not on elapsed
+ * time").
+ */
+export type Spawner = (request: SpawnRequest) => void;
+
+/**
+ * Which objectives an *automatic* read asks a solver for.
+ *
+ * Pure, exported and separately tested, because it is the whole spawn policy
+ * and every other arm of slice 4 is a claim about it: 4.4 is `failed` staying
+ * out of this set, 4.8 is `corrupt` staying out of it, and 4.5/4.7 are watched
+ * reds that put one of them back.
+ *
+ * **Only `miss` spawns.** Every other outcome is an answer this key already
+ * has — `ok` is the answer, `failed` and `plan-infeasible` are answers about
+ * the solve and the plan, and `corrupt` is a defect whose row is deliberately
+ * left in place (4.8). Auto-spawning on any of the four would make every read
+ * of a settled key a re-solve, which is the timer retry Dany rejected arriving
+ * through the cache instead of the clock.
+ *
+ * It iterates {@link SOLVER_OBJECTIVES} rather than naming `pri` and `time`, so
+ * the order is the stored vocabulary's and a third objective would be covered
+ * by construction rather than by remembering this line.
+ */
+export function objectivesToAutoSpawn(pair: OptimizedPair): readonly SolverObjectiveName[] {
+  return SOLVER_OBJECTIVES.filter((objective) => pair[objective].kind === 'miss');
+}
+
+/**
+ * {@link readOptimizedPair} with 4.2's spawner seam attached: read the pair,
+ * then ask for exactly the objectives that have no answer.
+ *
+ * The pair is returned whether or not anything was spawned, because a caller
+ * needs both halves — a full hit renders immediately, and a miss renders
+ * `pending` beside the request that was just made. Splitting them would put the
+ * decision in the caller, which is the arrangement 4.2 replaces: a reader that
+ * decides for itself is a reader that can forget, and nothing about "zero calls
+ * on a hit" would then be provable in one place.
+ *
+ * The spawner is called **once per objective**, never once per read, so a key
+ * whose `pri` committed and whose `time` did not asks for one solve rather than
+ * two or none.
+ */
+export function readOptimizedPairAndSpawn(
+  db: Reader,
+  key: OptimizedCacheKey,
+  spawn: Spawner,
+): OptimizedPair {
+  const pair = readOptimizedPair(db, key);
+  for (const objective of objectivesToAutoSpawn(pair)) spawn({ key, objective });
   return pair;
 }
 

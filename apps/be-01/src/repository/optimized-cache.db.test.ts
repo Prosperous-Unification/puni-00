@@ -22,6 +22,9 @@ import {
   type OutcomeToStore,
   type OutcomeWriteResult,
   readOptimizedPair,
+  readOptimizedPairAndSpawn,
+  type Spawner,
+  type SpawnRequest,
   storeOptimizedOutcome,
   writerStillHolds,
 } from './optimized-schedule-cache';
@@ -33,10 +36,10 @@ import { optimizedScheduleCache } from './schema';
  * Every case here goes through {@link readOptimizedPair} rather than off a raw
  * select, because the claims are about the *read path* — the generation
  * predicate, the 3.8 boundary and the decode seam — and a select would prove
- * only that SQLite stored what it was given. The spawner-count halves of 4.2,
- * 4.4 and 4.8 wait for the coordinator; what is provable without it is which
- * outcome each stored shape reads as, and that is what the spawn rules are
- * written against.
+ * only that SQLite stored what it was given. 4.2's spawner seam lives here too,
+ * at the bottom: it is a repository-level injection, so its counts are
+ * assertable without the coordinator. 4.4's Retry arm and 4.6's ABA fence still
+ * wait for admission.
  */
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -1194,6 +1197,164 @@ describe("4.1b's retention bound, which is a bound and not an exclusion", () => 
       // And both are servable, which is what makes the spawn count stop rising.
       expect(read(db.path, { ...KEY, budgetMs: 60_000 }).pri.kind).toBe('failed');
       expect(read(db.path, { ...KEY, budgetMs: 120_000 }).pri.kind).toBe('failed');
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+/**
+ * tasks.md 4.2's injected spawner — the seam 4.1b(b), 4.4 and 4.6 all wait on.
+ *
+ * Every case here asserts on the recorded calls rather than on elapsed time or
+ * on a row appearing, which is what 4.2 asks for in as many words. A test that
+ * waited would be a test that passes on a slow machine and on a broken one.
+ */
+describe("4.2's injected spawner, asserted on the calls and not on the clock", () => {
+  /** Records every request, so a count and an order are both assertable. */
+  function recorder(): { spawn: Spawner; calls: SpawnRequest[] } {
+    const calls: SpawnRequest[] = [];
+    return { spawn: (request) => void calls.push(request), calls };
+  }
+
+  function readAndSpawn(
+    path: string,
+    spawn: Spawner,
+    key: OptimizedCacheKey = KEY,
+  ): OptimizedPair {
+    return readOptimizedPairAndSpawn(openDrizzle(path), key, spawn);
+  }
+
+  function storeOk(path: string, generation: number, objective: 'pri' | 'time'): void {
+    storeRow(path, {
+      objective,
+      generation,
+      status: 'ok',
+      resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+      failureReason: null,
+    });
+  }
+
+  it('spawns nothing when the same input is already stored for both objectives', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+      storeOk(db.path, generation, 'time');
+
+      const { spawn, calls } = recorder();
+      const pair = readAndSpawn(db.path, spawn);
+
+      expect(calls).toEqual([]);
+      expect(pair.pri.kind).toBe('ok');
+      expect(pair.time.kind).toBe('ok');
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * A cold key asks for both, in the stored vocabulary's order, and each
+   * request carries the key the read actually ran against — not a rebuilt one.
+   * `budgetMs` is the column that proves it: a spawner handed the project and
+   * the objective alone could not tell which of two live budgets asked.
+   */
+  it('asks for both objectives on a cold key, carrying the key it read', () => {
+    const db = tempDb();
+    try {
+      prepared(db.path);
+
+      const { spawn, calls } = recorder();
+      const pair = readAndSpawn(db.path, spawn);
+
+      expect(calls).toEqual([
+        { key: KEY, objective: 'pri' },
+        { key: KEY, objective: 'time' },
+      ]);
+      expect(pair.pri).toEqual({ kind: 'miss' });
+      expect(pair.time).toEqual({ kind: 'miss' });
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('asks for exactly the objective that has no row when the other has committed', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+
+      const { spawn, calls } = recorder();
+      readAndSpawn(db.path, spawn);
+
+      expect(calls.map((call) => call.objective)).toEqual(['time']);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.2's raised-budget miss, asserted on the spawner instead of on the pair.
+   * The stored 60 s row is not served to a release configured for 120 s, and
+   * the difference is visible as a solve being asked for rather than only as a
+   * `miss` in a return value nobody had to act on.
+   */
+  it('asks again for a raised budget rather than serving the smaller-budget row', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'pri');
+      storeOk(db.path, generation, 'time');
+
+      const hit = recorder();
+      readAndSpawn(db.path, hit.spawn);
+      const raised = recorder();
+      readAndSpawn(db.path, raised.spawn, { ...KEY, budgetMs: 120_000 });
+
+      expect(hit.calls).toEqual([]);
+      expect(raised.calls.map((call) => call.objective)).toEqual(['pri', 'time']);
+      expect(raised.calls.every((call) => call.key.budgetMs === 120_000)).toBe(true);
+      // The 60 s rows are still there — 4.1b's bound evicts, a read never does.
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The policy 4.4 and 4.8 rest on, at the layer that decides it: an answer
+   * about the solve (`failed`) and a defect in the row (`corrupt`) are both
+   * answers this key already has, so neither auto-spawns. 4.4's ten-read and
+   * Retry arms and 4.5's watched red are separately numbered; what is settled
+   * here is that a read of either state asks for nothing.
+   */
+  it('asks for nothing against a failed row or a corrupt one', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'failed',
+        resultJson: null,
+        failureReason: 'timeout',
+      });
+      storeRow(db.path, {
+        objective: 'time',
+        generation,
+        status: 'ok',
+        resultJson: '{"dtoVersion":',
+        failureReason: null,
+      });
+
+      const { spawn, calls } = recorder();
+      const pair = readAndSpawn(db.path, spawn);
+
+      expect(pair.pri.kind).toBe('failed');
+      expect(pair.time.kind).toBe('corrupt');
+      expect(calls).toEqual([]);
+      // Neither row was deleted on the way past (4.8).
+      expect(storedRowCount(db.path)).toBe(2);
     } finally {
       db.cleanup();
     }
