@@ -28,6 +28,23 @@ import {
  * when somebody amends a field list in prose and not in the schema.
  */
 
+/**
+ * A lookup this file has just asserted succeeds, unwrapped.
+ *
+ * Every call site sits behind a `toHaveLength(1)` or a schema the test itself
+ * loaded, so the `undefined` half of the type is unreachable — but it is still
+ * in the type, and until this existed each site erased it with a structural
+ * cast (`as { members: Set<string> }`) that also quietly dropped `readonly`
+ * from the real `Vocabulary`. Under `--build` those were twelve TS2352s and
+ * this project's `typecheck` target had been red on the branch for as long as
+ * this file has existed, invisible behind a green `bun test`: the suite runs
+ * the source, not the checker.
+ */
+function must<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`${what} is absent`);
+  return value;
+}
+
 const repoRoot = new URL('../../../../', import.meta.url);
 const schema = JSON.parse(
   readFileSync(new URL('libs/contracts/solver/solver-wire.v1.json', repoRoot), 'utf8'),
@@ -48,7 +65,7 @@ const SUPERSEDED_SLICE_SENTENCE =
 describe('the wire vocabularies come from the schema, not from prose', () => {
   it('parses the four wire sets out of solver-wire.v1.json', () => {
     const wire = wireVocabularies(schema);
-    expect([...(wire.get('slice') as { members: Set<string> }).members].sort()).toEqual([
+    expect([...must(wire.get('slice'), 'the slice vocabulary').members].sort()).toEqual([
       'deadlineUnits',
       'durationUnits',
       'key',
@@ -58,13 +75,15 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
       'priorityWeight',
       'width',
     ]);
-    expect([...(wire.get('objective-term') as { members: Set<string> }).members].sort()).toEqual([
+    expect(
+      [...must(wire.get('objective-term'), 'the objective-term vocabulary').members].sort(),
+    ).toEqual([
       'bound',
       'stageValue',
       'status',
       'value',
     ]);
-    expect((wire.get('request') as { members: Set<string> }).members.has('fastHint')).toBe(true);
+    expect(must(wire.get('request'), 'the request vocabulary').members.has('fastHint')).toBe(true);
   });
 
   /**
@@ -77,7 +96,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
    */
   it('reads the response as the union of every required array under it', () => {
     const wire = wireVocabularies(schema);
-    expect([...(wire.get('response') as { members: Set<string> }).members].sort()).toEqual([
+    expect([...must(wire.get('response'), 'the response vocabulary').members].sort()).toEqual([
       'objectiveValues',
       'offsets',
       'status',
@@ -127,7 +146,7 @@ describe('the watched red — 2.1 names one sentence the check SHALL reject', ()
       allVocabularies(schema),
     );
     expect(divergences).toHaveLength(1);
-    const only = divergences[0] as {
+    const only = must(divergences[0], 'the only divergence') as {
       rule: string;
       vocabulary: string;
       unexpected: string[];
@@ -149,7 +168,7 @@ describe('the watched red — 2.1 names one sentence the check SHALL reject', ()
    */
   it('reads "joined only by commas" as "the gap contains one", or the fixture is invisible', () => {
     const [found] = scanEnumerations(SUPERSEDED_SLICE_SENTENCE, 'fixture.md');
-    expect((found as { members: string[] }).members).toEqual([
+    expect(must(found, 'the only enumeration').members).toEqual([
       'sliceKey',
       'durationUnits',
       'width',
@@ -187,7 +206,7 @@ describe('the brace form is the one both design.md and spec.md actually use', ()
       '<!-- wire-fields:objective-term -->reports `{ value, stageValue, bound, status }` per term.';
     const found = scanEnumerations(text, 'fixture.md');
     expect(found).toHaveLength(1);
-    expect((found[0] as { members: string[] }).members.sort()).toEqual([
+    expect([...must(found[0], 'the only enumeration').members].sort()).toEqual([
       'bound',
       'stageValue',
       'status',
@@ -199,7 +218,10 @@ describe('the brace form is the one both design.md and spec.md actually use', ()
   it('fails rule (a) with the symmetric difference when a braced list drifts', () => {
     const text =
       '<!-- wire-fields:objective-term -->reports `{ value, stageValue, bound, proof }` per term.';
-    const [only] = checkArtifact(text, 'fixture.md', allVocabularies(schema)) as {
+    const only = must(
+      checkArtifact(text, 'fixture.md', allVocabularies(schema))[0],
+      'the only divergence',
+    ) as {
       rule: string;
       missing: string[];
       unexpected: string[];
@@ -230,11 +252,14 @@ describe('rules (b) and (c), and the tags themselves', () => {
 
   it('rejects a run mixing a vocabulary with a name that is not in it', () => {
     const text = 'It carries `projectId`, `inputHash`, `contractVersion` and `smuggled`.';
-    const [only] = checkArtifact(text, 'f.md', allVocabularies(schema)) as {
+    const only = must(
+      checkArtifact(text, 'f.md', allVocabularies(schema))[0],
+      'the only divergence',
+    ) as {
       rule: string;
       vocabulary: string;
       unexpected: string[];
-    }[];
+    };
     expect(only.rule).toBe('b');
     expect(only.unexpected).toEqual(['smuggled']);
   });
@@ -389,7 +414,7 @@ describe('the repository check — three of four descriptive artifacts', () => {
     for (const mode of ['best', 'union'] as const) {
       const divergences = checkArtifact(drift, 'f.md', vocabularies, ['b'], mode);
       expect(divergences).toHaveLength(1);
-      expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['resultJson']);
+      expect(must(divergences[0], 'the only divergence').unexpected).toEqual(['resultJson']);
     }
   });
 
@@ -438,7 +463,7 @@ describe('the repository check — three of four descriptive artifacts', () => {
     for (const mode of ['best', 'union'] as const) {
       const divergences = checkArtifact(run, 'f.md', vocabularies, ['b'], mode);
       expect(divergences).toHaveLength(1);
-      expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['PARALLEL']);
+      expect(must(divergences[0], 'the only divergence').unexpected).toEqual(['PARALLEL']);
     }
   });
 
@@ -452,7 +477,7 @@ describe('the repository check — three of four descriptive artifacts', () => {
       'union',
     );
     expect(divergences).toHaveLength(1);
-    expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['sliceKey']);
+    expect(must(divergences[0], 'the only divergence').unexpected).toEqual(['sliceKey']);
   });
 
   /** Every added tuple says where it was read from; a nameless source is memory. */

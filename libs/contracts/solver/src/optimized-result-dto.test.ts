@@ -266,7 +266,7 @@ describe('the ways a stored result is refused', () => {
    * the regex.
    */
   it('refuses a bare encodeSchedule output stored where a result belongs', () => {
-    const bare = JSON.parse(JSON.stringify(encodeSchedule(realPlan())));
+    const bare = JSON.parse(JSON.stringify(encodeSchedule(realPlan()))) as StoredSchedule;
     expect(bare.dtoVersion).toBe(RESULT_DTO_VERSION);
 
     expect(() => decodeOptimizedResult(bare)).toThrow(/publication is undefined/);
