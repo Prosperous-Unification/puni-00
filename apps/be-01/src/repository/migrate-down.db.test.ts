@@ -213,6 +213,15 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * order and every descending reversal list below.
  */
 const SAVED_PLAN = '20260903190000_add_saved_plan';
+/**
+ * The newest, and the one that separates the two `created_by` questions:
+ * `saved_plan.created_by_id`, the account the permission rule reads, beside
+ * the display name the record keeps by value (assumption A-8). One nullable
+ * column added and dropped whole, so it heads every descending reversal list
+ * below and tails the ascending folder order.
+ */
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
@@ -484,6 +493,7 @@ describe('readMigrationFolders', () => {
       AUDIT_COLUMNS,
       LOOKUP_INDEXES,
       SAVED_PLAN,
+      CREATED_BY_ID,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -593,11 +603,13 @@ describe('rollbackTo, against a real database', () => {
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
         SAVED_PLAN,
+        CREATED_BY_ID,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -692,6 +704,7 @@ describe('rollbackTo, against a real database', () => {
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
         SAVED_PLAN,
+        CREATED_BY_ID,
       ]);
     } finally {
       db.cleanup();
@@ -762,6 +775,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -842,7 +856,7 @@ describe('rollbackTo, against a real database', () => {
       const newest = readMigrationFolders(FOLDER).at(-1)?.name;
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
-      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([SAVED_PLAN, LOOKUP_INDEXES]);
+      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([CREATED_BY_ID, SAVED_PLAN, LOOKUP_INDEXES]);
       expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
@@ -906,6 +920,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,

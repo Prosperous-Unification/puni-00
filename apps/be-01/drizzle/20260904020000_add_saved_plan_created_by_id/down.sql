@@ -1,0 +1,29 @@
+-- Reverses 20260904020000_add_saved_plan_created_by_id.
+--
+-- **This loses who may rename or delete each saved plan, and nothing else.**
+-- The record itself survives whole: `created_by` is a separate column carrying
+-- the display name by value, so after this rollback every plan still says who
+-- made it and still holds both bodies. What is gone is the *reference* — the
+-- only column task 6.1's permission rule is allowed to read — so the release
+-- that follows this rollback falls back to the project owner for every plan,
+-- exactly as it does today for a plan whose creator's account was deleted.
+--
+-- That is a permission widening for the creator and a narrowing for nobody:
+-- the project owner could always rename and delete, and a creator who is not
+-- the owner loses the right until the column is added back. Re-running the
+-- forward migration restores the column but not its values, because the
+-- forward direction has no backfill and there is no honest one — resolving
+-- `created_by`, a display name, back to an account id is the guess A-8 exists
+-- to refuse. **A rollback past this migration is therefore one-way for the
+-- data in this column**, even though it is reversible for the schema.
+--
+-- `DROP COLUMN` rather than a table rebuild — SQLite has supported it since
+-- 3.35 and `20260821000000_add_service` drops `work_item.service_id` the same
+-- way. It is permitted here because the column is not a primary key, carries no
+-- UNIQUE constraint, and is named by no index, view or partial-index
+-- expression: `saved_plan_project_time` is over `(project_id, created_at)`.
+--
+-- **No date moves, either way.** The scheduler reads work items, estimates,
+-- dependencies, capacity and the calendar. It does not read `saved_plan` at
+-- all, let alone this column.
+ALTER TABLE `saved_plan` DROP COLUMN `created_by_id`;

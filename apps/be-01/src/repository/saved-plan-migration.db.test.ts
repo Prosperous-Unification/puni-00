@@ -119,6 +119,11 @@ describe('the saved-plan migration', () => {
       'schedule_input_sha256',
       'scheduler_algorithm_id',
       'schedule_absent_reason',
+      // Added by its own later folder, 20260904020000_add_saved_plan_created_by_id,
+      // so it lands after every column the create statement names rather than
+      // beside `created_by` where the drizzle schema declares it. `ADD COLUMN`
+      // appends; column order is physical here and only this list depends on it.
+      'created_by_id',
     ]);
   });
 

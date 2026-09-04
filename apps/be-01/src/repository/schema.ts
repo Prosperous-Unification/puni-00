@@ -1846,6 +1846,23 @@ export const savedPlan = sqliteTable(
      */
     createdBy: text('created_by').notNull(),
     /**
+     * Who saved it, **by reference** — the account, for the permission rule, and
+     * the only column that rule may read (assumption A-8, `design.md`).
+     *
+     * Separate from {@link savedPlan.createdBy} because one column cannot answer
+     * both questions. That one is a display name; comparing an actor's id
+     * against a display name is not a permission check, and two accounts sharing
+     * a name would share the right to rename and delete each other's permanent
+     * records.
+     *
+     * `NULL` means **no live account claims this plan** — the creator's account
+     * was deleted, or the plan predates this column, which are the same fact for
+     * permission purposes. Both fall back to the project owner, who exists
+     * whenever the project does. `on delete set null` rather than `cascade` is
+     * what makes deletion keep the record and drop only the right.
+     */
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /**
      * The instant the capture's read snapshot **opened**, not the instant the
      * transaction committed. A slow capture makes the two differ, and the honest
      * label on a comparison is when the plan was looked at.
