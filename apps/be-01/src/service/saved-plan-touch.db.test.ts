@@ -117,6 +117,17 @@ describe('renaming and deleting a saved plan', () => {
     return row?.name ?? null;
   };
 
+  /**
+   * The two creator columns as the row actually holds them — the display name
+   * and the reference, read together so a test cannot assert one and infer the
+   * other.
+   */
+  const creatorOf = (id: string) =>
+    reader.query('SELECT created_by, created_by_id FROM saved_plan WHERE id = ?').get(id) as {
+      created_by: string;
+      created_by_id: string | null;
+    } | null;
+
   const bodyCount = (id: string): number => {
     const row = reader
       .query('SELECT count(*) AS n FROM saved_plan_body WHERE saved_plan_id = ?')
@@ -178,6 +189,48 @@ describe('renaming and deleting a saved plan', () => {
 
     expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({ outcome: 'touched' });
     expect(nameOf('sp-1')).toBe('tidied up');
+  });
+
+  /**
+   * Task 6.3, **both halves at once and in the order they really happen.**
+   *
+   * The storage half is proved in
+   * `repository/saved-plan-created-by-id.db.test.ts` — the constraint nulls the
+   * reference and keeps the value — and the rule half is proved by the `null`
+   * case above. Neither says the two *compose*, and each is written against a
+   * state the other produces: the rule test saves a plan that was born with no
+   * creator, which is not what an account deletion leaves behind. So this
+   * deletes a real account and then asks the rule, in that order.
+   *
+   * The plan is renamed **before** the deletion as well as after it, because
+   * "the right is gone" is only a claim if the right was demonstrably there.
+   */
+  it('keeps the creator’s name and drops their right when the account is deleted', async () => {
+    await save('sp-1', 'ada');
+    expect(await service().rename('sp-1', 'ada', 'still hers')).toEqual({ outcome: 'touched' });
+
+    reader.run(`DELETE FROM users WHERE id = 'ada'`);
+
+    // The value outlives the reference: `created_by` is what the record *says*,
+    // stored by value, and is never read back through the users table.
+    expect(creatorOf('sp-1')).toEqual({ created_by: 'Ada Lovelace', created_by_id: null });
+
+    // The right is **dropped, not transferred**. `mallory` is asserted beside
+    // the deleted id because a fallback that widened to "anyone, once the
+    // creator is gone" would answer `touched` here and pass a test that only
+    // re-tried `ada`.
+    expect(await service().rename('sp-1', 'ada', 'mine again')).toEqual({ outcome: 'forbidden' });
+    expect(await service().rename('sp-1', 'mallory', 'mine now')).toEqual({ outcome: 'forbidden' });
+    expect(nameOf('sp-1')).toBe('still hers');
+
+    // And the owner can still tidy up, which is the reason the constraint is
+    // `SET NULL` and not `RESTRICT`: a plan nobody could reach would hold its
+    // project's quota forever.
+    expect(await service().rename('sp-1', 'owner', 'tidied up')).toEqual({ outcome: 'touched' });
+    expect(nameOf('sp-1')).toBe('tidied up');
+    expect(await service().delete('sp-1', 'owner')).toEqual({ outcome: 'touched' });
+    expect(nameOf('sp-1')).toBeNull();
+    expect(bodyCount('sp-1')).toBe(0);
   });
 
   it('deletes the header and its bodies', async () => {
