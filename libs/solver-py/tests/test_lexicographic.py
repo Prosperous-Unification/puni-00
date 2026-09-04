@@ -272,11 +272,20 @@ class TheWeightedFormAnswersDifferently(unittest.TestCase):
         self.assertEqual(terms[PRIORITY], S_FIRST_PRIORITY)
         self.assertEqual(terms[MAKESPAN], S_FIRST_MAKESPAN)
 
-    def test_the_equal_weight_sum_does_not(self) -> None:
-        # 5.7's red is green here. Stated as an assertion because a reader who
-        # carried 5.7's conclusion over would expect the opposite.
+    def test_the_equal_weight_sum_moves_it_too_but_on_movement(self) -> None:
+        # Measured, and it flipped when the baseline moved from `w_first` to
+        # `s_first`: MOVEMENT is the only term defined *relative to the
+        # baseline*, so `1/1/1` here scores W-first at 15 + 36 + 316 and S-first
+        # at 16 + 21 + 0 and picks S-first on the movement alone. Against the
+        # `w_first` baseline the same coefficients picked W-first.
+        #
+        # That is a third way for a weighted form to be unfaithful, and the one
+        # a fixture cannot design around: two of its three terms are properties
+        # of the schedule and the third is a property of the *question*. The
+        # staged loop is immune — MOVEMENT is last under both objectives, so it
+        # only ever breaks ties the first two terms left open.
         offsets = under_weighted_sum(instance(), EQUAL)
-        self.assertEqual(offsets["W"], 0)
+        self.assertEqual(offsets["W"], 1)
 
     def test_a_larger_dominating_sum_does_not_either(self) -> None:
         # And this is why "use big coefficients" is not the rule: 10⁶/10³ is a
