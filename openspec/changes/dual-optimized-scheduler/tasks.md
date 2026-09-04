@@ -1973,9 +1973,56 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       identical constraint and the identical per-term status, so the collapse is
       a property of this solver rather than of the table.
 
-- [ ] 5.3 **Proven by** the Python suite (CI only) — unit: each of the three
+- [x] 5.3 **Proven by** the Python suite (CI only) — unit: each of the three
       cost terms computed on a hand-built instance, both stagings, request
       parse round-trip, response serialization.
+
+      **All four clauses have a home, and the last one to get it was the parse
+      round-trip** — `tests/test_validate.py::TheParseIsLossless`. The other
+      three were already standing: the cost terms in
+      `test_solve.py::TermArithmeticAgreesWithTheModel` (each term recomputed
+      from the published offsets and compared against the model's own value),
+      both stagings in `test_solve.py::BothStagings`, and response
+      serialization in `test_solve.py::TheResponse`.
+
+      **The round trip is a different kind of check from everything else in
+      that file, and that is the reason it needed writing.** The four
+      cross-field checks are about *refusing* a bad request; this one is about
+      not quietly altering a good one. That failure has no symptom at the wire —
+      it surfaces much later as a wrong plan or a `TypeError` inside CP-SAT — so
+      nothing else in the suite was positioned to see it.
+
+      **Its oracle is plain `json.loads`, deliberately without
+      `parse_request`'s `object_pairs_hook`.** Comparing the hook's output
+      against itself would prove nothing; comparing it against the stdlib's own
+      reading of the same bytes is what makes a sanitising hook visible.
+
+      **Four cases, and the number-kind one is not redundant with the equality
+      one.** `10 == 10.0` in Python, so a `parse_int=float` parse round-trips
+      *equal* and is still wrong — the model builds `IntVar` domains from
+      `durationUnits`. The leaf-type walk is what catches it, and the measured
+      reds below are the proof that the equality case alone would have missed
+      it. The opposite direction is asserted too: `stageBudgetSplit` is
+      fractions of a budget, and truncating those to `int` is a stage with no
+      time.
+
+      **Three watched reds, each measured on the gate host and reverted**
+      (`validate.py`, suite of 110):
+
+      | mutation | new-class reds | total |
+      |---|---|---|
+      | keys sanitised to `wi-1::step-a` | all 4 | 8 fail / 3 error |
+      | `parse_int=float` | `test_the_number_kinds_survive` only | 3 fail / 1 error |
+      | `None` values dropped from the hook | all 4 | 9 fail / 4 error |
+
+      The first mutation also stops `negative-printable-key.json` being refused
+      by `KeySetEquality`, which is the shape of the defect this fixture was
+      checked in for: one mutation, a red in the round trip *and* a red in the
+      check that exists to catch it.
+
+      **The fixture list is read from the corpus manifest, not written out
+      here**, so a request fixture added to `manifest.json` is round-tripped
+      without anyone remembering to add it twice.
 - [ ] 5.4 **Proven by** the oracle cases: 2–6 slice hand-verified instances with
       known optimal offsets per objective, including one where PRI and Time
       disagree, one exercising `notBeforeUnits`, one exercising a two-pool
