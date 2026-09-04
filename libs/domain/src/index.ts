@@ -13,12 +13,12 @@ export * from './effective-service';
 export * from './effective-tag';
 export * from './effective-team';
 export * from './estimate';
+export * from './external-system';
 // The eight Fast cases, published rather than left in a `.test.ts` because
 // `libs/contracts` proves a property ABOUT them: that materialising the
 // quantised baseline of each one is legal and never earlier than Fast. A corpus
 // only one package can read is a corpus the wire boundary cannot be held to.
 export * from './fast-golden-corpus';
-export * from './external-system';
 // One upward walk, where four copies of it stood on 2026-09-02: two in be-01
 // (`canDepend`'s `isWithin` and `moveWorkItem`'s `descendsFrom`, byte-identical
 // under two names) and two in fe-01. It answers a question about a plan's
