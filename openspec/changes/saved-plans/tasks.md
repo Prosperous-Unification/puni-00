@@ -314,16 +314,52 @@ comparison UI) and start only after slice 6 is merged.
       all four integrity tests green. Neither negative reddened the other's
       tests, which is what says the two properties are independently held.
 
-- [ ] 5.2 A schedule body whose `schedule_input_sha256` differs from
+- [x] 5.2 A schedule body whose `schedule_input_sha256` differs from
       `input_sha256` is refused rather than rendered. Negative: make the writer
       store the wrong hash and watch the read refuse. This check only means
       anything because 2.4 makes both header columns unrewritable.
-- [ ] 5.3 Readable with `plan_event` truncated entirely — guards against a pointer
+- [x] 5.3 Readable with `plan_event` truncated entirely — guards against a pointer
       creeping in and against the 365-day prune reaching a saved plan.
-- [ ] 5.4 Absent schedule: save with no schedule for each reason (`pending`,
+- [x] 5.4 Absent schedule: save with no schedule for each reason (`pending`,
       `infeasible`, `unavailable`); the read reports the reason and never borrows
       the live scheduler's answer. Negative: fall back to the live schedule and
       watch the test name it.
+      **Landed (run 13, chunk 2).** `verifyScheduleLink` runs **after** the
+      schedule's byte check, not instead of it: the two answer different
+      questions — whether the body is the one that was written, and whether the
+      dates in it belong to this record's input — and a record can fail either
+      with the other intact. The refusal is its own case (`schedule_input_mismatch`)
+      because **both bodies may be perfectly valid**; telling a reader "the
+      schedule body is corrupt" would send them looking for damage that is not
+      there.
+      **The negative got stronger than it was written.** The file's
+      restated-hash test used to show that re-stamping `input_sha256` over
+      flipped bytes makes a record read clean — and once 5.2 landed it no longer
+      does: the byte check passes and the LINK refuses, because
+      `schedule_input_sha256` still names the input that was actually scheduled.
+      One `UPDATE` cannot make a tampered record consistent. The test now
+      asserts the refusal *reason changes*, which is what proves the second
+      check does work the first cannot.
+      **5.2's watched negative:** removing the link check reddened exactly two
+      tests — 5.2's own and the restated-hash one — and nothing else.
+      **5.4 is written through `SavedPlanRepository.write`, not through
+      `save()`.** `save()` produces `infeasible` on its own and cannot be made
+      to produce `pending` or `unavailable`; those are states a caller supplies,
+      and no route supplies one yet. The records go in through the real writer
+      under the same check constraint — an input the service has no route for,
+      not a bypass of the schema.
+      **5.4's watched negative landed on exactly the three:** making `read`
+      capture and schedule the live project whenever the header's schedule is
+      null reddened all three reason cases and left every other test green. The
+      live project *does* schedule — this file's other tests save dates from
+      it — so a reader that fell back had something to fall back to, which is
+      what makes zero scheduler calls an assertion rather than a coincidence.
+      **5.3 has no watched negative and is not claimed to.** It is a regression
+      guard: nothing on the read path touches `plan_event` today, so truncating
+      it changes nothing, and the test exists so that a future pointer — or the
+      365-day prune reaching a saved plan — fails here instead of in production.
+      Stated rather than dressed up as a proof.
+
 - [ ] 5.5 Body schema version: a body at version *n* still reads after the reader
       moves to *n+1*; an unknown version throws a typed error naming it (R5 —
       never defaulted away). Negative: parse optimistically and watch the unknown
