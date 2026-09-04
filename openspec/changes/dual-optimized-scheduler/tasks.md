@@ -2023,6 +2023,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       **The fixture list is read from the corpus manifest, not written out
       here**, so a request fixture added to `manifest.json` is round-tripped
       without anyone remembering to add it twice.
+
 - [ ] 5.4 **Proven by** the oracle cases: 2–6 slice hand-verified instances with
       known optimal offsets per objective, including one where PRI and Time
       disagree, one exercising `notBeforeUnits`, one exercising a two-pool
