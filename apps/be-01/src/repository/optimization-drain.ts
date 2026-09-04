@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
@@ -293,4 +293,92 @@ export function finishOptimizationDrain(
       .run();
     return 'finished';
   });
+}
+
+/** How long a coordinator waits between reconciliation passes (tasks.md 3.9b). */
+export const DRAIN_RECONCILE_INTERVAL_MS = 60000;
+
+/** What one reconciliation pass did, for the log line and for the tests. */
+export interface OptimizationDrainReconciliation {
+  /** Slot rows removed because they passed their own stored deadline. */
+  readonly reclaimed: number;
+  /** Targets phase 2 completed on this pass. */
+  readonly finished: number;
+  /** Targets still holding at least one live slot row. */
+  readonly waiting: number;
+}
+
+/**
+ * The path that makes a crash between `begin` and `finish` recoverable
+ * (tasks.md 3.9b).
+ *
+ * **Why it has to exist.** Without it, a coordinator that died after `begin`
+ * left the project hidden with admission closed for ever — and admission is
+ * exactly what a draining project rejects, so no ordinary read could ever sweep
+ * it up again. Remove this function and that project is wedged and undeletable
+ * by any code path in the system. Called on coordinator startup and every
+ * {@link DRAIN_RECONCILE_INTERVAL_MS}.
+ *
+ * **What it reclaims, and why that is not the immediate cascade wearing a new
+ * name.** A slot row is deleted here only once `now` has passed the deadline
+ * **stored on that row**, at which point its child is presumed dead and the
+ * capacity was never really outstanding. The deadline is read from the row
+ * rather than computed from this coordinator's own configuration, so a
+ * coordinator running the smaller budget cannot reclaim a larger-budget child
+ * that is still inside its own deadline — the fault that would put the six
+ * processes back by another route.
+ *
+ * **Generations before projects.** A delete-pending project has every one of
+ * its generations draining, so the first pass retires them release by release
+ * and the second deletes the project once nothing is left. Running it the other
+ * way would delete the project first and take the generation rows with it by
+ * cascade — the same end state, reached without ever observing the releases,
+ * which is the observation the drain exists to make.
+ *
+ * Idempotent and safe to run concurrently, because every decision it makes is
+ * `finishOptimizationDrain`'s: two reconcilers reach the same end state and
+ * neither errors, one of them simply reading `absent` where the other read
+ * `finished`. It never reopens admission.
+ */
+export function reconcileOptimizationDrains(
+  db: SQLiteBunDatabase,
+  now: number,
+): OptimizationDrainReconciliation {
+  let reclaimed = 0;
+  let finished = 0;
+  let waiting = 0;
+
+  const sweep = (projectId: string, contractVersion?: string): void => {
+    reclaimed += db
+      .delete(solverSlot)
+      .where(
+        and(
+          eq(solverSlot.projectId, projectId),
+          ...(contractVersion === undefined
+            ? []
+            : [eq(solverSlot.contractVersion, contractVersion)]),
+          lte(solverSlot.admittedDeadlineAt, now),
+        ),
+      )
+      .run().changes;
+    const outcome = finishOptimizationDrain(db, projectId, contractVersion);
+    if (outcome === 'finished') finished += 1;
+    if (outcome === 'waiting') waiting += 1;
+  };
+
+  const draining = db
+    .select()
+    .from(optimizationGeneration)
+    .where(eq(optimizationGeneration.admissionState, 'draining'))
+    .all();
+  for (const row of draining) sweep(row.projectId, row.contractVersion);
+
+  const pending = db
+    .select()
+    .from(project)
+    .where(isNotNull(project.optimizationDeletePendingAt))
+    .all();
+  for (const row of pending) sweep(row.id);
+
+  return { reclaimed, finished, waiting };
 }

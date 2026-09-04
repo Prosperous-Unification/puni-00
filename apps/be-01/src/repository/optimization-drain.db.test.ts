@@ -8,7 +8,11 @@ import { eq } from 'drizzle-orm';
 import { type Drizzle, openDatabase, openDrizzle } from './db';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
-import { beginOptimizationDrain, finishOptimizationDrain } from './optimization-drain';
+import {
+  beginOptimizationDrain,
+  finishOptimizationDrain,
+  reconcileOptimizationDrains,
+} from './optimization-drain';
 import { allocateGeneration, readGeneration } from './optimization-generation';
 import {
   optimizationGeneration,
@@ -78,6 +82,7 @@ function seedSlot(
   objective: 'pri' | 'time',
   cancelRequestedAt: number | null,
   projectId = 'p-1',
+  admittedDeadlineAt = 61000,
 ): void {
   db.insert(solverSlot)
     .values({
@@ -93,7 +98,7 @@ function seedSlot(
       startedAt: 1,
       heartbeatAt: 1,
       cancelRequestedAt,
-      admittedDeadlineAt: 61000,
+      admittedDeadlineAt,
     })
     .run();
 }
@@ -467,5 +472,92 @@ describe('finishing a project deletion', () => {
     expect(finishOptimizationDrain(db, 'ghost')).toBe('absent');
 
     expect(projectIds()).toEqual(['p-1', 'p-2']);
+  });
+});
+
+describe('reconciling drains nobody finished', () => {
+  it('reclaims a slot past its own stored deadline and retires the release', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null, 'p-1', 500);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // Nobody called finish: the coordinator that began this died. The pass at
+    // 600 is past the deadline stored on the row, so its child is presumed dead.
+    expect(reconcileOptimizationDrains(db, 600)).toEqual({
+      reclaimed: 1,
+      finished: 1,
+      waiting: 0,
+    });
+    expect(generationRows()).toEqual([]);
+    expect(slotRowsByProject()).toEqual([]);
+  });
+
+  it('leaves a child inside its own deadline alone, whatever this pass thinks the budget is', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null, 'p-1', 900);
+    beginOptimizationDrain(db, 'p-1', stampAt(20), BLUE);
+
+    // The deadline is read from the row, not computed from this coordinator's
+    // configuration, so a coordinator running the smaller budget cannot reclaim
+    // a larger-budget child that is still inside its own deadline.
+    expect(reconcileOptimizationDrains(db, 600)).toEqual({
+      reclaimed: 0,
+      finished: 0,
+      waiting: 1,
+    });
+    expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
+    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/20`]);
+  });
+
+  it('physically deletes a project whose delete crashed between begin and finish', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
+    seedCache(BLUE);
+    seedSlot(BLUE, 'pri', null, 'p-1', 500);
+    seedSlot(GREEN, 'time', null, 'p-1', 500);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+
+    // 3.9b's third watched red, at the repository layer: the project was hidden
+    // with admission closed and nothing finished it. Admission is exactly what a
+    // draining project rejects, so without this pass no read could ever sweep it
+    // and the project is wedged and undeletable.
+    const pass = reconcileOptimizationDrains(db, 600);
+
+    expect(pass.reclaimed).toBe(2);
+    expect(projectIds()).toEqual(['p-2']);
+    expect(generationRows()).toEqual([]);
+    expect(cacheRows()).toEqual([]);
+  });
+
+  it('touches nothing that is neither draining nor delete-pending', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedCache(BLUE);
+    // Long past its deadline, and still nobody's business: a slot is reclaimed
+    // as part of a drain, and this project is not draining.
+    seedSlot(BLUE, 'pri', null, 'p-1', 100);
+
+    expect(reconcileOptimizationDrains(db, 600)).toEqual({
+      reclaimed: 0,
+      finished: 0,
+      waiting: 0,
+    });
+    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
+    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/null`]);
+  });
+
+  it('reaches the same end state when a second reconciler runs the same pass', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    seedSlot(BLUE, 'pri', null, 'p-1', 500);
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const first = reconcileOptimizationDrains(db, 600);
+
+    // The second coordinator finds the work done and says so, rather than
+    // erroring: it reads `absent` where the first read `finished`.
+    const second = reconcileOptimizationDrains(db, 600);
+
+    expect(first.finished).toBeGreaterThan(0);
+    expect(second).toEqual({ reclaimed: 0, finished: 0, waiting: 0 });
+    expect(projectIds()).toEqual(['p-2']);
   });
 });
