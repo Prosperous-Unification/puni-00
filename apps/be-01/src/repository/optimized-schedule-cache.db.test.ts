@@ -543,8 +543,20 @@ describe('a plan through the column it is stored in', () => {
     }
   });
 
-  /** Said directly rather than inferred from the case above: no CHECK covers it. */
-  it('adds no CHECK over result_json in the migration', () => {
+  /**
+   * Said directly rather than inferred from the case above — and stated as
+   * precisely as the DDL allows, because the naive form of this assertion is
+   * FALSE here and went red on its first run.
+   *
+   * `optimized_schedule_cache_payload` does name `result_json` inside a
+   * `CHECK`: it makes `status` the discriminant of whether the column is NULL.
+   * That is a nullity rule and 4.12b does not object to it. What 4.12b forbids
+   * is a constraint over the column's CONTENTS, which would turn a corrupt
+   * payload into a failed write instead of a `corrupt` read. So the claim
+   * asserted is the one that is true and load-bearing: every mention of the
+   * column inside a `CHECK` is a NULL test and nothing else.
+   */
+  it('constrains only result_json\'s nullity, never its contents', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
@@ -555,8 +567,16 @@ describe('a plan through the column it is stored in', () => {
         .get() as { sql: string } | null;
       const text = ddl?.sql ?? '';
       expect(text).toContain('result_json');
-      for (const clause of text.split(/\bCHECK\b/).slice(1)) {
-        expect(clause.slice(0, clause.indexOf(')') + 1)).not.toContain('result_json');
+
+      const checks = text.split(/\bCHECK\b/i).slice(1);
+      expect(checks.length).toBeGreaterThan(0);
+      const mentions = checks
+        .join(' ')
+        .split(/`?result_json`?/)
+        .slice(1);
+      expect(mentions.length).toBeGreaterThan(0);
+      for (const after of mentions) {
+        expect(after.trimStart()).toMatch(/^IS (NOT )?NULL\b/i);
       }
     } finally {
       db.cleanup();
