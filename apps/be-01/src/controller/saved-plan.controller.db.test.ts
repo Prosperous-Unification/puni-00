@@ -668,6 +668,11 @@ describe('the saved-plan routes', () => {
      * never names a project — so this is the case that proves the announced
      * project id came from the plan's own row rather than from the URL, which
      * could not have supplied it.
+     *
+     * The delete half has its own trap: the row is gone by the time the answer
+     * is written, so an implementation that looked the project up *after* the
+     * touch would announce `undefined` here and pass any assertion that only
+     * counted the events. `toEqual` on the whole array is what catches it.
      */
     it('announces a rename and a delete on the project the plan belongs to', async () => {
       const saved = await savedIdOf(await save('ada'));
@@ -723,10 +728,9 @@ describe('the saved-plan routes', () => {
     });
 
     /**
-     * The delete half's own trap: the row is gone by the time the answer is
-     * written, so an implementation that looked the project up *after* the touch
-     * would announce `undefined` here and pass any assertion that only counted
-     * the events.
+     * The refusal half of rename and delete: a 403 has renamed nothing, so it
+     * announces nothing. Paired with the case above, this is what keeps the
+     * publish on the branch that changed the list rather than on the route.
      */
     it('says nothing when a rename is refused', async () => {
       const saved = await savedIdOf(await save('ada'));

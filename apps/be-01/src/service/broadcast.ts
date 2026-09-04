@@ -212,8 +212,16 @@ export class DeferringBroadcaster implements Broadcaster {
    * The condition for using this is a property of the CALLER, not of timing:
    * `plan-commands` has no saved-plan command, so a saved-plan announcement can
    * never belong to a batch and has nothing to be atomic with. Anything a
-   * command can reach — every service `services.ts` hands `announcements` to —
-   * must keep the wrapper, because for those the hold is the whole point.
+   * command *can* reach must keep the wrapper, because for those the hold is
+   * the whole point.
+   *
+   * Being handed `announcements` in `services.ts` is NOT that test, and saying
+   * so was this doc's own first mistake. `StepService` is wired to the wrapper
+   * and `PlanCommandKind` declares no step command at all, so `step_added`,
+   * `step_renamed` and `step_removed` are HTTP-only and carry this same drop
+   * today. That predates the saved-plan work and is filed rather than widened
+   * into it (TASK-256); the fix there is this accessor or a per-caller hold, and
+   * it is a decision about the batch contract rather than a wiring change.
    */
   get undeferred(): Broadcaster {
     return this.inner;
