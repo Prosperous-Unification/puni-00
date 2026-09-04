@@ -49,7 +49,11 @@ describe('the failure-reason vocabulary is the column the row is written into', 
 });
 
 describe('every failure this directory can produce has exactly one disposition', () => {
-  it('covers all fifteen tokens across the three seams', () => {
+  // The name carried a literal count until run 47 and it had already drifted:
+  // it said fifteen against seventeen tokens, and 2.4's `deadline-violated`
+  // made it eighteen. Both sides of the assertion derive the number, so the
+  // count in the name was decoration that could only ever go stale.
+  it('covers every token across all three seams, with no seam left out', () => {
     expect(SOLVER_FAILURE_DISPOSITIONS).toHaveLength(
       SOLVER_PARSE_FAILURES.length +
         SOLVER_PREFLIGHT_FAILURES.length +
