@@ -139,6 +139,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
@@ -197,6 +198,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
