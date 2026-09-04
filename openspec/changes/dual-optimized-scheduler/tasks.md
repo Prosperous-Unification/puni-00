@@ -511,13 +511,46 @@ check-that-cannot-fail failure R5 names.
       order its shares were written in. Both the comment and the test now say
       the measured thing. Contracts at `de7cb086`, dirty=0: lint 0, typecheck 0,
       **113 pass / 0 fail across 10 files**.
-      **Still unbuilt in 2.2:** `edges`, `baselineOffsets`/`fastHint` (2.11's
-      quantised baseline, which cannot precede it) with MOVEMENT's preflight,
-      and the assembly itself. `edges` is the next real
-      derivation and it needs a seam published rather than restated, exactly as
-      the floor fold did: `expandToLeaves` is already exported and applies
-      `reach`, but the **intra-item step chain** is built inline in
-      `schedule()`'s node loop and is not.
+      **`edges` landed (2026-09-04), the seam first.** `libs/domain/src/slice-edges.ts`
+      now owns both rules and `schedule()` **calls** it, the direction
+      `leafFloorsOf` went: the intra-item step chain (an inline `for` loop in
+      the node loop) and the join (inline after it). `reachedSliceOf` moved with
+      them, verbatim, retyped against a structural `EstimatedSlice` so the two
+      modules do not cycle; it is exported from there and re-exported by the
+      barrel, and no other file in the repository imported it — fe-01's
+      `gantt-geometry.ts` has its own documented copy, untouched. **An edge's
+      ends are named by POSITION (`{ leafId, at }`), never by `sliceKey`:** a
+      plan may hand two slices of one leaf the same `stepId`, `groupByWorkItem`
+      accepts that and the placement tells them apart by index, so a key-based
+      edge list would merge them silently *before* `buildSolverSlices` could
+      refuse the duplicate. `schedule()` converts a position with
+      `firstNodeOf(leafId) + at`; `buildSolverEdges` in
+      `libs/contracts/solver/src/` converts it with `sliceKey`, which is the
+      whole of what the contracts side does — the schema's `$defs/edge` comment
+      calls that conversion "real work rather than a rename" and it is now the
+      only work left in it. Its own guard is a BOUNDS check, not a
+      `=== undefined` narrowing: indexing is typed as total here so the
+      narrowing form is dead code eslint deletes, and `own.at(-1)` would have
+      wrapped round to the last slice and keyed it silently.
+      **Two measurements that changed what is written here.** (1) The emission
+      order (every chain, then every external) is PRESERVED, not proven to
+      matter: with the two loops swapped the whole 356-test pre-existing domain
+      suite stays green and only the new order case fails, so the placement is
+      order-insensitive on that corpus and the doc says so instead of claiming a
+      contract. (2) The reach applied to the successor side inside the NEW file
+      gives 348/17 across `schedule*`, which is what proves the refactor is
+      wired rather than dead code. Gates on h2puni with `NX_DAEMON=false`:
+      domain lint 0, typecheck 0, **365 pass / 0 fail across 28 files** at
+      `74fa84a5`; contracts lint 0, typecheck 0, **118 pass / 0 fail across 11
+      files** at `59ee41bf`; dirty=0, 0 emitted `.js`.
+      **Still unbuilt in 2.2:** the **grouping** `buildSolverEdges` and
+      `buildSolverSlices` both take as a lookup — `groupByWorkItem` is still
+      private to `schedule.ts`, and the assembly owes either its publication or
+      an argued equivalent, because the two builders' keys only line up while
+      the grouping preserves the canonical list's per-leaf order (asserted by
+      the `buildSolverEdges` oracle case, not assumed);
+      `baselineOffsets`/`fastHint` (2.11's quantised baseline, which cannot
+      precede it) with MOVEMENT's preflight; and the assembly itself.
 - [x] 2.3 `parseSolverResponse(raw: string)` — **the named framing seam.**
       Rejects anything that is not exactly one well-formed JSON line: two
       lines, trailing text after a valid line, empty stdout, an unknown
