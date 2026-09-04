@@ -19,9 +19,9 @@ import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
+import { SavedPlanService } from './saved-plan.service';
 import { bodySha256 } from './saved-plan-integrity';
 import { schedulePlanInput } from './saved-plan-schedule';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
