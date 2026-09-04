@@ -20,7 +20,7 @@ import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
 import { SavedPlanService } from './saved-plan.service';
-import { bodySha256 } from './saved-plan-integrity';
+import { bodySha256, UnknownSavedPlanBodyVersionError } from './saved-plan-integrity';
 import { schedulePlanInput } from './saved-plan-schedule';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -342,6 +342,47 @@ describe('reading a saved plan back', () => {
       expect(read.plan.name).toBe('no schedule: pending');
       expect(read.plan.createdAt).toBe(OPENED_AT);
     });
+  });
+
+  it('throws, naming the version, when a stored body is at one this reader does not know (5.5)', async () => {
+    // The wiring 5.5's pure tests cannot see. A THROW rather than a `corrupt`
+    // outcome, and deliberately so: 5.1b and 5.2 are facts about one record, and
+    // an unknown version is a fact about the build — every record at that
+    // version is unreadable here, so the honest report is that this reader is
+    // too old.
+    await saveUnderTheOlderAlgorithm();
+    reader.db.run(`UPDATE saved_plan SET input_schema_version = 99 WHERE id = 'sp-1'`);
+
+    let thrown: unknown;
+    try {
+      await service().read('sp-1');
+    } catch (failure) {
+      thrown = failure;
+    }
+    expect(thrown).toBeInstanceOf(UnknownSavedPlanBodyVersionError);
+    if (!(thrown instanceof UnknownSavedPlanBodyVersionError)) return;
+    expect(thrown.version).toBe(99);
+    expect(thrown.body).toBe('input');
+    expect(thrown.savedPlanId).toBe('sp-1');
+  });
+
+  it('checks the schedule body\'s version too, not just the input\'s', async () => {
+    // Two columns, two checks. A reader that only guarded the input would parse
+    // an unknown schedule body optimistically, which is the exact slip 5.5's
+    // negative describes.
+    await saveUnderTheOlderAlgorithm();
+    reader.db.run(`UPDATE saved_plan SET schedule_schema_version = 99 WHERE id = 'sp-1'`);
+
+    let thrown: unknown;
+    try {
+      await service().read('sp-1');
+    } catch (failure) {
+      thrown = failure;
+    }
+    expect(thrown).toBeInstanceOf(UnknownSavedPlanBodyVersionError);
+    if (!(thrown instanceof UnknownSavedPlanBodyVersionError)) return;
+    expect(thrown.body).toBe('schedule');
+    expect(thrown.version).toBe(99);
   });
 
   it('watched negative: restating one hash over the damage does not launder the record', async () => {

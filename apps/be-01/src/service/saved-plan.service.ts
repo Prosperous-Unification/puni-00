@@ -18,7 +18,13 @@ import { bodyByteLength } from '../repository/saved-plan';
 import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { planInputRowsOf } from './saved-plan-input';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
-import { verifyBody, verifyScheduleLink } from './saved-plan-integrity';
+import {
+  assertKnownBodyVersion,
+  SUPPORTED_INPUT_BODY_VERSIONS,
+  SUPPORTED_SCHEDULE_BODY_VERSIONS,
+  verifyBody,
+  verifyScheduleLink,
+} from './saved-plan-integrity';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from './saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA, holdingRefusal } from './saved-plan-quota';
 import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
@@ -330,6 +336,15 @@ export class SavedPlanService {
  */
 function readOfStored(stored: StoredSavedPlan): SavedPlanReadOutcome {
   const header = stored.header;
+  // Task 5.5, and **before** the hash check on purpose: a body this reader
+  // cannot parse is unreadable whether or not its bytes are intact, and
+  // recomputing a digest first would answer a question nobody can act on.
+  assertKnownBodyVersion(
+    header.id,
+    'input',
+    header.inputSchemaVersion,
+    SUPPORTED_INPUT_BODY_VERSIONS,
+  );
   const inputRefusal = verifyBody(header.id, 'input', stored.bodies.input, header.inputSha256);
   if (inputRefusal !== null) return { outcome: 'corrupt', refusal: inputRefusal };
   // Narrowed by the check above rather than asserted: `verifyBody` returns a
@@ -378,6 +393,12 @@ function scheduleOfStored(
       schedule: { present: false, absentReason: header.scheduleAbsentReason ?? 'unavailable' },
     };
   }
+  assertKnownBodyVersion(
+    header.id,
+    'schedule',
+    header.scheduleSchemaVersion,
+    SUPPORTED_SCHEDULE_BODY_VERSIONS,
+  );
   const refusal = verifyBody(header.id, 'schedule', stored.bodies.schedule, header.scheduleSha256);
   if (refusal !== null) return { outcome: 'corrupt', refusal };
   // Task 5.2, and it runs **after** the byte check rather than instead of it:

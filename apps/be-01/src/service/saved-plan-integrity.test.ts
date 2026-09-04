@@ -2,7 +2,17 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'bun:test';
 
-import { bodySha256, verifyBody } from './saved-plan-integrity';
+import { CANONICAL_PLAN_INPUT_SCHEMA_VERSION } from '@wbs/domain';
+
+import {
+  assertKnownBodyVersion,
+  bodySha256,
+  SUPPORTED_INPUT_BODY_VERSIONS,
+  SUPPORTED_SCHEDULE_BODY_VERSIONS,
+  UnknownSavedPlanBodyVersionError,
+  verifyBody,
+} from './saved-plan-integrity';
+import { SCHEDULE_BODY_SCHEMA_VERSION } from './saved-plan-schedule-body';
 
 /**
  * Task 5.1b, without a database.
@@ -64,5 +74,60 @@ describe('verifyBody', () => {
     // buffer.
     expect(utf8).not.toBe(latin1);
     expect(bodySha256(emoji)).toBe(utf8);
+  });
+});
+
+/**
+ * Task 5.5 — the version rule, as a property rather than as today's constant.
+ *
+ * `supported` is a parameter precisely so both clauses can be tested without
+ * inventing a schema version that does not exist yet: the "reader has moved to
+ * n+1" case is a list holding both, and the unknown case is a version outside
+ * it.
+ */
+describe('assertKnownBodyVersion', () => {
+  it('accepts a body at an older version the reader still knows', () => {
+    // The first clause, and the one a check against the current constant alone
+    // would break: every record written before a bump must keep reading.
+    expect(() => {
+      assertKnownBodyVersion('sp-1', 'input', 1, [1, 2]);
+    }).not.toThrow();
+  });
+
+  it('throws naming the plan, the body and the version it does not know', () => {
+    let thrown: unknown;
+    try {
+      assertKnownBodyVersion('sp-1', 'schedule', 3, [1, 2]);
+    } catch (failure) {
+      thrown = failure;
+    }
+    expect(thrown).toBeInstanceOf(UnknownSavedPlanBodyVersionError);
+    if (!(thrown instanceof UnknownSavedPlanBodyVersionError)) return;
+    // Named, not merely detected: a reader looking at this in a log has to know
+    // which record and which half, and what this build would have accepted.
+    expect(thrown.savedPlanId).toBe('sp-1');
+    expect(thrown.body).toBe('schedule');
+    expect(thrown.version).toBe(3);
+    expect(thrown.supported).toEqual([1, 2]);
+    expect(thrown.message).toContain('3');
+    expect(thrown.message).toContain('sp-1');
+  });
+
+  it('never defaults an unknown version to the newest it knows (R5)', () => {
+    // The negative 5.5 names — "parse optimistically and watch the unknown
+    // version slip through" — as an assertion rather than a hope: a version
+    // BELOW the supported floor is exactly what an optimistic reader would nod
+    // through as "old, must be fine".
+    expect(() => {
+      assertKnownBodyVersion('sp-1', 'input', 0, [1, 2]);
+    }).toThrow(UnknownSavedPlanBodyVersionError);
+  });
+
+  it('knows the version this build writes, on both sides', () => {
+    // The guard that keeps the two lists honest. A bump that forgets to add
+    // itself makes every plan saved by that build unreadable by it, which is a
+    // failure nothing else here would catch.
+    expect(SUPPORTED_INPUT_BODY_VERSIONS).toContain(CANONICAL_PLAN_INPUT_SCHEMA_VERSION);
+    expect(SUPPORTED_SCHEDULE_BODY_VERSIONS).toContain(SCHEDULE_BODY_SCHEMA_VERSION);
   });
 });

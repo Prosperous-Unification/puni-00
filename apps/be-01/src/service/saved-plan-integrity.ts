@@ -112,3 +112,65 @@ export function verifyScheduleLink(
     inputSha256,
   };
 }
+
+/**
+ * The versions of each body this build knows how to read.
+ *
+ * A **set per side**, not the current constant, because the two clauses of task
+ * 5.5 pull in opposite directions: a body written at version *n* has to keep
+ * reading after the reader moves to *n+1*, and a version the reader has never
+ * heard of has to fail loudly. Comparing against
+ * `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` alone would satisfy the second clause by
+ * breaking the first — every record written before the bump becomes unreadable
+ * the moment the constant moves, which is the opposite of what a saved plan is
+ * for. So the current constant is one member of these lists and a bump adds to
+ * them rather than replacing them; removing a member is a deliberate decision
+ * about records that already exist (design.md, "Cross-version diffs normalise
+ * forward only").
+ */
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1];
+export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1];
+
+/**
+ * A stored body written under a schema version this build does not know.
+ *
+ * A **throw**, where 5.1b and 5.2 are typed refusals in the outcome union, and
+ * the asymmetry is deliberate: those are facts about one record — this plan's
+ * bytes are damaged, this plan's dates belong elsewhere — and a route maps them
+ * to an answer about that plan. An unknown version is a fact about the *build*:
+ * every record at that version is unreadable here, and the honest report is
+ * that this reader is too old, not that one saved plan is broken. R5's rule
+ * covers both: malformed trusted data is never defaulted away.
+ */
+export class UnknownSavedPlanBodyVersionError extends Error {
+  constructor(
+    readonly savedPlanId: string,
+    readonly body: SavedPlanBodyKind,
+    readonly version: number,
+    readonly supported: readonly number[],
+  ) {
+    super(
+      `saved plan ${savedPlanId}: ${body} body is at schema version ${String(version)}, ` +
+        `which this reader does not know (knows ${supported.map(String).join(', ')})`,
+    );
+    this.name = 'UnknownSavedPlanBodyVersionError';
+  }
+}
+
+/**
+ * Throws unless the version is one this reader knows.
+ *
+ * `supported` is a parameter rather than read off the constants inside, so the
+ * *property* — an older member passes, a stranger throws — is testable without
+ * inventing a schema version that does not exist yet. The production call sites
+ * pass the two lists above.
+ */
+export function assertKnownBodyVersion(
+  savedPlanId: string,
+  body: SavedPlanBodyKind,
+  version: number,
+  supported: readonly number[],
+): void {
+  if (supported.includes(version)) return;
+  throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+}
