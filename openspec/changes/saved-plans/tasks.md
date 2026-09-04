@@ -125,8 +125,8 @@ comparison UI) and start only after slice 6 is merged.
       exist here and the real one is worse; the topology was read off the
       checkout on 2026-09-03 and is recorded in design.md under "The topology
       found". In short: `boot.ts:64` opens exactly one connection for the whole
-      process, `bun:sqlite` has no pool, and every store read opens with `await
-    Promise.resolve()` — a real microtask yield before the query. A
+      process, `bun:sqlite` has no pool, and every store read opens with
+      `await Promise.resolve()` — a real microtask yield before the query. A
       `BEGIN DEFERRED` held on that shared handle therefore encloses every
       statement any other in-flight request issues until it commits, which makes
       a stranger's write the capture's to commit or to roll back. Take the
