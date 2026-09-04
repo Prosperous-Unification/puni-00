@@ -1471,7 +1471,13 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
       // so this is the sequence that discriminates the scope rather than one
       // that merely holds under it.
       allocateGeneration(openDrizzle(db.path), 'p-1', green.contractVersion, HASH, 2);
-      const second = allocateGeneration(openDrizzle(db.path), 'p-1', green.contractVersion, 'h2', 3);
+      const second = allocateGeneration(
+        openDrizzle(db.path),
+        'p-1',
+        green.contractVersion,
+        'h2',
+        3,
+      );
       expect(second).toBe(2);
 
       const stillBlue = recorder();
