@@ -2339,6 +2339,16 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       of the real one and (i) must fail by publishing the worse schedule as
       `'solver'`; move the guard after the cache write and (i) must fail with a
       `'solver'` row already durable.
+      **STEP (b)'s SCORER LANDED RUN 41 CHUNK 4.** `scoreReal` in
+      `libs/domain/src/score-real.ts` is the real-domain half of this item: the
+      three terms as plain `number`s, accumulated over the SORTED key list so
+      the guard's two sides share one summation order — `Schedule.slices` is
+      written in placement order and the two schedules do not share it, so an
+      epsilon-free `>` over two differently-ordered float sums could substitute
+      Fast for an answer that was not worse. Three mutations, each reddening
+      exactly one case: iterate the `Map`, weight the START instead of the
+      finish, drop the `Math.abs`. What is still owed here is everything else —
+      steps (a) and (c), the two fixtures, and the three watched reds above.
 - [ ] 4.12b The cached row stores an **`OptimizedResult`, not a bare schedule**
       (Sol r7 Critical 6). `objectiveValues` is what records how far a
       partially staged run got, and the publication guard must persist
@@ -2416,11 +2426,18 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       504, 538, 583). What is not asserted is the **scorer** half: the floor
       row's reloaded `value` bit-equal to `scoreReal` re-run on the reloaded
       Fast schedule, and the stored schedule equal to Fast's for a width-5
-      row. `scoreReal` does not exist in the tree yet — no symbol by that name
-      is defined anywhere — so the case cannot be written, and the db test says
-      so in its own comment rather than asserting against a fixture and
-      calling it the scorer. Tick this only when that function exists and the
-      case runs against it.
+      row. **`scoreReal` now exists** — `libs/domain/src/score-real.ts`, landed
+      run 41 chunk 4 — so the blocker this paragraph named is gone and only the
+      case is owed. Its shape:
+      `scoreReal(produced, weightOf, baselineStartOf)` returns
+      `{ makespan, priority, movement }` as plain `number`s, with the weight and
+      the baseline arriving as callbacks because a weight is a dense rank over
+      LEAVES while these keys name SLICES. It accumulates over
+      `[...produced.slices.keys()].sort()` and **not** over the `Map`, whose
+      order is the placement order: the optimized replay and real Fast place the
+      same slices in different orders by construction, IEEE-754 addition is not
+      associative, and 4.11b's predicate is an epsilon-free `>` that one ulp of
+      iteration order would decide. Tick this when the case runs against it.
 - [x] 4.11c **The capacity arrow's referent is the chosen pool, and it is
       tested** (Sol r13 Minor 5 renumbered this from a duplicate `4.11b`;
       `4.11b` is the real-domain publication guard and is referenced as such

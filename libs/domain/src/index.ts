@@ -42,6 +42,10 @@ export * from './progress';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+// The real-domain scorer (tasks.md 4.11b, 4.12b), beside `schedule` because it
+// reads nothing but a `Schedule` and exists so the publication guard's two
+// sides are summed over the same slices in the same order.
+export * from './score-real';
 // The cache payload's own seam (tasks.md 4.12), beside `schedule` because it is
 // the inverse of what `schedule()` returns and nothing else may encode one: a
 // `Map` renders as `{}` under `JSON.stringify`, so a second implementation would
