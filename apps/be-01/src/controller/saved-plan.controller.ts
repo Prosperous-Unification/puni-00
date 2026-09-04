@@ -173,9 +173,19 @@ function refuseUnknownBodyVersion({
  *
  * The announcement is deliberately **not** conditional on the caller: every
  * successful save, rename and delete publishes, including the actor's own. The
- * actor's client will drop it as an echo of a read it has already done, and the
  * alternative — a broadcaster that knows who asked — would put an identity into
  * a transport contract that has never carried one.
+ *
+ * What the actor's client does with its own event is **re-read on it**, not drop
+ * it as an echo; this comment said the opposite until Sol's Minor on PR 204.
+ * The distinction is not pedantic, because the echo story implies the actor is
+ * already up to date and there is nothing left to solve. There is: the actor
+ * waits for their own event to reach gw-01 and come back before the row they
+ * just created appears, at the one moment the shelf is most obviously wrong.
+ * That is closed on the client and not here — `watchShelf` returns a `refresh`
+ * for the call site to drive directly, and its superseded-answer guard is what
+ * makes that refresh safe racing the broadcast (`fe-01`'s
+ * `lib/saved-plan-shelf.ts`).
  *
  * Refusals publish nothing, and that is the whole of the ordering rule this
  * needs: the event is emitted on exactly the branches that changed the list.

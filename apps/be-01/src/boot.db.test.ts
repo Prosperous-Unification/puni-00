@@ -11,6 +11,7 @@ import type { OidcRouteOptions } from './controller/auth.controller';
 import { runMigrations } from './repository/migrate';
 import type { AuthenticatedUser } from './service/auth.service';
 import type { GatewayBroadcaster } from './service/gateway-broadcaster';
+import type { WriteLock } from './service/write-lock';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -182,13 +183,25 @@ describe('bootBe01', () => {
     //
     // Proof it is not a restatement: `boot.ts` line 75 mutated to
     // `lock: new WriteLock()` with line 126 left alone, which is a healthy pair
-    // of locks and the exact split this guards. The batch below then answers
-    // while the broadcaster's turn is still held and the wait assertion fails.
+    // of locks and the exact split this guards. The race below then resolves the
+    // wrong way round.
     //
     // Read off the real objects at both ends: the lock comes from the
     // broadcaster `buildServices` constructed, and the waiting is done by the
     // runner `buildApp` constructed, reached over its own HTTP route. Nothing
     // here rebuilds the wiring it is checking.
+    //
+    // **It is an ordering race and not an elapsed-time sample, and the
+    // difference is the whole test.** A fixed sleep followed by "has it answered
+    // yet?" says nothing about *why* it had not: under the split mutation the
+    // request can lose the sample to a descheduled process, GC, loopback accept
+    // or Elysia's two auth passes and the case goes green while the invariant is
+    // broken — a false green on the sole regression protecting it. Sol's second
+    // Important on PR 204. So the barrier is the runner's own arrival at THIS
+    // lock object, observed by wrapping the instance's `run` for the length of
+    // the request. One lock: the wrapper fires and the response is still
+    // pending. Split lock: the runner takes the other object, the wrapper never
+    // fires, and the 200 wins the race.
     const be = boot(undefined, undefined, {
       id: 'local-dev',
       username: 'local-dev',
@@ -211,28 +224,47 @@ describe('bootBe01', () => {
     const taken = new Promise<void>((resolve) => {
       announceTaken = resolve;
     });
-    const turn = broadcaster.lock.run(async () => {
+    const lock = broadcaster.lock;
+    const turn = lock.run(async () => {
       announceTaken();
       await held;
     });
     await taken;
 
-    let answered = false;
+    // The seam, installed only after the turn is held so the wrapper cannot see
+    // this test's own call: an own property shadowing the prototype method for
+    // the length of the request, removed in `finally`.
+    let announceReached!: () => void;
+    const reached = new Promise<void>((resolve) => {
+      announceReached = resolve;
+    });
+    const seam = lock as { run?: WriteLock['run'] };
+    const real = lock.run.bind(lock);
+    seam.run = <T>(work: () => Promise<T>): Promise<T> => {
+      announceReached();
+      return real(work);
+    };
+
     // An empty batch: `execute` takes the lock before it looks at the commands
     // at all, so nothing else needs to exist for this route to queue on it.
     const batch = fetch(`http://localhost:${String(be.port)}/api/directory/commands`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ commands: [] }),
-    }).then((res) => {
-      answered = true;
-      return res;
     });
-    await Bun.sleep(250);
+    let first: 'the runner queued on this lock' | 'the batch answered first';
+    try {
+      first = await Promise.race([
+        reached.then(() => 'the runner queued on this lock' as const),
+        batch.then(() => 'the batch answered first' as const),
+      ]);
+    } finally {
+      delete seam.run;
+      release();
+    }
 
-    expect(answered).toBe(false);
+    expect(first).toBe('the runner queued on this lock');
 
-    release();
     await turn;
     const res = await batch;
     expect(res.status).toBe(200);
