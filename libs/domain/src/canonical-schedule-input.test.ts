@@ -489,6 +489,53 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
     });
   });
 
+  /**
+   * The one case here that is deliberately **not** one-mutation-per-fact, and
+   * 1.9's watched-red sweep is the reason it exists.
+   *
+   * `rows[].id` and `slices[].workItemId` are the two fields the sweep could
+   * not redden on their own — 24 pass / 0 fail each — and they are **mutually
+   * redundant**, provably rather than accidentally:
+   *
+   * - the rows entry is sorted by `id`, so once the id **set** is known the
+   *   payload sequence names its owners by position;
+   * - `schedule()` refuses a leaf with no slice at all (`no slice for work item
+   *   z`, probed directly), so the slice-bearing work items are **exactly** the
+   *   leaves, and the groups are sorted by the same ids;
+   * - every non-leaf id appears as some child's `parentId`.
+   *
+   * So with `id` present the group labels are recoverable, and with the labels
+   * present the ids are. Neither can be given an isolated red, and pretending
+   * otherwise with a case that quietly moves a second field would be worse than
+   * saying so.
+   *
+   * What they carry **jointly** is the one edit that touches nothing else: a
+   * work item's identity. `c` becomes `d` at the same position, priority,
+   * parent and estimate — the whole plan's arithmetic is unchanged and every
+   * date is where it was, but a schedule is keyed by `sliceKey`, so the row a
+   * caller reads under `c` is now under `d`. Removing either field alone leaves
+   * this case green; removing both collides it.
+   */
+  it('a work item renamed, which only id and workItemId together can see', () => {
+    const mutated: ScheduleInput = {
+      ...BASE,
+      rows: [
+        row('p', null, 10, 3),
+        row('a', 'p', 1, 7),
+        row('b', null, 20, 9),
+        row('d', null, 30, 9),
+      ],
+      slices: [
+        step('a', 'design', 2),
+        step('a', 'build', 3),
+        step('b', null, 2),
+        step('d', null, 2),
+      ],
+    };
+    expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(BASE));
+    expect(run(mutated)).not.toEqual(run(BASE));
+  });
+
   describe('mutations the hash is deliberately stricter about than today’s engine', () => {
     /**
      * The as-written priority on a parent that binds no leaf. Every leaf
