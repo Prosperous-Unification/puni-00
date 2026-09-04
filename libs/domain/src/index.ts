@@ -52,6 +52,11 @@ export * from './canonical-schedule-input';
 // reads nothing but a `Schedule` and exists so the publication guard's two
 // sides are summed over the same slices in the same order.
 export * from './score-real';
+// The publication guard the scorer above exists for (tasks.md 4.11b). Here
+// because step (a) is a `schedule()` call over the run's own canonical input:
+// computing the Baseline anywhere else would mean a caller could satisfy the
+// type while comparing against another plan's answer.
+export * from './publication-guard';
 // The cache payload's own seam (tasks.md 4.12), beside `schedule` because it is
 // the inverse of what `schedule()` returns and nothing else may encode one: a
 // `Map` renders as `{}` under `JSON.stringify`, so a second implementation would
