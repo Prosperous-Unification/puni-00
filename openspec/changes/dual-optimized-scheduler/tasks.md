@@ -2002,7 +2002,7 @@ review`, no self-merge.
       the predicate's own unit case and 4.1's superseded-writer case. Dropping
       the cancel-epoch comparison instead reddens a disjoint three, which is
       what makes the split above worth having.
-- [ ] 4.8 `isOptimizedStatus` / `isObjective` / `isFailureReason` validators on
+- [x] 4.8 `isOptimizedStatus` / `isObjective` / `isFailureReason` validators on
       the cache read path, throwing rather than casting or defaulting.
       **Watched red:** an unknown value for each, injected as a stored row.
       A row whose `resultJson` fails to decode is **left in place**, not
@@ -2018,6 +2018,23 @@ review`, no self-merge.
       payload reads `corrupt` with the reason, ten reads spawn nothing, one
       Retry produces exactly one child; then restore the delete-and-miss
       behaviour and the spawn-count case must fail.
+
+      **Closed run 37 chunk 6.** All three validators were already wired into
+      `toOptimizedScheduleCacheRow` and only `objective` had a case; `status`
+      and `failure_reason` now have their own, each injected past the column
+      `CHECK` with `PRAGMA ignore_check_constraints = ON` — the constraint is
+      the first fence and the validator is the second, and this item is a claim
+      about the second. Removing each guard in turn reddens exactly its own
+      case, 53 / 0 down to 52 / 1 three times.
+      The corrupt half's spawn-count case landed too: ten reads of a
+      wrong-`dtoVersion` row ask for nothing and leave both rows in place, and
+      one Retry asks for exactly that objective.
+      **Second watched red:** `corrupt()` rewritten to return `MISS` — the
+      delete-and-miss behaviour this replaced — takes 54 / 0 to **47 / 7**,
+      the ten-read case among them. Seven is the honest number and not a
+      failure of scoping: every case that reads a payload the decoder refuses
+      is a case about this function, and there are six of them besides the
+      spawn count.
 - [ ] 4.9 `materialiseOptimized(canonicalInput, offsets)` in `libs/domain`
       is what produces the `schedule` member of `resultJson`; the offsets map
       is never persisted or
