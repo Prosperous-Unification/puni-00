@@ -146,12 +146,7 @@ describe('the watched red — 2.1 names one sentence the check SHALL reject', ()
       allVocabularies(schema),
     );
     expect(divergences).toHaveLength(1);
-    const only = must(divergences[0], 'the only divergence') as {
-      rule: string;
-      vocabulary: string;
-      unexpected: string[];
-      message: string;
-    };
+    const only = must(divergences[0], 'the only divergence');
     expect(only.rule).toBe('b');
     expect(only.vocabulary).toBe('slice');
     expect(only.unexpected).toEqual(['sliceKey']);
@@ -221,12 +216,7 @@ describe('the brace form is the one both design.md and spec.md actually use', ()
     const only = must(
       checkArtifact(text, 'fixture.md', allVocabularies(schema))[0],
       'the only divergence',
-    ) as {
-      rule: string;
-      missing: string[];
-      unexpected: string[];
-      line: number;
-    }[];
+    );
     expect(only.rule).toBe('a');
     expect(only.unexpected).toEqual(['proof']);
     expect(only.missing).toEqual(['status']);
@@ -255,11 +245,7 @@ describe('rules (b) and (c), and the tags themselves', () => {
     const only = must(
       checkArtifact(text, 'f.md', allVocabularies(schema))[0],
       'the only divergence',
-    ) as {
-      rule: string;
-      vocabulary: string;
-      unexpected: string[];
-    };
+    );
     expect(only.rule).toBe('b');
     expect(only.unexpected).toEqual(['smuggled']);
   });
