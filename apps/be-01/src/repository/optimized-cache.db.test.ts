@@ -1062,6 +1062,80 @@ describe("4.1's conditional write, with all four conditions composed", () => {
    * `failed`. The primary key omits `generation`, so the two collide by
    * construction and the insert is conditional rather than an upsert.
    */
+  /**
+   * tasks.md 4.6, the ABA fence. Run hash A, edit to B — which allocates and
+   * so cancels A — then undo to A. The plan is back where it was and the key is
+   * character-for-character the one the original child was admitted against;
+   * only the generation says that child belongs to a run nobody is waiting for.
+   * Its write is refused, the current answer is untouched, and nothing is
+   * deleted on the way past.
+   *
+   * **The cancel epoch is deliberately NOT bumped here.** Both predicates would
+   * refuse this write, and a case that trips two fences proves neither: 4.7's
+   * watched red removes the generation predicate and must see this fail, which
+   * it cannot if the epoch is also refusing. The epoch's own arm is the case
+   * below.
+   *
+   * Recorded so the boundary is not mistaken for the whole claim: no event is
+   * emitted because nothing at this layer emits one. Events are slice 7's, and
+   * the assertion that a refused write publishes nothing belongs with them.
+   */
+  it('refuses the original child after an undo restores its hash, and touches nothing', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+
+      // A is edited to B, which allocates; the undo allocates again. The
+      // original child is still holding a generation-1 admission.
+      expect(allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 10)).toBe(2);
+      expect(allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, HASH, 20)).toBe(3);
+
+      // The answer the current generation has, which must survive the refusal.
+      storeRow(db.path, {
+        objective: 'time',
+        generation: 3,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        failureReason: null,
+      });
+      const before = storedRowCount(db.path);
+
+      expect(commit(db.path, { kind: 'ok', result: solverResult(realPlan()) })).toBe('superseded');
+
+      expect(storedRowCount(db.path)).toBe(before);
+      const pair = read(db.path);
+      expect(pair.time.kind).toBe('ok');
+      // And the resurrected child wrote nothing of its own.
+      expect(pair.pri).toEqual({ kind: 'miss' });
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /** The same refusal reached through the cancel epoch, with the generation unmoved. */
+  it('refuses a child whose run was cancelled even when its generation still stands', () => {
+    const db = tempDb();
+    try {
+      admitted(db.path);
+      bumpCancelEpoch(db.path);
+      storeRow(db.path, {
+        objective: 'time',
+        generation: 1,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        failureReason: null,
+      });
+      const before = storedRowCount(db.path);
+
+      expect(commit(db.path, { kind: 'ok', result: solverResult(realPlan()) })).toBe('superseded');
+
+      expect(storedRowCount(db.path)).toBe(before);
+      expect(read(db.path).time.kind).toBe('ok');
+    } finally {
+      db.cleanup();
+    }
+  });
+
   it('does not overwrite a stored ok with a failed for the same key', () => {
     const db = tempDb();
     try {
