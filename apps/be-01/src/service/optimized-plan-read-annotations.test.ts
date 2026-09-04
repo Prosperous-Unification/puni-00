@@ -472,11 +472,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     const alpha = await leaf('Alpha tenant', 4, ALPHA);
     const beta = await leaf('Beta tenant', 6, BETA);
     const pinned = await multiPoolLeaf('Pinned', 2, [ALPHA, BETA]);
-    // Its own zero-duration QA slice moves with it, chunk 2's fixture rule.
-    const tree = await servedBy({
-      [sliceKey(pinned, stepId)]: units(6),
-      [sliceKey(pinned, laterStepId)]: units(8),
-    });
+    const tree = await servedBy({ [sliceKey(pinned, stepId)]: units(6) });
 
     const held = slicedFor(tree, pinned);
     expect(held).toMatchObject({
