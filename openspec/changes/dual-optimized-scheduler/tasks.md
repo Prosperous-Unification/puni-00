@@ -203,6 +203,21 @@ check-that-cannot-fail failure R5 names.
       requirement is void rather than met — `schedule-identity.test.ts` keeps its
       own generator and its differential role, unchanged. (c) waits on 4.9's
       signature change, per the correction above.
+      **Two cases added the same run (`c3d6a1d3`) against
+      `contract-version.ts`'s own bump list**, which is the right coverage
+      question for this corpus: not "is a plan represented" but "can each named
+      semantic be seen". `anchor-slice-reach` closes `reach`, which four
+      one-slice-per-item cases structurally cannot see — both arms agree until a
+      work item has two steps, and stored under `anchor-slice` the successor's
+      first step starts at 2 (its predecessor's *anchor*) rather than at 5 (the
+      whole item). `fractional-duration` closes the `days / width` arm of
+      `durationOf` and the snapping after it: 5 days across width 2 stores
+      `duration: 2.5` and a finish at 3.5, which a corpus of whole numbers
+      cannot tell apart from a rule that rounds. **Watched red for the new
+      case:** flip that case to `whole-item` → **379 pass / 1 fail**, the one
+      being the byte comparison. Still uncovered and named rather than claimed:
+      `snapWorkdays` and numbering semantics have no case aimed at them, and
+      `SOLVER_QUANTUM` is not a `schedule()` input at all.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
