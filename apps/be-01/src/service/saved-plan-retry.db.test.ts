@@ -2,8 +2,6 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { and, eq } from 'drizzle-orm';
-
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -126,17 +124,19 @@ describe('a refused save retried inside its budget saves the project as it is th
   const headerIds = async (): Promise<string[]> =>
     (await reader.db.select().from(savedPlan)).map((row) => row.id).sort();
 
+  // Selected whole and narrowed in TypeScript rather than in SQL: `drizzle-orm`
+  // is import-restricted outside `repository/`, and the fixture holds two rows,
+  // so a `where` would buy nothing but the lint error.
   const createdAtOf = async (id: string): Promise<number> => {
-    const rows = await reader.db.select().from(savedPlan).where(eq(savedPlan.id, id));
+    const rows = (await reader.db.select().from(savedPlan)).filter((row) => row.id === id);
     if (rows.length !== 1) throw new Error(`expected one ${id} header, got ${String(rows.length)}`);
     return rows[0].createdAt;
   };
 
   const inputBytesOf = async (id: string): Promise<string> => {
-    const rows = await reader.db
-      .select()
-      .from(savedPlanBody)
-      .where(and(eq(savedPlanBody.savedPlanId, id), eq(savedPlanBody.kind, 'input')));
+    const rows = (await reader.db.select().from(savedPlanBody)).filter(
+      (row) => row.savedPlanId === id && row.kind === 'input',
+    );
     if (rows.length !== 1) throw new Error(`expected one ${id} input body`);
     return rows[0].bytes;
   };
