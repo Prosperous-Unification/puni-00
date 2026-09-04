@@ -99,6 +99,69 @@ describe('the order Fast hands the backward pass', () => {
     expect(a.critical).toBe(true);
   });
 
+  /**
+   * 4.10b's **optimized** arm, which is the half run 39 left open.
+   *
+   * The materialiser drains the same eligible set, but its comparator is
+   * `(pinned start, canonical order)` rather than Fast's priority one — so on
+   * this fixture the comparator alone would order `a` before `z`: both are
+   * pinned at 0 and `a`'s key sorts first. It does not, and the reason is the
+   * same structural one as Fast's: the eligible set is Kahn's ready set, so `z`
+   * is admitted first and `a` only once `z` is placed. The two are never in the
+   * set together and the comparator never gets to invert them.
+   *
+   * That is what makes this case worth its own `it` rather than a repeat: it is
+   * the one fixture where the OPTIMIZED comparator, read on its own, gives the
+   * wrong answer.
+   */
+  it('drains the same fixture topologically under a pinned-starts comparator', () => {
+    const rows = [item('z'), item('a')];
+    const edges = [edge('z', 'a')];
+    const slices = [slice('z', 0), slice('a', 2)];
+    const fast = schedule(rows, edges, slices);
+
+    const pinned = schedule(
+      rows,
+      edges,
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      // Fast's own starts, so the only thing that can differ is the ORDER the
+      // backward pass was handed.
+      new Map([
+        [sliceKey('z', DEV), 0],
+        [sliceKey('a', DEV), 0],
+      ]),
+    );
+
+    // Read on its own the pinned comparator prefers `a`: equal starts, and the
+    // canonical order is the tie-break. Kahn is what overrules it.
+    expect(sliceKey('a', DEV) < sliceKey('z', DEV)).toBe(true);
+
+    for (const id of ['z', 'a']) {
+      const before = planned(fast, id);
+      const after = planned(pinned, id);
+      expect({
+        id,
+        earliestStart: after.earliestStart,
+        latestStart: after.latestStart,
+        latestFinish: after.latestFinish,
+        float: after.float,
+        critical: after.critical,
+        boundBy: after.boundBy,
+      }).toEqual({
+        id,
+        earliestStart: before.earliestStart,
+        latestStart: before.latestStart,
+        latestFinish: before.latestFinish,
+        float: before.float,
+        critical: before.critical,
+        boundBy: before.boundBy,
+      });
+    }
+  });
+
   it('keeps every resource-successor edge pointing forwards in that order', () => {
     // A person's queue is the edge Fast adds to the graph that is not in the
     // plan, and it is the other half of "topological over the **augmented**
