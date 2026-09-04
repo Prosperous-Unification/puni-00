@@ -190,6 +190,39 @@ const PARALLEL: ScheduleInput = {
   deadlines: new Map(),
 };
 
+/**
+ * A fifth base, for 1.9's `parentId` reparenting.
+ *
+ * `parentId` is the one field in (a) that reaches a placement without being
+ * read by the placement at all: it decides **which leaves an authored edge
+ * expands to**. The edge here is authored on the parent `P`, and under
+ * `whole-item` reach it lands on every leaf `P` owns — so moving a leaf into
+ * `P` hands it a predecessor it never named, and moving one out takes one away.
+ *
+ * Nothing else in the row may change, which is why the base carries no
+ * priorities and no pools: an inherited priority or a shared queue would give
+ * the reparenting a second route to the same placement and the case would stop
+ * being about leaf expansion.
+ */
+const NESTED: ScheduleInput = {
+  rows: [
+    row('P', null, 10, null),
+    row('q', 'P', 10, null),
+    row('r', null, 20, null),
+    row('s', null, 30, null),
+  ],
+  edges: [{ predecessorId: 'r', successorId: 'P' }],
+  slices: [
+    { workItemId: 'q', stepId: null, days: 2, personId: null, width: 1, poolIds: [] },
+    { workItemId: 'r', stepId: null, days: 2, personId: null, width: 1, poolIds: [] },
+    { workItemId: 's', stepId: null, days: 2, personId: null, width: 1, poolIds: [] },
+  ],
+  notBefore: new Map(),
+  poolSizes: new Map(),
+  reach: 'whole-item',
+  deadlines: new Map(),
+};
+
 describe('canonicalScheduleInput / scheduleInputHash', () => {
   it('is a 64-character hex digest, and the same input twice is the same digest', () => {
     const digest = scheduleInputHash(BASE);
@@ -321,6 +354,54 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
       };
       expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(CHAINED));
       expect(run(mutated)).not.toEqual(run(CHAINED));
+    });
+
+    /**
+     * 1.9's `parentId` reparenting, on {@link NESTED}. `s` moves from the root
+     * into `P`, and every other field of every row stays byte-identical — no
+     * position, priority, slice or edge is touched.
+     *
+     * What moves is the **leaf expansion**: the authored edge `r → P` reaches
+     * whatever leaves `P` owns, so `s` inherits a predecessor it never named.
+     */
+    it('a leaf reparented under the edge’s successor — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...NESTED,
+        rows: [
+          row('P', null, 10, null),
+          row('q', 'P', 10, null),
+          row('r', null, 20, null),
+          row('s', 'P', 30, null),
+        ],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(NESTED));
+      expect(run(mutated)).not.toEqual(run(NESTED));
+    });
+
+    /**
+     * 1.9's `stepId` identity swap, and it is a different fact from the
+     * intra-item **order** swap at the top of this block. The order there moves
+     * the durations; here the array order and the durations both stay exactly
+     * as they were and only the two labels exchange places.
+     *
+     * A schedule is keyed by `sliceKey` — `workItemId` NUL `stepId` — so this
+     * moves every placement the caller can name: `design` was the two-day block
+     * at the front and is now the three-day block behind `build`. A canonical
+     * form that dropped `stepId` would hand out one cache key for two plans
+     * that disagree about which step is where.
+     */
+    it('two stepIds of one work item exchanged — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...BASE,
+        slices: [
+          step('a', 'build', 2),
+          step('a', 'design', 3),
+          step('b', null, 2),
+          step('c', null, 2),
+        ],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(BASE));
+      expect(run(mutated)).not.toEqual(run(BASE));
     });
 
     /**
