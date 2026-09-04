@@ -63,7 +63,7 @@ const work = (
 });
 
 /**
- * Six cases, chosen so each one can lose something a different engine change
+ * Seven cases, chosen so each one can lose something a different engine change
  * would break. A corpus of one plan is a corpus that only notices whatever that
  * plan happens to exercise.
  */
@@ -135,6 +135,26 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
     rows: [leaf('a', 10), leaf('b', 20)],
     edges: [{ predecessorId: 'a', successorId: 'b' }],
     slices: [work('a', 5, { width: 2 }), work('b', 1)],
+  },
+  {
+    // Float, and the `snapWorkdays` on it (`schedule.ts:1564-1599`). A diamond
+    // whose two branches are unequal gives the short one real slack, and thirds
+    // make that slack a repeating fraction — which is where a bare
+    // `latestStart - earliestStart` and a snapped one stop agreeing.
+    name: 'diamond-float-thirds',
+    rows: [leaf('a', 10), leaf('b', 20), leaf('c', 30), leaf('d', 40)],
+    edges: [
+      { predecessorId: 'a', successorId: 'b' },
+      { predecessorId: 'a', successorId: 'c' },
+      { predecessorId: 'b', successorId: 'd' },
+      { predecessorId: 'c', successorId: 'd' },
+    ],
+    slices: [
+      work('a', 1, { width: 3 }),
+      work('b', 4, { width: 3 }),
+      work('c', 1, { width: 3 }),
+      work('d', 2, { width: 3 }),
+    ],
   },
 ];
 
