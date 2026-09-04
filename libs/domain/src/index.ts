@@ -37,6 +37,11 @@ export * from './progress';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+// The cache payload's own seam (tasks.md 4.12), beside `schedule` because it is
+// the inverse of what `schedule()` returns and nothing else may encode one: a
+// `Map` renders as `{}` under `JSON.stringify`, so a second implementation would
+// store a plan that reloads empty and type-checks all the way down.
+export * from './schedule-cache-dto';
 // The slice graph's edges — the intra-item step chain and the reach-decided
 // join — beside the reach that decides one half of it. Here rather than in
 // `schedule.ts` because the solver request builder must derive the same graph,
