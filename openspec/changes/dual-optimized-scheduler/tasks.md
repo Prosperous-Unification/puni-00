@@ -1606,6 +1606,12 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
 
 ## 3b. Project settings columns and API (PROD MODE — reviewed PR, no self-merge)
 
+**This slice is on 4.1's critical path, not beside it (run 32).** 4.1's
+conditional insert cannot be written until `optimization_enabled` exists, so
+slice 4's write half is blocked here rather than on effort. Nothing else in
+slice 4 waits on it: the read half and three of the four write predicates
+landed without it.
+
 - [ ] 3b.1 Additive migration on `project`: `optimization_enabled` boolean not
       null default **false**, `schedule_engine` text not null default `'fast'`,
       and `schedule_objective` text not null default `'pri'` — **three
@@ -1670,6 +1676,18 @@ review`, no self-merge.
       version, the cancel epoch unchanged, and `optimization_enabled` still 1.
       A superseded run therefore cannot store, evict, overwrite an `ok` with a
       `failed`, or emit a second outcome record for one key.
+      **Order of work, measured by run 32 rather than assumed: the read half
+      and three of the four write predicates are landable today; the write
+      itself is not.** `readOptimizedPair`, `writerStillHolds` (the slot and
+      its `attemptToken`) and `admissionStillCurrent` (the generation and the
+      cancel epoch, read as one row so a concurrent allocation cannot land
+      between two lookups) are done and separately proved. The fourth
+      predicate, `optimization_enabled` still 1, reads a column **3b.1** adds
+      and which does not exist, so `3b.1 is a hard prerequisite of this item`,
+      not a parallel settings nicety — and it is a migration, so it ships as a
+      prod-mode reviewed PR before the insert can be written. Composing three
+      of four is explicitly forbidden here: it would read as finished while
+      admitting a write against a project whose optimization is switched off.
 - [ ] 4.1b Retention, both rules. (1) Allocation deletes that contract
       version's older-generation cache rows. (2) A committing outcome keeps the
       `MAX_LIVE_BUDGETS = 2` most recently written budgets for
