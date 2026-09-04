@@ -357,7 +357,7 @@ check-that-cannot-fail failure R5 names.
       `orderBy` deleted from the production path → **31 pass / 1 fail**, and the
       one failure is that test (green baseline 32 / 0; file restored, `dirty=0`).
       be-01 **1131 pass / 0 fail across 87 files** at `76a4864f`.
-- [ ] 1.8 The `ORDER BY` proof asserts the **raw argument tuple**, not the hash
+- [x] 1.8 The `ORDER BY` proof asserts the **raw argument tuple**, not the hash
       (Sol r7 Important 11). The earlier plan reversed the stub driver's rows
       and expected two different hashes through
       `listByProject` → `slicesOf` → `canonicalScheduleInput`; that fault is
@@ -372,8 +372,8 @@ check-that-cannot-fail failure R5 names.
       Fast's own order-sensitive output for that fixture. **Watched red:** drop
       the `ORDER BY` from 1.7 and both assertions must fail while the hash
       assertion in 1.3 stays green.
-      **The tuple half landed in run 13 chunk 6; the Fast-output half is refused
-      on this fixture and the reason is the item's own.** The seam decision went
+      **The tuple half landed in run 13 chunk 6 and the Fast-output half in run
+      14 chunk 1, on a second fixture; this item is closed.** The seam decision went
       the way `poolsFor` already set: `slicesOf` is now exported "for the tests
       alone", with a JSDoc naming this task, rather than the tuple being
       reassembled through the whole service plan read.
@@ -390,16 +390,48 @@ check-that-cannot-fail failure R5 names.
       fail", as written. The hash assertion in 1.3 stays green because it lives
       in `libs/domain` and cannot see a be-01 repository at all, which is the
       structural version of why it could never have been the proof here.
-      **Still owed, and named rather than quietly dropped:** the second
-      assertion on Fast's **own order-sensitive output** for this fixture. It is
-      not added because on *this* fixture it cannot fail — two unblocked leaves,
-      no edge, no pool and no estimate all start at day 0 whatever order they
-      arrive in, so a `serializeSchedule` assertion here would be a
-      check-that-cannot-fail, which is the exact fault this item was rewritten to
-      avoid. Making Fast's output order-sensitive needs the `inverted-numbering-tie`
-      shape — a tie on priority, start and float, and a pool of one to
-      separate them — which means a team and a capacity row in this db fixture.
-      That is the next chunk's work.
+      **The Fast-output assertion needs its OWN fixture, and the reason is
+      measured rather than argued.** On the tuple fixture it cannot fail — two
+      unblocked leaves, no edge, no pool and no estimate all start at day 0
+      whatever order they arrive in — so adding it there would have been the
+      check-that-cannot-fail this item was rewritten to avoid. Run 14 first
+      established *why* by probing `deriveNumbers` and `goesFirst` directly at
+      `705f1bc5`, and the answer is narrower than "an `inverted-numbering-tie`
+      shape": the number is the third of `goesFirst`'s four tie-breaks
+      (`schedule.ts:1940`) and `deriveNumbers` sorts each sibling group by
+      `position` (`derive-numbers.ts:117`), so with **distinct** positions the
+      labels are a function of `position` alone and the array order reaches
+      nothing. Probed both ways on two leaves over a one-slot pool: positions
+      `20`/`10` give `00000000… 2 → 4`, `ffffffff… 0 → 2` under **both** row
+      orders, byte-identical. So no fixture with distinct sibling positions can
+      carry this assertion, whatever else is tied.
+      **Tied positions are what make the row order a date**, because
+      `Array#sort` is stable: the group order — and therefore the labels — falls
+      back to the array order. Same probe, both positions `10`: id order gives
+      `00000000… = 010` taking the slot `0 → 2` with `ffffffff… 2 → 4`; insert
+      order gives `ffffffff… = 010` and the two placements **exchange**.
+      That is a legal database state and a reachable one, which is why it is a
+      fair fixture rather than a contrived one: `work_item_siblings`
+      (`schema.ts:475`) is a plain index with no uniqueness, and `placeAfter`
+      appends at `last + POSITION_STEP` from a group it read outside any lock
+      (`place-sibling.ts:53`), so two appends racing on one parent both compute
+      the same number.
+      **Landed at `ad2fa720`** beside the other two, driving the same real
+      repository: two leaves written in the opposite order to their ids at one
+      position, both joined to a team sized at one slot, through
+      `listByProject` → `slicesOf` → `schedule(...)`, asserting
+      `00000000… 0 → 2` and `ffffffff… 2 → 4`. No estimate is written here
+      either — `ASSUMED_SLICE_WORKDAYS` gives both blocks two days, so the
+      queue is the only thing separating them.
+      **Watched red, measured:** the `orderBy` deleted from the production path
+      → **31 pass / 3 fail** on that file against a green **34 / 0**, and the
+      three are exactly 1.7's assertion, 1.8's tuple assertion and this one. The
+      failure is the exchange itself — `earlier` came back `{ start: 2, finish:
+      4 }` against an expected `{ start: 0, finish: 2 }` — while
+      `waitingForCapacity` stayed `1` in both directions, which is the point
+      stated as an assertion: the queue is unchanged and only *who waits*
+      moved, so an unordered select is a plan that schedules two ways rather
+      than a plan that schedules worse.
 - [x] 1.9 Extend 1.3's one-mutation-per-fact set with the two it was missing:
       a `parentId` reparenting that keeps every other field identical (it
       changes leaf expansion, inherited priority and floors), and a `stepId`
