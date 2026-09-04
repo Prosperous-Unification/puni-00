@@ -249,6 +249,24 @@ class TheResponse(unittest.TestCase):
             sorted(response["objectiveValues"]), [MAKESPAN, MOVEMENT, PRIORITY]
         )
 
+    def test_a_fully_staged_run_reports_a_stage_for_every_term(self) -> None:
+        """All three stages run on this instance, so all three terms carry a
+        stage. `stageValue` and `bound` are null only where no stage produced
+        one — the matrix's `k > 1` UNKNOWN-without-incumbent row — and a term
+        that silently never got its stage would otherwise look identical to a
+        term whose stage ran out of budget.
+        """
+        for objective in ("pri", "time"):
+            with self.subTest(objective):
+                values = solve_request(disagreement(objective), PINNED)[
+                    "objectiveValues"
+                ]
+                for term, entry in values.items():
+                    with self.subTest(term):
+                        self.assertIsNotNone(entry["stageValue"])
+                        self.assertIsNotNone(entry["bound"])
+                        self.assertIn(entry["status"], ("optimal", "feasible"))
+
     def test_the_response_survives_json_serialisation_unchanged(self) -> None:
         """`cli.main` writes it with `json.dump`, so anything in it that is not
         a plain int, str, list or dict is a crash at the last statement of a
