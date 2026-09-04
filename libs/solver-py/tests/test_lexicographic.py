@@ -84,6 +84,7 @@ from test_model import a_request, a_slice, an_edge  # noqa: E402
 
 from wbs_solver.model import MAKESPAN, MOVEMENT, PRIORITY, build_model  # noqa: E402
 from wbs_solver.solve import SolverConfig, evaluate_terms, solve_request  # noqa: E402
+from wbs_solver.validate import check_cross_field, validate_against_schema  # noqa: E402
 
 CHAIN = 20
 W_DURATION = 15
@@ -293,6 +294,242 @@ class TheWeightedFormAnswersDifferently(unittest.TestCase):
         # because now the gap does exceed the swing.
         offsets = under_weighted_sum(instance(), LARGER)
         self.assertEqual(offsets["W"], 0)
+
+
+
+# ---------------------------------------------------------------------------
+# 5.10's second half: the integer-overflow guard on the weighted form's bound.
+# ---------------------------------------------------------------------------
+#
+# The cases above compare *answers* on a small fixture. These compare *bounds*
+# at the wire's own ceilings, and they are a different argument: the fixture
+# says a weighted form can be unfaithful, this says a weighted form can be
+# unrepresentable — on a request the builder is obliged to accept.
+#
+# `solver-wire.v1.json` caps `horizonUnits` at 2³¹ − 1 and cross-field invariant
+# 8 caps the two objective worst cases, `Σ w(s) × horizonUnits` for PRIORITY and
+# `Σ |offset − baseline|` for MOVEMENT, at `Number.MAX_SAFE_INTEGER`. Those are
+# per-term bounds. A weighted objective multiplies each term by a coefficient
+# and adds them, so invariant 8 says nothing at all about the sum — which is the
+# quantity CP-SAT has to represent.
+#
+# TOOLING NOTE, and it cost run 19 a probe: read a term's upper bound with
+# `list(var.proto.domain)[-1]` or `var.domain.max()`, never
+# `var.proto.domain[-1]`. `.proto.domain` is a protobuf repeated-scalar *view*,
+# and a negative index into it returns **0** rather than the last element — on
+# ortools 9.15.6755 `v.proto.domain[-1]` read 0 for a variable whose domain is
+# `[0, 140]`. Both accessors used below agree, and one case asserts they do, so
+# a future reader who reaches for `[-1]` gets a red rather than a zero.
+
+# `Number.MAX_SAFE_INTEGER`, the bound invariant 8 and every `safeInteger` field
+# in the schema carry, and CP-SAT's own signed 64-bit ceiling. The first is the
+# wire's exactness bound; the second is what the solver can hold.
+MAX_SAFE_INTEGER = 9007199254740991
+INT64_MAX = 2**63 - 1
+
+# The schema's own maximum for `horizonUnits` — "Bounded by 2^31 − 1 here
+# because the builder fails with horizon-overflow above it before spawning".
+HORIZON_CEILING = 2**31 - 1
+
+# The largest weight that keeps invariant 8's PRIORITY worst case under the bound
+# on a single-slice request at that horizon: 2²² × (2³¹ − 1) is 2⁵³ − 2²², and
+# one more unit of weight is what the case below measures.
+CEILING_WEIGHT = 2**22 - 1
+
+# Enough for these instances: each is one slice and every solve below proved
+# OPTIMAL well inside it.
+CEILING_LIMIT = 30.0
+
+
+def at_the_ceiling(weight: int = CEILING_WEIGHT, *, baseline_at_horizon: bool = False):
+    """One slice, the schema's maximum horizon, and a weight at invariant 8's edge.
+
+    Deliberately one slice: the overflow is a property of the coefficients
+    against the wire's per-term ceilings, and adding slices would only make the
+    same point with numbers nobody can check by hand.
+    """
+    offsets = {"a": HORIZON_CEILING} if baseline_at_horizon else None
+    return a_request(
+        [a_slice("a", duration=1, weight=weight)],
+        horizon=HORIZON_CEILING,
+        baseline=offsets,
+    )
+
+
+def term_upper_bounds(request: Mapping[str, Any]) -> dict[str, int]:
+    """The three terms' domain ceilings, read the way the note above requires."""
+    built = build_model(request)
+    return {
+        name: list(built.terms[name].proto.domain)[-1]
+        for name in (MAKESPAN, PRIORITY, MOVEMENT)
+    }
+
+
+def weighted_bound(ub: Mapping[str, int], coefficients: Sequence[int]) -> int:
+    """The largest value `c₁·T₁ + c₂·T₂ + c₃·T₃` can take on this model."""
+    first, second, third = coefficients
+    return first * ub[PRIORITY] + second * ub[MAKESPAN] + third * ub[MOVEMENT]
+
+
+def objective_error(request: Mapping[str, Any], coefficients: Sequence[int] | None) -> str:
+    """CP-SAT's own verdict on a model carrying this objective.
+
+    `CpModel.validate()` returns the empty string for a model it will solve and
+    a diagnostic for one it refuses. Asking it is the point: the arithmetic
+    below is ours, and the answer that matters is the solver's.
+    """
+    built = build_model(request)
+    if coefficients is None:
+        built.model.minimize(built.terms[PRIORITY])
+    else:
+        first, second, third = coefficients
+        built.model.minimize(
+            first * built.terms[PRIORITY]
+            + second * built.terms[MAKESPAN]
+            + third * built.terms[MOVEMENT]
+        )
+    return built.model.validate()
+
+
+class TheCeilingRequestIsWireLegal(unittest.TestCase):
+    """Everything below rests on this instance being one the builder must send."""
+
+    def test_it_passes_the_schema_and_the_cross_field_checks(self) -> None:
+        request = at_the_ceiling()
+        validate_against_schema(request, "request")
+        check_cross_field(request)  # raises RequestRejected on any failure
+
+    def test_it_satisfies_invariant_8(self) -> None:
+        request = at_the_ceiling()
+        priority_worst_case = sum(
+            int(entry["priorityWeight"]) * request["horizonUnits"]
+            for entry in request["slices"]
+        )
+        movement_worst_case = sum(
+            abs(int(request["fastHint"][key]) - int(request["baselineOffsets"][key]))
+            for key in request["baselineOffsets"]
+        )
+        self.assertLessEqual(priority_worst_case, MAX_SAFE_INTEGER)
+        self.assertLessEqual(movement_worst_case, MAX_SAFE_INTEGER)
+
+    def test_every_term_on_its_own_is_within_the_wires_exactness_bound(self) -> None:
+        for name, bound in term_upper_bounds(at_the_ceiling()).items():
+            with self.subTest(term=name):
+                self.assertLessEqual(bound, MAX_SAFE_INTEGER)
+
+    def test_the_two_upper_bound_accessors_agree(self) -> None:
+        """The guard on the tooling note: `[-1]` on the raw view is not one of them."""
+        built = build_model(at_the_ceiling())
+        for name in (MAKESPAN, PRIORITY, MOVEMENT):
+            with self.subTest(term=name):
+                var = built.terms[name]
+                self.assertEqual(list(var.proto.domain)[-1], var.domain.max())
+
+
+class TheStagedLoopIsRepresentableHere(unittest.TestCase):
+    """The control. Whatever the weighted forms do, the shipped one solves."""
+
+    def test_cp_sat_accepts_a_single_term_objective(self) -> None:
+        self.assertEqual(objective_error(at_the_ceiling(), None), "")
+
+    def test_and_proves_an_optimum(self) -> None:
+        built = build_model(at_the_ceiling())
+        built.model.minimize(built.terms[PRIORITY])
+        solver = cp_model.CpSolver()
+        solver.parameters.num_search_workers = 1
+        solver.parameters.random_seed = 0
+        solver.parameters.max_deterministic_time = CEILING_LIMIT
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+
+
+class TheWeightedFormsOverflowHere(unittest.TestCase):
+    """Both coefficient sets this file already uses are refused at the ceilings.
+
+    The staged loop minimises one term at a time, so its objective is a single
+    variable and its bound is that variable's own — which invariant 8 already
+    holds under `Number.MAX_SAFE_INTEGER`. That is the whole structural reason
+    the shipped loop cannot overflow and a weighted collapse can.
+    """
+
+    def test_the_larger_sums_bound_exceeds_int64_outright(self) -> None:
+        ub = term_upper_bounds(at_the_ceiling())
+        self.assertGreater(weighted_bound(ub, LARGER), INT64_MAX)
+
+    def test_the_dominating_sums_bound_does_not(self) -> None:
+        """Measured, and it is why the next case is not a restatement of this one."""
+        ub = term_upper_bounds(at_the_ceiling())
+        self.assertLess(weighted_bound(ub, DOMINATING), INT64_MAX)
+
+    def test_cp_sat_refuses_both_of_them_anyway(self) -> None:
+        """The finding: fitting in int64 is not the same as being solvable.
+
+        `DOMINATING`'s exact worst case is 9007197324153192447, comfortably
+        inside int64 — and CP-SAT still answers "Possible integer overflow in
+        objective", because its own check is over the model's declared domains
+        and is deliberately more conservative than the exact arithmetic. Run 20
+        predicted this case would be green for `DOMINATING` and measured it red;
+        the prediction is recorded here rather than quietly dropped, because the
+        arithmetic bound above is the thing a reader would otherwise trust.
+        """
+        for name, coefficients in (("DOMINATING", DOMINATING), ("LARGER", LARGER)):
+            with self.subTest(coefficients=name):
+                error = objective_error(at_the_ceiling(), coefficients)
+                self.assertIn("overflow", error)
+
+    def test_no_faithful_coefficient_set_is_representable_at_these_ceilings(self) -> None:
+        """The general statement, not a property of the two sets above.
+
+        A weighted form reproduces the lexicographic order only while one unit
+        of the first term outweighs the entire range of the rest, so the
+        smallest faithful `c₁` under `c₂ = c₃ = 1` is `ub(MAKESPAN) +
+        ub(MOVEMENT) + 1`. At the wire's ceilings that is 4294967296, and
+        multiplying it by PRIORITY's own ceiling lands four orders of magnitude
+        past int64. Faithfulness and representability are not both available.
+        """
+        ub = term_upper_bounds(at_the_ceiling())
+        smallest_faithful = ub[MAKESPAN] + ub[MOVEMENT] + 1
+        self.assertGreater(
+            weighted_bound(ub, (smallest_faithful, 1, 1)),
+            INT64_MAX,
+        )
+
+
+class Invariant8DoesNotBoundThePublishedPriority(unittest.TestCase):
+    """A defect found while building the guard, characterised rather than fixed.
+
+    Invariant 8 bounds `Σ w(s) × horizonUnits`. The model bounds PRIORITY by
+    `Σ w(s) × (horizonUnits + durationUnits)`, because `horizonUnits` bounds the
+    *start* and the term is over *finishes*. The difference is `Σ w(s) ×
+    durationUnits`, which invariant 8 does not mention — so a request the
+    builder must accept can produce a `priority.value` one unit past the
+    response schema's own `safeInteger`, and Bun would then refuse the response
+    it asked for.
+
+    Reachable, not merely a domain ceiling: the placement below is proved
+    OPTIMAL and the value is read off it. Left unfixed here on purpose — the
+    bound belongs to the Bun request builder and `solver-wire.v1.json`'s
+    invariant 8, a different component from this package, and widening it is a
+    wire change. Filed as its own task; this case exists so the behaviour cannot
+    change silently in the meantime.
+    """
+
+    def test_a_request_satisfying_invariant_8_can_publish_an_unsafe_priority(self) -> None:
+        weight = 2**22
+        request = at_the_ceiling(weight, baseline_at_horizon=True)
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+        self.assertLessEqual(weight * request["horizonUnits"], MAX_SAFE_INTEGER)
+
+        built = build_model(request)
+        built.model.add(built.starts["a"] == HORIZON_CEILING)
+        solver = cp_model.CpSolver()
+        solver.parameters.num_search_workers = 1
+        solver.parameters.random_seed = 0
+        solver.parameters.max_deterministic_time = CEILING_LIMIT
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+        self.assertEqual(
+            int(solver.value(built.terms[PRIORITY])), MAX_SAFE_INTEGER + 1
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
