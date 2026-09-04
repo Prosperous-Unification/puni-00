@@ -552,6 +552,74 @@ describe('the 3.8 boundary still throws on the read path', () => {
     }
   });
 
+  /**
+   * Injects a row the `CHECK` constraints forbid, which is the only way to
+   * reach the read's own guard: the column constraint is the first fence and
+   * the validator is the second, and 4.8 is a claim about the second. A row
+   * like this arrives from an earlier release, a restored backup or a hand
+   * repair — never from this code.
+   */
+  function injectUnchecked(path: string, values: { status: string; failureReason: string | null }) {
+    const generation = prepared(path);
+    const raw = openDatabase(path);
+    try {
+      raw.run('PRAGMA ignore_check_constraints = ON');
+      const quote = (value: string | null): string => (value === null ? 'NULL' : `'${value}'`);
+      raw.run(
+        `INSERT INTO optimized_schedule_cache
+           (project_id, input_hash, objective, contract_version, budget_ms,
+            generation, status, result_json, failure_reason, created_at)
+         VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
+                 '${values.status}', NULL, ${quote(values.failureReason)}, 7)`,
+      );
+    } finally {
+      raw.close();
+    }
+  }
+
+  /**
+   * 4.8's second value. `status` decides which branch of `outcomeOf` runs, so a
+   * token this release has never heard of is not a state to render — it is a
+   * question with no honest answer, and defaulting it would pick a branch at
+   * random on a row nobody can interpret.
+   *
+   * `Proof:` the removed guard is `isOptimizedScheduleStatus` in
+   * `optimizer-rows.ts`; with its `throw` replaced by a cast this case fails
+   * because the read returns instead of throwing.
+   */
+  it('throws naming the column when a stored status is unknown', () => {
+    const db = tempDb();
+    try {
+      injectUnchecked(db.path, { status: 'cancelled', failureReason: null });
+
+      expect(() => read(db.path)).toThrow(/optimized_schedule_cache\.status.*cancelled/);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.8's third value, and the one with a real consequence rather than a
+   * theoretical one: `failure_reason` is what the UI puts in front of a person,
+   * so a cast would render an unrecognised token as if the product had meant
+   * it.
+   *
+   * `Proof:` the removed guard is `isSolverFailureReason` in
+   * `optimizer-rows.ts`.
+   */
+  it('throws naming the column when a stored failure reason is unknown', () => {
+    const db = tempDb();
+    try {
+      injectUnchecked(db.path, { status: 'failed', failureReason: 'ran-out-of-patience' });
+
+      expect(() => read(db.path)).toThrow(
+        /optimized_schedule_cache\.failure_reason.*ran-out-of-patience/,
+      );
+    } finally {
+      db.cleanup();
+    }
+  });
+
   it('leaves the drizzle-typed insert path working for a well-formed row', () => {
     const db = tempDb();
     try {
