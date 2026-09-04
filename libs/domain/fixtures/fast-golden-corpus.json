@@ -590,6 +590,155 @@
       "waitingForPerson": 0,
       "waitingForCapacity": 0,
       "eventsVisited": 0
+    },
+    "diamond-float-thirds": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 0.3333333333333333,
+            "effort": 1,
+            "width": 3,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0.3333333333333333,
+            "latestStart": -5.551115123125783e-17,
+            "latestFinish": 0.33333333333333326,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 1.3333333333333333,
+            "effort": 4,
+            "width": 3,
+            "estimated": true,
+            "earliestStart": 0.3333333333333333,
+            "earliestFinish": 1.6666666666666665,
+            "latestStart": 0.33333333333333326,
+            "latestFinish": 1.6666666666666665,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "c\u0000",
+          {
+            "workItemId": "c",
+            "stepId": null,
+            "duration": 0.3333333333333333,
+            "effort": 1,
+            "width": 3,
+            "estimated": true,
+            "earliestStart": 0.3333333333333333,
+            "earliestFinish": 0.6666666666666666,
+            "latestStart": 1.3333333333333333,
+            "latestFinish": 1.6666666666666665,
+            "float": 1,
+            "critical": false,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ],
+        [
+          "d\u0000",
+          {
+            "workItemId": "d",
+            "stepId": null,
+            "duration": 0.6666666666666666,
+            "effort": 2,
+            "width": 3,
+            "estimated": true,
+            "earliestStart": 1.6666666666666665,
+            "earliestFinish": 2.333333333333333,
+            "latestStart": 1.6666666666666665,
+            "latestFinish": 2.333333333333333,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 0.3333333333333333,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0.3333333333333333,
+            "latestStart": -5.551115123125783e-17,
+            "latestFinish": 0.33333333333333326,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 1.3333333333333333,
+            "estimated": true,
+            "earliestStart": 0.3333333333333333,
+            "earliestFinish": 1.6666666666666665,
+            "latestStart": 0.33333333333333326,
+            "latestFinish": 1.6666666666666665,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "c",
+          {
+            "duration": 0.3333333333333333,
+            "estimated": true,
+            "earliestStart": 0.3333333333333333,
+            "earliestFinish": 0.6666666666666666,
+            "latestStart": 1.3333333333333333,
+            "latestFinish": 1.6666666666666665,
+            "float": 1,
+            "critical": false
+          }
+        ],
+        [
+          "d",
+          {
+            "duration": 0.6666666666666666,
+            "estimated": true,
+            "earliestStart": 1.6666666666666665,
+            "earliestFinish": 2.333333333333333,
+            "latestStart": 1.6666666666666665,
+            "latestFinish": 2.333333333333333,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
     }
   }
 }
