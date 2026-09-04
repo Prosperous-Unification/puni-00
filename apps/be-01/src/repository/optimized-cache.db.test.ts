@@ -1776,6 +1776,45 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
   });
 
   /**
+   * 4.8's second watched red, from the reading side: ten reads against a
+   * corrupt key spawn nothing and the row is still there afterwards, and one
+   * Retry asks for exactly one child. The delete-and-miss behaviour this
+   * replaced would fail the first half on every read — corruption becoming a
+   * read-triggered solve is the timer retry Dany rejected, arriving through the
+   * cache instead of the clock, and it would destroy the evidence of the defect
+   * at the moment it was found.
+   */
+  it('spawns nothing across ten reads of a corrupt row, and one Retry asks once', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      storeOk(db.path, generation, 'time');
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'ok',
+        resultJson: JSON.stringify({ dtoVersion: RESULT_DTO_VERSION + 99 }),
+        failureReason: null,
+      });
+
+      for (let round = 0; round < 10; round += 1) {
+        const reader = recorder();
+        const pair = readAndSpawn(db.path, reader.spawn);
+        expect(pair.pri.kind).toBe('corrupt');
+        expect(reader.calls).toEqual([]);
+      }
+      expect(storedRowCount(db.path)).toBe(2);
+
+      const retry = recorder();
+      retryOptimizedPair(openDrizzle(db.path), KEY, retry.spawn);
+      expect(retry.calls.map((call) => call.objective)).toEqual(['pri']);
+      expect(storedRowCount(db.path)).toBe(2);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
    * 4.4's third arm. A Retry is a different entry point rather than a flag,
    * so the suppression above is a property of which function the caller
    * reached for. It asks for exactly the objectives with no answer to serve —
