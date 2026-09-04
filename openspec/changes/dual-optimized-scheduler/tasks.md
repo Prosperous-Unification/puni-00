@@ -1388,7 +1388,7 @@ to a BigInt`, naming nothing.
 
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
-- [ ] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
+- [x] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
       composite PK `(projectId, inputHash, objective, contractVersion,
 budgetMs)` → `generation`, `status`
       (`'ok' | 'failed' | 'plan-infeasible'`), `resultJson`
@@ -1414,7 +1414,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       offending-item list ever needs to be queried by SQL rather than read
       whole, at which point it becomes its own table and this assumption is
       wrong rather than merely superseded.
-- [ ] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
+- [x] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
       `generation` (integer not null), `inputHash` (text nullable),
       `cancelEpoch` (integer not null default 0), `admissionState`
       (`'open' | 'draining'`, not null default `'open'`), `updatedAt`. This is the sole
@@ -1463,7 +1463,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       `GENERATION_RETENTION_DAYS = 30`, or whose contract version is retired at
       deploy, first enters `admissionState='draining'` and is deleted only by
       the drain protocol in 3.9b.
-- [ ] 3.1b `project.optimization_delete_pending_at`, internal nullable
+- [x] 3.1b `project.optimization_delete_pending_at`, internal nullable
       timestamp, in **this** slice's additive migration (Sol r12
       Important 5). It is the durable cross-process fence 3.9b's drain and
       its process test read, not a user setting and not a read-payload
@@ -1472,7 +1472,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       unimplementable against its own declared schema. Repository mapping is
       internal-only; the read payload is unchanged. Covered by 3.7's
       `down.sql` and its rollback-then-re-apply proof.
-- [ ] 3.3 Forward migration under `apps/be-01/drizzle/` — additive only. Blue
+- [x] 3.3 Forward migration under `apps/be-01/drizzle/` — additive only. Blue
       and green share one SQLite file during a swap, so the outgoing release
       must keep running against the migrated file untouched.
 - [ ] 3.4 **Proven by** `optimized-schedule-cache.db.test.ts`: forward migration
