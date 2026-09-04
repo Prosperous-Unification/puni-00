@@ -119,8 +119,25 @@ check-that-cannot-fail failure R5 names.
       so when TASK-241 lands the field and the earliest-effective-deadline
       tie-break, its `toEqual` is the line that fails first and moves the case
       up to the mutation set.
-      **Still open on this item (next chunk):** `width`, `personId`, an added
-      edge, an estimate change, and `position`/`frozenNumber`. The remaining
+      **Chunk 3 added four more, all proved:** `personId` (one person put on
+      two slices on opposite sides of the plan's only edge), an estimate
+      change, an authored edge added, and `position` — the last on a second
+      base `TIED`, because `position` reaches a placement only through the
+      number tie-break and every leaf in the main fixture carries its own
+      priority. `TIED` is the corpus case `inverted-numbering-tie` in
+      miniature. Domain **397 pass / 0 fail across 31 files**.
+      **`width` and `frozenNumber` were written, run, and REMOVED — measured,
+      not forgotten.** Each came back with a byte-identical schedule from its
+      own `not.toEqual` (399 tests, 2 fail, at the chunk's working head), so
+      neither fixture can see the fact it names. Both need their own base:
+      `width` because every slice in the main fixture is on a pool of one, and
+      `frozenNumber` because the frozen label's effect on group ordering did
+      not reach the comparator the way the module's own doc comment predicts —
+      which is a question about `deriveNumbers`, worth answering before a case
+      is written around it. Checking in either as-is would have been a case
+      that cannot fail.
+      **Still open on this item:** `width` and `frozenNumber` above. The
+      remaining
       unchanged-hash cases - Engine, Objective, the toggle, the display variant,
       the clock, the acting user - are **structurally** excluded rather than
       untested: none of them is a member of `ScheduleInput`, so there is nothing

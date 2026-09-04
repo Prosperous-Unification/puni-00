@@ -31,9 +31,12 @@ import { schedule, type Slice } from './schedule';
  * - **must not move the hash** — hash equal AND the schedule equal. The
  *   asymmetry in (c) lives or dies on these.
  *
- * Still to land (next chunk, 1.3's remaining cases and 1.4's second red):
- * `width`, `personId`, an added edge, an estimate change, and
- * `position`/`frozenNumber`. The deadline case is TASK-241's to make green —
+ * Still to land: `width` and `frozenNumber`, each of which needs its own base.
+ * Both were written, run, and came back with a byte-identical schedule from
+ * their own `not.toEqual` (run 12 chunk 3), so they are absent because they
+ * were not proved rather than because they were forgotten. 1.9's `parentId`
+ * reparenting and `stepId` identity swap are open too. The deadline case is
+ * TASK-241's to make green —
  * `deadlines` is declared-pending here, proved present in the string and
  * proved inert in the engine, never silently skipped.
  */
@@ -107,6 +110,33 @@ const mustNotMoveTheHash = (name: string, same: ScheduleInput): void => {
   });
 };
 
+/**
+ * A second base, for the one fact {@link BASE} structurally cannot see.
+ *
+ * `position` reaches a schedule only through `deriveNumbers`, and the number is
+ * the **third of four** leveling tie-breaks (`schedule.ts:1902`) — so it decides
+ * nothing unless two slices tie on priority, start and float first. Every leaf
+ * in `BASE` carries its own priority, which is what makes its parent-priority
+ * case work and what makes it blind here.
+ *
+ * This is the shape that isolates the tie, and it is the corpus case
+ * `inverted-numbering-tie` in miniature: two leaves, no priority anywhere, one
+ * pool slot between them, and the `rows` array declared in the opposite order to
+ * `position` so the number and the plan's own order disagree. `node.at` is the
+ * slice index **within** a work item (`schedule.ts:1813`), so with one slice
+ * each both are 0 and the number is the only line in `goesFirst` that separates
+ * them.
+ */
+const TIED: ScheduleInput = {
+  rows: [row('x', null, 20, null), row('y', null, 10, null)],
+  edges: [],
+  slices: [step('x', null, 2), step('y', null, 2)],
+  notBefore: new Map(),
+  poolSizes: new Map([['team', 1]]),
+  reach: 'whole-item',
+  deadlines: new Map(),
+};
+
 describe('canonicalScheduleInput / scheduleInputHash', () => {
   it('is a 64-character hex digest, and the same input twice is the same digest', () => {
     const digest = scheduleInputHash(BASE);
@@ -171,6 +201,54 @@ describe('canonicalScheduleInput / scheduleInputHash', () => {
     movesAPlacement('the pool grew to two slots', {
       ...BASE,
       poolSizes: new Map([['team', 2]]),
+    });
+
+    /**
+     * A named assignee is a queue of one, and it is a floor the pool does not
+     * supply: `c` and `a`'s build sit on opposite sides of the plan's only edge,
+     * so nothing keeps them off each other until one person holds both.
+     */
+    movesAPlacement('one person put on two slices that did not share one', {
+      ...BASE,
+      slices: [
+        step('a', 'design', 2),
+        step('a', 'build', 3, { personId: 'kat' }),
+        step('b', null, 2),
+        step('c', null, 2, { personId: 'kat' }),
+      ],
+    });
+
+    movesAPlacement('an estimate changed', {
+      ...BASE,
+      slices: [
+        step('a', 'design', 2),
+        step('a', 'build', 4),
+        step('b', null, 2),
+        step('c', null, 2),
+      ],
+    });
+
+    movesAPlacement('an authored edge added', {
+      ...BASE,
+      edges: [
+        { predecessorId: 'a', successorId: 'b' },
+        { predecessorId: 'c', successorId: 'a' },
+      ],
+    });
+
+    /**
+     * `position`, on {@link TIED}, because it reaches a placement only through
+     * the number tie-break. The proof is the swap: make the number order agree
+     * with the array order instead of contradicting it, and the slice that was
+     * going first stops going first.
+     */
+    it('position swapped between two tied leaves — moves a placement, so the hash must move', () => {
+      const mutated: ScheduleInput = {
+        ...TIED,
+        rows: [row('x', null, 10, null), row('y', null, 20, null)],
+      };
+      expect(scheduleInputHash(mutated)).not.toBe(scheduleInputHash(TIED));
+      expect(run(mutated)).not.toEqual(run(TIED));
     });
   });
 
