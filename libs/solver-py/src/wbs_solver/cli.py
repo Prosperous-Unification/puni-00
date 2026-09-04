@@ -40,10 +40,11 @@ import json
 import os
 import signal
 import sys
-from typing import Any, BinaryIO, Sequence, TextIO
+from typing import BinaryIO, Sequence, TextIO
 
 from . import __version__
 from .solve import solve_request
+from .validate import RequestRejected, validate_request
 
 EXIT_OK = 0
 EXIT_BAD_REQUEST = 64
@@ -97,20 +98,6 @@ def read_request(stream: BinaryIO) -> bytes:
     return stream.read()
 
 
-def _parse(raw: bytes) -> dict[str, Any]:
-    if not raw.strip():
-        raise ValueError("empty request: expected one JSON object on stdin")
-    try:
-        parsed = json.loads(raw)
-    except UnicodeDecodeError as exc:
-        raise ValueError(f"request is not valid UTF-8: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"request is not valid JSON: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError(f"request must be a JSON object, got {type(parsed).__name__}")
-    return parsed
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     stdout: TextIO = sys.stdout
@@ -132,8 +119,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_BAD_REQUEST
 
     try:
-        request = _parse(read_request(sys.stdin.buffer))
-    except ValueError as exc:
+        request = validate_request(read_request(sys.stdin.buffer))
+    except RequestRejected as exc:
         print(f"wbs-solver: {exc}", file=stderr)
         return EXIT_BAD_REQUEST
 

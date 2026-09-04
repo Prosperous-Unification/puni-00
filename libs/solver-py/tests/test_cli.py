@@ -10,7 +10,6 @@ and that a refusal leaves stdout empty, which no monkeypatched stream can show.
 from __future__ import annotations
 
 import io
-import json
 import os
 import subprocess
 import sys
@@ -18,7 +17,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-SRC = Path(__file__).resolve().parents[1] / "src"
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+SRC = PACKAGE_ROOT / "src"
+FIXTURES = PACKAGE_ROOT.parents[1] / "libs" / "contracts" / "solver" / "fixtures" / "request"
 sys.path.insert(0, str(SRC))
 
 from wbs_solver import __version__, cli  # noqa: E402
@@ -153,7 +154,7 @@ class RefusedRequests(unittest.TestCase):
 
 
 class UnansweredRequests(unittest.TestCase):
-    def test_a_well_framed_request_the_solver_cannot_place_exits_70_silently(self) -> None:
+    def test_a_valid_request_the_solver_cannot_place_exits_70_silently(self) -> None:
         """The rule, not the stub.
 
         Task 5.2 replaces `solve_request`, and this case will then be about a
@@ -162,9 +163,15 @@ class UnansweredRequests(unittest.TestCase):
         emitting a response. Today the unencodable outcome is "no model yet";
         after 5.2 it is a later-stage INFEASIBLE, which the schema's own
         `$comment` requires to exit non-zero silently for the same reason.
+
+        The input is a real corpus fixture, not a hand-built stub: it has to
+        clear the schema and every cross-field check to reach `solve_request`
+        at all, so this case doubles as the proof that a **valid** request
+        gets all the way through the front door.
         """
-        done = run_cli(json.dumps({"wireVersion": 1}).encode())
-        self.assertEqual(done.returncode, cli.EXIT_INTERNAL)
+        request = (FIXTURES / "valid-two-slices.json").read_bytes()
+        done = run_cli(request)
+        self.assertEqual(done.returncode, cli.EXIT_INTERNAL, done.stderr)
         self.assertEqual(done.stdout, b"")
         self.assertIn("5.2", done.stderr.decode())
 
