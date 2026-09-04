@@ -1,5 +1,5 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
-import { type ScheduleInput, SOLVER_QUANTUM, sliceKey } from '@wbs/domain';
+import { type ScheduleInput, sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -124,11 +124,13 @@ async function askedInput(): Promise<ScheduleInput> {
     },
   });
   await probe.tree(projectId);
-  const asked = asks[0];
-  if (asks.length !== 1 || asked === undefined) {
+  // A length check rather than an `=== undefined` guard on the indexed read:
+  // `noUncheckedIndexedAccess` is off in this repo, so the read is not optional
+  // and eslint refuses the guard as `no-unnecessary-condition`.
+  if (asks.length !== 1) {
     throw new Error(`the reader was consulted ${String(asks.length)} times, not once`);
   }
-  return asked.input;
+  return asks[0].input;
 }
 
 /**
