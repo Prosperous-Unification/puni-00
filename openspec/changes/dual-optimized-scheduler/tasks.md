@@ -1064,7 +1064,7 @@ check-that-cannot-fail failure R5 names.
       not implemented — it waits on 4.9's `materialiseOptimized` — so one of
       2.4's violations has no case here yet. Everything else 2.5 asks for is
       landed and gated.
-- [ ] 2.6 **Proven by** `solver-request.test.ts`: a null-`days` slice becomes
+- [x] 2.6 **Proven by** `solver-request.test.ts`: a null-`days` slice becomes
       `ASSUMED_SLICE_WORKDAYS`; a width-3 slice of 6 days' effort becomes 2
       days; a `whole-item` and an `anchor-slice` plan produce different edge
       sets from identical rows; an unprioritised leaf gets `priorityWeight` 0.
@@ -1081,7 +1081,23 @@ check-that-cannot-fail failure R5 names.
       an implementer sees one failure where two are promised. With 7 nearer,
       override gives 7 and minimum gives 3, so the case distinguishes the
       fault and still proves nearer-over-farther.
-- [ ] 2.7 **Negative check, watched red** — remove the dependency check from 2.4
+      **All four cases and the watched red are landed in
+      `build-solver-request.test.ts`, and run 14 chunk 3 re-ran the red at
+      `21161156` rather than trusting the comment: 156 pass / 1 fail**, the one
+      being `resolves priority as a nearest-ancestor override, in both numeric
+      directions`.
+      **"The first and third cases must fail" is corrected to one failure, and
+      the reason bounds what the red can prove.** What is observable in the
+      request is the `priorityWeight`, not the resolved priority. Under the
+      minimum rule the three leaves resolve to 1, 1 and 3 instead of 5, 1 and 7,
+      which collapses the distinct set from `{1,5,7}` to `{1,3}` — so the dense
+      rank every leaf gets is recomputed and no single entry of the vector can
+      be read as one leaf's resolution. The promise was written against a
+      decomposition where each leaf had its own assertion; through the rank it
+      is one failure of the whole vector. The resolver's directional proof is
+      `libs/domain`'s; what this file asserts is that the builder **imports**
+      it.
+- [x] 2.7 **Negative check, watched red** — remove the dependency check from 2.4
       and watch the "edge violated" case pass when it must fail; then send
       the pre-quantisation `days / width` from 2.2 and watch 2.6's width case fail.
       `Proof:` comment names each removed check. Re-validation is the only thing
@@ -1091,8 +1107,25 @@ check-that-cannot-fail failure R5 names.
       `revalidate-solver-result.ts` names twelve removed checks and the single
       case each one turns red, all run on h2puni. It records one check that was
       measured dead (an `Object.hasOwn` guard whose removal changed nothing) and
-      deleted rather than documented. The `days / width` half still waits on
-      2.2's request builder.
+      deleted rather than documented.
+      **The `days / width` half landed and closes this item.** Its `Proof:`
+      block sits at the top of `build-solver-slices.ts`, watched on h2puni at
+      `6160aebe`: `durationUnits(slice)` replaced by the pre-quantisation
+      `days / width` — with `ASSUMED_SLICE_WORKDAYS` for a null estimate,
+      undivided — gave **146 pass / 10 fail across 16 files**, and the spread is
+      the finding. The fault is caught in **five** files, not one: 2.6's width
+      case as the plan promised, both `buildSolverSlices` cases, the golden
+      request corpus in two places, all three baseline-feasibility cases and the
+      projection pairing in `quantised-baseline.test.ts`. A duration is not one
+      field's business — it is the horizon, the offsets, the objective and the
+      bytes — so an unquantised one is refused by the arithmetic, by the fixture
+      and by the re-validator independently. The one that would have caught it
+      *alone* is the golden corpus, because every other assertion derives from
+      these same seams.
+      **Re-run at `21161156` in run 14 chunk 3 rather than trusted: 145 pass /
+      12 fail.** The two extra failures over `6160aebe` are the live-constraint
+      feasibility cases added that run, which is the expected direction — a
+      sixth reader of the same duration.
 - [x] 2.8 `SOLVER_QUANTUM = 48` exported from `libs/domain`, and
       `durationUnits(slice)` = `Math.ceil(durationOf(slice) * SOLVER_QUANTUM)`
       with an exact-multiple assertion within `DRIFT` before the ceiling
