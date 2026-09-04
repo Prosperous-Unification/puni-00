@@ -2486,19 +2486,25 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       `var.domain.max()`; a case asserts the two agree, so reaching for `[-1]`
       again is a red rather than a zero.
 
-      **A DEFECT FOUND WHILE BUILDING THE GUARD — characterised here, filed
-      separately, not fixed.** Invariant 8 bounds `Σ w × horizonUnits`; the
-      model bounds PRIORITY by `Σ w × (horizonUnits + durationUnits)`, because
-      the horizon bounds the *start* and the term is over *finishes*. The
-      difference, `Σ w × durationUnits`, invariant 8 does not mention. At weight
-      2²² the request satisfies invariant 8 (9007199250546688 ≤ MAX_SAFE_INTEGER)
-      and a placement at the horizon — **proved OPTIMAL, not a domain ceiling** —
-      publishes `priority.value` = 9007199254740992, exactly one past the
-      response schema's own `safeInteger`. Bun would refuse the response it
-      asked for. The bound belongs to the Bun request builder and
-      `solver-wire.v1.json`, a different component from this package, and
-      widening it is a wire change; `Invariant8DoesNotBoundThePublishedPriority`
-      pins the behaviour so it cannot move silently in the meantime.
+      **A DEFECT FOUND WHILE BUILDING THE GUARD — since fixed, in both arms.**
+      The old invariant 8 bounded `Σ w × horizonUnits`; the model bounds
+      PRIORITY by `Σ w × (horizonUnits + durationUnits)`, because the horizon
+      bounds the *start* and the term is over *finishes*. The difference,
+      `Σ w × durationUnits`, the old bound did not mention. At weight 2²² the
+      request satisfied it (9007199250546688 ≤ MAX_SAFE_INTEGER) and a placement
+      at the horizon — **proved OPTIMAL, not a domain ceiling** — publishes
+      `priority.value` = 9007199254740992, exactly one past the response
+      schema's own `safeInteger`; Bun would refuse the response it asked for.
+      Filed as TASK-254, then closed inline: run 20 landed the finish-based
+      bound in `preflightSolverRequest`, and run 21 landed the Python arm
+      (`check_cross_field` re-derives it from the `horizonUnits` on the wire,
+      raising `objective-overflow`) plus the corrected wire text in both schema
+      copies. `Invariant8DoesNotBoundThePublishedPriority` became
+      `Invariant8BoundsThePublishedPriority` and split in two: the request is
+      refused, and — deliberately unchanged — CP-SAT still proves that placement
+      OPTIMAL at `MAX_SAFE_INTEGER + 1` when handed the request directly, which
+      is what makes the guard load-bearing rather than decorative. Nothing in
+      `model.py` was widened or clamped.
 
 - [ ] 5.11 Packaging into the deployed artifact: the Dagger/image path installs
       the pinned Python runtime and the locked OR-Tools environment, copies
