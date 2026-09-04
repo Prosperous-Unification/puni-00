@@ -1,4 +1,4 @@
-import { type Schedule, type ScheduleInput, schedule, sliceKey } from '@wbs/domain';
+import { type Schedule, schedule, type ScheduleInput, sliceKey } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
@@ -159,8 +159,8 @@ describe('the plan read and the optimized cache', () => {
     const seen = recordingReader(null);
     const probe = new WorkItemService({ ...serviceOptions, optimized: seen.read });
     await probe.tree(projectId);
+    if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
-    if (asked === undefined) throw new Error('the reader was never consulted');
 
     const served = recordingReader(movedTo(asked.input, 3));
     const service = new WorkItemService({ ...serviceOptions, optimized: served.read });
@@ -225,8 +225,8 @@ describe('the plan read and the optimized cache', () => {
     const seen = recordingReader(null);
     const service = new WorkItemService({ ...serviceOptions, optimized: seen.read });
     await service.tree(projectId);
+    if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
-    if (asked === undefined) throw new Error('the reader was never consulted');
     expect([asked.projectId, asked.objective]).toEqual([projectId, 'time']);
     expect(asked.input.rows.map((row) => row.id)).toEqual([id]);
     expect(asked.input.slices.map((each) => sliceKey(each.workItemId, each.stepId))).toEqual([

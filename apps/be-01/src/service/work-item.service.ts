@@ -24,9 +24,9 @@ import {
   type WorkItemState,
 } from '@wbs/domain';
 import {
+  type Schedule,
   schedule,
   ScheduleCycleError,
-  type Schedule,
   type Scheduled,
   type ScheduledSlice,
   type ScheduleInput,
