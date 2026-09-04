@@ -350,6 +350,53 @@ describe('the repository check — three of four descriptive artifacts', () => {
     ]);
   });
 
+  /**
+   * The union reading 2.1 offers as the alternative to rewriting twelve
+   * sentences, measured rather than argued: it takes the count from 12 to 9.
+   * Not to zero, so it does not by itself let rule (b) gate.
+   */
+  it('measures what the union reading of rule (b) would cost', () => {
+    const union = COVERED_ARTIFACTS.flatMap((file) =>
+      checkArtifact(readFileSync(new URL(file, repoRoot), 'utf8'), file, vocabularies, ['b'], 'union'),
+    );
+    expect(union).toHaveLength(9);
+  });
+
+  /**
+   * 2.1's falsifier for the union reading, as a test rather than a sentence:
+   * a real drift whose stale name is a legitimate member of some OTHER named
+   * tuple. `resultJson` is a cache column, and a response enumeration that
+   * names it is drift.
+   *
+   * The naive union admits it, because `cache-key` also carries `status` and so
+   * clears a bare two-name overlap **on the strength of the drifting name
+   * itself**. That is why admission excludes the member being judged: a
+   * vocabulary must contribute `MIN_OVERLAP` names BESIDES it. Delete the `- 1`
+   * in `checkArtifact` and this test goes green while the artifact is wrong,
+   * which is the whole reason it is here.
+   */
+  it('catches drift into another named tuple under the union reading', () => {
+    const drift = 'The response carries `wireVersion`, `status`, `offsets` and `resultJson`.';
+    for (const mode of ['best', 'union'] as const) {
+      const divergences = checkArtifact(drift, 'f.md', vocabularies, ['b'], mode);
+      expect(divergences).toHaveLength(1);
+      expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['resultJson']);
+    }
+  });
+
+  /** 2.1's watched red survives the union reading; `sliceKey` is nobody's member. */
+  it('still rejects the superseded slice sentence under the union reading', () => {
+    const divergences = checkArtifact(
+      SUPERSEDED_SLICE_SENTENCE,
+      'fixture.md',
+      vocabularies,
+      ['b'],
+      'union',
+    );
+    expect(divergences).toHaveLength(1);
+    expect((divergences[0] as { unexpected: string[] }).unexpected).toEqual(['sliceKey']);
+  });
+
   /** Every added tuple says where it was read from; a nameless source is memory. */
   it('gives every neighbour vocabulary a source that names an artifact', () => {
     for (const vocabulary of NEIGHBOUR_VOCABULARIES) {

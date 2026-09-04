@@ -718,11 +718,20 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       or rule (b)'s subset test is taken against the **union** of the
       vocabularies a run overlaps — which keeps what rule (b) is for, since a
       name belonging to no named tuple at all still fails, and drops what the
-      measurement says is not drift. **Falsifier for the union reading:** a
-      real drift where an obsolete field name is also a legitimate member of
-      some other named tuple; that would pass under the union and is the case
-      to look for before choosing it. The asserted count in
-      `wire-vocabulary.test.ts` is the ratchet either way, and 2.1 stays
+      measurement says is not drift. **Both readings are implemented and
+      measured (run 23): `'best'` reports 12, `'union'` reports 9.** Neither is
+      zero, so the union is a rule to adopt or refuse on its merits and NOT a
+      way out of the twelve; whichever is chosen, some sentences are rewritten
+      before rule (b) can gate. **The falsifier fired, and it is now a test
+      rather than a sentence.** Its first form — admit any member of any named
+      vocabulary — passed `wireVersion`, `status`, `offsets` and `resultJson`,
+      a response enumeration carrying a cache column, because the cache tuple
+      cleared a two-name overlap on the strength of the drifting name itself.
+      So admission excludes the member being judged: a vocabulary admits a name
+      only when it contributes `MIN_OVERLAP` OTHER names. Under that form the
+      falsifier is caught in both readings and the watched red still reds on
+      `sliceKey`, which belongs to no named tuple at all. The asserted counts in
+      `wire-vocabulary.test.ts` are the ratchet either way, and 2.1 stays
       unticked until the decision lands.
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —

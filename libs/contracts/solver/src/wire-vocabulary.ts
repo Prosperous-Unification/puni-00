@@ -85,10 +85,28 @@
  * So the artifact scan still passes `['a']`, and what stands between rule (b)
  * and the gate is now a decision in 2.1 rather than work in the slices: either
  * the twelve sentences are rewritten so no run spans two tuples, or rule (b)'s
- * subset test is taken against the **union** of the vocabularies a run overlaps,
- * which keeps what rule (b) is for (a name belonging to no tuple at all is still
- * a failure) and drops what the measurement says is not drift. That is 2.1's to
- * settle, not this module's; the count below is the ratchet either way.
+ * subset test is taken against the **union** of the vocabularies a run overlaps.
+ *
+ * ## The union reading is implemented and measured — and it is not enough
+ *
+ * `SubsetMode` carries both readings so the choice is made on numbers. Measured
+ * at this head: `'best'` reports **12**, `'union'` reports **9**. Neither is
+ * zero, so the union alone does not let rule (b) gate; it is an improvement to
+ * be adopted or refused on its own merits, not a way out of the twelve.
+ *
+ * **Its first form was refuted by 2.1's own falsifier and the falsifier is now a
+ * test.** Admitting any member of any named vocabulary passed
+ * `` `wireVersion`, `status`, `offsets` and `resultJson` `` — a response
+ * enumeration carrying a *cache* column, which is exactly the drift rule (b)
+ * exists to catch. `cache-key` cleared a bare two-name overlap only because it
+ * carries `status` **and the drifting name itself**. So admission excludes the
+ * member being judged: a vocabulary admits `m` only when it contributes
+ * `MIN_OVERLAP` names *besides* `m`. Under that form the falsifier is caught in
+ * both modes and 2.1's watched red still reds on `sliceKey`, which belongs to no
+ * named tuple at all.
+ *
+ * That is 2.1's to settle, not this module's; the counts above are the ratchet
+ * either way and both are asserted.
  */
 
 export type VocabularyName =
@@ -142,6 +160,16 @@ export const EXCLUDED_SHAPES: readonly string[] = ['OptimizedResult', 'StoredObj
 
 /** Longest gap between two members before a run stops being one list. */
 export const MAX_CONNECTOR_CHARS = 96;
+
+/**
+ * How many members a vocabulary must contribute before rule (b) will consider a
+ * run to be drawing on it. It is 2 in both readings, and it is the same number
+ * twice for one reason: a single shared name is a coincidence between tuples,
+ * not evidence that the sentence is about both.
+ *
+ * Under `'union'` this is load-bearing rather than tidy. See `SubsetMode`.
+ */
+export const MIN_OVERLAP = 2;
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -540,11 +568,14 @@ export function scanEnumerations(text: string, file: string): Enumeration[] {
  *     a subset of it. A tag naming no known vocabulary is itself a failure —
  *     otherwise a typo silently disables rule (a) for that span.
  */
+export type SubsetMode = 'best' | 'union';
+
 export function checkArtifact(
   text: string,
   file: string,
   vocabularies: ReadonlyMap<VocabularyName, Vocabulary>,
   rules: readonly ('a' | 'b')[] = ['a', 'b'],
+  subsetMode: SubsetMode = 'best',
 ): Divergence[] {
   const divergences: Divergence[] = [];
   const known = new Set<string>(vocabularies.keys());
@@ -588,7 +619,13 @@ export function checkArtifact(
     if (!rules.includes('b')) continue;
     const best = attribute(members, vocabularies);
     if (!best || best.overlap < 2) continue;
-    const unexpected = [...members].filter((m) => !best.vocabulary.members.has(m)).sort();
+    const admits = (member: string): boolean =>
+      subsetMode === 'best'
+        ? best.vocabulary.members.has(member)
+        : [...vocabularies.values()].some(
+            (v) => v.members.has(member) && overlapWith(members, v) - 1 >= MIN_OVERLAP,
+          );
+    const unexpected = [...members].filter((m) => !admits(m)).sort();
     if (unexpected.length === 0) continue;
     divergences.push({
       file,
@@ -619,11 +656,16 @@ function attribute(
 ): { vocabulary: Vocabulary; overlap: number } | null {
   let best: { vocabulary: Vocabulary; overlap: number } | null = null;
   for (const vocabulary of vocabularies.values()) {
-    let overlap = 0;
-    for (const member of members) if (vocabulary.members.has(member)) overlap += 1;
+    const overlap = overlapWith(members, vocabulary);
     if (overlap > (best?.overlap ?? 0)) best = { vocabulary, overlap };
   }
   return best;
+}
+
+function overlapWith(members: ReadonlySet<string>, vocabulary: Vocabulary): number {
+  let overlap = 0;
+  for (const member of members) if (vocabulary.members.has(member)) overlap += 1;
+  return overlap;
 }
 
 /**
