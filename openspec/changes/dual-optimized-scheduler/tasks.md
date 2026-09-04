@@ -161,6 +161,22 @@ check-that-cannot-fail failure R5 names.
       third copy of the engine's input rules in the repo; and (c) the no-op
       proof above, which only becomes meaningful once (a) exists. Sequence (a)
       before anything else; the watched red is free once the bytes are there.
+      **Correction to (c), same run, one paragraph later — `schedule()` has SIX
+      parameters, not seven.** `libs/domain/src/schedule.ts:1717` takes
+      `rows, edges, slices, notBefore = new Map(), poolSizes = new Map(),
+      reach = 'whole-item'` and stops. The seventh canonical argument exists as
+      `SolverRequestPlan.deadlines` in `libs/contracts` and as the `deadlines`
+      parameter of `leaf-constraints.ts:109`; it has not reached the engine's
+      own signature. So "with the seventh argument defaulted to an empty map"
+      cannot be run today — there is nothing to default. (c) is therefore
+      blocked on the signature change 4.9 brings, not merely on (a), and the
+      sequence is (a) bytes → watched red → **signature** → (c). Recorded rather
+      than repaired because widening `schedule()` is not this task's slice.
+      **A serialization note for whoever builds (a):** `Schedule`
+      (`schedule.ts:247`) holds `Map`s — `slices` and `workItems` — so the
+      corpus needs a deterministic canonicaliser before it has bytes at all.
+      `JSON.stringify` on a `Map` yields `{}` and would check in a corpus that
+      passes against every possible engine.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
