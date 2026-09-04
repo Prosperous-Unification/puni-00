@@ -118,6 +118,49 @@ check-that-cannot-fail failure R5 names.
       empty map, every existing corpus case SHALL produce a **byte-identical**
       schedule — the re-key must not be able to hide a placement change smuggled
       in with it (`openspec/changes/work-item-deadline/design.md` §3.4, §7).
+      **THE PREMISE IS FALSE AND THE SLICE IS BIGGER THAN IT READS (run 11,
+      measured at `09e9ccd7`).** "The existing Fast golden corpus" does not
+      exist as bytes. `find` over the repo returns no `.snap`, no
+      `__snapshots__`, and no serialized-schedule fixture anywhere in
+      `libs/domain`; what the phrase refers to is
+      `libs/domain/src/schedule-identity.test.ts`, which is a **differential**
+      corpus — a seeded `generatePlan` feeds both today's `schedule()` and a
+      copy of the `role-crud` engine kept in the same file, and asserts they
+      agree. A differential corpus compares two implementations *inside one
+      commit*. It has nothing to key on a version, and it cannot be given one:
+      there are no stored numbers for a key to protect.
+      **Worse, it is structurally blind to this slice's own watched red.** Its
+      oracle consumes the live constant — `schedule-identity.test.ts:4` imports
+      `ASSUMED_SLICE_WORKDAYS` from `./index` and line 331 spends it as
+      `each.days ?? ASSUMED_SLICE_WORKDAYS` while building the oracle's
+      durations — so moving the constant moves BOTH sides and the differential
+      stays green by construction.
+      **Measured, not reasoned.** `ASSUMED_SLICE_WORKDAYS` 2 → 3 with
+      `SCHEDULER_CONTRACT_VERSION` left at 7, whole suites on h2puni at
+      `09e9ccd7`: domain **356 pass / 19 fail across 6 files**
+      (`schedule.test.ts`, `schedule-shapes.test.ts`,
+      `schedule-priority.test.ts`, `schedule-benchmark.test.ts`,
+      `solver-quantum.test.ts`, `workday.test.ts`) — and
+      `schedule-identity.test.ts` contributes **zero** of them, exactly as the
+      mechanism above predicts. Contracts: **167 pass / 0 fail**, so
+      `wire-contract-version.test.ts`, which pins the constant to the request
+      fixtures' `7+0.1.0` prefix, does not notice that Fast's semantics moved
+      underneath it.
+      **So the guard 1.6 is about does not exist today, and the 19 failures are
+      not it.** Every one is a hand-written date assertion — precisely the set a
+      developer *expects* to update when deliberately changing the constant.
+      After updating them the suite is green again and nothing anywhere says
+      "now bump 7 to 8", which is the stale-row-matching-its-key-forever
+      failure this task names.
+      **What it actually needs**, and the reason it is a slice rather than a
+      re-key: (a) a corpus of Fast schedules serialized to **checked-in bytes**,
+      since only stored output can be keyed; (b) that file carrying
+      `SCHEDULER_CONTRACT_VERSION` so a mismatch is the failure, which means the
+      generator must be reachable from outside a `.test.ts` — `generatePlan`
+      and `durationsFrom` are file-local today and copying them would put the
+      third copy of the engine's input rules in the repo; and (c) the no-op
+      proof above, which only becomes meaningful once (a) exists. Sequence (a)
+      before anything else; the watched red is free once the bytes are there.
 - [ ] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
