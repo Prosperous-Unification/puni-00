@@ -34,16 +34,17 @@ import { SavedPlanRepository } from '../repository/saved-plan';
  * what the file holds once the contention is over.
  */
 async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
-  const [dbPath, projectId, planId, holdMs, readyPath] = argv;
-  if (
-    dbPath === undefined ||
-    projectId === undefined ||
-    planId === undefined ||
-    holdMs === undefined ||
-    readyPath === undefined
-  ) {
-    throw new Error('usage: <dbPath> <projectId> <planId> <holdMs> <readyPath>');
+  // Checked as an arity rather than element by element: this project does not
+  // run `noUncheckedIndexedAccess`, so the destructured names are `string` to
+  // the compiler whatever the array holds, and five `=== undefined` tests are
+  // five conditions lint can prove dead. The count is the thing that can
+  // actually be wrong.
+  if (argv.length !== 5) {
+    throw new Error(
+      `usage: <dbPath> <projectId> <planId> <holdMs> <readyPath>; got ${String(argv.length)}`,
+    );
   }
+  const [dbPath, projectId, planId, holdMs, readyPath] = argv;
 
   const plan: SavedPlanWrite = {
     id: planId,
