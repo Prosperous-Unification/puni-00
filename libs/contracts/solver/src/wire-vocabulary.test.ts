@@ -109,7 +109,13 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
       'solver-queue',
     ]);
     expect(TABLE_VOCABULARIES.every((v) => v.source.includes('tasks.md'))).toBe(true);
-    expect(allVocabularies(schema).size).toBe(8);
+    expect(NEIGHBOUR_VOCABULARIES.map((v) => v.name).sort()).toEqual([
+      'canonical-row',
+      'domain-slice',
+      'fencing',
+      'objective-term-name',
+    ]);
+    expect(allVocabularies(schema).size).toBe(15);
   });
 });
 
