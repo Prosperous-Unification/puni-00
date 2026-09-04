@@ -49,6 +49,20 @@ export interface LeafConstraintMaps {
  *
  * The deadline is on every slice for a simpler reason: an item due on day `D`
  * has no slice that may finish after day `D`.
+ *
+ * `Proof:` **2.7's second half, watched on h2puni at `6160aebe`.**
+ * `durationUnits(slice)` replaced by the **pre-quantisation** `days / width`
+ * (with `ASSUMED_SLICE_WORKDAYS` for a null estimate, undivided) gives
+ * **146 pass / 10 fail across 16 files**, and the spread is the finding: the
+ * fault is caught in **five** files, not one. 2.6's width case fails as the
+ * plan promised, and so do both `buildSolverSlices` cases, the golden request
+ * corpus in two places, all three baseline-feasibility cases and the projection
+ * pairing in `quantised-baseline.test.ts`. A duration is not one field's
+ * business — it is the horizon, the offsets, the objective and the bytes — so
+ * an unquantised one is refused by the arithmetic, by the fixture and by the
+ * re-validator independently. The one that would have caught it *alone* is the
+ * golden corpus, because every other assertion is derived from these same
+ * seams.
  */
 export function buildSolverSlices(
   slices: readonly Slice[],
