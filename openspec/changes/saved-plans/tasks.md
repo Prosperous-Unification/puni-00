@@ -360,10 +360,41 @@ comparison UI) and start only after slice 6 is merged.
       365-day prune reaching a saved plan — fails here instead of in production.
       Stated rather than dressed up as a proof.
 
-- [ ] 5.5 Body schema version: a body at version *n* still reads after the reader
+- [x] 5.5 Body schema version: a body at version *n* still reads after the reader
       moves to *n+1*; an unknown version throws a typed error naming it (R5 —
       never defaulted away). Negative: parse optimistically and watch the unknown
       version slip through.
+
+      **Landed (run 13, chunk 3). SLICE 5 IS COMPLETE.** The reader holds a
+      **set of supported versions per side**, not the current constant:
+      `SUPPORTED_INPUT_BODY_VERSIONS` and `SUPPORTED_SCHEDULE_BODY_VERSIONS`.
+      The two clauses pull opposite ways — an older body must keep reading, an
+      unknown one must fail — and comparing against
+      `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` alone satisfies the second by
+      breaking the first: every record written before a bump becomes unreadable
+      the moment the constant moves. A bump ADDS to these lists; removing a
+      member is a decision about records that already exist. A test asserts each
+      live constant is a member, so a bump that forgets itself fails here rather
+      than in production.
+      **A throw, where 5.1b and 5.2 are refusals, and the asymmetry is the
+      point.** Those are facts about one record and a route answers about that
+      record; an unknown version is a fact about the BUILD — every record at
+      that version is unreadable here — so the honest report is that this reader
+      is too old. `UnknownSavedPlanBodyVersionError` names the plan, the body,
+      the version and what this build would have accepted.
+      **The check runs BEFORE the hash check** on each side: a body this reader
+      cannot parse is unreadable whether or not its bytes are intact, and
+      recomputing a digest first answers a question nobody can act on.
+      **`supported` is a parameter, not read off the constants inside**, which
+      is the only way to test "an older member still passes" without inventing a
+      schema version that does not exist yet.
+      **The watched negative landed exactly where 5.5 predicts.** Replacing
+      `supported.includes(version)` with the optimistic
+      `version <= Math.max(...supported)` reddened ONE test — "never defaults an
+      unknown version to the newest it knows", a version BELOW the floor — and
+      left both version-99 db tests GREEN, because 99 is above the maximum. That
+      is the slip 5.5's negative describes, and it says plainly that the
+      version-99 tests alone would not have caught it.
 
 ## 6. Routes, permissions, rollout
 
