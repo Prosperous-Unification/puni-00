@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
 import type { AuthService } from '../service/auth.service';
+import type { Broadcaster } from '../service/broadcast';
 import type { ProjectService } from '../service/project.service';
 import { canEdit } from '../service/project.service';
 import type {
@@ -154,11 +155,30 @@ function refuseUnknownBodyVersion({
  * and `createdById` is `user.id`, the reference the permission rule reads. A
  * body-supplied creator would let any caller mint a record naming somebody else
  * and, worse, hand themselves the right to rename it.
+ *
+ * **A mutation announces itself, and the announcement is *here* rather than in
+ * the service** (TASK-255). `saved_plans_changed` is published after the service
+ * has answered, which is after its transaction has committed and after it has
+ * let go of the write lock — the rule `PlanCommandRunner` states for itself and
+ * the reason `DeferringBroadcaster` exists: a push to gw-01 is a network call
+ * with a six-attempt 500ms→30s backoff behind it, and a lock held across one
+ * lets a slow gateway stall every write in the process. Publishing from inside
+ * the service would put it back inside both.
+ *
+ * The announcement is deliberately **not** conditional on the caller: every
+ * successful save, rename and delete publishes, including the actor's own. The
+ * actor's client will drop it as an echo of a read it has already done, and the
+ * alternative — a broadcaster that knows who asked — would put an identity into
+ * a transport contract that has never carried one.
+ *
+ * Refusals publish nothing, and that is the whole of the ordering rule this
+ * needs: the event is emitted on exactly the branches that changed the list.
  */
 export function savedPlanController(
   auth: AuthService,
   plans: SavedPlanService,
   projects: ProjectService,
+  announcements: Broadcaster,
 ) {
   const signedIn = { caller: 'signed-in' } as const;
   return new Elysia({ prefix: '/api' })
@@ -186,6 +206,7 @@ export function savedPlanController(
           createdById: user.id,
         });
         if (outcome.outcome === 'saved') {
+          await announcements.publish(params.id, { type: 'saved_plans_changed' });
           set.status = 201;
           return { savedPlan: outcome.record };
         }

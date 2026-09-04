@@ -13,6 +13,7 @@ import { AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
 import { defaultSavedPlanName } from '../service/saved-plan-default-name';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -48,6 +49,8 @@ describe('the saved-plan routes', () => {
   let projectId: string;
   /** The database file behind {@link app}, for the one test that damages it. */
   let path: string;
+  /** What would have gone to gw-01, for the broadcast cases (TASK-255). */
+  let broadcast: RecordingBroadcaster;
 
   /**
    * One authenticated request. `headers` is set rather than merged: every
@@ -69,6 +72,7 @@ describe('the saved-plan routes', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-http-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    broadcast = recordingBroadcaster();
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db);
 
@@ -85,7 +89,7 @@ describe('the saved-plan routes', () => {
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(),
+      writes: testWrites(broadcast),
       migrationsApplied: true,
     });
 
@@ -593,5 +597,64 @@ describe('the saved-plan routes', () => {
         });
       }
     }
+  });
+
+  /**
+   * What a collaborator hears (TASK-255).
+   *
+   * **Two projects rather than two sockets**, and that is the strongest thing a
+   * test at this level can say. gw-01 fans one project's stream out to every
+   * socket subscribed to `subscriptionFor(projectId)`, so what be-01 decides is
+   * not *who* receives an event but *which project's stream it lands on* —
+   * exactly one publish, carrying exactly one project id. A test that opened two
+   * sockets would be re-proving gw-01's fan-out, which
+   * `gateway-broadcaster.test.ts` already owns, and would prove nothing about
+   * this file.
+   *
+   * `published` is asserted **whole** with `toEqual` rather than searched. A
+   * `.some(...)` would pass on a save that also announced the second project,
+   * which is the defect AC #3 exists to catch.
+   */
+  describe('the broadcast', () => {
+    /** A second project, owned by the same account, that must hear nothing. */
+    const anotherProject = async (): Promise<string> => {
+      const created = await as(tokens['owner'], '/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Re-roof the barn' }),
+      });
+      return ((await created.json()) as { project: { id: string } }).project.id;
+    };
+
+    it('announces a save on the saved project, and on no other', async () => {
+      const other = await anotherProject();
+      broadcast.published.length = 0;
+
+      expect((await save('ada')).status).toBe(201);
+
+      expect(broadcast.published).toEqual([
+        { projectId, event: { type: 'saved_plans_changed' } },
+      ]);
+      // Named separately, so a regression that broadcast to every project fails
+      // on a sentence that says which project was wrong.
+      expect(broadcast.published.map((each) => each.projectId)).not.toContain(other);
+    });
+
+    /**
+     * The negative that keeps the publish on the branch that changed something.
+     * `mallory` may not write to a restricted project, so this is a 403 — and a
+     * 403 has changed no list.
+     */
+    it('says nothing when the save is refused', async () => {
+      const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ restricted: true }),
+      });
+      expect(restricted.status).toBe(200);
+      broadcast.published.length = 0;
+
+      expect((await save('mallory')).status).toBe(403);
+
+      expect(broadcast.published).toEqual([]);
+    });
   });
 });

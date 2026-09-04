@@ -78,7 +78,36 @@ export type ProjectEvent =
    * therefore decided purely on whether a reader of this union is told the
    * truth.
    */
-  | { type: 'priority_bands_changed' };
+  | { type: 'priority_bands_changed' }
+  /**
+   * This project's list of saved plans has changed — one saved, renamed or
+   * deleted.
+   *
+   * **The plan itself never changes, and that is what this event is for.** A
+   * saved plan is immutable by construction, so unlike every other member of
+   * this union nothing a second reader already holds has gone stale. What has
+   * changed is the *set*: the shelf shows a plan that is not there, or is
+   * missing one that is, or is captioned with a name somebody else replaced.
+   *
+   * It carries nothing, for `directory_changed`'s reason: a client reads the
+   * project's saved plans as one list and the only useful thing to say is "read
+   * again". Carrying the new record would additionally leak it to every reader
+   * of the project including one who may not rename or delete it, which is a
+   * permission the list route already decides for itself.
+   *
+   * Its own type rather than folding into `tree_replaced`, and the distinction
+   * is load-bearing rather than cosmetic: **no date moved and no live row
+   * changed**. A reader that treated a save as a tree change would re-fetch and
+   * re-render a plan that is byte-identical to the one on screen, on every save
+   * any collaborator makes.
+   *
+   * There is a second reader of this event beyond the shelf. TASK-232's 8.4
+   * offers "this plan has changed since the comparison below was made" rather
+   * than swapping the comparison out; before this event existed that affordance
+   * could only be reached by the reader's *own* save, because nothing a
+   * collaborator did ever arrived.
+   */
+  | { type: 'saved_plans_changed' };
 
 /**
  * The subscription name carrying a project's edits.

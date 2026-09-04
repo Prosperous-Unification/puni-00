@@ -198,7 +198,19 @@ export function buildApp(opts: AppOptions) {
       // saved-plan collection is one segment longer than anything that
       // controller declares, so neither can shadow the other, and adjacency is
       // what makes that checkable at a glance.
-      .use(savedPlanController(opts.auth, opts.savedPlans, opts.projects))
+      .use(
+        savedPlanController(
+          opts.auth,
+          opts.savedPlans,
+          opts.projects,
+          // The same `DeferringBroadcaster` the command runner holds through, not
+          // a second one: a saved-plan write never runs inside a batch, so this
+          // always falls through to the inner broadcaster — but wrapping a
+          // different instance is the mistake `testWrites` documents, and there
+          // is no reason to leave a second one lying next to it.
+          opts.writes.announcements,
+        ),
+      )
       .use(stepController(opts.auth, opts.steps))
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(directoryController(opts.auth, opts.directory))
