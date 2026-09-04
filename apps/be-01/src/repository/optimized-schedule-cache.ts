@@ -406,8 +406,8 @@ export function admissionStillCurrent(db: Reader, claim: AdmissionClaim): boolea
  *
  * **This is the condition that blocked the write half of 4.1 for three runs**,
  * and it is not interchangeable with the other three. The slot token fences a
- * superseded *attempt*, the generation and cancel epoch fence a superseded
- * *input*; this one fences a project whose owner switched the optimizer off
+ * superseded attempt and the generation and cancel epoch fence a superseded
+ * input; this one fences a project whose owner switched the optimizer off
  * while a solve that was legitimately admitted was still running. Nothing else
  * in the pipeline observes that, because admission happened before the switch
  * was thrown — so without it a project can be switched off and still acquire a
