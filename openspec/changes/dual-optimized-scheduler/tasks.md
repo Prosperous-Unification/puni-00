@@ -2149,7 +2149,7 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       `resourcePredecessorId` null, `capacityPredecessorIds` empty,
       `capacityTeamId` null and `waitingForCapacity` 0. Removing the switch arm
       reddens `says in words what a start is held by` alone (1 of 130).
-- [ ] 4.10b **Two orders, not one** (Sol r7 Important 7). Ledger replay is
+- [x] 4.10b **Two orders, not one** (Sol r7 Important 7). Ledger replay is
       chronological (ascending start, canonical tie-break); the order handed to
       `lateTimes` is a **topological** order of the augmented graph — plan
       edges, step-order edges and the reconstructed resource-successor edges —
@@ -2180,6 +2180,21 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       predecessor whose id sorts **after** its successor, sharing one start —
       passing chronological order to `lateTimes` must throw or produce a wrong
       `latestStart`, and the topological order must not.
+      **DONE (run 40 chunk 4).** Fast's arm and the audit landed in runs 38 and
+      39 in `schedule-placement-order.test.ts`; the optimized arm is now beside
+      them. It earns its own case because the pinned comparator is
+      `(pinned start, canonical order)`, and on this fixture — both slices
+      pinned at 0, `a`'s key sorting before `z`'s — that comparator READ ON ITS
+      OWN gives the wrong order. Kahn overrules it: the eligible set admits `z`
+      first and `a` only once `z` is placed, so the two are never in the set
+      together and the comparator never gets to invert them. Every backward-pass
+      number is asserted equal to Fast's at the same starts.
+      **Proved from both sides.** M8 — replacing the drain with a chronological
+      `(start, key)` sort before `lateTimes` — reddens 3 of 433, both arms of
+      this fixture among them, which is the watched red above. M9, the control,
+      inverts the pinned comparator's tie-break and reddens **nothing** (433
+      pass / 0 fail), which is what proves the case is about Kahn rather than
+      about the comparator sitting in front of it.
 - [ ] 4.11 Materialiser proofs run **through the real plan-read payload**
       (`work-item.service.ts`), not against the domain type. **Watched red:**
       (a) return Fast's own annotations against optimized dates — the float
