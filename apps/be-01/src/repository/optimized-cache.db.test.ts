@@ -14,6 +14,7 @@ import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { allocateGeneration } from './optimization-generation';
 import {
+  type AdmissionClaim,
   admissionStillCurrent,
   type CachedOutcome,
   type OptimizedCacheKey,
@@ -702,12 +703,12 @@ describe("the writer's own slot, which is 4.1's first condition", () => {
 });
 
 describe("the generation the attempt was admitted under, which is 4.1's second and third conditions", () => {
-  const ADMITTED = {
+  const ADMITTED: AdmissionClaim = {
     projectId: 'p-1',
     contractVersion: CONTRACT,
     generation: 1,
     admittedCancelEpoch: 0,
-  } as const;
+  };
 
   const current = (path: string, claim = ADMITTED): boolean =>
     admissionStillCurrent(openDrizzle(path), claim);
