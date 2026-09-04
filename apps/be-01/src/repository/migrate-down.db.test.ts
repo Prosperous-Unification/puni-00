@@ -213,6 +213,15 @@ const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
  * order and every descending reversal list below.
  */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
+
+/**
+ * The newest, and the optimizer's own: four tables plus one nullable column on
+ * `project`. Additive forward and dropped whole by its own `down.sql`, so it
+ * appears in the order and in nothing else this file checks — except that it
+ * now **heads** every descending reversal list below, because the newest
+ * migration is the first thing any rollback reverses.
+ */
+const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -482,6 +491,7 @@ describe('readMigrationFolders', () => {
       RENAME_ROLE_TO_STEP,
       AUDIT_COLUMNS,
       LOOKUP_INDEXES,
+      OPTIMIZER_TABLES,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -590,11 +600,13 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        OPTIMIZER_TABLES,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -687,6 +699,7 @@ describe('rollbackTo, against a real database', () => {
         RENAME_ROLE_TO_STEP,
         AUDIT_COLUMNS,
         LOOKUP_INDEXES,
+        OPTIMIZER_TABLES,
       ]);
     } finally {
       db.cleanup();
@@ -757,6 +770,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
@@ -836,7 +850,10 @@ describe('rollbackTo, against a real database', () => {
       const newest = readMigrationFolders(FOLDER).at(-1)?.name;
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
-      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([LOOKUP_INDEXES]);
+      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        OPTIMIZER_TABLES,
+        LOOKUP_INDEXES,
+      ]);
       expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
       expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
@@ -900,6 +917,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        OPTIMIZER_TABLES,
         LOOKUP_INDEXES,
         AUDIT_COLUMNS,
         RENAME_ROLE_TO_STEP,
