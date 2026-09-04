@@ -1064,6 +1064,51 @@ function eligibleSet(goesFirst: (left: number, right: number) => boolean) {
   };
 }
 
+/** One candidate start and the word that would explain it. */
+interface FloorCandidate {
+  at: number;
+  kind: ScheduleFloor;
+}
+
+/**
+ * The latest of a slice's floors, and the word for it.
+ *
+ * **Strictly later wins, so a tie keeps the floor named first** — which is why
+ * the caller lists `person` second to last and `capacity` last, and why the
+ * order of {@link ScheduleFloor} is a rule rather than a spelling.
+ *
+ * Proof: written as `<`, so that a later floor takes a tie, and `names the
+ * predecessor, not the person, when the two land on the same day` failed — a
+ * row whose assignee came free exactly as its dependency cleared was reported
+ * as waiting for her, and counted into "N tasks wait for a person"; watched
+ * 2026-08-09.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9 and for nothing else.** The
+ * optimized materialiser must resolve a slice's floor by *this* loop rather
+ * than by comparing the joint window to the pinned start (tasks.md 4.9, Sol r8
+ * Critical 1 and kimi r8 Critical 1): the struck three-way split reported
+ * `capacity` for the common unmoved slice, where `jointWindowFor` returns
+ * `binding: []` by construction and `capacityTeamId` therefore had no rule.
+ * Two callers of one function cannot drift the way two transcriptions of one
+ * rule can, and the drift is the defect those reviews found. The body is
+ * unchanged from the loop it replaces; the empty list still answers
+ * `projectStart` at 0, which is what a slice with no floor above the project's
+ * own start has always meant.
+ */
+function resolveFloor(candidates: readonly FloorCandidate[]): {
+  start: number;
+  boundBy: ScheduleFloor;
+} {
+  let start = 0;
+  let boundBy: ScheduleFloor = 'projectStart';
+  for (const floor of candidates) {
+    if (floor.at <= start) continue;
+    start = floor.at;
+    boundBy = floor.kind;
+  }
+  return { start, boundBy };
+}
+
 /**
  * **Deterministic serial list scheduling**: one pass, one eligible set, every
  * slice placed once and never moved.
@@ -1202,26 +1247,16 @@ function placeSlices(
     // block throws `b step-dev waited for capacity with nothing holding the
     // pool`. Recorded as observed, which is also what `verify.md`'s F8 row
     // says; watched 2026-08-12.
-    const floors: { at: number; kind: ScheduleFloor }[] = [
+    const floors: FloorCandidate[] = [
       { at: fromPredecessor, kind: 'predecessor' },
       { at: fromStepOrder, kind: 'stepOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
       { at: window.start, kind: 'capacity' as const },
     ];
-    let start = 0;
-    let boundBy: ScheduleFloor = 'projectStart';
-    for (const floor of floors) {
-      // Strictly later, so a tie keeps the floor named first. Proof: written as
-      // `<`, so that a later floor takes a tie, and `names the predecessor, not
-      // the person, when the two land on the same day` failed — a row whose
-      // assignee came free exactly as its dependency cleared was reported as
-      // waiting for her, and counted into "N tasks wait for a person"; watched
-      // 2026-08-09.
-      if (floor.at <= start) continue;
-      start = floor.at;
-      boundBy = floor.kind;
-    }
+    // The tie rule and its proof live on {@link resolveFloor}, which the
+    // optimized materialiser calls too — see 4.9.
+    const { start, boundBy } = resolveFloor(floors);
 
     // The anchor is kept while the work item's slices tile — the arithmetic
     // then reads `base + offsets[i]`, which is what the engine before slices
