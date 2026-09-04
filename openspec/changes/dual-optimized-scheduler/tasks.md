@@ -2204,7 +2204,7 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       inverts the pinned comparator's tie-break and reddens **nothing** (433
       pass / 0 fail), which is what proves the case is about Kahn rather than
       about the comparator sitting in front of it.
-- [ ] 4.11 Materialiser proofs run **through the real plan-read payload**
+- [x] 4.11 Materialiser proofs run **through the real plan-read payload**
       (`work-item.service.ts`), not against the domain type. **Watched red:**
       (a) return Fast's own annotations against optimized dates — the float
       and `boundBy` assertions must fail; (b) report a deliberately idled
@@ -2387,10 +2387,61 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       an `'optimizer'` slice — the gate's red lives in
       `schedule-annotate.test.ts` and in (e). What the payload case adds is that
       the invariant survives the DTO.
-      **(d) IS THE ONE STILL UNWRITTEN.** It needs a leaf naming TWO pools,
-      which is the only fixture shape that file does not build; (e)'s shape is
-      the template, and the pin must sit ON the joint capacity floor or the
-      slice is `'optimizer'` and carries no capacity fields to assert on.
+      **(d) IS NOW WRITTEN AND PROVED (run 44), and run 43's reason for
+      reverting it was itself a mis-measurement.** Run 43 recorded that "a slice
+      naming two pools takes ONE slot from whichever pool has room, so its floor
+      is the min, not the joint max", which contradicts
+      `schedule-joint-capacity.test.ts` and is not what the engine does. Probed
+      on h2puni: that fixture's contended leaf reached the engine with
+      **`poolIds: []`** — no pools at all — so the floor it measured was never a
+      joint window. `WorkItemStore.insert` takes a `WorkItem`, which carries the
+      singular `serviceTeamId` and no set; the SQLite repository's private
+      `joinRowsFor` happens to read a `teamIds` property off the row it is
+      handed, but that shape is not on the port and the in-memory twin's
+      `joinFor` does not read it, so the label was dropped silently. **The
+      supported write path for a team SET is `patch`**, which both the store and
+      its twin implement and which validates the teams against the directory —
+      so they must exist first. Recorded because the failure mode is the one the
+      harness's own doc comment warns about: the graph constructs, the suite
+      runs, and the label is simply never there to assert on.
+      The case as landed: Alpha and Beta both size 1; an Alpha tenant of 2 days
+      and a Beta tenant of 4 days, each of which also spends its unestimated QA
+      slice (`ASSUMED_SLICE_WORKDAYS`) in the same pool, so Alpha frees at 4 and
+      Beta at 6; and a contended 2-day leaf on both pools pinned at 6, its own
+      floor. It comes back `earliestStart: 6`, `boundBy: 'capacity'`,
+      `capacityTeamId: 'team-beta'` and all FOUR tenant slices in
+      `capacityPredecessorIds` — the union across the search's rounds, not the
+      two live at the accepted instant.
+      **The tenants carry an explicit `priority`**, which is the fixture's other
+      lesson: every leaf in this file shares a position and starts on day 0, so
+      without it the leveller's tie falls to float and the contended slice can
+      take both slots first, which reads as a floor of 4 for a reason that has
+      nothing to do with the item.
+      **Three watched reds, each reddening (d) alone:** `jointWindowFor`'s
+      multi-pool loop asking `poolIds.slice(0, 1)`; that loop's
+      `window.start > best` flipped to `<` (the "either pool will do" reading);
+      and `annotateCapacity`'s `finishesByStart` narrowed from `<= start` to
+      `=== start`.
+      **Two of the item's own three claims are measured negatives here**, and
+      both are recorded in the case rather than smoothed over. "Reserve into
+      only the first pool" leaves all six green — every tenant in this fixture
+      names ONE pool, so the per-pool WRITE has no second pool to lose, and that
+      half of decision 3 is `schedule-joint-capacity.test.ts`'s. And
+      "`capacityTeamId` as the first sorted pool" leaves all six green for a
+      structural reason rather than a fixture gap: **a pool that had room at the
+      accepted start is not a binding pool**, so `window.binding` is
+      `['team-beta']` alone and every reading of a one-element set agrees. Two
+      pools bind only when both released at the accepted instant, where their
+      latest valid finishers TIE at that instant and the pool-id tie-break is
+      the rule — so "latest finisher, not first by id" is distinguishable only
+      in the tied-pool case that file already carries, and not in a joint
+      window. `team-alpha` still earns its name: it is what makes
+      `capacityTeamId: 'team-beta'` a claim about which pool ran out.
+      **THE ITEM IS CLOSED.** All six proofs have a disposition through the real
+      payload: (a), (b), (d), (e) and (f) each have a case and at least one
+      watched red, and (c) is the recorded decision one paragraph up. The
+      adapter's remaining "still unwired" note is slice 6's `budgetMs` and
+      `solverVersion`, not this item's.
       **A fixture rule the file learned the hard way:** a case may state only
       the offsets it MOVES. A solver answers for every slice, so `servedBy`
       fills the rest from `quantisedFastBaseline`, and moving a slice moves its
