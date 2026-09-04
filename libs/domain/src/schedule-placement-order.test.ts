@@ -83,7 +83,10 @@ describe('the order Fast hands the backward pass', () => {
     expect(z.duration).toBe(0);
     expect(z.earliestStart).toBe(0);
     expect(a.earliestStart).toBe(0);
-    expect('a' < 'z').toBe(true);
+    // The canonical order, which is what a chronological sort would tie-break
+    // on — read off `sliceKey` rather than written as a literal comparison, so
+    // it is the real key order and not a constant the linter can fold away.
+    expect(sliceKey('a', DEV) < sliceKey('z', DEV)).toBe(true);
 
     // The backward pass reached `a` before `z`, which is the whole claim: `z`'s
     // late finish is `a`'s late start, not a number reconstructed from a `Late`
