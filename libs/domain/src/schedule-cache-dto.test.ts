@@ -102,6 +102,24 @@ describe('what a stored schedule keeps', () => {
     expect(dto.dtoVersion).toBe(CACHE_DTO_VERSION);
   });
 
+  it('keeps a parent, whose workItems entry no slice names', () => {
+    // `workItems` is not the slice ids. A parent has no work of its own — it has
+    // a span — so it carries an entry and no slice, on every plan with a tree in
+    // it. design.md's "workItems covering exactly the projected ids" therefore
+    // cannot be read as set equality: a decoder enforcing the reverse direction
+    // would reject every plan that has a parent row.
+    const rows: PlannedRow[] = [
+      { id: 'p', parentId: null, position: 10, frozenNumber: null, priority: null },
+      { id: 'kid', parentId: 'p', position: 20, frozenNumber: null, priority: null },
+    ];
+    const plan = schedule(rows, [], [slice('kid', 2)], new Map(), pool(1));
+
+    expect(plan.workItems.has('p')).toBe(true);
+    expect([...plan.slices.values()].some((one) => one.workItemId === 'p')).toBe(false);
+
+    expect(throughJson(plan)).toEqual(plan);
+  });
+
   it('emits one encoding per plan, whatever order the maps were built in', () => {
     const plan = realPlan();
 
