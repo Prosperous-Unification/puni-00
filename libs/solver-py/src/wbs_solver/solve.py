@@ -204,6 +204,75 @@ def donated_budget_ms(share_ms: float, spent_ms: float) -> float:
     return max(0.0, share_ms - spent_ms)
 
 
+# 5.9's feasibility probe limit, in CP-SAT deterministic units. The probe solves
+# a model with every start fixed, so presolve decides it and there is nothing to
+# search: measured at 1.1–1.6 ms wall on the eleven-slice instance
+# `test_bound.py` uses. The limit is a fail-safe against a pathological instance,
+# not a budget, and exhausting it means "not proved feasible", which costs the
+# bound and never an answer.
+BASELINE_PROBE_UNITS = 1.0
+
+
+def baseline_is_feasible(request: Mapping[str, Any]) -> bool:
+    """Is `baselineOffsets` a solution of exactly the model this run solves?
+
+    5.9's bound `T₁ ≤ baselineT₁` is sound **only** if the baseline placement is
+    itself admitted by the model: bounding a term by the cost of something the
+    constraints exclude can cut off every real solution, and stage 1 reports that
+    as `INFEASIBLE, k = 1` — design.md's "a property of the user's plan". A wrong
+    answer, not a degraded one.
+
+    design.md says the baseline is feasible "by construction" because it is
+    Fast's own placement re-run through `schedule()` over the same rounded
+    durations. That is a **builder** invariant, and the wire does not carry it:
+    the request `$comment`'s eight cross-field invariants cover the two offset
+    maps' equality, their key sets, their horizon bound, pools, edges, the split,
+    duplicate members and the overflow worst cases — and say nothing about
+    whether the baseline can actually be placed. So this side checks rather than
+    assumes, and the check is not hypothetical: an all-zero baseline over slices
+    sharing a capacity-2 pool is a request the schema, the cross-field checks and
+    `validate_request` all accept, and it is infeasible.
+
+    The probe is `build_model` with every start pinned, deliberately rather than
+    a second implementation of the six clauses. A hand-written predicate would be
+    a copy of `model.py` free to drift from it, and the two disagreeing is the
+    exact failure mode — a bound installed against a model that does not admit
+    the baseline after all.
+    """
+    probe = build_model(request)
+    baseline = request["baselineOffsets"]
+    for key, var in probe.starts.items():
+        probe.model.add(var == int(baseline[key]))
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 1
+    solver.parameters.max_deterministic_time = BASELINE_PROBE_UNITS
+    return solver.solve(probe.model) in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+
+def baseline_bound(request: Mapping[str, Any]) -> tuple[str, int] | None:
+    """Stage 1's term and the baseline's value for it, or `None` when unbounded.
+
+    Exported and separate from `solve_request` for the same reason
+    `stage_disposition` and `donated_budget_ms` are: what the bound *is* can then
+    be asserted as a value, and the property that matters — no placement worse
+    than the baseline is a solution — can be asserted against the number this
+    function actually returns rather than against a copy of the arithmetic.
+
+    That seam is load-bearing here, because the bound is **invisible in
+    `solve_request`'s answer on this solver**. Measured on the eleven-slice
+    instance at every deterministic limit from 0.001 to 0.5: stage 1's incumbent
+    is the baseline's own value whether the bound is installed or not, because
+    5.9's *other* half — the solution hint — already delivers the baseline as the
+    first incumbent. So the bound is not what makes the common case good; it is
+    what makes the guarantee hold in the case CP-SAT does not promise to avoid.
+    `model.py`'s hint case says it in as many words: a hint is advice.
+    """
+    primary = stage_order(str(request["objective"]))[0]
+    if not baseline_is_feasible(request):
+        return None
+    return primary, evaluate_terms(request, request["baselineOffsets"])[primary]
+
+
 def _configure(config: SolverConfig, budget_ms: float) -> cp_model.CpSolver:
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = config.num_search_workers
@@ -267,6 +336,27 @@ def solve_request(
     recorded: dict[str, tuple[int, int, str]] = {}
     incumbent: dict[str, int] | None = None
     carry_ms = 0.0
+
+    # 5.9's second half. The hint is in `build_model`; this is the bound, and it
+    # is here because it constrains stage 1's *term*, which does not exist until
+    # `build_model` has returned.
+    #
+    # WHAT IT GUARANTEES, EXACTLY: no placement worse than the quantised baseline
+    # on stage 1's term is a solution of this model. That is a statement about
+    # the **quantised** model alone (design.md, Sol r10 Critical 3) — rounding
+    # `days / width` up can cost more than the search wins, so the real-domain
+    # no-worse-than-Fast guarantee is 4.11b's publication guard and is not made
+    # here.
+    #
+    # It is never `MOVEMENT ≤ 0`: `STAGE_ORDER` puts MOVEMENT last under both
+    # objectives, so `order[0]` is PRIORITY or MAKESPAN. If that ever changes,
+    # the bound would pin MOVEMENT to zero — the baseline is its own reference —
+    # and freeze every start at the baseline, which is why the pairing is stated
+    # rather than left to be noticed.
+    bound = baseline_bound(request)
+    if bound is not None:
+        bounded_term, bound_value = bound
+        built.model.add(built.terms[bounded_term] <= bound_value)
 
     for index, term_name in enumerate(order):
         stage = index + 1
