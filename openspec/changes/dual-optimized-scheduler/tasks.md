@@ -196,9 +196,26 @@ string[]`, never a singular `poolId`);
       at `build-solver-request.ts:214`, which is where the **request** is built.
       There is no cache table yet — `budgetMs` and `contractVersion` become
       cache-key _columns_ in **task 4.2**, which is where "built where the cache
-      key is built" acquires a place to be true. This item stays unticked until
-      4.2 lands, and it stays unticked for that reason alone; nothing else in it
-      is outstanding.
+      key is built" acquires a place to be true.
+      **THE REASON HAS CHANGED, run 45 chunk 4. 4.2 IS TICKED**, so the columns
+      exist and that sentence is stale. What is left is smaller and sharper:
+      the composite was written as a template literal at the request builder,
+      while `publishedScheduleReaderOf` receives the same string as a
+      caller-supplied `PublishedScheduleOptions.contractVersion`. Two writes of
+      one format, separated by a library boundary, fail **silently**: a
+      character of difference makes every cache read miss forever, nothing
+      throws, and no test fails — the plan simply never gets a cached answer and
+      looks slow rather than broken.
+      **So the composer now exists and there is only one:**
+      `contractVersionOf(solverVersion)` in `libs/domain/src/contract-version.ts`,
+      with `build-solver-request.ts` calling it instead of retyping the literal,
+      and `contract-version.test.ts` proving both halves and that no
+      `solverVersion` is ever invented (mutations: a defaulted version **1/1**,
+      the constant dropped from the composite **0/2**).
+      **The remaining half is slice 6's and is a one-line obligation:** the
+      composition root that constructs `publishedScheduleReaderOf` must pass
+      `contractVersionOf(solverVersion)` and not a string of its own. Tick 1.5
+      when it does.
 - [ ] 1.6 **Proven by** keying the existing Fast golden corpus on
       `SCHEDULER_CONTRACT_VERSION`. **Negative check, watched red** — change
       `ASSUMED_SLICE_WORKDAYS` without bumping the constant and watch the
