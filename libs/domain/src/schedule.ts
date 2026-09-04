@@ -1109,6 +1109,40 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
   return { start, boundBy };
 }
 
+/**
+ * Where a slice finishes, and the anchor the rest of its work item tiles from.
+ *
+ * **The anchor is kept while the work item's slices tile** — the arithmetic then
+ * reads `base + offsets[i]`, which is what the engine before slices computed and
+ * what the identity claim rests on. A slice a person or a pool held back does
+ * not tile, and becomes the anchor the rest are measured from.
+ *
+ * Proof: written as `start + (offsets[at + 1] - offsets[at])` — the textbook
+ * `start + days`, accumulated from slice to slice — and `answers what the
+ * previous engine answered` failed at seed 260: a work item's late start of
+ * 10.666666666666666 became 10.666666666666668; watched 2026-08-09.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9, unchanged.** It is the third of
+ * the three rules the optimized materialiser must apply and not restate — the
+ * floor ({@link resolveFloor}), the pool's explanation
+ * ({@link annotateCapacity}) and this one. A materialiser that accumulated
+ * `start + days` instead would reproduce seed 260's drift on every optimized
+ * plan, and the differential that caught it once does not run over the
+ * optimized path.
+ */
+function tileFinish(
+  anchor: SpanAnchor | undefined,
+  start: number,
+  at: number,
+  offsets: readonly number[],
+): { held: SpanAnchor; finish: number } {
+  const held =
+    anchor !== undefined && start === anchor.start + (offsets[at] - offsets[anchor.at])
+      ? anchor
+      : { start, at };
+  return { held, finish: held.start + (offsets[at + 1] - offsets[held.at]) };
+}
+
 /** What `capacityProfile(...).jointWindowFor` answers, named so the annotator can take one. */
 interface JointWindow {
   start: number;
@@ -1396,22 +1430,8 @@ function placeSlices(
     // optimized materialiser calls too — see 4.9.
     const { start, boundBy } = resolveFloor(floors);
 
-    // The anchor is kept while the work item's slices tile — the arithmetic
-    // then reads `base + offsets[i]`, which is what the engine before slices
-    // computed and what the identity claim rests on. A slice a person held
-    // back does not tile, and becomes the anchor the rest are measured from.
-    const anchor = anchorOf[node.item];
-    const held =
-      anchor !== undefined && start === anchor.start + (offsets[at] - offsets[anchor.at])
-        ? anchor
-        : { start, at };
+    const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
-    // Proof: written as `start + (offsets[at + 1] - offsets[at])` — the
-    // textbook `start + days`, accumulated from slice to slice — and `answers
-    // what the previous engine answered` failed at seed 260: a work item's late
-    // start of 10.666666666666666 became 10.666666666666668; watched
-    // 2026-08-09.
-    const finish = held.start + (offsets[at + 1] - offsets[held.at]);
     const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
       node.key,
       boundBy,
