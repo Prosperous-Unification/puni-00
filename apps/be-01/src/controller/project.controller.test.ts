@@ -115,7 +115,17 @@ const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name
 const missingFrom = (carried: object, wanted: readonly string[]): string[] =>
   wanted.filter((field) => !Object.hasOwn(carried, field));
 
-/** Every column a project row has, which is what create and read both answer with. */
+/**
+ * Every column a project row has, which is what create and read both answer with.
+ *
+ * The three optimizer settings are in this list rather than in a case of their
+ * own, and that is the whole reason it is a list: `missingFrom` runs it against
+ * create, list and read, so publishing a field at the repository layer and
+ * forgetting it on one of the three routes is caught by whichever route forgot.
+ * `project.db.test.ts` proves the settings reach the *payload*; nothing proved
+ * they reach the **wire** until they were named here — the containment check
+ * passes happily on a payload that never carried them.
+ */
 const PROJECT_FIELDS = [
   'id',
   'name',
@@ -128,6 +138,9 @@ const PROJECT_FIELDS = [
   'solutionRef',
   'revision',
   'createdAt',
+  'optimizationEnabled',
+  'scheduleEngine',
+  'scheduleObjective',
 ] as const;
 
 describe('projects', () => {
