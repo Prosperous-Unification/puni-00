@@ -206,8 +206,8 @@ describe("the materialiser's annotations, through the plan read", () => {
       boundBy: 'optimizer',
       critical: true,
     });
-    expect(rowFor(tree, strip)).toMatchObject({ float: 3, critical: false });
-    expect(rowFor(tree, sand)).toMatchObject({ float: 0, critical: true });
+    expect(rowFor(tree, strip).schedule).toMatchObject({ float: 3, critical: false });
+    expect(rowFor(tree, sand).schedule).toMatchObject({ float: 0, critical: true });
   });
 
   it('labels a deliberately idled slice `optimizer` and not by the floor it cleared', async () => {
