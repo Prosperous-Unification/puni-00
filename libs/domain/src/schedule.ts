@@ -1109,6 +1109,144 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
   return { start, boundBy };
 }
 
+/** What `capacityProfile(...).jointWindowFor` answers, named so the annotator can take one. */
+interface JointWindow {
+  start: number;
+  blocking: number[];
+  binding: { poolId: string; blocking: number[] }[];
+}
+
+/**
+ * Everything a pool explains about one placed slice: which reservations were
+ * its predecessors, which team ran out, and which end the arrow points at.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9, unchanged.** The optimized
+ * materialiser derives these three from the same joint window over the same
+ * replayed ledgers, and every review finding in this area — the `finish <=
+ * start` filter (Sol r8 Critical 1), the chosen pool's own blockers rather
+ * than an independently ordered union, the referent's placement-order tie-break
+ * — is a rule that must hold identically on both paths. One function, two
+ * callers.
+ *
+ * The two ledgers are reached through `finishOf` and `placedAtOf` rather than
+ * passed as arrays, because the materialiser holds its own and they are not
+ * the same shape. `placedAtOf` is a **position in the pass's own order**, which
+ * is what breaks a tie between two blockers finishing at the same instant;
+ * `finishOf` is the early finish of an already-placed slice.
+ *
+ * Both invariants stay here with the code they guard: a capacity-floored slice
+ * with nothing holding the pool, and a `capacityTeamId` that disagrees with
+ * `boundBy`, are throws rather than nulls the render path would have to invent
+ * words for.
+ */
+function annotateCapacity(
+  key: string,
+  boundBy: ScheduleFloor,
+  start: number,
+  window: JointWindow,
+  finishOf: (node: number) => number,
+  placedAtOf: (node: number) => number,
+): { capacityPredecessors: number[]; capacityTeamId: string | null; referent: number } {
+  // Only where the pool is what held it: a set carried on a slice the pool
+  // let through would be a wait that is not there, in the same way an arrow
+  // for a resource edge that did not bind would be.
+  // A conservative scan records every reservation present at a violated
+  // instant. Only reservations that finish by the accepted start are actual
+  // predecessors: a narrower reservation may continue alongside this slice.
+  // Promoting that overlap into the backward graph gives it a late finish
+  // before its early finish and exposes negative public float.
+  const finishesByStart = (blocker: number): boolean => finishOf(blocker) <= start;
+  const capacityPredecessors =
+    boundBy === 'capacity' ? window.blocking.filter(finishesByStart) : [];
+  /**
+   * Which pool ran out, of the ones that pinned the start.
+   *
+   * The tightest team, and where two are equally tight the one whose blocking
+   * set holds the latest valid finisher. Ties past that by pool id. Keep the
+   * chosen pool's valid blockers with it: the public referent below must come
+   * from the team the sentence names, not from an independently ordered union.
+   *
+   * A slice a pool did not hold up carries null, exactly as it carries an
+   * empty blocking set: a team named on a slice nothing held up is a wait
+   * that is not there, in the same way a resource arrow would be.
+   */
+  let capacityTeamId: string | null = null;
+  let capacityTeamBlockers: number[] = [];
+  let bestFinish = -Infinity;
+  for (const pool of window.binding) {
+    const validBlockers = pool.blocking.filter(finishesByStart);
+    let finish = -Infinity;
+    for (const blocker of validBlockers) finish = Math.max(finish, finishOf(blocker));
+    if (
+      finish > bestFinish ||
+      (finish === bestFinish && capacityTeamId !== null && pool.poolId < capacityTeamId)
+    ) {
+      bestFinish = finish;
+      capacityTeamId = pool.poolId;
+      capacityTeamBlockers = validBlockers;
+    }
+  }
+  /**
+   * Which of the blocking set the arrow points at: the latest finisher, ties
+   * to the one placed first.
+   *
+   * A display referent and nothing more — the graph below keeps the complete
+   * valid union. Selection is restricted to the chosen binding pool so the
+   * named team and arrow remain one causal explanation. Within that pool the
+   * latest finisher is the end the reader is looking at; ties use placement
+   * order rather than node index, preserving the pass's own total order.
+   */
+  let referent = NOBODY;
+  for (const blocker of capacityTeamBlockers) {
+    if (referent === NOBODY) {
+      referent = blocker;
+      continue;
+    }
+    if (finishOf(blocker) > finishOf(referent)) referent = blocker;
+    else if (
+      finishOf(blocker) === finishOf(referent) &&
+      placedAtOf(blocker) < placedAtOf(referent)
+    ) {
+      referent = blocker;
+    }
+  }
+  // A capacity-floored slice with an empty blocking set is impossible — the
+  // floor is the search's own answer and the search records what it stepped
+  // over — so it is a throw rather than a null the render path would have to
+  // invent words for. `floorWordsOf`'s existing refusal, one layer down.
+  //
+  // Proof: the search made to hand back an empty set (its dependency
+  // deliberately broken) **and** this throw replaced by the fall-through it
+  // refuses — the two faults the invariant stands between — and `waits for a
+  // team's slots to come free before it starts` failed on
+  // `resourcePredecessorId: null` with `boundBy: 'capacity'`: a bar claiming
+  // a wait and naming nothing. With the throw restored the same broken search
+  // fails here instead, which is the point of it; watched 2026-08-12.
+  if (boundBy === 'capacity' && referent === NOBODY) {
+    throw new Error(`${key} waited for capacity with nothing holding the pool`);
+  }
+  // **Read off the search rather than gated on `boundBy`, and then checked
+  // against it.** The two are the same fact — a pool binds exactly where it
+  // pushed the block off the plan floor, and a floor strictly past the plan's
+  // own is what `capacity` means — so a gate here would be a restatement
+  // that cannot fail, which is the one thing this repo has been bitten by
+  // repeatedly. Written as the invariant instead, where an injected fault on
+  // either side of it reddens.
+  //
+  // Proof: `binding` handed back without its `start > floor` condition — the
+  // shape of a pool that had room being called the reason — and `names no
+  // team on a slice no pool held up` failed here on `first step-dev names
+  // team-alpha with no pool binding it`; watched 2026-08-14.
+  if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
+    throw new Error(
+      capacityTeamId === null
+        ? `${key} waited for capacity with no pool binding it`
+        : `${key} names ${capacityTeamId} with no pool binding it`,
+    );
+  }
+  return { capacityPredecessors, capacityTeamId, referent };
+}
+
 /**
  * **Deterministic serial list scheduling**: one pass, one eligible set, every
  * slice placed once and never moved.
@@ -1274,103 +1412,14 @@ function placeSlices(
     // start of 10.666666666666666 became 10.666666666666668; watched
     // 2026-08-09.
     const finish = held.start + (offsets[at + 1] - offsets[held.at]);
-    // Only where the pool is what held it: a set carried on a slice the pool
-    // let through would be a wait that is not there, in the same way an arrow
-    // for a resource edge that did not bind would be.
-    // A conservative scan records every reservation present at a violated
-    // instant. Only reservations that finish by the accepted start are actual
-    // predecessors: a narrower reservation may continue alongside this slice.
-    // Promoting that overlap into the backward graph gives it a late finish
-    // before its early finish and exposes negative public float.
-    const finishesByStart = (blocker: number): boolean => placed[blocker].finish <= start;
-    const capacityPredecessors =
-      boundBy === 'capacity' ? window.blocking.filter(finishesByStart) : [];
-    /**
-     * Which pool ran out, of the ones that pinned the start.
-     *
-     * The tightest team, and where two are equally tight the one whose blocking
-     * set holds the latest valid finisher. Ties past that by pool id. Keep the
-     * chosen pool's valid blockers with it: the public referent below must come
-     * from the team the sentence names, not from an independently ordered union.
-     *
-     * A slice a pool did not hold up carries null, exactly as it carries an
-     * empty blocking set: a team named on a slice nothing held up is a wait
-     * that is not there, in the same way a resource arrow would be.
-     */
-    let capacityTeamId: string | null = null;
-    let capacityTeamBlockers: number[] = [];
-    let bestFinish = -Infinity;
-    for (const pool of window.binding) {
-      const validBlockers = pool.blocking.filter(finishesByStart);
-      let finish = -Infinity;
-      for (const blocker of validBlockers) finish = Math.max(finish, placed[blocker].finish);
-      if (
-        finish > bestFinish ||
-        (finish === bestFinish && capacityTeamId !== null && pool.poolId < capacityTeamId)
-      ) {
-        bestFinish = finish;
-        capacityTeamId = pool.poolId;
-        capacityTeamBlockers = validBlockers;
-      }
-    }
-    /**
-     * Which of the blocking set the arrow points at: the latest finisher, ties
-     * to the one placed first.
-     *
-     * A display referent and nothing more — the graph below keeps the complete
-     * valid union. Selection is restricted to the chosen binding pool so the
-     * named team and arrow remain one causal explanation. Within that pool the
-     * latest finisher is the end the reader is looking at; ties use placement
-     * order rather than node index, preserving the pass's own total order.
-     */
-    let referent = NOBODY;
-    for (const blocker of capacityTeamBlockers) {
-      if (referent === NOBODY) {
-        referent = blocker;
-        continue;
-      }
-      if (placed[blocker].finish > placed[referent].finish) referent = blocker;
-      else if (
-        placed[blocker].finish === placed[referent].finish &&
-        placedAt[blocker] < placedAt[referent]
-      ) {
-        referent = blocker;
-      }
-    }
-    // A capacity-floored slice with an empty blocking set is impossible — the
-    // floor is the search's own answer and the search records what it stepped
-    // over — so it is a throw rather than a null the render path would have to
-    // invent words for. `floorWordsOf`'s existing refusal, one layer down.
-    //
-    // Proof: the search made to hand back an empty set (its dependency
-    // deliberately broken) **and** this throw replaced by the fall-through it
-    // refuses — the two faults the invariant stands between — and `waits for a
-    // team's slots to come free before it starts` failed on
-    // `resourcePredecessorId: null` with `boundBy: 'capacity'`: a bar claiming
-    // a wait and naming nothing. With the throw restored the same broken search
-    // fails here instead, which is the point of it; watched 2026-08-12.
-    if (boundBy === 'capacity' && referent === NOBODY) {
-      throw new Error(`${node.key} waited for capacity with nothing holding the pool`);
-    }
-    // **Read off the search rather than gated on `boundBy`, and then checked
-    // against it.** The two are the same fact — a pool binds exactly where it
-    // pushed the block off the plan floor, and a floor strictly past the plan's
-    // own is what `capacity` means — so a gate here would be a restatement
-    // that cannot fail, which is the one thing this repo has been bitten by
-    // repeatedly. Written as the invariant instead, where an injected fault on
-    // either side of it reddens.
-    //
-    // Proof: `binding` handed back without its `start > floor` condition — the
-    // shape of a pool that had room being called the reason — and `names no
-    // team on a slice no pool held up` failed here on `first step-dev names
-    // team-alpha with no pool binding it`; watched 2026-08-14.
-    if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
-      throw new Error(
-        capacityTeamId === null
-          ? `${node.key} waited for capacity with no pool binding it`
-          : `${node.key} names ${capacityTeamId} with no pool binding it`,
-      );
-    }
+    const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
+      node.key,
+      boundBy,
+      start,
+      window,
+      (blocker) => placed[blocker].finish,
+      (blocker) => placedAt[blocker],
+    );
     placed[taken] = {
       start,
       finish,
