@@ -193,4 +193,111 @@ describe('the saved-plan routes', () => {
     );
     expect(res.status).toBe(401);
   });
+
+  /**
+   * Task 6.2's matrix: every caller a saved-plan route can have, against all
+   * **five** routes, on a project that is unrestricted and then restricted.
+   *
+   * **The cell that carries the task is `restricted` × `ada`.** She created the
+   * plans and does not own the project, so on a restricted project `canEdit` is
+   * false for her — she may not save a new plan — and yet she may still rename
+   * and delete the ones she already made. No single rule produces both answers,
+   * which is exactly what 6.1 separated: saving is an ordinary project write,
+   * renaming and deleting are the creator-or-owner rule. The tests above prove
+   * that rule holds on an *unrestricted* project, where the ordinary rule is
+   * permissive; this proves it is not merely `canEdit` wearing a second name on
+   * a project where the ordinary rule is strict.
+   *
+   * The `anonymous` row is not padding either: it says the guard runs *before*
+   * the permission rule, so a restricted project answers an unauthenticated
+   * caller 401 and never 403 — a 403 there would tell a stranger the project
+   * exists.
+   */
+  describe('the permission matrix', () => {
+    type Actor = 'anonymous' | 'owner' | 'ada' | 'mallory';
+    interface Row {
+      save: number;
+      list: number;
+      read: number;
+      rename: number;
+      delete: number;
+    }
+
+    const ACTORS: readonly Actor[] = ['anonymous', 'owner', 'ada', 'mallory'];
+
+    const MATRIX: Record<'unrestricted' | 'restricted', Record<Actor, Row>> = {
+      unrestricted: {
+        anonymous: { save: 401, list: 401, read: 401, rename: 401, delete: 401 },
+        owner: { save: 201, list: 200, read: 200, rename: 200, delete: 204 },
+        ada: { save: 201, list: 200, read: 200, rename: 200, delete: 204 },
+        // The ordinary write rule would let her save — the project is open —
+        // and the creator-or-owner rule still refuses her the other two.
+        mallory: { save: 201, list: 200, read: 200, rename: 403, delete: 403 },
+      },
+      restricted: {
+        anonymous: { save: 401, list: 401, read: 401, rename: 401, delete: 401 },
+        owner: { save: 201, list: 200, read: 200, rename: 200, delete: 204 },
+        // Refused a new plan and allowed to rename and delete her own: the two
+        // rules disagreeing about one caller is the point of the whole column.
+        ada: { save: 403, list: 200, read: 200, rename: 200, delete: 204 },
+        mallory: { save: 403, list: 200, read: 200, rename: 403, delete: 403 },
+      },
+    };
+
+    /** As {@link as}, except that `anonymous` sends no `authorization` header. */
+    const request = (actor: Actor, path: string, init: Omit<RequestInit, 'headers'> = {}) =>
+      actor === 'anonymous'
+        ? app.handle(
+            new Request(`http://localhost${path}`, {
+              ...init,
+              headers: { 'content-type': 'application/json' },
+            }),
+          )
+        : as(tokens[actor], path, init);
+
+    for (const column of ['unrestricted', 'restricted'] as const) {
+      for (const actor of ACTORS) {
+        it(`${column}: ${actor} against all five routes`, async () => {
+          // Seeded before the project is restricted, because on a restricted
+          // project `ada` could not create them — and a matrix whose rename and
+          // delete targets were the owner's would be asking a different
+          // question in the two columns.
+          const toRead = await savedIdOf(await save('ada', 'the read target'));
+          const toRename = await savedIdOf(await save('ada', 'the rename target'));
+          const toDelete = await savedIdOf(await save('ada', 'the delete target'));
+
+          if (column === 'restricted') {
+            const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ restricted: true }),
+            });
+            expect(restricted.status).toBe(200);
+          }
+
+          // Collected into one object and compared whole, so a wrong rule
+          // reports every cell it moved rather than stopping at the first.
+          const row: Row = {
+            save: (
+              await request(actor, `/api/projects/${projectId}/saved-plans`, {
+                method: 'POST',
+                body: JSON.stringify({ name: 'one more' }),
+              })
+            ).status,
+            list: (await request(actor, `/api/projects/${projectId}/saved-plans`)).status,
+            read: (await request(actor, `/api/saved-plans/${toRead}`)).status,
+            rename: (
+              await request(actor, `/api/saved-plans/${toRename}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ name: 'renamed' }),
+              })
+            ).status,
+            delete: (await request(actor, `/api/saved-plans/${toDelete}`, { method: 'DELETE' }))
+              .status,
+          };
+
+          expect(row).toEqual(MATRIX[column][actor]);
+        });
+      }
+    }
+  });
 });
