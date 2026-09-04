@@ -291,6 +291,24 @@ export const project = sqliteTable(
 export type ProjectRow = typeof project.$inferSelect;
 
 /**
+ * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
+ *
+ * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
+ * *project* vocabulary and not an optimizer-table one: no row in the four
+ * optimizer tables stores an engine. The objective deliberately has no twin —
+ * `project.schedule_objective` stores the same `'pri' | 'time'`
+ * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
+ * rather than a second vocabulary, and {@link isSolverObjective} reads it.
+ *
+ * The order matters to nothing and the membership matters to everything: it is
+ * the list the migration's `CHECK (schedule_engine IN ('fast','optimized'))`
+ * enumerates, and a value in one and not the other is a row the database
+ * accepts and the read refuses, or the reverse.
+ */
+export const SCHEDULE_ENGINES = ['fast', 'optimized'] as const;
+export type ScheduleEngine = (typeof SCHEDULE_ENGINES)[number];
+
+/**
  * When one account last opened one project, and nothing else.
  *
  * The picker sorts by it, which is the whole reason it exists: "the project I

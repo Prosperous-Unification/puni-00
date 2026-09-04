@@ -3,6 +3,8 @@ import {
   type OptimizationAdmissionState,
   OPTIMIZED_SCHEDULE_STATUSES,
   type OptimizedScheduleStatus,
+  SCHEDULE_ENGINES,
+  type ScheduleEngine,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
   SOLVER_SLOT_LIFECYCLES,
@@ -45,6 +47,23 @@ export function isSolverObjective(value: string): value is SolverObjectiveName {
   return (SOLVER_OBJECTIVES as readonly string[]).includes(value);
 }
 
+/**
+ * One `'fast' | 'optimized'` column — today only `project.schedule_engine`
+ * (tasks.md 3b.8).
+ *
+ * It lives beside the optimizer-table validators rather than in `project.ts`
+ * because the rule is the same one this file exists to state, and a second home
+ * for "stored enum checked on the way out" is how the two drift. There is no
+ * `isScheduleObjective` beside it, which tasks.md 3b.8 named before the rule
+ * above was settled: `project.schedule_objective` stores the vocabulary
+ * {@link isSolverObjective} already checks, so it is a fourth **column** on the
+ * existing validator rather than a second validator over the same three
+ * strings — the growth this file's header forbids.
+ */
+export function isScheduleEngine(value: string): value is ScheduleEngine {
+  return (SCHEDULE_ENGINES as readonly string[]).includes(value);
+}
+
 export function isOptimizedScheduleStatus(value: string): value is OptimizedScheduleStatus {
   return (OPTIMIZED_SCHEDULE_STATUSES as readonly string[]).includes(value);
 }
@@ -65,8 +84,13 @@ export function isSolverSlotLifecycle(value: string): value is SolverSlotLifecyc
  * The message every validator below throws, so a corrupted row is diagnosable
  * from the log line alone: which table, which column, and what was actually
  * stored.
+ *
+ * Exported for `project.ts`, whose two settings columns are refused with the
+ * same sentence rather than a second wording of it: an operator grepping a log
+ * for `in the database:` should find every corrupted enum in this codebase, not
+ * the subset that happens to live in an optimizer table.
  */
-function unknownStoredValue(table: string, column: string, value: string): Error {
+export function unknownStoredValue(table: string, column: string, value: string): Error {
   return new Error(`unknown ${table}.${column} in the database: ${value}`);
 }
 

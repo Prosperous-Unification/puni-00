@@ -18,6 +18,7 @@ import {
   withoutAuditColumns,
 } from './audit';
 import type {
+  NewProject,
   Project,
   ProjectPatch,
   ProjectStore,
@@ -25,8 +26,10 @@ import type {
   Step,
   WriteStamp,
 } from './index';
+import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
 import { bumpedProject } from './revision';
 import { project, projectAccess, step, users } from './schema';
+import type { ScheduleEngine, SolverObjectiveName } from './schema';
 import { STEP_COLUMNS } from './step';
 
 /**
@@ -84,27 +87,30 @@ function weightColumns(weights: PertWeights): {
  * (tasks.md 3.1b): internal state, not a field of a project, and no boundary
  * returns it.
  */
-const INTERNAL_PROJECT_COLUMNS = [
-  'optimizationDeletePendingAt',
-  // The three settings slice 3b.1's migration adds. They are the opposite of
-  // internal — they are user-facing settings, and 3b.2 publishes all three in
-  // the read payload with `isScheduleEngine` / `isScheduleObjective` refusing an
-  // unknown stored value on the way out (tasks.md 3b.2, 3b.8).
-  //
-  // They are held back here until that item lands, because {@link toProject}
-  // spreads whatever is left of its row: the alternative is not "not published
-  // yet", it is published **now**, untyped and unvalidated, through a `Project`
-  // that does not declare them. `carries the columns the Project type declares
-  // and no others` in `project.db.test.ts` caught exactly that when the columns
-  // landed (run 33), which is the guard doing its job rather than an obstacle.
-  //
-  // 4.1's admission predicate does not wait on this: it reads
-  // `optimization_enabled` in its own SQL, off the column the migration adds,
-  // and never through this mapper.
-  'optimizationEnabled',
-  'scheduleEngine',
-  'scheduleObjective',
-] as const;
+const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt'] as const;
+
+/**
+ * What a project created without stating its settings gets — the same three
+ * values `20260904140000_add_project_settings` writes into its `ADD COLUMN`
+ * defaults (tasks.md 3b.1, 3b.2).
+ *
+ * Two statements of one fact, which is a drift risk and is therefore proved
+ * rather than trusted: `create` writes these explicitly instead of omitting the
+ * columns, and `a project created without settings agrees with the columns'
+ * own defaults` in `project.db.test.ts` inserts a row **around** this constant
+ * and reads both back. If the migration and this list ever disagree, that case
+ * is the one that says so.
+ *
+ * OFF, `fast` and `pri` are not arbitrary: OFF is what makes an existing
+ * project spend no solver time on deploy, and `fast`/`pri` are the engine and
+ * the order every plan already had, so a project created today schedules
+ * exactly as it did yesterday.
+ */
+const DEFAULT_PROJECT_SETTINGS = {
+  enabled: false,
+  engine: 'fast',
+  objective: 'pri',
+} as const satisfies { enabled: boolean; engine: ScheduleEngine; objective: SolverObjectiveName };
 
 /**
  * A row with {@link INTERNAL_PROJECT_COLUMNS} taken off, for
@@ -125,6 +131,16 @@ function withoutInternalColumns<T extends object>(
   >;
 }
 
+/**
+ * The two settings columns that are stored as text and refused on the way out
+ * (tasks.md 3b.2, 3b.8).
+ *
+ * `optimization_enabled` is not among them and needs no validator: drizzle
+ * reads it through `{ mode: 'boolean' }`, so the only values it can produce are
+ * `true` and `false`. Its `CHECK (optimization_enabled IN (0,1))` is what keeps
+ * a `2` out of the column in the first place, and `refuses a value outside each
+ * column vocabulary` in `project-settings.db.test.ts` proves that half.
+ */
 function toProject<
   T extends {
     estimateMethod: string;
@@ -135,6 +151,8 @@ function toProject<
     pertWeightPessimistic: number;
     solutionSlug: string | null;
     solutionUrl: string | null;
+    scheduleEngine: string;
+    scheduleObjective: string;
     optimizationDeletePendingAt?: number | null;
   },
 >(
@@ -154,6 +172,8 @@ function toProject<
       | 'pertWeightPessimistic'
       | 'solutionSlug'
       | 'solutionUrl'
+      | 'scheduleEngine'
+      | 'scheduleObjective'
     >,
     'createdBy' | 'updatedAt' | 'updatedBy'
   >,
@@ -167,6 +187,8 @@ function toProject<
   estimateRounding: EstimateRounding;
   pertWeights: PertWeights;
   solutionRef: { slug: string; url: string } | null;
+  scheduleEngine: ScheduleEngine;
+  scheduleObjective: SolverObjectiveName;
 } {
   const {
     estimateMethod,
@@ -177,6 +199,8 @@ function toProject<
     pertWeightPessimistic,
     solutionSlug,
     solutionUrl,
+    scheduleEngine,
+    scheduleObjective,
     ...rest
   } = row;
   if (!isEstimateMethod(estimateMethod)) {
@@ -199,6 +223,12 @@ function toProject<
   if ((solutionSlug === null) !== (solutionUrl === null)) {
     throw new Error('project has a partial solution reference');
   }
+  if (!isScheduleEngine(scheduleEngine)) {
+    throw unknownStoredValue('project', 'schedule_engine', scheduleEngine);
+  }
+  if (!isSolverObjective(scheduleObjective)) {
+    throw unknownStoredValue('project', 'schedule_objective', scheduleObjective);
+  }
   return {
     // Named by {@link withoutAuditColumns} rather than spread whole: this
     // mapper is generic over its row, so it has no column list of its own, and
@@ -212,6 +242,8 @@ function toProject<
       solutionSlug === null || solutionUrl === null
         ? null
         : { slug: solutionSlug, url: solutionUrl },
+    scheduleEngine,
+    scheduleObjective,
   };
 }
 
@@ -258,13 +290,23 @@ export class ProjectRepository implements ProjectStore {
   // promise this signature advertises exists — and a caller holding it with
   // `.catch()` would never see the rejection.
   async create(
-    toCreate: Project,
+    toCreate: NewProject,
     startingSteps: readonly Step[],
     stamp: WriteStamp,
   ): Promise<Project> {
     await Promise.resolve();
+    // Stated here rather than left to the column defaults, because this method
+    // answers with the project it wrote and a caller comparing that answer to a
+    // later read must see the same three values. Leaving them out of the INSERT
+    // and guessing them in the return would be two sources for one row.
+    const settings = {
+      optimizationEnabled: toCreate.optimizationEnabled ?? DEFAULT_PROJECT_SETTINGS.enabled,
+      scheduleEngine: toCreate.scheduleEngine ?? DEFAULT_PROJECT_SETTINGS.engine,
+      scheduleObjective: toCreate.scheduleObjective ?? DEFAULT_PROJECT_SETTINGS.objective,
+    };
+    const written: Project = { ...toCreate, ...settings };
     this.db.transaction((tx) => {
-      const { solutionRef, pertWeights, ...fields } = toCreate;
+      const { solutionRef, pertWeights, ...fields } = written;
       tx.insert(project)
         .values({
           ...fields,
@@ -279,7 +321,7 @@ export class ProjectRepository implements ProjectStore {
           .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
           .run();
     });
-    return toCreate;
+    return written;
   }
 
   async findById(id: string): Promise<Project | null> {

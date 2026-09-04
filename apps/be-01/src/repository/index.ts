@@ -8,7 +8,7 @@ import type {
   StepState,
 } from '@wbs/domain';
 
-import type { MeasureMetric, PersonKind } from './schema';
+import type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
 
 /**
  * Re-exported as types, and deliberately not as values.
@@ -20,7 +20,7 @@ import type { MeasureMetric, PersonKind } from './schema';
  * re-export here would pull drizzle into everything that imports a store
  * interface.
  */
-export type { MeasureMetric, PersonKind } from './schema';
+export type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
 
 /**
  * Who is acting, and when — carried into every write that stores a record.
@@ -129,7 +129,46 @@ export interface Project {
    */
   revision: number;
   createdAt: number;
+  /**
+   * Whether this project may spend solver time at all (tasks.md 3b.2).
+   *
+   * `false` for every project that existed before the setting did, and for
+   * every project created without stating otherwise — the column default is
+   * what makes that true retroactively, not a backfill.
+   */
+  optimizationEnabled: boolean;
+  /**
+   * Which engine this project's schedule is produced by — the heuristic that
+   * has always run, or the CP-SAT solver. Separate from
+   * {@link Project.optimizationEnabled}: this is the engine the project
+   * *wants*, and a project switched off keeps `optimized` recorded so it comes
+   * back to it rather than to a default.
+   */
+  scheduleEngine: ScheduleEngine;
+  /**
+   * Which of the cached pair is the published one: priority order, or makespan.
+   * The same two-member vocabulary the cache, the slot table and the queue
+   * store under `objective`.
+   */
+  scheduleObjective: SolverObjectiveName;
 }
+
+/**
+ * A project as it is **written**: everything {@link Project} declares except the
+ * three settings, which the repository fills from the column defaults.
+ *
+ * The split exists because those three are read-published and default-written.
+ * Requiring them on the create path would make every caller and fixture state
+ * `false`/`fast`/`pri` — the same three literals, in twenty places, each of
+ * which could disagree with the migration's defaults without anything noticing.
+ * A caller that genuinely wants a project created optimized states it; the rest
+ * say nothing and get the OFF-by-default the migration guarantees.
+ */
+export type NewProject = Omit<
+  Project,
+  'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
+> &
+  Partial<Pick<Project, 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'>>;
 
 /**
  * A project as one account sees it: null when that account has never opened it.
@@ -1978,7 +2017,7 @@ export interface ProjectStore {
    * for even one request without steps would accept an estimate that had no
    * step to belong to, so the two are one transaction rather than two calls.
    */
-  create(project: Project, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
+  create(project: NewProject, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
   findById(id: string): Promise<Project | null>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
