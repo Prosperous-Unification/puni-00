@@ -1767,7 +1767,7 @@ review`, no self-merge.
       spawner, which is 4.2's and does not exist**, so its spawn count and the
       watched red under it stay open; the row-level half of the same claim is
       what landed. Three mutations red their own case: raising the bound to 3,
-      dropping `contractVersion` from the bound's scope (in the count *and*
+      dropping `contractVersion` from the bound's scope (in the count _and_
       the delete — dropping it from the count alone changes nothing, because
       the delete's own `contractVersion` predicate masks it, so that predicate
       is defence in depth rather than the load-bearing one), and ordering
