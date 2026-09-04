@@ -9,8 +9,10 @@ import {
 
 import type {
   SavedPlanBodyWrite,
+  SavedPlanPrincipals,
   SavedPlanRepository,
   SavedPlanScheduleWrite,
+  SavedPlanTouchOutcome,
   SavedPlanWrite,
   StoredSavedPlan,
 } from '../repository/saved-plan';
@@ -166,6 +168,56 @@ export interface SavedPlanListEntry {
   readonly scheduleAbsentReason: string | null;
 }
 
+/**
+ * What a rename or a delete answered, once the permission rule has run.
+ *
+ * The repository's `SavedPlanTouchOutcome` is the storage layer's three
+ * answers; this adds the fourth that only an authorised call can give. They are
+ * two different types on purpose: `forbidden` is a fact about an actor and
+ * `no_such_plan` is a fact about a row, and the repository is never told who is
+ * asking.
+ *
+ * `not_found` rather than the repository's `no_such_plan`, because this is the
+ * vocabulary `statusForRefusal` already maps for every other route.
+ */
+export type SavedPlanTouchResult =
+  | { readonly outcome: 'touched' }
+  | { readonly outcome: 'not_found' }
+  | { readonly outcome: 'forbidden' }
+  /** Another connection held the write lock. Nothing changed; a retry may succeed. */
+  | { readonly outcome: 'snapshot_busy' };
+
+/**
+ * The repository's answer, in this layer's vocabulary.
+ *
+ * One function rather than a mapping written out at each of the two call sites,
+ * because `no_such_plan` and `not_found` are the same fact under two names and a
+ * second copy is how one of them ends up answering `snapshot_busy` as a 404.
+ */
+function touchResultOf(outcome: SavedPlanTouchOutcome): SavedPlanTouchResult {
+  return outcome === 'no_such_plan' ? { outcome: 'not_found' } : { outcome };
+}
+
+/**
+ * Whether `actorId` may rename or delete the plan those principals describe.
+ *
+ * **Creator or project owner** (task 6.1, design.md A-8), written as the plain
+ * disjunction it is. The "falls back to the project owner" half of A-8 is not a
+ * second branch and must not be written as one: `createdById` is `null` exactly
+ * when no live account claims the plan, `null` matches no actor id, and the
+ * owner arm is then the only one that can be true. A ternary that chose *which*
+ * id to compare would say something different and worse — it would stop the
+ * owner touching a plan somebody else saved on their project.
+ *
+ * Exported for its test and for 6.2's matrix. It reads `createdById` and never
+ * `createdBy`: the latter is a display name, and an actor id compared against a
+ * display name is not a permission check — it is two accounts called "Ada"
+ * sharing a right.
+ */
+export function mayTouchSavedPlan(principals: SavedPlanPrincipals, actorId: string): boolean {
+  return principals.createdById === actorId || principals.projectOwnerId === actorId;
+}
+
 export interface SavedPlanServiceOptions {
   readonly capture: SavedPlanCaptureRepository;
   readonly plans: SavedPlanRepository;
@@ -296,6 +348,65 @@ export class SavedPlanService {
       scheduleBytes: row.scheduleBytes,
       scheduleAbsentReason: row.scheduleAbsentReason,
     }));
+  }
+
+  /**
+   * Renames a saved plan, if `actorId` may touch it. Writes `name` and nothing
+   * else — the repository's one `UPDATE` is the whole of the write.
+   *
+   * **Authorised off `principalsOf`, never off {@link read}.** `read` verifies
+   * every stored byte and can answer `corrupt`, and a corrupt plan must stay
+   * renameable and deletable or it holds its project's quota forever with
+   * nothing able to reach it. Routing the check through `read` would make "your
+   * saved plan is damaged" and "you may not rename your damaged saved plan" the
+   * same answer.
+   *
+   * **Not the project's ordinary write rule** (`canEdit`), and that is the point
+   * of task 6.1: on an unrestricted project every authenticated account may
+   * write, so the ordinary rule would let any account relabel anybody's
+   * permanent record. A saved plan is not an editable row of the plan; it is
+   * somebody's record of it.
+   */
+  async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
+    const refusal = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+    if (refusal !== null) return refusal;
+    return touchResultOf(await this.opts.plans.renameTo(savedPlanId, name));
+  }
+
+  /**
+   * Deletes a saved plan, if `actorId` may touch it. Both body rows go with the
+   * header, by the schema's own cascade.
+   *
+   * The same rule as {@link rename} and deliberately the same one: deleting is
+   * the only way a saved plan leaves, so anybody who may relabel a record may
+   * also destroy it and nobody else may do either.
+   */
+  async delete(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
+    const refusal = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+    if (refusal !== null) return refusal;
+    return touchResultOf(await this.opts.plans.deleteOf(savedPlanId));
+  }
+
+  /**
+   * The shared half of {@link rename} and {@link delete}: `null` when the touch
+   * may proceed, otherwise the answer to give instead.
+   *
+   * There is a race here and it is the harmless direction. The principals are
+   * read on one connection and the write is issued on another, so a plan deleted
+   * in between turns an authorised rename into `not_found` — which is the truth
+   * a moment later. What cannot happen is the other order: nothing in this
+   * repository ever changes `created_by_id` or a project's owner, so an actor
+   * authorised by this read cannot have lost the right by the time the write
+   * runs.
+   */
+  private async refuseUnauthorisedTouch(
+    savedPlanId: string,
+    actorId: string,
+  ): Promise<SavedPlanTouchResult | null> {
+    const principals = await this.opts.plans.principalsOf(savedPlanId);
+    if (principals === null) return { outcome: 'not_found' };
+    if (!mayTouchSavedPlan(principals, actorId)) return { outcome: 'forbidden' };
+    return null;
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
