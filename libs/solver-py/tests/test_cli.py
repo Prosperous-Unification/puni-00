@@ -9,7 +9,9 @@ and that a refusal leaves stdout empty, which no monkeypatched stream can show.
 
 from __future__ import annotations
 
+import contextlib
 import io
+import json
 import os
 import subprocess
 import sys
@@ -23,6 +25,7 @@ FIXTURES = PACKAGE_ROOT.parents[1] / "libs" / "contracts" / "solver" / "fixtures
 sys.path.insert(0, str(SRC))
 
 from wbs_solver import __version__, cli  # noqa: E402
+from wbs_solver.solve import SolveFailed  # noqa: E402
 
 
 def run_cli(stdin: bytes, args: list[str] | None = None) -> subprocess.CompletedProcess[bytes]:
@@ -153,27 +156,84 @@ class RefusedRequests(unittest.TestCase):
         self.assertIn("unexpected arguments", done.stderr.decode())
 
 
-class UnansweredRequests(unittest.TestCase):
-    def test_a_valid_request_the_solver_cannot_place_exits_70_silently(self) -> None:
-        """The rule, not the stub.
+class AnsweredRequests(unittest.TestCase):
+    """The whole path, through a real process: stdin to a parsed response.
 
-        Task 5.2 replaces `solve_request`, and this case will then be about a
-        solved response instead. What it is testing is durable either way: an
-        outcome the response schema cannot encode exits non-zero **without**
-        emitting a response. Today the unencodable outcome is "no model yet";
-        after 5.2 it is a later-stage INFEASIBLE, which the schema's own
-        `$comment` requires to exit non-zero silently for the same reason.
+    Both inputs are real corpus fixtures rather than hand-built stubs — they
+    have to clear the schema and every cross-field check to reach the solver at
+    all, so these cases double as the proof that a valid request gets through
+    the front door.
 
-        The input is a real corpus fixture, not a hand-built stub: it has to
-        clear the schema and every cross-field check to reach `solve_request`
-        at all, so this case doubles as the proof that a **valid** request
-        gets all the way through the front door.
-        """
-        request = (FIXTURES / "valid-two-slices.json").read_bytes()
-        done = run_cli(request)
-        self.assertEqual(done.returncode, cli.EXIT_INTERNAL, done.stderr)
-        self.assertEqual(done.stdout, b"")
-        self.assertIn("5.2", done.stderr.decode())
+    Before 5.2 this class asserted that the same fixture exited 70 with nothing
+    on stdout, because `solve_request` raised. The rule it was protecting has
+    not changed and has simply moved down to `UnencodableOutcomes` below, which
+    is where it now has a subject.
+    """
+
+    def test_a_solvable_request_is_answered_on_stdout_and_exits_zero(self) -> None:
+        done = run_cli((FIXTURES / "valid-quantised-baseline.json").read_bytes())
+        self.assertEqual(done.returncode, cli.EXIT_OK, done.stderr)
+        response = json.loads(done.stdout)
+        self.assertEqual(response["status"], "feasible")
+        self.assertEqual(sorted(response["offsets"].values()), [0, 10, 20])
+        self.assertEqual(response["wireVersion"], 1)
+
+    def test_an_infeasible_plan_is_a_response_and_not_a_failure(self) -> None:
+        """`valid-two-slices.json` is schema-valid with a width-5 slice on a
+        capacity-2 pool. Stage 1 INFEASIBLE is a typed outcome the wire carries,
+        so it exits 0 with a response — not 70 with silence."""
+        done = run_cli((FIXTURES / "valid-two-slices.json").read_bytes())
+        self.assertEqual(done.returncode, cli.EXIT_OK, done.stderr)
+        response = json.loads(done.stdout)
+        self.assertEqual(response["status"], "infeasible")
+        self.assertNotIn("offsets", response)
+
+
+class UnencodableOutcomes(unittest.TestCase):
+    """An outcome the response schema cannot encode exits non-zero **without**
+    emitting a response.
+
+    The unencodable outcome is a later-stage INFEASIBLE: every constraint a
+    later stage adds is already satisfied by the previous incumbent, so reaching
+    it means the solver holds a counterexample to its own answer, and
+    `solver-wire.v1.json`'s response `$comment` requires it to exit non-zero
+    silently rather than emit a proof it can itself refute.
+
+    It cannot be produced by any request — that is the whole argument for the
+    row — so the failure is injected at the seam `cli.main` actually catches.
+    Driving `main` in-process is the point: the rule under test is that stdout
+    stays empty on that path, and a subprocess could only prove it for an
+    outcome no input can reach.
+    """
+
+    def test_a_solve_failure_exits_70_with_nothing_on_stdout(self) -> None:
+        request = (FIXTURES / "valid-quantised-baseline.json").read_bytes()
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.object(cli, "read_request", return_value=request),
+            mock.patch.object(
+                cli, "solve_request", side_effect=SolveFailed("stage 2 is infeasible")
+            ),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = cli.main([])
+        self.assertEqual(code, cli.EXIT_INTERNAL)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("stage 2 is infeasible", err.getvalue())
+
+    def test_the_same_seam_answers_normally_when_the_solve_succeeds(self) -> None:
+        """The slack half: the patched harness is not what empties stdout."""
+        request = (FIXTURES / "valid-quantised-baseline.json").read_bytes()
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.object(cli, "read_request", return_value=request),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = cli.main([])
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(json.loads(out.getvalue())["status"], "feasible")
 
 
 if __name__ == "__main__":

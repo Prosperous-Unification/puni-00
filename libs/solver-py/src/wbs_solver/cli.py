@@ -43,7 +43,7 @@ import sys
 from typing import BinaryIO, Sequence, TextIO
 
 from . import __version__
-from .solve import solve_request
+from .solve import SolveFailed, solve_request
 from .validate import RequestRejected, validate_request
 
 EXIT_OK = 0
@@ -126,7 +126,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         response = solve_request(request)
-    except NotImplementedError as exc:
+    except SolveFailed as exc:
+        # The two outcomes the wire cannot carry: a later-stage INFEASIBLE,
+        # which is the solver holding a counterexample to its own answer, and a
+        # model CP-SAT refuses. Both are `invalid-output` to the coordinator,
+        # and both leave stdout empty — see this module's exit-code note.
         print(f"wbs-solver: {exc}", file=stderr)
         return EXIT_INTERNAL
 
