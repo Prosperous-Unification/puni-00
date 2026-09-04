@@ -1,9 +1,4 @@
-import {
-  type Schedule,
-  type Scheduled,
-  type ScheduledSlice,
-  sliceKey,
-} from './schedule';
+import { type Schedule, type Scheduled, type ScheduledSlice, sliceKey } from './schedule';
 
 /**
  * The version of the stored schedule payload, bumped whenever the shape below
@@ -87,7 +82,9 @@ function readEntries<T>(raw: unknown, field: string): Map<string, T> {
   for (const entry of raw) {
     const { key, value } = asRecord(entry, `an entry of ${field}`);
     if (typeof key !== 'string') {
-      throw defect(`an entry of ${field} has a non-string key: ${JSON.stringify(key) ?? typeof key}`);
+      throw defect(
+        `an entry of ${field} has a non-string key: ${JSON.stringify(key) ?? typeof key}`,
+      );
     }
     if (out.has(key)) {
       throw defect(`${field} carries the key ${JSON.stringify(key)} twice`);
