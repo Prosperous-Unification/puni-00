@@ -25,6 +25,8 @@ const WEIGHTS_AND_ROUNDING = '20260830130000_add_estimate_weights_and_rounding';
 /** The newest, and the first thing every rollback below reverses. */
 const RENAME_ROLE_TO_STEP = '20260831120000_rename_role_to_step';
 /** The newest: the audit columns, so it heads every descending reversal below. */
+const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/** The newest: `saved_plan.created_by_id`, so it heads every descending reversal below. */
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
@@ -42,6 +44,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    CREATED_BY_ID,
     SAVED_PLAN,
     LOOKUP_INDEXES,
     AUDIT_COLUMNS,
