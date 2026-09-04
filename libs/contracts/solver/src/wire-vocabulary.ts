@@ -365,7 +365,7 @@ export const NEIGHBOUR_VOCABULARIES: readonly Vocabulary[] = [
     name: 'objective-term-name',
     members: new Set(['PRIORITY', 'MAKESPAN', 'MOVEMENT']),
     source:
-      "design.md — \"Objective mathematics\": `MAKESPAN = max finish`, `MOVEMENT = Σ |start − baselineStart|`, `PRIORITY = Σ w(s)·finish(s)`. These are the mathematical term NAMES and deliberately not the wire keys, which solver-wire.v1.json#/$defs/objectiveValues fixes lowercase and whose own $comment says so",
+      'design.md — "Objective mathematics": `MAKESPAN = max finish`, `MOVEMENT = Σ |start − baselineStart|`, `PRIORITY = Σ w(s)·finish(s)`. These are the mathematical term NAMES and deliberately not the wire keys, which solver-wire.v1.json#/$defs/objectiveValues fixes lowercase and whose own $comment says so',
   },
 ];
 

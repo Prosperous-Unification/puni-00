@@ -706,8 +706,7 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       the three covered artifacts, in
       `libs/contracts/solver/src/wire-vocabulary.ts` (run 22; the `af05ead1`
       prototype was a statement about that head alone).
-      **Rule (b) is measured and not yet gated, and the blocker changed in run
-      23.** It was seventeen divergences, none of them drift, blamed on six
+      **Rule (b) is measured and not yet gated, and the blocker changed in run 23.** It was seventeen divergences, none of them drift, blamed on six
       unnamed tuples. Seven vocabularies were then added from their defining
       artifacts and the count fell to **twelve** — so five were attribution
       failures and are closed. The twelve that remain are ONE finding and no
@@ -721,7 +720,7 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       name belonging to no named tuple at all still fails, and drops what the
       measurement says is not drift. **Falsifier for the union reading:** a
       real drift where an obsolete field name is also a legitimate member of a
-      *different* named tuple; that would pass under the union and is the case
+      _different_ named tuple; that would pass under the union and is the case
       to look for before choosing it. The asserted count in
       `wire-vocabulary.test.ts` is the ratchet either way, and 2.1 stays
       unticked until the decision lands.
