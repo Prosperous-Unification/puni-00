@@ -1639,7 +1639,7 @@ the read payload and the write API — none of which slice 4 waits on.
       destructures and validates the two text ones, `listFor` selects them, and
       `withholds the optimizer settings until the read payload declares them`
       is **deleted** rather than left to pass — replaced by `publishes the
-      three project settings in the read payload`, which asserts the inverse by
+three project settings in the read payload`, which asserts the inverse by
       name and still refuses `optimizationDeletePendingAt`.
       **The write shape split off from the read shape.** `create` now takes a
       `NewProject` — `Project` without the three settings, each optional — and
@@ -1648,7 +1648,7 @@ the read payload and the write API — none of which slice 4 waits on.
       path instead would have made twenty call sites and fixtures each restate
       `false`/`fast`/`pri`, any one of which could drift from the migration
       without a test noticing; `a project created without settings agrees with
-      the columns own defaults` inserts a second row in raw SQL naming neither
+the columns own defaults` inserts a second row in raw SQL naming neither
       settings column and compares the two reads, so the constant and the
       `ADD COLUMN` defaults are proved equal rather than assumed.
 - [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
