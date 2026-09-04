@@ -1614,7 +1614,7 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
         generation,
         status: 'failed',
         resultJson: null,
-        failureReason: 'infeasible-window',
+        failureReason: 'no-solution',
       });
 
       allocateGeneration(openDrizzle(db.path), 'p-1', CONTRACT, 'h2', 2);
