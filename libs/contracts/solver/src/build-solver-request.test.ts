@@ -1,4 +1,5 @@
 import {
+  ASSUMED_SLICE_WORKDAYS,
   type DependencyEdge,
   type PlannedRow,
   SCHEDULER_CONTRACT_VERSION,
@@ -217,6 +218,86 @@ describe('buildSolverRequest', () => {
         budgetMs: 30_000,
       }),
     ).toThrow('slice for P, which is not a leaf of this project');
+  });
+
+  it('computes durations as Fast does — null days undivided, real days divided', () => {
+    // 2.6's first two cases, and they are one assertion on purpose: both land
+    // on 96 units by different rules, so each is the other's control. A null
+    // `days` takes ASSUMED_SLICE_WORKDAYS (2) **without** dividing by width —
+    // divided by 3 it would be 32 — and 6 days across 3 people is 2 workdays,
+    // which undivided would be 288.
+    const plan = planOf({
+      rows: [rowOf('A', null, null)],
+      edges: [],
+      slices: [
+        sliceOf('A', 'assumed', null, { width: 3 }),
+        sliceOf('A', 'measured', 6, { width: 3 }),
+      ],
+    });
+    expect(requestOf(plan).slices.map((slice) => slice.durationUnits)).toEqual([
+      ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM,
+      2 * SOLVER_QUANTUM,
+    ]);
+  });
+
+  it('draws a different graph under each reach, from identical rows', () => {
+    // 2.6's third case. `A` has two steps and nobody estimated its first, so
+    // `anchor-slice` leaves from `dev` while `whole-item` leaves from the last
+    // slice — which here is also `dev`, so the pair that tells them apart is
+    // the one where the reached slice is NOT the last.
+    const rowsAB: readonly PlannedRow[] = [rowOf('A', null, null), rowOf('B', null, null)];
+    const slicesAB: readonly Slice[] = [
+      sliceOf('A', 'design', null),
+      sliceOf('A', 'dev', 3),
+      sliceOf('A', 'qa', null),
+      sliceOf('B', 'dev', 2),
+    ];
+    const under = (reach: SolverRequestPlan['reach']) =>
+      requestOf(planOf({ rows: rowsAB, slices: slicesAB, reach, poolSizes: new Map() })).edges.map(
+        (edge) => `${edge.predecessorKey}->${edge.successorKey}`,
+      );
+    expect(under('whole-item')).not.toEqual(under('anchor-slice'));
+    expect(under('whole-item')).toContain(`${sliceKey('A', 'qa')}->${sliceKey('B', 'dev')}`);
+    expect(under('anchor-slice')).toContain(`${sliceKey('A', 'dev')}->${sliceKey('B', 'dev')}`);
+  });
+
+  it('resolves priority as a nearest-ancestor override, in both numeric directions', () => {
+    // 2.6's fourth case and its watched red. Three leaves resolving to 5, 1 and
+    // 7: leaf 5 under parent 1, leaf 1 under parent 5, and a null leaf under
+    // parent 7 under grandparent 3. Distinct {1,5,7} dense-ranks to 3/2/1.
+    //
+    // **What is observable here is the WEIGHT, not the priority**, and that
+    // changes what the red proves. Under a minimum-across-ancestors resolver
+    // the three resolve to 1, 1 and 3, the distinct set collapses to {1,3}, and
+    // the vector becomes [2, 2, 1] — so the FIRST and SECOND entries move and
+    // the third does not, where a check on `priorityByLeaf` itself would see
+    // the third move too. The dense rank is a function of the whole plan, so no
+    // fixture makes one leaf's resolution independently visible on the wire.
+    // The resolver's own directional proof is `libs/domain`'s; this asserts the
+    // builder IMPORTS it.
+    const tree: readonly PlannedRow[] = [
+      rowOf('p1', null, 1),
+      rowOf('L1', 'p1', 5),
+      rowOf('p5', null, 5),
+      rowOf('L2', 'p5', 1),
+      rowOf('g', null, 3),
+      rowOf('p7', 'g', 7),
+      rowOf('L3', 'p7', null),
+    ];
+    const leafSlices: readonly Slice[] = ['L1', 'L2', 'L3'].map((id) => sliceOf(id, 'dev', 1));
+    const built = requestOf(
+      planOf({ rows: tree, edges: [], slices: leafSlices, poolSizes: new Map() }),
+    );
+    expect(built.slices.map((slice) => slice.priorityWeight)).toEqual([2, 3, 1]);
+  });
+
+  it('weighs an unprioritised leaf 0, which is absence and not a low rank', () => {
+    // The rest of 2.6's fourth case, separated because 0 is produced by a
+    // different path: `priorityByLeaf` omits the leaf entirely and
+    // `priorityWeightOf` reads that absence as 0. A plan where nobody set a
+    // priority gives every slice 0, and no dense rank exists at all.
+    const plan = planOf({ rows: [rowOf('A', null, null)], edges: [], slices: [sliceOf('A', 'dev', 1)] });
+    expect(requestOf(plan).slices.map((slice) => slice.priorityWeight)).toEqual([0]);
   });
 
   it('refuses a canonical input with no slices at all', () => {
