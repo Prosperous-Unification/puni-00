@@ -3,6 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  decodeOptimizedResult,
+  encodeOptimizedResult,
+  type OptimizedResult,
+} from '@wbs/contracts/solver/optimized-result';
+import {
   decodeSchedule,
   encodeSchedule,
   type PlannedRow,
@@ -394,6 +399,165 @@ describe('a plan through the column it is stored in', () => {
       expect(reloaded).toEqual(plan);
       expect(reloaded.slices.get(sliceKey('a', DEV))).toEqual(plan.slices.get(sliceKey('a', DEV)));
       expect([...reloaded.slices.values()].some((one) => one.boundBy === 'capacity')).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The 4.12b envelope through the same column, and the reason it is a separate
+   * claim from the plan above: the row stores an `OptimizedResult`, so
+   * `objectiveValues` and `publication` have to survive the trip too, and they
+   * are the two things `Schedule` never carried and the old `scheduleJson`
+   * write silently discarded (Sol r7 Critical 6).
+   *
+   * It also proves the seam is REACHABLE from here. Until this run
+   * `libs/contracts/solver` had no path alias at all, so the decoder 4.1's read
+   * half has to call could not be named from `apps/be-01` by anything but a
+   * relative climb out of the app's own root.
+   */
+  function storeAndReadResult(path: string, resultJson: string): OptimizedResult {
+    const db = openDrizzle(path);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'p-1',
+        inputHash: 'h1',
+        objective: 'pri',
+        contractVersion: '7+1.0.0',
+        budgetMs: 60000,
+        generation: 1,
+        status: 'ok',
+        resultJson,
+        failureReason: null,
+        createdAt: 1,
+      })
+      .run();
+    const stored = db.select().from(optimizedScheduleCache).get();
+    if (stored === undefined) throw new Error('broken fixture: nothing stored');
+    const row = toOptimizedScheduleCacheRow(stored);
+    if (row.resultJson === null) throw new Error('broken fixture: no payload stored');
+    return decodeOptimizedResult(JSON.parse(row.resultJson));
+  }
+
+  const solverResult = (plan: Schedule): OptimizedResult => ({
+    publication: 'solver',
+    objectiveValues: {
+      makespan: { value: 288, stageValue: 288, bound: 288, status: 'optimal' },
+      priority: { value: 41, stageValue: 41, bound: 40, status: 'feasible' },
+      movement: { value: 7, stageValue: null, bound: null, status: 'unknown' },
+    },
+    schedule: plan,
+  });
+
+  it('reloads an OptimizedResult out of result_json, objectiveValues included', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path, 'p-1');
+      const plan = realPlan();
+      const source = solverResult(plan);
+
+      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(source)));
+
+      expect(reloaded.publication).toBe('solver');
+      expect(reloaded.objectiveValues).toEqual(source.objectiveValues);
+      expect(reloaded.schedule).toEqual(plan);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * The fractional half of 4.12b's second watched red, as far as this layer can
+   * carry it: the value is asserted **bit-equal to the sum**, not to the
+   * literal `0.6`, because `0.2 + 0.2 + 0.2 !== 0.6` in IEEE-754 and a column
+   * that round-tripped through a decimal string would pass a `0.6` assertion
+   * while having changed the number. The scorer half waits for the real plan
+   * read.
+   */
+  it('keeps a quantisation-floor row\'s real-domain value bit-equal through the column', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path, 'p-1');
+      const fractional = 0.2 + 0.2 + 0.2;
+      const floor: OptimizedResult = {
+        publication: 'quantisation-floor',
+        objectiveValues: {
+          makespan: { value: fractional, stageValue: null, bound: null, status: 'unknown' },
+          priority: { value: 0, stageValue: null, bound: null, status: 'unknown' },
+          movement: { value: 1.5, stageValue: null, bound: null, status: 'unknown' },
+        },
+        schedule: realPlan(),
+      };
+
+      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(floor)));
+
+      expect(reloaded.publication).toBe('quantisation-floor');
+      expect(reloaded.objectiveValues.makespan.value).toBe(fractional);
+      expect(Number.isSafeInteger(reloaded.objectiveValues.makespan.value)).toBe(false);
+      expect(reloaded.objectiveValues.makespan.stageValue).toBeNull();
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 4.12b, Sol r10 Important 11: neither JSON-held enum may be caught by a
+   * database constraint. Both payloads below are syntactically valid JSON and
+   * both are stored without complaint; the decode is what refuses them, which
+   * is what keeps a corrupt row `corrupt` and retryable rather than a failed
+   * write of a solve that already happened.
+   */
+  it('stores an invalid publication and an invalid stage status, and throws on the read', () => {
+    for (const [defect, corrupt] of [
+      ['publication', (row: Record<string, unknown>) => (row['publication'] = 'fast')],
+      [
+        'movement.status',
+        (row: Record<string, unknown>) => {
+          const terms = row['objectiveValues'] as Record<string, Record<string, unknown>>;
+          const movement = terms['movement'];
+          if (movement === undefined) throw new Error('broken fixture: no movement term');
+          movement['status'] = 'proved';
+        },
+      ],
+    ] as [string, (row: Record<string, unknown>) => void][]) {
+      const db = tempDb();
+      try {
+        runMigrations(db.path, FOLDER);
+        seedProject(db.path, 'p-1');
+        const payload = JSON.parse(
+          JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        ) as Record<string, unknown>;
+        corrupt(payload);
+        const text = JSON.stringify(payload);
+
+        expect(() => storeAndReadResult(db.path, text)).toThrow(new RegExp(defect.split('.')[0]));
+        const row = openDatabase(db.path)
+          .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
+          .get() as { n: number } | null;
+        expect(row?.n).toBe(text.length);
+      } finally {
+        db.cleanup();
+      }
+    }
+  });
+
+  /** Said directly rather than inferred from the case above: no CHECK covers it. */
+  it('adds no CHECK over result_json in the migration', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const ddl = openDatabase(db.path)
+        .query(
+          `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'optimized_schedule_cache'`,
+        )
+        .get() as { sql: string } | null;
+      const text = ddl?.sql ?? '';
+      expect(text).toContain('result_json');
+      for (const clause of text.split(/\bCHECK\b/).slice(1)) {
+        expect(clause.slice(0, clause.indexOf(')') + 1)).not.toContain('result_json');
+      }
     } finally {
       db.cleanup();
     }
