@@ -1917,6 +1917,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       on stderr and **nothing** on stdout, which is the rule
       `solver-wire.v1.json`'s response `$comment` states for every outcome the
       schema cannot encode.
+
 - [ ] 5.2 Objectives, stated as executable mathematics rather than prose:
       `MAKESPAN = max finish`; `PRIORITY = Σ priorityWeight(s) · finish(s)`;
       `MOVEMENT = Σ |start(s) − baselineOffsets[s]|`. PRI minimizes
