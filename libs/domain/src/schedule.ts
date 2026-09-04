@@ -153,7 +153,26 @@ export type ScheduleFloor =
   | 'stepOrder'
   | 'notBefore'
   | 'person'
-  | 'capacity';
+  | 'capacity'
+  /**
+   * The optimizer put it here, and nothing about the plan did — task 4.10.
+   *
+   * Used **exactly** when a pinned start is strictly later than every floor the
+   * slice has, which is a state Fast cannot produce: an optimizer may idle a
+   * low-priority slice to make room for a high-priority one, and that start has
+   * no value in the six floors above it. It is last in the precedence list for
+   * the same reason `capacity` is second to last — the earlier list stopped at
+   * `notBefore` and would have labelled a person-bound or capacity-bound
+   * optimized slice `optimizer`, erasing its resource predecessor, its team and
+   * both wait counts.
+   *
+   * The render invariant survives additively: under this floor
+   * {@link resourcePredecessorOf} returns {@link NOBODY} by the same rule that
+   * already covers `projectStart`, and {@link annotateCapacity} leaves
+   * `capacityPredecessors` empty and `capacityTeamId` null, so "set exactly when
+   * `boundBy === 'capacity'`" is still true.
+   */
+  | 'optimizer';
 
 /** One slice's schedule, carrying what it is the schedule of and what held it there. */
 export interface ScheduledSlice extends Scheduled {
@@ -285,6 +304,26 @@ export class ScheduleCycleError extends Error {
   override name = 'ScheduleCycleError' as const;
   constructor() {
     super('dependency cycle: the schedule cannot be ordered');
+  }
+}
+
+/**
+ * A pinned start the plan itself refuses — the materialiser's `invalid-output`.
+ *
+ * Typed separately from {@link ScheduleCycleError} because the two say opposite
+ * things about whose fault it is: a cycle is the plan's, and this is the
+ * solver's. The caller maps it onto the `invalid-output` disposition and falls
+ * back to Fast; it must never reach a reader as a schedule, because a start
+ * before a predecessor's finish or inside a full pool is not a plan, it is a
+ * number.
+ */
+export class ScheduleInvalidOptimizedStartError extends Error {
+  override name = 'ScheduleInvalidOptimizedStartError' as const;
+  constructor(
+    readonly sliceKey: string,
+    message: string,
+  ) {
+    super(`optimized start for ${sliceKey} is invalid: ${message}`);
   }
 }
 
@@ -1110,6 +1149,55 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
 }
 
 /**
+ * What an optimizer's pinned start does to a floor the plan already resolved.
+ *
+ * Three cases and no fourth, which is why this is a function rather than three
+ * lines inside the loop: it is the whole of task 4.9's comparison, and the
+ * struck version of it — comparing the pinned start to the **joint window**
+ * instead of to the resolved floor — is a mistake that reads as correct.
+ *
+ * - **Equal** is the common case, and it keeps the resolved `boundBy`. An
+ *   optimizer that leaves a slice where the plan already put it has explained
+ *   nothing about it; the predecessor, the person or the pool that held it is
+ *   still what a reader is owed.
+ * - **Strictly later** is `'optimizer'`, and only then. The pin is re-asked of
+ *   the pool from its own instant: `jointWindowFor(…, pinned)` must answer
+ *   `pinned`, which both proves the placement legal and hands back the
+ *   `binding: []` window that keeps {@link annotateCapacity}'s render invariant
+ *   true — a non-empty `binding` under `'optimizer'` would name a team on a
+ *   slice no pool held up, and that invariant throws.
+ * - **Strictly earlier** is not a schedule. A start below the resolved floor is
+ *   below a predecessor's finish, a manual not-before, a person's queue or a
+ *   pool's capacity, and there is no reading of it that is merely suboptimal.
+ *
+ * `windowFrom` is a callback rather than a window because only the later branch
+ * may re-ask the profile: asking on every slice would double the joint-window
+ * search on the common path, which is exactly the cost 4.9 forbids.
+ */
+function pinFloor(
+  key: string,
+  resolved: { start: number; boundBy: ScheduleFloor },
+  pinned: number | undefined,
+  windowFrom: (from: number) => JointWindow,
+): { start: number; boundBy: ScheduleFloor } {
+  if (pinned === undefined || pinned === resolved.start) return resolved;
+  if (pinned < resolved.start) {
+    throw new ScheduleInvalidOptimizedStartError(
+      key,
+      `${String(pinned)} is before its ${resolved.boundBy} floor at ${String(resolved.start)}`,
+    );
+  }
+  const window = windowFrom(pinned);
+  if (window.start !== pinned) {
+    throw new ScheduleInvalidOptimizedStartError(
+      key,
+      `no room in its pools at ${String(pinned)}; the earliest is ${String(window.start)}`,
+    );
+  }
+  return { start: pinned, boundBy: 'optimizer' };
+}
+
+/**
  * The one resource a slice's bar names as the reason it waited, or
  * {@link NOBODY}.
  *
@@ -1359,6 +1447,32 @@ function placeSlices(
    */
   withResources: boolean,
   sizes: PoolSizes,
+  /**
+   * Task 4.9's `annotate`: one start per node, or `undefined` for Fast's own.
+   *
+   * **A mode of this pass, never a second implementation and never a
+   * composition.** `annotate(input, chooseStarts(input))` run *inside*
+   * `placeSlices` would double the placement loop, and the 600-slice
+   * benchmark's 20ms budget is modelled at a 3.81ms geometric mean with p99.99
+   * 13.3ms, so doubling puts the extrapolated p99.99 past it. So the loop stays
+   * one loop and this argument overrides the start it lands on — every other
+   * rule in the body, the floor ({@link resolveFloor}), the tiling
+   * ({@link tileFinish}), the pool's explanation ({@link annotateCapacity}) and
+   * the resource referent ({@link resourcePredecessorOf}), runs unchanged and
+   * once.
+   *
+   * The floor is still **resolved**, not skipped: it is what decides whether a
+   * pinned start is the plan's own answer (keep the resolved `boundBy`),
+   * strictly later than every floor (`optimizer`), or strictly earlier than one
+   * of them — which is a solver output the plan refuses, and a throw.
+   *
+   * The caller supplies a `goesFirst` that drains the eligible set in ascending
+   * `(start, canonical slice order)`; task 4.10b's chronological replay and its
+   * topological order are then the same order, because the eligible set is
+   * Kahn's ready set and admits a node only once its plan predecessors are
+   * placed.
+   */
+  pinnedStarts?: readonly number[],
 ): {
   order: number[];
   placed: Placed[];
@@ -1427,7 +1541,7 @@ function placeSlices(
       node.notBefore,
       busy === undefined ? 0 : busy.finish,
     );
-    const window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    let window = profile.jointWindowFor(poolIds, width, duration, planFloor);
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is second to last and capacity is last; see {@link ScheduleFloor}.
     // A slice can carry both, because a team's slot is spent whether or not
@@ -1462,7 +1576,19 @@ function placeSlices(
     ];
     // The tie rule and its proof live on {@link resolveFloor}, which the
     // optimized materialiser calls too — see 4.9.
-    const { start, boundBy } = resolveFloor(floors);
+    const resolved = resolveFloor(floors);
+    // Task 4.9's three-way comparison, and the only place a pinned start enters
+    // the pass. It is written against the **resolved** floor rather than
+    // against the joint window because the struck version compared the window
+    // to the pin and reported `capacity` for the common unmoved slice — where
+    // `jointWindowFor` returns `binding: []` by construction, so `capacityTeamId`
+    // had no rule and `capacityPredecessorIds` was empty beside
+    // `boundBy: 'capacity'`, violating the render invariant — and reported
+    // `optimizer` for a slice merely pinned at its predecessor floor.
+    const { start, boundBy } = pinFloor(node.key, resolved, pinnedStarts?.[taken], (from) => {
+      window = profile.jointWindowFor(poolIds, width, duration, from);
+      return window;
+    });
 
     const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
@@ -1887,6 +2013,25 @@ export function schedule(
    * which one produced the answer.
    */
   reach: DependencyReach = 'whole-item',
+  /**
+   * Task 4.9's `materialiseOptimized`: a start per slice key, or Fast's own.
+   *
+   * **This argument is the whole of the optimized materialiser.** Everything
+   * that produces a {@link ScheduledSlice} — the durations, the tiling, the
+   * capacity explanation, the resource edges, the backward pass, the work-item
+   * projections and both wait counters — is the code below, run once, and the
+   * offsets map an optimizer returns is never persisted or handed back as a
+   * schedule. A second implementation of this function is the failure this
+   * design exists to prevent: five of its rules are subtle enough that a
+   * transcription gets one wrong (seed 260's tiling drift, the `finish <= start`
+   * filter, the referent's placement-order tie-break), and the differential that
+   * caught each of them once does not run over the optimized path.
+   *
+   * A key absent from the map is a refusal rather than a fallback: a partial
+   * optimized schedule is two engines' answers interleaved, and no reader could
+   * tell which slice came from which.
+   */
+  pinnedStarts?: ReadonlyMap<string, number>,
 ): Schedule {
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -2079,7 +2224,48 @@ export function schedule(
     return first.at < second.at;
   };
 
-  const leveled = placeSlices(graph, goesFirst, true, poolSizes);
+  /**
+   * The optimizer's starts, resolved onto node indices — or `undefined`, which
+   * is Fast.
+   *
+   * Resolved here and not inside the pass because the pass knows nothing about
+   * slice keys, and because the refusal belongs at the boundary where the map
+   * arrived: a key the plan has no slice for, or a slice the map has no key
+   * for, is a solver answer to a different question.
+   */
+  const pinnedByNode =
+    pinnedStarts === undefined
+      ? undefined
+      : nodes.map((node) => {
+          const at = pinnedStarts.get(node.key);
+          if (at === undefined) {
+            throw new ScheduleInvalidOptimizedStartError(node.key, 'no start was returned for it');
+          }
+          return at;
+        });
+  /**
+   * Task 4.10b's one order, twice over.
+   *
+   * Ledger replay must be chronological — a person's queue edge points at
+   * whoever they were doing **before**, and a pool's blocking set is whatever
+   * had already reserved — while the order handed to {@link lateTimes} must be
+   * topological, and chronological order is not topological on legal data: an
+   * explicit `days: 0` predecessor and its successor can share a start, and an
+   * id tie-break can order them backwards. Draining the **eligible set** in
+   * ascending `(start, canonical slice order)` is both at once, because the
+   * eligible set is Kahn's ready set and admits a node only once its plan
+   * predecessors are placed. So the hazard cannot arise here rather than being
+   * detected: precedence wins over the comparator by construction.
+   */
+  const levelOrder =
+    pinnedByNode === undefined
+      ? goesFirst
+      : (left: number, right: number): boolean =>
+          pinnedByNode[left] === pinnedByNode[right]
+            ? left < right
+            : pinnedByNode[left] < pinnedByNode[right];
+
+  const leveled = placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
