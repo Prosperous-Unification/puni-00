@@ -57,30 +57,38 @@
  *
  * Rule (b) is an attribution heuristic, and run as a gate over untagged prose at
  * `6ab005fa` it reported **seventeen** divergences of which **none** was drift.
- * Every one was a sentence mixing a vocabulary with names from a neighbouring
- * tuple that 2.1's list of eight does not contain:
+ * Run 22 read that as one debt — six tuples 2.1's list of eight does not name —
+ * and run 23 paid the part of it that naming can pay. Seven vocabularies were
+ * added, every one read out of the artifact that defines it: `objectiveValues`
+ * and the two `status` enums parsed from the schema, and `domain-slice`,
+ * `canonical-row`, `fencing` and `objective-term-name` as literals carrying
+ * their source (see `NEIGHBOUR_VOCABULARIES`).
  *
- * - the **domain** slice tuple (`workItemId, stepId, days, personId, width,
- *   poolIds, notBefore, depReach, deadline`) — 4 sentences, attributed to the
- *   wire* slice because the two overlap on `personId`, `width` and `poolIds`;
- * - `solver_slot` and the fencing triple `generation, cancelEpoch,
- *   attemptToken` (3.2, 6.11) — 2 sentences, attributed to
- *   `optimization_generation`;
- * - the objective **term names** `PRIORITY, MAKESPAN, MOVEMENT`, which are not
- *   the objective-term *fields* — 3 sentences;
- * - the wire `status` enum and the cache `status` enum, whose values sit
- *   alongside the field names that carry them — 3 sentences;
- * - 3b.1's project-settings columns — 1 sentence;
- * - four one-offs: `publication` (a stored-result field) beside the term
- *   fields, `decodeOptimizedResult` (a function) beside the cache columns,
- *   `PARALLEL` (a strategy) beside `width`/`poolIds`, and the plan-read block's
- *   own name `optimization` beside its ten members.
+ * **Measured at that head, naming took 17 to 12** — five sentences closed: the
+ * domain slice tuple in tasks.md, the two hashed-`PlannedRow` sentences in
+ * design.md and spec.md, and both spawn-fencing sentences.
  *
- * So rule (b) is proven here on the fixture 2.1 mandates and is available to any
- * caller, but the artifact scan passes `['a']`. Turning it on is naming those
- * six tuples, which is real work in the slices that define them and is not this
- * module's to invent: a vocabulary asserted from memory rather than from the
- * artifact that defines it is the same failure in a new place.
+ * **The remaining twelve are one finding, and it is not a missing name.** Every
+ * one is a run that mixes two vocabularies **both of which are now named** — the
+ * objective-term *fields* beside the term *names* (3), the response fields beside
+ * response `status` *values* (2), the cache columns beside a cache `status` value
+ * or a decoder function (2), the plan-read block's own name beside its ten
+ * members (1), `PARALLEL` and `publication` beside tuples they qualify (2), the
+ * canonical-input *fact* list beside the slice fields it contains (1), and 3b.1's
+ * project-settings columns, still genuinely unnamed (1). Rule (b) as 2.1 writes
+ * it — "a run mixing two vocabularies or naming a non-member is not [legal]" —
+ * rejects a mixed run *by construction*, so naming the second vocabulary cannot
+ * close one: `attribute` picks a single winner by overlap and every other member
+ * is unexpected against it, whatever set it belongs to. Adding names moved the
+ * count only where the sentence was drawn from ONE tuple all along.
+ *
+ * So the artifact scan still passes `['a']`, and what stands between rule (b)
+ * and the gate is now a decision in 2.1 rather than work in the slices: either
+ * the twelve sentences are rewritten so no run spans two tuples, or rule (b)'s
+ * subset test is taken against the **union** of the vocabularies a run overlaps,
+ * which keeps what rule (b) is for (a name belonging to no tuple at all is still
+ * a failure) and drops what the measurement says is not drift. That is 2.1's to
+ * settle, not this module's; the count below is the ratchet either way.
  */
 
 export type VocabularyName =
@@ -88,10 +96,17 @@ export type VocabularyName =
   | 'response'
   | 'slice'
   | 'objective-term'
+  | 'objective-values'
+  | 'response-status'
+  | 'objective-term-status'
   | 'cache-key'
   | 'plan-read-optimization'
   | 'optimization-generation'
-  | 'solver-queue';
+  | 'solver-queue'
+  | 'domain-slice'
+  | 'canonical-row'
+  | 'fencing'
+  | 'objective-term-name';
 
 export interface Vocabulary {
   readonly name: VocabularyName;
@@ -160,6 +175,16 @@ export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabular
     return required as string[];
   };
 
+  const enumAt = (name: string, property: string): string[] => {
+    const node = defs[name] as { properties?: Record<string, unknown> } | undefined;
+    if (!node) throw new Error(`solver-wire.v1.json has no $defs/${name}`);
+    const member = node.properties?.[property] as { enum?: unknown } | undefined;
+    const values = member?.enum;
+    if (!Array.isArray(values))
+      throw new Error(`$defs/${name}/properties/${property} has no enum array`);
+    return values as string[];
+  };
+
   const responseUnion = new Set<string>();
   const prohibited = new Set<string>();
   collectRequired(defs['response'], responseUnion, prohibited, false);
@@ -192,6 +217,21 @@ export function wireVocabularies(schema: unknown): Map<VocabularyName, Vocabular
       name: 'objective-term',
       members: new Set(requiredAt('objective-term')),
       source: 'solver-wire.v1.json#/$defs/objective-term/required',
+    },
+    {
+      name: 'objective-values',
+      members: new Set(requiredAt('objectiveValues')),
+      source: 'solver-wire.v1.json#/$defs/objectiveValues/required',
+    },
+    {
+      name: 'response-status',
+      members: new Set(enumAt('response', 'status')),
+      source: 'solver-wire.v1.json#/$defs/response/properties/status/enum',
+    },
+    {
+      name: 'objective-term-status',
+      members: new Set(enumAt('objective-term', 'status')),
+      source: 'solver-wire.v1.json#/$defs/objective-term/properties/status/enum',
     },
   ];
 
@@ -289,9 +329,50 @@ export const TABLE_VOCABULARIES: readonly Vocabulary[] = [
   },
 ];
 
+/**
+ * The four tuples this change names outside the wire and outside a table, each
+ * read out of the artifact that defines it rather than out of the sentence that
+ * mentions it. That direction is the whole discipline: a vocabulary asserted
+ * from memory is the same failure rule (b) exists to catch, in a new place.
+ *
+ * They exist because rule (b) attributes by overlap, and an unnamed tuple is
+ * attributed to whichever named one it happens to share names with — the domain
+ * slice to the *wire* slice (they share `personId`, `width`, `poolIds`), the
+ * spawn fencing triple to `optimization_generation`. Four sentences and two
+ * sentences respectively were reported as divergences on that account at
+ * `6ab005fa` and not one of them was drift.
+ */
+export const NEIGHBOUR_VOCABULARIES: readonly Vocabulary[] = [
+  {
+    name: 'domain-slice',
+    members: new Set(['workItemId', 'stepId', 'days', 'personId', 'width', 'poolIds']),
+    source:
+      "libs/domain/src/schedule.ts:31 — `interface Slice`, the domain input tuple, which is NOT the wire slice: the wire's `key` folds the first two, and `durationUnits`, `priorityWeight`, `notBeforeUnits` and `deadlineUnits` are derived by 2.2 rather than carried in",
+  },
+  {
+    name: 'canonical-row',
+    members: new Set(['id', 'parentId', 'position', 'frozenNumber', 'priority']),
+    source:
+      'libs/domain/src/canonical-schedule-input.ts:184-188 — the hashed `PlannedRow` facts, as the canonicalizer projects them',
+  },
+  {
+    name: 'fencing',
+    members: new Set(['generation', 'cancelEpoch', 'attemptToken']),
+    source:
+      'design.md — "Every spawn carries `(generation, cancelEpoch, attemptToken)`"; the same triple governs the worker-owned outcome write in tasks.md 3.2 and 6.11',
+  },
+  {
+    name: 'objective-term-name',
+    members: new Set(['PRIORITY', 'MAKESPAN', 'MOVEMENT']),
+    source:
+      "design.md — \"Objective mathematics\": `MAKESPAN = max finish`, `MOVEMENT = Σ |start − baselineStart|`, `PRIORITY = Σ w(s)·finish(s)`. These are the mathematical term NAMES and deliberately not the wire keys, which solver-wire.v1.json#/$defs/objectiveValues fixes lowercase and whose own $comment says so",
+  },
+];
+
 export function allVocabularies(schema: unknown): Map<VocabularyName, Vocabulary> {
   const all = wireVocabularies(schema);
   for (const v of TABLE_VOCABULARIES) all.set(v.name, v);
+  for (const v of NEIGHBOUR_VOCABULARIES) all.set(v.name, v);
   return all;
 }
 

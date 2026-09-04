@@ -666,13 +666,23 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       spec.md and this file on the round it was written. Definitions: an
       **enumeration** is a maximal run of three or more backticked
       identifiers joined only by commas, `and` or `/`; a **vocabulary** is one
-      named tuple this change defines. The check knows eight vocabularies —
-      the four wire sets parsed from `solver-wire.v1.json`'s `required`
-      arrays (`request`, `response`, `slice`, `objective-term`), the cache
-      composite key, the plan-read `optimization` block, the
-      `optimization_generation` row and the `solver_queue` row — because a
+      named tuple this change defines. The check knows fifteen vocabularies —
+      seven parsed from `solver-wire.v1.json`: the four `required`
+      sets `request`, `response`, `slice` and `objective-term`, plus
+      `objectiveValues` and the two status enums, the response's and the
+      per-term one. Then the four table tuples — the cache
+      composite key, the plan-read optimization block, the
+      optimization_generation row and the solver_queue row. And four
+      **neighbour** tuples this change names outside the wire and outside a
+      table: the **domain** slice (`schedule.ts:31`), the hashed `PlannedRow`
+      facts (`canonical-schedule-input.ts:184`), the spawn fencing triple, and
+      the objective **term names**, which are the mathematical names and
+      deliberately not the lowercase wire keys — because a
       check that does not name its vocabularies misattributes every table
-      tuple to the wire and is unrunnable. Then: (a) an enumeration inside a
+      tuple to the wire and is unrunnable. **Every one is read out of the
+      artifact that defines it rather than out of a sentence that mentions
+      it** (run 23): a vocabulary asserted from memory is the failure rule (b)
+      exists to catch, in a new place. Then: (a) an enumeration inside a
       `<!-- wire-fields:<set> -->` span (the span runs from the tag to the end
       of its sentence or to the next tag) SHALL equal that set exactly,
       failing with file, line and symmetric difference; (b) an untagged
@@ -692,10 +702,29 @@ ReadonlyMap<string, number>` (`schedule.ts:95`) and
       fails the check it specifies. That sentence was live in spec.md until Sol
       r9 Critical 1, against design.md's and 2.2's `key` — set comparison is
       what catches it, and the banned-prose wording would have deleted the
-      evidence instead. A prototype of rules (a)–(c) was run over the four
-      files at `af05ead1` and reported no divergent enumeration; it has not
-      been re-run since, so that is a statement about that head and not
-      about this one.
+      evidence instead. **Rule (a) is the shipped gate** at every head, over
+      the three covered artifacts, in
+      `libs/contracts/solver/src/wire-vocabulary.ts` (run 22; the `af05ead1`
+      prototype was a statement about that head alone).
+      **Rule (b) is measured and not yet gated, and the blocker changed in run
+      23.** It was seventeen divergences, none of them drift, blamed on six
+      unnamed tuples. Seven vocabularies were then added from their defining
+      artifacts and the count fell to **twelve** — so five were attribution
+      failures and are closed. The twelve that remain are ONE finding and no
+      further naming can move them: each is a run spanning two vocabularies
+      **both of which are now named**, and attribution picks a single winner by
+      overlap, so every member of the other tuple is reported as unexpected
+      whatever set it belongs to. **DECISION OWED HERE, not in the check:**
+      either those twelve sentences are rewritten so no run spans two tuples,
+      or rule (b)'s subset test is taken against the **union** of the
+      vocabularies a run overlaps — which keeps what rule (b) is for, since a
+      name belonging to no named tuple at all still fails, and drops what the
+      measurement says is not drift. **Falsifier for the union reading:** a
+      real drift where an obsolete field name is also a legitimate member of a
+      *different* named tuple; that would pass under the union and is the case
+      to look for before choosing it. The asserted count in
+      `wire-vocabulary.test.ts` is the ratchet either way, and 2.1 stays
+      unticked until the decision lands.
 - [x] 2.2 `buildSolverRequest(plan, objective, baseline)` in
       `libs/contracts/solver/src/` beside the schema it validates against —
       **Bun owns duration and graph derivation, Python owns placement only.**

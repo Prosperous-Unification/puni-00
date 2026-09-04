@@ -8,6 +8,7 @@ import {
   COVERED_ARTIFACTS,
   EXCLUDED_SHAPES,
   FIXTURE_TAG,
+  NEIGHBOUR_VOCABULARIES,
   report,
   scanEnumerations,
   TABLE_VOCABULARIES,
@@ -275,23 +276,80 @@ describe('the repository check — three of four descriptive artifacts', () => {
 
   /**
    * Rule (b) is not the gate, and this pins why rather than leaving it to the
-   * module header. Run over untagged prose it reports seventeen sentences and
-   * none of them is drift: each mixes a vocabulary with a neighbouring tuple
-   * this change has not named — the domain slice, `solver_slot`, the fencing
-   * triple, the two `status` enums, the objective term names, 3b's settings
-   * columns.
+   * module header. It reported seventeen sentences while six tuples were
+   * unnamed; run 23 named seven of them from their defining artifacts and
+   * measured **twelve**, so five were attribution failures and are now gone.
    *
-   * The number is asserted so it can only move deliberately. Naming one of
-   * those tuples SHALL lower it; a new mixed sentence SHALL raise it. Either
-   * way somebody reads this comment before editing the number, which is the
-   * whole point of writing it down instead of filtering it out.
+   * The twelve that remain are one finding: each is a run spanning two
+   * vocabularies that are BOTH named now, and `attribute` picks one winner, so
+   * no further naming can lower this number. Only 2.1 can — by rewriting those
+   * sentences, or by taking rule (b)'s subset test against the union of the
+   * vocabularies a run overlaps. See the module header.
+   *
+   * The number is asserted so it can only move deliberately. Naming a tuple
+   * a sentence draws from ALONE SHALL lower it; a new mixed sentence SHALL
+   * raise it. Either way somebody reads this comment before editing the number,
+   * which is the whole point of writing it down instead of filtering it out.
    */
-  it('records what rule (b) costs while six vocabularies are unnamed', () => {
+  it('records what rule (b) costs while its mixed runs are unresolved', () => {
     const ruleB = COVERED_ARTIFACTS.flatMap((file) =>
       checkArtifact(readFileSync(new URL(file, repoRoot), 'utf8'), file, vocabularies, ['b']),
     );
-    expect(ruleB).toHaveLength(17);
+    expect(ruleB).toHaveLength(12);
     expect(ruleB.every((d) => d.rule === 'b')).toBe(true);
+  });
+
+  /**
+   * The five naming closed, named individually so a regression says which.
+   * Each was a sentence drawn from one tuple that had no name, attributed to
+   * whichever named tuple it happened to overlap.
+   */
+  it.each([
+    [COVERED_ARTIFACTS[0], 64],
+    [COVERED_ARTIFACTS[1], 62],
+    [COVERED_ARTIFACTS[1], 69],
+    [COVERED_ARTIFACTS[2], 207],
+    [COVERED_ARTIFACTS[2], 257],
+  ])('%s line %s no longer diverges once its tuple is named', (file, line) => {
+    const divergences = checkArtifact(
+      readFileSync(new URL(file, repoRoot), 'utf8'),
+      file,
+      vocabularies,
+      ['b'],
+    );
+    expect(divergences.map((d) => d.line)).not.toContain(line);
+  });
+
+  /**
+   * The three schema-parsed additions are parsed, not restated — the same rule
+   * the four wire sets already follow. A literal here would be 2.1's own defect
+   * in a new place.
+   */
+  it('parses objectiveValues and both status enums out of the schema', () => {
+    const parsed = wireVocabularies(schema);
+    expect([...(parsed.get('objective-values')?.members ?? [])].sort()).toEqual([
+      'makespan',
+      'movement',
+      'priority',
+    ]);
+    expect([...(parsed.get('response-status')?.members ?? [])].sort()).toEqual([
+      'feasible',
+      'infeasible',
+      'unknown',
+    ]);
+    expect([...(parsed.get('objective-term-status')?.members ?? [])].sort()).toEqual([
+      'feasible',
+      'optimal',
+      'unknown',
+    ]);
+  });
+
+  /** Every added tuple says where it was read from; a nameless source is memory. */
+  it('gives every neighbour vocabulary a source that names an artifact', () => {
+    for (const vocabulary of NEIGHBOUR_VOCABULARIES) {
+      expect(vocabulary.members.size).toBeGreaterThanOrEqual(3);
+      expect(vocabulary.source).toMatch(/\.ts:\d|\.md|\.json/);
+    }
   });
 
   /**
