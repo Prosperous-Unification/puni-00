@@ -105,7 +105,9 @@ function corrupt(reason: unknown, generation: number, createdAt: number): Cached
  * fails a layer down; both are the same state to a reader, so both funnel into
  * {@link corrupt} and neither escapes this module.
  */
-function parsePayload(payload: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
+function parsePayload(
+  payload: string,
+): { ok: true; value: unknown } | { ok: false; error: unknown } {
   try {
     return { ok: true, value: JSON.parse(payload) };
   } catch (error) {
@@ -149,10 +151,14 @@ function decodePayload(
 
   const value = parsed.value;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return corrupt(new Error('stored certificate: payload is not an object'), generation, createdAt);
+    return corrupt(
+      new Error('stored certificate: payload is not an object'),
+      generation,
+      createdAt,
+    );
   }
   const certificate = value as Record<string, unknown>;
-  if (typeof certificate.dtoVersion !== 'number') {
+  if (typeof certificate['dtoVersion'] !== 'number') {
     return corrupt(
       new Error('stored certificate: dtoVersion is missing or not a number'),
       generation,
@@ -197,7 +203,11 @@ function outcomeOf(row: {
   }
 
   return resultJson === null
-    ? corrupt(new Error(`stored row: a ${status} row carries no result_json`), generation, createdAt)
+    ? corrupt(
+        new Error(`stored row: a ${status} row carries no result_json`),
+        generation,
+        createdAt,
+      )
     : decodePayload(status, resultJson, generation, createdAt);
 }
 

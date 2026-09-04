@@ -7,7 +7,7 @@ import {
   type OptimizedResult,
   RESULT_DTO_VERSION,
 } from '@wbs/contracts/solver/optimized-result';
-import { type PlannedRow, schedule, type Schedule, type Slice } from '@wbs/domain';
+import { type PlannedRow, type Schedule, schedule, type Slice } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
@@ -141,8 +141,8 @@ function storeRow(
          (project_id, input_hash, objective, contract_version, budget_ms,
           generation, status, result_json, failure_reason, created_at)
        VALUES ('p-1', ${quote(values.inputHash ?? HASH)}, '${values.objective}',
-               ${quote(values.contractVersion ?? CONTRACT)}, ${values.budgetMs ?? BUDGET},
-               ${values.generation}, '${values.status}', ${quote(values.resultJson)},
+               ${quote(values.contractVersion ?? CONTRACT)}, ${String(values.budgetMs ?? BUDGET)},
+               ${String(values.generation)}, '${values.status}', ${quote(values.resultJson)},
                ${quote(values.failureReason)}, 7)`,
     );
   } finally {
@@ -153,9 +153,8 @@ function storeRow(
 function storedRowCount(path: string): number {
   const db = openDatabase(path);
   try {
-    return (
-      db.query('SELECT COUNT(*) AS n FROM optimized_schedule_cache').get() as { n: number }
-    ).n;
+    return (db.query('SELECT COUNT(*) AS n FROM optimized_schedule_cache').get() as { n: number })
+      .n;
   } finally {
     db.close();
   }
@@ -403,7 +402,7 @@ describe('a payload the decoder refuses', () => {
           `INSERT INTO optimized_schedule_cache
              (project_id, input_hash, objective, contract_version, budget_ms,
               generation, status, result_json, failure_reason, created_at)
-           VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${BUDGET}, ${generation},
+           VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
                    'ok', NULL, NULL, 7)`,
         );
       } finally {
@@ -495,7 +494,7 @@ describe('the 3.8 boundary still throws on the read path', () => {
           `INSERT INTO optimized_schedule_cache
              (project_id, input_hash, objective, contract_version, budget_ms,
               generation, status, result_json, failure_reason, created_at)
-           VALUES ('p-1', '${HASH}', 'cost', '${CONTRACT}', ${BUDGET}, ${generation},
+           VALUES ('p-1', '${HASH}', 'cost', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
                    'failed', NULL, 'timeout', 7)`,
         );
       } finally {
