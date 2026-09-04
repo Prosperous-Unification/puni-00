@@ -1935,6 +1935,7 @@ review`, no self-merge.
       The last arm goes through `allocateGeneration`: a new hash allocates, the
       allocation clears the failed row with everything else, and the read for
       the new plan asks for the normal pair.
+
 - [x] 4.5 **Negative check, watched red** — put `failed` back into the
       auto-spawn set and watch 4.4's "ten reads spawn nothing" case fail.
       `Proof:` comment names the restored branch. Every read becoming a re-solve
