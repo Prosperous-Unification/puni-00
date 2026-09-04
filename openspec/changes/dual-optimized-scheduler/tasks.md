@@ -2229,12 +2229,45 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       status lies there while the bound is still honest, which is the right
       split.
 
-- [ ] 5.7 **Negative check, watched red** — let the solver read the wall clock
+- [x] 5.7 **Negative check, watched red** — let the solver read the wall clock
       instead of `baselineOffsets` and watch 5.4's oracle case fail; separately
       collapse the staged optimization into a weighted sum and watch the
       PRI/Time-disagree oracle fail. `Proof:` comment names each fault. Any
       input the hash does not cover breaks cache identity, and a weighted sum
       silently reorders the terms.
+
+      **Both faults injected and measured; both `Proof:` comments landed. Each
+      half of the clause's own prediction was wrong, and that is the result.**
+
+      **Fault one — `build_model`'s `baseline` read from `time.time()` instead
+      of `request["baselineOffsets"]`.** Reds **3** cases, all in
+      `test_model.CostTerms`, and **not one case in `test_oracles.py`**.
+      `MOVEMENT` is the last tie-breaker under both stagings and every 5.4
+      oracle instance has a unique optimum on an earlier term, so a corrupted
+      baseline never reaches their placements. `CostTerms` is the whole of the
+      suite's defence against an input the request hash does not cover; the
+      `Proof:` comment says so there.
+
+      **Fault two — the staged loop collapsed into one weighted sum.** The
+      weights decide whether the fault exists at all:
+
+      | mutation | result |
+      | --- | --- |
+      | `1000·T₁ + 100·T₂ + T₃` | 2 fail, both in `test_budget` — `BothStagings` **green** |
+      | `T₁ + T₂ + T₃` | 3 fail, incl. `BothStagings` ×2 — the predicted red |
+
+      Every term on the four-slice disagreement oracle is far below 100, so the
+      dominating sum **is** the lexicographic order and is not a reordering at
+      all. Only the naive equal-weight sum reorders the terms, and only it reds
+      the PRI/Time-disagree oracle. A watched red on "a weighted sum" that does
+      not name its weights proves nothing.
+
+      **A by-product worth keeping:** the dominating sum was caught only by
+      `test_budget`, and the equal-weight sum's third failure is also
+      `test_budget`'s generous-limit case. 5.6's file is currently the suite's
+      only check on staging that survives a weight choice designed to look
+      harmless.
+
 - [ ] 5.8 Staged optimization implements the exact anytime rule:
       `STAGE_BUDGET_SPLIT = [0.60, 0.25, 0.15]` with early remainder donated
       forward; OPTIMAL fixes an equality; FEASIBLE or UNKNOWN-with-incumbent

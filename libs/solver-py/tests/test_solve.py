@@ -170,7 +170,20 @@ class TheMatrixRowByRow(unittest.TestCase):
 
 
 class BothStagings(unittest.TestCase):
-    """5.3's "both stagings", on the oracle the module docstring works out."""
+    """5.3's "both stagings", on the oracle the module docstring works out.
+
+    Proof (5.7, fault two — a weighted sum silently reordering the terms):
+    replacing the per-stage `minimize(terms[term_name])` with one
+    `minimize(T₁ + T₂ + T₃)` reds `test_the_two_stagings_return_different_
+    schedules` and `test_time_minimises_makespan_and_pays_for_it_in_priority`
+    here, plus `test_budget`'s generous-limit case. **The weights are the
+    finding.** A *dominating* sum — `1000·T₁ + 100·T₂ + T₃` — leaves this class
+    entirely green, because every term on this four-slice oracle is far below
+    100 and the dominating sum simply *is* the lexicographic order. Only the
+    naive equal-weight sum is a genuine reordering, and only that one is caught.
+    A watched red on a weighted sum therefore has to say which weights, or it
+    proves nothing.
+    """
 
     def test_pri_minimises_priority_and_pays_for_it_in_makespan(self) -> None:
         response = solve_request(disagreement("pri"), PINNED)

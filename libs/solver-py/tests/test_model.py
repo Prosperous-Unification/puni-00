@@ -206,6 +206,18 @@ class CostTerms(unittest.TestCase):
     Watched red: change `add_max_equality` to a chain of `>=` and the makespan
     cases still pass while `MakespanIsTheMaximumNotTheSum` below fails, which is
     why that case exists as well as these.
+
+    Proof (5.7, fault one — the solver reading something the request hash does
+    not cover): `build_model`'s `baseline` taken from `time.time()` instead of
+    `request["baselineOffsets"]` reds exactly three cases, all of them here —
+    `a_slice_placed_on_its_baseline_moves_nothing`,
+    `movement_counts_a_start_before_the_baseline_the_same_as_after`, and
+    `a_zero_weight_slice_contributes_nothing_to_priority`. **5.7 predicted 5.4's
+    oracle cases would fail and they do not**: `MOVEMENT` is the last
+    tie-breaker under both stagings and every oracle instance in
+    `test_oracles.py` has a unique optimum on an earlier term, so a corrupted
+    baseline never reaches their placements. This class is the whole of the
+    suite's defence against that fault, which is why it is named here.
     """
 
     def test_makespan_is_the_largest_finish(self) -> None:
