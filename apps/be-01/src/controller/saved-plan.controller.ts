@@ -59,104 +59,102 @@ export function savedPlanController(
   projects: ProjectService,
 ) {
   const signedIn = { caller: 'signed-in' } as const;
-  return (
-    new Elysia({ prefix: '/api' })
-      .use(callerGuard(auth))
-      .post(
-        '/projects/:projectId/saved-plans',
-        async ({ params, body, user, set }) => {
-          // The project is read here rather than left to the service, because
-          // the service's `no_project` cannot tell "there is no such project"
-          // from "you may not write to it" — it never learns who is asking.
-          const found = await projects.read(params.projectId);
-          if (found === null) {
-            set.status = 404;
-            return { error: 'not_found' };
-          }
-          if (!canEdit(found.project, user.id)) {
-            set.status = 403;
-            return { error: 'forbidden' };
-          }
-          const outcome = await plans.save({
-            projectId: params.projectId,
-            name: body.name,
-            createdBy: user.username,
-            createdById: user.id,
-          });
-          if (outcome.outcome === 'saved') {
-            set.status = 201;
-            return { savedPlan: outcome.record };
-          }
-          if (outcome.outcome === 'no_project') {
-            // Reachable: the project can be deleted between the read above and
-            // the capture. Answered as the truth a moment later, not as a 500.
-            set.status = 404;
-            return { error: 'not_found' };
-          }
-          if (outcome.outcome === 'snapshot_busy') {
-            set.status = 503;
-            return { error: 'snapshot_busy' };
-          }
-          set.status = 409;
-          return { error: 'quota', refusal: outcome.refusal };
-        },
-        { ...signedIn, body: planName() },
-      )
-      .get(
-        '/projects/:projectId/saved-plans',
-        async ({ params, set }) => {
-          // The project is read for one reason: an unknown project and a project
-          // with no saved plans both list as `[]`, and a client cannot tell a
-          // mistyped id from an empty shelf.
-          const found = await projects.read(params.projectId);
-          if (found === null) {
-            set.status = 404;
-            return { error: 'not_found' };
-          }
-          return { savedPlans: await plans.list(params.projectId) };
-        },
-        signedIn,
-      )
-      .get(
-        '/saved-plans/:id',
-        async ({ params, set }) => {
-          const outcome = await plans.read(params.id);
-          if (outcome.outcome === 'read') return { savedPlan: outcome.plan };
-          if (outcome.outcome === 'not_found') {
-            set.status = 404;
-            return { error: 'not_found' };
-          }
-          // 422 and not 404, because the plan is there and has to stay visible
-          // to be deleted; and not 409, whose meaning in `refusal-status.ts` is
-          // "would have worked a moment earlier and may work again" — damaged
-          // bytes will not repair themselves on a retry.
-          set.status = 422;
-          return { error: 'corrupt', refusal: outcome.refusal };
-        },
-        signedIn,
-      )
-      .patch(
-        '/saved-plans/:id',
-        async ({ params, body, user, set }) => {
-          const outcome = await plans.rename(params.id, user.id, body.name);
-          if (outcome.outcome === 'touched') return { savedPlanId: params.id, name: body.name };
-          set.status = statusForTouch(outcome.outcome);
-          return { error: outcome.outcome };
-        },
-        { ...signedIn, body: planName() },
-      )
-      .delete(
-        '/saved-plans/:id',
-        async ({ params, user, set }) => {
-          const outcome = await plans.delete(params.id, user.id);
-          if (outcome.outcome === 'touched') {
-            set.status = 204;
-            return null;
-          }
-          set.status = statusForTouch(outcome.outcome);
-          return { error: outcome.outcome };
-        },
-        signedIn,
-      )
-  );
+  return new Elysia({ prefix: '/api' })
+    .use(callerGuard(auth))
+    .post(
+      '/projects/:projectId/saved-plans',
+      async ({ params, body, user, set }) => {
+        // The project is read here rather than left to the service, because
+        // the service's `no_project` cannot tell "there is no such project"
+        // from "you may not write to it" — it never learns who is asking.
+        const found = await projects.read(params.projectId);
+        if (found === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        if (!canEdit(found.project, user.id)) {
+          set.status = 403;
+          return { error: 'forbidden' };
+        }
+        const outcome = await plans.save({
+          projectId: params.projectId,
+          name: body.name,
+          createdBy: user.username,
+          createdById: user.id,
+        });
+        if (outcome.outcome === 'saved') {
+          set.status = 201;
+          return { savedPlan: outcome.record };
+        }
+        if (outcome.outcome === 'no_project') {
+          // Reachable: the project can be deleted between the read above and
+          // the capture. Answered as the truth a moment later, not as a 500.
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        if (outcome.outcome === 'snapshot_busy') {
+          set.status = 503;
+          return { error: 'snapshot_busy' };
+        }
+        set.status = 409;
+        return { error: 'quota', refusal: outcome.refusal };
+      },
+      { ...signedIn, body: planName() },
+    )
+    .get(
+      '/projects/:projectId/saved-plans',
+      async ({ params, set }) => {
+        // The project is read for one reason: an unknown project and a project
+        // with no saved plans both list as `[]`, and a client cannot tell a
+        // mistyped id from an empty shelf.
+        const found = await projects.read(params.projectId);
+        if (found === null) {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        return { savedPlans: await plans.list(params.projectId) };
+      },
+      signedIn,
+    )
+    .get(
+      '/saved-plans/:id',
+      async ({ params, set }) => {
+        const outcome = await plans.read(params.id);
+        if (outcome.outcome === 'read') return { savedPlan: outcome.plan };
+        if (outcome.outcome === 'not_found') {
+          set.status = 404;
+          return { error: 'not_found' };
+        }
+        // 422 and not 404, because the plan is there and has to stay visible
+        // to be deleted; and not 409, whose meaning in `refusal-status.ts` is
+        // "would have worked a moment earlier and may work again" — damaged
+        // bytes will not repair themselves on a retry.
+        set.status = 422;
+        return { error: 'corrupt', refusal: outcome.refusal };
+      },
+      signedIn,
+    )
+    .patch(
+      '/saved-plans/:id',
+      async ({ params, body, user, set }) => {
+        const outcome = await plans.rename(params.id, user.id, body.name);
+        if (outcome.outcome === 'touched') return { savedPlanId: params.id, name: body.name };
+        set.status = statusForTouch(outcome.outcome);
+        return { error: outcome.outcome };
+      },
+      { ...signedIn, body: planName() },
+    )
+    .delete(
+      '/saved-plans/:id',
+      async ({ params, user, set }) => {
+        const outcome = await plans.delete(params.id, user.id);
+        if (outcome.outcome === 'touched') {
+          set.status = 204;
+          return null;
+        }
+        set.status = statusForTouch(outcome.outcome);
+        return { error: outcome.outcome };
+      },
+      signedIn,
+    );
 }
