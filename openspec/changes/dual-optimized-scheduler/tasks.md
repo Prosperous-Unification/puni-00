@@ -2166,11 +2166,68 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       measurement, which is the trade 5.5 and 5.6 both refuse. Recorded rather
       than papered over.
 
-- [ ] 5.6 **Proven by** the budget case, built to be flake-free: a deterministic
+- [x] 5.6 **Proven by** the budget case, built to be flake-free: a deterministic
       limit small enough that the instance is provably unsolved at it (an
       instance whose search tree is measured, not guessed) returns `feasible`,
       never `optimal`, and never crashes. A wall-clock "too small" budget is not
       a guarantee and is not used.
+
+      **Landed** as `libs/solver-py/tests/test_budget.py`, nine cases, no
+      `time.monotonic()` anywhere in it.
+
+      **The instance was measured, one candidate at a time.** Eleven slices of
+      coprime durations sharing a capacity-2 pool, so stage 1 is a
+      weighted-completion-time problem. Probed on the gate host through the same
+      `build_model` + `minimize` + `solve` stage 1 makes, one worker, seed 0,
+      ortools `9.15.6755`:
+
+      | deterministic limit | stage-1 `priority` outcome |
+      | --- | --- |
+      | unbounded | `OPTIMAL` at **4.1573** deterministic units, 1.97s wall |
+      | 8.0 (`GENEROUS`) | `optimal`, value 1221 |
+      | 0.5 / 0.25 | `feasible` |
+      | **0.1 (`BUDGET`)** | **`feasible`**, bound 681 against incumbent 1234 |
+      | 0.05 / 0.02 / 0.01 / 0.005 / 0.001 | `feasible` |
+
+      **The band matters in both directions, and the lower one is the flake.**
+      `BUDGET` is 41× below the measured proof and 100× above the smallest limit
+      probed. A budget that is too small does not produce `optimal` — it
+      produces `UNKNOWN` with no incumbent, which stage 1 reports as
+      `no-solution` and which would leave this file asserting on an empty
+      response. Every limit from 0.001 upward returned a stage-1 incumbent, so
+      that side of the band is four orders of magnitude wide.
+
+      **Twelve slices did not prove within 20 deterministic units**, and run
+      17's 10-to-20-slice candidates printed nothing in 500 wall seconds.
+      Eleven is where the proof is expensive relative to the budget and the
+      whole file still costs ~6s.
+
+      **`test_the_generous_limit_proves_the_same_instance` is not decoration.**
+      Without it, `feasible` at a small limit is equally consistent with an
+      instance nothing can prove, and the case would assert nothing about the
+      limit at all. With it, the only difference between `feasible` and
+      `optimal` is the number in `deterministic_time_per_stage`.
+
+      Only two numbers are asserted: `PROVEN_OPTIMUM` (arithmetic, not a search
+      outcome) and the two inequalities true of any correct truncated
+      minimisation — the incumbent is no better than the optimum, the dual bound
+      no worse. The 1229/681 the probe saw are recorded above and deliberately
+      not asserted; pinning one ortools build's search order would make a
+      dependency bump a meaningless red.
+
+      Watched reds (`/home/puni1/mut-t219-r18-solve.py.orig`, `solve.py`
+      byte-compared after each):
+
+      | mutation | result |
+      | --- | --- |
+      | `deterministic_time_per_stage` never applied | 4 fail — 3 here + `test_determinism`'s parameter case; suite 12s → **45s** |
+      | every found stage claims a proof (`ROW_EQUALITY` always) | 8 fail — 2 here + 6 in `test_solve`'s matrix |
+
+      The first mutation's runtime is itself the evidence that the deterministic
+      limit, not the instance, is what keeps this case cheap. `test_the_gap_is_
+      open_which_is_what_unproved_means` stays green under the second — the
+      status lies there while the bound is still honest, which is the right
+      split.
 - [ ] 5.7 **Negative check, watched red** — let the solver read the wall clock
       instead of `baselineOffsets` and watch 5.4's oracle case fail; separately
       collapse the staged optimization into a weighted sum and watch the
