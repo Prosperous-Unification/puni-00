@@ -130,7 +130,14 @@ describe('materialiseOptimized', () => {
       sliceOf('A', 'one', 5 / 12, { width: 5 }),
       sliceOf('A', 'two', 1),
     ] as readonly Slice[];
-    const offsets = quantisedFastBaseline(rows, noEdges, slices, new Map(), new Map(), 'whole-item');
+    const offsets = quantisedFastBaseline(
+      rows,
+      noEdges,
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+    );
     const fast = schedule(rows, noEdges, slices, new Map(), new Map(), 'whole-item');
 
     const placed = materialiseOptimized(

@@ -2227,13 +2227,25 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       only refuse the converse; the surplus check therefore runs AFTER the
       placement, against `placed.slices`, because that map IS the node set and a
       key set derived here would be a second copy of the leaf grouping.
-      **OPEN, NAMED, NOT SMUGGLED:** `offset / SOLVER_QUANTUM` is correctly
-      rounded, but `pinFloor` compares it against Fast's accumulated
-      `days / width` floors with `===` and `<`. A floor whose exact value is a
-      unit multiple but whose double drifted a ulp above it turns a feasible pin
-      into `ScheduleInvalidOptimizedStartError`. `snapWorkdays`' 1e-9 window is
-      the tool; it needs its own fixture and its own watched red and did not get
-      one here.
+      **THE ULP HAZARD WAS REAL AND IS NOW CLOSED (run 40 chunk 2).** Chunk 1
+      named it as open; chunk 2 measured it and it was not a corner case. Over
+      every width 1–1000 and every offset 1–480 whose real duration is an exact
+      unit multiple, **106,142 of 480,000 pairs drift**: 53,451 put the
+      dequantised pin strictly BELOW Fast's floor, where `pinFloor`'s `<` threw,
+      and 52,691 strictly above, where its `===` missed and the slice sitting on
+      its own floor was labelled `'optimizer'`. The sharpest form is that
+      **`schedule()` refused the plan's own quantised baseline** — reproduced
+      before the fix on `days: 5/12, width: 5`, exactly 4 solver units:
+      `0.08333333333333333 is before its stepOrder floor at 0.08333333333333334`.
+      Fixed by comparing within the domain's existing drift window rather than
+      with `===`: `withinDrift(a, b)` joins `snapWorkdays` in `workday.ts`,
+      sharing the one `DRIFT`, because that function snaps towards a WHOLE day
+      and two values can be a ulp apart at 0.083 with no whole number near them.
+      The equal branch keeps the FLOOR's double, not the pin's, so the schedule
+      stays on one axis. The window cannot hide a real violation: the solver
+      places integers, so a genuinely early start is early by at least
+      `1 / SOLVER_QUANTUM` = 0.0208 of a day against a 1e-9 window — asserted,
+      not argued, by a case that fails if `DRIFT` is widened past a unit.
 - [ ] 4.11b **The real-domain publication guard** (Sol r10 Critical 3). No
       numbered slice implemented this at all; 2.11 pointed at a "6.x
       publication guard" that does not exist, so the guarantee had no owner.
