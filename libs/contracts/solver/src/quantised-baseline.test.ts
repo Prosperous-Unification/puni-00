@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import {
   type DependencyEdge,
   indexTree,
@@ -12,7 +14,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildSolverEdges } from './build-solver-edges';
 import { buildSolverSlices, type LeafConstraintMaps } from './build-solver-slices';
 import { quantisedFastBaseline } from './quantised-baseline';
-import type { SolverOffsetMap } from './wire-types';
+import type { SolverOffsetMap, SolverRequest } from './wire-types';
 
 const row = (id: string, position: number, parentId: string | null = null): PlannedRow => ({
   id,
@@ -222,5 +224,57 @@ describe('quantisedFastBaseline', () => {
     expect(() =>
       quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item'),
     ).toThrow(/no exact duration on the unit axis/);
+  });
+});
+
+/**
+ * 2.11's last clause: the request must **carry** the quantised offsets, checked
+ * against the golden corpus rather than against this file's own arithmetic.
+ *
+ * `request/valid-quantised-baseline.json` is the same three-slice fixture on the
+ * wire, and it is in `manifest.json` so the schema validates it in both suites.
+ * A change that made the builder emit real Fast's numbers would still agree with
+ * every assertion above — they are all derived from the builder — and would
+ * disagree with this file, which is checked in and read as bytes.
+ */
+const golden = JSON.parse(
+  readFileSync(
+    new URL('../fixtures/request/valid-quantised-baseline.json', import.meta.url),
+    'utf8',
+  ),
+) as SolverRequest;
+
+describe('the quantised baseline the golden request carries', () => {
+  it('is what quantisedFastBaseline produces from the plan behind it', () => {
+    const { rows, edges, slices } = fiveWide;
+    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
+    expect(offsets).toEqual(golden.baselineOffsets);
+    // Never real Fast's, which is the whole of 2.11: 9.600000000000001 is what
+    // this entry would hold if the baseline were converted instead of re-run.
+    expect(readable(golden.baselineOffsets)['A/two']).toBe(10);
+  });
+
+  it('and the projections beside it are the same builders, on the same plan', () => {
+    const { slices } = fiveWide;
+    const slicesOf = (leafId: string): readonly Slice[] =>
+      slices.filter((slice) => slice.workItemId === leafId);
+    expect(buildSolverSlices(slices, noConstraints)).toEqual(golden.slices);
+    expect(buildSolverEdges(['A'], slicesOf, [], 'whole-item')).toEqual(golden.edges);
+  });
+
+  it('satisfies the three cross-field invariants JSON Schema cannot state', () => {
+    // (1) fastHint and baselineOffsets are equal AS MAPS — the wire carries two
+    // copies of one value and the schema cannot say they agree.
+    expect(golden.fastHint).toEqual(golden.baselineOffsets);
+    // (2) key-set equality with slices[].key, no extra and no missing.
+    const keys = golden.slices.map((slice) => slice.key).sort();
+    expect(Object.keys(golden.baselineOffsets).sort()).toEqual(keys);
+    expect(Object.keys(golden.fastHint).sort()).toEqual(keys);
+    // (3) every offset within the horizon. 30 is the quantised finish; real
+    // Fast's 28.8 would fit too, which is why (1) and the assertion above are
+    // what actually pin the numbers.
+    for (const offset of Object.values(golden.baselineOffsets)) {
+      expect(offset).toBeLessThanOrEqual(golden.horizonUnits);
+    }
   });
 });

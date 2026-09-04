@@ -9,6 +9,12 @@
       "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null and an empty poolIds are legal states, not omissions."
     },
     {
+      "file": "request/valid-quantised-baseline.json",
+      "branch": "request",
+      "valid": true,
+      "why": "2.11's own fixture on the wire: three serial slices at days=1, width=5. Real Fast finishes them at 28.8 units and each duration rounds up to 10, so baselineOffsets and fastHint are the 30-unit integers 0/10/20 and never real Fast's 9.6/19.2. Equal as maps, key-set equal to slices[].key, every offset <= horizonUnits."
+    },
+    {
       "file": "request/invalid-zero-width.json",
       "branch": "request",
       "valid": false,
