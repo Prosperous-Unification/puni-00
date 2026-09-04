@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { type Drizzle,openDatabase, openDrizzle } from './db';
+import { type Drizzle, openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { allocateGeneration, readGeneration } from './optimization-generation';
 import { optimizedScheduleCache, solverQueue, solverSlot } from './schema';
@@ -233,5 +233,22 @@ describe('one allocation', () => {
   it('answers null for a release that has never allocated', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     expect(readGeneration(db, 'p-1', GREEN)).toBeNull();
+  });
+
+  // `optimization_generation` carries no audit columns and is exempt from
+  // `audit.test.ts` for the reason recorded there — it holds machine state with
+  // no acting user. That exemption is only honest while the one column it does
+  // carry is genuinely maintained, so this is the case that keeps it honest:
+  // BOTH branches of the upsert must move `updated_at`, not just the insert.
+  // An upsert stamping only its insert branch leaves the column at the instant
+  // of the first allocation for ever, which is exactly the fault `audit.test.ts`
+  // calls the quiet half — and with the table exempt, nothing else would see it.
+  it('moves updated_at on the conflict branch, not only when the row is created', () => {
+    allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
+    expect(readGeneration(db, 'p-1', BLUE)?.updatedAt).toBe(10);
+
+    allocateGeneration(db, 'p-1', BLUE, 'h2', 11);
+
+    expect(readGeneration(db, 'p-1', BLUE)?.updatedAt).toBe(11);
   });
 });

@@ -4,9 +4,9 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { toOptimizationGenerationRow } from './optimizer-rows';
 import {
   optimizationGeneration,
+  type OptimizationGenerationRow,
   optimizedScheduleCache,
   solverQueue,
-  type OptimizationGenerationRow,
 } from './schema';
 
 /**

@@ -52,7 +52,27 @@ const FOLDER = import.meta.dir;
 // and the table kept, because `migrate.test.ts` and `migrate-down.test.ts`
 // assert it survives a round trip — a claim about migrations rather than about
 // any code. It stays listed so a write added against it is a deliberate act.
-const EXEMPT = new Set(['eventLog', 'commandJournal', 'planEvent', 'eventSequencer', 'examples']);
+//
+// `optimizationGeneration` is the sixth, added 2026-09-04 with slice 3's first
+// production write. It is `event_sequencer`'s reason exactly: a counter row, one
+// per `(project, contract version)`, holding the generation the solver is on.
+// There is no acting user to put in `created_by` — `SCHEDULER_CONTRACT_VERSION`
+// bumping on deploy is what writes it — and `auditColumns()` is not on the table,
+// so `auditOnCreate(stamp)` could not be spread into that write even if a stamp
+// existed: `createdAt` and `createdBy` are not columns and the compiler says so.
+// What the table does carry is a `NOT NULL updated_at`, which is stronger than
+// the nullable audit column, and `optimization-generation.db.test.ts` pins that
+// BOTH branches of its upsert move it. That case is this exemption's price:
+// exempting the table drops the guard, so the invariant the guard was protecting
+// is asserted where the write lives instead.
+const EXEMPT = new Set([
+  'eventLog',
+  'commandJournal',
+  'planEvent',
+  'eventSequencer',
+  'examples',
+  'optimizationGeneration',
+]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
 function repositorySources(): { name: string; text: string }[] {
@@ -101,8 +121,43 @@ function auditedWrites(): Write[] {
   return found;
 }
 
+/**
+ * The body of one `sqliteTable` declaration in `schema.ts`, as text.
+ *
+ * Sliced to the next top-level `export`, which is sound because a table
+ * declaration contains none — the `export type X = typeof x.$inferSelect` that
+ * follows each one is the boundary. Returns null when the name is not declared
+ * there at all, which is itself a failure worth naming: an exemption for a table
+ * that does not exist is an exemption nobody can check.
+ */
+function tableDeclaration(schema: string, name: string): string | null {
+  const start = schema.indexOf(`export const ${name} = sqliteTable(`);
+  if (start === -1) return null;
+  const end = schema.indexOf('\nexport ', start + 1);
+  return schema.slice(start, end === -1 ? undefined : end);
+}
+
 describe('every write fills the audit columns', () => {
   const writes = auditedWrites();
+
+  // The exemption list is the one way to make everything below vacuously true,
+  // so it is checked rather than trusted: a table is exempt only if it genuinely
+  // has no audit columns to fill. Without this, adding a name here would silence
+  // the guard on a table that carries `created_by` and simply stopped writing
+  // it — the exact fault the suite exists to catch, committed through its own
+  // escape hatch.
+  it('exempts only tables that carry no audit columns', () => {
+    const schema = readFileSync(join(FOLDER, 'schema.ts'), 'utf8');
+    const wrong = [...EXEMPT].map((name) => {
+      const declaration = tableDeclaration(schema, name);
+      if (declaration === null) return `${name}: exempt but not declared in schema.ts`;
+      if (declaration.includes('auditColumns()')) return `${name}: exempt but carries auditColumns`;
+      if (declaration.includes('auditColumnsBesidesCreatedAt()'))
+        return `${name}: exempt but carries auditColumnsBesidesCreatedAt`;
+      return null;
+    });
+    expect(wrong.filter((entry) => entry !== null)).toEqual([]);
+  });
 
   // The precondition, and R5 is why it is here rather than assumed: a regex that
   // matched nothing would make every assertion below true of an empty list. The
