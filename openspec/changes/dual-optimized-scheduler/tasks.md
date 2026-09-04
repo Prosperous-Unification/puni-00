@@ -2417,25 +2417,36 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       | --- | --- |
       | the shipped staged loop | `W`@0 — PRIORITY 15, MAKESPAN 36 |
       | `1000·T₁ + 100·T₂ + T₃` | **`S`@0 — PRIORITY 16, MAKESPAN 21** |
-      | `1·T₁ + 1·T₂ + 1·T₃` | `W`@0 |
+      | `1·T₁ + 1·T₂ + 1·T₃` | `S`@0 — on MOVEMENT, see below |
       | `10⁶·T₁ + 10³·T₂ + T₃` | `W`@0 |
 
-      **This fixture is the exact complement of 5.7's, and the last two rows are
-      the finding.** There the dominating sum was green and the equal-weight sum
-      red; here the dominating sum is red and *both* the equal-weight sum and a
-      sum a thousand times larger are green. So neither "the coefficients are
-      big" nor "the coefficients are equal" decides whether a weighted form is
-      faithful — only whether the coefficient gap exceeds the term's swing does.
-      Both contrasts are asserted, not noted, because a reader carrying 5.7's
-      conclusion over would expect the opposite.
+      **The dominating sum is the finding.** On 5.7's oracle `1000/100/1` stayed
+      green; here it is red, and a sum a thousand times larger is green again. So
+      "the coefficients are big" is not the rule — only whether the coefficient
+      gap exceeds the term's swing is. A mutation whose coefficients are not
+      named, and whose fixture is not built against them, is a coin flip.
 
-      **5.9's bound would have masked this mutation**, which is why the two
-      objectives are compared on `build_model` rather than through
-      `solve_request`: the baseline is the lexicographic answer, so the bound is
-      `PRIORITY ≤ 15` and it excludes the `S`-first placement (PRIORITY 16)
-      outright. Correctly — `S`-first is worse than the quantised baseline on
-      stage 1's term — but a mutation compared under it is green for the wrong
-      reason.
+      **5.9's bound made this file blind, and chunk 3 measured it.** Chunk 2
+      baselined on `w_first`, the lexicographic answer, so the bound was
+      `PRIORITY ≤ 15` and excluded the `S`-first placement (PRIORITY 16)
+      outright — correctly, but it meant the collapse could not move
+      `solve_request`'s answer. Injecting that collapse (stage 1 minimising
+      `1000·T₁ + 100·T₂ + T₃`, stages 2–3 unchanged) reddened `test_budget` ×2
+      and `test_solve.BothStagings` ×2 and left `test_lexicographic` **green** —
+      the file built to catch a weighted collapse did not catch one. The baseline
+      is now `s_first` (PRIORITY 16): the bound admits both placements, is
+      present without being decisive, and the same mutation reds
+      `TheStagedLoopIsLexicographic` as well — 5 reds, not 4.
+
+      **Third finding, forced by that change and measured rather than
+      predicted:** the equal-weight row flipped. `1/1/1` answers `S`@0 against
+      `s_first` and answered `W`@0 against `w_first`, because **MOVEMENT is the
+      only term defined relative to the baseline** — it scores W-first at
+      15 + 36 + 316 and S-first at 16 + 21 + 0 and decides on the movement alone.
+      A weighted form therefore has a failure mode no fixture designs away: two
+      of its terms are properties of the schedule and the third is a property of
+      the *question*. The staged loop is immune, because MOVEMENT is last under
+      both objectives and only ever breaks ties the first two terms left open.
 
       **Left for the next run:** the integer-overflow guard on the weighted
       form's own bound. The wire's cross-field invariant 8 bounds
