@@ -266,15 +266,18 @@ describe('buildSolverRequest', () => {
     // 7: leaf 5 under parent 1, leaf 1 under parent 5, and a null leaf under
     // parent 7 under grandparent 3. Distinct {1,5,7} dense-ranks to 3/2/1.
     //
+    // **Watched red, 2026-09-04 on h2puni:** the import replaced by an inline
+    // minimum-across-ancestors resolver gives 155 pass / 1 fail, this case.
+    //
     // **What is observable here is the WEIGHT, not the priority**, and that
-    // changes what the red proves. Under a minimum-across-ancestors resolver
-    // the three resolve to 1, 1 and 3, the distinct set collapses to {1,3}, and
-    // the vector becomes [2, 2, 1] — so the FIRST and SECOND entries move and
-    // the third does not, where a check on `priorityByLeaf` itself would see
-    // the third move too. The dense rank is a function of the whole plan, so no
-    // fixture makes one leaf's resolution independently visible on the wire.
-    // The resolver's own directional proof is `libs/domain`'s; this asserts the
-    // builder IMPORTS it.
+    // bounds what the red can prove. Under the minimum rule the three resolve
+    // to 1, 1 and 3 instead of 5, 1 and 7, which also collapses the distinct
+    // set from {1,5,7} to {1,3} — so the rank every leaf gets is recomputed and
+    // no single entry of the vector can be read as one leaf's resolution. 2.6
+    // promises "the first and third cases must fail"; that is a statement about
+    // `priorityByLeaf`'s output, and through the dense rank it becomes one
+    // failure of the whole vector. The resolver's own directional proof is
+    // `libs/domain`'s; what this asserts is that the builder IMPORTS it.
     const tree: readonly PlannedRow[] = [
       rowOf('p1', null, 1),
       rowOf('L1', 'p1', 5),
