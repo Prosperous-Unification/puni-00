@@ -124,18 +124,20 @@ function toProject<
   // `Omit<T, A | B>` for a generic `T`.
 ): Omit<
   Omit<
-    T,
-    | 'estimateMethod'
-    | 'depReach'
-    | 'estimateRounding'
-    | 'pertWeightOptimistic'
-    | 'pertWeightRealistic'
-    | 'pertWeightPessimistic'
-    | 'solutionSlug'
-    | 'solutionUrl'
-    | 'optimizationDeletePendingAt'
+    Omit<
+      T,
+      | 'estimateMethod'
+      | 'depReach'
+      | 'estimateRounding'
+      | 'pertWeightOptimistic'
+      | 'pertWeightRealistic'
+      | 'pertWeightPessimistic'
+      | 'solutionSlug'
+      | 'solutionUrl'
+    >,
+    'createdBy' | 'updatedAt' | 'updatedBy'
   >,
-  'createdBy' | 'updatedAt' | 'updatedBy'
+  'optimizationDeletePendingAt'
 > & {
   estimateMethod: EstimateMethod;
   depReach: DependencyReach;
