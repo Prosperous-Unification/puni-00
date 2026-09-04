@@ -240,9 +240,14 @@ describe("the materialiser's annotations, through the plan read", () => {
     // failed on both. Watched 2026-09-04.
     const strip = await leaf('Strip', 2);
     const sand = await leaf('Sand', 2);
+    // The QA slice moves with its Dev slice: `sand`'s zero-duration second
+    // slice sits on a `stepOrder` floor at its Dev finish, so a baseline offset
+    // for day 2 is below the floor day 3 creates and the materialiser refuses
+    // it — correctly. A solver moves a slice's own successors too.
     const tree = await servedBy({
       [sliceKey(strip, stepId)]: units(0),
       [sliceKey(sand, stepId)]: units(3),
+      [sliceKey(sand, laterStepId)]: units(5),
     });
 
     expect(slicedFor(tree, sand)).toMatchObject({
@@ -268,7 +273,10 @@ describe("the materialiser's annotations, through the plan read", () => {
     // case in the repository that fails on it: the date is unchanged, so every
     // placement assertion elsewhere stays green. Watched 2026-09-04.
     const rewire = await leaf('Rewire', 2);
-    const tree = await servedBy({ [sliceKey(rewire, stepId)]: units(3) });
+    const tree = await servedBy({
+      [sliceKey(rewire, stepId)]: units(3),
+      [sliceKey(rewire, laterStepId)]: units(5),
+    });
 
     expect(slicedFor(tree, rewire)).toMatchObject({
       earliestStart: 3,
@@ -306,6 +314,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     const tree = await servedBy({
       [sliceKey(hold, stepId)]: units(0),
       [sliceKey(rewire, stepId)]: units(3),
+      [sliceKey(rewire, laterStepId)]: units(5),
     });
 
     expect(slicedFor(tree, rewire)).toMatchObject({
