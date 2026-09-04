@@ -1079,6 +1079,16 @@ describe("4.1's conditional write, with all four conditions composed", () => {
    * Recorded so the boundary is not mistaken for the whole claim: no event is
    * emitted because nothing at this layer emits one. Events are slice 7's, and
    * the assertion that a refused write publishes nothing belongs with them.
+   *
+   * tasks.md 4.7's negative check. `Proof:` the removed predicate is
+   * `current.generation === claim.generation` in `admissionStillCurrent` —
+   * with it deleted and the cancel-epoch comparison left standing, this case
+   * fails on `Expected: "superseded" / Received: "stored"`. Watched on h2puni
+   * at `d91717f4`: 48 pass / 3 fail against a 51 / 0 baseline, script
+   * `/home/puni1/mut46-r37.sh`. The other two are the predicate's own unit case
+   * and 4.1's superseded-writer case. `inputHash` alone cannot tell a
+   * resurrected run from a current one — after the undo the two are identical —
+   * which is the whole reason the generation exists.
    */
   it('refuses the original child after an undo restores its hash, and touches nothing', () => {
     const db = tempDb();

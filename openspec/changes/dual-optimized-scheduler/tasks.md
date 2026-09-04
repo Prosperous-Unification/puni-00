@@ -1966,14 +1966,42 @@ review`, no self-merge.
       and count its spawns, so the widening cannot be made to look local.
       Note the shape of the failure it prevents: a re-solve **once per open
       tab** is worse than the timer that was rejected, not merely equal to it.
-- [ ] 4.6 **ABA fence, proven by** `optimization-generation.test.ts`: run hash
+- [x] 4.6 **ABA fence, proven by** `optimization-generation.test.ts`: run hash
       A, edit to B (cancelling A), undo to A, then let the original A child
       return a valid result. Its write is rejected, no rows are deleted, no
       `ok` row becomes `failed`, and no event is emitted.
-- [ ] 4.7 **Negative check, watched red** — drop the generation predicate from
+
+      **Closed run 37 chunk 5, two cases**, and they live in
+      `optimized-cache.db.test.ts` rather than in the file this item names.
+      **Assumption, with what would falsify it:** the fence is a property of
+      `storeOptimizedOutcome`'s admission predicate, and that write and its
+      scaffolding — an admitted seat, a claim with an overridable generation —
+      are all in the cache test; the generation file tests the allocator, which
+      is the other half of the pair and not the half being fenced. Falsified if
+      the fence ever needs to observe allocator-internal state the cache test
+      cannot reach, at which point the case moves rather than being duplicated.
+      **The two cases split the two predicates deliberately.** The ABA case does
+      **not** bump the cancel epoch: both predicates would refuse that write,
+      and a case that trips two fences proves neither — 4.7's watched red
+      removes the generation predicate and must see this fail, which it cannot
+      if the epoch is also refusing. The second case is the epoch's own arm with
+      the generation unmoved. Each is reddened by exactly the predicate it is
+      about.
+      **The one part not asserted, and why:** "no event is emitted" holds
+      because nothing at this layer emits one. Events are slice 7's, and the
+      assertion that a refused write publishes nothing belongs with them.
+
+- [x] 4.7 **Negative check, watched red** — drop the generation predicate from
       4.1's conditional write and watch 4.6 fail. `Proof:` comment names the
       removed predicate. `inputHash` alone cannot tell a resurrected run from a
       current one, which is the whole reason the generation exists.
+      **Closed run 37 chunk 5.** The removed predicate is
+      `current.generation === claim.generation` in `admissionStillCurrent`.
+      Watched on h2puni at `d91717f4`: **48 pass / 3 fail** against a 51 / 0
+      baseline, script `/home/puni1/mut46-r37.sh`. The other two that redden are
+      the predicate's own unit case and 4.1's superseded-writer case. Dropping
+      the cancel-epoch comparison instead reddens a disjoint three, which is
+      what makes the split above worth having.
 - [ ] 4.8 `isOptimizedStatus` / `isObjective` / `isFailureReason` validators on
       the cache read path, throwing rather than casting or defaulting.
       **Watched red:** an unknown value for each, injected as a stored row.
