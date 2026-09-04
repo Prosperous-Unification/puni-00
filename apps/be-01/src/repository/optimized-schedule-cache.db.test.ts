@@ -62,6 +62,17 @@ const ADDED_TABLES = [
   'solver_slot',
 ] as const;
 
+/**
+ * Not this migration's, and gone all the same.
+ *
+ * The rollback below targets `LOOKUP_INDEXES`, and main's two saved-plan
+ * migrations were applied after it, so `rollbackTo` reverses them on the way
+ * down. "Every pre-existing table intact" is a claim about tables that existed
+ * BEFORE the target — these did not — so they are subtracted by name here
+ * rather than by widening the predicate until it passes.
+ */
+const ALSO_ROLLED_BACK = ['saved_plan', 'saved_plan_body'] as const;
+
 const ADDED_INDEX = 'solver_queue_dequeue_order';
 const ADDED_PROJECT_COLUMN = 'optimization_delete_pending_at';
 
@@ -219,8 +230,14 @@ describe('the optimizer migration', () => {
       expect(projectColumns(db.path)).not.toContain(ADDED_PROJECT_COLUMN);
 
       // Everything else is untouched: the rollback took exactly the four tables
-      // and nothing that was there before them.
-      expect(rolledBack).toEqual(migrated.filter((name) => !ADDED_TABLES.includes(name as never)));
+      // this migration adds, plus the two the saved-plan migrations above the
+      // target add, and nothing that was there before any of them.
+      expect(rolledBack).toEqual(
+        migrated.filter(
+          (name) =>
+            !ADDED_TABLES.includes(name as never) && !ALSO_ROLLED_BACK.includes(name as never),
+        ),
+      );
     } finally {
       db.cleanup();
     }
