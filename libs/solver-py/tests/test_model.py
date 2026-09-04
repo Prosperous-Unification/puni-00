@@ -185,6 +185,11 @@ class HandBuiltInstancesAreRealRequests(unittest.TestCase):
                 [a_slice("a", not_before=5, deadline=40)]
             ),
             "a zero duration": a_request([a_slice("a", duration=0, pools=["t"])], pools={"t": 1}),
+            "a fenced zero duration": a_request(
+                [a_slice("a", duration=0, person="p", not_before=5, deadline=5),
+                 a_slice("b", duration=10, person="p", deadline=10)],
+                horizon=20,
+            ),
             "a non-zero baseline": a_request(
                 [a_slice("a", duration=10)], horizon=30, baseline={"a": 20}
             ),
@@ -264,6 +269,38 @@ class MakespanIsTheMaximumNotTheSum(unittest.TestCase):
         )
         value, _ = minimise(request, MAKESPAN)
         self.assertEqual(value, 20)
+
+    def test_the_term_cannot_be_held_above_the_largest_reachable_finish(self) -> None:
+        """The case that separates an equality from a lower-bound chain.
+
+        Every other makespan case here minimises the term, and under
+        minimisation `makespan >= end(s)` for each `s` behaves exactly like
+        `makespan = max end(s)` — the objective drives it down to the maximum
+        either way. The matrix does not only minimise: after an OPTIMAL stage it
+        installs `Tₖ = v`, and an equality against a term defined only by lower
+        bounds is satisfiable by a schedule whose real maximum is *smaller* than
+        `v`, which is a later stage optimising under a bound it is not actually
+        holding.
+
+        One slice of duration 10 with the horizon at 5: the start is in `[0, 5]`
+        so the only reachable finishes are `10..15`, and no placement has a
+        maximum of 20. Under `AddMaxEquality` that is infeasible. Under the
+        chain, `20 >= 15` and it is not.
+        """
+        request = a_request([a_slice("a", duration=10)], horizon=5)
+        built = build_model(request)
+        built.model.add(built.terms[MAKESPAN] == 20)
+        self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+
+    def test_a_reachable_equality_is_still_satisfiable(self) -> None:
+        """The slack half: 14 is a real maximum on that same instance, so the
+        case above is proving the bound and not just that equalities refuse."""
+        request = a_request([a_slice("a", duration=10)], horizon=5)
+        built = build_model(request)
+        built.model.add(built.terms[MAKESPAN] == 14)
+        solver = _solver()
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+        self.assertEqual(solver.value(built.starts["a"]), 4)
 
 
 class EdgeClause(unittest.TestCase):
@@ -463,19 +500,65 @@ class ZeroDurationSlices(unittest.TestCase):
     would have accepted.
     """
 
-    def test_a_zero_duration_slice_does_not_consume_pool_capacity(self) -> None:
-        request = a_request(
-            [a_slice("a", duration=0, width=9, pools=["t"]),
-             a_slice("b", duration=10, width=1, pools=["t"])],
-            pools={"t": 1},
-        )
-        self.assertEqual(minimise(request, MAKESPAN)[0], 10)
-
     def test_a_zero_duration_slice_does_not_double_book_a_person(self) -> None:
+        """Pinned *inside* an occupied span, which is the only placement that
+        can tell the two readings apart.
+
+        A zero-duration slice free to move is not a proof: CP-SAT's own
+        `NoOverlap` is satisfied by putting it at the exact instant its
+        neighbour starts, so a case that merely minimises the makespan passes
+        whether or not the filter exists. Here `a` is fenced to unit 5 by its
+        floor and its deadline, and `b` is fenced to `[0, 10)` by the same pair,
+        so the zero-length point sits strictly inside `b`'s span with nowhere to
+        escape to.
+
+        Watched red: drop the `duration > 0` filter and this is INFEASIBLE — a
+        plan reported unschedulable that the re-validator's sweep, which drops
+        zero-length placements before counting, would have accepted.
+        """
         request = a_request(
-            [a_slice("a", duration=0, person="p"), a_slice("b", duration=10, person="p")]
+            [a_slice("a", duration=0, person="p", not_before=5, deadline=5),
+             a_slice("b", duration=10, person="p", deadline=10)],
+            horizon=20,
         )
-        self.assertEqual(minimise(request, MAKESPAN)[0], 10)
+        built = build_model(request)
+        solver = _solver()
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+        self.assertEqual(solver.value(built.starts["a"]), 5)
+        self.assertEqual(solver.value(built.starts["b"]), 0)
+
+    def test_the_same_pair_with_a_real_duration_is_infeasible(self) -> None:
+        """The slack half. Give `a` one unit of duration and the identical
+        fencing, and the double-booking is real: the case above passes because
+        `a` occupies nothing, not because the fencing was loose."""
+        request = a_request(
+            [a_slice("a", duration=1, person="p", not_before=5, deadline=6),
+             a_slice("b", duration=10, person="p", deadline=10)],
+            horizon=20,
+        )
+        self.assertEqual(status_of(request), cp_model.INFEASIBLE)
+
+    def test_a_zero_duration_slice_does_not_consume_pool_capacity(self) -> None:
+        """The same fencing against a pool, and the same watched red.
+
+        The pool half is weaker than the assignee half and is recorded as such:
+        CP-SAT's `AddCumulative` integrates demand over time, so a zero-length
+        interval contributes nothing to it whether or not this model filters it
+        out, and the mutation above leaves this case green on its own. It is
+        kept because the filter is one decision covering both clauses, and a
+        case that documents the pool reading is worth more than a case that
+        only re-proves the one CP-SAT already gives.
+        """
+        request = a_request(
+            [a_slice("a", duration=0, width=9, pools=["t"], not_before=5, deadline=5),
+             a_slice("b", duration=10, width=1, pools=["t"], deadline=10)],
+            pools={"t": 1},
+            horizon=20,
+        )
+        built = build_model(request)
+        solver = _solver()
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+        self.assertEqual(solver.value(built.starts["a"]), 5)
 
     def test_it_still_carries_its_edges_and_its_weight(self) -> None:
         """Occupying nothing is not the same as being absent: the edge still
