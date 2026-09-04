@@ -631,9 +631,7 @@ describe('the saved-plan routes', () => {
 
       expect((await save('ada')).status).toBe(201);
 
-      expect(broadcast.published).toEqual([
-        { projectId, event: { type: 'saved_plans_changed' } },
-      ]);
+      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
       // Named separately, so a regression that broadcast to every project fails
       // on a sentence that says which project was wrong.
       expect(broadcast.published.map((each) => each.projectId)).not.toContain(other);
