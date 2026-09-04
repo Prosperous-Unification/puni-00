@@ -2,11 +2,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  decodeSchedule,
+  encodeSchedule,
+  type PlannedRow,
+  type Schedule,
+  schedule,
+  type Slice,
+  sliceKey,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { openDatabase } from './db';
+import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { toOptimizedScheduleCacheRow } from './optimizer-rows';
+import { optimizedScheduleCache } from './schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -296,6 +307,113 @@ describe('what the cache table refuses', () => {
       } finally {
         db2.close();
       }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('a plan through the column it is stored in', () => {
+  /**
+   * tasks.md 4.12's watched red, the half `libs/domain`'s own cases cannot
+   * reach: a **non-empty** plan out of the real engine, into
+   * `optimized_schedule_cache.result_json`, and back through the repository's
+   * read boundary.
+   *
+   * `schedule-cache-dto.test.ts` proves the codec against
+   * `JSON.parse(JSON.stringify(...))`, which is the encoding. This proves the
+   * **column**: SQLite's TEXT affinity, the row's `CHECK`s, and
+   * {@link toOptimizedScheduleCacheRow} standing between the stored row and the
+   * decode. The two are not the same claim — a payload that survives a string
+   * round trip can still be refused by a constraint, truncated by a column, or
+   * lost by a mapper that drops the field it does not name.
+   */
+  const DEV = 'step-dev';
+  const PLATFORM = 'team-platform';
+
+  /** Three two-day blocks in a pool of one, so the plan has real waits in it. */
+  function realPlan(): Schedule {
+    const rows: PlannedRow[] = ['a', 'b', 'c'].map((id, at) => ({
+      id,
+      parentId: null,
+      position: (at + 1) * 10,
+      frozenNumber: null,
+      priority: null,
+    }));
+    const slices: Slice[] = ['a', 'b', 'c'].map((workItemId) => ({
+      workItemId,
+      stepId: DEV,
+      days: 2,
+      personId: null,
+      width: 1,
+      poolIds: [PLATFORM],
+    }));
+    return schedule(rows, [], slices, new Map(), new Map([[PLATFORM, 1]]));
+  }
+
+  function storeAndRead(path: string, resultJson: string): Schedule {
+    const db = openDrizzle(path);
+    db.insert(optimizedScheduleCache)
+      .values({
+        projectId: 'p-1',
+        inputHash: 'h1',
+        objective: 'pri',
+        contractVersion: '7+1.0.0',
+        budgetMs: 60000,
+        generation: 1,
+        status: 'ok',
+        resultJson,
+        failureReason: null,
+        createdAt: 1,
+      })
+      .run();
+    const stored = db.select().from(optimizedScheduleCache).get();
+    if (stored === undefined) throw new Error('broken fixture: nothing stored');
+    // Through the 3.8 boundary, not off the raw select: that is where every
+    // repository read of this table goes, and a mapper that dropped
+    // `resultJson` would otherwise never be noticed by this case.
+    const row = toOptimizedScheduleCacheRow(stored);
+    if (row.resultJson === null) throw new Error('broken fixture: no payload stored');
+    return decodeSchedule(JSON.parse(row.resultJson));
+  }
+
+  it('reloads a real plan out of result_json with both maps intact', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path, 'p-1');
+      const plan = realPlan();
+
+      // Load-bearing: over an empty plan every assertion below is vacuous.
+      expect(plan.slices.size).toBe(3);
+      expect(plan.waitingForCapacity).toBeGreaterThan(0);
+      expect(plan.eventsVisited).toBeGreaterThan(0);
+
+      const reloaded = storeAndRead(db.path, JSON.stringify(encodeSchedule(plan)));
+
+      expect(reloaded).toEqual(plan);
+      expect(reloaded.slices.get(sliceKey('a', DEV))).toEqual(plan.slices.get(sliceKey('a', DEV)));
+      expect([...reloaded.slices.values()].some((one) => one.boundBy === 'capacity')).toBe(true);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('stores a truncated payload without complaint, so the decode is the only guard', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path, 'p-1');
+      const whole = JSON.stringify(encodeSchedule(realPlan()));
+
+      // No `CHECK` covers `result_json`'s contents (4.8), which is deliberate:
+      // corruption must surface as `corrupt` on the read and be retryable,
+      // rather than failing the write of a solve that already happened.
+      expect(() => storeAndRead(db.path, whole.slice(0, whole.length - 20))).toThrow();
+      const row = openDatabase(db.path)
+        .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
+        .get() as { n: number } | null;
+      expect(row?.n).toBe(whole.length - 20);
     } finally {
       db.cleanup();
     }
