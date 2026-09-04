@@ -260,6 +260,25 @@ describe('what a stored pair reads as', () => {
    * `ok`, and serving one as a schedule would publish an empty plan as an
    * optimized one.
    */
+  /**
+   * tasks.md 4.3's negative check. `Proof:` the relaxed predicate is
+   * `outcomeOf`'s `status === 'failed'` branch in `optimized-schedule-cache.ts`
+   * — with it rewritten to `status === 'failed' && resultJson === null` and
+   * answering `{ kind: 'ok', result: <empty plan> }` instead of
+   * `{ kind: 'failed', reason }`, this case fails on `Expected: "failed" /
+   * Received: "ok"`. Watched on h2puni at `4eebaa44`: 32 pass / 4 fail against
+   * a 36 / 0 baseline for this file. The other three that redden
+   * (`leaves the drizzle-typed insert path working for a well-formed row`,
+   * `stores a failed row carrying its reason and no payload`, and
+   * `lets two releases reading different budgets keep a row each`) all store a
+   * failure and read it back, so the relaxation cannot be made to look local.
+   *
+   * Why it is guarded at all: a failure marker served as a schedule publishes
+   * an **empty plan as an optimized one** — every date in the project moves to
+   * nothing, and the read reports success while doing it, so nothing downstream
+   * has a reason to look. `corrupt` is guarded by the same branch's other arm
+   * and for the same reason (4.8).
+   */
   it('never lets a failed row satisfy a read, and carries its reason', () => {
     const db = tempDb();
     try {

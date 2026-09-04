@@ -1854,10 +1854,22 @@ review`, no self-merge.
       previous hash misses; and a row whose `resultJson` fails to decode is
       **left in place** and reads as `corrupt` (4.8), never deleted and never
       treated as a miss.
-- [ ] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
+- [x] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
       names the relaxed predicate. Serving a failure marker as a schedule would
       publish an empty plan as an optimized one.
+      **Closed run 36 chunk 2.** The relaxed predicate is `outcomeOf`'s
+      `status === 'failed'` branch in `optimized-schedule-cache.ts`, rewritten
+      to answer `{ kind: 'ok', result: <empty plan> }`. Watched on h2puni at
+      `4eebaa44`: **32 pass / 4 fail** against a 36 / 0 baseline for
+      `optimized-cache.db.test.ts`, and `never lets a failed row satisfy a read,
+      and carries its reason` is one of the four — the other three all store a
+      failure and read it back, so the relaxation cannot be made to look local.
+      The `Proof:` comment sits on that case and names the branch, the rewrite
+      and both counts.
+      **This item did not need 4.2's spawner**, which is why it closed ahead of
+      the item it is numbered under: it is a property of the read's own dispatch
+      on `status`, and the read landed in run 35.
 - [ ] 4.4 A `failed` row suppresses an automatic re-spawn for its exact key and
       blocks neither an explicit Retry nor a new hash's generation.
       **Proven by** a case in `optimized-cache.db.test.ts`: ten reads by three
