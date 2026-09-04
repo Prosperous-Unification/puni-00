@@ -171,6 +171,25 @@ class TheBudgetedSolve(unittest.TestCase):
         )
         validate_against_schema(self.response, "response")
 
+    def test_an_unknown_term_carries_nulls_and_still_carries_a_value(self) -> None:
+        # 5.8's `k > 1` UNKNOWN-without-incumbent shape, asserted where it is
+        # actually produced. `test_solve.TheMatrixRowByRow` proves
+        # `stage_disposition` picks `ROW_STOP_PUBLISH` for that row, and
+        # `test_a_fully_staged_run_reports_a_stage_for_every_term` proves the
+        # populated side, but nothing asserted the emitted
+        # `{stageValue: null, bound: null, status: 'unknown'}` end to end.
+        #
+        # Phrased over whichever terms come out unknown rather than naming one:
+        # which later stage runs out of budget first shifts with the limit, and
+        # the matrix's rule does not depend on which it is. `value` is never
+        # null for any term, because 2.4 recomputes it on the published offsets.
+        for name, term in self.response["objectiveValues"].items():
+            with self.subTest(term=name):
+                self.assertIsNotNone(term["value"])
+                if term["status"] == "unknown":
+                    self.assertIsNone(term["stageValue"])
+                    self.assertIsNone(term["bound"])
+
     def test_repeating_the_budgeted_solve_returns_the_identical_response(self) -> None:
         # The flake-free half. A wall-clock budget would truncate at a different
         # point on a loaded host; a deterministic one truncates after the same

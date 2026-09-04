@@ -2268,7 +2268,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       only check on staging that survives a weight choice designed to look
       harmless.
 
-- [ ] 5.8 Staged optimization implements the exact anytime rule:
+- [x] 5.8 Staged optimization implements the exact anytime rule:
       `STAGE_BUDGET_SPLIT = [0.60, 0.25, 0.15]` with early remainder donated
       forward; OPTIMAL fixes an equality; FEASIBLE or UNKNOWN-with-incumbent
       adds `term <= incumbent` (**never** an equality — fixing an unproven
@@ -2299,6 +2299,40 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       No task, design paragraph or note prose spells an alternate request or
       response field list; 2.1 is the single normative definition and every
       other mention points at it.
+
+      **Verified clause by clause against what already exists, and one gap
+      closed.** Almost all of 5.8 was implemented across runs 3–14; this run
+      checked each clause against a named test rather than re-deriving the
+      loop.
+
+      | clause | where it lives | what proves it |
+      | --- | --- | --- |
+      | `STAGE_BUDGET_SPLIT = [0.60, 0.25, 0.15]`, exported | `libs/contracts/solver/src/stage-budget.ts` | `stage-budget.test.ts`; defaulted at `build-solver-request.ts:194` |
+      | early remainder donated forward | `donated_budget_ms` + `solve_request`'s `carry_ms` | `test_solve.TheBudgetSplit` ×4 |
+      | OPTIMAL fixes an equality | `stage_disposition` → `ROW_EQUALITY` | `test_optimal_installs_an_equality_at_every_stage` |
+      | FEASIBLE / UNKNOWN-with-incumbent adds `<=`, never `=` | → `ROW_BOUND` | `test_feasible_installs_a_bound_at_every_stage`, `test_unknown_with_an_incumbent_installs_the_same_bound` |
+      | UNKNOWN, no incumbent: `no-solution` at stage 1 only | → `ROW_STOP_NO_SOLUTION` / `ROW_STOP_PUBLISH` | the two `unknown_without_an_incumbent` cases |
+      | INFEASIBLE: `plan-infeasible` at stage 1 only | → `ROW_STOP_PLAN_INFEASIBLE` / `ROW_STOP_INVALID` | the two `infeasible` cases |
+      | four-field `{ value, stageValue, bound, status }` | `_term_row` | `test_all_three_terms_are_always_present`, `test_every_response_validates_against_the_wire_schema` |
+      | `value` recomputed on the published offsets | `evaluate_terms` | `test_value_is_recomputed_on_the_published_offsets` |
+
+      **THE GAP WAS THE NULL SHAPE ITSELF.** Every matrix row above is asserted
+      against `stage_disposition`, which is a pure function over a status, and
+      the *populated* side is asserted end to end by
+      `test_a_fully_staged_run_reports_a_stage_for_every_term`. Nothing asserted
+      that a term the matrix leaves unproved is actually **emitted** as
+      `{ stageValue: null, bound: null, status: 'unknown' }` beside a non-null
+      recomputed `value`. Closed by
+      `test_budget.TheBudgetedSolve.test_an_unknown_term_carries_nulls_and_
+      still_carries_a_value`, which is phrased over whichever terms come out
+      unknown rather than naming one — which later stage exhausts its budget
+      first shifts with the limit, and the matrix's rule does not depend on
+      which it is.
+
+      Watched red: `_term_row(values[term_name], None, None, TERM_UNKNOWN)`
+      changed to pass `values[term_name], 0` reds **exactly that one case** and
+      nothing else in 137. It carries the clause alone, which is why it exists.
+
 - [ ] 5.9 The **quantised** Fast baseline is supplied as both a CP-SAT solution
       hint and an upper bound on stage 1's term. That bound holds **only in the
       quantised model** (Sol r10 Critical 3): it guarantees the solver never
