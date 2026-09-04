@@ -1447,6 +1447,13 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
    * releases evict each other on every deploy and each re-solves for ever —
    * the livelock 4.1b's bound exists to prevent, reached through rule 1 instead
    * of rule 2. Blue still hits, and a hit spawns nothing.
+   *
+   * The two allocations are load-bearing and were added after the first version
+   * of this case survived its own mutation: generations are per contract
+   * version, so green's first allocation is number 1 and its delete of
+   * everything below 1 reaches nothing at all. With one allocation the case
+   * passes whether or not the delete carries `contractVersion`, which is a case
+   * that asserts a true fact and discriminates nothing.
    */
   it("leaves another contract version's rows alone, so the other release still hits", () => {
     const db = tempDb();
@@ -1458,7 +1465,14 @@ describe("4.2's injected spawner, asserted on the calls and not on the clock", (
       const green = { ...KEY, contractVersion: '8+1.0.0' };
       const cold = recorder();
       readAndSpawn(db.path, cold.spawn, green);
+      // Green allocates TWICE — deploy, then an edit. Its first allocation is
+      // generation 1 and deletes rows below 1, which is nothing whatever the
+      // predicate says; only the second one can reach blue's generation-1 rows,
+      // so this is the sequence that discriminates the scope rather than one
+      // that merely holds under it.
       allocateGeneration(openDrizzle(db.path), 'p-1', green.contractVersion, HASH, 2);
+      const second = allocateGeneration(openDrizzle(db.path), 'p-1', green.contractVersion, 'h2', 3);
+      expect(second).toBe(2);
 
       const stillBlue = recorder();
       const pair = readAndSpawn(db.path, stillBlue.spawn);
