@@ -2385,6 +2385,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       False:` reds **41 cases** across `test_determinism`, `test_oracles`,
       `test_model` and `test_bound`. It protects most of the corpus, not one
       case.
+
 - [ ] 5.10 Replace 5.7's weighted-sum mutation, which could stay green: on a
       bounded 2-6 slice fixture, sufficiently large coefficients encode the
       same lexicographic order exactly, so PRI/Time disagreement proves
