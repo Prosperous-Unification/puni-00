@@ -1844,7 +1844,7 @@ review`, no self-merge.
       the delete's own `contractVersion` predicate masks it, so that predicate
       is defence in depth rather than the load-bearing one), and ordering
       ascending so the newest is evicted.
-- [ ] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
+- [x] 4.2 **Proven by** `optimized-cache.db.test.ts`: same input → hit with
       **zero calls on the injected spawner** (asserted on the spawner, not on
       elapsed time); a changed effort, edge or pool → miss; a `contractVersion`
       bump → miss; a **raised `budgetMs` → miss** (the old smaller-budget row is
@@ -1871,10 +1871,26 @@ review`, no self-merge.
       in order, one committed objective asks for exactly the other, a raised
       budget asks again rather than serving the 60 s row, and a failed row
       beside a corrupt one asks for nothing while both rows survive.
-      **Still open here:** the two cases that are about eviction rather than
-      about the read — a new generation deleting every prior row for the
-      project including its `failed` ones, and an undo to a previous hash — plus
-      the overwrite half of the `failed` sentence. Those are chunk 2's.
+      **The eviction half closed in run 37 chunk 2**, three more cases, and it
+      settles what "a failed row is overwritten by the next run for that key"
+      means: **nothing UPDATEs it.** The primary key omits `generation` and
+      4.1's insert is `onConflictDoNothing`, so the only replacement path is
+      `allocateGeneration`'s delete, which is scoped by project and contract
+      version and says nothing about status — a Retry allocates, the prior rows
+      go, `failed` ones included, and the next read asks for both objectives
+      again. An undo to a previous hash misses for the same reason: the edit's
+      own allocation cleared the answer computed for it, and the intermediate
+      hash's answer belongs to a key nobody is asking about. The third case is
+      the delete's scope, proved through the spawner: green allocating must not
+      clear blue's rows, or the two releases evict each other on every deploy —
+      4.1b's livelock reached through rule 1 instead of rule 2.
+      **That third case was vacuous on its first draft and its own mutation
+      caught it.** Generations are per contract version, so green's FIRST
+      allocation is number 1 and its delete of everything below 1 reaches
+      nothing whatever the predicate says; the case passed identically with
+      `contractVersion` dropped from the delete. It now allocates twice — a
+      deploy and then an edit — which is the only sequence that discriminates
+      the scope.
 
 - [x] 4.3 **Negative check, watched red** — let a `status='failed'` row satisfy
       a read and watch the "never satisfies a read" case fail. `Proof:` comment
