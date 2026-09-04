@@ -1629,7 +1629,7 @@ the read payload and the write API — none of which slice 4 waits on.
       `20260904140000_add_project_settings` adds the three columns with the
       defaults written into the `ADD COLUMN`, so no existing row is ever ON for
       an instant. `optimization_delete_pending_at` stays where 3.1b put it.
-- [ ] 3b.2 Repository mapping in `apps/be-01/src/repository/project.ts`; the
+- [x] 3b.2 Repository mapping in `apps/be-01/src/repository/project.ts`; the
       three settings in the project read payload; a PATCH contract in
       `project.controller.ts`/`project.service.ts` under the **existing
       project-write authorization** — these are project settings, so a reader
@@ -1657,13 +1657,49 @@ the columns own defaults` inserts a second row in raw SQL naming neither
       empty-patch guard stopped being one `=== undefined` line per key and
       became `Object.values(patch).every(...)`: the list would have grown by
       three here, and a key added without its line is a patch that silently
-      reads instead of writing. What is left of this item is the HTTP PATCH
-      contract in `project.controller.ts`/`project.service.ts` under the
-      existing project-write authorization, with 3b.3's event.
-- [ ] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
+      reads instead of writing.
+      **HTTP contract closed run 36** (`4eebaa44`). The three are optional
+      members of `projectPatch` on the **existing** `PATCH /api/projects/:id`
+      rather than a settings route of their own, so they inherit
+      `ProjectService.update`'s authorization unchanged — the item's "a reader
+      may not change them" is then a property of where the fields were put, not
+      a second rule that could drift from the first. `scheduleEngine` and
+      `scheduleObjective` are unions built from `SCHEDULE_ENGINES` and
+      `SOLVER_OBJECTIVES`, the same arrays 3b.1's `CHECK`s enumerate, imported
+      as values from `repository/schema.ts` because `repository/index.ts` is
+      type-only on purpose (`directory.service.ts` takes that path for
+      `PERSON_KINDS`). Without the union an unknown engine is a 500 from the
+      database on write, or a throw from `toProject` on every later read; with
+      it, one 422.
+      The route change moved `apps/be-01/openapi.json`, whose committed copy is
+      gated against the live app — regenerated with
+      `bun apps/be-01/src/openapi/emit-openapi-cli.ts` on h2puni, +51 lines.
+- [x] 3b.3 A `project_settings_changed` variant on `ProjectEvent`, emitted by
       `ProjectService.update` when any of the three change, carrying the new
       values. `schedule_optimized` stays reserved for stored solver results.
-- [ ] 3b.4 **Proven by** `project-settings.db.test.ts` and
+      **Closed run 36.** The event carries all three values whatever moved,
+      unlike `capacity_changed`/`priority_bands_changed` which carry nothing:
+      those say "read again" about a list fetched beside the tree anyway, and a
+      reader handed one fresh field beside two stale ones cannot tell which it
+      has. `schedule_optimized` is deliberately **not** declared — a settings
+      change announced as a result would tell a client a schedule had been
+      recomputed when nothing ran.
+      **"When any of the three change" is read off the stored rows**, before
+      and after, not off which keys the patch named. A settings panel with three
+      controls re-sends all three every time one is touched; keyed on the patch
+      that would wake every open client to repaint what it is already showing.
+      **The broadcaster became a REQUIRED `ProjectServiceOptions` member**, and
+      sixteen construction sites paid for it. Optional-with-a-no-op default was
+      the cheaper edit and fails where it matters: a service built without one
+      answers `200` to every settings PATCH while no client is ever told, and
+      only a test looking specifically for the event can see it. This is **not**
+      the `NewProject` trade in 3b.2 — there the call sites would each have
+      restated a *value* that could drift from the migration, here they pass a
+      collaborator that cannot drift from anything. Test sites take a fresh
+      `recordingBroadcaster()` rather than the suite's shared one, so setup
+      through `ProjectService` cannot pollute a suite that counts published
+      events.
+- [x] 3b.4 **Proven by** `project-settings.db.test.ts` and
       `project.controller.test.ts`: an unmigrated row reads
       `false`/`fast`/`pri`; a PATCH of each setting survives a reload; a
       read-only collaborator's PATCH is refused and emits nothing; a successful
