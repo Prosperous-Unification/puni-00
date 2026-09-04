@@ -68,7 +68,11 @@ describe('the order Fast hands the backward pass', () => {
   it('settles a zero-duration predecessor whose id sorts after its successor', () => {
     // `z` takes no time, so it finishes where it starts and `a` may start at
     // the same instant. `z` before `a` in the plan, `a` before `z` by id.
-    const found = schedule([item('z'), item('a')], [edge('z', 'a')], [slice('z', 0), slice('a', 2)]);
+    const found = schedule(
+      [item('z'), item('a')],
+      [edge('z', 'a')],
+      [slice('z', 0), slice('a', 2)],
+    );
 
     const z = planned(found, 'z');
     const a = planned(found, 'a');
