@@ -956,6 +956,56 @@ with a missing value to be filled in later — its author is unknowable rather t
 unknown, which is why nothing substitutes for it.
 _Avoid_: orphan row, legacy row, anonymous row
 
+### Architecture
+
+**Port**:
+An interface core owns and an adapter satisfies: every `*Store`, `UnitOfWork`, `Clock`,
+`Broadcaster`, `IdentityResolver`. Named for what the caller wants, never for what
+implements it. ADR 0014.
+_Avoid_: abstraction, contract (for this), interface (alone)
+
+**Adapter**:
+A concrete thing that satisfies a port: a drizzle `*Repository`, the in-memory `inMemoryX`
+stores, the Elysia mount. `Repository` is the SQLite adapter's suffix and means nothing
+outside `libs/store-sqlite`.
+_Avoid_: implementation (when the seam is the topic), driver, provider
+
+**Source**:
+One complete set of store adapters plus a unit of work, opened together: SQLite and
+in-memory are the two. A source is valid when it passes the conformance kits and not
+otherwise.
+_Avoid_: backend, database, persistence layer, data layer
+
+**Unit of work**:
+The port a command batch runs inside: everything written through it is observable in full
+or not at all through the stores' own reads. SQLite meets it with ADR 0007's outer
+transaction; the contract is the behaviour, not the mechanism. ADR 0015.
+_Avoid_: outer transaction (as the port's name), transaction handle, session
+
+**Endpoint**:
+One HTTP route stated as data — method, path, caller requirement, ArkType schemas and a
+pure handler returning an `HttpReply` — that an adapter mounts on a framework. The
+OpenAPI document is emitted from the endpoints, not from the framework.
+_Avoid_: route (for the spec), controller (for the spec), handler (for the whole)
+
+**Caller requirement**:
+What an endpoint asks of whoever calls it: `public`, `signed-in`, `read-scope`,
+`write-scope` or `internal`. Resolved by the adapter before the handler runs; a handler
+never checks identity itself.
+_Avoid_: guard, auth level, permission (for this)
+
+**Conformance kit**:
+A test suite exported as a function of a factory, so a source or an adapter is held to a
+port's contract by one file that calls it. Every case in a kit was watched failing against
+an implementation that lacks the behaviour it names.
+_Avoid_: contract tests (alone), shared tests, test harness
+
+**Composition root**:
+The one place ports are bound to adapters and services are built: `composeServices(ports)`
+in core, called by be-01's `boot.ts` over the SQLite source and by tests over the in-memory
+one.
+_Avoid_: DI container, wiring file, bootstrap (for this)
+
 ### Deployment
 
 **Environment**:
