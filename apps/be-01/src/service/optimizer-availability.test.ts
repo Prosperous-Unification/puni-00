@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-
 import type { Schedule } from '@wbs/domain';
+import { describe, expect, it } from 'bun:test';
 
 import { optimizerWiring } from './optimizer-wiring';
 
