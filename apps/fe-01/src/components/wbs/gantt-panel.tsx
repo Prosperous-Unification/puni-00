@@ -2084,6 +2084,11 @@ export function GanttPanel({
   // empty array by every one of them would be stating an absence rather than
   // drawing one.
   markers = NO_MARKERS,
+  // Defaulted here beside `markers` and taken as required below, for the same
+  // reason: a chart drawn with no markers has nothing to rename, and every
+  // render in this file that is about bars would otherwise have to hand over a
+  // writer it never reaches.
+  onRenameMarker = () => undefined,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
@@ -2115,6 +2120,7 @@ export function GanttPanel({
       pointed={pointed}
       registerSvgDownload={registerSvgDownload}
       markers={markers}
+      onRenameMarker={onRenameMarker}
     />
   );
 }
@@ -2257,6 +2263,31 @@ interface GanttProps {
    * once and cannot disagree with itself.
    */
   markers?: readonly CalendarMarkerView[];
+  /**
+   * A marker on this chart has been given a new name.
+   *
+   * Reported upward rather than written here, which is the same rule
+   * {@link GanttProps.onPickRow} and every other write on this panel follows:
+   * the list it draws arrives as {@link GanttProps.markers}, so the owner of
+   * that list is the only place a write and the redraw that follows it can
+   * agree. A panel that called `renameCalendarMarker` itself would leave the
+   * markers it is drawing stale until somebody above it happened to read them
+   * again — or would have to keep a second copy, which is two sources of truth
+   * for one list.
+   *
+   * Rename and recolour stay **two** reports for `ProjectApi`'s reason: be-01
+   * refuses a `PATCH` body naming both, so a single edit callback here would be
+   * a surface whose two-field call can only ever be refused.
+   *
+   * The name arrives trimmed and is not otherwise checked. What a name may be
+   * is be-01's rule (4.2's refusal table) and a second copy of it on this side
+   * would be free to disagree with it.
+   *
+   * Optional, defaulting to a no-op, for {@link GanttProps.dayPx}'s reason: the
+   * seventy-odd renders in `gantt-panel.test.tsx` are about bars, arrows and
+   * carets and have no markers to rename.
+   */
+  onRenameMarker?: (markerId: string, name: string) => void;
 }
 
 /**
@@ -2298,9 +2329,16 @@ function GanttChart({
   pointed,
   registerSvgDownload,
   markers,
+  onRenameMarker,
 }: Omit<
   GanttProps,
-  'scheduleError' | 'dayPx' | 'onPickDayPx' | 'labelsShown' | 'onPickLabelsShown' | 'markers'
+  | 'scheduleError'
+  | 'dayPx'
+  | 'onPickDayPx'
+  | 'labelsShown'
+  | 'onPickLabelsShown'
+  | 'markers'
+  | 'onRenameMarker'
 > & {
   dayPx: DayPx;
   onPickDayPx: (dayPx: DayPx) => void;
@@ -2308,6 +2346,7 @@ function GanttChart({
   onPickLabelsShown: (labelsShown: boolean) => void;
   registerSvgDownload: (download: (() => void) | null) => void;
   markers: readonly CalendarMarkerView[];
+  onRenameMarker: (markerId: string, name: string) => void;
 }) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
@@ -2590,6 +2629,35 @@ function GanttChart({
    * second marker on that day becomes unreachable.
    */
   const [sheetAt, setSheetAt] = useState<IsoDate | null>(null);
+  /**
+   * Which listed marker is being renamed, or `null` while the sheet is only a
+   * list.
+   *
+   * One id rather than a flag per row: two open name fields on one day is two
+   * drafts a reader can lose track of, and the row that is not being edited has
+   * nothing to remember.
+   */
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  /**
+   * What the open name field says right now.
+   *
+   * Held here rather than read off the DOM at save time, because the field is
+   * inside a list that repaints whenever the markers prop lands: an uncontrolled
+   * input would keep its text through the repaint by accident rather than by
+   * decision, and nothing would say which.
+   */
+  const [draftName, setDraftName] = useState('');
+  /**
+   * A sheet that closes, or opens on another day, drops the draft with it.
+   *
+   * One effect rather than a `setRenamingId(null)` beside each of the four
+   * places `sheetAt` moves: a draft that outlived its sheet would reappear on
+   * the next opening, over a row the reader had not asked to edit — and the
+   * fourth call site is the one that would be forgotten.
+   */
+  useEffect(() => {
+    setRenamingId(null);
+  }, [sheetAt]);
   /**
    * Escape closes the composer, which is the only way it closes at all.
    *
@@ -4633,11 +4701,12 @@ function GanttChart({
         would read as helpful and make a second marker on that day unreachable,
         which is the conflict 6.3 exists to settle.
 
-        The actions are **offered and not yet wired** — the handlers arrive with
-        6.3's second half, where each is proved by the `PATCH` it sends as well
-        as by the DOM it repaints. The names are per marker (`Rename Cutover`)
-        rather than bare verbs, because a list of rows announcing three
-        identical buttons apiece is a list a screen reader cannot navigate.
+        **Rename is wired; recolour and delete are still offered and inert** —
+        their handlers arrive with the rest of 6.3's second half, each proved by
+        the write it reports as well as by the DOM it repaints. The names are
+        per marker (`Rename Cutover`) rather than bare verbs, because a list of
+        rows announcing three identical buttons apiece is a list a screen reader
+        cannot navigate.
       */}
         {sheetAt !== null && (
           <div
@@ -4660,10 +4729,52 @@ function GanttChart({
                     className="size-3 shrink-0 rounded-sm"
                     style={{ backgroundColor: markerFill(marker) }}
                   />
-                  <span className="grow truncate">{marker.name}</span>
-                  <button type="button" aria-label={`Rename ${marker.name}`}>
-                    ✎
-                  </button>
+                  {renamingId === marker.id ? (
+                    <>
+                      <input
+                        type="text"
+                        aria-label={`New name for ${marker.name}`}
+                        value={draftName}
+                        onChange={(event) => {
+                          setDraftName(event.target.value);
+                        }}
+                        className="border-border grow rounded border px-1 py-0.5 text-xs"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Save the new name for ${marker.name}`}
+                        // The write is a **report**, and the list this row is
+                        // drawn from is the owner's: the new name arrives back
+                        // through `markers`, so a handler that repainted here
+                        // as well would be showing its own guess beside the
+                        // answer. See {@link GanttProps.onRenameMarker}.
+                        onClick={() => {
+                          onRenameMarker(marker.id, draftName.trim());
+                          setRenamingId(null);
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="grow truncate">{marker.name}</span>
+                      <button
+                        type="button"
+                        aria-label={`Rename ${marker.name}`}
+                        // Seeded with the name it is replacing: renaming is
+                        // nearly always an edit of what is there, and a field
+                        // that opened empty would make the common gesture a
+                        // retype.
+                        onClick={() => {
+                          setRenamingId(marker.id);
+                          setDraftName(marker.name);
+                        }}
+                      >
+                        ✎
+                      </button>
+                    </>
+                  )}
                   <button type="button" aria-label={`Recolour ${marker.name}`}>
                     ◑
                   </button>

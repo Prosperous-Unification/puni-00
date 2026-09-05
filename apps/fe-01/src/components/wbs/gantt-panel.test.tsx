@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { automaticColor, labelInk, parseHex } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type { IsoDate } from '@wbs/domain/workday';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -14,6 +15,8 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { fakeProjectApi } from '@/testing/fake-project-api';
+import { recordCalls } from '@/testing/record-calls';
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
@@ -7108,5 +7111,105 @@ describe('Add on a day that already carries a marker opens an empty composer on 
     // The sheet gives way to it rather than stacking behind: two dialogs open on
     // one date is two things for a keyboard to be lost between.
     expect(document.querySelector('[data-marker-sheet]')).toBeNull();
+  });
+});
+
+describe('the day sheet renames a listed marker', () => {
+  const AZURE = '#5d6afe';
+  const CUTOVER_DAY: IsoDate = '2026-08-19';
+
+  /**
+   * The panel with somebody above it owning the marker list.
+   *
+   * That owner is not a convenience of this test: the sheet draws the `markers`
+   * prop, so a new name can only reach the screen through a redraw somebody
+   * above the panel asks for. Rendering `<GanttPanel>` with a frozen array
+   * would make "the list now says Go live" unobservable however the handler
+   * behaved — and the shape here is the one `wbs-table.tsx` will have, a write
+   * followed by a read.
+   */
+  function OwnedMarkers({ api }: { api: ProjectApi & { markers: CalendarMarkerView[] } }) {
+    const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(() =>
+      api.markers.map((marker) => ({ ...marker })),
+    );
+    return (
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+        markers={markers}
+        onRenameMarker={(markerId, name) => {
+          void api.renameCalendarMarker('p1', markerId, name);
+          setMarkers(api.markers.map((marker) => ({ ...marker })));
+        }}
+      />
+    );
+  }
+
+  /** The fake, already holding one marker on {@link CUTOVER_DAY}. */
+  const apiHoldingCutover = (): ProjectApi & { markers: CalendarMarkerView[] } => {
+    const api = fakeProjectApi();
+    // The store's own create rather than a hand-pushed object, so the marker
+    // under test is one this fake could really have answered.
+    void api.createCalendarMarker('p1', {
+      markerId: 'm-cut',
+      date: CUTOVER_DAY,
+      name: 'Cutover',
+      color: AZURE,
+    });
+    return api;
+  };
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  const namesInSheet = (): readonly (string | null)[] =>
+    Array.from(document.querySelectorAll('[data-marker-row]')).map(
+      (row) => row.querySelector('span.grow')?.textContent ?? null,
+    );
+
+  itDom('sends the new name and draws what came back', () => {
+    // **The oracle is the recorded call as well as the DOM**, which is 3.4's
+    // rule: a handler that repainted optimistically and sent nothing is green
+    // on a DOM-only assertion, and this is the second of the three actions
+    // 6.3 offers that nothing had ever invoked.
+    const api = apiHoldingCutover();
+    const renames = recordCalls(api, 'renameCalendarMarker');
+    render(<OwnedMarkers api={api} />);
+
+    fireEvent.click(cellAt(9));
+    // The precondition, asserted rather than assumed: a cell that opened the
+    // composer instead would fail every query below with a confusing message.
+    expect(document.querySelector('[data-marker-sheet]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Cutover' }));
+    const field = screen.getByLabelText<HTMLInputElement>('New name for Cutover');
+    // Seeded with the name it replaces: renaming is nearly always an edit.
+    expect(field.value).toBe('Cutover');
+
+    fireEvent.change(field, { target: { value: '  Go live  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save the new name for Cutover' }));
+
+    // One call, naming this marker and this name — **trimmed**, and carrying
+    // no colour: be-01 refuses a `PATCH` body naming both, so a rename that
+    // sent a colour with it could only ever be refused (7.2a).
+    expect(renames).toEqual([['p1', 'm-cut', 'Go live']]);
+    // And the fake really holds it, which a recorder that pushed without
+    // performing would not show.
+    expect(api.markers.map((marker) => marker.name)).toEqual(['Go live']);
+    // Back to a list, drawn from what the owner read back.
+    expect(namesInSheet()).toEqual(['Go live']);
+    expect(document.querySelector('[aria-label="New name for Cutover"]')).toBeNull();
   });
 });
