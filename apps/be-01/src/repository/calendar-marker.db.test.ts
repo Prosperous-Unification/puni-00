@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { asc } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { asc } from 'drizzle-orm';
 
 import { projectRow } from '../testing/project-fixture';
 import type { Connection } from './db';
