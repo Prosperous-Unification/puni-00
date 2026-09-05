@@ -3,10 +3,10 @@ import { observabilityPlugin } from '@wbs/observability/server';
 import { Elysia } from 'elysia';
 
 import {
-  authController,
+  authRoutes,
   hasInvalidCookieOrigin,
   type OidcRouteOptions,
-} from './controller/auth.controller';
+} from './controller/auth.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { internalRoutes } from './controller/internal.routes';
@@ -192,7 +192,7 @@ export function buildApp(opts: AppOptions) {
         return undefined;
       })
       .use(bindElysia(smokeRoutes()))
-      .use(authController(opts.auth, opts.oidc))
+      .use(bindElysia(authRoutes(opts.auth, opts.oidc)))
       .use(bindElysia(solutionRoutes(opts.auth, opts.projects)))
       .use(bindElysia(projectRoutes(opts.auth, opts.projects, opts.workItems)))
       // After `projectRoutes`, whose `/api/projects` paths it extends: the

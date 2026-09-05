@@ -59,7 +59,7 @@ describe('the committed OpenAPI document', () => {
    * This case is the invariant, stated so it cannot come back: a request to one
    * app may not change what another app's document says.
    *
-   * Proof: with `credentials` in `auth.controller.ts` back at module level,
+   * Proof: with `credentials` in `auth.routes.ts` back at module level,
    * watched failing on `expect(received).toBe(expected)` — 3 pass / 1 fail in
    * this file, the fresh app's document carrying the mutation the *other* app's
    * POST made (2026-09-03).

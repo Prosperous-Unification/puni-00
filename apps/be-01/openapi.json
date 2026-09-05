@@ -20,42 +20,9 @@
       "post": {
         "requestBody": {
           "required": true,
+          "description": "The account name and password.\n\nThe schema here is documentation, not validation: this route checks the body itself, because a route module cannot declare a validator to a framework it does not import. A missing or non-string field answers 422, which is what the schema hook answered before. Fields not named here are ignored.",
           "content": {
             "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
@@ -81,42 +48,9 @@
       "post": {
         "requestBody": {
           "required": true,
+          "description": "The account name and password.\n\nThe schema here is documentation, not validation: this route checks the body itself, because a route module cannot declare a validator to a framework it does not import. A missing or non-string field answers 422, which is what the schema hook answered before. Fields not named here are ignored.",
           "content": {
             "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
