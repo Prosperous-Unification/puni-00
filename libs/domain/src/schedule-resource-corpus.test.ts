@@ -42,10 +42,14 @@ import {
  *    would only prove the generator wrote the field down, not that the engine
  *    ever read it.
  *
- * Watched red for each of the five, by returning the stripped plan from
- * `generateResourcePlan` itself (so generator and mutation agree and the
- * difference vanishes): people 0/1000, capacity 0/1000, priority 0/1000,
- * dependency-reach 0/1000, manual-floor 0/1000, each against a floor of 50.
+ * Measured on h2puni at `4b0a2eb1`, seeds 1..1000 — the seeds each fact moves:
+ * people 554, capacity 255, priority 461, dependency-reach 239,
+ * manual-floor 699.
+ *
+ * Watched red for all five together, by shadowing `strip` with `undefined`
+ * inside `generateResourcePlan` so the stripped plan IS the generated plan and
+ * every difference vanishes: 6 pass / 5 fail, the five coverage cases red and
+ * the three invariants and the three 9.3 cases still green.
  */
 
 /** Seeds 1..1000, which is task 9.1's ">=1,000 seeds". */
