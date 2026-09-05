@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { PriorityBandView } from '@/lib/wbs-api';
+import type { CalendarMarkerView, PriorityBandView } from '@/lib/wbs-api';
 
 import { useGanttDetail } from './gantt-detail';
 import {
@@ -1075,13 +1075,13 @@ export interface AxisDay {
  * the database at all). {@link markerFill} is the one place that resolution
  * happens on this side.
  */
-export interface CalendarMarkerView {
-  id: string;
-  date: IsoDate;
-  name: string;
-  /** The reader's chosen hex triple, or null for the automatic colour. */
-  color: string | null;
-}
+/**
+ * Re-exported, not declared: the shape is what be-01 sends, so it moved to
+ * `lib/wbs-api.ts` beside the calls that fetch it (task 7.2a). This line is
+ * what keeps every importer here unchanged — and a second `interface` would be
+ * a second shape free to drift from the one the read actually answers.
+ */
+export type { CalendarMarkerView };
 
 /**
  * The fill a marker is actually drawn in: its own colour, or the automatic one

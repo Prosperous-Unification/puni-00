@@ -1018,7 +1018,7 @@ in both slices rather than implied by position.
       message replaced by a generic "this day cannot carry a calendar marker"
       → **183 / 2**, the same two cases, on that generic string failing to
       match `/project start date/`.
-- [ ] 7.2a The client's calendar-marker **write seam** — `ProjectApi` gains the
+- [x] 7.2a The client's calendar-marker **write seam** — `ProjectApi` gains the
       marker methods be-01 has carried since section 4, so 7.2's third
       assertion and 6.3's `PATCH`-body oracle have a call log to read. Its own
       slice and not a line inside either of them, because the cost is not the
@@ -1033,6 +1033,29 @@ in both slices rather than implied by position.
       recolour cases name "the fake API's recorded request" as their oracle and
       there is no request to record. Whichever of the two runs first should
       land this.
+      **Landed (chunk 30). The fifteen-file estimate above was wrong, and
+      measured so: `fe-01:typecheck` named exactly two files** —
+      `testing/fake-project-api.ts` and `gantt-panel.test.tsx`. Everything else
+      goes through `testing/refusing-api.ts`, which is a `Proxy` and therefore
+      grows every method the interface grows without a line changing. The cost
+      this slice was split out for does not exist; it was split out anyway, and
+      the record of why it does not is worth more than the split.
+      Five methods, matching be-01's four routes: `listCalendarMarkers`,
+      `createCalendarMarker`, `renameCalendarMarker`, `recolorCalendarMarker`,
+      `deleteCalendarMarker`. Rename and recolour are **two calls onto one
+      `PATCH`** because the route refuses a body naming both — a single
+      `edit(name?, color?)` would be a surface whose two-field call can only
+      ever be refused. `CalendarMarkerView` moved from `gantt-panel.tsx` to
+      `lib/wbs-api.ts` (the component re-exports it, so no importer changed),
+      which is what stops the drawn shape and the fetched shape from being two
+      declarations free to disagree. Five cases in `lib/wbs-api.test.ts`, each
+      watched failing alone: the automatic colour sent as `undefined` → body
+      `{}`, the 422 arm (**the one that makes `null` load-bearing**, since
+      `JSON.stringify` drops an undefined member); the create's id sent as `id`
+      rather than `markerId`; the rename carrying a colour too; the delete
+      aimed at the collection; the list handed back unwrapped. Gates: full
+      `fe-01:test` 2241/0 across 86 files (+5), typecheck rc 0, scoped eslint
+      rc 0, `prettier --check .` rc 0.
 - [x] 7.3 Giving that project a start date turns the same cell live — test:
       same file, re-render with a start date and assert the click opens the
       composer. This is what proves 7.2 refused for the stated reason and not

@@ -3252,6 +3252,16 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     setEstimateArithmetic: () => notImplemented('setEstimateArithmetic'),
     setPriorityBands: () => notImplemented('setPriorityBands'),
     setTeamCapacity: () => notImplemented('setTeamCapacity'),
+    // Refusals rather than a store, on purpose: the cases in this file draw
+    // markers from the `markers` prop, and 7.2's point is that an undated
+    // plan's cell reaches **no** write at all. A fake that quietly accepted a
+    // create would turn that assertion into "the composer happened to be
+    // closed" — `notImplemented` makes the write audible instead.
+    listCalendarMarkers: () => notImplemented('listCalendarMarkers'),
+    createCalendarMarker: () => notImplemented('createCalendarMarker'),
+    renameCalendarMarker: () => notImplemented('renameCalendarMarker'),
+    recolorCalendarMarker: () => notImplemented('recolorCalendarMarker'),
+    deleteCalendarMarker: () => notImplemented('deleteCalendarMarker'),
   };
 }
 
