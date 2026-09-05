@@ -2913,3 +2913,33 @@ renders nothing regardless of what the refusal branch does.
 `fe-01:typecheck` rc 0; scoped `bunx eslint` over both changed files rc 0 (the
 full-project target is the OOM-blocked one chunk 22 measured, and CI runs it);
 `prettier --write` over both files reported **unchanged**.
+
+## Chunk 28 — 6.4a's Space case (TASK-235 run 14, 2026-09-05)
+
+**Landed.** Test-only. 6.4a's fourth of five cases: Space on the **undated**
+axis cell reaches the same refusal Enter does.
+
+**6.4a still stays unticked** — its fifth case is the refusal reaching a live
+region, which is 6.5's slice and does not exist.
+
+**The plan's named negative for this case is the wrong one, and measuring it is
+what shows why.** 6.4a says "Space removed from the undated branch only,
+watched failing the Space case while Enter, the ARIA cases and all of 6.4 stay
+green". There is one shared key guard for both branches
+(`gantt-panel.tsx:4201`), so narrowing it to Enter is not a
+"from the undated branch only" mutation at all: measured, it fails **two**
+cases, 184 / 2 — this one and 6.4's own dated `opens the composer on Space`.
+Mutating the guard by text rather than by line is worse still: the identical
+guard on the bar handler (`:3606`) matches too, and the sed took both for
+183 / 3, adding an unrelated bar case.
+
+**The negative that IS isolated** is a branch-specific one: `return` on Space
+inside the undated arm of the handler, after the shared guard has admitted it.
+Watched at a 186 / 0 baseline → **185 / 1**, this case alone, on a `toMatch`
+handed `undefined`, while Enter, both ARIA cases, the name case and every one
+of 6.4's dated cases stayed green. That is the isolation 6.4a asked for; the
+guard mutation cannot deliver it because the two branches share the guard.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`): full `fe-01:test` rc 0 —
+**2235 pass / 0 fail across 86 files**, exactly +1 over chunk 27's 2234;
+`fe-01:typecheck` rc 0; scoped `bunx eslint` rc 0; `prettier --check` rc 0.

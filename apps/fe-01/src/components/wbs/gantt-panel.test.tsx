@@ -5142,6 +5142,26 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
     );
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  itDom('Space reaches it too, and that is a separate branch from Enter', () => {
+    // 6.4a's fourth case. It promises "the same Enter and Space handlers" on
+    // the **undated** branch, and until now only Enter was proved there: 6.4's
+    // dated Space case is green against a panel whose undated branch ignores
+    // Space entirely, because the two cells take different arms of the same
+    // handler.
+    //
+    // Which is also why the negative for this case cannot be the shared key
+    // guard narrowed to Enter — that one fails 6.4's dated Space case at the
+    // same time and proves nothing about this branch. See the run log.
+    drawUndated();
+
+    fireEvent.keyDown(cellAt(3), { key: ' ' });
+
+    expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
+      /project start date/,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 });
 
 describe('a calendar marker is a chip in the axis band, placed by its date', () => {
