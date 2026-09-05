@@ -1937,7 +1937,7 @@ need the create and recolour handlers to exist before either can be removed.
 regenerated `apps/be-01/openapi.json`.
 
 **A service seam, not a controller talking to the store.** The previous chunk's
-note left it open. It is there because the *permission* decision needs the
+note left it open. It is there because the _permission_ decision needs the
 project row and the store deliberately knows nothing about projects: putting
 `canEdit` in the controller would have made the gate a property of four call
 sites remembering it, which is the exact shape `CalendarMarkerRepository`'s own
@@ -2033,7 +2033,7 @@ would have named the wrong row. Split, the negative names every row it reddens.
 - **4.3** — `isIsoDate(body.date)` replaced with `body.date`, a truthiness
   check: **6 pass / 3 fail**, reddening all three date rows including
   `2026-09-17T00:00:00Z`, each `201` where `422` was owed. The timestamp is the
-  row the spec names because it is the one a *plausible* lax validator lets
+  row the spec names because it is the one a _plausible_ lax validator lets
   through; the other two are not strings any check would mistake for a date.
 - **4.6a** — `UUID_V4.test(body.id)` replaced with `body.id.length > 0`:
   **7 pass / 2 fail**, both id rows, `marker-1` among them.
@@ -2073,9 +2073,9 @@ clock entirely also satisfies.
 - **The create ignoring the supplied `id`** — `marker.id ?? this.clock.newId()`
   replaced with `this.clock.newId()` in `CalendarMarkerService.create`:
   **9 pass / 3 fail**. The slice's own case, `stores the exact id the create
-  carried`, is one of the three; the round trip and the tie case also supply
+carried`, is one of the three; the round trip and the tie case also supply
   ids and legitimately break with them. This is the server fault `design.md`
-  §6.1 named and no slice owned until now — 3.5 requires a *front-end* fault
+  §6.1 named and no slice owned until now — 3.5 requires a _front-end_ fault
   and delegates the server half here, and this is the only file executing be-01
   code.
 - **The insert written as an upsert** — the duplicate-id read struck and
