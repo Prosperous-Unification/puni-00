@@ -16,7 +16,11 @@ import { UserRepository } from './user';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 /** The folder this one is stamped after — the newest on main before it. */
-const PREVIOUS = '20260904020000_add_saved_plan_created_by_id';
+// The folder immediately before this one, which moved when TASK-219 landed two
+// migrations of its own between it and `saved_plan_created_by_id`. Named
+// rather than computed, so a third folder arriving here is a red test and not
+// a silently widened rollback.
+const PREVIOUS = '20260904140000_add_project_settings';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 

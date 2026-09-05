@@ -519,9 +519,9 @@ describe('readMigrationFolders', () => {
       LOOKUP_INDEXES,
       SAVED_PLAN,
       CREATED_BY_ID,
-      CALENDAR_MARKER,
       OPTIMIZER_TABLES,
       PROJECT_SETTINGS,
+      CALENDAR_MARKER,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -632,9 +632,9 @@ describe('rollbackTo, against a real database', () => {
         LOOKUP_INDEXES,
         SAVED_PLAN,
         CREATED_BY_ID,
-        CALENDAR_MARKER,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
+        CALENDAR_MARKER,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
@@ -739,9 +739,9 @@ describe('rollbackTo, against a real database', () => {
         LOOKUP_INDEXES,
         SAVED_PLAN,
         CREATED_BY_ID,
-        CALENDAR_MARKER,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
+        CALENDAR_MARKER,
       ]);
     } finally {
       db.cleanup();
