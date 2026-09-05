@@ -782,7 +782,7 @@ in both slices rather than implied by position.
 
 ## 6. The click surface
 
-- [ ] 6.1 The dated axis cell accepts a click and opens the composer on that
+- [x] 6.1 The dated axis cell accepts a click and opens the composer on that
       cell's `data-axis-date` — test: `gantt-panel.test.tsx`, click the cell
       whose `data-axis-date` is `2026-08-19` (past the first weekend) and
       assert the composer reports that date.
@@ -864,6 +864,17 @@ in both slices rather than implied by position.
       the slice that can see it. The `<span>` is a `<span>` today
       because it was hover-only; a click without this contract ships a control
       no keyboard reaches (WCAG 2.1.1).
+      **Part of the implementation is already in, and it arrived with 6.1
+      because eslint would not let it arrive later** (chunk 19). A `<span>` that
+      grows an `onClick` and nothing else fails
+      `jsx-a11y/click-events-have-key-events` and
+      `jsx-a11y/no-static-element-interactions`, so `role="button"`,
+      `tabIndex={0}`, the Enter/Space `onKeyDown` and `aria-haspopup="dialog"`
+      shipped in the same commit as the click. **The slice stays unticked**: not
+      one of its seven cases exists, and `aria-expanded` and the marker count in
+      the accessible name are not implemented at all. What the plan learns is
+      that 6.1 and this slice's _implementation_ are not separable — only its
+      tests are.
       **The role is asserted here for the same reason it is in 6.4a**, and it
       was missing here for one round longer: a focusable generic `<span>`
       carrying every listed handler and ARIA attribute passed all six previous
@@ -2425,3 +2436,58 @@ body property and nothing else.
 assertion, with three negatives: the `project_id` predicate dropped from the
 list query, a `work_item` read in the list handler, and a second one in the
 **recolour** branch specifically. That closes section 4.
+
+## Implementation notes — chunk 19 (TASK-235 run 10, 2026-09-05)
+
+**Slice 6.1 checked.** The dated axis cell takes a click and opens a composer
+bound to that cell's own `data-axis-date`.
+
+The composer's state is the **date**, not the offset, and that is the slice.
+Every other piece of axis state carries `day.offset`, so a composer handed one
+would have to convert — and on a plan starting Monday 2026-08-10 there are two
+wrong conversions that both look plausible. Cell 9 is the one cell where all
+three candidates differ: its date is `2026-08-19`, its workday is 7,
+`addWorkdays(start, 9)` is `2026-08-21` and `addCalendarDays(start, 7)` is
+`2026-08-17`. `addCalendarDays(start, day.offset)` is _also_ `2026-08-19`, which
+is why neither watched fault is that one — it would pass with the fault in.
+
+**TWO NEGATIVES WATCHED**, baseline 164 pass / 0 fail on
+`gantt-panel.test.tsx`, restored to 164 / 0 after each:
+`setComposerAt(addWorkdays(startDate, day.offset))` → **163 / 1**, this case
+alone, `expected '2026-08-21' to be '2026-08-19'`;
+`setComposerAt(addCalendarDays(startDate, day.workday))` → **163 / 1**, again
+this case alone, `expected '2026-08-17' to be '2026-08-19'`.
+
+The composer reports the day twice — the ISO string in `data-composer-date` and
+the words from `shortIsoDate` in its text and its accessible name. Both are
+asserted, because a test reading only the words asserts about the formatter as
+much as about the day. The clock is pinned inside 2026 for the same reason
+`shortIsoDate` drops a matching year: read against the real clock this case
+starts failing on 1 January 2027 for a reason unconnected to the slice.
+
+**THE FINDING: 6.1 could not ship alone.** `jsx-a11y/click-events-have-key-events`
+and `jsx-a11y/no-static-element-interactions` both refuse a `<span>` that grew
+an `onClick` and nothing else, so the first lint run was **rc 1 with two errors
+on the axis cell**. The bounded answer is 6.4's control contract —
+`role="button"`, `tabIndex={0}`, an Enter/Space `onKeyDown` with Space
+`preventDefault`ed, `aria-haspopup="dialog"` on the dated branch and
+`aria-disabled` on the undated one — shipped in this commit. **6.4 and 6.4a
+stay unticked**: not one of 6.4's seven cases or 6.4a's exists, and
+`aria-expanded` and the marker count in the accessible name are not implemented.
+6.1 and 6.4's _implementation_ are not separable; only its tests are, and the
+plan sequenced them as if they were.
+
+**A SECOND FINDING, on the gate rather than the code:** `fe-01:lint` was
+**`Killed`** on the first attempt — the OOM chunk 7 met on typecheck reaches
+eslint too, on a box with 904 MB free of 15.6 GB. `NODE_OPTIONS=--max-old-space-size=3072`
+and running it alone gives rc 0. Also: the runner's path argument is relative to
+the **project** directory, so `apps/fe-01/src/...` matches nothing and exits 1
+with `No test files found` — `src/components/wbs/gantt-panel.test.tsx` is the
+form that works, and it is a substring filter either way (chunk 17).
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first):
+full `fe-01:test` rc 0 — **2213 pass / 0 fail across 86 files**, the a11y
+attributes added to every axis cell breaking nothing; `fe-01:lint` rc 0 (one
+pre-existing `react-hooks/exhaustive-deps` warning at `wbs-table.tsx`, not this
+diff); `fe-01:typecheck` rc 0. be-01 and domain not run: nothing outside
+`apps/fe-01` changed.

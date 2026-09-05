@@ -2406,6 +2406,21 @@ function GanttChart({
   // against. Separate from the bars' state and mutually exclusive with it —
   // each opener closes the other, so `getByRole('tooltip')` is singular.
   const [openDay, setOpenDay] = useState<{ offset: number; anchor: AnchorRect } | null>(null);
+  /**
+   * The calendar-marker composer's day, and it is the **date** rather than the
+   * offset the cell was drawn at.
+   *
+   * The offset is what every other piece of axis state carries, and that is the
+   * trap: past the first weekend an offset is not a workday and a workday is
+   * not a calendar day, so a composer handed `offset` would have to convert,
+   * and there are two wrong conversions that both look right on a plan starting
+   * on a Monday. Cell 9 of the 2026-08-10 fixture is 2026-08-19, its workday is
+   * 7, `addWorkdays(start, 9)` is 2026-08-21 and `addCalendarDays(start, 7)` is
+   * 2026-08-17 — three different days for one cell. The cell already knows
+   * which one it is, in the same `day.date` it publishes as `data-axis-date`,
+   * so the answer is carried and never recomputed.
+   */
+  const [composerAt, setComposerAt] = useState<IsoDate | null>(null);
   /** The opening that has been asked for and not yet happened. */
   const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Whether the next click belongs to the touch pointer that pressed a bar. */
@@ -3901,6 +3916,43 @@ function GanttChart({
                     }, HOVER_OPEN_MS);
                   }}
                   onPointerOut={dismiss}
+                  // A click opens the composer on **this cell's own date**, and
+                  // the date is the one the cell already publishes rather than
+                  // one derived from `day.offset` — see {@link composerAt} for
+                  // the two conversions that agree with it on a Monday start
+                  // and disagree past the first weekend.
+                  //
+                  // It does **not** dismiss the hover card: the two surfaces
+                  // answer different questions about the same cell (which day
+                  // is this, versus mark this day) and the pointer that clicked
+                  // is by definition still over the cell that opened it.
+                  onClick={() => {
+                    if (day.date === null) return;
+                    setComposerAt(day.date);
+                  }}
+                  // The control contract, and it ships **with** the click
+                  // rather than after it: `jsx-a11y/click-events-have-key-events`
+                  // and `no-static-element-interactions` both refuse a `<span>`
+                  // that grew an `onClick` and nothing else, so 6.1 cannot land
+                  // without this much of 6.4. Only this much — 6.4's seven
+                  // cases and 6.4a's undated ones are still owed, and both
+                  // slices stay unticked until they exist.
+                  //
+                  // Space is `preventDefault`ed because its default on a
+                  // focusable element is to scroll the page, which on an axis
+                  // inside a horizontal scroll box is the one thing a reader
+                  // operating it by keyboard would notice.
+                  role="button"
+                  tabIndex={0}
+                  {...(day.date === null
+                    ? { 'aria-disabled': true }
+                    : { 'aria-haspopup': 'dialog' as const })}
+                  onKeyDown={(key) => {
+                    if (key.key !== 'Enter' && key.key !== ' ') return;
+                    key.preventDefault();
+                    if (day.date === null) return;
+                    setComposerAt(day.date);
+                  }}
                   // The first day of each week reads as the heading it is, over
                   // the heavier gridline under it; a weekend cell is greyed back,
                   // like the column beneath it.
@@ -4086,6 +4138,37 @@ function GanttChart({
               </HoverCard>
             );
           })()}
+        {/*
+        The calendar-marker composer.
+
+        It reports the day it was opened on twice over — once in words for a
+        reader and once as the `YYYY-MM-DD` it will send, which is the same
+        string the cell carries in `data-axis-date`. The ISO form is not
+        decoration: the words are produced by {@link shortIsoDate}, so a test
+        that read only them would be asserting about the formatter as much as
+        about the day the composer is bound to.
+
+        The rest of the editor — the name field's validation, the previewed
+        colour, the day sheet's list of existing markers — arrives with slices
+        3.5 and 6.3. What is here is what 6.1 is about: the click surface
+        reaching a composer bound to the right date.
+      */}
+        {composerAt !== null && (
+          <div
+            role="dialog"
+            aria-label={`New calendar marker on ${shortIsoDate(composerAt, today)}`}
+            data-marker-composer
+            data-composer-date={composerAt}
+            className="border-border bg-background fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md border p-3 shadow-md"
+          >
+            <p className="text-xs font-semibold">{shortIsoDate(composerAt, today)}</p>
+            <input
+              type="text"
+              aria-label="Marker name"
+              className="border-border mt-2 w-48 rounded border px-2 py-1 text-xs"
+            />
+          </div>
+        )}
       </section>
       {/*
         The chart's controls, and they are **outside** the scroll box on

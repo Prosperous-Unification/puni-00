@@ -4747,6 +4747,82 @@ describe('the axis says its date, at the chart’s own speed', () => {
   });
 });
 
+describe('clicking a dated axis cell opens the composer on that cell’s day', () => {
+  const drawDated = (startDate: IsoDate | null) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={startDate}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  /**
+   * The clock stands inside the fixture's own year so {@link shortIsoDate}
+   * prints `19 Aug` rather than `19 Aug 2026` — it drops the year only when it
+   * matches the reader's, so a test read against the real clock would start
+   * failing on 1 January 2027 for no reason connected to this slice.
+   */
+  const drawnIn2026 = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 12, 9, 0));
+    try {
+      drawDated(MONDAY_START);
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  itDom('reads the day off the cell, not off its offset and not off its workday', () => {
+    drawnIn2026();
+    // Cell 9 is the one cell of this fixture where all three candidate answers
+    // differ, which is the whole reason it is the cell clicked. Its date is
+    // 2026-08-19, its workday is 7, and the plan starts Monday 2026-08-10:
+    //
+    //   the cell's own `data-axis-date`      → 2026-08-19  (correct)
+    //   `addWorkdays(start, day.offset)`     → 2026-08-21
+    //   `addCalendarDays(start, day.workday)`→ 2026-08-17
+    //
+    // `addCalendarDays(start, day.offset)` is **also** 2026-08-19, so a
+    // negative that recomputes the date calendar-wise from the offset passes
+    // with the fault in. That is why neither watched fault is that one.
+    //
+    // Proof, in two runs against a 164/0 baseline on this file and both watched
+    // 2026-09-05, the composer's `setComposerAt(day.date)` replaced by:
+    //   `addWorkdays(startDate, day.offset)`      — 163 pass / 1 fail, this case
+    //     alone, `expected '2026-08-21' to be '2026-08-19'`;
+    //   `addCalendarDays(startDate, day.workday)` — 163 pass / 1 fail, this case
+    //     alone, `expected '2026-08-17' to be '2026-08-19'`.
+    // Restored to 164 / 0 after each.
+    expect(cellAt(9).getAttribute('data-axis-date')).toBe('2026-08-19');
+    expect(cellAt(9).getAttribute('data-axis-workday')).toBe('7');
+
+    fireEvent.click(cellAt(9));
+
+    const composer = screen.getByRole('dialog');
+    // The ISO string the composer will send, and the words a reader sees. Both,
+    // because the words come out of `shortIsoDate` — a test reading only them
+    // asserts about the formatter as much as about the day the composer is on.
+    expect(composer.getAttribute('data-composer-date')).toBe('2026-08-19');
+    expect(composer.textContent).toContain('19 Aug');
+    expect(composer.getAttribute('aria-label')).toBe('New calendar marker on 19 Aug');
+  });
+});
+
 describe('the dates a bar says are printed by shortIsoDate and nothing else', () => {
   itDom('prints a day in another year with that year on it', () => {
     // `shortIsoDate` drops the year only when it matches the reader's own, so a
