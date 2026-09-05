@@ -11,7 +11,7 @@ import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { internalRoutes } from './controller/internal.routes';
 import { projectRoutes } from './controller/project.routes';
-import { savedPlanController } from './controller/saved-plan.controller';
+import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
@@ -195,24 +195,27 @@ export function buildApp(opts: AppOptions) {
       .use(authController(opts.auth, opts.oidc))
       .use(bindElysia(solutionRoutes(opts.auth, opts.projects)))
       .use(bindElysia(projectRoutes(opts.auth, opts.projects, opts.workItems)))
-      // After `projectController`, whose `/api/projects` paths it extends: the
+      // After `projectRoutes`, whose `/api/projects` paths it extends: the
       // saved-plan collection is one segment longer than anything that
-      // controller declares, so neither can shadow the other, and adjacency is
+      // route list declares, so neither can shadow the other, and adjacency is
       // what makes that checkable at a glance.
       .use(
-        savedPlanController(
-          opts.auth,
-          opts.savedPlans,
-          opts.projects,
-          // The shared wrapper, like every other publisher. TASK-255 handed
-          // this route the inner broadcaster instead, because a save committing
-          // while an unrelated batch held was queued into that batch and
-          // dropped when it refused; the hold was instance state on the one
-          // shared wrapper, so "no batch is open" was being read as "this route
-          // is not part of a batch". A hold is per-caller now (TASK-256) and
-          // those are the same question again, so the special case is gone
-          // rather than merely redundant — see `DeferringBroadcaster`.
-          opts.writes.announcements,
+        bindElysia(
+          savedPlanRoutes(
+            opts.auth,
+            opts.savedPlans,
+            opts.projects,
+            // The shared wrapper, like every other publisher. TASK-255 handed
+            // this route the inner broadcaster instead, because a save
+            // committing while an unrelated batch held was queued into that
+            // batch and dropped when it refused; the hold was instance state on
+            // the one shared wrapper, so "no batch is open" was being read as
+            // "this route is not part of a batch". A hold is per-caller now
+            // (TASK-256) and those are the same question again, so the special
+            // case is gone rather than merely redundant — see
+            // `DeferringBroadcaster`.
+            opts.writes.announcements,
+          ),
         ),
       )
       .use(bindElysia(stepRoutes(opts.auth, opts.steps)))
