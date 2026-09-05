@@ -1,7 +1,10 @@
 import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import type { DependencyReach } from './dependency-reach';
 import { deriveNumbers, type PlannedRow } from './derive-numbers';
-import { snapWorkdays } from './workday';
+import { leafFloorsOf } from './leaf-constraints';
+import { sliceGraphEdges } from './slice-edges';
+import { groupSlicesByLeaf } from './slice-groups';
+import { snapWorkdays, withinDrift } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
 export interface DependencyEdge {
@@ -150,7 +153,26 @@ export type ScheduleFloor =
   | 'stepOrder'
   | 'notBefore'
   | 'person'
-  | 'capacity';
+  | 'capacity'
+  /**
+   * The optimizer put it here, and nothing about the plan did — task 4.10.
+   *
+   * Used **exactly** when a pinned start is strictly later than every floor the
+   * slice has, which is a state Fast cannot produce: an optimizer may idle a
+   * low-priority slice to make room for a high-priority one, and that start has
+   * no value in the six floors above it. It is last in the precedence list for
+   * the same reason `capacity` is second to last — the earlier list stopped at
+   * `notBefore` and would have labelled a person-bound or capacity-bound
+   * optimized slice `optimizer`, erasing its resource predecessor, its team and
+   * both wait counts.
+   *
+   * The render invariant survives additively: under this floor
+   * {@link resourcePredecessorOf} returns {@link NOBODY} by the same rule that
+   * already covers `projectStart`, and {@link annotateCapacity} leaves
+   * `capacityPredecessors` empty and `capacityTeamId` null, so "set exactly when
+   * `boundBy === 'capacity'`" is still true.
+   */
+  | 'optimizer';
 
 /** One slice's schedule, carrying what it is the schedule of and what held it there. */
 export interface ScheduledSlice extends Scheduled {
@@ -282,6 +304,26 @@ export class ScheduleCycleError extends Error {
   override name = 'ScheduleCycleError' as const;
   constructor() {
     super('dependency cycle: the schedule cannot be ordered');
+  }
+}
+
+/**
+ * A pinned start the plan itself refuses — the materialiser's `invalid-output`.
+ *
+ * Typed separately from {@link ScheduleCycleError} because the two say opposite
+ * things about whose fault it is: a cycle is the plan's, and this is the
+ * solver's. The caller maps it onto the `invalid-output` disposition and falls
+ * back to Fast; it must never reach a reader as a schedule, because a start
+ * before a predecessor's finish or inside a full pool is not a plan, it is a
+ * number.
+ */
+export class ScheduleInvalidOptimizedStartError extends Error {
+  override name = 'ScheduleInvalidOptimizedStartError' as const;
+  constructor(
+    readonly sliceKey: string,
+    message: string,
+  ) {
+    super(`optimized start for ${sliceKey} is invalid: ${message}`);
   }
 }
 
@@ -431,63 +473,21 @@ interface WorkItemSlices {
 }
 
 /**
- * The slices grouped by the leaf they belong to, in the order they were handed
- * over — which is the project's step order, and therefore the order they run in.
+ * The slices grouped by the leaf they belong to, with each group's running
+ * start offsets.
  *
- * Throws on a slice for something that is not a leaf of `rows`. A parent has no
- * work of its own and a work item from another project has no place in this
- * graph at all; scheduling either would be answering a question about a plan
- * that was not asked for. R5: this is malformed input, not a missing default.
- *
- * Proof: with the check removed, `refuses a slice for a work item that is not a
- * leaf` gets a schedule back in which the parent has become a node of its own
- * and its span no longer covers its children; watched 2026-08-09.
+ * The grouping and both of its refusals moved to {@link groupSlicesByLeaf}, so
+ * that the solver request builder groups the same way this pass does — an edge
+ * names its ends by leaf and position, and two groupings would disagree about
+ * which slice a position is. What is left here is the `offsets` half, which is
+ * `durationOf`'s calendar arithmetic and has no place on the wire.
  */
 function groupByWorkItem(
   leafIds: readonly string[],
   slices: readonly Slice[],
 ): Map<string, WorkItemSlices> {
-  const leaves = new Set(leafIds);
-  const grouped = new Map<string, Slice[]>();
-  for (const slice of slices) {
-    if (!leaves.has(slice.workItemId)) {
-      throw new Error(`slice for ${slice.workItemId}, which is not a leaf of this project`);
-    }
-    // A width is people, and the smallest number of people that can do work is
-    // one. Refused **here**, at the boundary the slices enter the engine
-    // through, because `durationOf` divides by it: a width of 0 is `Infinity`
-    // days for a slice with effort and `NaN` for one without, and neither is
-    // refused anywhere downstream — `windowFor` short-circuits on a zero width
-    // and reserves nothing, `CapacityTooNarrowError` does not fire because
-    // `0 > 0` is false, and the plan comes back with every date `Infinity` and
-    // nothing to say why. R5: malformed trusted data throws rather than being
-    // divided by.
-    //
-    // Unreachable through the API as of this change — both write paths refuse a
-    // 0 — which is exactly why it is here rather than nowhere: this engine
-    // refuses the impossible at its own boundary, and a validation that is the
-    // *only* guard is one schema edit away from not being one. Named as the
-    // open P2 of PR #48's cross-review.
-    //
-    // Proof: this check deleted and `refuses a slice claiming no people at all`
-    // failed — the plan came back with `duration: Infinity`,
-    // `earliestFinish: Infinity`, `latestStart: NaN` and `float: NaN`, and no
-    // refusal anywhere. Deleted again for `refuses a width that is not a whole
-    // number of people`, which came back with `duration: 2.4` — six days over
-    // two and a half people. Both watched 2026-08-12.
-    if (!Number.isInteger(slice.width) || slice.width < 1) {
-      throw new Error(
-        `slice for ${slice.workItemId} claims a width of ${String(slice.width)}: ` +
-          `a width is people, and duration is effort divided by it`,
-      );
-    }
-    const group = grouped.get(slice.workItemId);
-    if (group === undefined) grouped.set(slice.workItemId, [slice]);
-    else group.push(slice);
-  }
-
   const sliced = new Map<string, WorkItemSlices>();
-  for (const [workItemId, group] of grouped) {
+  for (const [workItemId, group] of groupSlicesByLeaf(leafIds, slices)) {
     const offsets = [0];
     for (const slice of group) offsets.push(offsets[offsets.length - 1] + durationOf(slice));
     sliced.set(workItemId, { slices: group, offsets });
@@ -535,8 +535,18 @@ function groupByWorkItem(
  * `- "earliestFinish": 2 / + "earliestFinish": 0`, with the Chromium chain spec
  * red beside it on `the successor is drawn left of the work it waits for`;
  * watched 2026-08-30.
+ *
+ * **Exported on 2026-09-03 so that the solver has no second copy of it.**
+ * `durationUnits` quantises this number for CP-SAT, and the alternative was for
+ * `solver-quantum.ts` to restate the two arms above. The plan already restated
+ * them once and got both wrong — it divided the assumption by `width` and it
+ * put `snapWorkdays` in the estimated arm — which is why the wire tasks now
+ * carry the correction in prose. A second implementation of a rule this
+ * particular is a divergence waiting for one of the two to be edited, and the
+ * divergence would surface as a solver plan whose bars are a different length
+ * from Fast's on the same input. One function, two callers.
  */
-function durationOf(slice: Slice): number {
+export function durationOf(slice: Slice): number {
   if (slice.days === null) return ASSUMED_SLICE_WORKDAYS;
   return slice.days / slice.width;
 }
@@ -1093,6 +1103,341 @@ function eligibleSet(goesFirst: (left: number, right: number) => boolean) {
   };
 }
 
+/** One candidate start and the word that would explain it. */
+interface FloorCandidate {
+  at: number;
+  kind: ScheduleFloor;
+}
+
+/**
+ * The latest of a slice's floors, and the word for it.
+ *
+ * **Strictly later wins, so a tie keeps the floor named first** — which is why
+ * the caller lists `person` second to last and `capacity` last, and why the
+ * order of {@link ScheduleFloor} is a rule rather than a spelling.
+ *
+ * Proof: written as `<`, so that a later floor takes a tie, and `names the
+ * predecessor, not the person, when the two land on the same day` failed — a
+ * row whose assignee came free exactly as its dependency cleared was reported
+ * as waiting for her, and counted into "N tasks wait for a person"; watched
+ * 2026-08-09.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9 and for nothing else.** The
+ * optimized materialiser must resolve a slice's floor by *this* loop rather
+ * than by comparing the joint window to the pinned start (tasks.md 4.9, Sol r8
+ * Critical 1 and kimi r8 Critical 1): the struck three-way split reported
+ * `capacity` for the common unmoved slice, where `jointWindowFor` returns
+ * `binding: []` by construction and `capacityTeamId` therefore had no rule.
+ * Two callers of one function cannot drift the way two transcriptions of one
+ * rule can, and the drift is the defect those reviews found. The body is
+ * unchanged from the loop it replaces; the empty list still answers
+ * `projectStart` at 0, which is what a slice with no floor above the project's
+ * own start has always meant.
+ */
+function resolveFloor(candidates: readonly FloorCandidate[]): {
+  start: number;
+  boundBy: ScheduleFloor;
+} {
+  let start = 0;
+  let boundBy: ScheduleFloor = 'projectStart';
+  for (const floor of candidates) {
+    if (floor.at <= start) continue;
+    start = floor.at;
+    boundBy = floor.kind;
+  }
+  return { start, boundBy };
+}
+
+/**
+ * What an optimizer's pinned start does to a floor the plan already resolved.
+ *
+ * Three cases and no fourth, which is why this is a function rather than three
+ * lines inside the loop: it is the whole of task 4.9's comparison, and the
+ * struck version of it — comparing the pinned start to the **joint window**
+ * instead of to the resolved floor — is a mistake that reads as correct.
+ *
+ * - **Equal** is the common case, and it keeps the resolved `boundBy` — and the
+ *   resolved `start`, not the pin's own double. An optimizer that leaves a slice
+ *   where the plan already put it has explained nothing about it; the
+ *   predecessor, the person or the pool that held it is still what a reader is
+ *   owed. **Equal means {@link withinDrift}, not `===`**, because the two sides
+ *   are two different roundings of the same real number: the pin divides back
+ *   from `k / SOLVER_QUANTUM` and the floor accumulated through `days / width`.
+ *   With `===` here the plan's OWN quantised baseline came back as a refusal —
+ *   `0.08333333333333333 is before its stepOrder floor at 0.08333333333333334`,
+ *   on `days: 5/12, width: 5` — and one ulp the other way labelled a slice
+ *   sitting on its floor `'optimizer'`. Neither is rare: 106,142 of 480,000
+ *   (width, offset) pairs drift one way or the other (run 40 chunk 2). The
+ *   window cannot hide a real violation, because the solver places integers and
+ *   a genuinely early start is early by at least one unit, 0.0208 of a day
+ *   against a 1e-9 window.
+ * - **Strictly later** is `'optimizer'`, and only then. The pin is re-asked of
+ *   the pool from its own instant: `jointWindowFor(…, pinned)` must answer
+ *   `pinned` — **within {@link withinDrift}, for the floor's reason and not a
+ *   second one**. A pool release is `start + days / width` accumulated and the
+ *   pin divides back from `k / SOLVER_QUANTUM`, so the two abut on the solver's
+ *   integer axis and miss by a ulp on the plan's: measured, `1 / 48` of a day
+ *   pinned at unit 7 releases one ulp above unit 8, and `!==` refused the
+ *   commonest thing an optimizer does. The accepted start is then the POOL's
+ *   double, and the window is re-asked from it so it is the search's own
+ *   fixpoint — `binding: []`, which is what keeps {@link annotateCapacity}'s
+ *   render invariant true, since a non-empty `binding` under `'optimizer'`
+ *   would name a team on a slice no pool held up and that invariant throws.
+ *   The window hides nothing: a pin that genuinely has no room is short by at
+ *   least one unit, 0.0208 of a day against 1e-9.
+ * - **Strictly earlier** is not a schedule. A start below the resolved floor is
+ *   below a predecessor's finish, a manual not-before, a person's queue or a
+ *   pool's capacity, and there is no reading of it that is merely suboptimal.
+ *
+ * `windowFrom` is a callback rather than a window because only the later branch
+ * may re-ask the profile: asking on every slice would double the joint-window
+ * search on the common path, which is exactly the cost 4.9 forbids.
+ */
+function pinFloor(
+  key: string,
+  resolved: { start: number; boundBy: ScheduleFloor },
+  pinned: number | undefined,
+  windowFrom: (from: number) => JointWindow,
+): { start: number; boundBy: ScheduleFloor } {
+  if (pinned === undefined || withinDrift(pinned, resolved.start)) return resolved;
+  if (pinned < resolved.start) {
+    throw new ScheduleInvalidOptimizedStartError(
+      key,
+      `${String(pinned)} is before its ${resolved.boundBy} floor at ${String(resolved.start)}`,
+    );
+  }
+  let window = windowFrom(pinned);
+  if (!withinDrift(window.start, pinned)) {
+    throw new ScheduleInvalidOptimizedStartError(
+      key,
+      `no room in its pools at ${String(pinned)}; the earliest is ${String(window.start)}`,
+    );
+  }
+  // The release and the pin are the same two roundings the floor branch above
+  // reconciles — the pin divides back from `k / SOLVER_QUANTUM`, the release
+  // accumulated through `start + days / width` — so the pool's own double wins
+  // here exactly as the floor's does there, and the schedule stays on one axis.
+  // Taking the pin instead would place a block one ulp inside a live
+  // reservation, which is a real over-allocation of the profile, however small.
+  //
+  // The re-ask is what makes that safe rather than merely tidy: `windowFrom`
+  // hands the caller's `window` back too, and a window whose start is later
+  // than the instant it was asked from carries a `binding` entry — a team named
+  // on a slice `'optimizer'` says nothing held up, which {@link annotateCapacity}
+  // throws on. Asked from its own answer the search is a fixpoint by
+  // construction (the block provably fits there, for the whole duration), so it
+  // returns the same instant with `binding: []` and costs one search on a
+  // branch nothing common takes.
+  if (window.start !== pinned) window = windowFrom(window.start);
+  return { start: window.start, boundBy: 'optimizer' };
+}
+
+/**
+ * The one resource a slice's bar names as the reason it waited, or
+ * {@link NOBODY}.
+ *
+ * **A display referent and nothing more** — the graph the backward pass walks
+ * keeps the whole valid set, and the two are deliberately different: a bar
+ * points at one end a reader can look at, a float computation cannot drop a
+ * single edge without reporting slack that is not there.
+ *
+ * `boundBy` decides which ledger answers. **The order of the two branches is not
+ * a rule and carries no meaning** — `boundBy` holds exactly one floor, so they
+ * are disjoint by construction; swapping them is an equivalent program, measured
+ * rather than assumed (run 38, chunk 7: asking `capacity` first reddens 0 of
+ * 416). What IS load-bearing is the `boundBy === 'person'` guard on `busy`: a
+ * slice whose assignee happened to be busy but which a **pool** held up must
+ * name the pool's referent, not the person. Drop that guard and three cases
+ * redden, the Fast golden corpus among them.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9**, with {@link resolveFloor},
+ * {@link annotateCapacity} and {@link tileFinish}: the optimized materialiser
+ * produces `resourcePredecessorId` from the same three inputs and must not
+ * restate the choice. Under 4.10's `'optimizer'` floor this returns
+ * {@link NOBODY} by the same rule that already covers `projectStart` — neither
+ * is a resource — which is what keeps the render invariant true additively.
+ */
+function resourcePredecessorOf(
+  boundBy: ScheduleFloor,
+  busy: { node: number; finish: number } | undefined,
+  referent: number,
+): number {
+  if (boundBy === 'person' && busy !== undefined) return busy.node;
+  return boundBy === 'capacity' ? referent : NOBODY;
+}
+
+/**
+ * Where a slice finishes, and the anchor the rest of its work item tiles from.
+ *
+ * **The anchor is kept while the work item's slices tile** — the arithmetic then
+ * reads `base + offsets[i]`, which is what the engine before slices computed and
+ * what the identity claim rests on. A slice a person or a pool held back does
+ * not tile, and becomes the anchor the rest are measured from.
+ *
+ * Proof: written as `start + (offsets[at + 1] - offsets[at])` — the textbook
+ * `start + days`, accumulated from slice to slice — and `answers what the
+ * previous engine answered` failed at seed 260: a work item's late start of
+ * 10.666666666666666 became 10.666666666666668; watched 2026-08-09.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9, unchanged.** It is the third of
+ * the three rules the optimized materialiser must apply and not restate — the
+ * floor ({@link resolveFloor}), the pool's explanation
+ * ({@link annotateCapacity}) and this one. A materialiser that accumulated
+ * `start + days` instead would reproduce seed 260's drift on every optimized
+ * plan, and the differential that caught it once does not run over the
+ * optimized path.
+ */
+function tileFinish(
+  anchor: SpanAnchor | undefined,
+  start: number,
+  at: number,
+  offsets: readonly number[],
+): { held: SpanAnchor; finish: number } {
+  const held =
+    anchor !== undefined && start === anchor.start + (offsets[at] - offsets[anchor.at])
+      ? anchor
+      : { start, at };
+  return { held, finish: held.start + (offsets[at + 1] - offsets[held.at]) };
+}
+
+/** What `capacityProfile(...).jointWindowFor` answers, named so the annotator can take one. */
+interface JointWindow {
+  start: number;
+  blocking: number[];
+  binding: { poolId: string; blocking: number[] }[];
+}
+
+/**
+ * Everything a pool explains about one placed slice: which reservations were
+ * its predecessors, which team ran out, and which end the arrow points at.
+ *
+ * **Lifted out of {@link placeSlices} for 4.9, unchanged.** The optimized
+ * materialiser derives these three from the same joint window over the same
+ * replayed ledgers, and every review finding in this area — the `finish <=
+ * start` filter (Sol r8 Critical 1), the chosen pool's own blockers rather
+ * than an independently ordered union, the referent's placement-order tie-break
+ * — is a rule that must hold identically on both paths. One function, two
+ * callers.
+ *
+ * The two ledgers are reached through `finishOf` and `placedAtOf` rather than
+ * passed as arrays, because the materialiser holds its own and they are not
+ * the same shape. `placedAtOf` is a **position in the pass's own order**, which
+ * is what breaks a tie between two blockers finishing at the same instant;
+ * `finishOf` is the early finish of an already-placed slice.
+ *
+ * Both invariants stay here with the code they guard: a capacity-floored slice
+ * with nothing holding the pool, and a `capacityTeamId` that disagrees with
+ * `boundBy`, are throws rather than nulls the render path would have to invent
+ * words for.
+ */
+function annotateCapacity(
+  key: string,
+  boundBy: ScheduleFloor,
+  start: number,
+  window: JointWindow,
+  finishOf: (node: number) => number,
+  placedAtOf: (node: number) => number,
+): { capacityPredecessors: number[]; capacityTeamId: string | null; referent: number } {
+  // Only where the pool is what held it: a set carried on a slice the pool
+  // let through would be a wait that is not there, in the same way an arrow
+  // for a resource edge that did not bind would be.
+  // A conservative scan records every reservation present at a violated
+  // instant. Only reservations that finish by the accepted start are actual
+  // predecessors: a narrower reservation may continue alongside this slice.
+  // Promoting that overlap into the backward graph gives it a late finish
+  // before its early finish and exposes negative public float.
+  const finishesByStart = (blocker: number): boolean => finishOf(blocker) <= start;
+  const capacityPredecessors =
+    boundBy === 'capacity' ? window.blocking.filter(finishesByStart) : [];
+  /**
+   * Which pool ran out, of the ones that pinned the start.
+   *
+   * The tightest team, and where two are equally tight the one whose blocking
+   * set holds the latest valid finisher. Ties past that by pool id. Keep the
+   * chosen pool's valid blockers with it: the public referent below must come
+   * from the team the sentence names, not from an independently ordered union.
+   *
+   * A slice a pool did not hold up carries null, exactly as it carries an
+   * empty blocking set: a team named on a slice nothing held up is a wait
+   * that is not there, in the same way a resource arrow would be.
+   */
+  let capacityTeamId: string | null = null;
+  let capacityTeamBlockers: number[] = [];
+  let bestFinish = -Infinity;
+  for (const pool of window.binding) {
+    const validBlockers = pool.blocking.filter(finishesByStart);
+    let finish = -Infinity;
+    for (const blocker of validBlockers) finish = Math.max(finish, finishOf(blocker));
+    if (
+      finish > bestFinish ||
+      (finish === bestFinish && capacityTeamId !== null && pool.poolId < capacityTeamId)
+    ) {
+      bestFinish = finish;
+      capacityTeamId = pool.poolId;
+      capacityTeamBlockers = validBlockers;
+    }
+  }
+  /**
+   * Which of the blocking set the arrow points at: the latest finisher, ties
+   * to the one placed first.
+   *
+   * A display referent and nothing more — the graph below keeps the complete
+   * valid union. Selection is restricted to the chosen binding pool so the
+   * named team and arrow remain one causal explanation. Within that pool the
+   * latest finisher is the end the reader is looking at; ties use placement
+   * order rather than node index, preserving the pass's own total order.
+   */
+  let referent = NOBODY;
+  for (const blocker of capacityTeamBlockers) {
+    if (referent === NOBODY) {
+      referent = blocker;
+      continue;
+    }
+    if (finishOf(blocker) > finishOf(referent)) referent = blocker;
+    else if (
+      finishOf(blocker) === finishOf(referent) &&
+      placedAtOf(blocker) < placedAtOf(referent)
+    ) {
+      referent = blocker;
+    }
+  }
+  // A capacity-floored slice with an empty blocking set is impossible — the
+  // floor is the search's own answer and the search records what it stepped
+  // over — so it is a throw rather than a null the render path would have to
+  // invent words for. `floorWordsOf`'s existing refusal, one layer down.
+  //
+  // Proof: the search made to hand back an empty set (its dependency
+  // deliberately broken) **and** this throw replaced by the fall-through it
+  // refuses — the two faults the invariant stands between — and `waits for a
+  // team's slots to come free before it starts` failed on
+  // `resourcePredecessorId: null` with `boundBy: 'capacity'`: a bar claiming
+  // a wait and naming nothing. With the throw restored the same broken search
+  // fails here instead, which is the point of it; watched 2026-08-12.
+  if (boundBy === 'capacity' && referent === NOBODY) {
+    throw new Error(`${key} waited for capacity with nothing holding the pool`);
+  }
+  // **Read off the search rather than gated on `boundBy`, and then checked
+  // against it.** The two are the same fact — a pool binds exactly where it
+  // pushed the block off the plan floor, and a floor strictly past the plan's
+  // own is what `capacity` means — so a gate here would be a restatement
+  // that cannot fail, which is the one thing this repo has been bitten by
+  // repeatedly. Written as the invariant instead, where an injected fault on
+  // either side of it reddens.
+  //
+  // Proof: `binding` handed back without its `start > floor` condition — the
+  // shape of a pool that had room being called the reason — and `names no
+  // team on a slice no pool held up` failed here on `first step-dev names
+  // team-alpha with no pool binding it`; watched 2026-08-14.
+  if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
+    throw new Error(
+      capacityTeamId === null
+        ? `${key} waited for capacity with no pool binding it`
+        : `${key} names ${capacityTeamId} with no pool binding it`,
+    );
+  }
+  return { capacityPredecessors, capacityTeamId, referent };
+}
+
 /**
  * **Deterministic serial list scheduling**: one pass, one eligible set, every
  * slice placed once and never moved.
@@ -1137,6 +1482,32 @@ function placeSlices(
    */
   withResources: boolean,
   sizes: PoolSizes,
+  /**
+   * Task 4.9's `annotate`: one start per node, or `undefined` for Fast's own.
+   *
+   * **A mode of this pass, never a second implementation and never a
+   * composition.** `annotate(input, chooseStarts(input))` run *inside*
+   * `placeSlices` would double the placement loop, and the 600-slice
+   * benchmark's 20ms budget is modelled at a 3.81ms geometric mean with p99.99
+   * 13.3ms, so doubling puts the extrapolated p99.99 past it. So the loop stays
+   * one loop and this argument overrides the start it lands on — every other
+   * rule in the body, the floor ({@link resolveFloor}), the tiling
+   * ({@link tileFinish}), the pool's explanation ({@link annotateCapacity}) and
+   * the resource referent ({@link resourcePredecessorOf}), runs unchanged and
+   * once.
+   *
+   * The floor is still **resolved**, not skipped: it is what decides whether a
+   * pinned start is the plan's own answer (keep the resolved `boundBy`),
+   * strictly later than every floor (`optimizer`), or strictly earlier than one
+   * of them — which is a solver output the plan refuses, and a throw.
+   *
+   * The caller supplies a `goesFirst` that drains the eligible set in ascending
+   * `(start, canonical slice order)`; task 4.10b's chronological replay and its
+   * topological order are then the same order, because the eligible set is
+   * Kahn's ready set and admits a node only once its plan predecessors are
+   * placed.
+   */
+  pinnedStarts?: readonly number[],
 ): {
   order: number[];
   placed: Placed[];
@@ -1205,7 +1576,7 @@ function placeSlices(
       node.notBefore,
       busy === undefined ? 0 : busy.finish,
     );
-    const window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    let window = profile.jointWindowFor(poolIds, width, duration, planFloor);
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is second to last and capacity is last; see {@link ScheduleFloor}.
     // A slice can carry both, because a team's slot is spent whether or not
@@ -1231,150 +1602,44 @@ function placeSlices(
     // block throws `b step-dev waited for capacity with nothing holding the
     // pool`. Recorded as observed, which is also what `verify.md`'s F8 row
     // says; watched 2026-08-12.
-    const floors: { at: number; kind: ScheduleFloor }[] = [
+    const floors: FloorCandidate[] = [
       { at: fromPredecessor, kind: 'predecessor' },
       { at: fromStepOrder, kind: 'stepOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
       { at: window.start, kind: 'capacity' as const },
     ];
-    let start = 0;
-    let boundBy: ScheduleFloor = 'projectStart';
-    for (const floor of floors) {
-      // Strictly later, so a tie keeps the floor named first. Proof: written as
-      // `<`, so that a later floor takes a tie, and `names the predecessor, not
-      // the person, when the two land on the same day` failed — a row whose
-      // assignee came free exactly as its dependency cleared was reported as
-      // waiting for her, and counted into "N tasks wait for a person"; watched
-      // 2026-08-09.
-      if (floor.at <= start) continue;
-      start = floor.at;
-      boundBy = floor.kind;
-    }
+    // The tie rule and its proof live on {@link resolveFloor}, which the
+    // optimized materialiser calls too — see 4.9.
+    const resolved = resolveFloor(floors);
+    // Task 4.9's three-way comparison, and the only place a pinned start enters
+    // the pass. It is written against the **resolved** floor rather than
+    // against the joint window because the struck version compared the window
+    // to the pin and reported `capacity` for the common unmoved slice — where
+    // `jointWindowFor` returns `binding: []` by construction, so `capacityTeamId`
+    // had no rule and `capacityPredecessorIds` was empty beside
+    // `boundBy: 'capacity'`, violating the render invariant — and reported
+    // `optimizer` for a slice merely pinned at its predecessor floor.
+    const { start, boundBy } = pinFloor(node.key, resolved, pinnedStarts?.[taken], (from) => {
+      window = profile.jointWindowFor(poolIds, width, duration, from);
+      return window;
+    });
 
-    // The anchor is kept while the work item's slices tile — the arithmetic
-    // then reads `base + offsets[i]`, which is what the engine before slices
-    // computed and what the identity claim rests on. A slice a person held
-    // back does not tile, and becomes the anchor the rest are measured from.
-    const anchor = anchorOf[node.item];
-    const held =
-      anchor !== undefined && start === anchor.start + (offsets[at] - offsets[anchor.at])
-        ? anchor
-        : { start, at };
+    const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
-    // Proof: written as `start + (offsets[at + 1] - offsets[at])` — the
-    // textbook `start + days`, accumulated from slice to slice — and `answers
-    // what the previous engine answered` failed at seed 260: a work item's late
-    // start of 10.666666666666666 became 10.666666666666668; watched
-    // 2026-08-09.
-    const finish = held.start + (offsets[at + 1] - offsets[held.at]);
-    // Only where the pool is what held it: a set carried on a slice the pool
-    // let through would be a wait that is not there, in the same way an arrow
-    // for a resource edge that did not bind would be.
-    // A conservative scan records every reservation present at a violated
-    // instant. Only reservations that finish by the accepted start are actual
-    // predecessors: a narrower reservation may continue alongside this slice.
-    // Promoting that overlap into the backward graph gives it a late finish
-    // before its early finish and exposes negative public float.
-    const finishesByStart = (blocker: number): boolean => placed[blocker].finish <= start;
-    const capacityPredecessors =
-      boundBy === 'capacity' ? window.blocking.filter(finishesByStart) : [];
-    /**
-     * Which pool ran out, of the ones that pinned the start.
-     *
-     * The tightest team, and where two are equally tight the one whose blocking
-     * set holds the latest valid finisher. Ties past that by pool id. Keep the
-     * chosen pool's valid blockers with it: the public referent below must come
-     * from the team the sentence names, not from an independently ordered union.
-     *
-     * A slice a pool did not hold up carries null, exactly as it carries an
-     * empty blocking set: a team named on a slice nothing held up is a wait
-     * that is not there, in the same way a resource arrow would be.
-     */
-    let capacityTeamId: string | null = null;
-    let capacityTeamBlockers: number[] = [];
-    let bestFinish = -Infinity;
-    for (const pool of window.binding) {
-      const validBlockers = pool.blocking.filter(finishesByStart);
-      let finish = -Infinity;
-      for (const blocker of validBlockers) finish = Math.max(finish, placed[blocker].finish);
-      if (
-        finish > bestFinish ||
-        (finish === bestFinish && capacityTeamId !== null && pool.poolId < capacityTeamId)
-      ) {
-        bestFinish = finish;
-        capacityTeamId = pool.poolId;
-        capacityTeamBlockers = validBlockers;
-      }
-    }
-    /**
-     * Which of the blocking set the arrow points at: the latest finisher, ties
-     * to the one placed first.
-     *
-     * A display referent and nothing more — the graph below keeps the complete
-     * valid union. Selection is restricted to the chosen binding pool so the
-     * named team and arrow remain one causal explanation. Within that pool the
-     * latest finisher is the end the reader is looking at; ties use placement
-     * order rather than node index, preserving the pass's own total order.
-     */
-    let referent = NOBODY;
-    for (const blocker of capacityTeamBlockers) {
-      if (referent === NOBODY) {
-        referent = blocker;
-        continue;
-      }
-      if (placed[blocker].finish > placed[referent].finish) referent = blocker;
-      else if (
-        placed[blocker].finish === placed[referent].finish &&
-        placedAt[blocker] < placedAt[referent]
-      ) {
-        referent = blocker;
-      }
-    }
-    // A capacity-floored slice with an empty blocking set is impossible — the
-    // floor is the search's own answer and the search records what it stepped
-    // over — so it is a throw rather than a null the render path would have to
-    // invent words for. `floorWordsOf`'s existing refusal, one layer down.
-    //
-    // Proof: the search made to hand back an empty set (its dependency
-    // deliberately broken) **and** this throw replaced by the fall-through it
-    // refuses — the two faults the invariant stands between — and `waits for a
-    // team's slots to come free before it starts` failed on
-    // `resourcePredecessorId: null` with `boundBy: 'capacity'`: a bar claiming
-    // a wait and naming nothing. With the throw restored the same broken search
-    // fails here instead, which is the point of it; watched 2026-08-12.
-    if (boundBy === 'capacity' && referent === NOBODY) {
-      throw new Error(`${node.key} waited for capacity with nothing holding the pool`);
-    }
-    // **Read off the search rather than gated on `boundBy`, and then checked
-    // against it.** The two are the same fact — a pool binds exactly where it
-    // pushed the block off the plan floor, and a floor strictly past the plan's
-    // own is what `capacity` means — so a gate here would be a restatement
-    // that cannot fail, which is the one thing this repo has been bitten by
-    // repeatedly. Written as the invariant instead, where an injected fault on
-    // either side of it reddens.
-    //
-    // Proof: `binding` handed back without its `start > floor` condition — the
-    // shape of a pool that had room being called the reason — and `names no
-    // team on a slice no pool held up` failed here on `first step-dev names
-    // team-alpha with no pool binding it`; watched 2026-08-14.
-    if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
-      throw new Error(
-        capacityTeamId === null
-          ? `${node.key} waited for capacity with no pool binding it`
-          : `${node.key} names ${capacityTeamId} with no pool binding it`,
-      );
-    }
+    const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
+      node.key,
+      boundBy,
+      start,
+      window,
+      (blocker) => placed[blocker].finish,
+      (blocker) => placedAt[blocker],
+    );
     placed[taken] = {
       start,
       finish,
       boundBy,
-      resourcePredecessor:
-        boundBy === 'person' && busy !== undefined
-          ? busy.node
-          : boundBy === 'capacity'
-            ? referent
-            : NOBODY,
+      resourcePredecessor: resourcePredecessorOf(boundBy, busy, referent),
       capacityPredecessors,
       capacityTeamId,
     };
@@ -1453,8 +1718,18 @@ function placeSlices(
  * 5 under a parent carrying 1 taking the person at day 0 from the standalone 2,
  * and `gives the nearer ancestor's priority to a leaf between two` on the same
  * inversion; watched 2026-08-11.
+ *
+ * **Exported on 2026-09-03 for `durationOf`'s reason and no other.** The
+ * solver's request builder needs each leaf's priority to derive its weight, and
+ * the resolution above — most-specific override, not a floor, not a minimum
+ * across ancestors — is precisely the rule a second implementation gets
+ * backwards, because the floor rule is the one every neighbouring field uses.
+ * Nothing else changes: same signature, same body, and Fast still calls it, so
+ * the existing golden corpus is the proof that publishing it changed nothing.
+ * The weight itself is the builder's business and is deliberately not computed
+ * here — an absolute priority is never a weight.
  */
-function priorityByLeaf(rows: readonly PlannedRow[], index: TreeIndex): Map<string, number> {
+export function priorityByLeaf(rows: readonly PlannedRow[], index: TreeIndex): Map<string, number> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
   const ownPriority = new Map(rows.map((row) => [row.id, row.priority]));
   const found = new Map<string, number>();
@@ -1633,52 +1908,15 @@ function slackOf(latestStart: number, earliestStart: number): number {
 }
 
 /**
- * Which of one leaf's slices a dependency on it waits for — the index, in step
- * order, of the slice whose finish releases the successor.
+ * Which of one leaf's slices a dependency on it waits for — moved to
+ * `slice-edges.ts` and re-exported from `libs/domain`'s barrel, so this is the
+ * only line about it left here.
  *
- * The one place the project's {@link DependencyReach} is read. Everything
- * downstream — parent expansion to leaves, successor-side attachment to the
- * first slice plain, floors, cycle detection and the item-anchored arithmetic —
- * takes the answer and does not know which arm produced it.
- *
- * - `whole-item`: the **last** slice, so a dependency waits for the whole work
- *   item. Dany's call on 2026-08-29, having seen the August rule drawn.
- * - `anchor-slice`: the first slice somebody **estimated** — his words on
- *   2026-08-11, "first in list of project roles, then first that is estimated"
- *   — and the last slice when nobody estimated any of them. `days !== null`
- *   rather than `days > 0`, which is what `Scheduled.estimated` means
- *   everywhere else here: an explicit zero is somebody saying this step takes
- *   no time, and the walk honours the statement. Nobody having said anything is
- *   the different fact, and it is the one this walk steps over — a `Design`
- *   step a project lists and this plan left blank must not stand in front of
- *   the `Dev` the wait is really about, or every edge in such a plan decides
- *   nothing.
- *
- * Both arms fall through to the last slice, which is why an unestimated
- * predecessor is reached at its own finish under either reach.
- *
- * That finish used to be the leaf's own start, so such an edge imposed exactly
- * what the leaf's own predecessors imposed and nothing more.
- * `assumed-duration-schedules` (2026-08-29) ended that: an unestimated slice is
- * {@link ASSUMED_SLICE_WORKDAYS} long, so a leaf nobody has estimated finishes
- * its steps' assumed durations end to end — three unestimated steps run 0→6 —
- * and a dependency on it now imposes a real wait. "Has a duration" and "is
- * estimated" are different questions, and only the `anchor-slice` arm asks the
- * second: its `days !== null` walk still steps over a slice that has a duration
- * nobody stated.
- *
- * `slices` is never empty: `groupByWorkItem` only makes a group because a slice
- * went into it, and the leaf it made none for is what `slicesOf` refuses. So
- * `length - 1` is a real index rather than `-1`.
- *
- * See `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+ * It moved with the edge join it decides. The solver request builder must reach
+ * the same slice this pass reaches; a reach read in two places is two rules the
+ * moment either is edited, and the join around it has already been got wrong
+ * three ways (see that module's header).
  */
-export function reachedSliceOf(reach: DependencyReach, slices: readonly Slice[]): number {
-  if (reach === 'whole-item') return slices.length - 1;
-  const estimated = slices.findIndex((slice) => slice.days !== null);
-  return estimated === -1 ? slices.length - 1 : estimated;
-}
-
 /**
  * Which algorithm produced a schedule — the identity a saved plan stores.
  *
@@ -1784,7 +2022,9 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v1';
  * `WorkItem` satisfies it structurally, so nothing maps anything. The engine
  * now sits beside the rules it always shared: {@link snapWorkdays},
  * {@link ASSUMED_SLICE_WORKDAYS}, {@link DependencyReach},
- * {@link deriveNumbers}. It reads those four modules and no others.
+ * {@link deriveNumbers}. It reads those four modules and {@link leafFloorsOf},
+ * and no others — the fifth is the floor fold, moved out on 2026-09-03 so the
+ * solver request builder reads the same walk rather than writing a second one.
  *
  * What keeps it that way is `@nx/enforce-module-boundaries`: `domain` is tagged
  * `runtime:isomorphic` and may depend only on other isomorphic libs, so a
@@ -1839,6 +2079,25 @@ export function schedule(
    * which one produced the answer.
    */
   reach: DependencyReach = 'whole-item',
+  /**
+   * Task 4.9's `materialiseOptimized`: a start per slice key, or Fast's own.
+   *
+   * **This argument is the whole of the optimized materialiser.** Everything
+   * that produces a {@link ScheduledSlice} — the durations, the tiling, the
+   * capacity explanation, the resource edges, the backward pass, the work-item
+   * projections and both wait counters — is the code below, run once, and the
+   * offsets map an optimizer returns is never persisted or handed back as a
+   * schedule. A second implementation of this function is the failure this
+   * design exists to prevent: five of its rules are subtle enough that a
+   * transcription gets one wrong (seed 260's tiling drift, the `finish <= start`
+   * filter, the referent's placement-order tie-break), and the differential that
+   * caught each of them once does not run over the optimized path.
+   *
+   * A key absent from the map is a refusal rather than a fallback: a partial
+   * optimized schedule is two engines' answers interleaved, and no reader could
+   * tell which slice came from which.
+   */
+  pinnedStarts?: ReadonlyMap<string, number>,
 ): Schedule {
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -1865,28 +2124,15 @@ export function schedule(
   // out of date with the tree the moment a leaf is added under either end.
   const leafEdges = expandToLeaves(index, edges);
 
-  // Floors expanded down the tree the same way the edges are: a floor keyed by
-  // any row constrains every leaf beneath it, and each leaf keeps the
-  // **latest** of its own floor and every ancestor's. `Math.max`, never a
-  // copy-down — a parent's day 3 must not overwrite a child's own day 9.
-  // Until 2026-08-10 this map was read for leaf ids alone, so a floor written
-  // on a parent was accepted, stored, echoed back — and constrained nothing;
-  // `floors every leaf beneath a parent told not to start before a day`
-  // (`work-item.service.test.ts`) was watched failing on the leaf starting
-  // `2026-08-06` under a parent floored to `2026-08-12`.
+  // Floors expanded down the tree the same way the edges are — see
+  // {@link leafFloorsOf}, which holds the rule and the 2026-08-10 proof.
   //
-  // Proof: the `Math.max` replaced with a bare copy-down (`set(leafId,
-  // atLeast)`) and two tests in `schedule-shapes.test.ts` failed — `composes
-  // ancestor floors with a dependency, each leaf keeping its own maximum` on
-  // `L2` at `earliestStart: 5` where its own day-9 floor was owed, and
-  // `carries a grandparent's floor two levels down to the leaf` on
-  // `earliestStart: 3` where the grandparent's day 6 was; watched 2026-08-10.
-  const leafFloors = new Map<string, number>();
-  for (const [flooredId, atLeast] of notBefore) {
-    for (const leafId of index.leavesUnder.get(flooredId) ?? []) {
-      leafFloors.set(leafId, Math.max(leafFloors.get(leafId) ?? 0, atLeast));
-    }
-  }
+  // The walk lives there and not here because the solver request builder needs
+  // the identical numbers: every wire slice carries `notBeforeUnits` already
+  // folded, so Python never receives the tree. Two walks would be two rules the
+  // moment either is edited, and this is the exact fold that was already wrong
+  // once for a month.
+  const leafFloors = leafFloorsOf(notBefore, index);
 
   /**
    * The nodes, in the order they run: every leaf's slices in step order, and
@@ -1899,7 +2145,6 @@ export function schedule(
    */
   const nodes: SliceNode[] = [];
   const firstNode = new Map<string, number>();
-  const reachedNode = new Map<string, number>();
   let items = 0;
   for (const leafId of leafIds) {
     const { slices: own, offsets } = slicesOf(leafId);
@@ -1918,24 +2163,20 @@ export function schedule(
         successors: [],
       });
     });
-    for (let node = first + 1; node < nodes.length; node += 1) {
-      nodes[node - 1].successors.push(node);
-      nodes[node].predecessors.push(node - 1);
-    }
     // Recorded only if the group put a node in. It always does — a group exists
     // because a slice created it — and the one thing that could make it not is
     // the fault `firstNodeOf` below names, which is why nothing is written for
     // a leaf with no node rather than a dangling index.
-    if (nodes.length > first) {
-      firstNode.set(leafId, first);
-      reachedNode.set(leafId, first + reachedSliceOf(reach, own));
-    }
+    if (nodes.length > first) firstNode.set(leafId, first);
   }
 
   /**
-   * Where a leaf's slices begin among the nodes — the node an external edge
-   * arrives at. It leaves from {@link reachedNodeOf}, which is not always
-   * this one.
+   * Where a leaf's slices begin among the nodes.
+   *
+   * Every edge {@link sliceGraphEdges} returns names its ends as a leaf and a
+   * position within that leaf's own group, so this is the offset that turns one
+   * into a node index. It is the leaf's first node because the groups were
+   * pushed in `leafIds` order and contiguously.
    *
    * Every leaf has an entry: the loop above made one for each of them, and
    * refused the leaf it was handed no slice for. It throws rather than skipping
@@ -1954,53 +2195,24 @@ export function schedule(
     return found;
   };
 
-  /**
-   * The leaf's **reached** node — where an external edge leaves it, chosen by
-   * the project's {@link DependencyReach} in {@link reachedSliceOf}. Recorded
-   * beside {@link firstNode} above, and absent for exactly the leaf that map is
-   * absent for, so this throws for the same reason and with the same words.
-   */
-  const reachedNodeOf = (leafId: string): number => {
-    const found = reachedNode.get(leafId);
-    if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
-    return found;
-  };
-
-  // The predecessor's **reached** slice to the successor's **first**: the
-  // reached slice finishes before any of the successor starts, and the
-  // successor's own step order carries the wait to the steps behind its first.
-  // Pushed onto the two nodes rather than rebuilt into a map — the adjacency is
-  // written once per edge.
+  // The slice graph's edges, derived once in {@link sliceGraphEdges} rather
+  // than built here: each leaf's own step chain, then the predecessor's
+  // **reached** slice to the successor's **first**. Both rules moved with the
+  // reach they depend on, because the solver request builder must derive the
+  // very same graph and a second copy is the copy that gets the join backwards
+  // — that module's header carries the three watched reds that fix each half.
   //
-  // The asymmetry is deliberate and the reach does not touch it: the edge lands
-  // on the successor's first slice **plain**, never its first estimated one and
-  // never its last, because either would leave an unestimated first step with
-  // no predecessor and start the row before the thing it waits for.
-  //
-  // Proof: the join reverted to the predecessor's **last** node while the reach
-  // was `anchor-slice` — the whole-item rule `dep-waits-on-first-role`
-  // replaced — and `waits for the first role, not the last` failed on
-  // `Expected: 3, Received: 5`, `a branch releases at its anchors` on
-  // `Expected: 4, Received: 5` (`schedule-shapes.test.ts`); watched 2026-08-11.
-  //
-  // Proof: `reachedNodeOf` replaced by `firstNodeOf` — the first slice plain,
-  // the rule before August — and four failed: `a chain does not collapse
-  // because a project lists a role nobody estimated` on `c2` `earliestStart`
-  // `Expected: 4, Received: 0`, `walks past an unestimated role to the first
-  // one somebody estimated` on `Expected: 4, Received: 0`, `a branch anchors
-  // each leaf on its own first estimate` on `Expected: 5, Received: 0`, and
-  // `carries an unestimated predecessor's own wait through to its successor`
-  // on `B` `earliestStart` `Expected: 3, Received: 0`; watched 2026-08-11.
-  //
-  // Proof: `reachedNodeOf` used on the **successor** side too — the reach
-  // applied to both ends — and `a parent predecessor expands to its leaves
-  // under either reach` failed on `Q`'s projection, `earliestStart` /
-  // `earliestFinish` `{5, 11}` against a received `{0, 7}`: the successor's own
-  // first step escaped the wait entirely and only its last was held. Watched
-  // 2026-08-30.
-  for (const { predecessorId, successorId } of leafEdges) {
-    const before = reachedNodeOf(predecessorId);
-    const after = firstNodeOf(successorId);
+  // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
+  // written once per edge, and the order the edges arrive in is the order these
+  // arrays are walked in later.
+  for (const { from, to } of sliceGraphEdges(
+    leafIds,
+    (id) => slicesOf(id).slices,
+    leafEdges,
+    reach,
+  )) {
+    const before = firstNodeOf(from.leafId) + from.at;
+    const after = firstNodeOf(to.leafId) + to.at;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
   }
@@ -2078,7 +2290,48 @@ export function schedule(
     return first.at < second.at;
   };
 
-  const leveled = placeSlices(graph, goesFirst, true, poolSizes);
+  /**
+   * The optimizer's starts, resolved onto node indices — or `undefined`, which
+   * is Fast.
+   *
+   * Resolved here and not inside the pass because the pass knows nothing about
+   * slice keys, and because the refusal belongs at the boundary where the map
+   * arrived: a key the plan has no slice for, or a slice the map has no key
+   * for, is a solver answer to a different question.
+   */
+  const pinnedByNode =
+    pinnedStarts === undefined
+      ? undefined
+      : nodes.map((node) => {
+          const at = pinnedStarts.get(node.key);
+          if (at === undefined) {
+            throw new ScheduleInvalidOptimizedStartError(node.key, 'no start was returned for it');
+          }
+          return at;
+        });
+  /**
+   * Task 4.10b's one order, twice over.
+   *
+   * Ledger replay must be chronological — a person's queue edge points at
+   * whoever they were doing **before**, and a pool's blocking set is whatever
+   * had already reserved — while the order handed to {@link lateTimes} must be
+   * topological, and chronological order is not topological on legal data: an
+   * explicit `days: 0` predecessor and its successor can share a start, and an
+   * id tie-break can order them backwards. Draining the **eligible set** in
+   * ascending `(start, canonical slice order)` is both at once, because the
+   * eligible set is Kahn's ready set and admits a node only once its plan
+   * predecessors are placed. So the hazard cannot arise here rather than being
+   * detected: precedence wins over the comparator by construction.
+   */
+  const levelOrder =
+    pinnedByNode === undefined
+      ? goesFirst
+      : (left: number, right: number): boolean =>
+          pinnedByNode[left] === pinnedByNode[right]
+            ? left < right
+            : pinnedByNode[left] < pinnedByNode[right];
+
+  const leveled = placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does

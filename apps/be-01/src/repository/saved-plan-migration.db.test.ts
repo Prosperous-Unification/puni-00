@@ -20,6 +20,11 @@ const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
  */
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
+// The two migrations the dual-scheduler branch adds after this file's own.
+// `rollbackTo` reverses everything applied after its target, newest first, so
+// they lead the list even though this file never mentions them otherwise.
+const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 
 let dir: string;
 let path: string;
@@ -101,6 +106,8 @@ describe('the saved-plan migration', () => {
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
       CALENDAR_MARKER,
+      PROJECT_SETTINGS,
+      OPTIMIZER_TABLES,
       CREATED_BY_ID,
       SAVED_PLAN,
     ]);

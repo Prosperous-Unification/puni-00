@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
-import type { Project, Step, WriteStamp } from './index';
+import type { NewProject, Project, Step, WriteStamp } from './index';
 import { STEP_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
@@ -43,7 +43,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function project(name: string, createdAt: number): Project {
+function project(name: string, createdAt: number): NewProject {
   return {
     id: crypto.randomUUID(),
     name,
@@ -107,6 +107,8 @@ describe('ProjectRepository', () => {
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
       '20260905090000_add_calendar_marker',
+      '20260904140000_add_project_settings',
+      '20260904100000_add_optimizer_tables',
       '20260904020000_add_saved_plan_created_by_id',
       '20260903190000_add_saved_plan',
       '20260902120000_add_lookup_indexes',
@@ -516,5 +518,197 @@ describe('what a project read publishes', () => {
     expect(Object.keys(read ?? {}).sort()).toEqual(Object.keys(made).sort());
     expect(Object.keys(read ?? {})).not.toContain('createdBy');
     expect(Object.keys(read ?? {})).not.toContain('updatedAt');
+  });
+
+  /**
+   * The three settings, published by name (tasks.md 3b.2).
+   *
+   * This case replaces `withholds the optimizer settings until the read payload
+   * declares them`, which run 33 wrote to hold the columns off the payload
+   * until this item mapped them; 3b.2 deletes it rather than lets it pass,
+   * because a `not.toContain` that has become true by accident is a test that
+   * cannot fail. The assertion is inverted rather than dropped: the case above
+   * says only "the same keys as the created project", and would go quiet if the
+   * mapper and `create` both stopped carrying all three at once.
+   *
+   * Proof: with the three names put back into `INTERNAL_PROJECT_COLUMNS`, this
+   * fails on the first expectation.
+   */
+  it('publishes the three project settings in the read payload', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+    const read = await repo.findById(made.id);
+    const published = Object.keys(read ?? {});
+
+    expect(published).toContain('optimizationEnabled');
+    expect(published).toContain('scheduleEngine');
+    expect(published).toContain('scheduleObjective');
+    // Never published: the drain's cross-process fence is internal state and no
+    // boundary returns it (tasks.md 3.1b).
+    expect(published).not.toContain('optimizationDeletePendingAt');
+  });
+
+  /**
+   * The values a project gets when nobody states them, read back through the
+   * production path (tasks.md 3b.2, 3b.4).
+   *
+   * `create` writes the three explicitly rather than omitting the columns, so
+   * this case is the one that proves its constant and the migration's
+   * `ADD COLUMN` defaults still agree: the second project is inserted with raw
+   * SQL naming neither settings column, which is the only way to read what the
+   * database itself defaults to, and the two reads must match.
+   *
+   * Proof: with `DEFAULT_PROJECT_SETTINGS.engine` changed to `optimized`, the
+   * two reads disagree and this fails on `scheduleEngine`.
+   */
+  /**
+   * Each setting patched on its own, and read back off the database rather than
+   * off `update`'s own answer (tasks.md 3b.2, 3b.4).
+   *
+   * Three separate patches rather than one carrying all three, because the
+   * columns are independent by design: a project switched off must keep the
+   * engine and objective it was on, so it comes back to them rather than to a
+   * default when it is switched on again. One combined patch would pass against
+   * an `update` that wrote all three from whichever key it saw first.
+   *
+   * The reload is the point. `update` returns its own `RETURNING` row, so a
+   * patch that never reached the column would still be answered correctly by
+   * the same statement that failed to write it.
+   *
+   * Proof: with `optimizationEnabled` dropped from the `SET` — spread as
+   * `...fields` — this fails on the first reload.
+   */
+  it('patches each project setting on its own, and each survives a reload', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+
+    await repo.update(made.id, { optimizationEnabled: true }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'fast',
+      scheduleObjective: 'pri',
+    });
+
+    await repo.update(made.id, { scheduleEngine: 'optimized' }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'pri',
+    });
+
+    const settled = await repo.update(made.id, { scheduleObjective: 'time' }, wrote());
+    expect(await repo.findById(made.id)).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'time',
+    });
+    // Three writes, three bumps: a settings patch is a write to the project
+    // like any other, and a reader holding revision 1 must not be able to
+    // overwrite it blind.
+    expect(settled?.revision).toBe(made.revision + 3);
+  });
+
+  /**
+   * A patch that says nothing reads instead of writing (tasks.md 3b.2).
+   *
+   * The guard used to be one `=== undefined` line per `ProjectPatch` key, which
+   * this item would have grown by three; a key added without its line is a
+   * patch that silently reads. It is now `Object.values(...).every(...)`, and
+   * this case is what says so: the empty patch must leave the revision where it
+   * was, and the settings patch beside it must not.
+   *
+   * Proof: with the guard deleted, the empty patch reaches drizzle and the case
+   * fails on `SET` with no assignments rather than on the revision.
+   */
+  it('reads rather than writes when the patch names nothing, settings included', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+
+    const untouched = await repo.update(made.id, {}, wrote());
+    expect(untouched?.revision).toBe(made.revision);
+
+    const explicitlyAbsent = await repo.update(
+      made.id,
+      { optimizationEnabled: undefined, scheduleEngine: undefined },
+      wrote(),
+    );
+    expect(explicitlyAbsent?.revision).toBe(made.revision);
+
+    const written = await repo.update(made.id, { optimizationEnabled: true }, wrote());
+    expect(written?.revision).toBe(made.revision + 1);
+  });
+
+  it('creates a project without settings agreeing with the columns own defaults', async () => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+    const throughCreate = await repo.findById(made.id);
+
+    const raw = openDatabase(join(dir, 'test.db'));
+    const defaulted = crypto.randomUUID();
+    try {
+      raw.run(
+        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
+         VALUES ('${defaulted}', 'Defaulted', '${ownerId}', 0, 0, 1)`,
+      );
+    } finally {
+      raw.close();
+    }
+    const throughDefaults = await repo.findById(defaulted);
+
+    expect(throughCreate).toMatchObject({
+      optimizationEnabled: false,
+      scheduleEngine: 'fast',
+      scheduleObjective: 'pri',
+    });
+    expect(throughDefaults).toMatchObject({
+      optimizationEnabled: throughCreate?.optimizationEnabled ?? true,
+      scheduleEngine: throughCreate?.scheduleEngine ?? 'optimized',
+      scheduleObjective: throughCreate?.scheduleObjective ?? 'time',
+    });
+  });
+
+  /**
+   * A stored settings value outside its vocabulary, refused on the way out
+   * (tasks.md 3b.8).
+   *
+   * The `CHECK`s refuse the write, so the row has to be injected with
+   * `PRAGMA ignore_check_constraints = ON` — which is what a row written by a
+   * release before the constraint, or restored from an older backup, looks
+   * like. That is the only state a read validator exists for, and the refusal
+   * names the column and the value so the log line alone is diagnosable.
+   *
+   * Proof: with either guard removed from `toProject`, the matching case fails
+   * on `expected [Function] to throw`.
+   */
+  it.each([
+    ['schedule_engine', 'shcedule_engine_typo', 'unknown project.schedule_engine in the database'],
+    ['schedule_objective', 'priority', 'unknown project.schedule_objective in the database'],
+  ])('refuses a stored %s it does not know', async (column, stored, message) => {
+    const made = await repo.create(project('Rewire', 10), [], wrote());
+
+    const refused = openDatabase(join(dir, 'test.db'));
+    let enforced: string | null = null;
+    try {
+      refused.run(`UPDATE project SET ${column} = '${stored}' WHERE id = '${made.id}'`);
+    } catch (error) {
+      enforced = error instanceof Error ? error.message : String(error);
+    } finally {
+      refused.close();
+    }
+    // Half the case: the injection below would prove nothing about a `CHECK`
+    // that was never declared.
+    expect(enforced).toContain('CHECK');
+
+    const injected = openDatabase(join(dir, 'test.db'));
+    try {
+      injected.run('PRAGMA ignore_check_constraints = ON;');
+      injected.run(`UPDATE project SET ${column} = '${stored}' WHERE id = '${made.id}'`);
+    } finally {
+      injected.close();
+    }
+
+    let refusedOnRead: string | null = null;
+    try {
+      await repo.findById(made.id);
+    } catch (error) {
+      refusedOnRead = error instanceof Error ? error.message : String(error);
+    }
+    expect(refusedOnRead).toBe(`${message}: ${stored}`);
   });
 });

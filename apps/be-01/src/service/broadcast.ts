@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import type { Step } from '../repository';
+import type { ScheduleEngine, SolverObjectiveName, Step } from '../repository';
 import type { NumberedWorkItem } from './work-item.service';
 
 /**
@@ -81,6 +81,32 @@ export type ProjectEvent =
    * truth.
    */
   | { type: 'priority_bands_changed' }
+  /**
+   * One or more of the project's three optimizer settings has changed (tasks.md
+   * 3b.3): whether the optimizer runs at all, which engine publishes the
+   * schedule, and which objective's answer is the published one.
+   *
+   * It **carries the new values**, unlike `capacity_changed` and
+   * `priority_bands_changed` which carry nothing. Those two say "read again"
+   * about a list the client fetches beside the tree on every refresh; these
+   * three are a project's own settings and are what a settings panel is
+   * currently displaying, so a second screen with the panel open can repaint
+   * the toggle from the event rather than round-trip for three booleans-worth
+   * of state. All three are sent whatever moved, because a reader holding one
+   * changed field and two stale ones cannot tell which it has.
+   *
+   * `schedule_optimized` is **not** this event and is deliberately not declared
+   * here: it stays reserved for a stored solver *result* arriving, which is a
+   * different fact with a different payload and a different trigger. Emitting
+   * a settings change as a result would tell a client a schedule had been
+   * recomputed when nothing had run.
+   */
+  | {
+      type: 'project_settings_changed';
+      optimizationEnabled: boolean;
+      scheduleEngine: ScheduleEngine;
+      scheduleObjective: SolverObjectiveName;
+    }
   /**
    * This project's list of saved plans has changed — one saved, renamed or
    * deleted.

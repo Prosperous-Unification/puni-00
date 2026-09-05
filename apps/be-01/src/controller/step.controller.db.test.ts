@@ -111,7 +111,12 @@ beforeEach(async () => {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
-    projects: new ProjectService({ projects }),
+    // The shared wrapper here too, from Gemini's Minor on PR 203: this line
+    // handed `ProjectService` a PRIVATE recorder, so anything it announced
+    // landed in a log nothing reads. Harmless while no step route mutates
+    // project settings — and exactly the shape in which a future assertion
+    // reads an empty log and passes. See {@link writes}.
+    projects: new ProjectService({ projects, broadcast: writes.announcements }),
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
     steps: new StepService({ projects, steps: stepStore, broadcast: writes.announcements }),

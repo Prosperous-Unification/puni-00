@@ -55,3 +55,10 @@ playwright-report/
 # staged for commit once before anyone noticed. Findings worth keeping go in
 # the change's verify.md.
 tmp/
+
+# CPython bytecode from libs/solver-py's suite. The gate runs
+# `python -m unittest` inside the checkout, so a `git status --porcelain | wc -l`
+# cleanliness assertion after a gate run counts two untracked directories and
+# reads as a dirty tree — which is how a worker learns to ignore that check.
+__pycache__/
+*.py[cod]

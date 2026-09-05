@@ -36,6 +36,23 @@ const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 /** The newest: `saved_plan.created_by_id`, so it heads every descending reversal below. */
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
+
+/**
+ * The newest, and the optimizer's own: four tables plus one nullable column on
+ * `project`. Additive forward and dropped whole by its own `down.sql`, so it
+ * appears in the order and in nothing else this file checks — except that it
+ * now **heads** every descending reversal list below, because the newest
+ * migration is the first thing any rollback reverses.
+ */
+const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+/**
+ * The newest: the three project settings the optimizer is steered by, on
+ * `project`. Additive forward and dropped column by named column on the way
+ * back, so it now **heads** every descending reversal list below and tails
+ * every ascending one — the newest migration is the first thing any rollback
+ * reverses.
+ */
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -52,6 +69,8 @@ function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
     CALENDAR_MARKER,
+    PROJECT_SETTINGS,
+    OPTIMIZER_TABLES,
     CREATED_BY_ID,
     SAVED_PLAN,
     LOOKUP_INDEXES,
@@ -148,6 +167,8 @@ describe('the OIDC identity migration', () => {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         CALENDAR_MARKER,
+        PROJECT_SETTINGS,
+        OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
@@ -208,6 +229,8 @@ describe('the OIDC identity migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         CALENDAR_MARKER,
+        PROJECT_SETTINGS,
+        OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,

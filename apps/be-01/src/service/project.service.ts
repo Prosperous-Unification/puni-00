@@ -1,9 +1,18 @@
 import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Step } from '../repository';
+import type {
+  NewProject,
+  Project,
+  ProjectPatch,
+  ProjectStore,
+  ProjectWithAccess,
+  Step,
+} from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
+import type { Broadcaster } from './broadcast';
 import { type Clock, clockOf } from './clock';
+import type { OptimizerAvailability } from './optimizer-wiring';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is
@@ -19,12 +28,58 @@ export interface ProjectWithSteps {
 
 export type UpdateOutcome =
   | { ok: true; value: Project }
-  | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' | 'bad_pert_weights' };
+  | {
+      ok: false;
+      reason:
+        | 'not_found'
+        | 'forbidden'
+        | 'bad_start_date'
+        | 'bad_pert_weights'
+        /**
+         * The write would have switched this project **on** to an optimizer this
+         * deployment has not got. A state of the deployment rather than a fault
+         * in the request — `refusal-status.ts` answers it 409 for that reason,
+         * and the same body will be accepted once TASK-220 wires the reader.
+         */
+        | 'optimizer_unavailable';
+    };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock?: Clock;
+  /**
+   * Where `project_settings_changed` goes (tasks.md 3b.3).
+   *
+   * **Required, and sixteen call sites paid for it.** Optional-with-a-no-op-
+   * default was the cheaper edit and it fails in exactly the way that matters:
+   * a service constructed without one goes on answering `200` to every settings
+   * PATCH while no client is ever told, and no test that does not specifically
+   * look for the event can see the difference. Required makes the compiler ask
+   * the question once, at every construction, including the production wiring
+   * in `services.ts`. This is not the `NewProject` trade (3b.2): there the
+   * twenty sites would each have restated a *value* that could drift from the
+   * migration, and here they pass a collaborator that cannot drift from
+   * anything.
+   */
+  broadcast: Broadcaster;
+  /**
+   * Whether this deployment can honour optimized scheduling — the `available`
+   * half of {@link optimizerWiring}, whose other half is the reader
+   * `WorkItemService` reads plans through.
+   *
+   * **Optional, and its default is the refusing one.** That is the opposite
+   * trade from `broadcast` above and it is made for the opposite reason: a
+   * service built without a broadcaster fails *silently*, while one built
+   * without this fails *loudly*, at the settings panel, the first time anybody
+   * tries to switch the optimizer on. Twenty-two construction sites — every one
+   * of them a test with no optimizer in it — would otherwise each have to state
+   * a fact about a deployment they do not model.
+   *
+   * Pass {@link OptimizerWiring.available} and never a hand-rolled predicate:
+   * the whole point of the type is that it cannot disagree with the reader.
+   */
+  optimizerAvailable?: OptimizerAvailability;
 }
 
 /**
@@ -42,9 +97,16 @@ export function canEdit(project: Project, actorId: string): boolean {
 
 export class ProjectService {
   private readonly clock: Clock;
+  /**
+   * Fail closed. A deployment with no optimizer wired in cannot honour
+   * `optimized`, and a default of "available" would have made the absent
+   * argument mean exactly the defect this gate exists to refuse.
+   */
+  private readonly optimizerAvailable: OptimizerAvailability;
 
   constructor(private readonly opts: ProjectServiceOptions) {
     this.clock = opts.clock ?? clockOf();
+    this.optimizerAvailable = opts.optimizerAvailable ?? (() => false);
   }
 
   async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
@@ -52,7 +114,7 @@ export class ProjectService {
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
     const stamp = this.clock.stampFor(ownerId);
-    const project: Project = {
+    const project: NewProject = {
       id: this.clock.newId(),
       name,
       ownerId,
@@ -92,8 +154,11 @@ export class ProjectService {
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
-    await this.opts.projects.create(project, steps, stamp);
-    return { project, steps };
+    // The store's answer rather than the seed: `create` fills the three
+    // settings from the column defaults, so the seed is a `NewProject` and only
+    // what came back is a whole project (tasks.md 3b.2).
+    const written = await this.opts.projects.create(project, steps, stamp);
+    return { project: written, steps };
   }
 
   /**
@@ -171,10 +236,78 @@ export class ProjectService {
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    // After the authorization check, so a reader of a restricted project still
+    // learns `forbidden` rather than a fact about how this box is wired.
+    if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
+      return { ok: false, reason: 'optimizer_unavailable' };
+    }
     const updated = await this.opts.projects.update(id, patch, this.clock.stampFor(actorId));
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
+    // After the write and only on success, so nothing is announced that the
+    // store refused or that landed on a project that had gone. `forbidden` and
+    // both `not_found` arms return above this line, which is what makes
+    // tasks.md 3b.4's "refused and emits nothing" a property of the code rather
+    // than of the test that checks it.
+    if (settingsMoved(project, updated)) {
+      await this.opts.broadcast.publish(id, {
+        type: 'project_settings_changed',
+        optimizationEnabled: updated.optimizationEnabled,
+        scheduleEngine: updated.scheduleEngine,
+        scheduleObjective: updated.scheduleObjective,
+      });
+    }
     return { ok: true, value: updated };
   }
+}
+
+/**
+ * Whether this patch would move **either** optimizer switch from off to on.
+ *
+ * Three things it deliberately is not, each of them a hole a reviewer found in
+ * an earlier draft of this gate:
+ *
+ * - **Not "names one of the keys".** A settings panel with three controls
+ *   resends all three every time one is touched, so refusing any PATCH carrying
+ *   them would 409 a client for saying `{ scheduleEngine: 'fast',
+ *   optimizationEnabled: false }` — a request that turns nothing on. The stored
+ *   row is compared, exactly as {@link settingsMoved} compares it, so a resend
+ *   of values the project already holds is not an enabling.
+ * - **Not "both together".** The plan read needs both
+ *   (`publishedOptimized` reads the flag *and* the engine), but each column
+ *   moves on its own and each is separately visible in
+ *   `project_settings_changed` and in the settings panel. A gate that asked for
+ *   both would let `optimizationEnabled: true` through on its own, and the
+ *   project would sit there reporting a half-enabled optimizer that is not
+ *   there — the same lie, one field smaller.
+ * - **Not a rule about the resulting row.** A project already stored as
+ *   `optimized` on a box that lost its optimizer is a migration's problem, not
+ *   this caller's; refusing their rename would be punishing them for it. Only
+ *   the movement this request asks for is judged.
+ */
+function turnsTheOptimizerOn(before: Project, patch: ProjectPatch): boolean {
+  return (
+    (patch.optimizationEnabled === true && !before.optimizationEnabled) ||
+    (patch.scheduleEngine === 'optimized' && before.scheduleEngine !== 'optimized')
+  );
+}
+
+/**
+ * Whether the write moved any of the three settings.
+ *
+ * The **stored rows** are compared, before and after, rather than asking which
+ * keys the patch named. A PATCH that re-sends the values a project already has
+ * — which is what a settings panel with three controls does every time one of
+ * them is touched — named the keys and changed nothing, and announcing that
+ * would wake every open client to repaint what it is already showing. The
+ * inverse mistake is not available here: no other field can move these three,
+ * so a row comparison cannot report a change nobody made.
+ */
+function settingsMoved(before: Project, after: Project): boolean {
+  return (
+    before.optimizationEnabled !== after.optimizationEnabled ||
+    before.scheduleEngine !== after.scheduleEngine ||
+    before.scheduleObjective !== after.scheduleObjective
+  );
 }

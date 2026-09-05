@@ -113,7 +113,7 @@ beforeEach(async () => {
     wrote(),
   );
 
-  projects = new ProjectService({ projects: projectStore });
+  projects = new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() });
   workItems = new WorkItemService({
     workItems: workItemStore,
     projects: projectStore,

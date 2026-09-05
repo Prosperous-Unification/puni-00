@@ -10,6 +10,7 @@ import type {
 } from '../repository';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
+import { recordingBroadcaster } from './broadcast-fixture';
 
 /**
  * A `Project` row carrying every field the schema requires.
@@ -38,6 +39,12 @@ export function projectRow(overrides: Partial<Project> = {}): Project {
     solutionRef: null,
     revision: 0,
     createdAt: 1,
+    // The three settings the migration defaults, stated for the same reason the
+    // estimate rule is: a fixture that left them out would be a `Project` no
+    // read can produce (tasks.md 3b.2).
+    optimizationEnabled: false,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
     ...overrides,
   };
 }
@@ -79,9 +86,18 @@ export function inMemoryProjects(
       if (names.size !== starting.length) {
         return Promise.reject(new Error(`duplicate step name in ${project.id}`));
       }
-      projects.set(project.id, project);
-      steps.set(project.id, [...starting]);
-      return Promise.resolve(project);
+      // The settings the caller left out, filled the way `ProjectRepository`
+      // fills them from the column defaults. A fixture that stored the input
+      // whole would answer `undefined` where production answers `false`.
+      const written = {
+        ...project,
+        optimizationEnabled: project.optimizationEnabled ?? false,
+        scheduleEngine: project.scheduleEngine ?? 'fast',
+        scheduleObjective: project.scheduleObjective ?? 'pri',
+      } satisfies Project;
+      projects.set(written.id, written);
+      steps.set(written.id, [...starting]);
+      return Promise.resolve(written);
     },
     findById(id) {
       return Promise.resolve(projects.get(id) ?? null);
@@ -144,6 +160,9 @@ export function inMemoryProjects(
         estimateRounding: patch.estimateRounding ?? existing.estimateRounding,
         startDate: patch.startDate === undefined ? existing.startDate : patch.startDate,
         solutionRef: patch.solutionRef === undefined ? existing.solutionRef : patch.solutionRef,
+        optimizationEnabled: patch.optimizationEnabled ?? existing.optimizationEnabled,
+        scheduleEngine: patch.scheduleEngine ?? existing.scheduleEngine,
+        scheduleObjective: patch.scheduleObjective ?? existing.scheduleObjective,
       };
       projects.set(id, updated);
       return Promise.resolve(updated);
@@ -162,5 +181,5 @@ export function inMemoryProjects(
 
 /** A ProjectService over the in-memory store, for tests that only need `buildApp` to construct. */
 export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
-  return new ProjectService({ projects });
+  return new ProjectService({ projects, broadcast: recordingBroadcaster() });
 }
