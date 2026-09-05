@@ -6,11 +6,13 @@ import { MARKER_NAME_MAX } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import type { WorkItem, WriteStamp } from '../repository';
 import { CalendarMarkerRepository } from '../repository/calendar-marker';
-import { openConnection } from '../repository/db';
+import { type Drizzle, openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
+import { WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { clockOf } from '../service/clock';
@@ -101,9 +103,29 @@ const CUSTOM_FILL = '#5d6afe';
  */
 describe('the calendar-marker routes', () => {
   let dir: string;
+  let dbPath: string;
   let app: ReturnType<typeof buildApp>;
+  let db: Drizzle;
   let tokens: Record<string, string>;
   let projectId: string;
+
+  /**
+   * Every SQL statement the app's one connection has issued, in order — the
+   * oracle task 4.6's structural half is asserted against.
+   *
+   * `logQuery` is drizzle's own hook and it is on for **every** case in this
+   * file rather than for the one that reads it, because a second app built only
+   * for the reach case would be a second wiring: the assertion has to watch the
+   * routes this file's other twenty cases drive, not a copy of them. The array
+   * is cleared in `beforeEach` and again immediately before the drive, so what
+   * it holds at the assertion is exactly what the marker routes issued.
+   *
+   * A **runtime** reach rather than a source scan, and that is round-5's
+   * finding: a scan of `calendar-marker.ts` for a `work_item` import is bounded
+   * by the file it scans, and the fault it has to catch can sit in the handler,
+   * the service or the repository. A logged statement is transitive.
+   */
+  const statements: string[] = [];
 
   /** One authenticated request — `saved-plan.controller.db.test.ts`'s helper. */
   const as = (token: string, path: string, init: Omit<RequestInit, 'headers'> = {}) =>
@@ -116,14 +138,19 @@ describe('the calendar-marker routes', () => {
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-http-'));
-    const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
     const broadcast = recordingBroadcaster();
-    const connection = openConnection(path);
-    const projects = new ProjectRepository(connection.db);
+    statements.length = 0;
+    db = openDrizzle(dbPath, {
+      logQuery(query) {
+        statements.push(query);
+      },
+    });
+    const projects = new ProjectRepository(db);
 
     app = buildApp({
-      auth: new AuthService({ users: new UserRepository(connection.db), jwtKey: TEST_JWT_KEY }),
+      auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
       projects: new ProjectService({ projects, broadcast }),
       // A clock held still, because `createdAt` is an ordering key here rather
       // than a stamp: every marker this file creates ties on `(date,
@@ -131,7 +158,7 @@ describe('the calendar-marker routes', () => {
       // anything at all.
       calendarMarkers: new CalendarMarkerService({
         projects,
-        markers: new CalendarMarkerRepository(connection.db),
+        markers: new CalendarMarkerRepository(db),
         clock: clockOf({ now: () => FIXED_NOW, newId: () => MINTED }),
       }),
       savedPlans: testSavedPlanService(),
@@ -173,24 +200,45 @@ describe('the calendar-marker routes', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const create = (who: string, body: Record<string, unknown>) =>
-    as(tokens[who], `/api/projects/${projectId}/calendar-markers`, {
+  /**
+   * The four verbs, addressed at **a named project** rather than at the one
+   * `beforeEach` seeded.
+   *
+   * Task 4.6 is the reason they take the project: every case before it drives
+   * one project, and an isolation test written against a single seeded project
+   * passes with no `project_id` predicate at all. The single-project helpers
+   * below are these with `projectId` bound, so both projects reach the routes
+   * through one path and a case cannot accidentally prove that two spellings of
+   * a request agree.
+   */
+  const createIn = (project: string, who: string, body: Record<string, unknown>) =>
+    as(tokens[who], `/api/projects/${project}/calendar-markers`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
 
-  const patch = (who: string, id: string, body: Record<string, unknown>) =>
-    as(tokens[who], `/api/projects/${projectId}/calendar-markers/${id}`, {
+  const patchIn = (project: string, who: string, id: string, body: Record<string, unknown>) =>
+    as(tokens[who], `/api/projects/${project}/calendar-markers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
 
-  const list = async (who: string) => {
-    const res = await as(tokens[who], `/api/projects/${projectId}/calendar-markers`);
+  const removeIn = (project: string, who: string, id: string) =>
+    as(tokens[who], `/api/projects/${project}/calendar-markers/${id}`, { method: 'DELETE' });
+
+  const listIn = async (project: string, who: string) => {
+    const res = await as(tokens[who], `/api/projects/${project}/calendar-markers`);
     expect(res.status).toBe(200);
     return ((await res.json()) as { markers: { id: string; name: string; color: string | null }[] })
       .markers;
   };
+
+  const create = (who: string, body: Record<string, unknown>) => createIn(projectId, who, body);
+
+  const patch = (who: string, id: string, body: Record<string, unknown>) =>
+    patchIn(projectId, who, id, body);
+
+  const list = (who: string) => listIn(projectId, who);
 
   /**
    * The round trip: all five verbs through the routes, in the order a composer
@@ -646,5 +694,215 @@ describe('the calendar-marker routes', () => {
     expect(refused.status).toBe(404);
     expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
     expect(await list('owner')).toEqual(before);
+  });
+
+  /** Task 4.6's second project, owned by the same account so the cases are about scope and not permission. */
+  const secondProject = async (): Promise<string> => {
+    const made = await as(tokens['owner'], '/api/projects', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Rewire the other shed' }),
+    });
+    // 200, not 201: `POST /api/projects` answers with the project rather than
+    // with a Created. Asserted anyway, because a `secondProject` that silently
+    // refused would hand every case below an `undefined` id and the isolation
+    // they assert would be two requests missing the same way.
+    expect(made.status).toBe(200);
+    return ((await made.json()) as { project: { id: string } }).project.id;
+  };
+
+  /** A's marker and B's, one apiece — the pair every isolation case below is written over. */
+  const MINE = 'a2000000-0000-4000-8000-00000000000a';
+  const THEIRS = 'b2000000-0000-4000-8000-00000000000b';
+
+  /**
+   * Two projects, one marker each, both created through the routes.
+   *
+   * `mallory` never appears: both projects are the owner's, so a case that
+   * refuses is refusing on **scope** and not on permission. Task 4.2 already
+   * owns the permission half, and a fixture where the second project belonged
+   * to someone else would let a `canEdit` check answer every case here with the
+   * `project_id` predicate gone.
+   */
+  const twoProjects = async (): Promise<string> => {
+    const other = await secondProject();
+    expect(
+      (await createIn(projectId, 'owner', { markerId: MINE, date: '2026-09-14', name: 'Mine' }))
+        .status,
+    ).toBe(201);
+    expect(
+      (await createIn(other, 'owner', { markerId: THEIRS, date: '2026-09-14', name: 'Theirs' }))
+        .status,
+    ).toBe(201);
+    return other;
+  };
+
+  /**
+   * Task 4.6: a project's list holds none of another project's markers, and a
+   * rename that names one is refused with both rows left alone.
+   *
+   * The `not_found` code is the same one an absent marker gets, and that is the
+   * contract rather than an approximation: the caller may not learn that
+   * another project's marker exists.
+   *
+   * Negative: `eq(calendarMarker.projectId, projectId)` struck from
+   * `CalendarMarkerRepository.listFor`'s `where`. Watched at 21 pass / 2 fail —
+   * this case and the delete case below, both on a list read answering **both**
+   * markers (`Mine` came back from the other project's list) — while the rename
+   * refusal itself still answered 404, because that path is scoped by `touch`'s
+   * own predicate and not by the list's. That split is the point: the two
+   * halves of "isolated" are two predicates. Watched 2026-09-05.
+   */
+  it('lists only its own markers, and refuses a rename naming another project’s', async () => {
+    const other = await twoProjects();
+
+    expect((await listIn(projectId, 'owner')).map((marker) => marker.id)).toEqual([MINE]);
+    expect((await listIn(other, 'owner')).map((marker) => marker.id)).toEqual([THEIRS]);
+
+    const refused = await patchIn(projectId, 'owner', THEIRS, { name: 'Not mine to rename' });
+    expect(refused.status).toBe(404);
+    expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
+
+    expect(await listIn(projectId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
+    expect(await listIn(other, 'owner')).toMatchObject([{ id: THEIRS, name: 'Theirs' }]);
+  });
+
+  /**
+   * Task 4.6: the same scope, through the one mutating route the rename case
+   * cannot reach.
+   *
+   * Rename and recolour arrive as two bodies through one `PATCH`, so scoping
+   * that handler scopes both — the delete is a separate route with a predicate
+   * of its own that nothing above names. A delete matched on marker id alone
+   * removes project B's row through project A's route while every case above
+   * passes.
+   *
+   * Negative, and it is the delete path's own: **the delete path scoped by
+   * marker id alone** — the `projectId` term struck from *both* of
+   * `CalendarMarkerRepository.remove`'s statements, its `one(...)` guard read
+   * and the `tx.delete(...)` beneath it. Watched at 22 pass / 1 fail, exactly
+   * this case, with the cross-project delete answering 204 and `THEIRS` gone
+   * from the other project's list — while the rename case above, the round trip
+   * and the permission case stayed green. The list-predicate negative cannot
+   * reach this fault: the delete never runs through the list query.
+   *
+   * **The narrower fault — the term struck from the `tx.delete(...)` statement
+   * alone — cannot fail, and that is worth carrying.** Watched: 23 pass / 0
+   * fail, the whole file green. `remove` reads the marker through the scoped
+   * `one(...)` first and answers `not_found` before the `DELETE` is issued, so
+   * that statement's own predicate is unreachable defence. It stays in the
+   * repository — a guard read is one refactor from being inlined away — but no
+   * test here asserts it, and `tasks.md` 4.6 records why.
+   * Both watched 2026-09-05.
+   */
+  it('refuses a delete naming another project’s marker, and leaves that row standing', async () => {
+    const other = await twoProjects();
+
+    const refused = await removeIn(projectId, 'owner', THEIRS);
+    expect(refused.status).toBe(404);
+    expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
+
+    expect(await listIn(other, 'owner')).toMatchObject([{ id: THEIRS, name: 'Theirs' }]);
+    expect(await listIn(projectId, 'owner')).toMatchObject([{ id: MINE, name: 'Mine' }]);
+  });
+
+  /**
+   * The `work_item` table as it stands, read on a connection of its own.
+   *
+   * Its own connection for the reason `work-item.db.test.ts`'s `joinedTeams`
+   * has one, plus a second that is this slice's: a read through the app's
+   * drizzle client would push a statement naming `work_item` into
+   * {@link statements} — the very log the reach assertion is about — so the
+   * oracle would falsify itself.
+   */
+  const workItemRows = (): Record<string, unknown>[] => {
+    const raw = openDatabase(dbPath);
+    try {
+      return raw.query<Record<string, unknown>, []>('SELECT * FROM work_item ORDER BY id').all();
+    } finally {
+      raw.close();
+    }
+  };
+
+  /**
+   * Task 4.6: a marker is not a work item — driven, not asserted about the
+   * source.
+   *
+   * One real `work_item` row is seeded first, because "unchanged" over an empty
+   * table is a claim about nothing: a marker route that dropped every work item
+   * would satisfy `[] === []`. The row goes in through `WorkItemRepository` so
+   * it is the shape the app writes rather than one this file invented.
+   *
+   * Then all five verbs, and two assertions over them. The **rows** are
+   * unchanged, which is the visible half. The **statements** name no
+   * `work_item`, which is the half that catches a read: a read changes no row,
+   * so the first assertion alone passes over a marker list that also selected
+   * every work item of the project and threw the answer away — and that read is
+   * a coupling, one migration away from being a dependency.
+   *
+   * `calendar_marker` is asserted to be *present* in the same log before
+   * `work_item` is asserted absent. Without that precondition a drive that
+   * issued no statements at all — a route silently unwired, a helper that
+   * stopped awaiting — would pass this case by reaching nothing.
+   *
+   * Two negatives, and they are two faults rather than one. Both are
+   * `this.db.select({ id: workItem.id }).from(workItem).all()` with the result
+   * discarded, injected in `CalendarMarkerRepository` rather than in the
+   * controller — the handler holds a `CalendarMarkerService` and no drizzle
+   * client, so a read written there would be testing the plumbing it needed
+   * first. A layer down is also the stronger demonstration: the controller
+   * source stays clean and the statement still shows up.
+   *
+   * 1. **The list-path read**, in `listFor`. Watched at 22 pass / 1 fail,
+   *    exactly this case, failing on the statement assertion with the offending
+   *    `select "id" from "work_item"` printed — while the row assertion stayed
+   *    green, which is precisely why the reach oracle exists.
+   * 2. **The recolour-branch read**, in `recolor`, which the colour branch
+   *    reaches and the rename branch does not. Watched at 22 pass / 1 fail,
+   *    again exactly this case, while the round trip, the rename cases and the
+   *    whole refusal table stayed green — rename and recolour share one route,
+   *    so a fault on one branch is invisible to every case driving the other.
+   *
+   * Both watched 2026-09-05.
+   */
+  it('creates, renames, recolours and deletes without naming the work_item table', async () => {
+    const owner = await new ProjectRepository(db).findById(projectId);
+    expect(owner).not.toBeNull();
+    const wrote: WriteStamp = { at: FIXED_NOW, by: owner?.ownerId ?? '' };
+    const seeded: WorkItem = {
+      id: 'aaaaaaaa-0000-4000-8000-00000000aaaa',
+      projectId,
+      parentId: null,
+      position: 10,
+      name: 'Strip the old wiring',
+      notes: '',
+      frozenNumber: null,
+      priority: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      serviceTeamId: null,
+      serviceId: null,
+      maxParallel: 1,
+      revision: 0,
+    };
+    await new WorkItemRepository(db).insert(seeded, [], wrote);
+    const before = workItemRows();
+    expect(before).toHaveLength(1);
+
+    // Cleared here rather than trusted from `beforeEach`: the seed above, the
+    // registrations and the project create are all on this connection, and the
+    // assertion is about what the **marker routes** issued.
+    statements.length = 0;
+
+    expect(
+      (await create('owner', { markerId: MINE, date: '2026-09-14', name: 'Site visit' })).status,
+    ).toBe(201);
+    expect(await list('owner')).toHaveLength(1);
+    expect((await patch('owner', MINE, { name: 'Site visit, rescheduled' })).status).toBe(200);
+    expect((await patch('owner', MINE, { color: CUSTOM_FILL })).status).toBe(200);
+    expect((await removeIn(projectId, 'owner', MINE)).status).toBe(204);
+
+    expect(statements.some((query) => query.includes('calendar_marker'))).toBe(true);
+    expect(statements.filter((query) => query.includes('work_item'))).toEqual([]);
+    expect(workItemRows()).toEqual(before);
   });
 });

@@ -462,7 +462,7 @@ in both slices rather than implied by position.
       Negative: the rename writing before validating, watched leaving the new
       name behind after a refused call. "Refused" and "unchanged" are two claims
       and the second is the one a partial write breaks.
-- [ ] 4.6 Project isolation, and a marker is not a work item — test: same file,
+- [x] 4.6 Project isolation, and a marker is not a work item — test: same file,
       two seeded projects each with markers: listing one returns none of the
       other's; a rename naming the other project's marker id is refused with
       both rows unchanged; and — replacing the round-3 cross-route id
@@ -473,9 +473,19 @@ in both slices rather than implied by position.
       list query, watched returning the other project's markers. An isolation
       test written only against a single seeded project passes with no predicate
       at all. **The structural half has two negatives, and they are named
-      apart** (round-14 self-review): the **list-handler read** — a `work_item`
-      read added inside the marker list handler, watched failing the reach
-      assertion — and the **recolour-branch read** described below. Round 13
+      apart** (round-14 self-review): the **list-path read** — a `work_item`
+      read added on the list path, watched failing the reach
+      assertion — and the **recolour-branch read** described below.
+      **Both are injected in `CalendarMarkerRepository`, not in the controller
+      handler this sentence used to name** (watched 2026-09-05): the handler
+      holds `auth` and a `CalendarMarkerService` and no drizzle client at all,
+      so a `work_item` read cannot be written there without first plumbing one
+      in — and the plumbing, not the read, would then be what the negative
+      tested. `listFor` is reached only by the list and `recolor` only by the
+      colour branch, so the two faults stay exactly as separate as the handler
+      sites would have been, and injecting a layer **below** the controller is
+      the stronger demonstration of why the oracle is a runtime SQL log: the
+      controller source stays clean while the read still shows up. Round 13
       added the second while this sentence still called the first "the second
       negative", leaving one label on two faults — and the verb
       list here still said "creating, renaming and deleting" while the drive
@@ -521,11 +531,25 @@ in both slices rather than implied by position.
       above passes** (round-11 Sol review, Important). Case: `DELETE` on project
       A naming project B's marker id, asserting `not_found`, that B's row is
       still returned by B's list, and that A's own markers are unchanged. Third
-      negative, and it must be the delete path's own: the `project_id` predicate
-      dropped from the **delete** statement only, watched failing this case with
-      B's row gone, while the list query, the patch route and both cases above
-      stay green — a fault the first negative cannot reach, because it mutates
-      the list predicate and the delete never runs through it.
+      negative, and it must be the delete path's own: **the delete path scoped
+      by marker id alone** — the `project_id` term dropped from _both_ of
+      `CalendarMarkerRepository.remove`'s statements, its `one(...)` guard read
+      and the `tx.delete(...)` beneath it — watched failing this case with B's
+      row gone, while the list query, the patch route and both cases above stay
+      green: a fault the first negative cannot reach, because it mutates the
+      list predicate and the delete never runs through it.
+      **The narrower form this sentence asked for until 2026-09-05 cannot fail,
+      and that is a finding rather than a wording fix.** It named the predicate
+      "dropped from the **delete** statement only". Watched: the whole file
+      stayed **23 pass / 0 fail**. `remove` reads the marker through the scoped
+      `one(tx, projectId, id)` first and returns `not_found` before the `DELETE`
+      is ever issued, so that statement's own `project_id` term is unreachable
+      defence and **no test can falsify it** while the guard read stands. It is
+      kept — a guard read is one refactor from being inlined away — but it is
+      documented as redundant rather than asserted as load-bearing. The delete
+      path's only _reachable_ scope fault is the one above, and it is the fault
+      this sentence described in prose all along ("a delete matched on marker id
+      alone").
 - [x] 4.6a The client-supplied `markerId` must be a UUID v4 — test: same file, a
       create with `markerId: 'marker-1'` and one with a v1-shaped UUID each
       refused naming the `markerId` field, with the marker count unchanged after
