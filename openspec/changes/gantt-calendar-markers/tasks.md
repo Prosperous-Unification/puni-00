@@ -326,7 +326,7 @@ in both slices rather than implied by position.
       dark base could be produced by a composer that only knows about themes.
 - [ ] 3.5 The composer issues the id, so the previewed colour is the created
       one — the composer generates a v4 UUID, renders `automaticColor(id)` as
-      the swatch, and sends that `id` in the create body — test:
+      the swatch, and sends that id as `markerId` in the create body — test:
       `gantt-panel.test.tsx`, read the swatch's colour before submit and the
       created chip's colour after, and assert they are equal. Negative, and it
       must be a **front-end** fault: the composer generating a fresh UUID at
@@ -413,9 +413,10 @@ in both slices rather than implied by position.
       neighbour) is entirely client-side and never reached. The server half is
       already covered: 4.3 rejects `2026-09-17T00:00:00Z`, so no instant can
       enter storage as a date at all.
-- [x] 4.4 The client-supplied `id`, its fallback and its collision — test: same
-      file, three cases: a create carrying an `id` stores that exact id; a create
-      omitting `id` is issued one by `Clock.newId()` (asserted through the fake
+- [x] 4.4 The client-supplied `markerId`, its fallback and its collision — test:
+      same file, three cases: a create carrying a `markerId` stores that exact id;
+      a create omitting `markerId` is issued one by `Clock.newId()` (asserted
+      through the fake
       clock the suite already injects); a create repeating an existing id is
       refused with no row added and the existing marker's name, date and colour
       unchanged. Negatives, two. For the last: the insert written as an upsert,
@@ -423,7 +424,8 @@ in both slices rather than implied by position.
       asserts an error status passes against an upsert that already destroyed
       the row. And for the first, **the server fault `design.md` §6.1 named and
       no slice owned** (round-12 Sol review, Minor): the create ignoring the
-      supplied `id` and calling `clock.newId()`, watched failing the exact-id
+      supplied `markerId` and calling `clock.newId()`, watched failing the
+      exact-id
       case. §6.1 named it while 3.5 requires a **front-end** fault and delegates
       the server half here, so until now it was owed by neither slice and the
       exact-id case was a positive with nothing watching it. It belongs here
@@ -524,9 +526,10 @@ in both slices rather than implied by position.
       B's row gone, while the list query, the patch route and both cases above
       stay green — a fault the first negative cannot reach, because it mutates
       the list predicate and the delete never runs through it.
-- [x] 4.6a The client-supplied `id` must be a UUID v4 — test: same file, a
-      create with `id: 'marker-1'` and one with a v1-shaped UUID each refused
-      naming the `id` field, with the marker count unchanged after each.
+- [x] 4.6a The client-supplied `markerId` must be a UUID v4 — test: same file, a
+      create with `markerId: 'marker-1'` and one with a v1-shaped UUID each
+      refused naming the `markerId` field, with the marker count unchanged after
+      each.
       Negative: the UUID check replaced by a non-empty-string check, watched
       letting `'marker-1'` through and writing a row. This does **not** make the
       id spaces disjoint — nothing does, and the spec says so — it bounds the
@@ -2035,7 +2038,7 @@ would have named the wrong row. Split, the negative names every row it reddens.
   `2026-09-17T00:00:00Z`, each `201` where `422` was owed. The timestamp is the
   row the spec names because it is the one a _plausible_ lax validator lets
   through; the other two are not strings any check would mistake for a date.
-- **4.6a** — `UUID_V4.test(body.id)` replaced with `body.id.length > 0`:
+- **4.6a** — `UUID_V4.test(body.markerId)` replaced with `body.markerId.length > 0`:
   **7 pass / 2 fail**, both id rows, `marker-1` among them.
 - **4.2** — the `forbidden` arm dropped from `create`'s gate in
   `CalendarMarkerService` **only**: **8 pass / 1 fail**, failing at the create
@@ -2168,16 +2171,16 @@ disagree:
 | row                       | case                                                |
 | ------------------------- | --------------------------------------------------- |
 | `date` not an `IsoDate`   | 4.3's three date cases                              |
-| `id` not a UUID v4        | 4.6a's two id cases                                 |
+| `markerId` not a UUID v4  | 4.6a's two id cases                                 |
 | `color` not a hex triple  | new: `rebeccapurple` and `#f00`                     |
 | `name` empty or over cap  | new: `''` and 121 astral code points                |
 | `color` under the 3:1 bar | new: `#ff0000`, failing **exactly one** backdrop    |
-| `id` already exists       | 4.4's collision case, its assertion strengthened    |
+| `markerId` already exists | 4.4's collision case, its assertion strengthened    |
 | absent / another project  | new: a rename of an absent marker                   |
 | `forbidden`               | 4.2's create, now `toEqual({ error: 'forbidden' })` |
 
 The last two rows of that table are assertions about **shape**, not just codes:
-`taken` and `not_found` now carry `field: 'id'` and `forbidden` carries no
+`taken` and `not_found` now carry `field: 'markerId'` and `forbidden` carries no
 field at all, which is why its case is an exact-shape `toEqual` — only that can
 fail when a field appears.
 
@@ -2201,6 +2204,84 @@ rc 0. `be-01:typecheck` and `domain:typecheck` rc 0, run **one at a time**.
 `format:check --all` rc 0. `apps/be-01/openapi.json` regenerated and
 **byte-identical** (sha256 `55f6b6c5…`, chunk 8's) — new validation, no new
 route and no changed body schema.
+
+**Next chunk:** 4.6 — isolation over two seeded projects, the cross-project
+`DELETE`, and route-family disjointness through a drizzle `logQuery` reach
+assertion, with three negatives: the `project_id` predicate dropped from the
+list query, a `work_item` read in the list handler, and a second one in the
+**recolour** branch specifically. That closes section 4.
+
+### 2026-09-05 — run 6, chunk 11: the create body is `markerId`
+
+**The inherited CI red, fixed.** `e3a0ee37`. Not a slice — the debt chunk 7 took
+on when the routes first shipped, diagnosed by run 5 and paid here.
+
+`postApiProjectsByIdCalendar-markers: "id" is declared as both a path input and
+a body input. One would overwrite the other, so neither is sent.`
+`openapi-tools.ts` derives one MCP tool per operation from
+`apps/be-01/openapi.json` and flattens path and body inputs into a single
+argument object; `claim()` throws rather than ship a tool where one input
+silently overwrites the other. `POST /api/projects/:id/calendar-markers` spends
+`id` on the project, so 4.4's client-supplied marker id could not also be `id`.
+
+**The fix is the body field, and the obvious alternative stays ruled out.**
+Renaming the path parameter to `:projectId` cannot work — memoirist refuses two
+different parameter names in the same path position, so it would mean renaming
+`:id` across every `/api/projects/:id/...` route in be-01 (run 5 attempted it
+against the real emitter, proved it impossible, reverted). `markerId` is what
+the `PATCH` and `DELETE` paths already call this same value, so the create was
+the only route that ever called it anything else.
+
+**Wire only.** `NewCalendarMarker.id` and `CalendarMarker.id` are unchanged —
+inside the service there is no project id to collide with — and the two names
+meet in one mapping line in the `POST` handler, written as an explicit
+destructure because a spread-then-override would carry `markerId` into the
+service's object as an extra member.
+
+**The refusal envelope moved with the field**, and that is a decision rather
+than a sweep: `malformed`, `taken` and `not_found` now blame `markerId`. The
+spec requires every row to answer with exactly the field its row gives, and
+leaving `taken` at `id` would have answered a collision by naming a member no
+marker request has — the path parameter is `markerId`, the body property is now
+`markerId`, and `id` on this API means the project.
+
+**A SECOND RED THE SAME CHANGE UNCOVERED, and it is the guard working.** With
+`claim()` unblocked the four marker routes reach the tool list for the first
+time and `mcp-01`'s count guard fired, **28 to 32**, with the README count
+following. All four are admitted, `EXCLUDED_PATHS` stays at five, and the
+reasoning is recorded beside the count: the `plan-commands` exclusion looks like
+it should remove the three writes and does not, because **a marker is not a plan
+edit at all** — the spec makes that structural, and no command in the batch
+vocabulary creates, renames, recolours or deletes one, so excluding them would
+leave no way to annotate a date through MCP. The list read is admitted for the
+reason every read here is: a date is not a unique key, so an agent must list a
+day's markers before it can name an id.
+
+**NEGATIVES.** The rename's own proof is the before/after at the real head
+rather than a mutation: `mcp-01` at `85191455` was **92 pass / 1 fail** on
+exactly this error, and is **106 / 0** after. Two more watched against the
+marker route file's 20 pass / 0 fail baseline, restored to 20 / 0 after each:
+
+- **the mapping dropped** (`{ ...rest, id: markerId }` → `{ ...rest }`) gives
+  **17 / 3** — the round trip, the tie-order case and `stores the exact id the
+create carried`, which is every case whose client-supplied id has to reach
+  storage, and nothing else. It is the negative that matters, because the seam
+  is one line and a create that quietly minted its own id would answer `201`.
+- **the envelope blaming `id` again** gives **18 / 2** — exactly the `taken` and
+  `not_found` cases, which are exact-shape `toEqual`s and so are the only two
+  that can see a field name change.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first;
+`bun install --frozen-lockfile` first, the tree had no `node_modules`):
+`test` over be-01 and domain rc 0 — be-01 **1550 pass / 0 fail across 126
+files** and domain **506 / 0** across 42, both unchanged from chunk 10, which is
+what a rename should do to a count. `mcp-01` **106 / 0**, rc 0. `lint` over
+be-01, mcp-01 and domain rc 0 (`jsdoc/no-multi-asterisks` fired once on a
+comment line beginning `*project*`; reworded, not disabled). `be-01:typecheck`,
+`mcp-01:typecheck` and `domain:typecheck` rc 0, run **one at a time**.
+`format:check --all` rc 0 after `format:write` reflowed the test file and the
+spec's refusal table. `apps/be-01/openapi.json` regenerated — **+3/-3**, the
+body property and nothing else.
 
 **Next chunk:** 4.6 — isolation over two seeded projects, the cross-project
 `DELETE`, and route-family disjointness through a drizzle `logQuery` reach
