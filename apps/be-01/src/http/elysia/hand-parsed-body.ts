@@ -27,6 +27,16 @@ type BodySchema = NonNullable<
  * So the schema in the document is **documentation**. Saying so out loud is the
  * point: a reader who takes it for the validator will send a field this API
  * refuses and read the 400 as a fault in the API.
+ *
+ * **Under `http/elysia/` and not `openapi/`, because of the one import at the
+ * top.** `DocumentDecoration` is a type-only import — it costs nothing at run
+ * time — and it still fails the grep acceptance criterion #1 names,
+ * `git grep -l "from 'elysia'" apps/be-01/src`. The type is Elysia's shape for
+ * a route's `detail`, so the file belongs beside the binder that speaks that
+ * dialect, next to `query-schemas.ts`, which moved here for the same reason.
+ * The alternative — restating `DocumentDecoration`'s inner shape structurally
+ * in a framework-free file — would be a copy of a type this app does not own,
+ * silently right until Elysia changes it.
  */
 const PARSED_BY_HAND =
   'The schema here is documentation, not validation. This route parses its own ' +

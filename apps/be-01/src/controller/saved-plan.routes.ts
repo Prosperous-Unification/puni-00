@@ -1,4 +1,5 @@
 import { callerGuard } from '../http/caller';
+import { handParsedBody } from '../http/elysia/hand-parsed-body';
 import { COMPARE_QUERY } from '../http/elysia/query-schemas';
 import {
   noContent,
@@ -8,7 +9,6 @@ import {
   type RouteHandler,
   type RouteResponse,
 } from '../http/route';
-import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import type { Broadcaster } from '../service/broadcast';
 import type { ProjectService } from '../service/project.service';

@@ -1,8 +1,8 @@
 import { DEPENDENCY_REACHES, ESTIMATE_METHODS, ESTIMATE_ROUNDINGS } from '@wbs/domain';
 
 import { callerGuard } from '../http/caller';
+import { handParsedBody } from '../http/elysia/hand-parsed-body';
 import { noContent, ok, respond, type Route, type RouteResponse, text } from '../http/route';
-import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { Project, ProjectPatch } from '../repository';
 // The two vocabularies as values, from `schema.ts` rather than from
 // `../repository`, which is type-only on purpose — the same path

@@ -12,7 +12,7 @@
  * What deliberately is **not** here: body validation, and any notion of a
  * plugin. Ten routes in this app parse their bodies by hand because Elysia
  * strips unknown properties before a guard can refuse them
- * (`openapi/hand-parsed-body.ts` says why at length), so a validation hook in
+ * (`http/elysia/hand-parsed-body.ts` says why at length), so a validation hook in
  * the route type would advertise a seam those routes cannot take. A route that
  * wants a schema declares it in {@link Route.documentation}, which is carried
  * to whichever binder can publish it and ignored by the ones that cannot.

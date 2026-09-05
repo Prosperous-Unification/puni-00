@@ -10,8 +10,8 @@ import {
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 
 import { callerGuard } from '../http/caller';
+import { handParsedBody } from '../http/elysia/hand-parsed-body';
 import { ok, respond, type Route, type RouteHandler, type RouteResponse } from '../http/route';
-import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import {
   PLAN_COMMAND_KINDS,
