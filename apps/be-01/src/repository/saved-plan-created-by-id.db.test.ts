@@ -10,6 +10,13 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/**
+ * The newest: `calendar_marker`, one table and one index added whole. It heads
+ * every descending reversal list in this file because it was applied last, and
+ * it takes nothing with it. Its own cases live in
+ * `calendar-marker-migration.db.test.ts`.
+ */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 
 let dir: string;
@@ -103,7 +110,7 @@ describe('saved_plan.created_by_id', () => {
     };
     expect(nullable()).toBe(0);
 
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CREATED_BY_ID]);
+    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CALENDAR_MARKER, CREATED_BY_ID]);
 
     // The precondition for the line above meaning anything: the table is still
     // there, so `not.toContain` is a statement about the column and not about a
@@ -184,7 +191,7 @@ describe('saved_plan.created_by_id', () => {
    * way to produce a row that genuinely predates the column.
    */
   it('leaves a row written before the column reading null', () => {
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CREATED_BY_ID]);
+    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CALENDAR_MARKER, CREATED_BY_ID]);
 
     const before = openDatabase(path);
     try {

@@ -12,6 +12,13 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 /** Reversed ahead of {@link SAVED_PLAN}: it adds a column to the table below. */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/**
+ * The newest: `calendar_marker`, one table and one index added whole. It heads
+ * every descending reversal list in this file because it was applied last, and
+ * it takes nothing with it. Its own cases live in
+ * `calendar-marker-migration.db.test.ts`.
+ */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 let dir: string;
@@ -92,7 +99,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
-    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([CREATED_BY_ID, SAVED_PLAN]);
+    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([CALENDAR_MARKER, CREATED_BY_ID, SAVED_PLAN]);
 
     // The precondition for the two lines above meaning anything: `toContain` on
     // an empty list already fails, so these say the rollback emptied them.
