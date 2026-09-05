@@ -251,32 +251,121 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toMatchObject([{ date: '2099-12-31', name: 'The far side' }]);
   });
 
-  /**
-   * The write gate exists, proved on the one verb that would otherwise leave a
-   * row behind.
-   *
-   * **Task 4.2 still owes the other three mutations and the negative** — a
-   * permission check removed from the create path, watched failing here. This
-   * case is not that slice; it is the assertion that keeps `canEdit` from
-   * shipping in this chunk as code nothing executes.
-   */
-  it('refuses a create from a non-owner of a restricted project, and writes nothing', async () => {
-    expect(
-      (
-        await as(tokens['owner'], `/api/projects/${projectId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ restricted: true }),
-        })
-      ).status,
-    ).toBe(200);
+  /** Closes the project to everyone but its owner, through the route that owns that column. */
+  const restrict = async () => {
+    const res = await as(tokens['owner'], `/api/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+    expect(res.status).toBe(200);
+  };
 
-    const refused = await create('mallory', {
-      id: 'd1000000-0000-4000-8000-000000000004',
-      date: '2026-09-14',
+  /** The one marker every case below refuses a change to. */
+  const SEEDED = 'd1000000-0000-4000-8000-000000000004';
+
+  /**
+   * Task 4.2: every mutation refused for a read-only actor, and no row written.
+   *
+   * All four, not just the create. A permission test that only checks the happy
+   * path is not a permission test, and one that only checks the create is a
+   * permission test of one quarter of the surface — rename and recolour reach
+   * the server through **one** `PATCH` but take body-specific branches inside
+   * it, and the delete is a separate route with a separate handler.
+   *
+   * `mallory` is read-only in the only sense this API has one: the project is
+   * restricted and she does not own it, so `canEdit` is false for her and true
+   * for `owner`.
+   *
+   * Negative: the `canEdit` gate removed from `CalendarMarkerService.create`'s
+   * path. Watched failing on the create case with `201` where `403` was owed
+   * and the marker count going to 2, while the three cases below stayed green
+   * — which is what shows the four arms are four checks and not one. Watched
+   * 2026-09-05.
+   */
+  it('refuses all four mutations for a read-only actor, and writes nothing', async () => {
+    expect(
+      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+    ).toBe(201);
+    await restrict();
+    const before = await list('owner');
+
+    const created = await create('mallory', {
+      id: 'e1000000-0000-4000-8000-000000000005',
+      date: '2026-09-15',
       name: 'Not mine to add',
     });
-    expect(refused.status).toBe(403);
-    expect(((await refused.json()) as { error: string }).error).toBe('forbidden');
-    expect(await list('owner')).toEqual([]);
+    expect(created.status).toBe(403);
+    expect(((await created.json()) as { error: string }).error).toBe('forbidden');
+
+    const renamed = await patch('mallory', SEEDED, { name: 'Not mine to rename' });
+    expect(renamed.status).toBe(403);
+
+    const recoloured = await patch('mallory', SEEDED, { color: '#4c3a86' });
+    expect(recoloured.status).toBe(403);
+
+    const removed = await as(
+      tokens['mallory'],
+      `/api/projects/${projectId}/calendar-markers/${SEEDED}`,
+      { method: 'DELETE' },
+    );
+    expect(removed.status).toBe(403);
+
+    // Read back through the owner, because `mallory` may still *read* a
+    // restricted project — the assertion is about the rows, not about her.
+    expect(await list('owner')).toEqual(before);
   });
+
+  /**
+   * Task 4.3: a `date` that is not an `IsoDate` is refused with a typed 422 and
+   * is never coerced.
+   *
+   * `2026-09-17T00:00:00Z` is the case that matters and the reason the
+   * validator is not a truthiness check: it is a perfectly good **instant**,
+   * and an instant silently sliced to a date is how a clicked day becomes its
+   * UTC neighbour. `2026-9-17` is the unpadded shape and `not-a-date` is the
+   * bare mistake.
+   *
+   * **One `it` per date rather than a loop**, so the negative below names which
+   * rows it reddens rather than stopping at whichever the loop reached first.
+   *
+   * Negative: `isIsoDate(body.date)` replaced with `body.date` — a truthiness
+   * check. Watched reddening **all three**, the timestamp row among them, each
+   * with `201` where `422` was owed and a row written; every other case in the
+   * file stayed green. The timestamp is the row the spec names because it is
+   * the one a *plausible* lax validator lets through: it is a perfectly good
+   * instant, and the other two are not strings any check would mistake for a
+   * date. Watched 2026-09-05.
+   */
+  for (const date of ['2026-9-17', '2026-09-17T00:00:00Z', 'not-a-date']) {
+    it(`refuses the date ${date}, naming the field, and writes nothing`, async () => {
+      const refused = await create('owner', {
+        id: 'e1000000-0000-4000-8000-000000000005',
+        date,
+        name: 'Site visit',
+      });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error: 'malformed', field: 'date' });
+      expect(await list('owner')).toEqual([]);
+    });
+  }
+
+  /**
+   * Task 4.6a: a client-supplied `id` must be a UUID v4.
+   *
+   * `marker-1` is the bare mistake; the v1-shaped UUID is the one a
+   * non-empty-string check cannot tell from a v4, and it is why the version and
+   * variant nibbles are pinned rather than the length.
+   *
+   * Negative: `UUID_V4.test(body.id)` replaced with `body.id.length > 0`.
+   * Watched reddening **both** rows, `marker-1` among them, each letting the
+   * create through with `201` and a row written. Watched 2026-09-05.
+   */
+  for (const id of ['marker-1', 'd9428888-122b-11e1-b85c-61cd3cbb3210']) {
+    it(`refuses the id ${id}, naming the field, and writes nothing`, async () => {
+      const refused = await create('owner', { id, date: '2026-09-14', name: 'Site visit' });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error: 'malformed', field: 'id' });
+      expect(await list('owner')).toEqual([]);
+    });
+  }
 });

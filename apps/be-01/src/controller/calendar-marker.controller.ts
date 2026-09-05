@@ -1,3 +1,4 @@
+import { isIsoDate } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
@@ -50,6 +51,51 @@ const patchBody = () =>
 const statusFor = (reason: CalendarMarkerRefusal): number => statusForRefusal(reason, 422);
 
 /**
+ * A v4 UUID and nothing else (task 4.6a).
+ *
+ * The version nibble and the variant nibble are both pinned, because a v1 UUID
+ * is the same length and the same alphabet — a shape check that only counted
+ * hex digits and hyphens would accept one, and a v1 carries a MAC address and a
+ * timestamp that a marker id has no business publishing.
+ *
+ * **This does not make the marker and work-item id spaces disjoint**, and
+ * nothing does: task 4.4 lets a client name its own id, so it can name one a
+ * `work_item` row already uses. What forbids a marker reaching work-item code
+ * is route-family disjointness (task 4.6), not the shape of the id.
+ */
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** One row of the spec's refusal table: the code it answers with, and the field it blames. */
+interface BodyProblem {
+  reason: 'malformed';
+  field: 'id' | 'date';
+}
+
+/**
+ * What is wrong with a create body, or `null`.
+ *
+ * A **typed 4xx, never a throw.** An inbound body is untrusted data at the
+ * boundary, which is the modelled path this repo's Elysia rule names; R5's
+ * "malformed trusted data throws" governs data already inside the trust
+ * boundary and does not reach here. Answering a client's malformed date with a
+ * 500 blames the server for the client's mistake.
+ *
+ * Checked before the service is called at all, so a refused body writes
+ * nothing — "refused" and "unchanged" are two claims, and the second is the one
+ * a validate-after-write breaks.
+ */
+function createProblem(body: { id?: string; date: string }): BodyProblem | null {
+  if (body.id !== undefined && !UUID_V4.test(body.id)) return { reason: 'malformed', field: 'id' };
+  // `isIsoDate` rather than a regexp of this file's own: it rejects
+  // `2026-02-31`, which matches the shape and is not a day, and it is what
+  // `projectService.patch` already answers `startDate` against. A second
+  // spelling would be a second rule free to disagree with the one the rest of
+  // the API applies.
+  if (!isIsoDate(body.date)) return { reason: 'malformed', field: 'date' };
+  return null;
+}
+
+/**
  * A project's calendar markers.
  *
  * Its own controller rather than more routes on `projectController`, for
@@ -83,6 +129,11 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
     .post(
       '/:id/calendar-markers',
       async ({ params, body, user, set }) => {
+        const problem = createProblem(body);
+        if (problem !== null) {
+          set.status = 422;
+          return { error: problem.reason, field: problem.field };
+        }
         const outcome = await markers.create(params.id, user.id, body);
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
