@@ -507,7 +507,7 @@ Both `schedule_optimized` and `schedule_optimization_failed` SHALL carry `budget
 
 ### Requirement: The canonical slice order is stable across reads and processes
 
-Canonicalization SHALL group slices by work item, order the groups by work-item id, and preserve each group's own order as given, because only the intra-item order carries step precedence. `WorkItemRepo.listByProject` SHALL order work items by id, so the argument tuple handed to Fast does not vary between reads of an unchanged project.
+Canonicalization SHALL group slices by work item, order the groups by work-item id, and preserve each group's own order as given, because only the intra-item order carries step precedence. Canonicalization alone SHALL be what makes the hash stable: `WorkItemRepo.listByProject` SHALL NOT acquire an `ORDER BY` in this change, and the scenario below SHALL hold over whatever row order SQL returns. An ordered read is a separate change with its own response-order contract and index — **TASK-260** — because adding one here would move the dates of an existing project whose siblings share a position and a one-slot team, which this change is not entitled to do.
 
 #### Scenario: an unchanged project hashes identically across adapter reads
 
