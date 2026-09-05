@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import { callerGuard } from './caller';
 import { bindElysia } from './elysia/bind';
+import { COMPARE_QUERY } from './elysia/query-schemas';
 import { bindInProcess } from './in-process/bind';
 import { noContent, ok, respond, type Route, text } from './route';
 
@@ -19,9 +20,10 @@ import { noContent, ok, respond, type Route, text } from './route';
  *
  * What this suite does **not** claim: that the two binders agree on everything.
  * They deliberately differ where the framework owns the answer — Elysia's own
- * 404 body, its malformed-JSON refusal, plugin-level headers. Every clause
- * below is a property a *route module* is entitled to rely on, which is exactly
- * the set a second HTTP framework would have to reproduce.
+ * 404 body, its malformed-JSON refusal, plugin-level headers, and the body of a
+ * refusal produced by a `documentation.query` schema. Every clause below is a
+ * property a *route module* is entitled to rely on, which is exactly the set a
+ * second HTTP framework would have to reproduce.
  */
 
 type Binder = (routes: readonly Route[]) => { handle: (request: Request) => Promise<Response> };
@@ -102,6 +104,23 @@ function routes(auth: AuthService): Route[] {
       path: '/probe/markdown',
       handler: () =>
         Promise.resolve(text(200, '# Title\n\n| a | b |\n', 'text/markdown; charset=utf-8')),
+    },
+    /**
+     * The compare route's shape, reduced to what makes it interesting: the one
+     * `documentation.query` schema in this app that *refuses*, plus the
+     * handler's own check of the same two parameters. The real schema is
+     * imported rather than restated so this clause measures what the app ships.
+     */
+    {
+      method: 'GET',
+      path: '/probe/sides',
+      handler: ({ query }) =>
+        Promise.resolve(
+          query['left'] && query['right']
+            ? ok({ left: query['left'], right: query['right'] })
+            : respond(422, { error: 'invalid_query' }),
+        ),
+      documentation: { query: COMPARE_QUERY },
     },
     {
       method: 'GET',
@@ -264,5 +283,37 @@ describe.each(BINDERS)('route contract under the %s binder', (_name, bind) => {
   it('still refuses a doubled slash where a parameter belongs', async () => {
     const res = await get('/probe/echo//');
     expect(res.status).toBe(404);
+  });
+
+  /**
+   * The second divergence this branch found, and the decision about it: a query
+   * schema's refusal agrees on **status** and is not asserted to agree on body.
+   *
+   * `COMPARE_QUERY` declares `left` and `right` required, and only `bindElysia`
+   * enforces it — under that binder the framework refuses before the handler
+   * runs, under any other the handler's own check does. Both answer 422; the
+   * bodies differ, because one is the framework's validation report and the
+   * other is `{ error: 'invalid_query' }`. That is the same category as Elysia's
+   * 404 body and its malformed-JSON refusal, which this suite already excludes:
+   * the *status* is what a route module is entitled to, and it is what a second
+   * framework would have to reproduce. Asserting the body here would either
+   * pin one binder's private format as the contract or force the schema to stop
+   * declaring the two parameters required — and the schema is what keeps them in
+   * the published document, so weakening it would make the API description lie.
+   * {@link COMPARE_QUERY} carries the long form of that argument.
+   *
+   * The clause is still load-bearing in both directions: it fails if either
+   * binder stops refusing, and it fails if either one refuses with a different
+   * status than the other.
+   */
+  it('refuses an absent required query parameter with 422 under either binder', async () => {
+    const res = await get('/probe/sides?left=only-one');
+    expect(res.status).toBe(422);
+  });
+
+  it('lets a request satisfying the query schema through to the handler', async () => {
+    const res = await get('/probe/sides?left=a&right=b');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ left: 'a', right: 'b' });
   });
 });

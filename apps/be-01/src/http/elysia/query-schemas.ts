@@ -40,10 +40,34 @@ import { t } from 'elysia';
  * and the handler's check never runs — deleting it left the suite at 29 pass /
  * 0 fail, which is how that was established rather than assumed — and under any
  * binder that ignores this schema it is the only thing between an absent `left`
- * and a lookup for a saved plan whose id is `undefined`. The two answer the same
- * 422 with different bodies. That divergence is real, it is the same class as
- * the trailing slash the branch already owes a decision on, and it is written
- * down here rather than closed by keeping only one of the two.
+ * and a lookup for a saved plan whose id is `undefined`.
+ *
+ * **The divergence, and the decision.** Both binders were probed at this head
+ * rather than reasoned about, and both answer **422**: Elysia with its
+ * validation report — `{ type: 'validation', on: 'query', property: '/right',
+ * message: 'Expected string', expected, found, errors }` — and any other binder
+ * with the handler's `{ error: 'invalid_query' }`. The status agrees; the bodies
+ * do not.
+ * Unlike the trailing slash — which was a genuine disagreement about *whether a
+ * route matches*, and was closed by normalising `matchPath` — this one is
+ * settled by naming which binder owns which part of the answer. **The status is
+ * the route module's and both binders give it; the body of a schema refusal is
+ * the framework's.** `binder.contract.test.ts` asserts exactly that: 422 under
+ * either binder, body not asserted, in the same excluded category as Elysia's
+ * own 404 body and its malformed-JSON refusal.
+ *
+ * The two alternatives were weighed and rejected:
+ *
+ * - *Make the properties optional so only the hand check refuses.* One body
+ *   under both binders, but Elysia derives an OpenAPI parameter's `required`
+ *   from the TypeBox property, so the document would then describe two required
+ *   parameters as optional. That trades a divergence for a description that
+ *   lies, which is the same failure the hand-written `detail.parameters` attempt
+ *   above produced.
+ * - *Assert the divergence itself in the contract suite.* Chunk 8 rejected this
+ *   shape for the trailing slash: a contract recording that the app answers
+ *   differently depending on which binder is mounted is a record of a bug, not a
+ *   contract. Asserting a status both binders genuinely share is not that.
  */
 export const COMPARE_QUERY = t.Object({
   left: t.String({ minLength: 1 }),
