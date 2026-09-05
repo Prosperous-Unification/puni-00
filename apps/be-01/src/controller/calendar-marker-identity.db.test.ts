@@ -91,6 +91,26 @@ describe('the schedule identity guarantee', () => {
   let dir: string;
   let app: ReturnType<typeof buildApp>;
 
+  /**
+   * Every SQL statement the app's one connection has issued, in order — the
+   * oracle 5.1a(c) is asserted against.
+   *
+   * `logQuery` is drizzle's own hook, and it is on for **every** case in this
+   * file rather than for the one case that reads it. A second app built only
+   * for the reach case would be a second wiring, and the assertion has to watch
+   * the very connection 5.1's captures are taken through, not a copy of it.
+   *
+   * A **runtime** reach rather than a source scan, and that is round-5 Sol's
+   * Critical 1: (a) and (b) leave a hole a source scan cannot close. The six
+   * arguments are not built in `schedule.ts`, they are built in
+   * `WorkItemService.tree()`, so marker-derived data can be folded into
+   * `notBefore`, `slices` or `slotsOf` while the call site still passes six
+   * arguments and `schedule.ts` still names no marker — (a) and (b) both stay
+   * green. A scan of one file is bounded by that file; a SQL log is transitive
+   * and holds however many helpers the fold is hidden behind.
+   */
+  const statements: string[] = [];
+
   const as = (path: string, token: string, init: { method?: string; body?: string } = {}) =>
     app.handle(
       new Request(`http://localhost${path}`, {
@@ -103,7 +123,12 @@ describe('the schedule identity guarantee', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-marker-identity-'));
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
-    const db = openDrizzle(dbPath);
+    statements.length = 0;
+    const db = openDrizzle(dbPath, {
+      logQuery(query) {
+        statements.push(query);
+      },
+    });
     const broadcast = recordingBroadcaster();
 
     const projects = new ProjectRepository(db);
@@ -238,8 +263,8 @@ describe('the schedule identity guarantee', () => {
    *
    * Two equal captures cannot prove a path is absent — a fold that is a no-op
    * on this fixture passes 5.1 — so these two read the source directly. (c),
-   * the runtime SQL reach that closes the hole these two leave open, needs a
-   * `calendar_marker` read plumbed into `tree()` and is the next chunk's.
+   * the runtime SQL reach that closes the hole these two leave open, is the
+   * last case in this file.
    *
    * (a) is a **six-argument** assertion, not a substring match on the call: the
    * fault it exists for is an argument threaded through the adapter, and a
@@ -271,6 +296,28 @@ describe('the schedule identity guarantee', () => {
     expect(engine).not.toContain('Marker');
   });
 
+  /**
+   * **Task 5.1, and its negative is 5.1a(iii)'s injection** — which is the
+   * resolution of the correction run 8 recorded against this slice.
+   *
+   * 5.1 as written asks for "a floor derived from a marker's date" folded into
+   * `notBefore`. Watched, a floor whose value is a marker date but whose
+   * presence does not depend on a marker existing leaves this case green:
+   * both captures are taken through the same code, so the whole projection
+   * moves by the same amount twice and the equality still holds. This test
+   * compares two captures to each other, never to a stored expectation, so
+   * only a fold that is **absent in the first capture and present in the
+   * second** can fail it — and that means a fold conditioned on a real
+   * `calendar_marker` read, which is exactly 5.1a(iii). Watched failing here on
+   * `latestStart` 0 → 2 for the seeded `Sand` row, alongside 5.1a(c), then
+   * removed; 2026-09-05.
+   *
+   * 5.1a(iv) fails this case too, and on a different field: it moves
+   * `teamCapacities` and no schedule field at all. That is the whole-body
+   * comparison earning its keep — every enumerated field list rounds 3 and 4
+   * proposed was a list of *schedule* fields, and (iv)'s fold would have walked
+   * through all of them.
+   */
   it('five markers move nothing in the whole work-items projection', async () => {
     const token = await register('owner');
     const projectId = await seed(token);
@@ -300,5 +347,55 @@ describe('the schedule identity guarantee', () => {
     const after = await projection(token, projectId);
 
     expect(after).toEqual(before);
+  });
+
+  /**
+   * **The scheduler seam is free of markers, at the inputs** — task 5.1a(c),
+   * the runtime half, and the one that closes the hole (a) and (b) leave open.
+   *
+   * The oracle is the SQL log, not the payload: the case above compares two
+   * captures, and two equal captures cannot prove a path is absent, because a
+   * fold that happens to be a no-op on this fixture passes it. This one asserts
+   * the read never happened at all.
+   *
+   * The plan's own table is asserted **present** before the marker table is
+   * asserted absent. Without that half, an app that answered nothing — a broken
+   * route, an empty project, a connection this file is not watching — would
+   * pass an assertion whose whole content is "the log named no marker".
+   *
+   * `Proof:` both injections read the table through `WorkItemRepository` — the
+   * one repository `tree()` already holds — and both were caught by the same
+   * logged statement,
+   * `select "date" from "calendar_marker" where "calendar_marker"."project_id" = ?`.
+   * (iii) is the **ordering** input: the latest marker date written as a
+   * `notBefore` floor on the seeded `Sand` row, which moved its `latestStart`
+   * 0 → 2. (iv) is the **resource** input: the same read folded into `slotsOf`
+   * as a `marker-pool` entry *before* `slicesOf` is called, which moved
+   * `teamCapacities` and no schedule field at all. Sol's round-5 objection
+   * names both paths, and one alone leaves the other unproven — that is why
+   * two injections and not one. Each ran 1 pass / 2 fail with the case above,
+   * baseline 3 / 0 restored after both; watched 2026-09-05.
+   */
+  it('reads no calendar_marker row while answering the work-items projection', async () => {
+    const token = await register('owner');
+    const projectId = await seed(token);
+
+    for (const [index, date] of MARKER_DATES.entries()) {
+      const res = await as(`/api/projects/${projectId}/calendar-markers`, token, {
+        method: 'POST',
+        body: JSON.stringify({ name: `Marker ${String(index)}`, date }),
+      });
+      expect(res.status).toBe(201);
+    }
+
+    // Cleared here and not in `beforeEach` alone: the five creates above wrote
+    // to `calendar_marker` by design, so what the log holds at the assertion
+    // has to be exactly what the projection read issued and nothing earlier.
+    statements.length = 0;
+    const body = await projection(token, projectId);
+    expect((body['workItems'] as unknown[]).length).toBe(2);
+
+    expect(statements.some((each) => each.includes('work_item'))).toBe(true);
+    expect(statements.filter((each) => each.includes('calendar_marker'))).toEqual([]);
   });
 });

@@ -576,7 +576,7 @@ in both slices rather than implied by position.
 
 ## 5. The schedule identity guarantee
 
-- [ ] 5.1 The canonical schedule projection is identical with and without
+- [x] 5.1 The canonical schedule projection is identical with and without
       markers —
       test: `apps/be-01/src/controller/calendar-marker-identity.db.test.ts`.
       Capture the schedule for a seeded project, create five markers on dates
@@ -654,7 +654,19 @@ in both slices rather than implied by position.
       `optimized ?? schedule(...)` over the same six arguments 5.1a(a) names, so
       that check stands as written once its line number is corrected.
       `notBefore` is built at `:1484-1489`.
-- [ ] 5.1a The scheduler seam is free of markers **at the seam and at the
+      **DONE 2026-09-05 (run 9, chunk 17), and its negative is 5.1a(iii)'s
+      injection** — which is how run 8's correction resolves. Only a fold that
+      is **absent in the first capture and present in the second** can fail a
+      test that compares two captures to each other, so the injection had to be
+      conditioned on a real `calendar_marker` read; that is exactly (iii), and
+      spending it here is what the correction directed. Watched failing on
+      `latestStart` 0 → 2 for the seeded `Sand` row. **5.1a(iv) fails this case
+      too, and on a different field**: it moves `teamCapacities` and no
+      schedule field at all — which is the whole-body comparison earning its
+      keep, because every enumerated field list rounds 3 and 4 proposed was a
+      list of _schedule_ fields and (iv)'s fold walks straight through all of
+      them. `seq` stays **inside** the comparison, unchanged from chunk 14.
+- [x] 5.1a The scheduler seam is free of markers **at the seam and at the
       inputs** — test: same file, three assertions, because two equal captures
       cannot prove a path is absent (a path that is a no-op on the fixture
       passes) and a source scan of the engine cannot either.
@@ -718,6 +730,25 @@ in both slices rather than implied by position.
       `libs/domain/src/schedule.ts` with a dead local referencing it fails
       (a)+(b)'s case alone while 5.1 stays green. Baseline 2 / 0, restored
       after both.
+      **(c), (iii) AND (iv) DONE 2026-09-05 (run 9, chunk 17), which closes
+      5.1a and section 5's identity half.** (c) drives
+      `GET /api/projects/:id/work-items` against a project with five markers
+      through the app's **own** connection, opened with drizzle's `logQuery`
+      for every case in the file rather than for a second app beside it, and
+      asserts no logged statement names `calendar_marker`. `work_item` is
+      asserted **present** in the log first: without that half the assertion's
+      whole content is "the log named no marker", which a broken route
+      answering nothing passes.
+      Both injections reach the table through `WorkItemRepository` — the one
+      repository `tree()` already holds, so no plumbing had to be invented for
+      them — and **both were caught by the same logged statement**,
+      `select "date" from "calendar_marker" where "calendar_marker"."project_id" = ?`.
+      (iii) is the **ordering** input, a `notBefore` floor on the seeded `Sand`
+      row derived from the latest marker date; (iv) is the **resource** input,
+      a `marker-pool` entry folded into `slotsOf` before `slicesOf` is called.
+      Each ran **1 pass / 2 fail** — (c) red, 5.1 red, (a)+(b) green throughout,
+      which is the isolation this slice's fourth negative asks for and the one
+      (i) could not deliver. Baseline 3 / 0 restored after both.
 - [x] 5.2 Markers stay out of a saved plan — test:
       `apps/be-01/src/repository/saved-plan-capture.db.test.ts`, a new case:
       capture a project with markers and a copy with none, assert the
