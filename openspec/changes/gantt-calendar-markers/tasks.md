@@ -348,7 +348,7 @@ in both slices rather than implied by position.
 
 ## 4. The API
 
-- [ ] 4.1 `apps/be-01/src/controller/calendar-marker.controller.ts` — list,
+- [x] 4.1 `apps/be-01/src/controller/calendar-marker.controller.ts` — list,
       create, rename, recolour, delete, scoped to one project — test:
       `apps/be-01/src/controller/calendar-marker.controller.db.test.ts`, the
       five verbs round-tripped, list ordered by **`(date, created_at, id)`**,
@@ -1926,3 +1926,77 @@ chunk 1's trap.
 `calendar-marker.controller.db.test.ts`. 4.2 (write permission) and 4.5 (the
 eight-row refusal table) fall out of the same file, and 3.4's two server faults
 need the create and recolour handlers to exist before either can be removed.
+
+## Implementation notes — chunk 7 (TASK-235 run 4, 2026-09-05)
+
+**Slice 4.1's HTTP half, and 4.1 is now checked.** `77ee990a` on
+`change/gantt-calendar-markers-impl`, PR 209. Four new files —
+`service/calendar-marker.service.ts`, `controller/calendar-marker.controller.ts`,
+`testing/calendar-marker-fixture.ts` and
+`controller/calendar-marker.controller.db.test.ts` — plus the wiring and a
+regenerated `apps/be-01/openapi.json`.
+
+**A service seam, not a controller talking to the store.** The previous chunk's
+note left it open. It is there because the *permission* decision needs the
+project row and the store deliberately knows nothing about projects: putting
+`canEdit` in the controller would have made the gate a property of four call
+sites remembering it, which is the exact shape `CalendarMarkerRepository`'s own
+`WHERE`-clause scoping exists to refuse one layer down.
+
+**Reading is not gated on write permission, and that is a decision rather than
+an omission.** `projectController` already lets a non-owner read a restricted
+project (`project.controller.test.ts`, "lets a non-owner read a restricted
+project"), and a marker is part of what the axis draws. `canEdit` gates the four
+writes only.
+
+**Rename and recolour narrow through two explicit arms.** The obvious spelling —
+a `renaming`/`recoloring` flag pair and a ternary — does not typecheck without
+`body.color as string | null`, and eslint's
+`non-nullable-type-assertion-style` refuses it. Two arms (`name !== undefined &&
+color === undefined`, then the mirror) narrow naturally, and a body naming
+**both** falls to the same 422 as a body naming neither: two writes the store
+applies one at a time is a partial apply the moment the second refuses.
+
+**`calendarMarkers` is required in `AppOptions`,** for `history`'s stated reason.
+That cost 17 call sites one line and one import each — the whole of the
+69-line modified half of this diff. An optional service would have let a
+process answer 404 on every marker route, which a client cannot tell from a
+project that has no markers.
+
+**THE NEGATIVE, WATCHED THROUGH THE ROUTES.** `asc(calendarMarker.id)` struck
+from `CalendarMarkerRepository.listFor`'s `orderBy`, against real SQLite:
+3 pass / 1 fail, failing on the **first** read
+(`calendar-marker.controller.db.test.ts:232`) with
+`Expected ["b1000000-…-000000000001", "f1000000-…-000000000002"]` and
+`Received ["f1000000-…-000000000002", "b1000000-…-000000000001"]` — insertion
+order exactly, which is the flakiness the third key exists to remove and which
+an equality-of-two-reads assertion would have passed straight through. Restored:
+4 pass / 0 fail. Watched 2026-09-05.
+
+**3.1(b) and 3.1(c) are NOT duplicated here.** Chunk 5 housed them in
+`repository/calendar-marker-repository.db.test.ts`, which is where a marker is
+really renamed and where two really share a date. 4.1's paragraph asks for them
+in this file; one home is the requirement and two would be two oracles free to
+disagree.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first):
+`test` over be-01 and domain rc 0 — be-01 **1534 pass / 0 fail across 126
+files** against chunk 5's measured 1530 / 125 baseline, exactly the four new
+cases and no regression; domain 506 / 0 unchanged. `lint` over be-01 and domain
+rc 0. `format:check --all` rc 0. `be-01:typecheck` rc 0 — **on its own**: run
+concurrently with `lint` it was `Killed`, with `free -m` showing 2.4 GB
+available of 15.6 GB while other lanes gated. That is the OOM class that killed
+`fe-01:typecheck` in run 2 and `fe-01:lint` for lane a, one project further in.
+Lint's first pass found 19 real errors — 17 import-sort (the option lines were
+inserted by script, before the anchor import rather than in sorted position) and
+the assertion above; `--fix` plus `format:write` cleared them.
+
+**`apps/be-01/openapi.json` is regenerated, not hand-edited** —
+`bun apps/be-01/src/openapi/emit-openapi-cli.ts` on h2puni, +232 lines, the two
+new paths at `/api/projects/{id}/calendar-markers` and
+`…/{markerId}`. `openapi-document.test.ts` diffs the committed document against
+the app, so a route added without this is a red with a confusing name.
+
+**Next chunk:** 4.2 (the other three mutations plus the removed-check negative),
+4.3 (`IsoDate`, typed 422) and 4.6a (UUID v4) — all in the same file, all
+validation the create and patch handlers do not do yet. 4.4, 4.5 and 4.6 follow.
