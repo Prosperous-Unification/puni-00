@@ -25,19 +25,19 @@ is what the rest is allowed to assume.
 
 ## 1. The decision on record
 
-- [ ] 1.1 ADR under `docs/adr/` for **refusing the marker click on an undated
+- [x] 1.1 ADR under `docs/adr/` for **refusing the marker click on an undated
       plan**, carrying the three-option table from `design.md` §1 (hide /
       synthesise a date / refuse with a reason) and the chosen option. Link it
       from the JSDoc on the refusal branch; do not copy its rationale into the
       code comment — R3. No test: an ADR is a document, and a slice that
       claimed a test for it would be the vacuous shape R5 exists to stop.
-- [ ] 1.2 `CONTEXT.md`: add **calendar marker** — "a named annotation on an
+- [x] 1.2 `CONTEXT.md`: add **calendar marker** — "a named annotation on an
       absolute calendar date, scoped to one project; not a work item and not
       visible to the scheduler". Glossary terms only, no design detail.
 
 ## 2. The table and the migration
 
-- [ ] 2.1 `calendar_marker` in `apps/be-01/src/repository/schema.ts` with the
+- [x] 2.1 `calendar_marker` in `apps/be-01/src/repository/schema.ts` with the
       columns in `design.md` §5, `project_id` cascading on project delete, and
       the `(project_id, date)` index — test:
       `apps/be-01/src/repository/calendar-marker.db.test.ts`, a round-trip, a
@@ -50,7 +50,7 @@ is what the rest is allowed to assume.
       (round-5 Sol review, Important 6). "Deliberately not
       unique" is the one property of this table nothing else in the change can
       observe, and a round-trip test passes with the uniqueness in place.
-- [ ] 2.2 The forward migration, stamped later than
+- [x] 2.2 The forward migration, stamped later than
       `20260904020000_add_saved_plan_created_by_id` — test: the existing
       migration suite plus a case in
       `apps/be-01/src/repository/calendar-marker-migration.db.test.ts` that
@@ -60,7 +60,7 @@ is what the rest is allowed to assume.
       exactly the 500 an outgoing blue/green release would answer with for the
       length of a swap, and the reason the cascade is there rather than for
       tidiness. `Proof:` comment naming the omitted clause.
-- [ ] 2.2a The migration ships its `down.sql` — `AGENTS.md` §Migrations:
+- [x] 2.2a The migration ships its `down.sql` — `AGENTS.md` §Migrations:
       "**Every migration ships a `down.sql` beside its `migration.sql`.** The
       migration lint fails without one, and `readMigrationFolders` refuses to
       run a rollback it cannot complete." Every existing folder under
@@ -75,7 +75,7 @@ is what the rest is allowed to assume.
       and is the failure the lint alone does not catch. The lint deliberately
       does not enforce additive-only on `down.sql`: reversing an additive
       change is destructive by definition, which is why it is a separate file.
-- [ ] 2.3 Stamp collision check — run `duplicateMigrationStamps` from
+- [x] 2.3 Stamp collision check — run `duplicateMigrationStamps` from
       `migrate-down.ts` over the folder set including the new one and assert it
       reports none. Negative: the new folder restamped to
       `20260904020000`, watched failing. A stamp that collides silently
@@ -1657,3 +1657,30 @@ in both slices rather than implied by position.
       in `verify.md`, with the failure-proof table: for every negative named
       above, the fault injected, the test that observed it failing, and the
       result. A check with no observed failure is not done.
+
+## Implementation notes — chunk 1 (TASK-235 run 1, 2026-09-05)
+
+Two things the plan said that the code did not.
+
+**`migrate-down-cli.ts --to=<migration>` does not exist.** Slice 2.2a named it
+for the rollback case. `apps/be-01/src/repository/migrate-down.ts` exports
+`rollbackTo(dbPath, migrationsFolder, target)` and there is no CLI beside it, so
+the case calls the function. `readMigrationFolders` is also the migration lint
+the slice refers to — a missing or empty `down.sql` throws there, which is what
+makes both halves of 2.2a's negative reachable from one test file.
+
+**A bare `DELETE FROM project` does not succeed on main either.** Slice 2.2's
+cascade case was first written seeding a starting step, and it failed with
+`FOREIGN KEY constraint failed` before this change existed: `step`, `work_item`,
+`dependency` and `project_access` all reference `project` with **no** `ON DELETE`
+action at all (`schema.ts:244,277,498,1639`). The outgoing release deletes those
+itself; what it cannot delete is a table it has never heard of. The case now
+seeds a bare project, so the only reference between the delete and success is
+this migration's — and the mutation reproduces exactly that red.
+
+**A new migration folder is not a local change.** Fifteen reversal-list
+assertions in `migrate.db.test.ts` and four more files (`migrate-down`,
+`identity-migration`, `saved-plan-migration`, `saved-plan-created-by-id`,
+`project`) assert the applied set newest-first as an exact array. The four-file
+run was green while the whole-directory run was 81 red; a later slice adding a
+migration owes the same sweep.
