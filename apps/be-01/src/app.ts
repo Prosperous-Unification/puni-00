@@ -7,15 +7,16 @@ import {
   hasInvalidCookieOrigin,
   type OidcRouteOptions,
 } from './controller/auth.controller';
-import { directoryController } from './controller/directory.controller';
+import { directoryRoutes } from './controller/directory.routes';
 import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
 import { savedPlanController } from './controller/saved-plan.controller';
 import { smokeController } from './controller/smoke.controller';
-import { solutionController } from './controller/solution.controller';
+import { solutionRoutes } from './controller/solution.routes';
 import { stepController } from './controller/step.controller';
 import { workItemController } from './controller/work-item.controller';
+import { bindElysia } from './http/elysia/bind';
 import { userFromHeaders } from './middleware/authenticated';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
@@ -192,7 +193,7 @@ export function buildApp(opts: AppOptions) {
       })
       .use(smokeController)
       .use(authController(opts.auth, opts.oidc))
-      .use(solutionController(opts.auth, opts.projects))
+      .use(bindElysia(solutionRoutes(opts.auth, opts.projects)))
       .use(projectController(opts.auth, opts.projects, opts.workItems))
       // After `projectController`, whose `/api/projects` paths it extends: the
       // saved-plan collection is one segment longer than anything that
@@ -216,7 +217,7 @@ export function buildApp(opts: AppOptions) {
       )
       .use(stepController(opts.auth, opts.steps))
       .use(workItemController(opts.auth, opts.workItems, commands))
-      .use(directoryController(opts.auth, opts.directory))
+      .use(bindElysia(directoryRoutes(opts.auth, opts.directory)))
       // After `projectController`, whose prefix it shares: Elysia matches in
       // registration order, `/:id/history` cannot be shadowed by anything that
       // route declares, and adjacency is what makes that checkable at a glance.
