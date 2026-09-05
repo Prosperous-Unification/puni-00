@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { automaticColor, labelInk, parseHex } from '@wbs/domain/marker-color';
+import { automaticColor, labelInk, PALETTE, parseHex } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type { IsoDate } from '@wbs/domain/workday';
 import { useState } from 'react';
@@ -7150,6 +7150,10 @@ describe('the day sheet renames a listed marker', () => {
           void api.renameCalendarMarker('p1', markerId, name);
           setMarkers(api.markers.map((marker) => ({ ...marker })));
         }}
+        onRecolorMarker={(markerId, color) => {
+          void api.recolorCalendarMarker('p1', markerId, color);
+          setMarkers(api.markers.map((marker) => ({ ...marker })));
+        }}
       />
     );
   }
@@ -7211,5 +7215,98 @@ describe('the day sheet renames a listed marker', () => {
     // Back to a list, drawn from what the owner read back.
     expect(namesInSheet()).toEqual(['Go live']);
     expect(document.querySelector('[aria-label="New name for Cutover"]')).toBeNull();
+  });
+});
+
+describe('the day sheet recolours a listed marker', () => {
+  const AZURE = '#5d6afe';
+  const CUTOVER_DAY: IsoDate = '2026-08-19';
+
+  /** The panel with an owner over it — see the rename block for why. */
+  function OwnedMarkers({ api }: { api: ProjectApi & { markers: CalendarMarkerView[] } }) {
+    const [markers, setMarkers] = useState<readonly CalendarMarkerView[]>(() =>
+      api.markers.map((marker) => ({ ...marker })),
+    );
+    return (
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+        markers={markers}
+        onRecolorMarker={(markerId, color) => {
+          void api.recolorCalendarMarker('p1', markerId, color);
+          setMarkers(api.markers.map((marker) => ({ ...marker })));
+        }}
+      />
+    );
+  }
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  /** The chip beside the listed name, whose `background-color` is the fill. */
+  const chipOf = (markerId: string): HTMLElement => {
+    const chip = document.querySelector(`[data-marker-row="${markerId}"] span[aria-hidden]`);
+    if (!(chip instanceof HTMLElement)) throw new Error(`no chip on row ${markerId}`);
+    return chip;
+  };
+
+  itDom('sends the picked fill and draws what came back', () => {
+    // The last of the three actions 6.3 offers that nothing had ever invoked.
+    // Same three oracles as the rename: the recorded call, the fake's own
+    // store, and the chip drawn from what the owner read back — a handler that
+    // repainted optimistically and sent nothing passes on the chip alone.
+    const api = fakeProjectApi();
+    void api.createCalendarMarker('p1', {
+      markerId: 'm-cut',
+      date: CUTOVER_DAY,
+      name: 'Cutover',
+      color: AZURE,
+    });
+    const recolours = recordCalls(api, 'recolorCalendarMarker');
+    render(<OwnedMarkers api={api} />);
+
+    fireEvent.click(cellAt(9));
+    expect(document.querySelector('[data-marker-sheet]')).not.toBeNull();
+    // Azure to begin with, so the assertion below is a change rather than a
+    // colour that was already there.
+    expect(chipOf('m-cut').style.backgroundColor).toBe('rgb(93, 106, 254)');
+
+    const opener = screen.getByRole('button', { name: 'Recolour Cutover' });
+    // The palette is not standing open: a swatch reachable without this gesture
+    // would make the case pass against a `Recolour` button that does nothing.
+    expect(opener.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-marker-palette]')).toBeNull();
+    fireEvent.click(opener);
+    expect(opener.getAttribute('aria-expanded')).toBe('true');
+
+    // Every entry of the fixed palette is offered, named, and named per marker.
+    expect(
+      Array.from(document.querySelectorAll(`[data-marker-palette="m-cut"] button`), (swatch) =>
+        swatch.getAttribute('aria-label'),
+      ),
+    ).toEqual(PALETTE.map((entry) => `${entry.name} for Cutover`));
+
+    fireEvent.click(screen.getByRole('button', { name: 'teal for Cutover' }));
+
+    // One call, this marker, that entry's own fill — and no name with it: be-01
+    // refuses a PATCH body naming both (7.2a).
+    expect(recolours).toEqual([['p1', 'm-cut', '#0386a5']]);
+    expect(api.markers.map((marker) => marker.color)).toEqual(['#0386a5']);
+    expect(chipOf('m-cut').style.backgroundColor).toBe('rgb(3, 134, 165)');
+    // Picked, so the palette gives way rather than staying open over a choice
+    // already made.
+    expect(document.querySelector('[data-marker-palette]')).toBeNull();
   });
 });

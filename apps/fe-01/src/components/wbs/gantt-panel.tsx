@@ -1,5 +1,5 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
-import { automaticColor, labelInk } from '@wbs/domain/marker-color';
+import { automaticColor, labelInk, PALETTE } from '@wbs/domain/marker-color';
 import {
   addCalendarDays,
   addWorkdays,
@@ -2089,6 +2089,7 @@ export function GanttPanel({
   // render in this file that is about bars would otherwise have to hand over a
   // writer it never reaches.
   onRenameMarker = () => undefined,
+  onRecolorMarker = () => undefined,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
@@ -2121,6 +2122,7 @@ export function GanttPanel({
       registerSvgDownload={registerSvgDownload}
       markers={markers}
       onRenameMarker={onRenameMarker}
+      onRecolorMarker={onRecolorMarker}
     />
   );
 }
@@ -2288,6 +2290,21 @@ interface GanttProps {
    * carets and have no markers to rename.
    */
   onRenameMarker?: (markerId: string, name: string) => void;
+  /**
+   * A marker on this chart has been given a new fill.
+   *
+   * Reported upward for {@link GanttProps.onRenameMarker}'s reason, and a
+   * second callback beside it rather than one edit for the same one: be-01
+   * refuses a `PATCH` body naming both a name and a colour.
+   *
+   * `string` and not `string | null`, because this surface offers the eight
+   * {@link PALETTE} fills and nothing else — a marker cannot be handed back to
+   * the automatic colour from here yet. `recolorCalendarMarker` takes the
+   * `null`; the day the sheet grows an Automatic entry this widens to match it,
+   * and until then an arm nothing can reach would be a branch no test could
+   * fail.
+   */
+  onRecolorMarker?: (markerId: string, color: string) => void;
 }
 
 /**
@@ -2330,6 +2347,7 @@ function GanttChart({
   registerSvgDownload,
   markers,
   onRenameMarker,
+  onRecolorMarker,
 }: Omit<
   GanttProps,
   | 'scheduleError'
@@ -2339,6 +2357,7 @@ function GanttChart({
   | 'onPickLabelsShown'
   | 'markers'
   | 'onRenameMarker'
+  | 'onRecolorMarker'
 > & {
   dayPx: DayPx;
   onPickDayPx: (dayPx: DayPx) => void;
@@ -2347,6 +2366,7 @@ function GanttChart({
   registerSvgDownload: (download: (() => void) | null) => void;
   markers: readonly CalendarMarkerView[];
   onRenameMarker: (markerId: string, name: string) => void;
+  onRecolorMarker: (markerId: string, color: string) => void;
 }) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
@@ -2648,6 +2668,15 @@ function GanttChart({
    */
   const [draftName, setDraftName] = useState('');
   /**
+   * Which listed marker has its palette open, or `null` while none has.
+   *
+   * Separate from {@link renamingId} rather than one "open editor" union: the
+   * two are different questions about the same row, and a reader who opened the
+   * palette and then decided to rename should not have to close one to reach
+   * the other.
+   */
+  const [recoloringId, setRecoloringId] = useState<string | null>(null);
+  /**
    * A sheet that closes, or opens on another day, drops the draft with it.
    *
    * One effect rather than a `setRenamingId(null)` beside each of the four
@@ -2657,6 +2686,7 @@ function GanttChart({
    */
   useEffect(() => {
     setRenamingId(null);
+    setRecoloringId(null);
   }, [sheetAt]);
   /**
    * Escape closes the composer, which is the only way it closes at all.
@@ -4701,9 +4731,9 @@ function GanttChart({
         would read as helpful and make a second marker on that day unreachable,
         which is the conflict 6.3 exists to settle.
 
-        **Rename is wired; recolour and delete are still offered and inert** —
-        their handlers arrive with the rest of 6.3's second half, each proved by
-        the write it reports as well as by the DOM it repaints. The names are
+        **Rename and recolour are wired; delete is still offered and inert** —
+        its handler arrives with the rest of 6.3's second half, proved by the
+        write it reports as well as by the DOM it repaints. The names are
         per marker (`Rename Cutover`) rather than bare verbs, because a list of
         rows announcing three identical buttons apiece is a list a screen reader
         cannot navigate.
@@ -4775,12 +4805,44 @@ function GanttChart({
                       </button>
                     </>
                   )}
-                  <button type="button" aria-label={`Recolour ${marker.name}`}>
+                  <button
+                    type="button"
+                    aria-label={`Recolour ${marker.name}`}
+                    aria-expanded={recoloringId === marker.id}
+                    onClick={() => {
+                      setRecoloringId(recoloringId === marker.id ? null : marker.id);
+                    }}
+                  >
                     ◑
                   </button>
                   <button type="button" aria-label={`Delete ${marker.name}`}>
                     ✕
                   </button>
+                  {recoloringId === marker.id && (
+                    <ul
+                      data-marker-palette={marker.id}
+                      className="flex w-full basis-full flex-wrap gap-1"
+                    >
+                      {PALETTE.map((entry) => (
+                        <li key={entry.name}>
+                          <button
+                            type="button"
+                            // The colour's name and the marker's, because eight
+                            // unnamed swatches per row is eight buttons a screen
+                            // reader announces identically — the same rule the
+                            // three actions above follow.
+                            aria-label={`${entry.name} for ${marker.name}`}
+                            className="border-border size-4 rounded-sm border"
+                            style={{ backgroundColor: entry.fill }}
+                            onClick={() => {
+                              onRecolorMarker(marker.id, entry.fill);
+                              setRecoloringId(null);
+                            }}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
