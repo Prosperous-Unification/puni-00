@@ -32,6 +32,13 @@ and an optional `afterRollback` that runs before the coordinator is released —
 refusal in this codebase is a returned value, not a throw, and undo discards its stale journal
 entry in exactly that window. A thrown error rolls back and rethrows.
 
+The coordinator carries one more guarantee than atomicity: it is what makes the batch's
+**ambient announcement context** portable. `DeferringBroadcaster` holds announcements in an
+`AsyncLocalStorage`; behind the `AsyncContext` port the browser adapter is a single slot, and
+a single slot is correct only because the coordinator admits one writer at a time, so nothing
+else can publish while a batch is open. Kit cases (f) and (g) in the plan assert exactly that,
+and the slot throws on overlap so a coordinator fault is loud.
+
 ## Considered options
 
 **Transactions stay SQL-only; swappability promised only among SQL sources.** Rejected

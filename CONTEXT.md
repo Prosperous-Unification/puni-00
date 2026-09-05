@@ -960,9 +960,17 @@ _Avoid_: orphan row, legacy row, anonymous row
 
 **Port**:
 An interface core owns and an adapter satisfies: every `*Store`, `UnitOfWork`, `Clock`,
-`Broadcaster`, `IdentityResolver`. Named for what the caller wants, never for what
-implements it. ADR 0014.
+`Broadcaster`, `IdentityResolver`, and every runtime concern — `PasswordHasher`, `TokenCodec`,
+`Digest`, `AsyncContext`, `Timers`, `PushTransport`, `Scheduler`. Named for what the caller
+wants, never for what implements it. ADR 0014.
 _Avoid_: abstraction, contract (for this), interface (alone)
+
+**Ring**:
+A dependency direction across Nx projects, stated as a tag and enforced by the module-boundary
+rule: `ring:domain` (vocabulary, contracts, validation), `ring:application` (core),
+`ring:adapter` (sources, be-01, fe-01, gw-01). A project depends only on its own ring or
+inward. Not a folder: a layer is a folder inside one project.
+_Avoid_: layer (for this), tier (that is a deployable process), level
 
 **Adapter**:
 A concrete thing that satisfies a port: a drizzle `*Repository`, the in-memory `inMemoryX`
@@ -990,10 +998,17 @@ transaction; the contract is the behaviour, not the mechanism. ADR 0015.
 _Avoid_: outer transaction (as the port's name), transaction handle, session
 
 **Endpoint**:
-One HTTP route stated as data — method, path, operation id, request policies, schemas and a
-pure handler returning an `HttpReply` — that an adapter mounts on a framework. The handler
-never sees the framework.
+One HTTP route stated as data — method, path, operation id, request policies, ArkType schemas
+and a pure handler returning an `HttpReply` — that an adapter mounts on a framework. The
+handler never sees the framework. The table of endpoints is the contract fe-01's typed client,
+the OpenAPI document and mcp-01's tools are all derived from.
 _Avoid_: route (for the spec), controller (for the spec), handler (for the whole)
+
+**Refusal**:
+The one envelope every endpoint answers a non-2xx with: `{ error: RefusalCode, at?, kind?, …detail }`.
+A validation failure and a domain refusal look the same to a client; the code is what it
+branches on.
+_Avoid_: error response, problem, fault (for this)
 
 **Request policy**:
 A rule the adapter applies to a request before its body is parsed and before the handler
