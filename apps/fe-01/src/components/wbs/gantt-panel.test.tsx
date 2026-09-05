@@ -7004,3 +7004,61 @@ describe('a day that already carries markers opens a sheet listing every one of 
     expect(document.activeElement).toBe(screen.getByLabelText('Marker name'));
   });
 });
+
+describe('Add on a day that already carries a marker opens an empty composer on that day', () => {
+  const AZURE = '#5d6afe';
+  const CUTOVER_DAY: IsoDate = '2026-08-19';
+
+  const drawWithMarkers = (markers: readonly CalendarMarkerView[]) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+        markers={markers}
+      />,
+    );
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  itDom('reaches a composer 6.1’s empty-day click can never reach', () => {
+    // The third offered-and-never-used action. 6.1 gets to a composer by
+    // clicking an **empty** date and the three listing cases assert only that
+    // Add is present, so a populated sheet whose Add is inert passes every
+    // other case in this plan — 6.1 cannot cover it, because it never goes
+    // through the sheet at all.
+    drawWithMarkers([{ id: 'm-cut', date: CUTOVER_DAY, name: 'Cutover', color: AZURE }]);
+
+    fireEvent.click(cellAt(9));
+    // The precondition, asserted rather than assumed: without this line the
+    // case passes against a cell that opened the composer directly and never
+    // drew a sheet, which is the one-marker shortcut 6.3 forbids.
+    expect(document.querySelector('[data-marker-sheet]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a calendar marker on 19 Aug' }));
+
+    const composer = screen.getByRole('dialog');
+    // On **that** date — the sheet's day, carried across, not recomputed.
+    expect(composer.getAttribute('data-composer-date')).toBe(CUTOVER_DAY);
+    // Empty, and not prefilled with the marker already standing there: this is
+    // a second marker on the day, not an edit of the first.
+    const field = screen.getByLabelText<HTMLInputElement>('Marker name');
+    expect(field.value).toBe('');
+    expect(document.activeElement).toBe(field);
+    // The sheet gives way to it rather than stacking behind: two dialogs open on
+    // one date is two things for a keyboard to be lost between.
+    expect(document.querySelector('[data-marker-sheet]')).toBeNull();
+  });
+});

@@ -4651,6 +4651,18 @@ function GanttChart({
               type="button"
               aria-label={`Add a calendar marker on ${shortIsoDate(sheetAt, today)}`}
               className="mt-2 text-xs underline"
+              // The sheet's own day, carried across rather than recomputed —
+              // the same rule the cell's click follows, and here there is not
+              // even an offset to be tempted by.
+              //
+              // The sheet **gives way** to the composer rather than stacking
+              // behind it: two dialogs open on one date is two things for a
+              // keyboard to be lost between, and the composer's own Escape
+              // closes both states at once either way.
+              onClick={() => {
+                setSheetAt(null);
+                setComposerAt(sheetAt);
+              }}
             >
               Add
             </button>
