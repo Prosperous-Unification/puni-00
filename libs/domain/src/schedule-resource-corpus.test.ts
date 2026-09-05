@@ -189,8 +189,7 @@ function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
     // stand-in and resolve afterwards: the draw has to happen whether or not any
     // pool was sized, or a seed that sized none would shift every later draw.
     const which = POOLS[Math.floor(random() * POOLS.length)];
-    const pool =
-      strip === 'capacity' || !pooled || !sizedPools.includes(which) ? null : which;
+    const pool = strip === 'capacity' || !pooled || !sizedPools.includes(which) ? null : which;
     for (const stepId of steps) {
       slices.push({
         workItemId: leaf.id,
@@ -258,15 +257,12 @@ describe('resource corpus — every generated fact reaches the schedule', () => 
   // One `it` per fact rather than a loop over the five: a loop reports "the
   // corpus" red and leaves the reader to find which fact stopped being
   // generated, and the whole point of 9.1 is naming the one that went missing.
-  it.each<[Fact]>([
-    ['people'],
-    ['capacity'],
-    ['priority'],
-    ['dependency-reach'],
-    ['manual-floor'],
-  ])('%s changes the schedule of enough of the thousand plans', (fact) => {
-    expect(seedsMovedBy(fact)).toBeGreaterThanOrEqual(COVERAGE_FLOOR);
-  });
+  it.each<[Fact]>([['people'], ['capacity'], ['priority'], ['dependency-reach'], ['manual-floor']])(
+    '%s changes the schedule of enough of the thousand plans',
+    (fact) => {
+      expect(seedsMovedBy(fact)).toBeGreaterThanOrEqual(COVERAGE_FLOOR);
+    },
+  );
 });
 
 /** Every slice with real duration, as an interval, for the invariants. */
