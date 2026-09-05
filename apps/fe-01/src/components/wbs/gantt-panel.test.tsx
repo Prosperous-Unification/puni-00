@@ -4868,6 +4868,152 @@ describe('clicking a dated axis cell opens the composer on that cell’s day', (
   });
 });
 
+describe('the dated axis cell is a control a keyboard can operate', () => {
+  /** A `PALETTE` fill, for the reason task 4.5 found: an arbitrary hex is not a
+   *  colour this API would accept in the first place. */
+  const AZURE = '#5d6afe';
+
+  /**
+   * The clock stands inside the fixture's own year so {@link shortIsoDate}
+   * prints `19 Aug` rather than `19 Aug 2026` — it drops the year only when it
+   * matches the reader's. The accessible names below are read against it, so a
+   * test drawn on the real clock would start failing on 1 January 2027 for no
+   * reason connected to this slice.
+   */
+  const drawnIn2026 = (markers: readonly CalendarMarkerView[] = []) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 12, 9, 0));
+    try {
+      render(
+        <GanttPanel
+          plan={planOf({
+            rows: [rowAt('strip', 0, 10)],
+            slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+          })}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+          markers={markers}
+        />,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  // Cell 9 of the Monday-2026-08-10 fixture is 2026-08-19 — the same cell 6.1
+  // and 8.1 use, and for the same reason: it is the one cell where the offset,
+  // the workday and the calendar day all disagree.
+  const CUTOVER: IsoDate = '2026-08-19';
+
+  itDom('opens the composer on Enter', () => {
+    // A `<span>` with an `onClick` and a tab stop is a control no keyboard can
+    // activate (WCAG 2.1.1). This is the case that says the key reaches it.
+    drawnIn2026();
+
+    fireEvent.keyDown(cellAt(9), { key: 'Enter' });
+
+    expect(screen.getByRole('dialog').getAttribute('data-composer-date')).toBe(CUTOVER);
+  });
+
+  itDom('opens the composer on Space', () => {
+    // Space is its own case and not a variant of Enter: a `keydown` handler
+    // that forwards **every** key passes an Enter-only test, and so does one
+    // that handles Enter alone — the two defects are opposite and only a second
+    // key distinguishes them.
+    //
+    // Proof, watched 2026-09-05 against a 180 / 0 baseline on this file: the
+    // axis cell's `key.key !== 'Enter' && key.key !== ' '` narrowed to
+    // `key.key !== 'Enter'` — 179 pass / 1 fail, this case alone, on `Unable
+    // to find an accessible element with the role "dialog"`. Restored after.
+    drawnIn2026();
+
+    fireEvent.keyDown(cellAt(9), { key: ' ' });
+
+    expect(screen.getByRole('dialog').getAttribute('data-composer-date')).toBe(CUTOVER);
+  });
+
+  itDom('names its own date and how many markers already stand on it', () => {
+    // The chips are drawn in a `pointer-events-none` layer over the band, so
+    // what is on a day is available to sight and to nothing else. Two markers
+    // on one date, and a neighbour with none, because a name that reported a
+    // count of zero everywhere would satisfy either case alone.
+    drawnIn2026([
+      { id: 'm-cut', date: CUTOVER, name: 'Cutover', color: AZURE },
+      { id: 'm-freeze', date: CUTOVER, name: 'Freeze', color: null },
+    ]);
+
+    expect(cellAt(9).getAttribute('aria-label')).toBe('19 Aug, 2 calendar markers');
+    expect(cellAt(8).getAttribute('aria-label')).toBe('18 Aug, no calendar markers');
+  });
+
+  itDom('is a tab stop that says it opens a dialog', () => {
+    drawnIn2026();
+
+    expect(cellAt(9).getAttribute('tabindex')).toBe('0');
+    expect(cellAt(9).getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
+  itDom('reports the composer open on the cell that opened it and on no other', () => {
+    // **The transition, not the attribute.** `aria-expanded` hard-coded to
+    // either value passes a single-state assertion, so both states are read on
+    // one cell; and a value derived from `composerAt !== null` would announce
+    // every dated cell on the axis as open, so a second cell is read beside it.
+    drawnIn2026();
+
+    expect(cellAt(9).getAttribute('aria-expanded')).toBe('false');
+    expect(cellAt(8).getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(cellAt(9));
+
+    expect(cellAt(9).getAttribute('aria-expanded')).toBe('true');
+    expect(cellAt(8).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  itDom('is back to closed once the composer is dismissed', () => {
+    // Escape is the composer's only close path, and it exists because of this
+    // case: a cell that says `true` forever is a cell that lies to every reader
+    // who arrives after the first one.
+    drawnIn2026();
+    fireEvent.click(cellAt(9));
+    expect(cellAt(9).getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(cellAt(9).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  itDom('is reachable by its role and its name alone', () => {
+    // The case that makes `role="button"` an assertion instead of prose: every
+    // other case here locates the cell by `data-axis-day`, and a focusable
+    // generic `<span>` carrying every handler and every ARIA attribute would
+    // pass all of them while never being announced as a button.
+    //
+    // Proof, watched 2026-09-05 against the same 180 / 0 baseline:
+    // `role="button"` made conditional so only the **undated** branch keeps it
+    // — 179 pass / 1 fail, this case alone, on `Unable to find an accessible
+    // element with the role "button" and name "19 Aug, 1 calendar marker"`,
+    // while the six cases that locate the cell by `data-axis-day` stayed
+    // green. Restored after.
+    drawnIn2026([{ id: 'm-cut', date: CUTOVER, name: 'Cutover', color: AZURE }]);
+
+    fireEvent.click(screen.getByRole('button', { name: '19 Aug, 1 calendar marker' }));
+
+    expect(screen.getByRole('dialog').getAttribute('data-composer-date')).toBe(CUTOVER);
+  });
+});
+
 describe('a calendar marker is a chip in the axis band, placed by its date', () => {
   /**
    * The colour the fixture marker is stored in — a `PALETTE` entry, so it is a

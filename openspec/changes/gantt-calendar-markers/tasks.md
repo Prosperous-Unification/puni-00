@@ -840,7 +840,7 @@ in both slices rather than implied by position.
       failing that case while rename, recolour, delete, the three listing cases
       and 6.1's empty-date composer all stay green — 6.1 cannot cover it,
       because it never goes through the sheet.
-- [ ] 6.4 The dated cell becomes a control — `role="button"`, `tabIndex={0}`,
+- [x] 6.4 The dated cell becomes a control — `role="button"`, `tabIndex={0}`,
       Enter and Space handlers, a visible focus ring, `aria-haspopup="dialog"`,
       an `aria-expanded` tracking the sheet, and an `aria-label` naming the
       date and the marker count — test: `gantt-panel.test.tsx`, **seven** cases,
@@ -2707,3 +2707,74 @@ actually owns is the one watched.
 / 0 fail across 86 files**, exactly the two new cases over chunk 23's 2220;
 `fe-01:lint` rc 0 whole; `fe-01:typecheck` rc 0; `prettier --check .` rc 0.
 Test-only outside this record: no source file changed.
+
+## Chunk 25 — slice 6.4 (TASK-235 run 13, 2026-09-05)
+
+**Slice 6.4 checked: the dated axis cell is a control a keyboard can operate,
+and it says what day it is and what is already on it.** Chunk 19 shipped half of
+this implementation because eslint would not let 6.1 land without it; what was
+missing was `aria-expanded`, the marker count in the accessible name, and all
+seven cases. All three are here.
+
+**`aria-expanded` is `composerAt === day.date` — the transition, and per cell.**
+Two wrong implementations pass a weaker test: a value hard-coded to either
+constant satisfies a single-state assertion, and one derived from
+`composerAt !== null` announces **every** dated cell on the axis as open at
+once. So the case reads both states on one cell and reads a second cell beside
+it at each state.
+
+**THE CLOSE PATH WAS OWED BY NOBODY AND IS OWED BY THIS SLICE.** 6.4 requires
+`aria-expanded` to be `false` again after the sheet closes, and until this chunk
+the composer had **no way to close at all** — no dismiss control, no Escape, and
+nothing in section 6 or 8 claims one. Escape on `document` is the answer, bound
+only while the composer is open. On `document` rather than on the dialog because
+nothing focuses the dialog yet: 6.3 is the slice that moves focus into the name
+field, and a listener on the dialog's own subtree would never receive the key
+until it lands. A `role="dialog"` reachable by keyboard — Enter on an axis cell,
+as of this slice — and dismissible only by mouse is a trap.
+
+**THE FINDING, and it is about `marksOverLight` rather than about a11y: an
+accessible name is a `shortIsoDate` caller, and `shortIsoDate` is the oracle two
+existing render-silence tests count.** The first version built each cell's name
+inline in the `axis.map`, and the gate came back **2 failed / 178 passed** — not
+on anything in this slice, but on `pointing a row re-renders no Gantt mark`
+(`expected 5 to be +0`) and `opening a bar's facts re-renders no Gantt mark`
+(`expected 14 to be 4`). A light moving re-renders the axis band, the band had
+never called `shortIsoDate` before, and it now called it once per day of the
+horizon. The names are memoised on `[axis, markers, today]` and the counts are
+folded into that same pass; both cases went back to green. **The tests were
+right and the code was wrong** — nothing in a cell's name depends on a gesture,
+so nothing in it should be recomputed by one. The `marksOverLight` discipline
+this file already documents now has a second mark under it.
+
+**6.4a STAYS UNTICKED.** Its five cases do not exist, and the undated branch has
+no `aria-label` at all — its accessible name is still the bare axis number,
+which is precisely the generic name round-8's Sol review called the failure mode
+the contract exists to prevent. The count is spoken as `no calendar markers`
+rather than omitted on an empty day, so silence on a cell means the name failed
+to build rather than that the day is empty.
+
+**TWO NEGATIVES WATCHED**, baseline 173 → 180 pass / 0 fail on
+`gantt-panel.test.tsx` (exactly the seven new cases), restored to 180 / 0 after
+each:
+
+- the axis cell's `key.key !== 'Enter' && key.key !== ' '` narrowed to
+  `key.key !== 'Enter'` → **179 / 1**, the Space case alone, `Unable to find an
+accessible element with the role "dialog"`. Enter's own case stayed green,
+  which is the point: an Enter-only test passes a handler that forwards every
+  key **and** one that handles Enter alone, and only a second key tells them
+  apart.
+- `role="button"` made conditional so only the **undated** branch keeps it →
+  **179 / 1**, the role-and-name case alone, `Unable to find an accessible
+element with the role "button" and name "19 Aug, 1 calendar marker"`, while
+  the six cases that locate the cell by `data-axis-day` stayed green. That is
+  the case's whole reason to exist: a focusable generic `<span>` carrying every
+  handler and every ARIA attribute passes the other six while never being
+  announced as a button.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`,
+`NODE_OPTIONS=--max-old-space-size=3072`, `rm -rf dist` first): full `fe-01:test`
+rc 0 — **2229 pass / 0 fail across 86 files**, exactly the seven new cases over
+chunk 24's 2222; `fe-01:typecheck` rc 0; `fe-01:lint` rc 0 whole (the one
+pre-existing `react-hooks/exhaustive-deps` warning at `wbs-table.tsx:4628`, not
+this diff); `prettier --check .` rc 0. Nothing outside `apps/fe-01` changed.

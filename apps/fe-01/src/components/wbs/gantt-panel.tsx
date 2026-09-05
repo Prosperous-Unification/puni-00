@@ -1248,6 +1248,31 @@ function spanWords(startDate: IsoDate | null, start: number, finish: number, tod
  */
 const daysNumber = (days: number): string => String(Number(days.toFixed(2)));
 
+/**
+ * What a screen reader announces when it lands on a dated axis cell.
+ *
+ * The cell's own text is a bare number — `19` — which is the one thing a
+ * reader arriving by Tab already cannot use: §6's argument for giving these
+ * cells a tab stop at all is that a row of stops announced "button" and
+ * nothing else is worse than no stop. So the name carries the day, and it
+ * carries what is already standing on it, because the marker chips are drawn
+ * in a `pointer-events-none` layer over the band and are therefore invisible
+ * to everything except sight.
+ *
+ * The count is spelled out rather than left to the chips because a cell with
+ * two markers and a cell with none are the same element to a reader otherwise
+ * — and "no calendar markers" is said out loud rather than omitted, so that
+ * silence on a cell means the name failed to build rather than that the day is
+ * empty.
+ */
+function axisCellName(date: IsoDate, markers: number, today: Date): string {
+  const day = shortIsoDate(date, today);
+  if (markers === 0) return `${day}, no calendar markers`;
+  return markers === 1
+    ? `${day}, 1 calendar marker`
+    : `${day}, ${String(markers)} calendar markers`;
+}
+
 /** `1 day`, `2 days`, `3.67 days`. */
 function dayWords(days: number): string {
   const shown = daysNumber(days);
@@ -2528,6 +2553,31 @@ function GanttChart({
    * so the answer is carried and never recomputed.
    */
   const [composerAt, setComposerAt] = useState<IsoDate | null>(null);
+  /**
+   * Escape closes the composer, which is the only way it closes at all.
+   *
+   * A `role="dialog"` a keyboard cannot dismiss is a trap, and this one is
+   * reachable **by** keyboard as of 6.4 — Enter on an axis cell opens it — so
+   * the dismissal has to be reachable the same way. On `document` rather than
+   * on the dialog because nothing focuses the dialog yet: 6.3 is the slice that
+   * moves focus into the name field, and until it lands a listener bound to the
+   * dialog's own subtree would never receive the key.
+   *
+   * Bound only while the composer is open, so a chart with no composer holds no
+   * document listener and no other Escape handler on the page has to compete
+   * with one.
+   */
+  useEffect(() => {
+    if (composerAt === null) return;
+    const closeOnEscape = (key: KeyboardEvent) => {
+      if (key.key !== 'Escape') return;
+      setComposerAt(null);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [composerAt]);
   /** The opening that has been asked for and not yet happened. */
   const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Whether the next click belongs to the touch pointer that pressed a bar. */
@@ -2835,6 +2885,32 @@ function GanttChart({
       startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon),
     [placed, startDate],
   );
+  /**
+   * Every dated cell's accessible name, by offset — the day it is and how many
+   * markers stand on it ({@link axisCellName}).
+   *
+   * **Memoised for `marksOverLight`'s reason and proved by its tests.** These
+   * names are the axis band's first {@link shortIsoDate} callers, and that
+   * function is the oracle the two "re-renders no Gantt mark" cases count: a
+   * name rebuilt inline in the `axis.map` below turned pointing a row from
+   * zero extra calls into five, because a light moving re-renders the band and
+   * would now recompute a string for every day of the horizon. Nothing here
+   * depends on a gesture, so nothing here should be recomputed by one.
+   *
+   * The counts are folded in rather than kept in their own map: they exist only
+   * to be spoken, they are needed exactly where the name is built, and one pass
+   * over `markers` here is what keeps the cell loop from scanning them per day.
+   */
+  const axisCellNames = useMemo(() => {
+    const counts = new Map<IsoDate, number>();
+    for (const marker of markers) counts.set(marker.date, (counts.get(marker.date) ?? 0) + 1);
+    const names = new Map<number, string>();
+    for (const day of axis) {
+      if (day.date === null) continue;
+      names.set(day.offset, axisCellName(day.date, counts.get(day.date) ?? 0, today));
+    }
+    return names;
+  }, [axis, markers, today]);
   /**
    * The column today stands in, or null when today is not on this chart.
    *
@@ -4053,11 +4129,23 @@ function GanttChart({
                   // focusable element is to scroll the page, which on an axis
                   // inside a horizontal scroll box is the one thing a reader
                   // operating it by keyboard would notice.
+                  //
+                  // `aria-expanded` is the **transition** and not the
+                  // attribute: it is `composerAt === day.date`, so the cell
+                  // that opened the composer says `true` and every other dated
+                  // cell on the axis says `false` at the same moment. A value
+                  // hard-coded either way would satisfy a single-state
+                  // assertion, and one derived from `composerAt !== null`
+                  // would announce the whole row as open.
                   role="button"
                   tabIndex={0}
                   {...(day.date === null
                     ? { 'aria-disabled': true }
-                    : { 'aria-haspopup': 'dialog' as const })}
+                    : {
+                        'aria-haspopup': 'dialog' as const,
+                        'aria-expanded': composerAt === day.date,
+                        'aria-label': axisCellNames.get(day.offset),
+                      })}
                   onKeyDown={(key) => {
                     if (key.key !== 'Enter' && key.key !== ' ') return;
                     key.preventDefault();
