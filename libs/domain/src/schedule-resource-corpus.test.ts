@@ -231,11 +231,21 @@ const scheduleOf = (plan: ResourcePlan): Schedule =>
 /**
  * What "the same schedule" means for the difference counts below.
  *
- * The dates, the float, the named floor and the resource referent — the whole of
- * what a reader is shown. `Schedule.eventsVisited` is deliberately **not** here:
- * it is the leveller's own instrumentation (`schedule.ts:266`) and it moves the
- * moment a pool exists at all, so a fingerprint carrying it would report the
- * capacity fact as covered on plans whose dates never moved a day.
+ * The dates, the float, the named floor and the resource referent: the fields
+ * the leveller **derives**, and not every reader-visible field. Two deliberate
+ * omissions, both of which would otherwise inflate a count:
+ *
+ * - `personId` and `capacityTeamId` are echoes of the plan's own input, so a
+ *   stripped arm differs in them whether or not the engine did anything with
+ *   the fact — the people and capacity counts would read 1000/1000 again, this
+ *   time honestly computed off a dishonest fingerprint.
+ * - `Schedule.eventsVisited` is the leveller's own instrumentation
+ *   (`schedule.ts:266`) and moves the moment a pool exists at all, so carrying
+ *   it would report capacity as covered on plans whose dates never moved a day.
+ *
+ * `critical` and `latestFinish` are absent because `float` already carries
+ * them: `critical` is `float === 0`, and durations are identical between the
+ * two arms, so a `latestFinish` that moved moved `latestStart` with it.
  */
 const fingerprint = (found: Schedule): string =>
   [...found.slices.entries()]
