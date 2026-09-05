@@ -15,7 +15,7 @@ import { savedPlanController } from './controller/saved-plan.controller';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
-import { workItemController } from './controller/work-item.controller';
+import { workItemRoutes } from './controller/work-item.routes';
 import { bindElysia } from './http/elysia/bind';
 import { userFromHeaders } from './middleware/authenticated';
 import { openApiPlugin } from './openapi/openapi-plugin';
@@ -216,7 +216,7 @@ export function buildApp(opts: AppOptions) {
         ),
       )
       .use(bindElysia(stepRoutes(opts.auth, opts.steps)))
-      .use(workItemController(opts.auth, opts.workItems, commands))
+      .use(bindElysia(workItemRoutes(opts.auth, opts.workItems, commands)))
       .use(bindElysia(directoryRoutes(opts.auth, opts.directory)))
       // After `projectController`, whose prefix it shares: Elysia matches in
       // registration order, `/:id/history` cannot be shadowed by anything that
