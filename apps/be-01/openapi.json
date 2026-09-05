@@ -158,38 +158,13 @@
         "operationId": "getPlansBy-solutionBySlug"
       }
     },
-    "/api/projects/": {
+    "/api/projects": {
       "post": {
         "requestBody": {
           "required": true,
+          "description": "The project’s name.\n\nThe schema here is documentation, not validation. This route parses its own body so that a field this API derives is refused rather than quietly dropped, which is what an Elysia body schema would do to it. Fields not named here are ignored; the ones named are checked, and a bad one answers 400 with a code from the list above.",
           "content": {
             "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
@@ -255,18 +230,9 @@
         "operationId": "getApiProjectsById"
       },
       "patch": {
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
+          "description": "The project settings to change. Every field is optional; a field the body does not name is left alone.\n\nThe schema here is documentation, not validation. This route parses its own body so that a field this API derives is refused rather than quietly dropped, which is what an Elysia body schema would do to it. Fields not named here are ignored; the ones named are checked, and a bad one answers 400 with a code from the list above.",
           "content": {
             "application/json": {
               "schema": {
@@ -303,16 +269,16 @@
                     ],
                     "properties": {
                       "optimistic": {
-                        "minimum": 0,
-                        "type": "number"
+                        "type": "number",
+                        "minimum": 0
                       },
                       "realistic": {
-                        "minimum": 0,
-                        "type": "number"
+                        "type": "number",
+                        "minimum": 0
                       },
                       "pessimistic": {
-                        "minimum": 0,
-                        "type": "number"
+                        "type": "number",
+                        "minimum": 0
                       }
                     }
                   },
@@ -326,263 +292,27 @@
                     ]
                   },
                   "startDate": {
-                    "anyOf": [
-                      {
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "nullable": true
                   },
                   "solutionRef": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "required": [
-                          "slug",
-                          "url"
-                        ],
-                        "properties": {
-                          "slug": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "url": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        }
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "optimizationEnabled": {
-                    "type": "boolean"
-                  },
-                  "scheduleEngine": {
-                    "type": "string",
-                    "enum": [
-                      "fast",
-                      "optimized"
-                    ]
-                  },
-                  "scheduleObjective": {
-                    "type": "string",
-                    "enum": [
-                      "pri",
-                      "time"
-                    ]
-                  }
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "restricted": {
-                    "type": "boolean"
-                  },
-                  "estimateMethod": {
-                    "type": "string",
-                    "enum": [
-                      "pert",
-                      "optimistic",
-                      "realistic",
-                      "pessimistic"
-                    ]
-                  },
-                  "depReach": {
-                    "type": "string",
-                    "enum": [
-                      "whole-item",
-                      "anchor-slice"
-                    ]
-                  },
-                  "pertWeights": {
                     "type": "object",
                     "required": [
-                      "optimistic",
-                      "realistic",
-                      "pessimistic"
+                      "slug",
+                      "url"
                     ],
+                    "nullable": true,
                     "properties": {
-                      "optimistic": {
-                        "minimum": 0,
-                        "type": "number"
+                      "slug": {
+                        "type": "string",
+                        "minLength": 1
                       },
-                      "realistic": {
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      "pessimistic": {
-                        "minimum": 0,
-                        "type": "number"
+                      "url": {
+                        "type": "string",
+                        "minLength": 1
                       }
                     }
-                  },
-                  "estimateRounding": {
-                    "type": "string",
-                    "enum": [
-                      "exact",
-                      "floor",
-                      "round",
-                      "ceil"
-                    ]
-                  },
-                  "startDate": {
-                    "anyOf": [
-                      {
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "solutionRef": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "required": [
-                          "slug",
-                          "url"
-                        ],
-                        "properties": {
-                          "slug": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "url": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        }
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "optimizationEnabled": {
-                    "type": "boolean"
-                  },
-                  "scheduleEngine": {
-                    "type": "string",
-                    "enum": [
-                      "fast",
-                      "optimized"
-                    ]
-                  },
-                  "scheduleObjective": {
-                    "type": "string",
-                    "enum": [
-                      "pri",
-                      "time"
-                    ]
-                  }
-                }
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "restricted": {
-                    "type": "boolean"
-                  },
-                  "estimateMethod": {
-                    "type": "string",
-                    "enum": [
-                      "pert",
-                      "optimistic",
-                      "realistic",
-                      "pessimistic"
-                    ]
-                  },
-                  "depReach": {
-                    "type": "string",
-                    "enum": [
-                      "whole-item",
-                      "anchor-slice"
-                    ]
-                  },
-                  "pertWeights": {
-                    "type": "object",
-                    "required": [
-                      "optimistic",
-                      "realistic",
-                      "pessimistic"
-                    ],
-                    "properties": {
-                      "optimistic": {
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      "realistic": {
-                        "minimum": 0,
-                        "type": "number"
-                      },
-                      "pessimistic": {
-                        "minimum": 0,
-                        "type": "number"
-                      }
-                    }
-                  },
-                  "estimateRounding": {
-                    "type": "string",
-                    "enum": [
-                      "exact",
-                      "floor",
-                      "round",
-                      "ceil"
-                    ]
-                  },
-                  "startDate": {
-                    "anyOf": [
-                      {
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "solutionRef": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "required": [
-                          "slug",
-                          "url"
-                        ],
-                        "properties": {
-                          "slug": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
-                          "url": {
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        }
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "optimizationEnabled": {
                     "type": "boolean"
@@ -606,6 +336,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "operationId": "patchApiProjectsById"
       }
     },

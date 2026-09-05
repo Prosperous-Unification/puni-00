@@ -10,7 +10,7 @@ import {
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { internalRoutes } from './controller/internal.routes';
-import { projectController } from './controller/project.controller';
+import { projectRoutes } from './controller/project.routes';
 import { savedPlanController } from './controller/saved-plan.controller';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
@@ -194,7 +194,7 @@ export function buildApp(opts: AppOptions) {
       .use(bindElysia(smokeRoutes()))
       .use(authController(opts.auth, opts.oidc))
       .use(bindElysia(solutionRoutes(opts.auth, opts.projects)))
-      .use(projectController(opts.auth, opts.projects, opts.workItems))
+      .use(bindElysia(projectRoutes(opts.auth, opts.projects, opts.workItems)))
       // After `projectController`, whose `/api/projects` paths it extends: the
       // saved-plan collection is one segment longer than anything that
       // controller declares, so neither can shadow the other, and adjacency is
