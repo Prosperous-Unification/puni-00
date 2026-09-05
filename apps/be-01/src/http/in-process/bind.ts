@@ -1,4 +1,5 @@
-import { type HttpMethod, matchPath, type Route, type RouteRequest } from '../route';
+import { toResponse } from '../response';
+import { type HttpMethod, matchPath, respond, type Route, type RouteRequest } from '../route';
 
 /**
  * The second binder, and the reason Task 1 can *claim* framework independence
@@ -38,7 +39,7 @@ export function bindInProcess(routes: readonly Route[]): {
         try {
           body = await decodeBody(request);
         } catch {
-          return json(400, { error: 'invalid_body' });
+          return toResponse(respond(400, { error: 'invalid_body' }));
         }
 
         const req: RouteRequest = {
@@ -53,14 +54,11 @@ export function bindInProcess(routes: readonly Route[]): {
           body,
           url: request.url,
         };
-        const res = await route.handler(req);
-        return res.serialised === true
-          ? new Response(String(res.body), { status: res.status, headers: res.headers })
-          : json(res.status, res.body, res.headers);
+        return toResponse(await route.handler(req));
       }
       return pathMatched
-        ? json(405, { error: 'method_not_allowed' })
-        : json(404, { error: 'not_found' });
+        ? toResponse(respond(405, { error: 'method_not_allowed' }))
+        : toResponse(respond(404, { error: 'not_found' }));
     },
   };
 }
@@ -81,17 +79,4 @@ async function decodeBody(request: Request): Promise<unknown> {
   const raw = await request.text();
   if (raw === '') return undefined;
   return JSON.parse(raw);
-}
-
-function json(status: number, body: unknown, headers?: Record<string, string>): Response {
-  // 204 carries no body at all; `JSON.stringify(null)` would put the four bytes
-  // `null` on the wire and make a no-content answer indistinguishable from a
-  // route that answered with the JSON value null.
-  if (status === 204 || body === null) {
-    return new Response(null, { status, headers });
-  }
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers },
-  });
 }

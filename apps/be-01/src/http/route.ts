@@ -61,8 +61,32 @@ export interface RouteRequest {
 export interface RouteResponse {
   status: number;
   body: unknown;
-  /** Response headers, added as given. Cookies go here, pre-serialised. */
+  /** Response headers, added as given. One value per name — see {@link RouteResponse.cookies}. */
   headers?: Record<string, string>;
+  /**
+   * Pre-serialised `Set-Cookie` values, one per entry, each added as its own
+   * header line.
+   *
+   * A separate field rather than a `string[]` case in {@link
+   * RouteResponse.headers}, because `Set-Cookie` is the only header in this app
+   * that legitimately repeats and RFC 6265 §3 forbids folding several of them
+   * into one comma-joined line — a client that received the folded form would
+   * read one malformed cookie instead of three. Widening `headers` to
+   * `string | string[]` would put that hazard on every header name and make
+   * each binder decide, per header, whether repetition is meaningful; naming
+   * the one that repeats keeps the decision in the route shape.
+   *
+   * Three routes need more than one: the OIDC callback clears the transaction
+   * cookie while setting the access and session cookies, and `refresh`'s 401
+   * and `logout` both clear two. Under Elysia those handlers returned a raw
+   * `Response` and appended the headers themselves, which is exactly the
+   * framework knowledge a route module must not hold.
+   *
+   * The values are already cookie syntax (`name=value; HttpOnly; …`). Nothing
+   * here escapes or validates them: the route wrote the cookie, and a binder
+   * that re-encoded it would change a credential.
+   */
+  cookies?: readonly string[];
   /**
    * The body is already on the wire's terms — a string the binder writes
    * unchanged instead of encoding as JSON. Set it through {@link text}.

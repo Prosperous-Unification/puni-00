@@ -84,6 +84,21 @@ function routes(auth: AuthService): Route[] {
     },
     {
       method: 'GET',
+      path: '/probe/cookies',
+      handler: () =>
+        Promise.resolve({
+          status: 302,
+          body: null,
+          headers: { location: '/' },
+          cookies: [
+            '__Host-probe_a=1; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+            '__Host-probe_b=2; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=300',
+            '__Host-probe_c=3; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=300',
+          ],
+        }),
+    },
+    {
+      method: 'GET',
       path: '/probe/markdown',
       handler: () =>
         Promise.resolve(text(200, '# Title\n\n| a | b |\n', 'text/markdown; charset=utf-8')),
@@ -151,6 +166,31 @@ describe.each(BINDERS)('route contract under the %s binder', (_name, bind) => {
   it('carries response headers a handler asked for', async () => {
     const res = await get('/probe/headers');
     expect(res.headers.get('x-probe')).toBe('set');
+  });
+
+  /**
+   * The clause the auth routes need, and the one a `Record<string, string>` of
+   * headers cannot express: three cookies on one answer, each on its own line.
+   *
+   * `Set-Cookie` has no comma-joined form — RFC 6265 §3 — so a binder that
+   * folded these would hand a client one malformed cookie where the route wrote
+   * three, and the failure would be a session that silently does not exist
+   * rather than an error anybody sees. The OIDC callback sets exactly this
+   * shape: clear the transaction cookie, set the access cookie, set the session
+   * cookie, and redirect. Asserting the count *and* the values is deliberate —
+   * a fold produces one entry holding all three, so a count alone could be met
+   * by three empty lines and the values alone by a single folded one.
+   */
+  it('puts every cookie on its own line, beside the headers and status of the same answer', async () => {
+    const res = await get('/probe/cookies');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/');
+    expect(res.headers.getSetCookie()).toEqual([
+      '__Host-probe_a=1; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+      '__Host-probe_b=2; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=300',
+      '__Host-probe_c=3; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=300',
+    ]);
+    expect(await res.text()).toBe('');
   });
 
   it('writes a non-JSON body unchanged, under the content type the route named', async () => {

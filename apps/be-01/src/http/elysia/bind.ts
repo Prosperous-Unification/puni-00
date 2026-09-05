@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 
+import { toResponse } from '../response';
 import type { HttpMethod, Route, RouteRequest } from '../route';
 
 /**
@@ -52,6 +53,14 @@ export function bindElysia(routes: readonly Route[]): Elysia {
         url: ctx.request.url,
       };
       const res = await route.handler(req);
+      // `set.headers` holds one value per name, so a response setting more than
+      // one cookie cannot be expressed through it — and folding them into a
+      // single comma-joined line is not the same header (RFC 6265 §3). For that
+      // response the binder builds the answer itself and returns it, which
+      // Elysia passes through unchanged; it is the path the OIDC handlers used
+      // directly before they moved onto the route shape. `set.status` is left
+      // alone on this branch so the `Response`'s own status is the only one.
+      if (res.cookies !== undefined && res.cookies.length > 0) return toResponse(res);
       ctx.set.status = res.status;
       for (const [name, value] of Object.entries(res.headers ?? {})) {
         ctx.set.headers[name] = value;
