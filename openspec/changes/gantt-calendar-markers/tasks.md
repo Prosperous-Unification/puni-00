@@ -698,6 +698,26 @@ in both slices rather than implied by position.
       alone leaves the other path unproven.
       `Proof:` comment naming, for (iii) and (iv), the logged statement each
       was caught by.
+      **(a) AND (b) DONE 2026-09-05 (run 8, chunk 16); (c), (iii) and (iv)
+      remain.** (a) parses the argument list off the call site and compares it
+      as a list rather than matching a substring, because the fault it exists
+      for is an extra argument and `toContain('schedule(')` survives that. The
+      **line number is deliberately not asserted** — this slice said `:1458`
+      and the call is at `:1548`, and pinning it makes the test fail on every
+      edit above it.
+      **CORRECTION to negative (i): it does not leave 5.1 green.** Appending a
+      seventh argument is **not** "ignored by the engine" — with
+      `schedule(..., project.depReach, project.id)` the `createWorkItem`
+      command answers **500** and 5.1 dies in its own seed, so the run is
+      **0 pass / 2 fail** rather than the isolated (a) failure this slice
+      describes. (a) is still watched by it, which is what (a) needs; what is
+      wrong is the isolation claim. A negative that keeps 5.1 green has to pass
+      an argument the engine genuinely tolerates.
+      **(ii) is exactly as specified: 1 pass / 1 fail.** A
+      `import type { MarkerBackdrop } from './marker-color'` added to
+      `libs/domain/src/schedule.ts` with a dead local referencing it fails
+      (a)+(b)'s case alone while 5.1 stays green. Baseline 2 / 0, restored
+      after both.
 - [x] 5.2 Markers stay out of a saved plan — test:
       `apps/be-01/src/repository/saved-plan-capture.db.test.ts`, a new case:
       capture a project with markers and a copy with none, assert the

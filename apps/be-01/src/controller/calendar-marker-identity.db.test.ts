@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -230,6 +231,45 @@ describe('the schedule identity guarantee', () => {
 
     return projectId;
   }
+
+  /**
+   * **The scheduler seam is free of markers, at the seam** — task 5.1a(a) and
+   * (b), the two source-level halves.
+   *
+   * Two equal captures cannot prove a path is absent — a fold that is a no-op
+   * on this fixture passes 5.1 — so these two read the source directly. (c),
+   * the runtime SQL reach that closes the hole these two leave open, needs a
+   * `calendar_marker` read plumbed into `tree()` and is the next chunk's.
+   *
+   * (a) is a **six-argument** assertion, not a substring match on the call: the
+   * fault it exists for is an argument threaded through the adapter, and a
+   * `toContain('schedule(')` would survive that. The arguments are parsed off
+   * the call site and compared as a list.
+   *
+   * The line number is **not** asserted. `tasks.md` said `:1458` and the call
+   * is at `:1548` as of `e4f8eae0`; pinning it would make this test fail on
+   * every edit above it, which is a test about line numbers rather than about
+   * the seam.
+   */
+  it('passes the scheduler exactly its six arguments, and the engine names no marker', () => {
+    const service = readFileSync(join(import.meta.dir, '../service/work-item.service.ts'), 'utf8');
+
+    // (a) The single production call site, arguments parsed rather than matched.
+    const call = /schedule\(([^)]*)\)/.exec(service.slice(service.indexOf('optimized ??')));
+    expect(call).not.toBeNull();
+    const args = (call?.[1] ?? '').split(',').map((each) => each.trim());
+    expect(args).toEqual(['rows', 'edges', 'slices', 'notBefore', 'slotsOf', 'project.depReach']);
+
+    // (b) The engine itself. Both halves matter: an import of the marker module
+    // is the mechanical fault, and a bare occurrence of the type name catches a
+    // structural type declared inline to dodge the import.
+    const engine = readFileSync(
+      join(import.meta.dir, '../../../../libs/domain/src/schedule.ts'),
+      'utf8',
+    );
+    expect(engine).not.toContain('marker');
+    expect(engine).not.toContain('Marker');
+  });
 
   it('five markers move nothing in the whole work-items projection', async () => {
     const token = await register('owner');
