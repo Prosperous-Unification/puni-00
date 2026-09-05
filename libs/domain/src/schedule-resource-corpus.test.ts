@@ -242,13 +242,23 @@ const fingerprint = (found: Schedule): string =>
     )
     .join('\n');
 
+/**
+ * The thousand unstripped schedules, computed once.
+ *
+ * The generated arm does not depend on which fact is being stripped, and
+ * `it.each` calls {@link seedsMovedBy} five times — recomputing it per fact is
+ * 5,000 schedule runs for 1,000 distinct answers.
+ */
+const AS_GENERATED: readonly string[] = Array.from({ length: SEEDS }, (_, i) =>
+  fingerprint(scheduleOf(generateResourcePlan(i + 1))),
+);
+
 /** How many of the thousand seeds `fact` moves the schedule of. */
 const seedsMovedBy = (fact: Fact): number => {
   let moved = 0;
   for (let seed = 1; seed <= SEEDS; seed += 1) {
-    const asGenerated = fingerprint(scheduleOf(generateResourcePlan(seed)));
     const stripped = fingerprint(scheduleOf(generateResourcePlan(seed, fact)));
-    if (asGenerated !== stripped) moved += 1;
+    if (AS_GENERATED[seed - 1] !== stripped) moved += 1;
   }
   return moved;
 };
@@ -324,7 +334,12 @@ describe('resource corpus — invariants over a thousand resource-constrained pl
       const found = scheduleOf(plan);
       for (const [workItemId, floor] of plan.notBefore) {
         const item = found.workItems.get(workItemId);
-        if (item === undefined) continue;
+        // A throw rather than a `continue`: every id in `notBefore` is a leaf of
+        // `plan.rows`, so the engine owes a projection for each of them. Skipping
+        // the miss would turn "the engine dropped a floored work item" into a
+        // pass, which is the check that cannot fail.
+        if (item === undefined)
+          throw new Error(`seed ${String(seed)}: ${workItemId} missing from the schedule`);
         if (item.earliestStart < floor)
           early.push(
             `seed ${String(seed)}: ${workItemId} at ${String(item.earliestStart)} under ${String(floor)}`,
@@ -420,6 +435,9 @@ describe('resource corpus — the capacity/floor hand-off finding still reproduc
       new Map([['team', 1]]),
     );
 
+    // `a` really did take the slip the float offered — asserted rather than
+    // assumed, or `b` moving would be evidence about some other plan.
+    expect(slipped.workItems.get('a')).toMatchObject({ earliestStart: 2, earliestFinish: 4 });
     expect(slipped.workItems.get('b')).toMatchObject({ earliestStart: 4, earliestFinish: 6 });
   });
 });
