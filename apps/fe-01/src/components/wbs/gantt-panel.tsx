@@ -2977,9 +2977,35 @@ function GanttChart({
    * who then has to go and find the field with a second gesture is being asked
    * to pay twice for one intention.
    */
-  const focusOnOpen = useCallback((field: HTMLInputElement | null) => {
-    field?.focus();
-  }, []);
+  /**
+   * The composer opening this caret has already been spent on, so a **remount**
+   * cannot spend it twice.
+   *
+   * The date and not a boolean: moving straight from one day's composer to
+   * another's is a new opening and does deserve the caret, and the date is the
+   * only thing that tells the two apart from inside the ref.
+   */
+  const caretGivenTo = useRef<IsoDate | null>(null);
+  const focusOnOpen = useCallback(
+    (field: HTMLInputElement | null) => {
+      if (field === null) return;
+      if (caretGivenTo.current === composerAt) return;
+      caretGivenTo.current = composerAt;
+      field.focus();
+    },
+    [composerAt],
+  );
+  /**
+   * Forgets the opening the caret was spent on, so the **same** day can open a
+   * second time and be focused again.
+   *
+   * Closing is the only transition that can say this: the ref is handed `null`
+   * both when the composer closes and when a remount detaches the field, and by
+   * then the closure that receives it is the old one either way.
+   */
+  useEffect(() => {
+    if (composerAt === null) caretGivenTo.current = null;
+  }, [composerAt]);
   /**
    * Every dated cell's accessible name, by offset — the day it is and how many
    * markers stand on it ({@link axisCellName}).

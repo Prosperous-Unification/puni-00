@@ -7003,6 +7003,54 @@ describe('a day that already carries markers opens a sheet listing every one of 
     // they just clicked with is a composer that costs a second gesture to use.
     expect(document.activeElement).toBe(screen.getByLabelText('Marker name'));
   });
+
+  itDom('takes the caret when it opens and not again when the chart remounts', () => {
+    // **The CI red this exists for.** `pixels` failed at `f7df7f0d` on
+    // `e2e/gantt.spec.ts:2072`: a touch reader taps an axis cell to dismiss a
+    // bar's facts — which opens the composer, because that cell is a control as
+    // of 6.4 — and the deliberate second tap that leaves full screen and takes
+    // the plan to the row then lost the caret to the composer.
+    //
+    // The cause is structural and older than 6.3: the panel returns
+    // `fullScreen ? <div data-gantt-fullscreen>{chart}</div> : chart`, so
+    // toggling full screen changes the element at the root position and React
+    // unmounts and remounts everything under it. `fullScreen` lives in the panel
+    // so its own state survives — the composer is still open — but the field is
+    // a **new node**, and a callback ref that focuses on every mount takes a
+    // caret the reader has just put somewhere else. Nothing before 6.3 moved
+    // focus on mount, so the remount was invisible.
+    //
+    // Asserted in jsdom rather than left to the 16-minute browser job: React
+    // reconciles the same way here, and this is the layer that can say *why*.
+    drawWithMarkers([ELSEWHERE]);
+
+    fireEvent.click(cellAt(9));
+    expect(document.activeElement).toBe(screen.getByLabelText('Marker name'));
+
+    // Where the caret goes next stands outside the panel on purpose: the e2e's
+    // is a row's name cell in the table, and the point is that leaving it is
+    // the composer's doing rather than the remount's.
+    const away = document.createElement('input');
+    document.body.append(away);
+    away.focus();
+    expect(document.activeElement).toBe(away);
+
+    const toggle = document.querySelector('[data-gantt-fullscreen-toggle]');
+    if (!(toggle instanceof HTMLElement)) {
+      throw new Error('the full-screen switch is not on the panel');
+    }
+    fireEvent.click(toggle);
+    if (document.querySelector('[data-gantt-fullscreen]') === null) {
+      throw new Error('the full-screen switch was pressed and no layer arrived');
+    }
+
+    // The composer really did come back — an assertion that only read
+    // `activeElement` would pass just as well against a composer that closed,
+    // which is a different behaviour and not this fix.
+    expect(document.querySelector('[data-marker-composer]')).not.toBeNull();
+    expect(document.activeElement).toBe(away);
+    away.remove();
+  });
 });
 
 describe('Add on a day that already carries a marker opens an empty composer on that day', () => {
