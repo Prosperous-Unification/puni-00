@@ -793,6 +793,36 @@ describe('projects', () => {
     });
     expect(fast.status).toBe(200);
 
+    // The OTHER legal intermediate row, `true`/`fast`, and the engine half of
+    // the gate judged from it. The Gemini seat's state enumeration at
+    // `df7b6528` found this row asserted NOWHERE under an absent optimizer, so
+    // the mirror image of the crossed gate above —
+    // `scheduleEngine === 'optimized' && !before.optimizationEnabled` — reads
+    // it as "already on" and answers 200 to a request that puts an
+    // optimizer-less deployment into the optimized engine. Reached the same
+    // way: enable the flag ALONE while the optimizer is still there, since no
+    // PATCH can reach `true`/`fast` once it is gone.
+    options.optimizerAvailable = true;
+    const flagOnly = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true }),
+    });
+    expect(flagOnly.status).toBe(200);
+    options.optimizerAvailable = false;
+
+    const engineFromFlagOn = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduleEngine: 'optimized' }),
+    });
+    expect(engineFromFlagOn.status).toBe(409);
+    expect(await engineFromFlagOn.json()).toEqual({ error: 'optimizer_unavailable' });
+
+    const flagOff = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: false }),
+    });
+    expect(flagOff.status).toBe(200);
+
     const after = await send(`/api/projects/${project.id}`, token);
     const body = (await after.json()) as {
       project: { optimizationEnabled: boolean; scheduleEngine: string };
