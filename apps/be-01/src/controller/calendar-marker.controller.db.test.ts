@@ -205,7 +205,7 @@ describe('the calendar-marker routes', () => {
     expect(await list('owner')).toEqual([]);
 
     const made = await create('owner', {
-      id: 'a1000000-0000-4000-8000-000000000001',
+      markerId: 'a1000000-0000-4000-8000-000000000001',
       date: '2026-09-14',
       name: 'Site visit',
     });
@@ -264,9 +264,9 @@ describe('the calendar-marker routes', () => {
    */
   it('orders a tie on (date, created_at) by id, on every read', async () => {
     for (const id of TIED) {
-      expect((await create('owner', { id, date: '2026-09-14', name: id.slice(0, 2) })).status).toBe(
-        201,
-      );
+      expect(
+        (await create('owner', { markerId: id, date: '2026-09-14', name: id.slice(0, 2) })).status,
+      ).toBe(201);
     }
     const expected = [...TIED].sort();
 
@@ -284,7 +284,7 @@ describe('the calendar-marker routes', () => {
    */
   it('accepts and returns a marker outside any drawable horizon', async () => {
     const made = await create('owner', {
-      id: 'c1000000-0000-4000-8000-000000000003',
+      markerId: 'c1000000-0000-4000-8000-000000000003',
       date: '2099-12-31',
       name: 'The far side',
     });
@@ -325,13 +325,13 @@ describe('the calendar-marker routes', () => {
    */
   it('refuses all four mutations for a read-only actor, and writes nothing', async () => {
     expect(
-      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+      (await create('owner', { markerId: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
     ).toBe(201);
     await restrict();
     const before = await list('owner');
 
     const created = await create('mallory', {
-      id: 'e1000000-0000-4000-8000-000000000005',
+      markerId: 'e1000000-0000-4000-8000-000000000005',
       date: '2026-09-15',
       name: 'Not mine to add',
     });
@@ -385,7 +385,7 @@ describe('the calendar-marker routes', () => {
   for (const date of ['2026-9-17', '2026-09-17T00:00:00Z', 'not-a-date']) {
     it(`refuses the date ${date}, naming the field, and writes nothing`, async () => {
       const refused = await create('owner', {
-        id: 'e1000000-0000-4000-8000-000000000005',
+        markerId: 'e1000000-0000-4000-8000-000000000005',
         date,
         name: 'Site visit',
       });
@@ -402,15 +402,19 @@ describe('the calendar-marker routes', () => {
    * non-empty-string check cannot tell from a v4, and it is why the version and
    * variant nibbles are pinned rather than the length.
    *
-   * Negative: `UUID_V4.test(body.id)` replaced with `body.id.length > 0`.
+   * Negative: `UUID_V4.test(body.markerId)` replaced with `body.markerId.length > 0`.
    * Watched reddening **both** rows, `marker-1` among them, each letting the
    * create through with `201` and a row written. Watched 2026-09-05.
    */
   for (const id of ['marker-1', 'd9428888-122b-11e1-b85c-61cd3cbb3210']) {
-    it(`refuses the id ${id}, naming the field, and writes nothing`, async () => {
-      const refused = await create('owner', { id, date: '2026-09-14', name: 'Site visit' });
+    it(`refuses the marker id ${id}, naming the field, and writes nothing`, async () => {
+      const refused = await create('owner', {
+        markerId: id,
+        date: '2026-09-14',
+        name: 'Site visit',
+      });
       expect(refused.status).toBe(422);
-      expect(await refused.json()).toEqual({ error: 'malformed', field: 'id' });
+      expect(await refused.json()).toEqual({ error: 'malformed', field: 'markerId' });
       expect(await list('owner')).toEqual([]);
     });
   }
@@ -431,7 +435,7 @@ describe('the calendar-marker routes', () => {
    */
   it('stores the exact id the create carried', async () => {
     const made = await create('owner', {
-      id: SEEDED,
+      markerId: SEEDED,
       date: '2026-09-14',
       name: 'Site visit',
     });
@@ -466,7 +470,7 @@ describe('the calendar-marker routes', () => {
     expect(
       (
         await create('owner', {
-          id: SEEDED,
+          markerId: SEEDED,
           date: '2026-09-14',
           name: 'Site visit',
           color: CUSTOM_FILL,
@@ -476,7 +480,7 @@ describe('the calendar-marker routes', () => {
     const before = await list('owner');
 
     const refused = await create('owner', {
-      id: SEEDED,
+      markerId: SEEDED,
       date: '2027-01-02',
       name: 'A different day entirely',
     });
@@ -485,7 +489,7 @@ describe('the calendar-marker routes', () => {
     // than in a second case of its own: the row names a status, a code **and**
     // the field it blames, and two homes for one row would be two oracles free
     // to disagree about it.
-    expect(await refused.json()).toEqual({ error: 'taken', field: 'id' });
+    expect(await refused.json()).toEqual({ error: 'taken', field: 'markerId' });
     expect(await list('owner')).toEqual(before);
   });
 
@@ -506,7 +510,7 @@ describe('the calendar-marker routes', () => {
   for (const color of ['rebeccapurple', '#f00']) {
     it(`refuses the color ${color} as malformed, and writes nothing`, async () => {
       const refused = await create('owner', {
-        id: 'e1000000-0000-4000-8000-000000000005',
+        markerId: 'e1000000-0000-4000-8000-000000000005',
         date: '2026-09-14',
         name: 'Site visit',
         color,
@@ -528,7 +532,7 @@ describe('the calendar-marker routes', () => {
    */
   it('refuses a fill under the 3:1 bar with `contrast`, and writes nothing', async () => {
     const refused = await create('owner', {
-      id: 'e1000000-0000-4000-8000-000000000005',
+      markerId: 'e1000000-0000-4000-8000-000000000005',
       date: '2026-09-14',
       name: 'Site visit',
       color: '#ff0000',
@@ -554,7 +558,7 @@ describe('the calendar-marker routes', () => {
   ] as const) {
     it(`refuses ${label}, naming the field, and writes nothing`, async () => {
       const refused = await create('owner', {
-        id: 'e1000000-0000-4000-8000-000000000005',
+        markerId: 'e1000000-0000-4000-8000-000000000005',
         date: '2026-09-14',
         name,
       });
@@ -581,7 +585,7 @@ describe('the calendar-marker routes', () => {
    */
   it('accepts a name of exactly MARKER_NAME_MAX code points', async () => {
     const made = await create('owner', {
-      id: 'e1000000-0000-4000-8000-000000000005',
+      markerId: 'e1000000-0000-4000-8000-000000000005',
       date: '2026-09-14',
       name: NAME_AT_CAP,
     });
@@ -612,7 +616,7 @@ describe('the calendar-marker routes', () => {
    */
   it('refuses an over-cap rename and leaves the stored name behind', async () => {
     expect(
-      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+      (await create('owner', { markerId: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
     ).toBe(201);
     const before = await list('owner');
 
@@ -632,7 +636,7 @@ describe('the calendar-marker routes', () => {
    */
   it('refuses a rename of an absent marker with not_found, naming the field', async () => {
     expect(
-      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+      (await create('owner', { markerId: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
     ).toBe(201);
     const before = await list('owner');
 
@@ -640,7 +644,7 @@ describe('the calendar-marker routes', () => {
       name: 'Nothing to rename',
     });
     expect(refused.status).toBe(404);
-    expect(await refused.json()).toEqual({ error: 'not_found', field: 'id' });
+    expect(await refused.json()).toEqual({ error: 'not_found', field: 'markerId' });
     expect(await list('owner')).toEqual(before);
   });
 });

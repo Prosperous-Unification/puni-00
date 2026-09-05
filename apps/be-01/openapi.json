@@ -3353,7 +3353,7 @@
                   "name"
                 ],
                 "properties": {
-                  "id": {
+                  "markerId": {
                     "type": "string"
                   },
                   "date": {
@@ -3383,7 +3383,7 @@
                   "name"
                 ],
                 "properties": {
-                  "id": {
+                  "markerId": {
                     "type": "string"
                   },
                   "date": {
@@ -3413,7 +3413,7 @@
                   "name"
                 ],
                 "properties": {
-                  "id": {
+                  "markerId": {
                     "type": "string"
                   },
                   "date": {

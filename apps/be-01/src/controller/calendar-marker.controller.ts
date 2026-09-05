@@ -15,10 +15,27 @@ import { statusForRefusal } from './refusal-status';
  * module-level one is shared mutable state between apps — `step.controller.ts`
  * carries the same note and `auth.controller.ts` carries the failure that
  * taught it.
+ *
+ * **The client-supplied marker id is `markerId` on the wire, not `id`**, and the
+ * name is forced rather than chosen. This route's path is
+ * `/api/projects/:id/calendar-markers`, so `id` on this API already means the
+ * project. `openapi-tools.ts` derives one MCP tool per operation from
+ * `apps/be-01/openapi.json` and flattens path and body inputs into a single
+ * argument object, and its `claim()` throws rather than ship a tool where one
+ * input silently overwrites the other. Renaming the *path* parameter instead is
+ * not available: memoirist refuses two different parameter names in the same
+ * position, so `:projectId` here would mean renaming `:id` across every
+ * `/api/projects/:id/...` route in be-01. `markerId` is also what the `PATCH`
+ * and `DELETE` paths already call this same value, so the create is now the
+ * only route that ever called it anything else.
+ *
+ * The **domain** field stays `id` (`NewCalendarMarker.id`, `CalendarMarker.id`):
+ * inside the service there is no project id to collide with, and the seam is the
+ * one mapping line in the `POST` handler.
  */
 const createBody = () =>
   t.Object({
-    id: t.Optional(t.String()),
+    markerId: t.Optional(t.String()),
     date: t.String(),
     name: t.String(),
     color: t.Optional(t.Union([t.String(), t.Null()])),
@@ -79,7 +96,7 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 /** One row of the spec's refusal table: the code it answers with, and the field it blames. */
 interface BodyProblem {
   reason: 'malformed' | 'contrast';
-  field: 'id' | 'date' | 'name' | 'color';
+  field: 'markerId' | 'date' | 'name' | 'color';
 }
 
 /**
@@ -130,12 +147,13 @@ function colorProblem(color: string | null | undefined): BodyProblem | null {
  * a validate-after-write breaks.
  */
 function createProblem(body: {
-  id?: string;
+  markerId?: string;
   date: string;
   name: string;
   color?: string | null;
 }): BodyProblem | null {
-  if (body.id !== undefined && !UUID_V4.test(body.id)) return { reason: 'malformed', field: 'id' };
+  if (body.markerId !== undefined && !UUID_V4.test(body.markerId))
+    return { reason: 'malformed', field: 'markerId' };
   // `isIsoDate` rather than a regexp of this file's own: it rejects
   // `2026-02-31`, which matches the shape and is not a day, and it is what
   // `projectService.patch` already answers `startDate` against. A second
@@ -151,11 +169,14 @@ function createProblem(body: {
  *
  * `forbidden` is the one row whose field is absent, and that absence is part of
  * the contract rather than an omission: the refusal is about the caller, not
- * about a member of the body. `taken` and `not_found` both blame the `id` — the
- * one already stored, or the one that resolves to nothing this project owns.
+ * about a member of the body. `taken` and `not_found` both blame the `markerId`
+ * — the one already stored, or the one that resolves to nothing this project
+ * owns. `markerId` rather than `id` because that is what every marker request
+ * calls this value: the path parameter on `PATCH` and `DELETE`, and the create
+ * body property (see {@link createBody}). `id` on this API means the project.
  */
 const refusalBody = (reason: CalendarMarkerRefusal) =>
-  reason === 'forbidden' ? { error: reason } : { error: reason, field: 'id' as const };
+  reason === 'forbidden' ? { error: reason } : { error: reason, field: 'markerId' as const };
 
 /**
  * A project's calendar markers.
@@ -196,7 +217,12 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
           set.status = statusFor(problem.reason);
           return { error: problem.reason, field: problem.field };
         }
-        const outcome = await markers.create(params.id, user.id, body);
+        // The one place the wire name and the domain name meet: `markerId` in,
+        // `id` out. Spread-then-override would carry `markerId` into the
+        // service's object as an extra member, so the two names are mapped
+        // explicitly.
+        const { markerId, ...rest } = body;
+        const outcome = await markers.create(params.id, user.id, { ...rest, id: markerId });
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
           return refusalBody(outcome.reason);
