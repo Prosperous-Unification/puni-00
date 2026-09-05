@@ -5014,6 +5014,70 @@ describe('the dated axis cell is a control a keyboard can operate', () => {
   });
 });
 
+describe('the undated axis cell announces which cell it is and why it is unavailable', () => {
+  // Three of 6.4a's five cases. The other two — Enter and Space putting the
+  // refusal in the live region — wait on slice 7.2, which is what builds the
+  // refusal and the region to put it in; there is neither in the panel today.
+  // 6.4a therefore stays unticked.
+  const drawUndated = () =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 8)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 8)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+
+  itDom('is a focusable control that says it is unavailable', () => {
+    drawUndated();
+    // The axis really is the dateless one, or the rest of this describe is
+    // asserting about the calendar branch under another name.
+    expect(document.querySelectorAll('[data-axis-date]')).toHaveLength(0);
+
+    const cell = document.querySelector('[data-axis-day="3"]');
+    if (cell === null) throw new Error('no axis cell at offset 3');
+    expect(cell.getAttribute('role')).toBe('button');
+    expect(cell.getAttribute('tabindex')).toBe('0');
+    expect(cell.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  itDom('carries neither aria-haspopup nor aria-expanded', () => {
+    // It opens nothing, so it must not claim to. A cell that inherited the
+    // dated branch's attributes would announce a dialog that no key on it can
+    // reach.
+    drawUndated();
+
+    const cell = document.querySelector('[data-axis-day="3"]');
+    if (cell === null) throw new Error('no axis cell at offset 3');
+    expect(cell.getAttribute('aria-haspopup')).toBeNull();
+    expect(cell.getAttribute('aria-expanded')).toBeNull();
+  });
+
+  itDom('names its workday position and the start date it is missing', () => {
+    // Located by role **and name**, which is the half round-8's review found
+    // missing: an implementation with the tab stop, both handlers and every
+    // ARIA attribute passes the two cases above while announcing nothing but
+    // "button", and a row of those is worse than no tab stop at all.
+    //
+    // Proof, watched 2026-09-05 against a 183 / 0 baseline on this file: the
+    // undated branch's `aria-label` replaced by the bare string `Day` — see
+    // the run log for counts; this case failed on the query alone.
+    drawUndated();
+
+    const named = screen.getByRole('button', { name: 'Workday 3, no project start date' });
+
+    expect(named.getAttribute('data-axis-day')).toBe('3');
+  });
+});
+
 describe('a calendar marker is a chip in the axis band, placed by its date', () => {
   /**
    * The colour the fixture marker is stored in — a `PALETTE` entry, so it is a

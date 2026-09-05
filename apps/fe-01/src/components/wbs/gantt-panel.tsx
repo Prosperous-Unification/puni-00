@@ -4140,7 +4140,28 @@ function GanttChart({
                   role="button"
                   tabIndex={0}
                   {...(day.date === null
-                    ? { 'aria-disabled': true }
+                    ? {
+                        'aria-disabled': true,
+                        // **Not a generic name.** §6's argument for giving
+                        // these cells a tab stop at all is that a row of stops
+                        // announced "button" and nothing else is worse than no
+                        // stop, so a cell that cannot be marked has to say
+                        // which cell it is and why — the workday it stands at,
+                        // and the project start date that is missing. That is
+                        // 6.4a's own contract and two Sol rounds found it
+                        // unasserted, not merely unimplemented.
+                        //
+                        // The `null` arm is the shared type's, not this axis's:
+                        // an undated cell is drawn only by `workdayAxis`, which
+                        // sets `workday` on every cell it makes. It is
+                        // `calendarAxis` that has workdayless cells, and those
+                        // are weekends — which always carry a date and so never
+                        // reach this branch.
+                        'aria-label':
+                          day.workday === null
+                            ? 'No project start date'
+                            : `Workday ${String(day.workday)}, no project start date`,
+                      }
                     : {
                         'aria-haspopup': 'dialog' as const,
                         'aria-expanded': composerAt === day.date,

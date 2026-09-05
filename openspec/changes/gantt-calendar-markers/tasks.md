@@ -2778,3 +2778,44 @@ rc 0 — **2229 pass / 0 fail across 86 files**, exactly the seven new cases ove
 chunk 24's 2222; `fe-01:typecheck` rc 0; `fe-01:lint` rc 0 whole (the one
 pre-existing `react-hooks/exhaustive-deps` warning at `wbs-table.tsx:4628`, not
 this diff); `prettier --check .` rc 0. Nothing outside `apps/fe-01` changed.
+
+## Chunk 26 — three of slice 6.4a's five cases (TASK-235 run 13, 2026-09-05)
+
+**6.4a STAYS UNTICKED, and this is the part of it that does not need slice
+7.2.** The undated cell now has an accessible name — `Workday 3, no project
+start date` — and three of the five cases stand: it is focusable and carries
+`role="button"` and `aria-disabled="true"`; it carries neither `aria-haspopup`
+nor `aria-expanded`; and it is located **by role and name**. The two missing
+cases are Enter and Space putting the refusal in the live region, and they are
+not writable: **there is no refusal and no live region in the panel at all.**
+Both are 7.2's, so 7.2 is now a prerequisite of 6.4a rather than a successor —
+the plan sequenced them the other way.
+
+**The name is the half two Sol rounds found unasserted** (rounds 8 and 9,
+Important, on this slice and on 6.4). An implementation with the tab stop, both
+handlers and every ARIA attribute passes the other two cases while announcing
+nothing but "button", and §6's own argument for giving these cells a tab stop is
+that a row of stops announced that way is worse than no stop. So the name is
+what makes the tab stop worth having, and until this chunk the undated cell's
+accessible name was its bare axis number.
+
+**NEGATIVE WATCHED**, baseline 180 → 183 pass / 0 fail on `gantt-panel.test.tsx`
+(exactly the three new cases), restored to 183 / 0 after: the undated branch's
+`aria-label` replaced by the bare generic string `Day` → **182 / 1**, the
+role-and-name case alone, `Unable to find an accessible element with the role
+"button" and name "Workday 3, no project start date"`, while the focusability,
+`aria-disabled` and both ARIA-absence assertions stayed green. A removal and a
+generic label are different defects and the slice already names the generic one
+as the likelier.
+
+**The `aria-label`'s `workday === null` arm is the shared type's, not this
+axis's.** An undated cell is drawn only by `workdayAxis`, which sets `workday`
+on every cell it makes; it is `calendarAxis` that has workdayless cells, and
+those are weekends, which always carry a date and so never reach this branch.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`,
+`NODE_OPTIONS=--max-old-space-size=3072`): full `fe-01:test` rc 0 — **2232 pass
+/ 0 fail across 86 files**, exactly the three new cases over chunk 25's 2229;
+`fe-01:typecheck` rc 0; `fe-01:lint` rc 0 whole (the same pre-existing
+`react-hooks/exhaustive-deps` warning at `wbs-table.tsx:4628`); `prettier
+--check .` rc 0. Nothing outside `apps/fe-01` changed.
