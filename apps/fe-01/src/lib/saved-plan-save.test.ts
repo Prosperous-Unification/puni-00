@@ -199,10 +199,13 @@ describe('the Save plan action', () => {
 
   /**
    * Sol I1's second window. `SavedPlansPanel` refreshes the shelf when the save
-   * state turns `saved`, because be-01 broadcasts nothing on save (TASK-255) —
-   * that effect is the only thing that puts the reader's own checkpoint on their
-   * own shelf. Settling into the component that has already been replaced would
-   * leave the new row invisible until somebody edited the project.
+   * state turns `saved`. be-01 does broadcast `saved_plans_changed` on a
+   * successful save (TASK-255), but that event carries no per-request outcome
+   * and is not emitted at all on `busy`, `quota` or `error` — so it cannot
+   * deliver the request's terminal state to a replacement mount. Settling into
+   * the component that has already been replaced therefore drops the
+   * authoritative timestamp and every refusal message, and leaves the
+   * replacement on `idle` — the failure `saved-plan-save.ts:176-180` records.
    */
   itDom('settles into the component that replaced the one that pressed Save', async () => {
     const fake = deferredSave();
@@ -223,10 +226,13 @@ describe('the Save plan action', () => {
    *
    * A resize unmounts the shelf and mounts its replacement, and a request that
    * lands *between* the two belongs to neither. The answer must wait for
-   * whoever arrives, because the panel's completion effect is the only thing
-   * that puts the reader's own checkpoint on their own shelf — be-01 broadcasts
-   * nothing on save (TASK-255). Losing it here is the same invisible checkpoint
-   * the whole finding is about, arriving through a narrower door.
+   * whoever arrives. be-01 does publish `saved_plans_changed` on a successful
+   * save (TASK-255), so the row itself would eventually appear — but that event
+   * carries no per-request outcome and is not emitted at all on `busy`, `quota`
+   * or `error`, so it cannot deliver this request's terminal state to whoever
+   * replaced the mount that pressed Save. Losing the answer here drops the
+   * authoritative timestamp and every refusal message: the same finding arriving
+   * through a narrower door.
    */
   itDom('hands a save that landed with nobody mounted to the next mount', async () => {
     const fake = deferredSave();

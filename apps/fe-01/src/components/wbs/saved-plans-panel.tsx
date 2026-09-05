@@ -109,12 +109,12 @@ export function renameWords(result: SavedPlanTouchResultView): string | null {
  * screen rendered any of them, so every one of those green suites was a suite
  * over a feature no user could get to.
  *
- * **A successful save refreshes the shelf, and that is a hole in the broadcast
- * rather than belt-and-braces.** `saved-plan.controller.ts` publishes nothing on
- * save, so the stream `useSavedPlanShelf` listens to is the *plan's*: the user's
- * own checkpoint is the single change that never arrives on it. Without the
- * effect below, pressing Save leaves the new row invisible until somebody edits
- * the project.
+ * **A successful save refreshes the shelf as the actor's fast path.** The
+ * controller publishes `saved_plans_changed`, which refreshes collaborators,
+ * but making the saver wait for their own event's round trip through the gateway
+ * would delay the row they just created. The effect below starts that read as
+ * soon as the save answers; the shelf's generation guard already makes its race
+ * with the broadcast safe.
  */
 export function SavedPlansPanel({
   projectId,
@@ -264,12 +264,14 @@ export function SavedPlansPanel({
    * Identity and not contents, and that is the honest test rather than a lazy
    * one: `rows` is a fresh array per read, and the shelf reads exactly when
    * something happened to it — on mount, on a project change, on a broadcast,
-   * and on the refresh a save triggers. Comparing ids instead would call a
-   * broadcast "nothing changed" whenever the *list* was untouched, which is
-   * wrong for the commonest reason the reader needs this: `right` is usually
-   * `current`, the broadcast is the plan's own stream (be-01 publishes nothing
-   * about saved plans at all), so the thing that went stale is the side the
-   * shelf cannot describe.
+   * and on the refresh a save or a rename triggers. Comparing ids instead would
+   * call a broadcast "nothing changed" whenever the *list* was untouched, and
+   * that is wrong because the list is not the only side of the comparison that
+   * can move: `right` is usually `current`, so an ordinary plan broadcast leaves
+   * every saved-plan id unchanged while the live side moves out from under the
+   * comparison on screen. (A `saved_plans_changed` broadcast from a save or a
+   * delete changes the id set, so ids would have caught those two; a rename does
+   * not, and neither does the case above. Identity catches all of them.)
    *
    * Only over `ready`. There is nothing to leave alone while a comparison is
    * loading, refused or failed, and offering to refresh one of those would be
@@ -293,9 +295,9 @@ export function SavedPlansPanel({
         setRenameRefusal(renameWords(result));
         // On every outcome, not only on success. `not_found` means the shelf is
         // showing a row be-01 no longer has, which is exactly when a re-read is
-        // worth making; and the rename itself is the one write this surface
-        // does that no broadcast will report (be-01 publishes nothing about
-        // saved plans), so the new name arrives here or not at all.
+        // worth making. A successful rename also broadcasts, but this local
+        // refresh avoids waiting for the actor's own gateway round trip; the
+        // shelf's generation guard makes the two reads safe together.
         refresh();
       })
       .catch((fault: unknown) => {
