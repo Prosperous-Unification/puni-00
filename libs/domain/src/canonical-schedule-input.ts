@@ -22,6 +22,17 @@
  * a future root import from pulling a Node builtin into a browser bundle.
  * `fast-golden-corpus.ts` and `effective-label.ts` are out of it for their own
  * reasons already.
+ *
+ * That sentence was FALSE between run 42 and `02cfe57f`: run 42 added
+ * `export * from './canonical-schedule-input'` to `index.ts` when the plan read
+ * became the first caller outside this library, and the docstring kept claiming
+ * the safeguard the export had removed (Sol M1 on PR 203). The export is gone
+ * again and the callers reach this module by the explicit Node subpath
+ * `@wbs/domain/canonical-schedule-input`, declared in `tsconfig.base.json`
+ * beside the other `@wbs/domain/*` subpaths. Run 42's reason survives intact —
+ * there is still exactly ONE canonicaliser, which is what stops an app-side
+ * copy from ordering an argument differently and serving another plan's
+ * schedule; only the door it is reached through changed.
  */
 
 import { createHash } from 'node:crypto';

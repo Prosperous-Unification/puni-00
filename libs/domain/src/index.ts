@@ -46,12 +46,21 @@ export * from './saved-plan';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
-// The exact-input hash and the string it is taken over (tasks.md 1.1, 1.2).
-// Exported here from run 42, when the plan read became the first caller outside
-// this library: the cache key's `inputHash` names one plan, and a second
-// canonicalisation written app-side to avoid this line is the copy that orders
-// an argument differently and serves another plan's schedule.
-export * from './canonical-schedule-input';
+// The exact-input hash and the string it is taken over (tasks.md 1.1, 1.2) are
+// NOT here, and this comment is the enforcement note rather than a description.
+// `canonical-schedule-input.ts` imports `node:crypto`; this barrel is reachable
+// from `apps/fe-01`, so a root re-export would put a Node builtin one
+// `export *` away from a browser bundle. Run 42 exported it here anyway, when
+// the plan read became the first caller outside this library, and Sol's M1 on
+// PR 203 caught the contradiction: the module's own docstring said it was
+// deliberately absent from the barrel while this line exported it.
+// Both halves of that finding are closed the same way. The single-canonicaliser
+// rule run 42 was protecting is real — a second canonicalisation written
+// app-side is the copy that orders an argument differently and serves another
+// plan's schedule — so the module still has exactly one implementation, and
+// backend callers reach it by the explicit Node subpath
+// `@wbs/domain/canonical-schedule-input` (tsconfig.base.json). One import, one
+// canonicaliser, and no browser-reachable path to `node:crypto`.
 // The real-domain scorer (tasks.md 4.11b, 4.12b), beside `schedule` because it
 // reads nothing but a `Schedule` and exists so the publication guard's two
 // sides are summed over the same slices in the same order.

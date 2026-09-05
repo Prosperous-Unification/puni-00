@@ -29,10 +29,10 @@ import {
   ScheduleCycleError,
   type Scheduled,
   type ScheduledSlice,
-  type ScheduleInput,
   type Slice,
   sliceKey,
 } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type {
   ActualStore,

@@ -60,17 +60,32 @@ import type { SolverOffsetMap } from './wire-types';
  * against `placed.slices` cannot drift from it. Deriving the same set here would
  * be a second copy of the leaf grouping and the leaf refusal.
  *
- * ## The one thing this does NOT yet answer
+ * ## The ulp hazard, and where it is closed
  *
  * `offset / SOLVER_QUANTUM` is a single correctly-rounded IEEE division, so it
  * is the nearest double to the exact rational — but the floors it is compared
- * against are Fast's own accumulated `days / width` arithmetic, and `pinFloor`
- * compares them with `===` and `<`. A floor whose exact value is a unit
- * multiple but whose double drifted a ulp above it would make a perfectly
- * feasible pin read as "before its floor" and throw. That hazard is real,
- * bounded to about a ulp, and NOT closed here: it needs its own fixture and its
- * own watched red, and `snapWorkdays`' 1e-9 window is the tool for it. Written
- * down rather than smoothed over.
+ * against are Fast's own accumulated `days / width` arithmetic. Compared with
+ * bare `===` and `<`, a floor whose exact value is a unit multiple but whose
+ * double drifted a ulp above it makes a perfectly feasible pin read as "before
+ * its floor" and throw.
+ *
+ * **That is closed, in `schedule.ts`, and this note is a pointer to the rule
+ * rather than a second statement of it.** Both the floor comparison and the
+ * pool-window re-ask go through `withinDrift` (`schedule.ts:1159-1211`): equal
+ * means `withinDrift`, not `===`, because the two sides are two roundings of
+ * one real number — the pin divides back from `k / SOLVER_QUANTUM` and the
+ * floor accumulates through `days / width`. It is not a rare case: 106,142 of
+ * 480,000 (width, offset) pairs drift one way or the other, and with `===` the
+ * plan's OWN quantised baseline came back as a refusal.
+ *
+ * The window hides no real violation, and the separation is quantified rather
+ * than asserted: the solver places integers, so a genuinely early start is
+ * early by at least one unit — 0.0208 of a day against a 1e-9 window.
+ *
+ * An earlier revision of this note said the hazard was "NOT closed here" and
+ * survived the fix. Sol's M2 on PR 203 caught it: a note that records an open
+ * hazard the code has since closed invites a duplicate workaround and misstates
+ * the release safety case.
  */
 export function materialiseOptimized(
   rows: readonly PlannedRow[],

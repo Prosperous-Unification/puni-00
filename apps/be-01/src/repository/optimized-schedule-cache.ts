@@ -3,7 +3,8 @@ import {
   encodeOptimizedResult,
   type OptimizedResult,
 } from '@wbs/contracts/solver/optimized-result';
-import { type Schedule, type ScheduleInput, scheduleInputHash } from '@wbs/domain';
+import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
+import { type Schedule } from '@wbs/domain';
 import { and, desc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 

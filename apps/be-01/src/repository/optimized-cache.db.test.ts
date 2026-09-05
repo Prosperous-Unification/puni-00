@@ -15,13 +15,12 @@ import {
   type PlannedRow,
   type Schedule,
   schedule,
-  type ScheduleInput,
-  scheduleInputHash,
   scoreReal,
   type Slice,
   sliceKey,
   SOLVER_QUANTUM,
 } from '@wbs/domain';
+import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';

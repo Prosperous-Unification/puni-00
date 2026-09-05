@@ -1,6 +1,7 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
-import { type ScheduleInput, sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
