@@ -1033,7 +1033,7 @@ in both slices rather than implied by position.
       recolour cases name "the fake API's recorded request" as their oracle and
       there is no request to record. Whichever of the two runs first should
       land this.
-- [ ] 7.3 Giving that project a start date turns the same cell live — test:
+- [x] 7.3 Giving that project a start date turns the same cell live — test:
       same file, re-render with a start date and assert the click opens the
       composer. This is what proves 7.2 refused for the stated reason and not
       because the click handler was never wired: a refusal proved only by "no
@@ -2942,4 +2942,29 @@ guard mutation cannot deliver it because the two branches share the guard.
 
 **GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`): full `fe-01:test` rc 0 —
 **2235 pass / 0 fail across 86 files**, exactly +1 over chunk 27's 2234;
+`fe-01:typecheck` rc 0; scoped `bunx eslint` rc 0; `prettier --check` rc 0.
+
+## Chunk 29 — slice 7.3 (TASK-235 run 14, 2026-09-05)
+
+**Landed.** Test-only. **7.3 checked** — the same cell that was refused goes
+live once the plan has a start date, which is what makes 7.2 a refusal rather
+than an inert cell. "No composer appeared" is equally true of a click handler
+that was never wired, so 7.2's own cases cannot tell the two apart; this one
+gives the same panel a start date and shows the same click doing the thing it
+was refused.
+
+A `rerender` and not a fresh render, because a fresh one re-proves 6.1 and this
+slice is about the transition: the plan gained a calendar, so its axis did too.
+
+**Negative watched**, baseline 187 pass / 0 fail on `gantt-panel.test.tsx`,
+restored after: the click handler's dated branch neutered
+(`setComposerAt(day.date)` → `void day.date` at `gantt-panel.tsx:4148`) →
+**181 / 6**. The plan's prediction — this case failing "while 7.2's refusal case
+stays green" — **holds**: both refusal cases and the Space case stayed green.
+The other five failures are the click-to-open path's own (`6.1`'s two and three
+of `6.4`'s), which is the expected blast radius of removing it and not a
+surprise: they assert the same branch through a different door.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`): full `fe-01:test` rc 0 —
+**2236 pass / 0 fail across 86 files**, exactly +1 over chunk 28's 2235;
 `fe-01:typecheck` rc 0; scoped `bunx eslint` rc 0; `prettier --check` rc 0.

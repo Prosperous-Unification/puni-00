@@ -5089,22 +5089,23 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
   // assertion whose negative is uninjectable is the vacuous form this plan
   // rejects elsewhere by name (9.2b). Task 7.2a carries the seam; 7.2 stays
   // unticked until it lands.
-  const drawUndated = () =>
-    render(
-      <GanttPanel
-        plan={planOf({
-          rows: [rowAt('strip', 0, 8)],
-          slices: [sliceAt('strip-dev', 'strip', 0, 8)],
-        })}
-        startDate={null}
-        scheduleError={null}
-        generation={0}
-        heightPx={null}
-        onPickRow={() => undefined}
-        onPointRow={() => undefined}
-        pointed={pointedAtRow(null)}
-      />,
-    );
+  const undatedPanel = (startDate: string | null) => (
+    <GanttPanel
+      plan={planOf({
+        rows: [rowAt('strip', 0, 8)],
+        slices: [sliceAt('strip-dev', 'strip', 0, 8)],
+      })}
+      startDate={startDate}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointed={pointedAtRow(null)}
+    />
+  );
+
+  const drawUndated = () => render(undatedPanel(null));
 
   const cellAt = (offset: number): Element => {
     const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
@@ -5161,6 +5162,26 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
       /project start date/,
     );
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  itDom('the same cell goes live once the plan has a start date', () => {
+    // Slice 7.3, and it is what makes 7.2 a refusal rather than an inert cell.
+    // "No composer appeared" is equally true of a click handler that was never
+    // wired at all, so the refusal cases above cannot tell the two apart on
+    // their own; this one gives the same panel a start date and shows the same
+    // click doing the thing it was refused.
+    //
+    // A rerender rather than a fresh render, because a fresh one proves 6.1
+    // over again and this slice is about the transition: the plan gained a
+    // calendar, so the axis it draws did too.
+    const { rerender } = render(undatedPanel(null));
+    fireEvent.click(cellAt(3));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    rerender(undatedPanel(MONDAY_START));
+    fireEvent.click(cellAt(3));
+
+    expect(screen.getByRole('dialog').getAttribute('data-composer-date')).not.toBeNull();
   });
 });
 
