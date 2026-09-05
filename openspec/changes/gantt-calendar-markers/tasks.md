@@ -428,7 +428,7 @@ in both slices rather than implied by position.
       the server half here, so until now it was owed by neither slice and the
       exact-id case was a positive with nothing watching it. It belongs here
       because this is the only file that executes be-01 code.
-- [ ] 4.5 Refusals name their field and apply nothing — test: same file, one
+- [x] 4.5 Refusals name their field and apply nothing — test: same file, one
       case per row of the spec's eight-row refusal table — including both
       `name` boundaries, an empty string and `MARKER_NAME_MAX + 1 = 121` code
       points, with a 120-point name accepted so the cap is tested at its value
@@ -2096,3 +2096,114 @@ files**, exactly the three new cases over chunk 8's 1539; domain 506 / 0.
 boundaries and the hex/contrast rows, three negatives) and 4.6 (isolation, the
 cross-project delete, and route-family disjointness through a drizzle
 `logQuery` reach assertion, three negatives). Those two close section 4.
+
+## Implementation notes — chunk 10 (TASK-235 run 5, 2026-09-05)
+
+**Slice 4.5, checked.** The eight-row refusal table is now answered row by row,
+and answering it needed three rules the routes did not have: the `name` cap, the
+hex-triple shape, and the 3:1 contrast bar.
+
+**One default, not two ladders, and this is what makes the first negative
+reachable.** `MARKER_ROUTE_DEFAULT = 422` is now a named constant and _every_
+refusal these routes answer leaves through `statusForRefusal(reason,
+MARKER_ROUTE_DEFAULT)` — the body ones included, where chunk 8 had written
+`set.status = 422` inline. With the inline spelling the route default is
+**unfalsifiable**: `taken`, `not_found` and `forbidden` each leave through their
+own shared arm, so changing the default moves no status at all and the negative
+task 4.5 names could not fail anything.
+
+**Two colour rows, two codes, in that order.** Shape is `malformed`, contrast is
+`contrast`, and `colorProblem` asks them in that sequence because
+`validateCustomColor` states well-formedness as a **precondition it does not
+check** — handed `#f00` it throws through `parseHex`, which at a boundary is a
+500 blaming the server for the client's typo. `isHexTriple` is new in
+`marker-color.ts` and shares the `HEX_TRIPLE` literal with `parseHex`, so "what
+the API accepts" and "what the domain can parse" cannot drift apart.
+
+**`MARKER_NAME_MAX` lives in the domain** (`libs/domain/src/marker-name.ts`),
+not in be-01, for the reason the colour rules do: slice 6's composer refuses an
+over-long name before sending, and two spellings of "too long" are two rules
+free to disagree about a name the user is looking at.
+
+**THE FINDING OF THE CHUNK, and it was three existing tests going red:**
+`#4c3a86` — the custom fill the round trip, the permission case and the
+collision case had all been sending since chunk 7 — **fails ten of the twenty
+backdrops** (`dark:base` at 2.166 down to `dark:base+weekend+zebra+today` at
+1.419). It was never a fill this API could accept; nothing had measured a custom
+colour until this slice. Replaced by a named `CUSTOM_FILL = '#5d6afe'`
+(`azure`, a `PALETTE` entry, clean over all twenty). The permission case is the
+one that mattered: a 403 case whose body is _independently_ refusable is not a
+permission case, and it would have started passing for the wrong reason the
+moment the gate moved.
+
+**THREE NEGATIVES WATCHED, each in a different place, baseline 20 pass / 0
+fail on the file:**
+
+- **`MARKER_ROUTE_DEFAULT` 422 → 400**: **9 pass / 11 fail** — every
+  `malformed` and `contrast` row red (both colour rows, the contrast row, both
+  name rows, the refused rename, all three date rows and both id rows), while
+  the three shared-arm rows stayed green: `taken` still 409, `not_found` still
+  404, `forbidden` still 403. That split is the whole point of the negative —
+  it proves the table tests **this route's default** rather than the shared
+  ladder underneath it.
+- **`[...name].length` → `name.length` in `isMarkerName`**: **19 pass / 1
+  fail**, and the one is the **acceptance** case — a 120-code-point name
+  refused 422 where 201 was owed. Every refusal case stayed green, because
+  those are wrong at either count. This is the direction that matters (a user
+  refused a name the spec allows) and it is only reachable because both
+  boundary fixtures are astral: 120 ASCII characters are 120 UTF-16 units too,
+  so an ASCII fixture passes over the fault in both directions (round-7 Sol
+  review).
+- **`nameProblem(name)` moved after `markers.rename(…)`**: **19 pass / 1
+  fail**, exactly `refuses an over-cap rename and leaves the stored name
+behind`, on the name diff with the status still 422. "Refused" and
+  "unchanged" are two claims and only the second reaches the row.
+
+Restored after each: 20 pass / 0 fail.
+
+**Where the eight rows live**, since the table is answered from four places and
+not one — deliberately, because two homes for a row would be two oracles free to
+disagree:
+
+| row                       | case                                                |
+| ------------------------- | --------------------------------------------------- |
+| `date` not an `IsoDate`   | 4.3's three date cases                              |
+| `id` not a UUID v4        | 4.6a's two id cases                                 |
+| `color` not a hex triple  | new: `rebeccapurple` and `#f00`                     |
+| `name` empty or over cap  | new: `''` and 121 astral code points                |
+| `color` under the 3:1 bar | new: `#ff0000`, failing **exactly one** backdrop    |
+| `id` already exists       | 4.4's collision case, its assertion strengthened    |
+| absent / another project  | new: a rename of an absent marker                   |
+| `forbidden`               | 4.2's create, now `toEqual({ error: 'forbidden' })` |
+
+The last two rows of that table are assertions about **shape**, not just codes:
+`taken` and `not_found` now carry `field: 'id'` and `forbidden` carries no
+field at all, which is why its case is an exact-shape `toEqual` — only that can
+fail when a field appears.
+
+`#ff0000` is the contrast fixture because it fails **one** of the twenty
+(`light:pointed+today`, 2.943:1), so it also proves the server runs the whole
+loop rather than a sample of it; a colour failing ten would be refused by a
+validator that measured two.
+
+**`no-misused-spread` fired on both `[...name]` sites and the disables are a
+decision, not a silencing:** the rule is right that a ZWJ sequence is several
+code points and costs several against the cap. The spec names code points, so
+that is the unit — an `Intl.Segmenter` count would be a different cap, and one
+the composer would have to reproduce exactly for its pre-send refusal to agree
+with this one.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first):
+`test` over be-01 and domain rc 0 — be-01 **1550 pass / 0 fail across 126
+files**, exactly the eight new cases over chunk 9's 1542 and no regression;
+domain **506 / 0** across 42 files, unchanged. `lint` over be-01 and domain
+rc 0. `be-01:typecheck` and `domain:typecheck` rc 0, run **one at a time**.
+`format:check --all` rc 0. `apps/be-01/openapi.json` regenerated and
+**byte-identical** (sha256 `55f6b6c5…`, chunk 8's) — new validation, no new
+route and no changed body schema.
+
+**Next chunk:** 4.6 — isolation over two seeded projects, the cross-project
+`DELETE`, and route-family disjointness through a drizzle `logQuery` reach
+assertion, with three negatives: the `project_id` predicate dropped from the
+list query, a `work_item` read in the list handler, and a second one in the
+**recolour** branch specifically. That closes section 4.
