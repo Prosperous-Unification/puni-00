@@ -3,6 +3,10 @@ import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
 import type { Project } from '../repository';
+// The two vocabularies as values, from `schema.ts` rather than from
+// `../repository`, which is type-only on purpose — the same path
+// `directory.service.ts` takes for `PERSON_KINDS`.
+import { SCHEDULE_ENGINES, SOLVER_OBJECTIVES } from '../repository/schema';
 import type { AuthService } from '../service/auth.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
@@ -58,6 +62,24 @@ const projectPatch = () =>
         t.Object({ slug: t.String({ minLength: 1 }), url: t.String({ minLength: 1 }) }),
         t.Null(),
       ]),
+    ),
+    // The three optimizer settings (tasks.md 3b.2), each optional and each
+    // moving on its own: a project switched off keeps the engine and the
+    // objective it was on, which is why they are three columns rather than one
+    // nullable engine. They are **project settings**, so they arrive on this
+    // route under its existing project-write authorization rather than on a
+    // route of their own — a reader may not change them, and
+    // `ProjectService.update` is where that is decided for every field alike.
+    optimizationEnabled: t.Optional(t.Boolean()),
+    // Unions for `estimateMethod`'s reason, and here the database agrees: the
+    // migration's `CHECK (schedule_engine IN ('fast','optimized'))` would refuse
+    // an unknown value as a 500 on the write, and `toProject` refuses it as a
+    // throw on every later read. A 422 on one request is the same rule stated
+    // where the caller can act on it. The arrays are the ones the CHECKs
+    // enumerate, so the three boundaries cannot drift apart.
+    scheduleEngine: t.Optional(t.Union(SCHEDULE_ENGINES.map((engine) => t.Literal(engine)))),
+    scheduleObjective: t.Optional(
+      t.Union(SOLVER_OBJECTIVES.map((objective) => t.Literal(objective))),
     ),
   });
 

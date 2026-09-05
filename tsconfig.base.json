@@ -39,11 +39,21 @@
       "@wbs/domain/priority-band": ["libs/domain/src/priority-band.ts"],
       "@wbs/domain/dependency-reach": ["libs/domain/src/dependency-reach.ts"],
       "@wbs/domain/external-system": ["libs/domain/src/external-system.ts"],
+      "@wbs/domain/canonical-schedule-input": ["libs/domain/src/canonical-schedule-input.ts"],
       "@wbs/gw-01": ["apps/gw-01/src/index.ts"],
       "@wbs/observability": ["libs/observability/src/index.ts"],
       "@wbs/observability/server": ["libs/observability/src/server/index.ts"],
       "@wbs/realtime": ["libs/realtime/src/index.ts"],
       "@wbs/contracts/ws-frames": ["libs/contracts/src/ws-frames.ts"],
+      "@wbs/contracts/solver/optimized-result": [
+        "libs/contracts/solver/src/optimized-result-dto.ts"
+      ],
+      "@wbs/contracts/solver/materialise-optimized": [
+        "libs/contracts/solver/src/materialise-optimized.ts"
+      ],
+      "@wbs/contracts/solver/quantised-baseline": [
+        "libs/contracts/solver/src/quantised-baseline.ts"
+      ],
       "@wbs/deploy-contract": ["tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@wbs/tool-compose": ["tools/tool-compose/src/index.ts"],
       "@wbs/tool-env": ["tools/tool-remote-scripts/src/lib/env.ts"],

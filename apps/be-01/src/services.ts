@@ -24,6 +24,7 @@ import { clockOf } from './service/clock';
 import { DirectoryService } from './service/directory.service';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { HistoryService } from './service/history.service';
+import { optimizerWiring } from './service/optimizer-wiring';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
 import { PushClient } from './service/push-client';
@@ -165,6 +166,14 @@ export function buildServices(opts: ServicesOptions): BeServices {
   // while a service publishes through another. See {@link DeferringBroadcaster}.
   const announcements = new DeferringBroadcaster(broadcast);
 
+  // **The optimizer is not deployed yet, and this is the one line that says so.**
+  // TASK-219 lands the solver core and the Fast-parity refactor; TASK-220 is
+  // what wires a real `OptimizedScheduleReader` in here, behind its migrations.
+  // Until then `read` is `undefined`, `available()` is `false`, and the settings
+  // PATCH refuses to switch a project on to something no plan read could serve —
+  // see {@link optimizerWiring} for why these are one argument and not two.
+  const optimizer = optimizerWiring(undefined);
+
   return {
     announcements,
     gatewayBroadcaster: broadcast,
@@ -177,7 +186,15 @@ export function buildServices(opts: ServicesOptions): BeServices {
       passwordSessions: opts.passwordSessions,
       localIdentity: opts.localIdentity,
     }),
-    projects: new ProjectService({ clock, projects: projectStore }),
+    // The same broadcaster once more, so `project_settings_changed` takes its
+    // place in the project's one sequence beside the step, capacity and tree
+    // events (tasks.md 3b.3).
+    projects: new ProjectService({
+      clock,
+      projects: projectStore,
+      broadcast: announcements,
+      optimizerAvailable: optimizer.available,
+    }),
     // The same broadcaster again: a capacity event takes its place in the
     // project's one sequence, so a client resuming from a work item's sequence is
     // not replayed a capacity change it has seen — or handed none it has not.
@@ -239,6 +256,10 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // journalled command and a recorded one are the same act.
       journal: new CommandJournalRepository(opts.db),
       broadcast: announcements,
+      // The other half of the same `optimizerWiring` the settings gate reads,
+      // so this process cannot serve optimized plans while refusing to be
+      // switched on to them, or the reverse.
+      optimized: optimizer.read,
     }),
     history: new HistoryService({ projects: projectStore, events: planEventStore }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),

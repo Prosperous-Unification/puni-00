@@ -48,6 +48,16 @@ export class GanttDataError extends Error {
  * it since that change merged; until this one it reached the `default:` below
  * and threw the panel into its error boundary — the deploy gate
  * `capacity-write-paths` recorded.
+ *
+ * `optimizer` is the seventh and arrives with `dual-optimized-scheduler` (task
+ * 4.10): the solver put the bar there and **no floor of the plan explains it**.
+ * It is the one member with no cause behind it, which is precisely what it says
+ * — an optimizer may idle a low-priority slice so higher-priority work goes
+ * first, and none of the six above is true of that start. It carries no
+ * resource, no team and no blocking set, which is what keeps the render
+ * invariant additive: `capacityTeamId` and `capacityPredecessorIds` are still
+ * set exactly when `boundBy === 'capacity'`. Fast never emits it, so a payload
+ * carrying it came from the optimized path.
  */
 export type BindingFloor =
   | 'projectStart'
@@ -55,7 +65,8 @@ export type BindingFloor =
   | 'stepOrder'
   | 'notBefore'
   | 'person'
-  | 'capacity';
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * The ten colours a person's bars are drawn in, handed out in this order.
@@ -1461,6 +1472,11 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, strin
   predecessor: 'Waits for a dependency’s first estimated step',
   stepOrder: 'Waits for an earlier step on this item',
   notBefore: 'Held by its start-no-earlier-than date',
+  // The one sentence here that names no cause, because there is none to name.
+  // The other three point at the plan; this one says the schedule chose it, and
+  // saying *why* would be an invention — the optimizer's objective is a whole
+  // plan's trade-off and no per-slice reason survives it.
+  optimizer: 'Placed here by the optimizer',
 };
 
 /**
@@ -2238,8 +2254,14 @@ function floorWordsOf(
   startsOn: string | null,
 ): string {
   switch (slice.boundBy) {
+    // `optimizer` sits beside the two that need nothing from the caller, and
+    // for the same reason: it points at no other row, no person and no team.
+    // Task 4.10. The comment is ABOVE the group rather than between the labels
+    // because a comment between two `case`s reads to eslint's `no-fallthrough`
+    // as a body on the one above it, and it errored here.
     case 'projectStart':
     case 'stepOrder':
+    case 'optimizer':
       return FLOOR_SENTENCE[slice.boundBy];
     // The one arm whose words depend on facts this function is not handed by
     // every caller. `dependencyAnchor` is the binding edge's anchor where the
@@ -2328,7 +2350,7 @@ function floorWordsOf(
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
     default: {
-      // `never` here is the type saying the six above are all of them; the
+      // `never` here is the type saying the seven above are all of them; the
       // throw is for the runtime, where a payload can carry a seventh.
       //
       // Proof: this `default` replaced by

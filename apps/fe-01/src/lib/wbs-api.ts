@@ -111,6 +111,16 @@ export interface ScheduleView {
  * never `capacity`: whoever came free exactly as the dependency cleared was not
  * holding anything up, and between the two the person is named first. be-01's
  * `ScheduleFloor` is the rule; this is a description of what comes back.
+ *
+ * `optimizer` is the seventh, and it is here **before** anything can send it.
+ * A wire type narrower than the wire is a lie the compiler enforces: every
+ * exhaustive read of this union would have been checked against six members
+ * while be-01's `ScheduleFloor` already had seven, so the day TASK-220 makes
+ * the optimized route reachable, the missing member surfaces as a payload the
+ * types swore was impossible rather than as a build failure. `gantt-geometry`'s
+ * `BindingFloor` — the same union declared again for a module that knows
+ * nothing about fetching — has carried it since task 4.10; this closes the gap
+ * between them.
  */
 export type ScheduleFloorView =
   | 'projectStart'
@@ -118,7 +128,8 @@ export type ScheduleFloorView =
   | 'stepOrder'
   | 'notBefore'
   | 'person'
-  | 'capacity';
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * One placed slice — one work item's work for one step — as be-01 sends it.

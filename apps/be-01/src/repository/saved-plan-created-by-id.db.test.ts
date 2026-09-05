@@ -11,6 +11,11 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
 const SAVED_PLAN = '20260903190000_add_saved_plan';
+// The two migrations the dual-scheduler branch adds after this one. `rollbackTo`
+// reverses everything applied after its target, newest first, so a rollback to
+// SAVED_PLAN reverses them before it reaches this file's own column.
+const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 
 let dir: string;
 let path: string;
@@ -103,7 +108,11 @@ describe('saved_plan.created_by_id', () => {
     };
     expect(nullable()).toBe(0);
 
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CREATED_BY_ID]);
+    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      PROJECT_SETTINGS,
+      OPTIMIZER_TABLES,
+      CREATED_BY_ID,
+    ]);
 
     // The precondition for the line above meaning anything: the table is still
     // there, so `not.toContain` is a statement about the column and not about a
@@ -184,7 +193,11 @@ describe('saved_plan.created_by_id', () => {
    * way to produce a row that genuinely predates the column.
    */
   it('leaves a row written before the column reading null', () => {
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([CREATED_BY_ID]);
+    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      PROJECT_SETTINGS,
+      OPTIMIZER_TABLES,
+      CREATED_BY_ID,
+    ]);
 
     const before = openDatabase(path);
     try {

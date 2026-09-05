@@ -5,6 +5,7 @@ import { AuthService } from '../service/auth.service';
 import { clockOf } from '../service/clock';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -23,7 +24,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
   return inMemoryServices({ projects: projectStore }).service;
 }
 
-function buildHarness(options: { writeOnly?: boolean } = {}) {
+function buildHarness(options: { writeOnly?: boolean; optimizerAvailable?: boolean } = {}) {
   // One user store behind both: the list resolves each project's owner name
   // through it, exactly as the query joins `users`. Two stores would leave
   // every registered account unknown to the listing and throw on the first
@@ -43,8 +44,18 @@ function buildHarness(options: { writeOnly?: boolean } = {}) {
   // nothing about the ordering — it reports whichever way the sort happened to
   // land. Production ties too; this only removes the tie from the test.
   let tick = 0;
+  // Returned below, so 3b.4's two event cases can read what a PATCH announced —
+  // and, for the refused one, that it announced nothing.
+  const broadcast = recordingBroadcaster();
   const projects = new ProjectService({
     projects: projectStore,
+    broadcast,
+    // Available unless a case says otherwise, because most of this suite is
+    // about the settings *contract* and would otherwise be asserting the gate
+    // by accident. The two cases that are about the gate pass `false`, and
+    // `optimizer-availability.test.ts` is where the predicate and the reader are
+    // held to being one argument.
+    optimizerAvailable: () => options.optimizerAvailable ?? true,
     clock: clockOf({
       now: () => {
         tick += 1;
@@ -94,7 +105,7 @@ function buildHarness(options: { writeOnly?: boolean } = {}) {
     );
   }
 
-  return { app, register, send };
+  return { app, register, send, broadcast };
 }
 
 const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name }) });
@@ -112,7 +123,17 @@ const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name
 const missingFrom = (carried: object, wanted: readonly string[]): string[] =>
   wanted.filter((field) => !Object.hasOwn(carried, field));
 
-/** Every column a project row has, which is what create and read both answer with. */
+/**
+ * Every column a project row has, which is what create and read both answer with.
+ *
+ * The three optimizer settings are in this list rather than in a case of their
+ * own, and that is the whole reason it is a list: `missingFrom` runs it against
+ * create, list and read, so publishing a field at the repository layer and
+ * forgetting it on one of the three routes is caught by whichever route forgot.
+ * `project.db.test.ts` proves the settings reach the *payload*; nothing proved
+ * they reach the **wire** until they were named here — the containment check
+ * passes happily on a payload that never carried them.
+ */
 const PROJECT_FIELDS = [
   'id',
   'name',
@@ -125,6 +146,9 @@ const PROJECT_FIELDS = [
   'solutionRef',
   'revision',
   'createdAt',
+  'optimizationEnabled',
+  'scheduleEngine',
+  'scheduleObjective',
 ] as const;
 
 describe('projects', () => {
@@ -537,5 +561,327 @@ describe('projects', () => {
     const { app } = buildHarness();
     const res = await app.handle(new Request('http://localhost/api/projects'));
     expect(res.status).toBe(401);
+  });
+
+  // tasks.md 3b.4. The unmigrated-row case is `project-settings.db.test.ts`'s,
+  // because it is a fact about the columns' own defaults and this suite's store
+  // is in memory; what is proved here is the HTTP contract and the event.
+  it('patches each optimizer setting on its own, and the change survives a read', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    // Three requests rather than one, which is the point of the case: the
+    // settings are three columns so that a project switched off keeps the
+    // engine and objective it was on, and one combined PATCH would prove only
+    // that they can move together.
+    for (const patch of [
+      { optimizationEnabled: true },
+      { scheduleEngine: 'optimized' },
+      { scheduleObjective: 'time' },
+    ]) {
+      const res = await send(`/api/projects/${project.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      });
+      expect(res.status).toBe(200);
+    }
+
+    // Read back rather than trusting the PATCH's own answer: a route that
+    // echoed its request would satisfy every assertion above this line.
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string; scheduleObjective: string };
+    };
+    expect(body.project).toMatchObject({
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'time',
+    });
+  });
+
+  it('refuses an unknown engine and an unknown objective at the route’s own schema', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    for (const patch of [{ scheduleEngine: 'quantum' }, { scheduleObjective: 'cost' }]) {
+      const res = await send(`/api/projects/${project.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      });
+      // The database's `CHECK` would refuse these too, as a 500 on the write;
+      // the union in `projectPatch` makes it the caller's own 422 instead.
+      expect(res.status).toBe(422);
+    }
+  });
+
+  it('emits exactly one project_settings_changed, carrying all three values', async () => {
+    const { register, send, broadcast } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    // Whatever creating a project announced is not what this case is about.
+    broadcast.published.length = 0;
+
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduleEngine: 'optimized' }),
+    });
+
+    expect(res.status).toBe(200);
+    // One event, not one *of that type*: `toEqual` on the whole recording is
+    // what makes "and no `schedule_optimized`" a real assertion — a second
+    // announcement of any kind fails it. All three values ride along even
+    // though one moved, so a settings panel repainting from the event cannot
+    // hold one fresh field beside two stale ones.
+    expect(broadcast.published).toEqual([
+      {
+        projectId: project.id,
+        event: {
+          type: 'project_settings_changed',
+          optimizationEnabled: false,
+          scheduleEngine: 'optimized',
+          scheduleObjective: 'pri',
+        },
+      },
+    ]);
+  });
+
+  it('announces nothing when a settings patch changes none of the three', async () => {
+    const { register, send, broadcast } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    broadcast.published.length = 0;
+
+    // The values the project already has — which is what a settings panel with
+    // three controls sends every time one of the other two is touched.
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: false, scheduleEngine: 'fast' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  // The Critical both review seats reached on PR 203, from opposite directions:
+  // a settings PATCH that answers 200 to `optimized` in a process where no
+  // optimized reader is wired leaves the project claiming a mode every plan read
+  // will silently ignore. Three cases, because the gate has three ways to be
+  // written wrong and two of them were.
+  it('refuses switching the optimizer on when this deployment has none, on either key alone', async () => {
+    const { register, send, broadcast } = buildHarness({ optimizerAvailable: false });
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    broadcast.published.length = 0;
+
+    // Separately, and this is the case's whole point: guarding only
+    // `scheduleEngine` leaves `optimizationEnabled: true` a way to report a
+    // half-enabled optimizer that is not there.
+    for (const patch of [{ optimizationEnabled: true }, { scheduleEngine: 'optimized' }]) {
+      const res = await send(`/api/projects/${project.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      });
+      // 409 and not 422: nothing about the request is wrong, and the same body
+      // is accepted by the harness two cases up, which has an optimizer.
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'optimizer_unavailable' });
+    }
+
+    // Refused *before* the write, not after it: a gate that returned 409 having
+    // already stored the column would pass every assertion above this line.
+    expect(broadcast.published).toEqual([]);
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string };
+    };
+    expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
+  });
+
+  // The three cases the PR 203 peer seat named as missing negatives at
+  // `b07becf0`: every case above moves ONE key, so all of them still pass if
+  // `turnsTheOptimizerOn` is written as an XOR instead of an OR, and none of
+  // them reaches a project that is ALREADY enabled — which is the only state in
+  // which a resend or a disabling can be wrongly refused. Both halves are
+  // reachable by a caller, so both get a watched negative.
+  it('refuses switching the optimizer on with both keys in one patch, not just either alone', async () => {
+    const { register, send, broadcast } = buildHarness({ optimizerAvailable: false });
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    broadcast.published.length = 0;
+
+    // An XOR gate — "exactly one of these two keys turns it on" — answers 200
+    // here while passing every either-key-alone case above it. That is the
+    // whole reason this case exists separately from them.
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'optimizer_unavailable' });
+    expect(broadcast.published).toEqual([]);
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string };
+    };
+    expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
+  });
+
+  it('still lets an already-enabled project resend and disable after the optimizer is gone', async () => {
+    // `buildHarness` reads `options.optimizerAvailable` through a closure on
+    // every call, so mutating it here is a deployment LOSING its optimizer
+    // between two requests — a redeploy without the solver, on a project whose
+    // row already says `true`/`optimized`. Rebuilding the harness could not
+    // reach this state: the enabling PATCH would be refused by the new one.
+    const options = { optimizerAvailable: true };
+    const { register, send, broadcast } = buildHarness(options);
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    const enable = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+    expect(enable.status).toBe(200);
+
+    options.optimizerAvailable = false;
+    broadcast.published.length = 0;
+
+    // Resending what the row already holds is not an enabling, and a gate that
+    // compares the PATCH against `false` instead of against the STORED row 409s
+    // it — locking the settings panel of every project that was enabled before
+    // the optimizer went away.
+    const resend = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+    expect(resend.status).toBe(200);
+
+    // And the way OUT must stay open, one key at a time: refusing these is the
+    // failure that strands a project in a mode its deployment cannot serve.
+    const off = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: false }),
+    });
+    expect(off.status).toBe(200);
+
+    // The row is now the legal intermediate `false`/`optimized`, and re-enabling
+    // the flag FROM it is the case the peer seat found unwatched at `66177c79`.
+    // It is what separates a gate that compares each key against its OWN stored
+    // field from one whose two comparisons are crossed —
+    // `optimizationEnabled === true && before.scheduleEngine !== 'optimized'`
+    // reads this row as "already on" and answers 200, re-enabling an
+    // unserviceable mode. Every other case in this file passes that crossed gate.
+    const reEnable = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true }),
+    });
+    expect(reEnable.status).toBe(409);
+    expect(await reEnable.json()).toEqual({ error: 'optimizer_unavailable' });
+
+    const fast = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduleEngine: 'fast' }),
+    });
+    expect(fast.status).toBe(200);
+
+    // The OTHER legal intermediate row, `true`/`fast`, and the engine half of
+    // the gate judged from it. The Gemini seat's state enumeration at
+    // `df7b6528` found this row asserted NOWHERE under an absent optimizer, so
+    // the mirror image of the crossed gate above —
+    // `scheduleEngine === 'optimized' && !before.optimizationEnabled` — reads
+    // it as "already on" and answers 200 to a request that puts an
+    // optimizer-less deployment into the optimized engine. Reached the same
+    // way: enable the flag ALONE while the optimizer is still there, since no
+    // PATCH can reach `true`/`fast` once it is gone.
+    options.optimizerAvailable = true;
+    const flagOnly = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true }),
+    });
+    expect(flagOnly.status).toBe(200);
+    options.optimizerAvailable = false;
+
+    const engineFromFlagOn = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduleEngine: 'optimized' }),
+    });
+    expect(engineFromFlagOn.status).toBe(409);
+    expect(await engineFromFlagOn.json()).toEqual({ error: 'optimizer_unavailable' });
+
+    const flagOff = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: false }),
+    });
+    expect(flagOff.status).toBe(200);
+
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string };
+    };
+    // Read back, not inferred from the statuses: a 200 that stored nothing
+    // would pass every assertion above this line.
+    expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
+  });
+
+  it('lets a settings panel resend the values a project already holds, optimizer or not', async () => {
+    const { register, send } = buildHarness({ optimizerAvailable: false });
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    // The three-control panel's every keystroke. A gate written as "refuse any
+    // PATCH naming these keys" 409s this, and the optimizer has nothing to do
+    // with it — the request turns nothing on.
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        optimizationEnabled: false,
+        scheduleEngine: 'fast',
+        scheduleObjective: 'time',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as { project: { scheduleObjective: string } };
+    // And the unrelated third setting still landed, which is the difference
+    // between refusing an enabling and refusing a request.
+    expect(body.project.scheduleObjective).toBe('time');
+  });
+
+  it('refuses a read-only collaborator’s settings patch, and emits nothing', async () => {
+    const { register, send, broadcast } = buildHarness();
+    const owner = await register('owner');
+    const stranger = await register('stranger');
+    const create = await send('/api/projects', owner, created('Restricted'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+    broadcast.published.length = 0;
+
+    const res = await send(`/api/projects/${project.id}`, stranger, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true }),
+    });
+
+    // The settings ride on the project's existing write authorization rather
+    // than on a rule of their own — a reader may read every project and may
+    // change nothing in a restricted one, this included.
+    expect(res.status).toBe(403);
+    expect(broadcast.published).toEqual([]);
+    const after = await send(`/api/projects/${project.id}`, stranger);
+    const body = (await after.json()) as { project: { optimizationEnabled: boolean } };
+    expect(body.project.optimizationEnabled).toBe(false);
   });
 });

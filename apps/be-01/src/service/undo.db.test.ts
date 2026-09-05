@@ -108,7 +108,7 @@ beforeEach(async () => {
     { at: 2, by: strangerId },
   );
 
-  projects = new ProjectService({ projects: projectStore });
+  projects = new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() });
   workItems = new WorkItemService({
     workItems: workItemStore,
     projects: projectStore,

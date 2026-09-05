@@ -983,3 +983,153 @@ _Avoid_: slot, side, version
 **Tier**:
 One of the three deployable services: `be`, `gw`, `fe`.
 _Avoid_: app, service, component
+
+**Engine**:
+Which schedule a project displays: `Fast`, the deterministic millisecond pass that always
+runs and is always the fallback, or `Optimized`, a stored solver result. A project-wide
+persisted setting, never a per-user view state, and never an input to the Input hash.
+_Avoid_: mode, scheduler type, solver toggle
+
+**Objective**:
+Which ordering an Optimized schedule was solved for: `Priority-first` (PRI) or
+`Finish-first` (Time). Project-wide and persisted like Engine, and a cache dimension rather
+than an Input hash input — both are solved, and Objective picks which stored one is shown.
+_Avoid_: strategy, goal, optimization mode
+
+**Input hash**:
+The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` receives — rows
+with `position`/`frozenNumber`/as-written priority, authored dependency edges, the slice
+array grouped by work item with groups ordered by id and each group's own order preserved
+(only that intra-item order is step precedence — the order between groups is whatever SQL
+returned), `notBefore` floors in days from day zero,
+pool sizes, and the project's dependency reach. Two scheduling inputs are the same exactly
+when their hashes match. Engine, Objective, the optimization toggle, the display variant,
+the clock, the acting user and the solver budget are all excluded from the hash. Three of
+them — Objective, Contract version and the solver budget — are cache-key columns instead;
+the clock, the acting user, the toggle, Engine and the display variant are read by nothing
+that produces a schedule and appear nowhere in the cache identity.
+_Avoid_: plan hash, cache key, fingerprint
+
+**Contract version**:
+The cache-key column identifying the code that produced a stored result: the domain
+`SCHEDULER_CONTRACT_VERSION` joined to the `wbs-solver` package version. Both are needed
+because durations, the leaf expansion and the Baseline schedule come from domain code that
+the Python package version does not describe.
+_Avoid_: solver version, schema version, cache version
+
+**Generation**:
+A monotonic optimization counter held per `(project, Contract version)` in the
+`optimization_generation` table — not on the project row, because a canonicalizer bump
+would otherwise let two coexisting releases increment one counter against each other for
+ever. It is stored beside the Input hash it was allocated for and carried by every solver
+run. The pair is what makes allocation atomic across processes: an equal hash reuses the
+generation, a different one increments it under a compare-and-swap. Every cache write is conditional on it still being current, so a
+superseded run cannot store, evict, or broadcast — which an Input hash alone cannot
+prevent, because an undo can make an old hash current again.
+_Avoid_: run id, epoch, version
+
+**Optimizer floor**:
+The `ScheduleFloor` member `optimizer`, reported when an optimized start is strictly later
+than every floor of its slice — including the person and capacity floors, so a slice
+delayed because its assignee or team was busy keeps that explanation instead — the optimizer deliberately idled it so higher-priority work
+could run. It is the only floor that names a choice rather than a constraint, and like
+`projectStart` it carries no capacity predecessors and no binding team.
+_Avoid_: idle, slack, deliberate delay
+
+**Solver quantum**:
+`SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
+Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
+CP-SAT interval variables are integers. Durations round **up** to the next unit when an
+estimate does not divide, never down — which is what makes every quantised-feasible
+solution real-feasible. Because rounding up can also put real Fast's value out of reach
+(three serial `days=1, width=5` slices finish at 28.8 units but need 30 rounded), the
+solver's hint and bound come from the Quantised baseline, never from real Fast.
+_Avoid_: tick, granularity, resolution
+
+**Quantised baseline**:
+Fast's own placement re-run over the rounded durations, in integer solver units. It is what
+the solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage,
+because it is feasible in the model the solver actually gets. Distinct from the Baseline
+schedule, which is the real-domain Fast result the publication guard scores against.
+_Avoid_: rounded Fast, hint schedule
+
+**Cancel epoch**:
+A counter carried by each `(project, Contract version)` generation row, advanced when
+optimization is switched OFF — an OFF transition advances every one of that project's rows.
+It exists because the toggle is excluded from the Input hash, so an OFF transition cannot
+advance the Generation that allocation is required to reuse. **Worker-owned outcome writes**
+are conditional on it, together with the current generation, the toggle and the writer's own
+attempt token; allocation eviction is authorised instead by the winning generation CAS, OFF
+cleanup by its own epoch increment, and deletion/retirement eviction by the cancel-and-drain
+protocol — none of those three holds a child token, so a universal predicate would make them
+unimplementable. Owners observe the epoch on their slot heartbeat, so a child owned by
+another backend process is cancelled too.
+_Avoid_: cancel flag, kill switch, generation bump
+
+**Attempt token**:
+The unforgeable 128-bit value minted when a solver slot is admitted — stamped into the
+`starting` row, handed to the Lifecycle launcher as `--attempt-token` argv, and the
+predicate of the bind CAS beside `lifecycle = 'starting'` — and thereafter carried by that
+owner's heartbeat, release, result write and event write. It is the fence that stops a
+superseded owner — one whose slot expired and was re-admitted to someone else — from
+binding, refreshing, releasing or writing over the replacement.
+_Avoid_: lease id, lock, owner id
+
+**Baseline schedule**:
+The real-domain Fast schedule for the same canonical input, with fractional `days / width`
+intact. It never crosses the solver wire: that is the Quantised baseline, which also supplies
+the movement reference. Its only consumer is the real-domain publication guard in task 4.11b,
+which scores a materialised optimized result against it before storage.
+_Avoid_: current schedule, published schedule, previous plan
+
+**Optimized result**:
+What a cache row stores — `{ dtoVersion, publication, objectiveValues, schedule }` — never a
+bare `Schedule` and never the solver's offsets map. `publication` is `solver` or
+`quantisation-floor`, and `objectiveValues` is what records how far a partially staged run
+got; `Schedule` carries neither, so a row holding only a schedule silently discards both.
+_Avoid_: cached schedule, scheduleJson, stored plan
+
+**Stage value**:
+The incumbent a lexicographic stage found, reported beside the published schedule's own
+recomputed `value`, and never confused with it. A later stage constrained by `T <= stageValue`
+may return a strictly better `T`, so `value` is what Bun re-validates and `stageValue`,
+`bound` and `status` describe the stage that produced the constraint.
+_Avoid_: objective value, incumbent, best value
+
+**Publication**:
+Which schedule a cache row actually holds — `solver` for a solver result, `quantisation-floor`
+for Fast's own schedule republished because the quantised solve could not beat it. It is a
+field of its own and never a value of `ObjectiveValue.status`, whose domain is the three stage
+outcomes; a floor row's `value` terms are recomputed in the real domain on the stored Fast
+schedule with `stageValue` and `bound` null.
+_Avoid_: floor status, fallback result, Fast result
+
+**Admitted deadline**:
+The absolute instant a solver slot expires, stamped into the row at admission from the
+**admitting** coordinator's own budget (`startedAt + budgetMs + 5000 + SLOT_RECLAIM_MARGIN_MS`).
+Reclamation reads it and never recomputes it, because co-existing releases may run different
+budgets and an observer applying its own would reclaim a child still inside its deadline.
+_Avoid_: slot TTL, heartbeat timeout, expiry window
+
+**Lifecycle launcher**:
+The distinct entrypoint the coordinator spawns for an admitted slot — never `wbs-solver`
+itself. It loads no CP-SAT and solves nothing. Its lifecycle wrapper reads the clock once to
+convert `--child-deadline-epoch-ms` into CP-SAT's `max_time_in_seconds` — the in-process half;
+the load-bearing half is the per-child scope's `RuntimeMaxSec` kill at that same instant, since a
+Python alarm cannot preempt a native solve under the GIL — installs `PR_SET_PDEATHSIG`, re-checks
+`getppid()`, and then blocks for the bind verdict before it touches the request at all. On
+`bound` it `exec`s `wbs-solver` in place, keeping the pid the bind CAS recorded; on `abort`,
+a closed stdin, `BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when the child deadline
+has already passed it exits **without** `exec`ing. That is what
+makes the ceiling literal: a process named `wbs-solver` cannot exist before its row is
+`running`, so a delayed spawn after reclaim creates no uncounted solver.
+_Avoid_: shim, supervisor, solver wrapper — "lifecycle wrapper" is the launcher's own
+clock-reading part, not a second process, and the two are not interchangeable.
+
+**Slot lifecycle**:
+The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting`
+with a null `pid`; a successful bind CAS moves it to `running` and records the launcher's
+pid. A `starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a
+`running` one — it _is_ the reservation — and is reclaimed by the same
+`now > admittedDeadlineAt` rule.
+_Avoid_: slot state, pending, provisional

@@ -213,6 +213,75 @@ export const project = sqliteTable(
      * project is on is navigation history, not a change to the plan.
      */
     revision: integer('revision').notNull().default(0),
+    /**
+     * When a delete of this project began draining its optimizer work, and null
+     * whenever no delete is pending — the durable cross-process fence the drain
+     * protocol reads (tasks.md 3.1b, 3.9b).
+     *
+     * **Internal, and never a read-payload field.** It is not a user setting and
+     * no boundary returns it; it exists so a coordinator in one process and a
+     * delete in another agree on whether admission is closed for this project
+     * without either holding a lock the other can see. It lands in slice 3's own
+     * additive migration rather than 3b's, because slices 3 and 3b ship as
+     * separate reviewed PRs and the drain code in 3b would otherwise be written
+     * against a column its own release does not have.
+     */
+    optimizationDeletePendingAt: integer('optimization_delete_pending_at'),
+    /**
+     * Whether this project may spend solver time at all — the master switch
+     * every optimizer admission predicate reads, and the reason the optimizer
+     * costs nothing on a database that has merely been migrated.
+     *
+     * **Defaulted to false, and that default is the whole safety property.**
+     * Every project that already exists takes `false` at migration time, so
+     * deploying the optimizer starts no solver anywhere until somebody turns it
+     * on for one named project. A column added ON, or added nullable and
+     * backfilled afterwards, would start solvers for the entire database on the
+     * deploy — see the watched red in tasks.md 3b.5, which flips this default
+     * and watches the unmigrated-row case fail.
+     *
+     * **The `CHECK`s for this column and the two below it live in
+     * `20260904140000_add_project_settings/migration.sql` and not in this
+     * table's extras.** `project` already exists, so each constraint is a column
+     * constraint on an `ALTER TABLE … ADD COLUMN`; declaring them here as
+     * table-level {@link check}s would describe a `CREATE TABLE` no migration
+     * writes. The database holds them either way, which is the point — a
+     * constraint the database does not hold is a convention the next writer can
+     * break — and `project-settings.db.test.ts` reads them back off
+     * `sqlite_master` rather than trusting this file.
+     */
+    optimizationEnabled: integer('optimization_enabled', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    /**
+     * Which of the two engines this project's schedule is produced by: `fast`,
+     * the heuristic that has always run, or `optimized`, the CP-SAT solver.
+     *
+     * Text rather than an integer for {@link estimateMethod}'s reason — a
+     * database anyone opens says `optimized` instead of `1` — and refused on
+     * read the same way (`isScheduleEngine`, tasks.md 3b.8). Defaulted to
+     * `fast`, which is the behaviour every existing project already had, so
+     * this column alone moves no plan.
+     *
+     * Separate from {@link optimizationEnabled} because the two answer different
+     * questions: this one is which engine the project *wants*, and that one is
+     * whether it is allowed to spend solver time at all. A project may be
+     * switched off with `optimized` still recorded, and it must come back to
+     * `optimized` rather than to a default when it is switched on again.
+     */
+    scheduleEngine: text('schedule_engine').notNull().default('fast'),
+    /**
+     * Which of the two objectives the optimizer minimises for this project:
+     * `pri`, priority order, or `time`, makespan.
+     *
+     * Text and refused-on-read for {@link scheduleEngine}'s reason, and the same
+     * two-member vocabulary the cache, the slot table and the queue store under
+     * `objective` — one project setting selects which of the cached pair is the
+     * published one. Defaulted to `pri`, the order the Fast engine already
+     * produces, so an existing project switched to `optimized` gets an optimised
+     * version of the plan it had rather than a different plan.
+     */
+    scheduleObjective: text('schedule_objective').notNull().default('pri'),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -220,6 +289,24 @@ export const project = sqliteTable(
 );
 
 export type ProjectRow = typeof project.$inferSelect;
+
+/**
+ * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
+ *
+ * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
+ * project vocabulary and not an optimizer-table one: no row in the four
+ * optimizer tables stores an engine. The objective deliberately has no twin —
+ * `project.schedule_objective` stores the same `'pri' | 'time'`
+ * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
+ * rather than a second vocabulary, and {@link isSolverObjective} reads it.
+ *
+ * The order matters to nothing and the membership matters to everything: it is
+ * the list the migration's `CHECK (schedule_engine IN ('fast','optimized'))`
+ * enumerates, and a value in one and not the other is a row the database
+ * accepts and the read refuses, or the reverse.
+ */
+export const SCHEDULE_ENGINES = ['fast', 'optimized'] as const;
+export type ScheduleEngine = (typeof SCHEDULE_ENGINES)[number];
 
 /**
  * When one account last opened one project, and nothing else.
@@ -1793,6 +1880,144 @@ export const planEvent = sqliteTable(
 
 export type PlanEventRow = typeof planEvent.$inferSelect;
 
+/* ---------------------------------------------------------------------------
+ * The optimizer's four tables (tasks.md slice 3).
+ *
+ * Every vocabulary below is a `const` array beside the table that stores it,
+ * which is `MEASURE_METRICS`' convention and, for the two that also live on the
+ * solver wire, the convention `libs/contracts/solver/src/wire-types.ts` states
+ * for its own: a bare union is erased before a test can see it, so the drift
+ * guard needs a value to read. `libs/contracts/solver/solver-wire.v1.json` is
+ * the normative definition of `objective`; this file does not import it because
+ * `libs/contracts/solver` has no path alias, so agreement is asserted by test
+ * rather than by the type system.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `#/$defs/request.properties.objective` — the two independently solved runs,
+ * and a key column of three of the four tables below.
+ */
+export const SOLVER_OBJECTIVES = ['pri', 'time'] as const;
+
+export type SolverObjectiveName = (typeof SOLVER_OBJECTIVES)[number];
+
+/**
+ * What a stored outcome row is: a schedule, a recorded failure, or a proof that
+ * the plan's own deadlines cannot be met.
+ *
+ * `plan-infeasible` is a first-class outcome and not a kind of failure — a
+ * stage-1 `INFEASIBLE` on a well-formed model is the engine working correctly,
+ * its answer is a function of the input alone, and only a new input hash can
+ * change it. That is why it carries a payload and no Retry control, while
+ * `failed` carries a reason and one.
+ */
+export const OPTIMIZED_SCHEDULE_STATUSES = ['ok', 'failed', 'plan-infeasible'] as const;
+
+export type OptimizedScheduleStatus = (typeof OPTIMIZED_SCHEDULE_STATUSES)[number];
+
+/**
+ * The seven ways a solve can fail, and the whole of what `failure_reason` may
+ * hold (tasks.md 3.8). Any non-null text was previously accepted.
+ */
+export const SOLVER_FAILURE_REASONS = [
+  'timeout',
+  'invalid-output',
+  'no-solution',
+  'internal-error',
+  'oom',
+  'horizon-overflow',
+  'objective-overflow',
+] as const;
+
+export type SolverFailureReason = (typeof SOLVER_FAILURE_REASONS)[number];
+
+/** Whether a generation still admits new work, or is draining towards deletion. */
+export const OPTIMIZATION_ADMISSION_STATES = ['open', 'draining'] as const;
+
+export type OptimizationAdmissionState = (typeof OPTIMIZATION_ADMISSION_STATES)[number];
+
+/**
+ * A reserved slot's two phases: reserved but not yet a process, and running.
+ *
+ * `pid` is NULL through `starting` because the process does not exist at
+ * reservation time — the row is what makes the ceiling countable *before* the
+ * spawn, so a row that named a pid it had not yet forked would be a lie the
+ * ceiling depends on.
+ */
+export const SOLVER_SLOT_LIFECYCLES = ['starting', 'running'] as const;
+
+export type SolverSlotLifecycle = (typeof SOLVER_SLOT_LIFECYCLES)[number];
+
+/**
+ * One stored outcome of one solve, keyed by everything that decides whether it
+ * still answers the question that was asked.
+ *
+ * The key is `(projectId, inputHash, objective, contractVersion, budgetMs)`.
+ * `inputHash` covers the whole canonical argument tuple of `schedule()`, so a
+ * deadline edit or a re-parented item is a different row rather than a stale
+ * one; the four columns beside it are the dimensions the hash deliberately does
+ * **not** cover. `budgetMs` is a key column and not a detail: raising the budget
+ * changes neither the hash nor the generation, so without it a 60 s and a 120 s
+ * solve for one objective would collapse into one row and each release would
+ * serve the other's answer.
+ *
+ * Integrity is declared here rather than assumed by the code that writes it. A
+ * row that fails {@link OPTIMIZED_SCHEDULE_STATUSES}' payload rule cannot be
+ * written at all, which is what lets a reader treat `status` as the discriminant
+ * of `result_json` without a second check.
+ *
+ * **Assumption A1 (TASK-219, dev mode): the `plan-infeasible` payload reuses
+ * `result_json`**, holding a versioned `PlanInfeasibleResult` discriminated by
+ * the row's own `status` rather than by a fourth nullable column. `result_json`
+ * is already the row's versioned payload with a decoder whose failure is already
+ * defined as `corrupt`, and a fourth column would add a fourth CHECK arm and a
+ * second decode seam for one state. The consequence has to be stated rather than
+ * implied: a `plan-infeasible` row whose payload fails to decode reads as
+ * `corrupt` on exactly the same rule an `ok` row does, and is therefore
+ * retryable, while a decodable one is not. Falsified if the offending-item list
+ * ever needs to be queried by SQL rather than read whole, at which point it
+ * becomes its own table and this assumption is wrong rather than superseded.
+ */
+export const optimizedScheduleCache = sqliteTable(
+  'optimized_schedule_cache',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    inputHash: text('input_hash').notNull(),
+    objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
+    contractVersion: text('contract_version').notNull(),
+    budgetMs: integer('budget_ms').notNull(),
+    generation: integer('generation').notNull(),
+    status: text('status', { enum: OPTIMIZED_SCHEDULE_STATUSES }).notNull(),
+    /** NULL exactly when `status` is `failed`; the payload otherwise. */
+    resultJson: text('result_json'),
+    /** NULL unless `status` is `failed`; one of {@link SOLVER_FAILURE_REASONS}. */
+    failureReason: text('failure_reason', { enum: SOLVER_FAILURE_REASONS }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.projectId, t.inputHash, t.objective, t.contractVersion, t.budgetMs],
+    }),
+    check(
+      'optimized_schedule_cache_status',
+      sql`${t.status} IN ('ok', 'failed', 'plan-infeasible')`,
+    ),
+    check('optimized_schedule_cache_objective', sql`${t.objective} IN ('pri', 'time')`),
+    check(
+      'optimized_schedule_cache_payload',
+      sql`(${t.status} = 'ok' AND ${t.resultJson} IS NOT NULL AND ${t.failureReason} IS NULL)
+          OR (${t.status} = 'failed' AND ${t.resultJson} IS NULL AND ${t.failureReason} IS NOT NULL)
+          OR (${t.status} = 'plan-infeasible' AND ${t.resultJson} IS NOT NULL AND ${t.failureReason} IS NULL)`,
+    ),
+    check(
+      'optimized_schedule_cache_failure_reason',
+      sql`${t.failureReason} IS NULL OR ${t.failureReason} IN ('timeout', 'invalid-output', 'no-solution', 'internal-error', 'oom', 'horizon-overflow', 'objective-overflow')`,
+    ),
+  ],
+);
+
 /**
  * One project's whole plan, copied by value at one instant — the header.
  *
@@ -1920,6 +2145,146 @@ export const savedPlan = sqliteTable(
   ],
 );
 
+export type OptimizedScheduleCacheRow = typeof optimizedScheduleCache.$inferSelect;
+
+/**
+ * The generation identity, and the sole home of it.
+ *
+ * Deliberately **not** a pair of columns on {@link project}, and the reason is
+ * blue/green rather than tidiness: `SCHEDULER_CONTRACT_VERSION` is bumped while
+ * two releases run against one SQLite file, so a single project-row pair would
+ * let the release computing H1 and the release computing H2 alternately
+ * increment one counter and delete each other's rows for ever. Keyed by
+ * `(projectId, contractVersion)`, each release owns its own row.
+ *
+ * `cancelEpoch` is cancellation's own counter and not the generation's:
+ * cancelling in-flight work must not invalidate a cache the input still
+ * satisfies, so the two advance independently.
+ */
+export const optimizationGeneration = sqliteTable(
+  'optimization_generation',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    contractVersion: text('contract_version').notNull(),
+    generation: integer('generation').notNull(),
+    /** The hash this generation was allocated for; NULL before the first solve. */
+    inputHash: text('input_hash'),
+    cancelEpoch: integer('cancel_epoch').notNull().default(0),
+    admissionState: text('admission_state', { enum: OPTIMIZATION_ADMISSION_STATES })
+      .notNull()
+      .default('open'),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.contractVersion] }),
+    check(
+      'optimization_generation_admission_state',
+      sql`${t.admissionState} IN ('open', 'draining')`,
+    ),
+  ],
+);
+
+export type OptimizationGenerationRow = typeof optimizationGeneration.$inferSelect;
+
+/**
+ * One reserved solver process, held in SQLite rather than in coordinator memory.
+ *
+ * The ceilings — 4 processes per project, 16 globally — are enforced against
+ * these rows because blue and green coexist against one database file and two
+ * in-memory coordinators would each admit their own sixteen.
+ *
+ * `budgetMs` belongs to the identity because it belongs to the cache key: with
+ * `MAX_LIVE_BUDGETS = 2`, blue and green may legitimately read 60000 and 120000
+ * under one contract version, and without the column a 60 s and a 120 s solve
+ * for one objective collided as if they were the same work — the plan read's
+ * "a live slot or queue entry *for that key*" could not be evaluated at all, and
+ * a 120 s child in flight beside a 60 s `failed` marker made the 60 s variant
+ * read `retrying` when nothing had retried it. The ceilings themselves are
+ * unchanged and still count every unreleased row whatever its budget, because
+ * they bound processes rather than keys.
+ *
+ * `admittedDeadlineAt` is a stored absolute instant rather than a duration read
+ * against the reader's own configuration: a coordinator configured at the
+ * smaller budget must not reclaim a larger-budget child that is still inside
+ * its own deadline.
+ */
+export const solverSlot = sqliteTable(
+  'solver_slot',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    contractVersion: text('contract_version').notNull(),
+    generation: integer('generation').notNull(),
+    objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
+    budgetMs: integer('budget_ms').notNull(),
+    ownerId: text('owner_id').notNull(),
+    /** Freshly minted 128-bit token, so a reclaimed owner's late write is fenced. */
+    attemptToken: text('attempt_token').notNull(),
+    lifecycle: text('lifecycle', { enum: SOLVER_SLOT_LIFECYCLES }).notNull(),
+    /** NULL while `starting` — see {@link SOLVER_SLOT_LIFECYCLES}. */
+    pid: integer('pid'),
+    startedAt: integer('started_at').notNull(),
+    heartbeatAt: integer('heartbeat_at').notNull(),
+    cancelRequestedAt: integer('cancel_requested_at'),
+    admittedDeadlineAt: integer('admitted_deadline_at').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.projectId, t.contractVersion, t.generation, t.objective, t.budgetMs],
+    }),
+    check('solver_slot_lifecycle', sql`${t.lifecycle} IN ('starting', 'running')`),
+    check('solver_slot_objective', sql`${t.objective} IN ('pri', 'time')`),
+  ],
+);
+
+export type SolverSlotRow = typeof solverSlot.$inferSelect;
+
+/**
+ * One waiting solve, keyed **without** generation.
+ *
+ * A project therefore holds at most one queued entry per objective per budget
+ * per contract version, and a new generation replaces rather than accumulates —
+ * that is the primary key's own bound, not a rule the dequeue enforces.
+ * `budgetMs` is in the key because an entry that did not name its budget could
+ * not tell the dequeue which budget to launch.
+ *
+ * The dequeue order is `ORDER BY enqueued_at, project_id, contract_version,
+ * objective, budget_ms`, which is total: `objective` breaks the tie between a
+ * project's two runs enqueued in the same millisecond, and `contract_version`
+ * breaks the tie between blue and green enqueuing the same project and objective
+ * in that same millisecond. The index below is that order.
+ */
+export const solverQueue = sqliteTable(
+  'solver_queue',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    contractVersion: text('contract_version').notNull(),
+    objective: text('objective', { enum: SOLVER_OBJECTIVES }).notNull(),
+    budgetMs: integer('budget_ms').notNull(),
+    generation: integer('generation').notNull(),
+    /** The `cancelEpoch` this entry was admitted under, so a cancel can fence it. */
+    admittedCancelEpoch: integer('admitted_cancel_epoch').notNull(),
+    enqueuedAt: integer('enqueued_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.contractVersion, t.objective, t.budgetMs] }),
+    index('solver_queue_dequeue_order').on(
+      t.enqueuedAt,
+      t.projectId,
+      t.contractVersion,
+      t.objective,
+      t.budgetMs,
+    ),
+    check('solver_queue_objective', sql`${t.objective} IN ('pri', 'time')`),
+  ],
+);
+
+export type SolverQueueRow = typeof solverQueue.$inferSelect;
 export type SavedPlanRow = typeof savedPlan.$inferSelect;
 
 /**

@@ -1,0 +1,33 @@
+-- The three project settings the optimizer is steered by.
+--
+-- Additive, which is what blue/green needs: blue and green share one SQLite
+-- file across a swap, and the outgoing release knows nothing about any of these
+-- columns, so it keeps running against the migrated file untouched. Three
+-- columns on `project`; nothing existing is altered or dropped.
+--
+-- **The defaults are the safety property, not a convenience.** Every row that
+-- already exists takes `optimization_enabled = 0`, so no deploy of this
+-- migration starts a solver for a single existing project. There is no backfill
+-- that could guarantee that retroactively — a column added as nullable and
+-- filled afterwards is ON for every row written between the two statements — so
+-- the default is written into the `ADD COLUMN` itself.
+--
+-- `optimization_delete_pending_at` is deliberately **not** here. It is internal
+-- deletion machinery rather than a user setting, its readers are slice 3's
+-- drain code, and it landed in `20260904100000_add_optimizer_tables` with the
+-- tables that drain: slices 3 and 3b ship as separately reviewed PRs, and a
+-- marker created only here would leave slice 3 unimplementable against its own
+-- declared schema (tasks.md 3.1b, Sol r12 Important 5).
+--
+-- The generation counter, the input hash and the cancel epoch are not here
+-- either (Sol r7 Critical 4): they are per contract version, not per project,
+-- and live in the `optimization_generation` table.
+--
+-- Every stored enum carries its `CHECK` here rather than only in `schema.ts`,
+-- because a constraint the database does not hold is a convention the next
+-- writer can break. SQLite evaluates an `ADD COLUMN` check against rows written
+-- from here on; the defaults satisfy it, so no existing row can be left in
+-- violation of a constraint it was never checked against.
+ALTER TABLE `project` ADD `optimization_enabled` integer DEFAULT 0 NOT NULL CONSTRAINT `project_optimization_enabled` CHECK (`optimization_enabled` IN (0, 1));--> statement-breakpoint
+ALTER TABLE `project` ADD `schedule_engine` text DEFAULT 'fast' NOT NULL CONSTRAINT `project_schedule_engine` CHECK (`schedule_engine` IN ('fast', 'optimized'));--> statement-breakpoint
+ALTER TABLE `project` ADD `schedule_objective` text DEFAULT 'pri' NOT NULL CONSTRAINT `project_schedule_objective` CHECK (`schedule_objective` IN ('pri', 'time'));

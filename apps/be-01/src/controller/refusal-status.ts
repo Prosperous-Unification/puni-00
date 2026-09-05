@@ -16,6 +16,12 @@ const CONFLICTS = new Set([
   'too_large',
   'taken',
   'in_use',
+  // Switching a project on to an optimizer this deployment has not got. It is
+  // the family's own definition rather than a stretch of it: the request is
+  // well formed, nothing about it is wrong, and the same body is accepted the
+  // moment a release wires the optimized reader in. A 422 would tell a settings
+  // panel to correct a request that has nothing to correct.
+  'optimizer_unavailable',
 ]);
 
 /**

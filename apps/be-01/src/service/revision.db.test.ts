@@ -101,7 +101,7 @@ beforeEach(async () => {
     wrote(),
   );
 
-  projects = new ProjectService({ projects: projectStore });
+  projects = new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() });
   stepService = new StepService({
     projects: projectStore,
     steps: new StepRepository(db),
