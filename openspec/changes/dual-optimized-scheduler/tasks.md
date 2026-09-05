@@ -2446,8 +2446,14 @@ predecessor | stepOrder | notBefore | person | capacity | optimizer`; the
       its own case: no reader wired in, `optimization_enabled` false,
       `schedule_engine` not `optimized`. The four states the cache distinguishes
       all arrive as `null` and all fall through to Fast, so 4.1–4.8's rules stay
-      in one place. `canonical-schedule-input` is now exported from the domain
-      barrel, since the plan read is its first caller outside `libs/domain`.
+      in one place. `canonical-schedule-input` is reached from outside
+      `libs/domain` by the explicit Node subpath
+      `@wbs/domain/canonical-schedule-input` (`tsconfig.base.json`), the plan
+      read being its first such caller. **It is deliberately NOT in the domain
+      barrel** — it was, and the PR 203 review took it out (M1), because that
+      barrel is reachable from `apps/fe-01` and a root re-export puts
+      `node:crypto` one `export *` away from a browser bundle. Restoring the
+      export reopens that path; add a subpath, never a barrel line.
       `deadlines` is passed as a module-level empty map naming TASK-241.
       **Proven by** `apps/be-01/src/service/optimized-plan-read.test.ts`, six
       cases, and three mutations each reddening exactly one of them: serve Fast

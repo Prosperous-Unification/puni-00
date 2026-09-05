@@ -772,6 +772,21 @@ describe('projects', () => {
       body: JSON.stringify({ optimizationEnabled: false }),
     });
     expect(off.status).toBe(200);
+
+    // The row is now the legal intermediate `false`/`optimized`, and re-enabling
+    // the flag FROM it is the case the peer seat found unwatched at `66177c79`.
+    // It is what separates a gate that compares each key against its OWN stored
+    // field from one whose two comparisons are crossed —
+    // `optimizationEnabled === true && before.scheduleEngine !== 'optimized'`
+    // reads this row as "already on" and answers 200, re-enabling an
+    // unserviceable mode. Every other case in this file passes that crossed gate.
+    const reEnable = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true }),
+    });
+    expect(reEnable.status).toBe(409);
+    expect(await reEnable.json()).toEqual({ error: 'optimizer_unavailable' });
+
     const fast = await send(`/api/projects/${project.id}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ scheduleEngine: 'fast' }),
