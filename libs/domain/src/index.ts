@@ -19,6 +19,11 @@ export * from './external-system';
 // shape and reads nothing else, like everything else in here.
 export * from './is-within';
 export * from './label-mismatch';
+// A calendar marker's automatic colour, the eight-entry palette it draws from,
+// and the twenty backdrops the 3:1 bar is measured against. Pure arithmetic
+// over hex strings — the fills it measures live in fe-01's theme, and this
+// module reads none of them at run time.
+export * from './marker-color';
 export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';

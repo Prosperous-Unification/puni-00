@@ -89,7 +89,7 @@ vectors are computed from them; the numbering follows the reader's order — wha
 the colour function _is_, then what it draws from — and the dependency is stated
 in both slices rather than implied by position.
 
-- [ ] 3.1 `automaticColor(markerId)` — `palette[fnv1a32(id) mod palette.length]`
+- [x] 3.1 `automaticColor(markerId)` — `palette[fnv1a32(id) mod palette.length]`
       over the palette slice 3.2 lands, in a new
       `libs/domain/src/marker-color.ts`. **3.2 runs first:** the pinned vectors
       below are computed from the landed palette and the named hash, and cannot
@@ -131,7 +131,7 @@ in both slices rather than implied by position.
       `Proof:` comment naming the four vectors' source (they are recorded, not
       computed at test time — a vector recomputed by the code under test is the
       code agreeing with itself).
-- [ ] 3.2 The palette itself, **and it lands before 3.1** — eight named hex
+- [x] 3.2 The palette itself, **and it lands before 3.1** — eight named hex
       entries, written into `marker-color.ts` as a literal, each clearing
       **3:1** against **every backdrop of `design.md` §6's enumerated set** —
       not against `--background` alone (round-5 Sol review, Important 8) —
@@ -194,7 +194,7 @@ in both slices rather than implied by position.
       a 20-backdrop loop whose extra 18 rows never bind is 18 rows of
       decoration. Eight rather than "a fixed palette": a count the
       test can iterate is checkable, an adjective is not.
-- [ ] 3.2a `labelInk(fill)` — the chooser itself, which nothing above tests
+- [x] 3.2a `labelInk(fill)` — the chooser itself, which nothing above tests
       (round-19 Gemini review, Important). 3.2 asserts that each palette entry
       **carries** a label colour clearing 4.5:1: a literal checked against a
       literal. The requirement is that the ink is **chosen** — "black or white,
@@ -1684,3 +1684,52 @@ assertions in `migrate.db.test.ts` and four more files (`migrate-down`,
 `project`) assert the applied set newest-first as an exact array. The four-file
 run was green while the whole-directory run was 81 red; a later slice adding a
 migration owes the same sweep.
+
+## Implementation notes — chunk 2 (TASK-235 run 2, 2026-09-05)
+
+Slices **3.1, 3.2 and 3.2a** landed, 3.2 first as the dependency order says.
+Everything is in `libs/domain/src/marker-color.ts` and its test; the measured
+results are in `verify.md`. Four things the plan got wrong or could not know:
+
+1. **The palette's luminance is forced, and the palette is at the ceiling.**
+   Clearing 3:1 against both `light:pointed+today` (L 0.7242) and
+   `dark:base+weekend+zebra+today` (L 0.02908) confines every fill to
+   `0.1872 <= L <= 0.2081`. The constraints balance at `L = 0.19744`, where the
+   best attainable worst case over the 20 is **3.129**; the landed palette
+   measures **3.108**. So "an entry that fails one is replaced before it lands"
+   (design.md §6) has no slack to work with — there is no better palette, and
+   the entries are separated by hue and chroma alone. Recorded rather than
+   discovered again by the next person who tries to widen the bar.
+2. **All eight entries take black ink, so 3.2a's palette table cannot prove the
+   chooser.** The ink crossover is `L ≈ 0.17913` and the whole window is above
+   it. The plan's first negative (`labelInk` hard-coded to `'#ffffff'`) is still
+   watched failing, but the _opposite_ constant agrees with every recorded
+   label. The discrimination is therefore carried by the sRGB cube's two ends,
+   which the plan already asked for — it is load-bearing here rather than
+   supplementary.
+3. **The crossover case cannot be "within 1e-6".** `labelInk` takes `#rrggbb`,
+   so the tightest approach to `L = sqrt(0.0525) - 0.05` is one 8-bit step:
+   `#757575` sits 0.0012 below and `#767676` above. The case brackets it with
+   both neighbours instead, which covers whichever side a strict inequality
+   would fall through, and asserts both still clear 4.5:1.
+4. **`parseHex` takes six digits only.** The three-digit form tripped
+   `@typescript-eslint/no-misused-spread` and nothing in the change uses it; a
+   validator that silently widened `#f00` would accept a shape no stored marker
+   has.
+
+Two gate traps, both already recorded by chunk 1 and both hit again:
+
+- **`tsc --build` leaves `dist/out-tsc`, and the bun runner then collects every
+  compiled test a second time.** A run straight after `nx typecheck` reported
+  729 tests across 56 files with 7 red; `rm -rf dist` first and the same tree is
+  382 across 28, all green. Delete `dist` between the typecheck and the tests,
+  not merely before them.
+- **`nx` without `NX_DAEMON=false` can exit 0 having computed nothing.** The
+  first typecheck attempt printed `Nx Daemon was not able to compute the project
+graph` and still returned `rc=0`; the target never ran. Every gate number in
+  this chunk was taken with the daemon disabled.
+
+`fe-01:typecheck` is **`Killed`** on h2puni — OOM, not a type error, the same
+class that OOM-killed `fe-01:lint` for lane a earlier today. `domain:typecheck`
+and `be-01:typecheck` both pass, and this chunk changes three files under
+`libs/domain/src`. CI is the observer for fe-01.
