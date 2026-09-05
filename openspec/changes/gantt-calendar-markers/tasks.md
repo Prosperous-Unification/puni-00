@@ -377,13 +377,13 @@ in both slices rather than implied by position.
       distinctness** — two markers created on one date, assert their colours
       differ, which 3.1(c)'s `marker.date` fault fails. Neither needs a fault of
       its own here: they are 3.1's oracles, and 3.1 names the mutations.
-- [ ] 4.2 Write permission — every mutation refused for a read-only actor with
+- [x] 4.2 Write permission — every mutation refused for a read-only actor with
       the same status the project's other writes use — test: same file, a
       read-only actor against each of the four mutations, asserting the status
       and that no row was written. Negative: the permission check removed from
       the create path, watched failing on the create case. A permission test
       that only checks the happy path is not a permission test.
-- [ ] 4.3 A create whose `date` is not an `IsoDate` is refused with a typed
+- [x] 4.3 A create whose `date` is not an `IsoDate` is refused with a typed
       422 rather than being coerced — test: same file, `2026-9-17`, `2026-09-17T00:00:00Z` and
       `not-a-date` each rejected. Negative: the validator replaced with a
       truthiness check, watched failing on the timestamp case, which is the one
@@ -524,7 +524,7 @@ in both slices rather than implied by position.
       B's row gone, while the list query, the patch route and both cases above
       stay green — a fault the first negative cannot reach, because it mutates
       the list predicate and the delete never runs through it.
-- [ ] 4.6a The client-supplied `id` must be a UUID v4 — test: same file, a
+- [x] 4.6a The client-supplied `id` must be a UUID v4 — test: same file, a
       create with `id: 'marker-1'` and one with a v1-shaped UUID each refused
       naming the `id` field, with the marker count unchanged after each.
       Negative: the UUID check replaced by a non-empty-string check, watched
@@ -2000,3 +2000,60 @@ the app, so a route added without this is a red with a confusing name.
 **Next chunk:** 4.2 (the other three mutations plus the removed-check negative),
 4.3 (`IsoDate`, typed 422) and 4.6a (UUID v4) — all in the same file, all
 validation the create and patch handlers do not do yet. 4.4, 4.5 and 4.6 follow.
+
+## Implementation notes — chunk 8 (TASK-235 run 4, 2026-09-05)
+
+**Slices 4.2, 4.3 and 4.6a, all three checked.** `82e26cb5`. One new helper in
+`calendar-marker.controller.ts` — `createProblem(body)`, returning the refusal
+table's `{ reason, field }` or `null` — and five more cases in
+`calendar-marker.controller.db.test.ts`.
+
+**Validation runs in front of the service, not inside it.** A refused body
+never reaches `CalendarMarkerService.create`, so "refused" and "unchanged" are
+one fact rather than two — a validate-after-write is what breaks the second.
+
+**`isIsoDate` rather than a regexp of this file's own.** It already rejects
+`2026-02-31`, which matches `^\d{4}-\d{2}-\d{2}$` and is not a day, and it is
+what `ProjectService.patch` answers `startDate` against. A second spelling would
+be a second rule free to disagree with the one the rest of the API applies.
+
+**The UUID check pins the version and variant nibbles, not the length.** A v1
+UUID is the same length and the same alphabet, and it carries a MAC address and
+a timestamp a marker id has no business publishing. This still does **not** make
+the id spaces disjoint — 4.4 lets a client name its own id, and route-family
+disjointness (4.6) is what forbids a marker reaching work-item code.
+
+**One `it` per fixture rather than a loop over them**, and it changed what the
+negatives prove. The first version looped inside one case; the truthiness
+negative then stopped at whichever date the loop reached first and the record
+would have named the wrong row. Split, the negative names every row it reddens.
+
+**THREE NEGATIVES WATCHED, each in a different place, baseline 9 pass / 0 fail:**
+
+- **4.3** — `isIsoDate(body.date)` replaced with `body.date`, a truthiness
+  check: **6 pass / 3 fail**, reddening all three date rows including
+  `2026-09-17T00:00:00Z`, each `201` where `422` was owed. The timestamp is the
+  row the spec names because it is the one a *plausible* lax validator lets
+  through; the other two are not strings any check would mistake for a date.
+- **4.6a** — `UUID_V4.test(body.id)` replaced with `body.id.length > 0`:
+  **7 pass / 2 fail**, both id rows, `marker-1` among them.
+- **4.2** — the `forbidden` arm dropped from `create`'s gate in
+  `CalendarMarkerService` **only**: **8 pass / 1 fail**, failing at the create
+  assertion inside the permission case (`201` where `403` was owed) while the
+  rename, recolour and delete assertions in that same case stayed green — which
+  is what shows the four arms are four checks and not one.
+
+Restored after each: 9 pass / 0 fail.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first):
+`test` over be-01 and domain rc 0 — be-01 **1539 pass / 0 fail across 126
+files**, exactly the five new cases over chunk 7's 1534; domain 506 / 0. `lint`
+over be-01 and domain rc 0. `be-01:typecheck` and `domain:typecheck` rc 0, run
+**one at a time** for chunk 7's OOM reason. `format:check --all` rc 0.
+`apps/be-01/openapi.json` regenerated and **byte-identical** (sha256
+`55f6b6c5…`) — this chunk added no route and changed no body schema.
+
+**Next chunk:** 4.4 (the client id, its `clock.newId()` fallback and its
+collision, two negatives), 4.5 (the eight-row table with the astral name
+boundaries, three negatives) and 4.6 (isolation and route-family disjointness
+through a drizzle `logQuery` reach assertion, three negatives).
