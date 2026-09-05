@@ -5020,7 +5020,11 @@ describe('the dated axis cell is a control a keyboard can operate', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '19 Aug, 1 calendar marker' }));
 
-    expect(screen.getByRole('dialog').getAttribute('data-composer-date')).toBe(CUTOVER);
+    // The **sheet** and not the composer, as of 6.3: this fixture's cell already
+    // carries a marker, and a populated day opens the list. The subject of the
+    // case is unchanged — that the cell is findable by role and name at all —
+    // and the dialog it reaches is only how that is observed.
+    expect(screen.getByRole('dialog').getAttribute('data-sheet-date')).toBe(CUTOVER);
   });
 });
 
@@ -6860,5 +6864,143 @@ describe('the day scale', () => {
     expect(isDayPx(9)).toBe(false);
     expect(isDayPx('28')).toBe(false);
     expect(isDayPx(null)).toBe(false);
+  });
+});
+
+describe('a day that already carries markers opens a sheet listing every one of them', () => {
+  /**
+   * A `PALETTE` entry, for 4.5's reason: an arbitrary-looking custom hex is a
+   * fill this API would refuse, so a fixture wearing one is a marker that could
+   * never exist.
+   */
+  const AZURE = '#5d6afe';
+
+  const drawWithMarkers = (markers: readonly CalendarMarkerView[]) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+        markers={markers}
+      />,
+    );
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  /** The sheet, or a failure naming what stood there instead. */
+  const sheet = (): HTMLElement => {
+    const open = document.querySelector('[data-marker-sheet]');
+    if (open === null) {
+      const composer = document.querySelector('[data-marker-composer]');
+      throw new Error(
+        composer === null
+          ? 'no day sheet, and no composer either'
+          : 'no day sheet — the composer opened instead',
+      );
+    }
+    return open as HTMLElement;
+  };
+
+  const rowsInSheet = (): readonly HTMLElement[] =>
+    Array.from(sheet().querySelectorAll('[data-marker-row]'));
+
+  /**
+   * Cell 9 is 2026-08-19 on a Monday-2026-08-10 start — 6.1's cell, and the one
+   * where offset, workday and date all disagree.
+   */
+  const CUTOVER_DAY: IsoDate = '2026-08-19';
+
+  const CUTOVER: CalendarMarkerView = {
+    id: 'm-cut',
+    date: CUTOVER_DAY,
+    name: 'Cutover',
+    color: AZURE,
+  };
+  const FREEZE: CalendarMarkerView = {
+    id: 'm-freeze',
+    date: CUTOVER_DAY,
+    name: 'Code freeze',
+    color: null,
+  };
+  /** On a different day, so it proves the sheet lists *this* date and not all. */
+  const ELSEWHERE: CalendarMarkerView = {
+    id: 'm-else',
+    date: '2026-08-20',
+    name: 'Retro',
+    color: null,
+  };
+
+  itDom('lists both markers on a doubly-marked day, and offers to add another', () => {
+    drawWithMarkers([CUTOVER, FREEZE, ELSEWHERE]);
+
+    fireEvent.click(cellAt(9));
+
+    expect(sheet().getAttribute('data-sheet-date')).toBe(CUTOVER_DAY);
+    // By id and not by count: a sheet listing the right *number* of rows off the
+    // wrong day would pass a `toHaveLength(2)` on this fixture.
+    expect(rowsInSheet().map((row) => row.getAttribute('data-marker-row'))).toEqual([
+      'm-cut',
+      'm-freeze',
+    ]);
+    expect(rowsInSheet().map((row) => row.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('Cutover')]),
+    );
+    // The day's own markers and nothing else — `Retro` stands on 2026-08-20.
+    expect(sheet().textContent).not.toContain('Retro');
+    // Each row offers all three, because the slice is "rename, recolour and
+    // delete per row" and a sheet that offered them on the first row alone
+    // would pass an assertion made against the sheet as a whole.
+    for (const row of rowsInSheet()) {
+      const labels = Array.from(row.querySelectorAll('button')).map((button) =>
+        button.getAttribute('aria-label'),
+      );
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^Rename /),
+          expect.stringMatching(/^Recolour /),
+          expect.stringMatching(/^Delete /),
+        ]),
+      );
+    }
+    expect(screen.getByRole('button', { name: /^Add a calendar marker on / })).not.toBeNull();
+  });
+
+  itDom('still lists — and still offers Add — when the day carries exactly one', () => {
+    // **The point of the slice.** An implementation that sent a lone marker
+    // straight to its own editor passes the two-marker case above and makes a
+    // second marker on that day unreachable, which is the conflict 6.3 exists
+    // to resolve.
+    drawWithMarkers([CUTOVER, ELSEWHERE]);
+
+    fireEvent.click(cellAt(9));
+
+    expect(sheet().getAttribute('data-sheet-date')).toBe(CUTOVER_DAY);
+    expect(rowsInSheet().map((row) => row.getAttribute('data-marker-row'))).toEqual(['m-cut']);
+    expect(screen.getByRole('button', { name: /^Add a calendar marker on / })).not.toBeNull();
+  });
+
+  itDom('opens the composer, focused, on a day carrying none', () => {
+    drawWithMarkers([ELSEWHERE]);
+
+    fireEvent.click(cellAt(9));
+
+    expect(document.querySelector('[data-marker-sheet]')).toBeNull();
+    const composer = screen.getByRole('dialog');
+    expect(composer.getAttribute('data-composer-date')).toBe(CUTOVER_DAY);
+    // Focused, because a composer a reader has to go and find with the mouse
+    // they just clicked with is a composer that costs a second gesture to use.
+    expect(document.activeElement).toBe(screen.getByLabelText('Marker name'));
   });
 });

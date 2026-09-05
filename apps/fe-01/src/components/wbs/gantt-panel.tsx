@@ -2580,6 +2580,17 @@ function GanttChart({
    */
   const [refusal, setRefusal] = useState<string | null>(null);
   /**
+   * The day sheet's day — the surface a **populated** cell opens, listing every
+   * marker already standing on that date.
+   *
+   * A second piece of state beside {@link composerAt} rather than one union,
+   * because the two surfaces answer different questions and 6.3's one-marker
+   * case is exactly the confusion a single "the open editor" state invites: a
+   * day carrying one marker opens the *list*, not that marker's editor, or the
+   * second marker on that day becomes unreachable.
+   */
+  const [sheetAt, setSheetAt] = useState<IsoDate | null>(null);
+  /**
    * Escape closes the composer, which is the only way it closes at all.
    *
    * A `role="dialog"` a keyboard cannot dismiss is a trap, and this one is
@@ -2594,16 +2605,17 @@ function GanttChart({
    * with one.
    */
   useEffect(() => {
-    if (composerAt === null) return;
+    if (composerAt === null && sheetAt === null) return;
     const closeOnEscape = (key: KeyboardEvent) => {
       if (key.key !== 'Escape') return;
       setComposerAt(null);
+      setSheetAt(null);
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => {
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [composerAt]);
+  }, [composerAt, sheetAt]);
   /** The opening that has been asked for and not yet happened. */
   const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Whether the next click belongs to the touch pointer that pressed a bar. */
@@ -2912,6 +2924,63 @@ function GanttChart({
     [placed, startDate],
   );
   /**
+   * This project's markers grouped by the day they stand on, in the order
+   * `markers` arrives in — which is be-01's total order, so the sheet lists two
+   * markers on one day the same way twice running.
+   *
+   * A map and not a filter at the call site: the axis names every dated cell
+   * and the sheet lists one, and a `markers.filter(…)` in either place is a
+   * scan of every marker per day drawn.
+   */
+  const markersByDate = useMemo(() => {
+    const byDate = new Map<IsoDate, CalendarMarkerView[]>();
+    for (const marker of markers) {
+      const standing = byDate.get(marker.date);
+      if (standing === undefined) byDate.set(marker.date, [marker]);
+      else standing.push(marker);
+    }
+    return byDate;
+  }, [markers]);
+  /**
+   * What operating a dated axis cell opens: the sheet when the day already
+   * carries markers, the composer when it carries none.
+   *
+   * Shared by the click and the key handlers so the two cannot drift — 6.4's
+   * Enter and Space are the same gesture as a click and have to reach the same
+   * surface. Declared here rather than beside {@link sheetAt} because it reads
+   * {@link markersByDate}, and a `useCallback` whose dependency array names a
+   * `const` declared below it is a temporal-dead-zone throw at first render.
+   */
+  const operateDay = useCallback(
+    (date: IsoDate) => {
+      setRefusal(null);
+      if ((markersByDate.get(date)?.length ?? 0) === 0) {
+        setSheetAt(null);
+        setComposerAt(date);
+        return;
+      }
+      setComposerAt(null);
+      setSheetAt(date);
+    },
+    [markersByDate],
+  );
+  /**
+   * Puts the caret in the composer's name field the moment the composer exists.
+   *
+   * A callback ref rather than an effect keyed on {@link composerAt}: the field
+   * is mounted by the composer opening and unmounted by it closing, so the ref
+   * fires on exactly the transition an effect would have to reconstruct, and
+   * there is no window in which the state says open and the input is not yet in
+   * the document.
+   *
+   * Why at all: the cell that opened this was clicked or Entered, and a reader
+   * who then has to go and find the field with a second gesture is being asked
+   * to pay twice for one intention.
+   */
+  const focusOnOpen = useCallback((field: HTMLInputElement | null) => {
+    field?.focus();
+  }, []);
+  /**
    * Every dated cell's accessible name, by offset — the day it is and how many
    * markers stand on it ({@link axisCellName}).
    *
@@ -2923,20 +2992,22 @@ function GanttChart({
    * would now recompute a string for every day of the horizon. Nothing here
    * depends on a gesture, so nothing here should be recomputed by one.
    *
-   * The counts are folded in rather than kept in their own map: they exist only
-   * to be spoken, they are needed exactly where the name is built, and one pass
-   * over `markers` here is what keeps the cell loop from scanning them per day.
+   * The counts come off {@link markersByDate} rather than a second pass: the
+   * day sheet needs the markers themselves anyway, and a count is that list's
+   * length. One grouping serves both, which is what keeps the cell loop from
+   * scanning `markers` per day.
    */
   const axisCellNames = useMemo(() => {
-    const counts = new Map<IsoDate, number>();
-    for (const marker of markers) counts.set(marker.date, (counts.get(marker.date) ?? 0) + 1);
     const names = new Map<number, string>();
     for (const day of axis) {
       if (day.date === null) continue;
-      names.set(day.offset, axisCellName(day.date, counts.get(day.date) ?? 0, today));
+      names.set(
+        day.offset,
+        axisCellName(day.date, markersByDate.get(day.date)?.length ?? 0, today),
+      );
     }
     return names;
-  }, [axis, markers, today]);
+  }, [axis, markersByDate, today]);
   /**
    * The column today stands in, or null when today is not on this chart.
    *
@@ -4144,8 +4215,7 @@ function GanttChart({
                       setRefusal(UNDATED_REFUSAL);
                       return;
                     }
-                    setRefusal(null);
-                    setComposerAt(day.date);
+                    operateDay(day.date);
                   }}
                   // The control contract, and it ships **with** the click
                   // rather than after it: `jsx-a11y/click-events-have-key-events`
@@ -4194,7 +4264,12 @@ function GanttChart({
                       }
                     : {
                         'aria-haspopup': 'dialog' as const,
-                        'aria-expanded': composerAt === day.date,
+                        // Either surface counts as open, because a populated
+                        // cell opens the sheet and an empty one the composer —
+                        // an `aria-expanded` naming only the composer would say
+                        // `false` on exactly the cells that just opened
+                        // something.
+                        'aria-expanded': composerAt === day.date || sheetAt === day.date,
                         'aria-label': axisCellNames.get(day.offset),
                       })}
                   onKeyDown={(key) => {
@@ -4204,8 +4279,7 @@ function GanttChart({
                       setRefusal(UNDATED_REFUSAL);
                       return;
                     }
-                    setRefusal(null);
-                    setComposerAt(day.date);
+                    operateDay(day.date);
                   }}
                   // The first day of each week reads as the heading it is, over
                   // the heavier gridline under it; a weekend cell is greyed back,
@@ -4517,10 +4591,69 @@ function GanttChart({
           >
             <p className="text-xs font-semibold">{shortIsoDate(composerAt, today)}</p>
             <input
+              ref={focusOnOpen}
               type="text"
               aria-label="Marker name"
               className="border-border mt-2 w-48 rounded border px-2 py-1 text-xs"
             />
+          </div>
+        )}
+        {/*
+        The day sheet — what a **populated** cell opens.
+
+        Every marker on that date, in be-01's order, each row carrying rename,
+        recolour and delete, and an Add below them. A day with exactly one
+        marker gets the same list: shortcutting one marker to its own editor
+        would read as helpful and make a second marker on that day unreachable,
+        which is the conflict 6.3 exists to settle.
+
+        The actions are **offered and not yet wired** — the handlers arrive with
+        6.3's second half, where each is proved by the `PATCH` it sends as well
+        as by the DOM it repaints. The names are per marker (`Rename Cutover`)
+        rather than bare verbs, because a list of rows announcing three
+        identical buttons apiece is a list a screen reader cannot navigate.
+      */}
+        {sheetAt !== null && (
+          <div
+            role="dialog"
+            aria-label={`Calendar markers on ${shortIsoDate(sheetAt, today)}`}
+            data-marker-sheet
+            data-sheet-date={sheetAt}
+            className="border-border bg-background fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md border p-3 shadow-md"
+          >
+            <p className="text-xs font-semibold">{shortIsoDate(sheetAt, today)}</p>
+            <ul className="mt-2 flex w-56 flex-col gap-1">
+              {(markersByDate.get(sheetAt) ?? []).map((marker) => (
+                <li
+                  key={marker.id}
+                  data-marker-row={marker.id}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-3 shrink-0 rounded-sm"
+                    style={{ backgroundColor: markerFill(marker) }}
+                  />
+                  <span className="grow truncate">{marker.name}</span>
+                  <button type="button" aria-label={`Rename ${marker.name}`}>
+                    ✎
+                  </button>
+                  <button type="button" aria-label={`Recolour ${marker.name}`}>
+                    ◑
+                  </button>
+                  <button type="button" aria-label={`Delete ${marker.name}`}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              aria-label={`Add a calendar marker on ${shortIsoDate(sheetAt, today)}`}
+              className="mt-2 text-xs underline"
+            >
+              Add
+            </button>
           </div>
         )}
       </section>
