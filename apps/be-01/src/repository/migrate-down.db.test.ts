@@ -221,6 +221,14 @@ const SAVED_PLAN = '20260903190000_add_saved_plan';
  * below and tails the ascending folder order.
  */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/**
+ * The newest: `calendar_marker`, one table and one index added whole, so it
+ * heads every descending reversal list below and tails the ascending folder
+ * order. Its own rollback and cascade cases live in
+ * `calendar-marker-migration.db.test.ts`; this file only fixes its place in the
+ * order.
+ */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
@@ -494,6 +502,7 @@ describe('readMigrationFolders', () => {
       LOOKUP_INDEXES,
       SAVED_PLAN,
       CREATED_BY_ID,
+      CALENDAR_MARKER,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -604,11 +613,13 @@ describe('rollbackTo, against a real database', () => {
         LOOKUP_INDEXES,
         SAVED_PLAN,
         CREATED_BY_ID,
+        CALENDAR_MARKER,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        CALENDAR_MARKER,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
@@ -705,6 +716,7 @@ describe('rollbackTo, against a real database', () => {
         LOOKUP_INDEXES,
         SAVED_PLAN,
         CREATED_BY_ID,
+        CALENDAR_MARKER,
       ]);
     } finally {
       db.cleanup();
@@ -775,6 +787,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        CALENDAR_MARKER,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
@@ -857,6 +870,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        CALENDAR_MARKER,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
@@ -924,6 +938,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        CALENDAR_MARKER,
         CREATED_BY_ID,
         SAVED_PLAN,
         LOOKUP_INDEXES,
