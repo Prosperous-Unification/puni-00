@@ -9,10 +9,10 @@ import {
 } from './controller/auth.controller';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
-import { internalController } from './controller/internal.controller';
+import { internalRoutes } from './controller/internal.routes';
 import { projectController } from './controller/project.controller';
 import { savedPlanController } from './controller/saved-plan.controller';
-import { smokeController } from './controller/smoke.controller';
+import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
 import { workItemController } from './controller/work-item.controller';
@@ -191,7 +191,7 @@ export function buildApp(opts: AppOptions) {
         }
         return undefined;
       })
-      .use(smokeController)
+      .use(bindElysia(smokeRoutes()))
       .use(authController(opts.auth, opts.oidc))
       .use(bindElysia(solutionRoutes(opts.auth, opts.projects)))
       .use(projectController(opts.auth, opts.projects, opts.workItems))
@@ -223,16 +223,18 @@ export function buildApp(opts: AppOptions) {
       // route declares, and adjacency is what makes that checkable at a glance.
       .use(bindElysia(historyRoutes(opts.auth, opts.history)))
       .use(
-        internalController({
-          secret: opts.internalAuthSecret,
-          // A deliberate pure ack, not a stub. Every mutation in this product is
-          // an HTTP call to be-01; a client message arriving over the socket is
-          // acknowledged and carried no further, because there is no message the
-          // socket is the authority for. The test asserting a forward records no
-          // event and pushes nothing is what keeps this honest.
-          onForward: () => Promise.resolve({ push_responses: [] }),
-          onResume: (points) => opts.replay.replay(points),
-        }),
+        bindElysia(
+          internalRoutes({
+            secret: opts.internalAuthSecret,
+            // A deliberate pure ack, not a stub. Every mutation in this product is
+            // an HTTP call to be-01; a client message arriving over the socket is
+            // acknowledged and carried no further, because there is no message the
+            // socket is the authority for. The test asserting a forward records no
+            // event and pushes nothing is what keeps this honest.
+            onForward: () => Promise.resolve({ push_responses: [] }),
+            onResume: (points) => opts.replay.replay(points),
+          }),
+        ),
       )
       .get('/health', ({ set }) => {
         // On every answer, including the unhealthy ones. "Which commit is this
