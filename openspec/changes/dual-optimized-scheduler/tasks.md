@@ -384,7 +384,26 @@ number, then on step order`, a test written directly for this rule. The
       being `refuses an empty map on every case rather than treating it as
       Fast`. Green at the same head: **7 pass / 0 fail, 24 expect() calls**.
       The mutation was reverted and the gate checkout re-verified `dirty=0`.
-- [x] 1.7 `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
+- [x] 1.7 **WITHDRAWN FROM THIS CHANGE on the PR 203 review — moved whole to
+      TASK-260, along with 1.8 and its third assertion.** The code below landed,
+      was measured exactly as recorded, and was then taken back out at
+      `change/dual-optimized-scheduler`. The reason is not that it was wrong: it
+      is that it is not inert. Sol's I1 probed the real database and found that
+      `work_item_siblings` is a plain index, so two siblings may share a
+      `position`; `deriveNumbers` sorts stably; and therefore imposing an order
+      here **moves an existing project's dates on the deploy that ships it**,
+      whether or not that project ever enables the optimizer. This change's
+      subject is the solver core and a Fast-parity refactor, and a behaviour
+      change for live plans has no business riding inside it unannounced. It
+      wants its own change, which states the response-order contract, decides
+      what to do about sibling-position uniqueness, adds the `(project_id, id)`
+      index the ordered read implies, and carries pre/post fixtures over the
+      population it can touch. The optimized cache key never read this order —
+      `canonical-schedule-input` groups slices by work item — so nothing else in
+      this change rests on it. Recorded verbatim below as the evidence TASK-260
+      starts from.
+
+      `WorkItemRepo.listByProject` acquires `ORDER BY work_item.id` on its
       work-item select. An argument tuple that varies between reads of an
       unchanged project is a Fast defect before it is a cache one.
       **Landed in run 13 chunk 4** — `.orderBy(asc(workItem.id))` on the
@@ -399,7 +418,14 @@ number, then on step order`, a test written directly for this rule. The
       `orderBy` deleted from the production path → **31 pass / 1 fail**, and the
       one failure is that test (green baseline 32 / 0; file restored, `dirty=0`).
       be-01 **1131 pass / 0 fail across 87 files** at `76a4864f`.
-- [x] 1.8 The `ORDER BY` proof asserts the **raw argument tuple**, not the hash
+- [x] 1.8 **WITHDRAWN FROM THIS CHANGE with 1.7 — moved whole to TASK-260.**
+      Same reason, and this item is the one that measured it: its third
+      assertion is the tied-sibling fixture that shows the two spans exchanging,
+      which is exactly the production behaviour change 1.7's withdrawal note
+      describes. All three tests were lifted out of `work-item.db.test.ts` and
+      travel to TASK-260 intact. Recorded verbatim below.
+
+      The `ORDER BY` proof asserts the **raw argument tuple**, not the hash
       (Sol r7 Important 11). The earlier plan reversed the stub driver's rows
       and expected two different hashes through
       `listByProject` → `slicesOf` → `canonicalScheduleInput`; that fault is

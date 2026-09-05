@@ -149,23 +149,28 @@ export class WorkItemRepository implements WorkItemStore {
    * `EffectiveTeams.teamIds`, `EffectiveTags.tagIds` and
    * `EffectiveServices.serviceIds` all document.
    *
-   * **And the work-item select carries its own `ORDER BY work_item.id`** for
-   * exactly that reason, one level up (`dual-optimized-scheduler/tasks.md`
-   * §1.7). Without it the row order is whatever SQLite returned, and this array
-   * is not merely displayed: `slicesOf` walks it in order and emits the
-   * `slices` argument in that order, which is a **scheduling** input — the
-   * intra-item step order is real precedence. An argument tuple that varies
-   * between two reads of an unchanged project is a Fast defect before it is a
-   * cache one, and it is what made the canonical form group slices by work item
-   * rather than hash the array it was handed
-   * (`canonical-schedule-input.ts`, (c)).
+   * **The work-item select itself is deliberately unordered, and that is a
+   * known gap rather than an oversight — TASK-260.** An `ORDER BY work_item.id`
+   * here was written for this task (`dual-optimized-scheduler/tasks.md` §1.7,
+   * §1.8) and taken back out of it on review: `slicesOf` walks these rows in
+   * order and `deriveNumbers` sorts each sibling group **stably**, so for two
+   * siblings tied on `position` — a legal and reachable state, since
+   * `work_item_siblings` is a plain index and `placeAfter` appends without a
+   * lock — the repository's order is what breaks the tie, and imposing one
+   * would move an existing project's dates on the deploy that shipped it. That
+   * is a real change with a real population, and it belongs to a change that
+   * says so, indexes for it and carries pre/post fixtures. Not to this one,
+   * whose subject is the solver core.
+   *
+   * The optimized cache key is unaffected either way: `canonical-schedule-input`
+   * groups slices by work item rather than hashing the array it was handed, so
+   * the key does not read this order.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
     const rows = await this.db
       .select(WORK_ITEM_COLUMNS)
       .from(workItem)
-      .where(eq(workItem.projectId, projectId))
-      .orderBy(asc(workItem.id));
+      .where(eq(workItem.projectId, projectId));
     const joined = await this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)
