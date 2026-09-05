@@ -698,7 +698,7 @@ in both slices rather than implied by position.
       alone leaves the other path unproven.
       `Proof:` comment naming, for (iii) and (iv), the logged statement each
       was caught by.
-- [ ] 5.2 Markers stay out of a saved plan — test:
+- [x] 5.2 Markers stay out of a saved plan — test:
       `apps/be-01/src/repository/saved-plan-capture.db.test.ts`, a new case:
       capture a project with markers and a copy with none, assert the
       `input_sha256` values are equal. **This assertion passes on `main`
@@ -713,6 +713,21 @@ in both slices rather than implied by position.
       watched failing on unequal hashes, then removed. `Proof:` comment naming
       the added read and the payload field. Without that
       injection this is 5.1's own trap committed one slice later.
+      **DONE 2026-09-05 (run 8, chunk 15), and the injection took two goes.**
+      The hash is reproduced through the product's own pipeline —
+      `planInputRowsOf` → `canonicalisePlanInput` →
+      `serialiseCanonicalPlanInput` → `bodySha256`, the composition
+      `saved-plan.service.ts:667-668` writes `input_sha256` from — rather than
+      re-serialized here, which would assert this file's own serializer.
+      **The first injection did not fail, and why is worth carrying:** marker
+      rows appended to `tags` inside `readPlanInput()` changed nothing, because
+      the payload's directory projection is **used-only** —
+      `saved-plan-input.ts:246` filters registry rows to the ids work items
+      actually reference, so rows nothing points at are dropped before the
+      digest. A fold has to reach a field the projection keeps. The watched
+      injection folds the marker dates into `project.name`, which
+      `planInputRowsOf` carries verbatim: **23 pass / 1 fail, exactly this
+      case**, on unequal hashes. Baseline 24 / 0, restored after.
 
 ## 6. The click surface
 
