@@ -147,10 +147,27 @@ export function noContent(): RouteResponse {
  * Returns the parameters on a match and `null` on a miss, so a caller cannot
  * confuse "matched with no parameters" with "did not match" — an empty object
  * is truthy and `null` is not.
+ *
+ * **A single trailing slash is ignored, because Elysia ignores it and a binder
+ * contract is not a place to disagree about what a URL means.** Measured on
+ * this branch: `SLASHPROBE elysia bare=200 slash=200`, `SLASHPROBE in-process
+ * bare=200 slash=404`. Every route migrated onto the route shape had that
+ * divergence — `/api/projects/` reached the app under Elysia, which is also why
+ * the old `new Elysia({ prefix })` plus a `'/'` path answered the bare spelling
+ * fe-01 has always sent. Normalising here rather than asserting the difference
+ * is the choice that keeps one meaning per URL across binders; the alternative
+ * would have been a contract case documenting that this app answers a different
+ * set of URLs depending on which binder is mounted, which is not a contract.
+ *
+ * Exactly **one** trailing slash and only on the request, never on the pattern:
+ * the patterns in this app carry none, `//` stays a miss, and `/` itself is left
+ * alone so the root path does not normalise to the empty string.
  */
 export function matchPath(pattern: string, pathname: string): Record<string, string> | null {
   const expected = pattern.split('/');
-  const actual = pathname.split('/');
+  const actual = (
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  ).split('/');
   if (expected.length !== actual.length) return null;
   const params: Record<string, string> = {};
   for (const [index, segment] of expected.entries()) {

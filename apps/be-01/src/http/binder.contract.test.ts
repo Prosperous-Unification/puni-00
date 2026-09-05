@@ -197,4 +197,32 @@ describe.each(BINDERS)('route contract under the %s binder', (_name, bind) => {
     const res = await get('/probe/nothing-here');
     expect(res.status).toBe(404);
   });
+
+  /**
+   * The trailing slash, which the two binders disagreed about until the clause
+   * below was written.
+   *
+   * Probed rather than reasoned about: `SLASHPROBE elysia bare=200 slash=200`,
+   * `SLASHPROBE in-process bare=200 slash=404`. Elysia normalises and
+   * `matchPath` compared segment counts, so `/probe/plain/` was a hit under one
+   * binder and a miss under the other — on **every** route migrated onto the
+   * route shape, not on a route this branch introduced. `matchPath` normalises
+   * now, and this is the clause that keeps both honest: it fails under either
+   * binder that changes its mind.
+   */
+  it('answers a path with one trailing slash exactly as the bare spelling', async () => {
+    const bare = await get('/probe/plain');
+    const slashed = await get('/probe/plain/');
+    expect(slashed.status).toBe(bare.status);
+    expect(await slashed.json()).toEqual({ hello: 'world' });
+  });
+
+  /**
+   * And the two things normalising a trailing slash must not also do: swallow an
+   * empty path segment, or turn the root into the empty string.
+   */
+  it('still refuses a doubled slash where a parameter belongs', async () => {
+    const res = await get('/probe/echo//');
+    expect(res.status).toBe(404);
+  });
 });
