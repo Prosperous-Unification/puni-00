@@ -264,12 +264,14 @@ export function SavedPlansPanel({
    * Identity and not contents, and that is the honest test rather than a lazy
    * one: `rows` is a fresh array per read, and the shelf reads exactly when
    * something happened to it — on mount, on a project change, on a broadcast,
-   * and on the refresh a save triggers. Comparing ids instead would call a
-   * broadcast "nothing changed" whenever the *list* was untouched, which is
-   * wrong whenever the *list* is untouched. `right` is usually `current`, so an
-   * ordinary plan broadcast can leave every saved-plan id unchanged while the
-   * live side moves; a saved-plan broadcast can change the list itself. In both
-   * cases the thing the reader is comparing may now be stale.
+   * and on the refresh a save or a rename triggers. Comparing ids instead would
+   * call a broadcast "nothing changed" whenever the *list* was untouched, and
+   * that is wrong because the list is not the only side of the comparison that
+   * can move: `right` is usually `current`, so an ordinary plan broadcast leaves
+   * every saved-plan id unchanged while the live side moves out from under the
+   * comparison on screen. (A `saved_plans_changed` broadcast changes the list
+   * itself, so ids would have caught that one — identity is necessary for the
+   * first case and sufficient for both.)
    *
    * Only over `ready`. There is nothing to leave alone while a comparison is
    * loading, refused or failed, and offering to refresh one of those would be

@@ -213,9 +213,11 @@ describe('watching a project’s shelf', () => {
 
   it('re-reads on a caller’s refresh, which no broadcast would have caused', async () => {
     // **The hole this exists to fill.** `saved-plan.controller.ts` publishes
-    // nothing — not on save, not on rename, not on delete — so the broadcast
-    // this watch listens to is the *plan's*, and a user's own checkpoint is the
-    // one change that never reaches it. The assertion is on `list` being asked
+    // `saved_plans_changed` on save, rename and delete (TASK-255), so a
+    // collaborator's mutation does reach this watch. The hole `refresh` fills is
+    // on the actor's own side of the round trip: without a caller-driven read
+    // the saver waits for their own event to go out to gw-01 and come back
+    // before the row they just created appears. The assertion is on `list` being asked
     // a second time with no broadcast fired at all: a build whose refresh did
     // nothing would still pass every other case in this file, because every
     // other case gets its second read from the stream.

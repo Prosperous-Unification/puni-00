@@ -199,10 +199,13 @@ describe('the Save plan action', () => {
 
   /**
    * Sol I1's second window. `SavedPlansPanel` refreshes the shelf when the save
-   * state turns `saved`, because be-01 broadcasts nothing on save (TASK-255) —
-   * that effect is the only thing that puts the reader's own checkpoint on their
-   * own shelf. Settling into the component that has already been replaced would
-   * leave the new row invisible until somebody edited the project.
+   * state turns `saved`. be-01 does broadcast `saved_plans_changed` on a
+   * successful save (TASK-255), but that event carries no per-request outcome
+   * and is not emitted at all on `busy`, `quota` or `error` — so it cannot
+   * deliver the request's terminal state to a replacement mount. Settling into
+   * the component that has already been replaced therefore strands the
+   * replacement in `saving` and drops the authoritative timestamp and every
+   * refusal message.
    */
   itDom('settles into the component that replaced the one that pressed Save', async () => {
     const fake = deferredSave();
