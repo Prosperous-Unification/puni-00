@@ -99,7 +99,11 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
-    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([CALENDAR_MARKER, CREATED_BY_ID, SAVED_PLAN]);
+    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      CALENDAR_MARKER,
+      CREATED_BY_ID,
+      SAVED_PLAN,
+    ]);
 
     // The precondition for the two lines above meaning anything: `toContain` on
     // an empty list already fails, so these say the rollback emptied them.
