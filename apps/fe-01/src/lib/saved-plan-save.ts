@@ -80,7 +80,8 @@ function runningFor(deps: SaveDeps, projectId: string): RunningSave | undefined 
  * between belongs to neither. A successful save broadcast eventually refreshes
  * the shelf, but it cannot carry the request's terminal state to the replacement
  * or provide the actor's immediate refresh. Without this hand-off the replacement
- * can therefore be stranded in `saving` by the same window.
+ * falls back to `idle` (see the fallback at the `useLayoutEffect` below) and the
+ * authoritative timestamp and every refusal message are silently dropped.
  *
  * Written only when the settle finds an empty waiting set, which is exactly the
  * case where every listener has gone, and taken once.

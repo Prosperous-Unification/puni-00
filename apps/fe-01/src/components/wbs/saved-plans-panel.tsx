@@ -269,9 +269,9 @@ export function SavedPlansPanel({
    * that is wrong because the list is not the only side of the comparison that
    * can move: `right` is usually `current`, so an ordinary plan broadcast leaves
    * every saved-plan id unchanged while the live side moves out from under the
-   * comparison on screen. (A `saved_plans_changed` broadcast changes the list
-   * itself, so ids would have caught that one — identity is necessary for the
-   * first case and sufficient for both.)
+   * comparison on screen. (A `saved_plans_changed` broadcast from a save or a
+   * delete changes the id set, so ids would have caught those two; a rename does
+   * not, and neither does the case above. Identity catches all of them.)
    *
    * Only over `ready`. There is nothing to leave alone while a comparison is
    * loading, refused or failed, and offering to refresh one of those would be
