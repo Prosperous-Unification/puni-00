@@ -413,7 +413,7 @@ in both slices rather than implied by position.
       neighbour) is entirely client-side and never reached. The server half is
       already covered: 4.3 rejects `2026-09-17T00:00:00Z`, so no instant can
       enter storage as a date at all.
-- [ ] 4.4 The client-supplied `id`, its fallback and its collision — test: same
+- [x] 4.4 The client-supplied `id`, its fallback and its collision — test: same
       file, three cases: a create carrying an `id` stores that exact id; a create
       omitting `id` is issued one by `Clock.newId()` (asserted through the fake
       clock the suite already injects); a create repeating an existing id is
@@ -2057,3 +2057,42 @@ over be-01 and domain rc 0. `be-01:typecheck` and `domain:typecheck` rc 0, run
 collision, two negatives), 4.5 (the eight-row table with the astral name
 boundaries, three negatives) and 4.6 (isolation and route-family disjointness
 through a drizzle `logQuery` reach assertion, three negatives).
+
+## Implementation notes — chunk 9 (TASK-235 run 4, 2026-09-05)
+
+**Slice 4.4, checked.** `4262c281`. **Test-only** — `marker.id ??
+this.clock.newId()` and the store's `taken` refusal both already shipped in
+chunks 7 and 5; what was missing was anything watching them.
+
+The app's test clock now mints exactly one id, `MINTED`. A random one would
+have made the fallback assertion "a UUID appeared", which a create ignoring the
+clock entirely also satisfies.
+
+**TWO NEGATIVES WATCHED, baseline 12 pass / 0 fail:**
+
+- **The create ignoring the supplied `id`** — `marker.id ?? this.clock.newId()`
+  replaced with `this.clock.newId()` in `CalendarMarkerService.create`:
+  **9 pass / 3 fail**. The slice's own case, `stores the exact id the create
+  carried`, is one of the three; the round trip and the tie case also supply
+  ids and legitimately break with them. This is the server fault `design.md`
+  §6.1 named and no slice owned until now — 3.5 requires a *front-end* fault
+  and delegates the server half here, and this is the only file executing be-01
+  code.
+- **The insert written as an upsert** — the duplicate-id read struck and
+  `.onConflictDoUpdate({ target: calendarMarker.id, set: marker })` in its
+  place: **11 pass / 1 fail**, exactly the collision case, which is what the
+  "and leaves the stored marker untouched" third of that assertion buys. A
+  duplicate-id test asserting only the status passes against an upsert that has
+  already destroyed the row on its way to answering.
+
+Restored after each: 12 pass / 0 fail.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`, `rm -rf dist` first):
+`be-01:lint` rc 0, `format:check --all` rc 0, `be-01:typecheck` rc 0,
+`test` over be-01 and domain rc 0 — be-01 **1542 pass / 0 fail across 126
+files**, exactly the three new cases over chunk 8's 1539; domain 506 / 0.
+
+**Next chunk:** 4.5 (the eight-row refusal table, the astral `MARKER_NAME_MAX`
+boundaries and the hex/contrast rows, three negatives) and 4.6 (isolation, the
+cross-project delete, and route-family disjointness through a drizzle
+`logQuery` reach assertion, three negatives). Those two close section 4.
