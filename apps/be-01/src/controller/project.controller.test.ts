@@ -704,6 +704,89 @@ describe('projects', () => {
     expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
   });
 
+  // The three cases the PR 203 peer seat named as missing negatives at
+  // `b07becf0`: every case above moves ONE key, so all of them still pass if
+  // `turnsTheOptimizerOn` is written as an XOR instead of an OR, and none of
+  // them reaches a project that is ALREADY enabled — which is the only state in
+  // which a resend or a disabling can be wrongly refused. Both halves are
+  // reachable by a caller, so both get a watched negative.
+  it('refuses switching the optimizer on with both keys in one patch, not just either alone', async () => {
+    const { register, send, broadcast } = buildHarness({ optimizerAvailable: false });
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    broadcast.published.length = 0;
+
+    // An XOR gate — "exactly one of these two keys turns it on" — answers 200
+    // here while passing every either-key-alone case above it. That is the
+    // whole reason this case exists separately from them.
+    const res = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'optimizer_unavailable' });
+    expect(broadcast.published).toEqual([]);
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string };
+    };
+    expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
+  });
+
+  it('still lets an already-enabled project resend and disable after the optimizer is gone', async () => {
+    // `buildHarness` reads `options.optimizerAvailable` through a closure on
+    // every call, so mutating it here is a deployment LOSING its optimizer
+    // between two requests — a redeploy without the solver, on a project whose
+    // row already says `true`/`optimized`. Rebuilding the harness could not
+    // reach this state: the enabling PATCH would be refused by the new one.
+    const options = { optimizerAvailable: true };
+    const { register, send, broadcast } = buildHarness(options);
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    const enable = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+    expect(enable.status).toBe(200);
+
+    options.optimizerAvailable = false;
+    broadcast.published.length = 0;
+
+    // Resending what the row already holds is not an enabling, and a gate that
+    // compares the PATCH against `false` instead of against the STORED row 409s
+    // it — locking the settings panel of every project that was enabled before
+    // the optimizer went away.
+    const resend = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+    expect(resend.status).toBe(200);
+
+    // And the way OUT must stay open, one key at a time: refusing these is the
+    // failure that strands a project in a mode its deployment cannot serve.
+    const off = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: false }),
+    });
+    expect(off.status).toBe(200);
+    const fast = await send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduleEngine: 'fast' }),
+    });
+    expect(fast.status).toBe(200);
+
+    const after = await send(`/api/projects/${project.id}`, token);
+    const body = (await after.json()) as {
+      project: { optimizationEnabled: boolean; scheduleEngine: string };
+    };
+    // Read back, not inferred from the statuses: a 200 that stored nothing
+    // would pass every assertion above this line.
+    expect(body.project).toMatchObject({ optimizationEnabled: false, scheduleEngine: 'fast' });
+  });
+
   it('lets a settings panel resend the values a project already holds, optimizer or not', async () => {
     const { register, send } = buildHarness({ optimizerAvailable: false });
     const token = await register('owner');
