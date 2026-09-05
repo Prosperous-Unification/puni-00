@@ -971,28 +971,36 @@ outside `libs/store-sqlite`.
 _Avoid_: implementation (when the seam is the topic), driver, provider
 
 **Source**:
-One complete set of store adapters plus a unit of work, opened together: SQLite and
-in-memory are the two. A source is valid when it passes the conformance kits and not
-otherwise.
+One complete set of store adapters (the event log included), a write coordinator and a unit
+of work, opened, health-checked and closed together: SQLite and in-memory are the two. A
+source is valid when it passes the conformance kits and not otherwise.
 _Avoid_: backend, database, persistence layer, data layer
 
+**Write coordinator**:
+The source's re-entrant gate that every mutating adapter method enters and a unit of work
+holds for a whole batch, so no outside write can land inside an open batch. In SQLite it is
+the process write lock, owned by the adapter rather than by core.
+_Avoid_: write lock (as the port's name), mutex, semaphore
+
 **Unit of work**:
-The port a command batch runs inside: everything written through it is observable in full
-or not at all through the stores' own reads. SQLite meets it with ADR 0007's outer
+The port a command batch runs inside: once `run` settles, everything written through it is
+observable through the stores' own reads or none of it is. Terminal atomicity, not isolation
+— a concurrent reader may see in-flight rows. SQLite meets it with ADR 0007's outer
 transaction; the contract is the behaviour, not the mechanism. ADR 0015.
 _Avoid_: outer transaction (as the port's name), transaction handle, session
 
 **Endpoint**:
-One HTTP route stated as data — method, path, caller requirement, ArkType schemas and a
-pure handler returning an `HttpReply` — that an adapter mounts on a framework. The
-OpenAPI document is emitted from the endpoints, not from the framework.
+One HTTP route stated as data — method, path, operation id, request policies, schemas and a
+pure handler returning an `HttpReply` — that an adapter mounts on a framework. The handler
+never sees the framework.
 _Avoid_: route (for the spec), controller (for the spec), handler (for the whole)
 
-**Caller requirement**:
-What an endpoint asks of whoever calls it: `public`, `signed-in`, `read-scope`,
-`write-scope` or `internal`. Resolved by the adapter before the handler runs; a handler
-never checks identity itself.
-_Avoid_: guard, auth level, permission (for this)
+**Request policy**:
+A rule the adapter applies to a request before its body is parsed and before the handler
+runs: an origin policy, or an identity policy naming `signed-in`, `read-scope`,
+`write-scope` or `internal`. Stated per endpoint; a handler never checks identity or origin
+itself.
+_Avoid_: guard, caller requirement, middleware (for this), auth level
 
 **Conformance kit**:
 A test suite exported as a function of a factory, so a source or an adapter is held to a
