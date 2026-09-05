@@ -42,7 +42,7 @@ import {
  *    would only prove the generator wrote the field down, not that the engine
  *    ever read it.
  *
- * Measured on h2puni at `4b0a2eb1`, seeds 1..1000 — the seeds each fact moves:
+ * Measured on h2puni at `90408467`, seeds 1..1000 — the seeds each fact moves:
  * people 554, capacity 255, priority 461, dependency-reach 239,
  * manual-floor 699.
  *
