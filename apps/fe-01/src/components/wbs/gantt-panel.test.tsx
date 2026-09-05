@@ -4877,12 +4877,12 @@ describe('a calendar marker is a chip in the axis band, placed by its date', () 
    */
   const AZURE = '#5d6afe';
 
-  const drawWithMarkers = (markers: readonly CalendarMarkerView[]) =>
+  const drawWithMarkers = (markers: readonly CalendarMarkerView[], workdays = 10) =>
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 10)],
-          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+          rows: [rowAt('strip', 0, workdays)],
+          slices: [sliceAt('strip-dev', 'strip', 0, workdays)],
         })}
         startDate={MONDAY_START}
         scheduleError={null}
@@ -4956,6 +4956,45 @@ describe('a calendar marker is a chip in the axis band, placed by its date', () 
     expect(chip.style.backgroundColor).toBe(asRgb(automaticColor('m-auto')));
     // Still chosen, on the resolved fill and not on the stored null.
     expect(chip.style.color).toBe(asRgb(labelInk(automaticColor('m-auto'))));
+  });
+
+  /**
+   * The **return trip**, which is the half of task 8.5 the panel can see.
+   *
+   * A marker past the drawn horizon has no cell to stand on, and inventing one
+   * would put it at the chart's edge as if it were on the last day — the same
+   * lie the today marker's out-of-range arms already refuse. But "draws
+   * nothing" alone is a claim a component that had simply stopped drawing chips
+   * would also satisfy, so the same marker is asserted **back** when the plan
+   * grows long enough to hold its date. One fixture, two horizons, and the
+   * marker is untouched between them.
+   *
+   * The other half of 8.5 — that the marker is still *stored* and still
+   * answered by the list route — is not observable here at all; it belongs to
+   * the be-01 controller test and is why 8.5 stays unticked after this.
+   */
+  const OFF_THE_END: CalendarMarkerView = {
+    id: 'm-late',
+    date: '2026-08-19',
+    name: 'Cutover',
+    color: AZURE,
+  };
+
+  itDom('draws no chip for a date the horizon does not reach', () => {
+    // Three workdays from Monday 2026-08-10 draws 2026-08-10..08-12, so
+    // 2026-08-19 is a week past the last cell.
+    drawWithMarkers([OFF_THE_END], 3);
+
+    expect(document.querySelector('[data-marker-chip="m-late"]')).toBeNull();
+    // The band itself is still there, so the absence above is one marker's and
+    // not the whole layer having failed to render.
+    expect(document.querySelector('[data-gantt-marker-band]')).not.toBeNull();
+  });
+
+  itDom('draws it again once the plan is long enough to hold its date', () => {
+    drawWithMarkers([OFF_THE_END], 10);
+
+    expect(chipFor('m-late').getAttribute('data-marker-offset')).toBe('9');
   });
 });
 

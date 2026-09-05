@@ -2675,3 +2675,35 @@ free**, which confirms chunk 22's reading that the `Killed` was h2puni's memory
 pressure and not the diff. be-01 and domain not run: the only file changed
 outside `apps/fe-01` is `tsconfig.base.json`, and a path mapping added beside
 ten others changes nothing either of them compiles.
+
+## Implementation notes — chunk 24 (TASK-235 run 12, 2026-09-05)
+
+**Slice 8.5's panel half, and 8.5 stays unticked.** The return trip is asserted
+— one marker on `2026-08-19`, drawn twice: against a three-workday plan whose
+axis stops at `2026-08-12` it draws nothing, and against the ten-workday plan it
+is back at offset 9. Two horizons, one untouched fixture. The other half of the
+slice, that the marker is **still stored and still answered by the list route**,
+is not observable on the panel at any horizon; it is the be-01 controller case
+from 4.1 and it is what 8.5 is still owed.
+
+**"Draws nothing" needed the second render to mean anything**, which is the part
+of the slice's own text worth keeping: a component that had simply stopped
+drawing chips satisfies the shortened case exactly as well as one that placed
+this marker correctly and found no cell for it. The absent case also asserts
+`[data-gantt-marker-band]` is still in the tree, so what is missing is one
+marker rather than the whole layer.
+
+**NEGATIVE WATCHED**, baseline 171 → 173 pass / 0 fail on `gantt-panel.test.tsx`,
+restored to 173 / 0 after: the chip's own `if (offset === null) return null`
+weakened to `offset === undefined`, which `axisOffsetOf` never returns → **172 /
+1**, the shortened case alone, `expected <span …(3)></span> to be null`. The
+slice proposed throwing from `axisOffsetOf`'s absent-date branch instead; that
+mutant is 8.0's — it would fail 8.0's own null case first and would say nothing
+about whether the chip layer honours the answer. The guard this chunk's code
+actually owns is the one watched.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`,
+`NODE_OPTIONS=--max-old-space-size=3072`): full `fe-01:test` rc 0 — **2222 pass
+/ 0 fail across 86 files**, exactly the two new cases over chunk 23's 2220;
+`fe-01:lint` rc 0 whole; `fe-01:typecheck` rc 0; `prettier --check .` rc 0.
+Test-only outside this record: no source file changed.
