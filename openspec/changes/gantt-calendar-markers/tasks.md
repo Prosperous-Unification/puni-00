@@ -225,7 +225,7 @@ in both slices rather than implied by position.
       green: at the crossover the two ratios are equal and either answer passes,
       which is what proves the crossover case is a totality check and not the
       discrimination.
-- [ ] 3.3 `validateCustomColor(hex)` refusing a colour below the **3:1** bar
+- [x] 3.3 `validateCustomColor(hex)` refusing a colour below the **3:1** bar
       **over the same 20 backdrops 3.2 measures**, and **naming the failing backdrop
       and the failing ratio** — the theme alone no longer identifies it, since
       a colour can clear bare dark and fail dark-over-weekend, and a refusal
@@ -1733,3 +1733,52 @@ graph` and still returned `rc=0`; the target never ran. Every gate number in
 class that OOM-killed `fe-01:lint` for lane a earlier today. `domain:typecheck`
 and `be-01:typecheck` both pass, and this chunk changes three files under
 `libs/domain/src`. CI is the observer for fe-01.
+
+## Implementation notes — chunk 3 (TASK-235 run 2, 2026-09-05)
+
+Slice **3.3** landed. `validateCustomColor(hex)` returns
+`{ ok, failures, message }`: every failing backdrop in `MARKER_BACKDROPS`
+order, and a message naming the **first** of them with its ratio and the bar.
+
+**The refusal names the first failure in table order, not the worst** — an
+assumption, recorded because it decides two of the four cases. Ordering by
+worst ratio would make case 1 name `dark:base+weekend+zebra+today` (the
+lightest dark surface, which any dark-failing colour fails hardest) rather than
+`dark:base`, and would make case 2 unwritable: `dark:base+weekend+today` is
+never the worst failure, because `dark:base+weekend+zebra+today` is lighter and
+always scores below it. Table order is light-then-dark and base-then-composite,
+which reads as a diagnosis. **What would falsify it:** a user report that the
+named surface is not the one they were looking at — the full `failures` array
+is already in the verdict, so the message is the only thing that would change.
+
+**Shape is a precondition, not a verdict.** `validateCustomColor` throws on a
+malformed hex rather than returning `ok: false`; the API schema and the
+composer's input refuse a typo, and folding the two together would let a
+contrast message answer one. Asserted as its own case.
+
+Three colours, all recorded in `verify.md`:
+
+| case                                 | colour               | what it proves                                                                                                                                       |
+| ------------------------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| clears light, fails dark             | `#7a3400` (L 0.0659) | first failure is `dark:base` at 2.226                                                                                                                |
+| clears both bases, fails a composite | `#0066ff` (L 0.1672) | clears three of the six earlier dark composites and first fails at `dark:base+weekend+today` — the window for that shape is `0.16476 <= L < 0.16803` |
+| 19 of 20                             | `#ff0000` (L 0.2126) | exactly one failure, `light:pointed+today` at 2.943                                                                                                  |
+
+**Three negatives watched failing, and the separation the plan asked for holds:**
+
+- validator accepting everything → all three refusal cases red, the backdrop
+  table case green;
+- one entry deleted from `MARKER_BACKDROPS` → the table case red **alone**, both
+  colour cases green, which is the fault the colour cases cannot see;
+- the loop narrowed to the two backdrops the first two cases name →
+  `MARKER_BACKDROPS` byte-identical and the table case green, with the 19-of-20
+  case red. **It also reddens case 2**, which the plan did not predict: that
+  case asserts the complete `failures` array rather than only the first entry,
+  so a truncated loop shortens it. The discrimination the plan wanted — table
+  intact, loop wrong — still holds, and is proved by the table case staying
+  green under this fault.
+
+`@typescript-eslint/restrict-template-expressions` rejects a `number` in a
+template literal, so the message wraps both in `String(...)`. Same class as
+chunk 2's `no-misused-spread`: the domain lint config is stricter than the
+default and neither rule is autofixable.

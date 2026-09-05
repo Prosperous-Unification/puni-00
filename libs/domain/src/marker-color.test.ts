@@ -20,6 +20,7 @@ import {
   parseHex,
   relativeLuminance,
   type Rgb,
+  validateCustomColor,
 } from './marker-color';
 
 /**
@@ -266,5 +267,69 @@ describe('labelInk', () => {
       expect(['#000000', '#ffffff']).toContain(ink);
       expect(contrastRatio(parseHex(fill), parseHex(ink))).toBeGreaterThanOrEqual(MARKER_LABEL_BAR);
     }
+  });
+});
+
+describe('validateCustomColor', () => {
+  it('accepts every palette entry', () => {
+    for (const entry of PALETTE) {
+      expect({ name: entry.name, ...validateCustomColor(entry.fill) }).toEqual({
+        name: entry.name,
+        ok: true,
+        failures: [],
+        message: null,
+      });
+    }
+  });
+
+  it('refuses a colour that clears light and fails dark, naming the dark base', () => {
+    // #7a3400 is luminance 0.0659 — it clears every light backdrop comfortably
+    // and fails all ten dark ones. The first failure in table order is the bare
+    // dark base, which is the one the message has to name.
+    const verdict = validateCustomColor('#7a3400');
+    expect(verdict.ok).toBe(false);
+    expect(verdict.failures[0]).toEqual({ backdrop: 'dark:base', ratio: 2.226 });
+    expect(verdict.message).toContain('dark:base');
+    expect(verdict.message).toContain('3:1');
+  });
+
+  it('refuses a colour that clears both bases and fails a composite, naming the composite', () => {
+    // #0066ff clears light:base AND dark:base, and clears three of the six
+    // earlier dark composites too — it first fails at weekend+today. So a
+    // refusal that named only a theme would be pointing at a surface this
+    // colour is perfectly legible on.
+    const verdict = validateCustomColor('#0066ff');
+    expect(verdict.ok).toBe(false);
+    expect(validateCustomColor('#0066ff').failures.map((f) => f.backdrop)).toEqual([
+      'dark:base+weekend+today',
+      'dark:base+weekend+zebra+today',
+      'dark:pointed+today',
+    ]);
+    expect(verdict.message).toContain('dark:base+weekend+today');
+  });
+
+  it('measures all twenty, not the two the cases above name', () => {
+    // The observer for the loop rather than for the table. The deep-equality
+    // case up in "the backdrop set" proves MARKER_BACKDROPS holds 20 entries,
+    // and a validator that imported that table and then measured only the two
+    // surfaces the two cases above exercise would pass every one of them.
+    //
+    // #ff0000 fails exactly one backdrop out of twenty — the light theme's
+    // pointed-row light under the today tint, which is the only surface the
+    // pointed light contributes that neither case above touches, and the one a
+    // validator that composites the three tints over --background and stops
+    // there never builds at all.
+    const verdict = validateCustomColor('#ff0000');
+    expect(verdict.ok).toBe(false);
+    expect(verdict.failures).toEqual([{ backdrop: 'light:pointed+today', ratio: 2.943 }]);
+    expect(verdict.message).toContain('light:pointed+today');
+  });
+
+  it('treats shape as a precondition rather than a verdict', () => {
+    // A malformed hex is refused upstream, by the API schema and by the
+    // composer's own input. Folding the two refusals together would let a
+    // contrast message answer a typo.
+    expect(() => validateCustomColor('#f00')).toThrow('not a hex colour');
+    expect(() => validateCustomColor('red')).toThrow('not a hex colour');
   });
 });

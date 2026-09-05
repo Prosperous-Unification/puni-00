@@ -108,15 +108,32 @@ the code agreeing with itself.
 
 Four distinct colours, so a constant implementation fails on the first row.
 
-## Colours reserved for the negatives
+## Colours the validator cases and negatives use — slice 3.3
 
-Computed here so a later slice does not have to re-derive them.
+Computed against the backdrop table above and recorded so a later slice does not
+re-derive them.
 
-- **Below 3:1 in dark, for 3.2's first negative:** `#3a0000`.
-- **Clears bare `dark:base` (3.111) and fails `dark:base+weekend+today` (2.230),
-  for 3.2's second negative:** `#c00000`, luminance 0.11206. The window for this
-  shape is `0.1064 <= L < 0.16615`.
-- **Clears 19 of 20 and fails only `light:pointed+today`, for 3.3's fourth
-  case:** any fill with `0.2081 < L <= 0.22005`. It is the entry a validator
-  that composites the three tints over `--background` and stops there never
-  builds at all.
+| colour    | L       | failures                 | first failure                  | used by                                                                                      |
+| --------- | ------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `#7a3400` | 0.06594 | 10 (every dark backdrop) | `dark:base` at 2.226           | 3.3 case 1 — clears light, fails dark                                                        |
+| `#0066ff` | 0.16723 | 3                        | `dark:base+weekend+today`      | 3.3 case 2 — clears both bases, fails a composite                                            |
+| `#ff0000` | 0.21260 | 1                        | `light:pointed+today` at 2.943 | 3.3 case 4 — 19 of 20                                                                        |
+| `#3a0000` | 0.00854 | every dark backdrop      | `dark:base`                    | 3.2 negative 1 — an entry below 3:1 in dark                                                  |
+| `#c00000` | 0.11206 | 9                        | `dark:base+today`              | 3.2 negative 2 — clears bare `dark:base` (3.111) and fails `dark:base+weekend+today` (2.230) |
+
+**Two of these windows are narrow enough to be worth writing down**, because
+each is the _only_ place a colour of that shape exists:
+
+- **First failure exactly `dark:base+weekend+today`:** `0.164764 <= L <
+0.168028`. Above it `dark:base+zebra+today` (L 0.021588) still passes and
+  below it that surface fails first — the two composites are 0.001 apart in
+  luminance and `dark:base+weekend+today` is the _lighter_ of the pair, so it
+  can never be the worst or the only failure. It is reachable only as the first
+  failure in table order.
+- **Fails only `light:pointed+today`:** `0.2081 < L <= 0.22005`. Above it
+  `light:base+weekend+today` starts failing too, below it nothing fails.
+
+**Neither window is reachable by compositing three tints over `--background`
+and stopping there** — both are named by surfaces the pointed row's opaque
+light contributes — which is what makes them the cases that prove the validator
+measures the whole table rather than the base pair.

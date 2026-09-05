@@ -259,3 +259,63 @@ export function labelInk(fill: string): LabelInk {
   const onWhite = contrastRatio(rgb, [255, 255, 255]);
   return onBlack >= onWhite ? '#000000' : '#ffffff';
 }
+
+/** One backdrop a candidate colour failed the 3:1 bar over, and by how much. */
+export interface BackdropFailure {
+  /** The backdrop's name, so a refusal can say which fill rather than which theme. */
+  readonly backdrop: string;
+  /** The measured ratio, rounded to three places — what the message quotes. */
+  readonly ratio: number;
+}
+
+/** What `validateCustomColor` answers. `ok` is `failures.length === 0`. */
+export interface CustomColorVerdict {
+  readonly ok: boolean;
+  /** Every failing backdrop, in `MARKER_BACKDROPS` order. Empty when `ok`. */
+  readonly failures: readonly BackdropFailure[];
+  /** The refusal a user reads, naming the first failing backdrop and the bar. `null` when `ok`. */
+  readonly message: string | null;
+}
+
+/**
+ * A user-chosen colour against the 3:1 bar, over **every** backdrop.
+ *
+ * **The refusal names the backdrop, not the theme.** A colour can clear bare
+ * dark and fail dark-over-weekend, so "too dark for the dark theme" would send
+ * the user hunting a fill it never named. `message` quotes the first failure in
+ * `MARKER_BACKDROPS` order and `failures` carries all of them.
+ *
+ * **It reads `MARKER_BACKDROPS` and measures every entry**, which is the only
+ * thing that makes "the same 20 backdrops the palette is measured against" true
+ * rather than asserted: a validator that imported the table and then measured
+ * two of it would pass a complete table and both of the obvious colour cases.
+ *
+ * **Shape is a precondition, not a verdict.** `hex` must already be a
+ * well-formed `#rrggbb`; `parseHex` throws otherwise. A malformed colour is
+ * refused upstream by the API schema and by the composer's input, and folding
+ * the two refusals together would let a contrast message answer a typo.
+ *
+ * **There is no label-contrast arm.** The 4.5:1 bar cannot be failed — the ink
+ * is black or white, whichever contrasts more, and the better of the two is
+ * never below `sqrt(21)` — so it is a property of `labelInk` and not something
+ * a colour can trip.
+ */
+export function validateCustomColor(hex: string): CustomColorVerdict {
+  const candidate = parseHex(hex);
+  const failures: BackdropFailure[] = [];
+  for (const backdrop of MARKER_BACKDROPS) {
+    const ratio = contrastRatio(candidate, parseHex(backdrop.color));
+    if (ratio < MARKER_FILL_BAR) {
+      failures.push({ backdrop: backdrop.name, ratio: Math.round(ratio * 1000) / 1000 });
+    }
+  }
+  if (failures.length === 0) return { ok: true, failures: [], message: null };
+  const [first] = failures;
+  return {
+    ok: false,
+    failures,
+    message:
+      `${hex} is ${String(first.ratio)}:1 against ${first.backdrop}, below the ` +
+      `${String(MARKER_FILL_BAR)}:1 the marker rule needs there`,
+  };
+}
