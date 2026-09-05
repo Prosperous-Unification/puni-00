@@ -1782,3 +1782,43 @@ Three colours, all recorded in `verify.md`:
 template literal, so the message wraps both in `String(...)`. Same class as
 chunk 2's `no-misused-spread`: the domain lint config is stricter than the
 default and neither rule is autofixable.
+
+## Merge with main — chunk 4 (TASK-235 run 2, 2026-09-05), LANDED RED
+
+**`f84b39da` is the merge of `origin/main` after PR 203 (TASK-219) landed, and
+the branch is RED at that head. Do not merge PR 209 until the list below is
+closed.** The merge was made deliberately rather than left conflicting: the
+resolution is correct and worth keeping, and the remaining work is nine exact
+assertions rather than a second conflict.
+
+**The conflicts were all one shape and are resolved.** Main added two migration
+folders (`20260904100000_add_optimizer_tables`,
+`20260904140000_add_project_settings`); `20260905090000_add_calendar_marker`
+sorts newest, so it takes the head of every reverse-chronological rollback list.
+26 hunks were that literal shape, three needed the two sides genuinely merged
+(`project.db.test.ts` uses raw strings rather than constants, and
+`saved-plan-created-by-id.db.test.ts` had a one-line array on one side and a
+four-line one on the other), and `libs/domain/src/index.ts` keeps both new
+exports.
+
+**What is still red — nine cases, and every one is a list this branch is not
+named in.** Chunk 1 recorded that a new migration folder touches nineteen exact
+reversal-list assertions across five files; main's two folders landed between,
+so the same class reopened against assertions written after chunk 1 read them.
+`apps/be-01/src/repository` at `f84b39da` is **538 pass / 9 fail** on h2puni:
+
+| file                                         | what to change                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `calendar-marker-migration.db.test.ts:149`   | `expect(reversed).toEqual([CALENDAR_MARKER])` — the named predecessor is now two folders back, not `saved_plan_created_by_id` |
+| `migrate-down.db.test.ts:484,597,704`        | `readMigrationFolders` list and two `appliedNames` lists                                                                      |
+| `optimizer-migration.db.test.ts:142,172,245` | `rollbackTo(..., OPTIMIZER_TABLES)` returns `[PROJECT_SETTINGS]` and must now return `[CALENDAR_MARKER, PROJECT_SETTINGS]`    |
+| `project-settings.db.test.ts`                | the newest-migration assertion expects `project_settings` and receives `calendar_marker`                                      |
+| `migrate-down.db.test.ts:220`                | the `LOOKUP_INDEXES` reversal list                                                                                            |
+
+Every one is additive — `CALENDAR_MARKER` at the head of a list, or one
+expectation of "the newest" moving by one. None is a behaviour change, and the
+watched mutations from chunk 1 still hold: this branch's own four migration
+faults are unaffected by any of them.
+
+**Re-gate with `rm -rf dist` first and `NX_DAEMON=false`**, for the two reasons
+chunk 2 recorded.
