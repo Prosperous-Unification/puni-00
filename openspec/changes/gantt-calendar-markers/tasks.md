@@ -1015,7 +1015,7 @@ in both slices rather than implied by position.
 
 ## 8. Drawing
 
-- [ ] 8.0 `axisOffsetOf(axis, date)` — `todayOffset` (`gantt-panel.tsx:872`,
+- [x] 8.0 `axisOffsetOf(axis, date)` — `todayOffset` (`gantt-panel.tsx:872`,
       body `axis.find((day) => day.date === today)?.offset ?? null`)
       generalised to any `IsoDate`, with today rewired as its first caller so
       there is one lookup rather than two that can disagree — test:
@@ -2508,3 +2508,46 @@ restored to 165 / 0 after: `setOpenDay(null)` inserted ahead of the handler's
 `setComposerAt` → **164 / 1**, this case alone, failing the second tooltip
 assertion with `Unable to find an accessible element with the role "tooltip"`
 while 6.1's case and every other axis case stayed green.
+
+## Implementation notes — chunk 21 (TASK-235 run 11, 2026-09-05)
+
+**Slice 8.0 checked.** `axisOffsetOf(axis, date)` is the lookup, `todayOffset`
+is now its first caller and nothing else, and the two docstrings were split
+along the seam: what is true of _any_ date on the axis moved up, what is true of
+_today_ — Dany's three null readings, and the weekend that is not one of them —
+stayed down. One lookup rather than two that can disagree is the point, and a
+`todayOffset` that still ran its own `find` would have been exactly the second
+scale this function exists instead of, one level lower.
+
+**The negative needed a hand-made axis, and the round-4 review was right about
+why.** On every axis `calendarAxis` builds, a cell's stored `offset`, its array
+index and `calendarDaysBetween(axis[0].date, date)` are the same number, so the
+arithmetic spelling is invisible to all 165 existing cases. The fixture here is
+three cells — `2026-08-10`, `2026-08-11`, `2026-08-12` carrying offsets 0, 7 and
+9 — where looking the third up must give **9** and not its index 2 and not its
+calendar distance 2. Both cells are asserted, not just the last, so returning
+the final offset in the array does not pass either.
+
+**NEGATIVE WATCHED**, baseline 165 → 167 pass / 0 fail on
+`gantt-panel.test.tsx`, restored to 167 / 0 after: the body replaced by
+`calendarDaysBetween(axis[0].date, date)` → **163 / 4**, `expected 2 to be 9` on
+the lookup case exactly as predicted.
+
+**A FINDING ABOUT THE MUTANT, worth carrying into 8.1.** The other three
+failures were not predicted and they change what the negative proves. The
+arithmetic spelling also broke `answers null for a date the axis does not hold`
+(`expected 3 to be null`) and _two_ existing today cases — `draws no marker when
+today is before the plan begins` and `draws no marker when today is past the
+last day drawn`, both `expected SVGElement{…} to be null`. So the today marker's
+**out-of-range** arms already caught this class of fault; what nothing in the
+suite could see before this slice is a **wrong offset for a date the axis does
+hold**, which is precisely the drift 8.1's chip placement depends on. The
+round-4 claim that the mutant "passes" is true of in-range dates and only those
+— the part that matters, and the part 8.0's own case now owns.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`,
+`NODE_OPTIONS=--max-old-space-size=3072`): full `fe-01:test` rc 0 — **2216 pass
+/ 0 fail across 86 files**, exactly the two new cases over chunk 20's 2214;
+`fe-01:lint` rc 0 (one pre-existing `react-hooks/exhaustive-deps` warning at
+`wbs-table.tsx:4628`, not this diff); `fe-01:typecheck` rc 0. be-01 and domain
+not run: nothing outside `apps/fe-01` changed.

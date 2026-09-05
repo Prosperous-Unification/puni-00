@@ -839,15 +839,42 @@ export function isoToday(today: Date): IsoDate {
 }
 
 /**
- * Where today stands on the chart, or null when it does not stand on it at all.
+ * Where a calendar date stands on the chart, or null when the axis does not
+ * hold that date at all.
  *
  * **Read off the axis rather than computed a second time**, and that is the
  * whole of the design: the gridlines, the weekend bands and the day cells are
- * all `axis[k].offset`, so a marker that looks its own offset up in the same
+ * all `axis[k].offset`, so a mark that looks its own offset up in the same
  * array cannot drift from the lines it is drawn between. A parallel
- * `calendarDaysBetween(origin, today)` would be a second scale agreeing with
- * the first only for as long as nobody touched either — the failure
+ * `calendarDaysBetween(axis[0].date, date)` would be a second scale agreeing
+ * with the first only for as long as nobody touched either — the failure
  * `calendarAxis`' own docstring warns about, one layer up.
+ *
+ * **The agreement is what makes the drift invisible in ordinary tests.** On
+ * every axis {@link calendarAxis} builds, a cell's stored `offset`, its index
+ * and its calendar distance from `axis[0].date` are the same number, so the
+ * arithmetic spelling passes each of them. Only an axis whose offsets are none
+ * of those three can tell the two apart, which is what this function's own
+ * negative is built on.
+ *
+ * Null is a real answer and not an error: a date before the first cell, a date
+ * past the last, and every date on a plan with no calendar — {@link workdayAxis}
+ * gives every cell `date: null`, so the lookup finds nothing without needing to
+ * know why. What null then means is the caller's to say; {@link todayOffset}
+ * gives the three readings today has for it.
+ */
+export function axisOffsetOf(axis: readonly AxisDay[], date: IsoDate): number | null {
+  return axis.find((day) => day.date === date)?.offset ?? null;
+}
+
+/**
+ * Where today stands on the chart, or null when it does not stand on it at all.
+ *
+ * **The lookup itself is {@link axisOffsetOf}'s**, and today is only its first
+ * caller: a calendar marker asks the same question of the same array, and two
+ * spellings of one lookup are two scales that can disagree — the thing the
+ * lookup exists to prevent, reintroduced one level down. What stays here is
+ * what is true of *today* specifically and of no other date on the chart.
  *
  * **Null is a real answer in three different situations, and all three want the
  * same thing — no line:**
@@ -870,7 +897,7 @@ export function isoToday(today: Date): IsoDate {
  * needs no weekend arm of its own is a property of the axis, not an oversight.
  */
 export function todayOffset(axis: readonly AxisDay[], today: IsoDate): number | null {
-  return axis.find((day) => day.date === today)?.offset ?? null;
+  return axisOffsetOf(axis, today);
 }
 
 /**

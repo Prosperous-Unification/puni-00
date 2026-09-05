@@ -19,6 +19,7 @@ import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
   axisNumberShown,
+  axisOffsetOf,
   barLabelFor,
   barText,
   CHART_PAD_PX,
@@ -6012,6 +6013,54 @@ describe('today is marked on the chart', () => {
     expect(document.querySelector('[data-gantt-today-edge]')).toBeNull();
     expect(document.querySelector('[aria-current="date"]')).toBeNull();
     expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(8);
+  });
+});
+
+describe('where a date stands on the axis is read off the axis, not recomputed', () => {
+  /**
+   * An axis whose offsets are neither the array index nor the calendar distance
+   * from the first cell — and it has to be hand-made, because no axis the panel
+   * builds is like this.
+   *
+   * That is the whole point. On every axis `calendarAxis` produces, cell `k`'s
+   * stored `offset`, its index and `calendarDaysBetween(axis[0].date, date)` are
+   * all the same number, so a lookup replaced by either piece of arithmetic
+   * returns the right answer everywhere in the suite and the drift is
+   * unobservable. Here the third cell is `2026-08-12`: its index is 2, its
+   * calendar distance from `2026-08-10` is 2, and the offset the axis stored is
+   * **9**. Only one of the three readings can produce 9.
+   */
+  const drifted = [
+    { offset: 0, workday: 0, date: '2026-08-10', shown: '10', weekend: false, heavy: true },
+    { offset: 7, workday: 1, date: '2026-08-11', shown: '11', weekend: false, heavy: false },
+    { offset: 9, workday: 2, date: '2026-08-12', shown: '12', weekend: false, heavy: false },
+  ];
+
+  it('answers with the offset the axis stored', () => {
+    // Proof: the body replaced by `calendarDaysBetween(axis[0].date, date)` —
+    // the second scale `calendarAxis`' docstring warns about, and the spelling
+    // this function exists instead of — failed here on `expected 2 to be 9`,
+    // while every case in "today is marked on the chart" stayed green because
+    // on a real axis the two readings agree. Watched 2026-09-05, chunk 21.
+    expect(axisOffsetOf(drifted, '2026-08-12')).toBe(9);
+    // And the middle cell, so the case cannot be passed by returning the last
+    // offset in the array.
+    expect(axisOffsetOf(drifted, '2026-08-11')).toBe(7);
+  });
+
+  it('answers null for a date the axis does not hold', () => {
+    // A date past the end, and one before the beginning: what a caller does
+    // about it is the caller's, but there is no offset to give.
+    expect(axisOffsetOf(drifted, '2026-08-13')).toBeNull();
+    expect(axisOffsetOf(drifted, '2026-08-09')).toBeNull();
+    // And the plan with no calendar, where every cell carries `date: null` —
+    // the lookup finds nothing without needing to know why. `null` is not a
+    // date, so it is not a key either: nothing matches.
+    const noCalendar = [
+      { offset: 0, workday: 0, date: null, shown: '0', weekend: false, heavy: true },
+      { offset: 1, workday: 1, date: null, shown: '1', weekend: false, heavy: false },
+    ];
+    expect(axisOffsetOf(noCalendar, '2026-08-10')).toBeNull();
   });
 });
 
