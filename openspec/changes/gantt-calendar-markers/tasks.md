@@ -794,7 +794,7 @@ in both slices rather than implied by position.
       the composer reading `addWorkdays(startDate, day.offset)` (`2026-08-21`),
       watched failing; a second pass reading `day.workday` (`2026-08-17`), also
       watched failing. `Proof:` comment naming both dates.
-- [ ] 6.2 Hover and click coexist — test: same file, pointer-over then click on
+- [x] 6.2 Hover and click coexist — test: same file, pointer-over then click on
       one cell, asserting the day surface opened and the composer opened and
       neither closed the other. The existing `showDaySurface` timer is the
       thing at risk. Negative: the click handler closing the day surface before
@@ -2491,3 +2491,20 @@ attributes added to every axis cell breaking nothing; `fe-01:lint` rc 0 (one
 pre-existing `react-hooks/exhaustive-deps` warning at `wbs-table.tsx`, not this
 diff); `fe-01:typecheck` rc 0. be-01 and domain not run: nothing outside
 `apps/fe-01` changed.
+
+## Implementation notes — chunk 20 (TASK-235 run 10, 2026-09-05)
+
+**Slice 6.2 checked.** Test-only — the click handler already declined to touch
+`openDay`, so this chunk is the assertion that says so.
+
+The tooltip is asserted **twice**, before the click as well as after. Without
+the first assertion the case is green against an implementation whose hover
+never opened at all, which is the same green a click that dismissed it would
+produce — the slice's own warning, and the reason its negative is watched on the
+_second_ assertion specifically.
+
+**NEGATIVE WATCHED**, baseline 165 pass / 0 fail on `gantt-panel.test.tsx`,
+restored to 165 / 0 after: `setOpenDay(null)` inserted ahead of the handler's
+`setComposerAt` → **164 / 1**, this case alone, failing the second tooltip
+assertion with `Unable to find an accessible element with the role "tooltip"`
+while 6.1's case and every other axis case stayed green.

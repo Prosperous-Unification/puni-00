@@ -4821,6 +4821,47 @@ describe('clicking a dated axis cell opens the composer on that cell’s day', (
     expect(composer.textContent).toContain('19 Aug');
     expect(composer.getAttribute('aria-label')).toBe('New calendar marker on 19 Aug');
   });
+
+  const axisPointer = (kind: 'mouse' | 'touch', name: 'pointerover' | 'pointerout'): Event => {
+    const event = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'pointerType', { value: kind });
+    return event;
+  };
+
+  itDom('opens beside the hover card rather than instead of it', () => {
+    // The two surfaces answer different questions about the same cell — which
+    // day is this, versus mark this day — and the pointer that clicked is by
+    // definition still resting on the cell that opened the card. A click that
+    // dismissed it would take the date away from the reader at the moment they
+    // are about to name it.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 12, 9, 0));
+    try {
+      drawDated(MONDAY_START);
+      fireEvent(cellAt(9), axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      // Asserted **before** the click as well as after: without this line the
+      // case passes against an implementation whose hover never opened at all,
+      // which is the same green a click that closed it would produce.
+      expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('Wed 19 Aug 2026');
+
+      fireEvent.click(cellAt(9));
+
+      // Both standing, on the same cell, at the same time.
+      expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('Wed 19 Aug 2026');
+      expect(screen.getByRole('dialog').getAttribute('data-composer-date')).toBe('2026-08-19');
+      //
+      // Proof, watched 2026-09-05 against a 165/0 baseline on this file: the
+      // click handler given a `setOpenDay(null)` ahead of its `setComposerAt`
+      // — 164 pass / 1 fail, this case alone, on the second tooltip assertion
+      // with `Unable to find an accessible element with the role "tooltip"`.
+      // Restored to 165 / 0 after.
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('the dates a bar says are printed by shortIsoDate and nothing else', () => {
