@@ -935,7 +935,7 @@ in both slices rather than implied by position.
 
 ## 7. The undated-plan refusal
 
-- [ ] 7.1 `workdayAxis` cells stay dateless — test: `gantt-panel.test.tsx`, a
+- [x] 7.1 `workdayAxis` cells stay dateless — test: `gantt-panel.test.tsx`, a
       direct assertion on `workdayAxis` output that every cell has
       `date: null`, **not** routed through the panel.
       **`workdayAxis` must be exported first, and it is not today.** It is a
@@ -2551,3 +2551,42 @@ round-4 claim that the mutant "passes" is true of in-range dates and only those
 `fe-01:lint` rc 0 (one pre-existing `react-hooks/exhaustive-deps` warning at
 `wbs-table.tsx:4628`, not this diff); `fe-01:typecheck` rc 0. be-01 and domain
 not run: nothing outside `apps/fe-01` changed.
+
+## Implementation notes — chunk 22 (TASK-235 run 11, 2026-09-05)
+
+**Slice 7.1 checked.** `workdayAxis` and the `AxisDay` type are exported, and
+the assertion calls the builder directly: eight cells, every `date` null, and
+the offsets `0..7` asserted alongside so "no date" cannot be passing by way of
+an empty or broken axis.
+
+**NEGATIVE WATCHED**, baseline 168 pass / 0 fail on `gantt-panel.test.tsx`,
+restored after: `date: null` replaced by `date: addWorkdays('2026-01-01',
+workday)` inside `workdayAxis` → **164 / 4**, this case among them on
+`expected false to be true`.
+
+**THE OTHER THREE FAILURES ARE THE FINDING, and they narrow the slice's claim.**
+The mutant also broke three existing cases — `the axis is a calendar > prints
+the workday offsets and no weekend at all without a start date`, `the calendar
+axis agrees with the columns > prints workday offsets, and no dates at all, on a
+plan with no start date`, and `the axis says its date… > says the workday alone
+when the plan is not on a calendar`. So the field is **not** currently
+unguarded, and the slice's justification is not "nothing else sees it". It is
+narrower and still sound: all three are _renders of an undated plan_, so they
+go with the undated render path, and the future change this slice names — every
+project given a start date — deletes the branch that makes them reachable while
+leaving `workdayAxis` in the tree with a synthesised date and section 7's
+refusals silently unreachable. The direct call survives that; a render does not.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`): full `fe-01:test` rc 0 —
+**2217 pass / 0 fail across 86 files**, exactly the one new case over chunk 21's
+2216; `fe-01:typecheck` rc 0; `prettier --check .` rc 0.
+
+**`fe-01:lint` COULD NOT BE RUN WHOLE — `Killed`, twice, and it is the box
+rather than the diff.** h2puni had 2.3 GB available of 15.6 GB (13.3 used, 10.1
+of it `shared`), and `NODE_OPTIONS=--max-old-space-size=3072` does not reach the
+linter because the target shells out to `bunx eslint`, not to node. Scoped
+instead: `bunx eslint apps/fe-01/src/components/wbs/gantt-panel.tsx
+apps/fe-01/src/components/wbs/gantt-panel.test.tsx` **rc 0**, which is the whole
+of this chunk's diff, and chunk 21's full-project run on the same two files was
+rc 0 forty minutes earlier. CI runs the whole project regardless, and that is
+the run that gates the merge.

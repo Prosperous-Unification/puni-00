@@ -39,6 +39,7 @@ import {
   monthWords,
   ROW_PX,
   rowWords,
+  workdayAxis,
 } from './gantt-panel';
 import type * as InitialsModule from './initials';
 import { initialsOf } from './initials';
@@ -6013,6 +6014,33 @@ describe('today is marked on the chart', () => {
     expect(document.querySelector('[data-gantt-today-edge]')).toBeNull();
     expect(document.querySelector('[aria-current="date"]')).toBeNull();
     expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(8);
+  });
+});
+
+describe('a plan with no start date is drawn on cells that hold no date', () => {
+  it('gives every workday-axis cell a null date', () => {
+    // Asserted on `workdayAxis` itself rather than through the panel, and the
+    // directness is the slice. Section 7's whole refusal hangs off this one
+    // field: a calendar marker is an absolute date, an undated plan has none,
+    // and the cell says so by having no date. Routed through a render, the same
+    // assertion would go green the day some future change gave every project a
+    // start date — the exact regression it exists to catch, made invisible.
+    //
+    // Proof: `date: null` replaced by `date: addWorkdays('2026-01-01', workday)`
+    // inside `workdayAxis` — the plausible "helpful" change, and a literal
+    // origin needs no new input because `addWorkdays` is already imported into
+    // that module — failed here on the first cell while every refusal test in
+    // section 7 would have kept passing, since a live cell refuses nothing.
+    // Watched 2026-09-05, chunk 22.
+    const axis = workdayAxis(8);
+
+    expect(axis).toHaveLength(8);
+    expect(axis.every((day) => day.date === null)).toBe(true);
+    // Named per cell as well, so a failure says which one rather than `false`.
+    expect(axis.map((day) => day.date)).toEqual(Array.from({ length: 8 }, () => null));
+    // And the cells are otherwise the axis the chart draws: the offsets are
+    // there, so "no date" is not passing by way of an empty or broken axis.
+    expect(axis.map((day) => day.offset)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   });
 });
 

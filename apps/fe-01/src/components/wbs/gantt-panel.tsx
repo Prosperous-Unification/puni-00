@@ -1048,7 +1048,7 @@ export function assumedLabelFor(
  * have: a plan with no start date has no dates at all, and a weekend cell of a
  * calendar has no workday number.
  */
-interface AxisDay {
+export interface AxisDay {
   offset: number;
   /** The workday this cell is, or null on a weekend and on a plan with no calendar. */
   workday: number | null;
@@ -1070,8 +1070,19 @@ interface AxisDay {
  * The cell count is `wholeDaysCovering` and never a bare ceil: this axis's
  * horizon is the engine's own workday numbers, drift included, and one drifted
  * bit on the last finish is not a cell no work can ever stand in.
+ *
+ * **`date: null` on every cell is a guarantee and not an implementation
+ * detail**, which is why this function and {@link AxisDay} are exported for a
+ * test that calls it directly. The whole of §7's refusal hangs off it: a
+ * calendar marker is an absolute date, an undated plan has none to offer, and
+ * the cell says so by having no date rather than by anyone asking whether the
+ * project has a start. Give these cells a synthesised date — the plausible
+ * helpful change — and every refusal in section 7 becomes unreachable while
+ * each of its tests keeps passing, because a live cell refuses nothing. Routed
+ * through the panel the same assertion would go green the day some future
+ * change gave every project a start date; asserted here it breaks loudly.
  */
-function workdayAxis(horizon: number): AxisDay[] {
+export function workdayAxis(horizon: number): AxisDay[] {
   return Array.from({ length: wholeDaysCovering(horizon) }, (_, workday) => ({
     offset: workday,
     workday,
