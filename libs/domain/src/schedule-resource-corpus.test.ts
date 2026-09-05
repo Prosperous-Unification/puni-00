@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { PlannedRow } from './derive-numbers';
 import type { DependencyReach } from './dependency-reach';
+import type { PlannedRow } from './derive-numbers';
 import {
   type DependencyEdge,
   type PoolSizes,
