@@ -131,10 +131,7 @@ describe('calendar_marker', () => {
       createdAt: 1_756_000_001,
     });
 
-    const rows = await conn.db
-      .select()
-      .from(calendarMarker)
-      .orderBy(asc(calendarMarker.createdAt));
+    const rows = await conn.db.select().from(calendarMarker).orderBy(asc(calendarMarker.createdAt));
 
     expect(rows.map((r) => r.name)).toEqual(['Client demo', 'Grant deadline']);
   });

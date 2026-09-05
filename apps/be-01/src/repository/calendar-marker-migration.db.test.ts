@@ -29,9 +29,18 @@ async function seedProjectWithMarkers(path: string): Promise<void> {
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote,
   );
+  // **No starting steps, deliberately.** `step`, `work_item`, `dependency` and
+  // `project_access` all reference `project` with no `ON DELETE` action at all
+  // (`schema.ts:244,277,498,1639`), so a project holding any of them refuses a
+  // bare `DELETE FROM project` today, before this change exists. Seeding one
+  // here would make the case below fail for a constraint that is not
+  // `calendar_marker`'s — a red that says nothing about the diff, and one that
+  // would still be red with the cascade in place. The project is left bare so
+  // that the only reference standing between the delete and success is the one
+  // this migration adds.
   await new ProjectRepository(seed.db).create(
     projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-    [{ id: 'st-1', projectId: 'p1', name: 'Build', position: 10 }],
+    [],
     wrote,
   );
   await seed.db.insert(calendarMarker).values([
@@ -85,25 +94,30 @@ describe('20260905090000_add_calendar_marker', () => {
   it('lets a plain DELETE FROM project take its markers with it', async () => {
     // **The cascade is a deployment property, not tidiness.** Blue and green
     // share one SQLite file through a swap, and the outgoing release knows
-    // nothing of `calendar_marker`: its `DELETE FROM project` names only the
-    // tables it was built against. Without `ON DELETE CASCADE` that statement
-    // hits a constraint it cannot see and the release answers 500 for the
-    // length of the swap — which is what this case is watching, not row hygiene.
+    // nothing of `calendar_marker`: whatever delete sequence it was built with
+    // ends at a `DELETE FROM project` that names only the tables it knows.
+    // Without `ON DELETE CASCADE` that last statement hits a constraint it
+    // cannot see and the release answers 500 for the length of the swap — which
+    // is what this case is watching, not row hygiene.
+    //
+    // **It watches this table's constraint and no other.** The other
+    // project-scoped tables the outgoing release *does* know are deleted by it
+    // first; see `seedProjectWithMarkers` for why nothing else is seeded here.
     //
     // Proof: with `ON DELETE CASCADE` removed from the `FOREIGN KEY` clause in
     // `20260905090000_add_calendar_marker/migration.sql` (leaving the reference
     // in place), this fails on the `DELETE` with `FOREIGN KEY constraint
     // failed`, because `openDatabase` asserts `PRAGMA foreign_keys = ON` rather
-    // than requesting it.
+    // than requesting it. Watched failing exactly that way on h2puni,
+    // 2026-09-05, before the seed was narrowed — the fault reproduces, and the
+    // narrowing is what makes the red mean this table.
     runMigrations(path, FOLDER);
     await seedProjectWithMarkers(path);
 
     const db = openDatabase(path);
     try {
       db.run("DELETE FROM project WHERE id = 'p1'");
-      const left = db
-        .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM calendar_marker')
-        .get();
+      const left = db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM calendar_marker').get();
       expect(left?.n).toBe(0);
     } finally {
       db.close();
