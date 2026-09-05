@@ -297,6 +297,21 @@ in both slices rather than implied by position.
       handler with no contrast check ships green past it, which is the gap the
       round-3 Sol review found. A validator unit-tested but never called on one
       of its call sites is the shape 3.1–3.3 would otherwise ship.
+      **Both be-01 halves are landed and watched (2026-09-05); the two composer
+      halves are not, and the box stays unticked until they are.** The create
+      arm is the contrast case 4.5 already carries — one case, not two homes for
+      one row. The recolour arm is the new case named
+      "refuses a recolour under the 3:1 bar, and leaves the stored fill behind",
+      with the row read back as
+      `color: null` afterwards because the marker is created without a fill: a
+      recolour that wrote and then refused answers the same 422. Its negative is
+      the recolour path's own — `colorProblem(color)` removed from the `PATCH`
+      handler's `color !== undefined` arm, leaving the create's call in place —
+      watched at 23 pass / 1 fail, exactly that case, `200` where `422` was owed
+      and `#ff0000` stored, while the create's contrast case and the round
+      trip's recolour stayed green. The remaining two arms are the third and
+      fourth faults below and both need the composer, which slice groups 5–9
+      build.
       **Three call sites, so three faults: the composer needs its own.** Both
       faults above are be-01 handler removals, so the composer arm of this
       slice was asserted and never proved — `validateCustomColor` can be

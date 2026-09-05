@@ -591,6 +591,48 @@ describe('the calendar-marker routes', () => {
   });
 
   /**
+   * Task 3.4's **recolour** call site: `validateCustomColor` is wired into the
+   * `PATCH` path too, and a refused recolour leaves the row byte-identical.
+   *
+   * A separate case from the create above and not a duplicate of it, because
+   * the two are separate calls in separate handler branches: the create's
+   * contrast check can be perfectly wired while the recolour branch has none,
+   * and every case in this file except this one ships green past that.
+   *
+   * **A malformed hex does not cover this.** `rebeccapurple` and `#f00` are
+   * refused by shape validation, which the recolour branch would still reach —
+   * so the fixture has to be a *syntactically valid* triple that fails the bar,
+   * which is `#ff0000` again and for its own reason: it fails exactly one of
+   * the twenty backdrops, so it also proves the recolour path runs the whole
+   * loop rather than a sample of it. This is the gap the round-3 Sol review
+   * found.
+   *
+   * The marker is created with **no** colour, so `null` is what the row must
+   * still read afterwards: a recolour that wrote and then refused would answer
+   * this same 422 with the fill stored, and only reading the row back can tell
+   * the two apart.
+   *
+   * Negative, and it is the recolour path's own: `colorProblem(color)` removed
+   * from the `PATCH` handler's `color !== undefined` arm, leaving the create's
+   * call in place. Watched at 23 pass / 1 fail, exactly this case, with `200`
+   * where `422` was owed and `#ff0000` stored on the row — while the create's
+   * contrast case, the round trip's recolour and the whole refusal table stayed
+   * green. Watched 2026-09-05.
+   */
+  it('refuses a recolour under the 3:1 bar, and leaves the stored fill behind', async () => {
+    expect(
+      (await create('owner', { markerId: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+    ).toBe(201);
+    const before = await list('owner');
+    expect(before).toMatchObject([{ color: null }]);
+
+    const refused = await patch('owner', SEEDED, { color: '#ff0000' });
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toEqual({ error: 'contrast', field: 'color' });
+    expect(await list('owner')).toEqual(before);
+  });
+
+  /**
    * Task 4.5: the `name` row, at both ends of one bound.
    *
    * Empty and over-cap are the same row of the table and the same refusal: the
