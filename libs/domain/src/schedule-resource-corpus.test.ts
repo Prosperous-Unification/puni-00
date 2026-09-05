@@ -50,6 +50,10 @@ import {
  * inside `generateResourcePlan` so the stripped plan IS the generated plan and
  * every difference vanishes: 6 pass / 5 fail, the five coverage cases red and
  * the three invariants and the three 9.3 cases still green.
+ *
+ * Each invariant carries its own observed fault at the assertion it guards, and
+ * each of those faults also reddened the 9.3 cases or a coverage case, so no
+ * check in this file is one whose failure mode has never been seen.
  */
 
 /** Seeds 1..1000, which is task 9.1's ">=1,000 seeds". */
@@ -284,9 +288,16 @@ const overlaps = (a: ScheduledSlice, b: ScheduledSlice): boolean =>
 
 describe('resource corpus — invariants over a thousand resource-constrained plans', () => {
   it('never puts one person in two places at once', () => {
-    // Watched red at the generator: with `personId: pick(PEOPLE)` per slice
-    // rather than per work item — which is the reading the caller is forbidden
-    // to make — this fails on seed 1.
+    // Proof, from the failure output: the `busyUntil.set(personId, …)` write at
+    // `schedule.ts:1676` deleted, so the leveller never records that an assignee
+    // is occupied. This went red with `"seed 3: raj on two slices"`, taking the
+    // `people` coverage case with it — 9 pass / 2 fail.
+    //
+    // The obvious fault does NOT reach here, which is why it is not the one
+    // recorded: assigning `personId` per slice rather than per work item leaves
+    // this green, because `schedule()` serialises every slice sharing a person
+    // whoever put them there. A comment claiming that fault would have named an
+    // assertion the fault never reaches.
     const clashes: string[] = [];
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const running = busy(scheduleOf(generateResourcePlan(seed)));
@@ -303,6 +314,9 @@ describe('resource corpus — invariants over a thousand resource-constrained pl
   });
 
   it('never runs more slices in a pool than the pool holds', () => {
+    // Proof: the leveling pass at `schedule.ts:2334` handed every pool widened
+    // to 99 instead of its real size. Red here, and with it the `capacity`
+    // coverage case and the 9.3 slip case — 8 pass / 3 fail.
     const over: string[] = [];
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const plan = generateResourcePlan(seed);
@@ -328,6 +342,10 @@ describe('resource corpus — invariants over a thousand resource-constrained pl
   });
 
   it('never starts a work item before its own manual floor', () => {
+    // Proof: `leafFloors` at `schedule.ts:2135` replaced with an empty map, so
+    // the engine is handed the plan's floors and forgets them. Red here, and
+    // with it the `manual-floor` coverage case and two of the three 9.3 cases —
+    // 7 pass / 4 fail.
     const early: string[] = [];
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const plan = generateResourcePlan(seed);
