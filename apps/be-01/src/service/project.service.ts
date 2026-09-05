@@ -12,6 +12,7 @@ import type {
 import { STEP_POSITION_STEP } from '../repository';
 import type { Broadcaster } from './broadcast';
 import { type Clock, clockOf } from './clock';
+import type { OptimizerAvailability } from './optimizer-wiring';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is
@@ -27,7 +28,21 @@ export interface ProjectWithSteps {
 
 export type UpdateOutcome =
   | { ok: true; value: Project }
-  | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' | 'bad_pert_weights' };
+  | {
+      ok: false;
+      reason:
+        | 'not_found'
+        | 'forbidden'
+        | 'bad_start_date'
+        | 'bad_pert_weights'
+        /**
+         * The write would have switched this project **on** to an optimizer this
+         * deployment has not got. A state of the deployment rather than a fault
+         * in the request — `refusal-status.ts` answers it 409 for that reason,
+         * and the same body will be accepted once TASK-220 wires the reader.
+         */
+        | 'optimizer_unavailable';
+    };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
@@ -48,6 +63,23 @@ export interface ProjectServiceOptions {
    * anything.
    */
   broadcast: Broadcaster;
+  /**
+   * Whether this deployment can honour optimized scheduling — the `available`
+   * half of {@link optimizerWiring}, whose other half is the reader
+   * `WorkItemService` reads plans through.
+   *
+   * **Optional, and its default is the refusing one.** That is the opposite
+   * trade from `broadcast` above and it is made for the opposite reason: a
+   * service built without a broadcaster fails *silently*, while one built
+   * without this fails *loudly*, at the settings panel, the first time anybody
+   * tries to switch the optimizer on. Twenty-two construction sites — every one
+   * of them a test with no optimizer in it — would otherwise each have to state
+   * a fact about a deployment they do not model.
+   *
+   * Pass {@link OptimizerWiring.available} and never a hand-rolled predicate:
+   * the whole point of the type is that it cannot disagree with the reader.
+   */
+  optimizerAvailable?: OptimizerAvailability;
 }
 
 /**
@@ -65,9 +97,16 @@ export function canEdit(project: Project, actorId: string): boolean {
 
 export class ProjectService {
   private readonly clock: Clock;
+  /**
+   * Fail closed. A deployment with no optimizer wired in cannot honour
+   * `optimized`, and a default of "available" would have made the absent
+   * argument mean exactly the defect this gate exists to refuse.
+   */
+  private readonly optimizerAvailable: OptimizerAvailability;
 
   constructor(private readonly opts: ProjectServiceOptions) {
     this.clock = opts.clock ?? clockOf();
+    this.optimizerAvailable = opts.optimizerAvailable ?? (() => false);
   }
 
   async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
@@ -197,6 +236,11 @@ export class ProjectService {
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+    // After the authorization check, so a reader of a restricted project still
+    // learns `forbidden` rather than a fact about how this box is wired.
+    if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
+      return { ok: false, reason: 'optimizer_unavailable' };
+    }
     const updated = await this.opts.projects.update(id, patch, this.clock.stampFor(actorId));
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
@@ -216,6 +260,37 @@ export class ProjectService {
     }
     return { ok: true, value: updated };
   }
+}
+
+/**
+ * Whether this patch would move **either** optimizer switch from off to on.
+ *
+ * Three things it deliberately is not, each of them a hole a reviewer found in
+ * an earlier draft of this gate:
+ *
+ * - **Not "names one of the keys".** A settings panel with three controls
+ *   resends all three every time one is touched, so refusing any PATCH carrying
+ *   them would 409 a client for saying `{ scheduleEngine: 'fast',
+ *   optimizationEnabled: false }` — a request that turns nothing on. The stored
+ *   row is compared, exactly as {@link settingsMoved} compares it, so a resend
+ *   of values the project already holds is not an enabling.
+ * - **Not "both together".** The plan read needs both
+ *   (`publishedOptimized` reads the flag *and* the engine), but each column
+ *   moves on its own and each is separately visible in
+ *   `project_settings_changed` and in the settings panel. A gate that asked for
+ *   both would let `optimizationEnabled: true` through on its own, and the
+ *   project would sit there reporting a half-enabled optimizer that is not
+ *   there — the same lie, one field smaller.
+ * - **Not a rule about the resulting row.** A project already stored as
+ *   `optimized` on a box that lost its optimizer is a migration's problem, not
+ *   this caller's; refusing their rename would be punishing them for it. Only
+ *   the movement this request asks for is judged.
+ */
+function turnsTheOptimizerOn(before: Project, patch: ProjectPatch): boolean {
+  return (
+    (patch.optimizationEnabled === true && !before.optimizationEnabled) ||
+    (patch.scheduleEngine === 'optimized' && before.scheduleEngine !== 'optimized')
+  );
 }
 
 /**
