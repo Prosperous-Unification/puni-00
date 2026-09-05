@@ -1,4 +1,5 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
+import { automaticColor, labelInk } from '@wbs/domain/marker-color';
 import {
   addCalendarDays,
   addWorkdays,
@@ -1060,6 +1061,52 @@ export interface AxisDay {
 }
 
 /**
+ * One calendar marker, as the chart draws it.
+ *
+ * The shape be-01's list route answers with, minus the `projectId` and
+ * `createdAt` no mark on this chart reads — a view type rather than a re-export
+ * so a column added to `calendar_marker` later reaches the panel only when
+ * somebody names it here.
+ *
+ * **`color` is nullable and that is the stored value, not the drawn one.**
+ * `null` means *automatic*, which {@link automaticColor} resolves from the
+ * marker's own id (`schema.ts`: the auto colour is derived on the way out and
+ * never materialised, so a marker that has never been recoloured has no fill in
+ * the database at all). {@link markerFill} is the one place that resolution
+ * happens on this side.
+ */
+export interface CalendarMarkerView {
+  id: string;
+  date: IsoDate;
+  name: string;
+  /** The reader's chosen hex triple, or null for the automatic colour. */
+  color: string | null;
+}
+
+/**
+ * The fill a marker is actually drawn in: its own colour, or the automatic one
+ * its id decides.
+ *
+ * Named rather than inlined at the chip because two marks draw one marker —
+ * the chip here and the rule down the body (task 8.2) — and a second spelling
+ * of `?? automaticColor(id)` is a chart that can disagree with itself about
+ * what colour one marker is.
+ */
+export function markerFill(marker: CalendarMarkerView): string {
+  return marker.color ?? automaticColor(marker.id);
+}
+
+/**
+ * The empty marker list, once.
+ *
+ * A module constant and not a `= []` default in the parameter list: that
+ * spelling builds a **new** array on every render, and the chip layer's memo
+ * takes `markers` as a dependency — so every unrelated re-render of the panel
+ * would rebuild every chip on a chart that has no markers at all.
+ */
+const NO_MARKERS: readonly CalendarMarkerView[] = [];
+
+/**
  * The workday axis: one cell per whole workday the horizon reaches, printing
  * the offset itself.
  *
@@ -1993,6 +2040,12 @@ export function GanttPanel({
   onPointRow,
   pointed,
   registerSvgDownload = () => undefined,
+  // Defaulted here for `dayPx`'s reason and taken as required below: the
+  // seventy-odd renders in `gantt-panel.test.tsx` are about bars, arrows and
+  // carets and have no markers to state, and a chart that had to be handed an
+  // empty array by every one of them would be stating an absence rather than
+  // drawing one.
+  markers = NO_MARKERS,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
@@ -2023,6 +2076,7 @@ export function GanttPanel({
       onPointRow={onPointRow}
       pointed={pointed}
       registerSvgDownload={registerSvgDownload}
+      markers={markers}
     />
   );
 }
@@ -2152,6 +2206,19 @@ interface GanttProps {
    * {@link GanttChart}. The menu's refusal is that `null`, spoken.
    */
   registerSvgDownload?: (download: (() => void) | null) => void;
+  /**
+   * This project's calendar markers, in the total order be-01 answers them in
+   * (`date`, then `createdAt`, then `id`).
+   *
+   * **Non-scheduling overlays**: nothing here reaches {@link layOutGantt} or
+   * moves a bar, which is the whole of what task 5 asserts on the other side of
+   * the wire. A marker is drawn over the calendar the schedule already decided.
+   *
+   * Optional, defaulting to {@link NO_MARKERS}, for {@link GanttProps.dayPx}'s
+   * reason — and required inside {@link GanttChart}, so the default is decided
+   * once and cannot disagree with itself.
+   */
+  markers?: readonly CalendarMarkerView[];
 }
 
 /**
@@ -2192,15 +2259,17 @@ function GanttChart({
   onPointRow,
   pointed,
   registerSvgDownload,
+  markers,
 }: Omit<
   GanttProps,
-  'scheduleError' | 'dayPx' | 'onPickDayPx' | 'labelsShown' | 'onPickLabelsShown'
+  'scheduleError' | 'dayPx' | 'onPickDayPx' | 'labelsShown' | 'onPickLabelsShown' | 'markers'
 > & {
   dayPx: DayPx;
   onPickDayPx: (dayPx: DayPx) => void;
   labelsShown: boolean;
   onPickLabelsShown: (labelsShown: boolean) => void;
   registerSvgDownload: (download: (() => void) | null) => void;
+  markers: readonly CalendarMarkerView[];
 }) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
@@ -3914,6 +3983,10 @@ function GanttChart({
           */}
             <div
               data-gantt-axis
+              // `sticky` is already a positioned box, so it is the containing
+              // block the chip layer below is placed against — a `relative`
+              // beside it would be a second `position` on one element and which
+              // of the two won would be a question about stylesheet order.
               className="border-border bg-background sticky top-0 z-10 flex border-b"
               // The same band the SVG keeps at its left, so workday 0's cell
               // starts where the SVG's user x=0 does. Without it the whole
@@ -4011,6 +4084,79 @@ function GanttChart({
                   {axisNumberShown(day, dayPx)}
                 </span>
               ))}
+              {/*
+              The chips, in one layer over the cells rather than inside them.
+
+              **Placed by {@link axisOffsetOf} and by nothing else**, which is
+              the whole of task 8.1. A chip drawn inside its cell's `<span>`
+              would be at the right x by construction and could never be wrong,
+              and the fault this slice exists to catch is exactly the one that
+              looks right: a marker placed at its **workday** number instead of
+              its calendar offset. Those two numbers agree until the first
+              weekend and drift by a day per weekend after it — the drift
+              `gantt-calendar-axis` was built to end — so a chart that placed
+              chips workday-wise would look correct on week one and be a day
+              early on week three.
+
+              Its own {@link CHART_PAD_PX} offset, for the band's reason: `left`
+              on an absolutely positioned child is measured from the containing
+              block's **padding** edge, so the band's own `paddingLeft` does not
+              move it and the pad has to be spent again here. Spending it on the
+              layer rather than on each chip is what keeps a chip's own `left`
+              the plain calendar x a test can read.
+
+              `pointer-events-none`: the cell underneath is the control — it
+              carries the click that opens the composer and the hover that opens
+              the day card — and a chip lying across it would eat both on
+              exactly the days that have something to say. What a chip does when
+              it is pointed at is task 8.4's, and it will need this line
+              revisited rather than kept.
+
+              Overflow is **not** here: `MARKER_BAND_MAX_PER_CELL` and the `+N`
+              collapse are task 8.4, and until they land two markers on one date
+              draw two chips at one x.
+            */}
+              <div
+                data-gantt-marker-band
+                className="pointer-events-none absolute inset-y-0"
+                style={{ left: CHART_PAD_PX }}
+              >
+                {markers.map((marker) => {
+                  const offset = axisOffsetOf(axis, marker.date);
+                  // A marker off the drawn horizon draws nothing — the axis has
+                  // no cell to stand it on, and inventing one would put it at
+                  // the edge as if it were on the last day. Task 8.5 is the case
+                  // that says so; this arm is what lets it pass silently rather
+                  // than at `NaN` pixels.
+                  if (offset === null) return null;
+                  const fill = markerFill(marker);
+                  return (
+                    <span
+                      key={marker.id}
+                      data-marker-chip={marker.id}
+                      // The x it was placed at, published beside the pixels: the
+                      // `left` below is `offset * dayPx` and a test that read
+                      // only the pixels would be reading the zoom rung as much
+                      // as the placement.
+                      data-marker-offset={offset}
+                      className="absolute bottom-0 block truncate rounded-sm px-0.5 text-[9px] leading-3"
+                      style={{
+                        left: offset * dayPx,
+                        maxWidth: dayPx,
+                        backgroundColor: fill,
+                        // **Chosen, not carried.** `labelInk` is the chooser
+                        // task 3.2a built and this is its only call site in the
+                        // application: hard-code the ink here and 3.2a's own
+                        // table stays green while every chip on the chart is
+                        // painted in a colour nothing measured.
+                        color: labelInk(fill),
+                      }}
+                    >
+                      {marker.name}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             {/*
             The chart and the words on it, stacked: the SVG lays the geometry

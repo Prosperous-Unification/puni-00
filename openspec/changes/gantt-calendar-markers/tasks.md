@@ -1038,7 +1038,7 @@ in both slices rather than implied by position.
       then swap the lookup for `calendarDaysBetween(axis[0].date, date)` and
       watch it fail. This is the second-scale drift `todayOffset`'s own
       docstring warns about, made observable.
-- [ ] 8.1 The chip in the axis band, placed by `axisOffsetOf` — test:
+- [x] 8.1 The chip in the axis band, placed by `axisOffsetOf` — test:
       `gantt-panel.test.tsx`, a marker on `2026-08-19` asserted at the calendar
       x, not the workday x. Negative: the chip placed by workday number,
       watched failing — this is the drift `gantt-calendar-axis` exists to
@@ -2590,3 +2590,88 @@ apps/fe-01/src/components/wbs/gantt-panel.test.tsx` **rc 0**, which is the whole
 of this chunk's diff, and chunk 21's full-project run on the same two files was
 rc 0 forty minutes earlier. CI runs the whole project regardless, and that is
 the run that gates the merge.
+
+## Implementation notes — chunk 23 (TASK-235 run 12, 2026-09-05)
+
+**Slice 8.1 checked, and it is the slice that gives `GanttChart` its markers.**
+`CalendarMarkerView` (`id`, `date`, `name`, nullable `color`) is the shape
+be-01's list route answers with, minus the two columns no mark reads;
+`GanttProps.markers` is optional at the panel boundary and required inside the
+chart, the bargain `dayPx` already makes, defaulting to a module-level
+`NO_MARKERS` rather than to a `= []` that would rebuild every chip on every
+unrelated render. `markerFill(marker)` resolves `color ?? automaticColor(id)` in
+one place because two marks draw one marker — the chip here and 8.2's rule down
+the body — and a second spelling is a chart that can disagree with itself about
+what colour one marker is.
+
+**The chips are a layer over the cells, not children of them, and that is what
+makes the slice falsifiable at all.** A chip rendered inside its own axis cell
+stands at the right x by construction and the fault this slice exists to catch
+could never happen; placed by `axisOffsetOf` it can be placed by the wrong
+number, which is the point. The layer spends `CHART_PAD_PX` once so each chip's
+own `left` is the plain calendar x a test can read — `left` on an absolutely
+positioned child is measured from the containing block's _padding_ edge, so the
+band's own `paddingLeft` does not move it. The band's `sticky` is that
+containing block; a `relative` beside it would be two `position` declarations on
+one element and which of them won would be a question about stylesheet order.
+The layer is `pointer-events-none`: the cell underneath carries 6.1's click and
+6.2's hover, and a chip lying across it would eat both on exactly the days that
+have something to say. What a chip does when it is pointed at is 8.4's, and 8.4
+will need that line revisited rather than kept.
+
+**THREE NEGATIVES WATCHED**, baseline 168 → 171 pass / 0 fail on
+`gantt-panel.test.tsx`, restored to 171 / 0 after each:
+
+- the placement taken from the cell's **workday** instead of `axisOffsetOf` —
+  `axis.find((day) => day.date === marker.date)?.workday ?? null` → **170 / 1**,
+  the placement case alone, `expected '7' to be '9'`. The fixture is 6.1's cell
+  9: on a plan starting Monday `2026-08-10`, `2026-08-19` is offset **9** and
+  workday **7**, so a workday-placed chip is right in week one and two days
+  early here — the drift `gantt-calendar-axis` exists to end.
+- the label ink hard-coded to `#ffffff` → **169 / 2**, `expected 'rgb(255, 255,
+255)' to be 'rgb(0, 0, 0)'`. **Two and not one**, which is the better result:
+  the automatic-colour case asserts the ink on its own resolved fill too, so
+  both call sites of the chooser are guarded rather than only the one the slice
+  named.
+- `?? automaticColor(marker.id)` replaced by a fixed `PALETTE[0].fill` →
+  **170 / 1**, the automatic case alone, `expected 'rgb(247, 1, 0)' to be
+'rgb(3, 134, 165)'` — crimson where teal was owed.
+
+**THE FINDING, and it is about 3.2a rather than about this slice.** `labelInk`
+has exactly **one reachable branch in production**, and the third negative is
+what showed it: swapping teal for crimson moved the fill and left the ink
+assertion green. The reason is arithmetic on the bars 3.2 already set. A chip
+fill has to clear **3:1** against the base backdrop in _both_ themes, so against
+a white base `1.05 / (L + 0.05) >= 3` gives `L <= 0.30`, and against a
+near-black base `(L + 0.05) / 0.10 >= 3` gives `L >= 0.25`. Every admissible
+fill therefore has `L` in `[0.25, 0.30]`, while the chooser's own crossover is
+at `sqrt(0.0525) - 0.05 ≈ 0.179` — below that whole window. **No colour this API
+can accept will ever be given white ink.** So the assertion here catches a
+hard-coded _white_, which is what the slice asked for, and cannot catch a
+hard-coded _black_; the `#ffffff` arm is unreachable from any real marker and is
+defended only by 3.2a's own table over synthetic fills. That is not a defect — a
+total function with an unreachable arm is cheaper than a partial one with a
+refusal — but a later slice must not claim the component proves the chooser
+whole, because it proves half of it.
+
+**A PLUMBING NOTE FOR THE NEXT CHUNK THAT REACHES INTO `libs/domain`.**
+`@wbs/domain/marker-color` had no path mapping, and fe-01 needs one in **seven**
+places: `tsconfig.base.json`, `apps/fe-01/tsconfig{,.app,.spec,.e2e}.json`,
+`vite.config.ts` and the suite config beside it. The first gate run missed the
+last one and died at collect with
+`Failed to resolve import "@wbs/domain/marker-color"` — which is the slip
+`vite-config.test.ts` was written for after it happened three times in August,
+and that guard passed on the fixed tree. No nx `inputs` declaration is owed
+here: this is an import, so the project graph carries it, unlike chunk 18's
+runtime `fs` read of a domain source.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`,
+`NODE_OPTIONS=--max-old-space-size=3072`): full `fe-01:test` rc 0 — **2220 pass
+/ 0 fail across 86 files**, exactly the three new cases over chunk 22's 2217;
+`fe-01:typecheck` rc 0; `fe-01:lint` **rc 0 over the whole project**, with the
+one pre-existing `react-hooks/exhaustive-deps` warning at `wbs-table.tsx:4628`;
+`prettier --check .` rc 0 first time. **The full lint ran here with 11 GB
+free**, which confirms chunk 22's reading that the `Killed` was h2puni's memory
+pressure and not the diff. be-01 and domain not run: the only file changed
+outside `apps/fe-01` is `tsconfig.base.json`, and a path mapping added beside
+ten others changes nothing either of them compiles.

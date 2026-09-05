@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { automaticColor, labelInk, parseHex } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type { IsoDate } from '@wbs/domain/workday';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +23,7 @@ import {
   axisOffsetOf,
   barLabelFor,
   barText,
+  type CalendarMarkerView,
   CHART_PAD_PX,
   chartBelowTheFold,
   clampedGanttHeight,
@@ -4863,6 +4865,97 @@ describe('clicking a dated axis cell opens the composer on that cell’s day', (
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('a calendar marker is a chip in the axis band, placed by its date', () => {
+  /**
+   * The colour the fixture marker is stored in — a `PALETTE` entry, so it is a
+   * fill this API would really accept: task 4.5 found that an arbitrary-looking
+   * custom hex (`#4c3a86`) fails ten of the twenty backdrops and could never be
+   * on a marker in the first place.
+   */
+  const AZURE = '#5d6afe';
+
+  const drawWithMarkers = (markers: readonly CalendarMarkerView[]) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+        markers={markers}
+      />,
+    );
+
+  const chipFor = (id: string): HTMLElement => {
+    const chip = document.querySelector(`[data-marker-chip="${id}"]`);
+    if (chip === null) throw new Error(`no chip for marker ${id}`);
+    return chip as HTMLElement;
+  };
+
+  /** What jsdom hands back for a hex written into an inline style. */
+  const asRgb = (hex: string): string => {
+    const [r, g, b] = parseHex(hex);
+    return `rgb(${String(r)}, ${String(g)}, ${String(b)})`;
+  };
+
+  itDom('stands at the calendar x of its date and not at its workday number', () => {
+    // The same cell 6.1 clicks, and for the same reason: on a plan that starts
+    // Monday 2026-08-10, the date 2026-08-19 is axis **offset 9** and workday
+    // **7**. The two numbers agree until the first weekend and drift by a day
+    // per weekend after it, which is the whole drift `gantt-calendar-axis`
+    // exists to end — so a chip placed workday-wise looks right in week one and
+    // is two days early here.
+    //
+    //   axisOffsetOf(axis, '2026-08-19') → 9  → left 252px  (correct)
+    //   the cell's own `data-axis-workday` → 7 → left 196px  (the fault)
+    drawWithMarkers([{ id: 'm-cut', date: '2026-08-19', name: 'Cutover', color: AZURE }]);
+
+    const chip = chipFor('m-cut');
+    expect(chip.getAttribute('data-marker-offset')).toBe('9');
+    // The pixels as well as the number, because the attribute alone is a claim
+    // about what the component computed and not about where it put the chip.
+    expect(chip.style.left).toBe(`${String(9 * DAY_PX)}px`);
+    expect(chip.style.left).not.toBe(`${String(7 * DAY_PX)}px`);
+    expect(chip.textContent).toBe('Cutover');
+  });
+
+  itDom('paints its label in the ink labelInk chooses for its fill', () => {
+    // 3.2a built the chooser and unit-tested it; this is its only call site in
+    // the application. A chip whose label is a hard-coded `text-white` passes
+    // 3.2, 3.2a, 8.4 and 8.6 — 3.2a's table is a table about the function, not
+    // about anything drawing a chip — so without this assertion the algorithm
+    // can be missing from the component with every other check green.
+    //
+    // Computed here rather than written out: a test that spelled `rgb(0, 0, 0)`
+    // would agree with a chooser that had been replaced by that constant.
+    drawWithMarkers([{ id: 'm-cut', date: '2026-08-19', name: 'Cutover', color: AZURE }]);
+
+    const chip = chipFor('m-cut');
+    expect(chip.style.backgroundColor).toBe(asRgb(AZURE));
+    expect(chip.style.color).toBe(asRgb(labelInk(AZURE)));
+  });
+
+  itDom('draws an automatic marker in the colour its own id decides', () => {
+    // `color: null` is *automatic* and it is what the database really stores
+    // for a marker nobody has recoloured — `schema.ts` derives the fill on the
+    // way out rather than materialising it. The resolution shipped with this
+    // chip, so it is asserted with it: without this case `?? automaticColor(id)`
+    // is a branch the application never proves it takes.
+    drawWithMarkers([{ id: 'm-auto', date: '2026-08-19', name: 'Freeze', color: null }]);
+
+    const chip = chipFor('m-auto');
+    expect(chip.style.backgroundColor).toBe(asRgb(automaticColor('m-auto')));
+    // Still chosen, on the resolved fill and not on the stored null.
+    expect(chip.style.color).toBe(asRgb(labelInk(automaticColor('m-auto'))));
   });
 });
 
