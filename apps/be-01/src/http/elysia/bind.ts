@@ -59,11 +59,11 @@ export function bindElysia(routes: readonly Route[]): Elysia {
       return res.body;
     };
 
-    // `detail` is the hook key `@elysiajs/openapi` reads. A route with no
-    // documentation passes no hook at all, so the generated document is
-    // byte-identical to the one the per-controller registrations produced.
-    const hook = route.documentation === undefined ? undefined : { detail: route.documentation };
-    app = register(app, route.method, route.path, handle, hook);
+    // `detail` and `query` are the two hook keys `@elysiajs/openapi` reads. A
+    // route with no documentation passes no hook at all, so the generated
+    // document is byte-identical to the one the per-controller registrations
+    // produced.
+    app = register(app, route.method, route.path, handle, route.documentation);
   }
   return app;
 }
@@ -73,7 +73,7 @@ function register(
   method: HttpMethod,
   path: string,
   handle: (ctx: never) => Promise<unknown>,
-  hook: { detail: unknown } | undefined,
+  hook: Route['documentation'],
 ): Elysia {
   /* eslint-disable @typescript-eslint/no-explicit-any -- the binder is the one
      place that erases the route-level types Elysia would otherwise infer; every

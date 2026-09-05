@@ -8,13 +8,13 @@ import {
   type OidcRouteOptions,
 } from './controller/auth.controller';
 import { directoryRoutes } from './controller/directory.routes';
-import { historyController } from './controller/history.controller';
+import { historyRoutes } from './controller/history.routes';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
 import { savedPlanController } from './controller/saved-plan.controller';
 import { smokeController } from './controller/smoke.controller';
 import { solutionRoutes } from './controller/solution.routes';
-import { stepController } from './controller/step.controller';
+import { stepRoutes } from './controller/step.routes';
 import { workItemController } from './controller/work-item.controller';
 import { bindElysia } from './http/elysia/bind';
 import { userFromHeaders } from './middleware/authenticated';
@@ -215,13 +215,13 @@ export function buildApp(opts: AppOptions) {
           opts.writes.announcements,
         ),
       )
-      .use(stepController(opts.auth, opts.steps))
+      .use(bindElysia(stepRoutes(opts.auth, opts.steps)))
       .use(workItemController(opts.auth, opts.workItems, commands))
       .use(bindElysia(directoryRoutes(opts.auth, opts.directory)))
       // After `projectController`, whose prefix it shares: Elysia matches in
       // registration order, `/:id/history` cannot be shadowed by anything that
       // route declares, and adjacency is what makes that checkable at a glance.
-      .use(historyController(opts.auth, opts.history))
+      .use(bindElysia(historyRoutes(opts.auth, opts.history)))
       .use(
         internalController({
           secret: opts.internalAuthSecret,

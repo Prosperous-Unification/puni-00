@@ -380,6 +380,26 @@ describe('POST /api/projects/:id/steps', () => {
     expect((await addStep(project.id, 'not-a-token', 'Design')).status).toBe(401);
   });
 
+  /**
+   * The case Elysia's `t.Object({ name: t.String() })` used to answer and
+   * nothing asserted.
+   *
+   * When the route moved onto the framework-free shape the check moved into the
+   * handler, and inverting it — accepting a non-string by coercing it — left
+   * this whole file green. A refusal the framework performs is a refusal that
+   * disappears with the framework, so it is stated here, once, for both writes.
+   */
+  it('answers 422 for a body whose name is not a string, and for no body at all', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const post = (body: string) =>
+      send(`/api/projects/${project.id}/steps`, token, { method: 'POST', body });
+
+    expect((await post(JSON.stringify({ name: 42 }))).status).toBe(422);
+    expect((await post(JSON.stringify({}))).status).toBe(422);
+    expect((await post(JSON.stringify([]))).status).toBe(422);
+  });
+
   it('answers 403 on a restricted project the caller does not own', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');

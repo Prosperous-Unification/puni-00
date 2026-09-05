@@ -78,11 +78,19 @@ export interface Route {
   handler: RouteHandler;
   /**
    * Opaque per-route documentation, handed to a binder that can publish an
-   * OpenAPI document and ignored by one that cannot. Typed as `unknown` on
-   * purpose: naming Elysia's `DocumentDecoration` here would put the framework
-   * back into the framework-free file.
+   * OpenAPI document and ignored by one that cannot. The values are typed
+   * `unknown` on purpose: naming Elysia's `DocumentDecoration` here would put
+   * the framework back into the framework-free file.
+   *
+   * `query` belongs here rather than in a validation hook, and the distinction
+   * is the one `history.routes.ts` spells out: this app's query schemas refuse
+   * nothing. They exist because Elysia derives a route's documented parameters
+   * from the route plus this schema and **replaces** anything hand-written in
+   * `detail`, so a query string described only in prose is a document that
+   * omits half the contract. The parsing that gives a query meaning is in the
+   * handler, where a binder cannot skip it.
    */
-  documentation?: unknown;
+  documentation?: { detail?: unknown; query?: unknown };
 }
 
 /** A 200 with a JSON body. */
