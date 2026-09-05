@@ -46,49 +46,51 @@ const NO_SCOPES: AuthenticatedUser = { id: 'user-2', username: 'bob', scopes: []
  */
 function stubAuth(byToken: Record<string, AuthenticatedUser>): AuthService {
   return {
-    authenticate: async (token: string | null) =>
-      token === null ? null : (byToken[token] ?? null),
+    authenticate: (token: string | null) =>
+      Promise.resolve(token === null ? null : (byToken[token] ?? null)),
   } as unknown as AuthService;
 }
 
 function routes(auth: AuthService): Route[] {
   const guard = callerGuard(auth);
   return [
-    { method: 'GET', path: '/probe/plain', handler: async () => ok({ hello: 'world' }) },
+    { method: 'GET', path: '/probe/plain', handler: () => Promise.resolve(ok({ hello: 'world' })) },
     {
       method: 'GET',
       path: '/probe/echo/:id',
-      handler: async ({ params, query }) => ok({ id: params['id'], mode: query['mode'] ?? null }),
+      handler: ({ params, query }) =>
+        Promise.resolve(ok({ id: params['id'], mode: query['mode'] ?? null })),
     },
     {
       method: 'POST',
       path: '/probe/body',
-      handler: async ({ body }) => ok({ received: body }),
+      handler: ({ body }) => Promise.resolve(ok({ received: body })),
     },
     {
       method: 'DELETE',
       path: '/probe/gone/:id',
-      handler: async () => noContent(),
+      handler: () => Promise.resolve(noContent()),
     },
     {
       method: 'GET',
       path: '/probe/refuse',
-      handler: async () => respond(409, { error: 'conflict' }),
+      handler: () => Promise.resolve(respond(409, { error: 'conflict' })),
     },
     {
       method: 'GET',
       path: '/probe/headers',
-      handler: async () => ({ status: 200, body: { ok: true }, headers: { 'x-probe': 'set' } }),
+      handler: () =>
+        Promise.resolve({ status: 200, body: { ok: true }, headers: { 'x-probe': 'set' } }),
     },
     {
       method: 'GET',
       path: '/probe/guarded',
-      handler: guard('signed-in', async (_req, user) => ok({ id: user.id })),
+      handler: guard('signed-in', (_req, user) => Promise.resolve(ok({ id: user.id }))),
     },
     {
       method: 'GET',
       path: '/probe/scoped',
-      handler: guard('read-scope', async (_req, user) => ok({ id: user.id })),
+      handler: guard('read-scope', (_req, user) => Promise.resolve(ok({ id: user.id }))),
     },
   ];
 }

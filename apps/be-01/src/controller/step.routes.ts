@@ -1,6 +1,6 @@
-import { handParsedBody } from '../openapi/hand-parsed-body';
 import { callerGuard } from '../http/caller';
 import { noContent, ok, respond, type Route, type RouteResponse } from '../http/route';
+import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import type { RemoveStepOutcome, StepRefusal, StepService } from '../service/step.service';
 import { statusForRefusal } from './refusal-status';
@@ -39,7 +39,7 @@ function nameFrom(body: unknown): { name: string } | RouteResponse {
  * The route shape carries no validator, so the check moved into
  * {@link nameFrom} — and this is the mechanism the rest of the API already uses
  * to document a body it parses itself, caveat and all. The document therefore
- * *changes*, and the change is the honest direction: it now says the schema is
+ * changes*, and the change is the honest direction: it now says the schema is
  * documentation rather than implying a framework refuses against it.
  */
 const NAMED_BODY = handParsedBody('The step’s name.', {

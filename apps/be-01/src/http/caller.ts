@@ -1,5 +1,5 @@
-import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import { userFromHeaders } from '../middleware/authenticated';
+import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import { respond, type RouteHandler, type RouteRequest, type RouteResponse } from './route';
 
 /**

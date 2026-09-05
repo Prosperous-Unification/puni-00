@@ -1,4 +1,4 @@
-import { matchPath, type HttpMethod, type Route, type RouteRequest } from '../route';
+import { type HttpMethod, matchPath, type Route, type RouteRequest } from '../route';
 
 /**
  * The second binder, and the reason Task 1 can *claim* framework independence

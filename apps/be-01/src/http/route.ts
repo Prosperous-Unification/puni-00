@@ -22,7 +22,7 @@ export type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
 /**
  * One request, already decomposed into the four things handlers actually read.
  *
- * `headers` keys are **lowercased** by every binder, because that is the only
+ * `headers` keys are lowercased by every binder, because that is the only
  * spelling a handler can rely on across frameworks: HTTP/2 requires lowercase
  * on the wire, Elysia hands them over lowercased, and a handler that reached
  * for `Authorization` would work under one binder and silently fail under

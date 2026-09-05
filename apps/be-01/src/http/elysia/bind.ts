@@ -75,9 +75,16 @@ function register(
   handle: (ctx: never) => Promise<unknown>,
   hook: Route['documentation'],
 ): Elysia {
-  /* eslint-disable @typescript-eslint/no-explicit-any -- the binder is the one
-     place that erases the route-level types Elysia would otherwise infer; every
-     handler above it is typed against RouteRequest/RouteResponse instead. */
+  /* eslint-disable @typescript-eslint/no-explicit-any,
+                    @typescript-eslint/no-unsafe-assignment,
+                    @typescript-eslint/no-unsafe-call,
+                    @typescript-eslint/no-unsafe-member-access,
+                    @typescript-eslint/no-unsafe-return
+     -- the binder is the one place that erases the route-level types Elysia
+     would otherwise infer. Its method-specific registrations are generic over
+     the path string and the hook, so calling one through a `HttpMethod`
+     variable has no type Elysia can narrow; every handler above this line is
+     typed against RouteRequest/RouteResponse instead, which is the point. */
   const anyApp = app as any;
   switch (method) {
     case 'GET':
@@ -91,5 +98,9 @@ function register(
     case 'DELETE':
       return anyApp.delete(path, handle, hook);
   }
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  /* eslint-enable @typescript-eslint/no-explicit-any,
+                   @typescript-eslint/no-unsafe-assignment,
+                   @typescript-eslint/no-unsafe-call,
+                   @typescript-eslint/no-unsafe-member-access,
+                   @typescript-eslint/no-unsafe-return */
 }
