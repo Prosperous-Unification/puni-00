@@ -44,6 +44,14 @@ const FIXED_NOW = 1_756_900_000_000;
 const TIED = ['f1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000001'];
 
 /**
+ * The only id this app's clock ever mints, so task 4.4's fallback case can
+ * assert the id came from `Clock.newId()` and not merely that some id came
+ * back. A random one would make the assertion "a UUID appeared", which a
+ * create that ignored the clock entirely would also satisfy.
+ */
+const MINTED = '01000000-0000-4000-8000-0000000000ff';
+
+/**
  * The five marker routes, over HTTP and against real SQLite (task 4.1's HTTP
  * half).
  *
@@ -91,7 +99,7 @@ describe('the calendar-marker routes', () => {
       calendarMarkers: new CalendarMarkerService({
         projects,
         markers: new CalendarMarkerRepository(connection.db),
-        clock: clockOf({ now: () => FIXED_NOW }),
+        clock: clockOf({ now: () => FIXED_NOW, newId: () => MINTED }),
       }),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
@@ -368,4 +376,74 @@ describe('the calendar-marker routes', () => {
       expect(await list('owner')).toEqual([]);
     });
   }
+
+  /**
+   * Task 4.4: the client's id, the fallback, and the collision.
+   *
+   * The exact-id case is a *positive* with a fault watching it — `design.md`
+   * §6.1 named a server that ignores the supplied `id` and mints its own, and
+   * until this slice no test executed be-01 code where that could be seen (3.5
+   * covers the front-end half).
+   *
+   * Negative for it: `marker.id ?? this.clock.newId()` in
+   * `CalendarMarkerService.create` replaced with `this.clock.newId()`. Watched
+   * failing this case with the marker coming back as {@link MINTED}, while the
+   * fallback case below stayed green — which is why the fault has to be
+   * watched here rather than by the case that omits an id. Watched 2026-09-05.
+   */
+  it('stores the exact id the create carried', async () => {
+    const made = await create('owner', {
+      id: SEEDED,
+      date: '2026-09-14',
+      name: 'Site visit',
+    });
+    expect(made.status).toBe(201);
+    expect(((await made.json()) as { marker: { id: string } }).marker.id).toBe(SEEDED);
+    expect((await list('owner')).map((marker) => marker.id)).toEqual([SEEDED]);
+  });
+
+  /** Task 4.4: a create with no `id` is issued one by the clock this app was built with. */
+  it('mints an id from the clock when the create carries none', async () => {
+    const made = await create('owner', { date: '2026-09-14', name: 'Site visit' });
+    expect(made.status).toBe(201);
+    expect(((await made.json()) as { marker: { id: string } }).marker.id).toBe(MINTED);
+  });
+
+  /**
+   * Task 4.4: a repeated id is refused, adds no row, and leaves the stored
+   * marker's name, date and colour **untouched**.
+   *
+   * The last third is the point. A duplicate-id test that only asserted the
+   * status passes against an insert written as an upsert that has already
+   * destroyed the row on its way to answering.
+   *
+   * Negative: `tx.insert(calendarMarker).values(marker).run()` in
+   * `CalendarMarkerRepository.create` written as an upsert
+   * (`.onConflictDoUpdate({ target: calendarMarker.id, set: marker })`) with
+   * the preceding duplicate-id read struck. Watched failing this case with
+   * `201` and the stored row's name, date and colour all replaced, while the
+   * two cases above stayed green. Watched 2026-09-05.
+   */
+  it('refuses a repeated id, adds no row, and leaves the stored marker untouched', async () => {
+    expect(
+      (
+        await create('owner', {
+          id: SEEDED,
+          date: '2026-09-14',
+          name: 'Site visit',
+          color: '#4c3a86',
+        })
+      ).status,
+    ).toBe(201);
+    const before = await list('owner');
+
+    const refused = await create('owner', {
+      id: SEEDED,
+      date: '2027-01-02',
+      name: 'A different day entirely',
+    });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { error: string }).error).toBe('taken');
+    expect(await list('owner')).toEqual(before);
+  });
 });
