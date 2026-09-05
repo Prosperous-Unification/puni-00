@@ -55,9 +55,10 @@ interface RunningSave {
  * fresh open lock. Two things then went wrong at once, both deterministic rather
  * than racy: a second press wrote a second immutable checkpoint for one user
  * action, and the first request settled into a component nobody was rendering,
- * so `SavedPlansPanel`'s save-completion refresh never ran — and with be-01
- * broadcasting nothing on save (TASK-255) that refresh is the only thing that
- * puts the reader's own checkpoint on their own shelf.
+ * so `SavedPlansPanel`'s save-completion refresh never ran. The server now
+ * broadcasts successful saves, but that event cannot deliver the request's
+ * terminal state to a replacement component, and the actor should not have to
+ * wait for its gateway round trip to see the checkpoint they just created.
  *
  * **Keyed by `deps` rather than module-global**, which is a test property as
  * much as a design one: `SaveDeps` is the injected API, so two suites, two
@@ -76,10 +77,11 @@ function runningFor(deps: SaveDeps, projectId: string): RunningSave | undefined 
  * mounts to hear it.
  *
  * A resize unmounts the shelf and mounts its replacement, and the request in
- * between belongs to neither. Without this the reader's own checkpoint stays off
- * their own shelf — be-01 broadcasts nothing on save (TASK-255), so the panel's
- * completion effect is the only thing that puts it there — and the replacement
- * can be stranded in `saving` by the same window.
+ * between belongs to neither. A successful save broadcast eventually refreshes
+ * the shelf, but it cannot carry the request's terminal state to the replacement
+ * or provide the actor's immediate refresh. Without this hand-off the replacement
+ * falls back to `idle` (see the fallback at the `useLayoutEffect` below) and the
+ * authoritative timestamp and every refusal message are silently dropped.
  *
  * Written only when the settle finds an empty waiting set, which is exactly the
  * case where every listener has gone, and taken once.

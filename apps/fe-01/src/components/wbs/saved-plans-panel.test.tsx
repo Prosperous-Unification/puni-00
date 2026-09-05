@@ -129,12 +129,13 @@ describe('the saved-plans panel', () => {
 
   itDom('shows a plan the user just saved, with no broadcast to prompt it', async () => {
     // **The finding this chunk is built on.** `saved-plan.controller.ts`
-    // publishes nothing — grep it for `broadcast` and there is no hit — so the
-    // stream the shelf listens to is the *plan's*, and the user's own checkpoint
-    // is the single change that never arrives on it. Nothing is broadcast in
-    // this case on purpose: without the refresh effect, the row below never
-    // appears and the reader is looking at a shelf that is missing the plan they
-    // just watched succeed.
+    // publishes `saved_plans_changed` on save (TASK-255), so a collaborator's
+    // shelf does refresh on its own. What the broadcast cannot do is spare the
+    // *saver* the round trip out to gw-01 and back before the row they just
+    // created appears. Nothing is broadcast in this case on purpose, which is
+    // what makes the assertion isolate that actor-local refresh effect: a build
+    // whose effect did nothing would otherwise be rescued by the broadcast and
+    // pass.
     const wiring = fakeDeps([ROW]);
     render(<SavedPlansPanel projectId="p1" deps={wiring.deps} />);
     await flush();
@@ -407,9 +408,11 @@ describe('the saved-plans panel', () => {
       2's source check is what holds that — so this is the only edit the shelf
       offers, and it is offered where the name is rather than behind a modal.
 
-      The new name on screen comes from the **re-read**, not from local state:
-      be-01 publishes nothing about saved plans, so a rename is the second write
-      this surface makes whose result no broadcast will ever carry.
+      The new name on screen comes from the **re-read**, not from local state.
+      be-01 does broadcast `saved_plans_changed` on a successful rename
+      (TASK-255), so a collaborator's shelf updates on its own; the re-read here
+      is the actor's fast path, which does not wait for the rename's own event to
+      return through gw-01.
     */
     const wiring = fakeDeps([ROW]);
     render(<SavedPlansPanel projectId="p1" deps={wiring.deps} />);
