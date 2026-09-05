@@ -622,6 +622,38 @@ in both slices rather than implied by position.
       projection, then removed. `Proof:` comment naming the seeded id and the
       injected floor. Without a compilable injection this test cannot fail and
       is the sixteenth check again.
+      **CORRECTION — that injection as worded cannot fail either, watched
+      2026-09-05 (run 8, chunk 14).** A floor whose value is a marker's date but
+      whose _presence_ does not depend on any marker existing is applied to
+      **both** captures alike, and this test compares the two captures to each
+      other rather than to a stored expectation — so the whole projection moves
+      by the same amount twice and the equality still holds. Watched: a
+      `notBefore` floor of `workdaysBetween(project.startDate, '2026-08-25')`
+      set on the seeded `Sand` row inside `tree()`, and the file stayed **1 pass
+      / 0 fail**. "Derived from a marker's date" has to mean **read from
+      `calendar_marker`**, so that the fold is absent in the first capture (no
+      markers yet) and present in the second (five markers). That makes 5.1's
+      negative the same shape as 5.1a(iii)'s and it needs the same plumbing —
+      `tree()` holds no marker client, so the injection reaches the table
+      through a repository the service already has. Do 5.1a(iii) first and
+      spend its injection on both slices.
+      **CORRECTION — `seq` is not excluded yet, and must not be.** The
+      minus-one-key form is justified by "a marker mutation advances `seq` by
+      design", which is false until slice group 9:
+      `CalendarMarkerService` is constructed from `{ projects, markers, clock }`
+      and holds no `Broadcaster`, so no marker write reaches
+      `broadcast.latestSeq`. Deleting a stationary field is strictly weaker than
+      comparing it — the exact trap this slice's own "justified rather than
+      asserted" sentence names. The test therefore compares the body with **no**
+      exclusion and goes red the moment group 9 wires the broadcast; that
+      chunk restores the deletion together with the `seq`-advanced assertion.
+      **Line citations in this slice are stale** as of `e4f8eae0`: `seq` is
+      read at `work-item.service.ts:1366` and returned at `:1655` (not
+      `:1147-1159`), the payload fields are declared around `:1217-1290`, and
+      5.1a's scheduler call site is `:1548` (not `:1458`) — where it reads
+      `optimized ?? schedule(...)` over the same six arguments 5.1a(a) names, so
+      that check stands as written once its line number is corrected.
+      `notBefore` is built at `:1484-1489`.
 - [ ] 5.1a The scheduler seam is free of markers **at the seam and at the
       inputs** — test: same file, three assertions, because two equal captures
       cannot prove a path is absent (a path that is a no-op on the fixture
