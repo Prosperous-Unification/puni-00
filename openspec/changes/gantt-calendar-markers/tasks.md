@@ -1783,13 +1783,14 @@ template literal, so the message wraps both in `String(...)`. Same class as
 chunk 2's `no-misused-spread`: the domain lint config is stricter than the
 default and neither rule is autofixable.
 
-## Merge with main — chunk 4 (TASK-235 run 2, 2026-09-05), LANDED RED
+## Merge with main — chunk 4 (TASK-235 run 2, 2026-09-05), CLOSED GREEN at 9f775619
 
-**`f84b39da` is the merge of `origin/main` after PR 203 (TASK-219) landed, and
-the branch is RED at that head. Do not merge PR 209 until the list below is
-closed.** The merge was made deliberately rather than left conflicting: the
-resolution is correct and worth keeping, and the remaining work is nine exact
-assertions rather than a second conflict.
+**`f84b39da` is the merge of `origin/main` after PR 203 (TASK-219) landed. It
+was red at that head for nine assertions and is green at `9f775619`:
+`apps/be-01/src/repository` is 547 pass / 0 fail across 44 files on h2puni,
+`libs/domain` 506/0, `nx format:check --all` rc 0.** The paragraphs below are
+kept as the record of what the merge cost, because the same class reopens every
+time a migration folder lands beside another branch's.
 
 **The conflicts were all one shape and are resolved.** Main added two migration
 folders (`20260904100000_add_optimizer_tables`,
@@ -1801,8 +1802,8 @@ sorts newest, so it takes the head of every reverse-chronological rollback list.
 four-line one on the other), and `libs/domain/src/index.ts` keeps both new
 exports.
 
-**What is still red — nine cases, and every one is a list this branch is not
-named in.** Chunk 1 recorded that a new migration folder touches nineteen exact
+**What was red — nine cases, and every one a list this branch was not named
+in.** Chunk 1 recorded that a new migration folder touches nineteen exact
 reversal-list assertions across five files; main's two folders landed between,
 so the same class reopened against assertions written after chunk 1 read them.
 `apps/be-01/src/repository` at `f84b39da` is **538 pass / 9 fail** on h2puni:
@@ -1822,3 +1823,25 @@ faults are unaffected by any of them.
 
 **Re-gate with `rm -rf dist` first and `NX_DAEMON=false`**, for the two reasons
 chunk 2 recorded.
+
+### The half of it that was not mechanical
+
+The first resolution pass treated every list as reverse-chronological and put
+`CALENDAR_MARKER` at the head of all of them. **Three of the lists run the
+other way.** `readMigrationFolders` returns the folders on disk oldest-first and
+`appliedNames` returns them in the order they were applied, so in those three
+`calendar_marker` belongs **last**; only a `rollbackTo` result is newest-first.
+Six assertions were red for the missing entry and three for the entry being in
+the wrong place, which reads as one failure count and is two faults.
+
+Two more needed a judgement rather than an entry:
+
+- `calendar-marker-migration.db.test.ts`'s `PREVIOUS` named
+  `saved_plan_created_by_id`, and TASK-219 put two folders between. It is now
+  `project_settings`, still named rather than computed, so a third folder
+  arriving there is a red test and not a silently widened rollback.
+- `optimized-schedule-cache.db.test.ts` asserted `names.at(-1)` and
+  `names.at(-2)`, which is "the last two folders" wearing the name "immediately
+  before the project-settings migration". It is now positional against
+  `PROJECT_SETTINGS` itself, so it keeps meaning what it says as folders land
+  above it. Its `ALSO_ROLLED_BACK` gained `calendar_marker` for the same reason.
