@@ -54,7 +54,9 @@ export function bindInProcess(routes: readonly Route[]): {
           url: request.url,
         };
         const res = await route.handler(req);
-        return json(res.status, res.body, res.headers);
+        return res.serialised === true
+          ? new Response(String(res.body), { status: res.status, headers: res.headers })
+          : json(res.status, res.body, res.headers);
       }
       return pathMatched
         ? json(405, { error: 'method_not_allowed' })

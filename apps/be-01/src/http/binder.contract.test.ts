@@ -4,7 +4,7 @@ import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import { callerGuard } from './caller';
 import { bindElysia } from './elysia/bind';
 import { bindInProcess } from './in-process/bind';
-import { noContent, ok, respond, type Route } from './route';
+import { noContent, ok, respond, type Route, text } from './route';
 
 /**
  * The proof obligation for Task 1 of the be-01 hexagonal refactor: one set of
@@ -84,6 +84,12 @@ function routes(auth: AuthService): Route[] {
     },
     {
       method: 'GET',
+      path: '/probe/markdown',
+      handler: () =>
+        Promise.resolve(text(200, '# Title\n\n| a | b |\n', 'text/markdown; charset=utf-8')),
+    },
+    {
+      method: 'GET',
       path: '/probe/guarded',
       handler: guard('signed-in', (_req, user) => Promise.resolve(ok({ id: user.id }))),
     },
@@ -145,6 +151,18 @@ describe.each(BINDERS)('route contract under the %s binder', (_name, bind) => {
   it('carries response headers a handler asked for', async () => {
     const res = await get('/probe/headers');
     expect(res.headers.get('x-probe')).toBe('set');
+  });
+
+  it('writes a non-JSON body unchanged, under the content type the route named', async () => {
+    // The clause the export route needs, and the one Elysia would have hidden:
+    // it returns a string return value as-is, so a route answering Markdown
+    // works through `bindElysia` while every other binder hands back a
+    // JSON-quoted, backslash-escaped document. Asserting the exact bytes here
+    // is what makes `RouteResponse.serialised` a contract rather than a field.
+    const res = await get('/probe/markdown');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/markdown');
+    expect(await res.text()).toBe('# Title\n\n| a | b |\n');
   });
 
   it('refuses an unauthenticated caller with 401', async () => {

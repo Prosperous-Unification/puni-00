@@ -63,6 +63,18 @@ export interface RouteResponse {
   body: unknown;
   /** Response headers, added as given. Cookies go here, pre-serialised. */
   headers?: Record<string, string>;
+  /**
+   * The body is already on the wire's terms — a string the binder writes
+   * unchanged instead of encoding as JSON. Set it through {@link text}.
+   *
+   * A flag rather than an inference from the content type, and rather than the
+   * rule "a string body is already serialised". Both of those quietly change
+   * what an existing response means: a route answering the JSON string `"ok"`
+   * is a body of five characters including its quotes, and guessing from the
+   * type would make that route's answer depend on a header somebody set for a
+   * different reason. This is the route saying which of the two it meant.
+   */
+  serialised?: boolean;
 }
 
 export type RouteHandler = (req: RouteRequest) => Promise<RouteResponse>;
@@ -101,6 +113,23 @@ export function ok(body: unknown): RouteResponse {
 /** Any status with a JSON body — the shape handlers use for refusals. */
 export function respond(status: number, body: unknown): RouteResponse {
   return { status, body };
+}
+
+/**
+ * An answer that is not JSON: a string the binder puts on the wire unchanged,
+ * under the content type the route names.
+ *
+ * One route needs it — `GET /api/projects/:id/export?format=markdown`, which
+ * hands back a Markdown table a human reads. Without this the route shape could
+ * not express that answer at all, and the omission was **invisible under
+ * Elysia**: Elysia returns a string return value as-is, so the route would have
+ * kept working through `bindElysia` and answered a JSON-quoted, backslash-escaped
+ * document through any other binder. That is exactly the class of framework
+ * dependency the second binder exists to catch, and it is why this went in
+ * before the route it is for.
+ */
+export function text(status: number, body: string, contentType: string): RouteResponse {
+  return { status, body, headers: { 'content-type': contentType }, serialised: true };
 }
 
 /** A 204: no body, and the one response whose `body` must be `null`. */
