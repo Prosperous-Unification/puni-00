@@ -25,7 +25,9 @@ Plan: `docs/2026-09-05-ports-and-adapters-plan.md`.
 `libs/domain` and `libs/contracts` are conceptually core's innermost ring and stay **separate
 Nx projects**: fe-01 imports one from 11 files and gw-01 the other from 4, and a boundary the
 linter can see is per project — `@wbs/core/domain` as a subpath would be a convention it
-cannot check. Nesting their directories under `libs/core/` is cosmetic and allowed.
+cannot check. Their directories are grouped **by ring** — `libs/wbs/{domain,application,adapters}/` — with
+short project names and unchanged aliases; the ring never enters a name, because a ring is an
+attribute and a name is an identity, and a test binds directory to tag (plan D18, D19).
 
 "Ring" is Clean Architecture's word (Martin 2012, the Dependency Rule) and Onion Architecture's
 (Palermo 2008); "port" and "adapter" are Hexagonal Architecture's (Cockburn 2005). Not "layer",

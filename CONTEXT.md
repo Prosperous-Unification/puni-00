@@ -1023,6 +1023,12 @@ port's contract by one file that calls it. Every case in a kit was watched faili
 an implementation that lacks the behaviour it names.
 _Avoid_: contract tests (alone), shared tests, test harness
 
+**Product**:
+One application family in this repository — WBS is the first — named by a top-level directory
+(`apps/wbs`, `libs/wbs`), a project-name prefix (`wbs-*`) and a `product:` tag that keeps one
+product's code out of another's. `tools/*` belongs to no product.
+_Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
+
 **Composition root**:
 The one place ports are bound to adapters and services are built: `composeServices(ports)`
 in core, called by be-01's `boot.ts` over the SQLite source and by tests over the in-memory

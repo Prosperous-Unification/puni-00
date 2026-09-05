@@ -49,23 +49,27 @@ rather than inherit.
 
 ## 1 · Decisions
 
-| #   | Question                                                              | Decision                                                                                                                                                                                                                                                                                                                                                                                         |
-| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | What does "swappable source" require of ADR 0007's outer transaction? | A behavioural **unit of work** port. Contract: **terminal atomicity** — once `run` settles, either every write inside it is observable through every store's reads or none is. **Isolation is not promised.** ADR 0015.                                                                                                                                                                          |
-| D2  | Where do the pieces live?                                             | Four packages: `libs/core`, `libs/store-sqlite`, `libs/store-memory`, `apps/be-01`. Direction enforced by Nx ring tags + ESLint. ADR 0014.                                                                                                                                                                                                                                                       |
-| D3  | What is the framework-independent controller?                         | **Endpoints as data** — `EndpointSpec` with method, path, operation id, request policies, Standard Schema types and a pure handler. **ArkType from Wave 1**, unknown keys **rejected on every route**, **one refusal envelope** for every endpoint, and the OpenAPI document **emitted from the specs**. (Backward compatibility is not a constraint — Dany, §9.)                                |
-| D4  | Second adapters as living proof?                                      | **No** second HTTP adapter (Dany: "good idea, overkill for now"). The store kit gets two implementations by tightening the in-memory fixtures. HTTP characterization tests stay **local to the Elysia adapter**; an exported HTTP kit is written the day a second adapter exists.                                                                                                                |
-| D5  | Scope across apps                                                     | **be-01 and fe-01's API client.** gw-01's `ws.controller.ts` is already framework-free, its upgrade lives in `gw-01/app.ts` and is not an endpoint, and Nx forbids app→app imports. A shared `libs/http-elysia` is a later decision. mcp-01's tools regenerate from the new document; its code is untouched.                                                                                     |
-| D6  | The seven value leaks                                                 | Vocabulary moves to core/domain. `isForeignKeyViolation` is replaced by **reference-specific** store outcomes (`unknown_step`, `unknown_person`, …) that the adapter returns **only after proving that reference absent**; any other FK failure stays a thrown unknown. No blanket `unknown_reference`. **Confirmed by Dany after review.**                                                      |
-| D7  | Order                                                                 | Wave 0 collision gate → Wave 1 HTTP + shared contract → Wave 2 stores, unit of work, runtime ports, kits → Wave 3 extraction and rings. Each its own OpenSpec change and PR.                                                                                                                                                                                                                     |
-| D8  | Packaging                                                             | This document + OpenSpec changes `http-endpoint-port`, `store-port-and-unit-of-work`, `core-lib-extraction`, each created when its wave starts.                                                                                                                                                                                                                                                  |
-| D9  | Records                                                               | ADR 0014 and 0015 `proposed` now, `accepted` by the merging PR of their wave. CONTEXT.md terms written now.                                                                                                                                                                                                                                                                                      |
-| D10 | What runtime does core promise?                                       | **`runtime:isomorphic`.** Core imports `@wbs/domain`, `@wbs/contracts`, `@wbs/validation` and the `StandardSchemaV1` type, and **nothing with a runtime**. Every Node, Bun or third-party runtime concern arrives through `composeServices(ports)`: `PasswordHasher`, `TokenCodec`, `Digest`, `AsyncContext`, `Timers`, `PushTransport`, `Scheduler`. §3.4 has the table.                        |
-| D11 | Who coordinates writes?                                               | The **source** owns a re-entrant **write coordinator**. Every mutating adapter method enters it; `UnitOfWork.run` enters it for the whole batch. In SQLite it is today's `WriteLock`, moved inside the adapter; in memory it is a promise queue. `WriteLock` leaves core.                                                                                                                        |
-| D12 | Saved plans and the unit of work                                      | Saved-plan capture and write are **independent operations** of the source, never enlisted in a command batch. Their kit cases say so.                                                                                                                                                                                                                                                            |
-| D13 | **New.** What is the contract between fe-01 and be-01?                | **The endpoint table.** Request and response types live in `@wbs/contracts`; fe-01 calls through a typed client derived from the same `EndpointSpec` table be-01 mounts. A renamed field breaks fe-01's typecheck, not a screen. fe-01's four hand-written API modules are replaced.                                                                                                             |
-| D14 | **New.** How is dependency direction stated across packages?          | **Rings**, as Nx tags: `ring:domain` (`libs/domain`, `libs/contracts`, `libs/validation`), `ring:application` (`libs/core`), `ring:adapter` (`store-*`, `be-01`, `fe-01`, `gw-01`). Each ring depends only inward; fe-01 additionally only on `ring:domain`. `libs/domain` and `libs/contracts` stay **separate Nx projects** because fe-01 and gw-01 import them and a boundary is per project. |
-| D15 | **New.** Ambient batch context in the browser                         | `AsyncContext` is a port (Dany: option 1). Bun/Node adapt `AsyncLocalStorage`; the browser adapter is a single slot that **throws on overlap**. Correct only because of D11, and two kit cases prove that.                                                                                                                                                                                       |
+| #   | Question                                                              | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | What does "swappable source" require of ADR 0007's outer transaction? | A behavioural **unit of work** port. Contract: **terminal atomicity** — once `run` settles, either every write inside it is observable through every store's reads or none is. **Isolation is not promised.** ADR 0015.                                                                                                                                                                                                                                                                                   |
+| D2  | Where do the pieces live?                                             | Four packages: `libs/core`, `libs/store-sqlite`, `libs/store-memory`, `apps/be-01`. Direction enforced by Nx ring tags + ESLint. ADR 0014.                                                                                                                                                                                                                                                                                                                                                                |
+| D3  | What is the framework-independent controller?                         | **Endpoints as data** — `EndpointSpec` with method, path, operation id, request policies, Standard Schema types and a pure handler. **ArkType from Wave 1**, unknown keys **rejected on every route**, **one refusal envelope** for every endpoint, and the OpenAPI document **emitted from the specs**. (Backward compatibility is not a constraint — Dany, §9.)                                                                                                                                         |
+| D4  | Second adapters as living proof?                                      | **No** second HTTP adapter (Dany: "good idea, overkill for now"). The store kit gets two implementations by tightening the in-memory fixtures. HTTP characterization tests stay **local to the Elysia adapter**; an exported HTTP kit is written the day a second adapter exists.                                                                                                                                                                                                                         |
+| D5  | Scope across apps                                                     | **be-01 and fe-01's API client.** gw-01's `ws.controller.ts` is already framework-free, its upgrade lives in `gw-01/app.ts` and is not an endpoint, and Nx forbids app→app imports. A shared `libs/http-elysia` is a later decision. mcp-01's tools regenerate from the new document; its code is untouched.                                                                                                                                                                                              |
+| D6  | The seven value leaks                                                 | Vocabulary moves to core/domain. `isForeignKeyViolation` is replaced by **reference-specific** store outcomes (`unknown_step`, `unknown_person`, …) that the adapter returns **only after proving that reference absent**; any other FK failure stays a thrown unknown. No blanket `unknown_reference`. **Confirmed by Dany after review.**                                                                                                                                                               |
+| D7  | Order                                                                 | Wave 0 collision gate → Wave 1 HTTP + shared contract → Wave 2 stores, unit of work, runtime ports, kits → Wave 3 extraction and rings. Each its own OpenSpec change and PR.                                                                                                                                                                                                                                                                                                                              |
+| D8  | Packaging                                                             | This document + OpenSpec changes `http-endpoint-port`, `store-port-and-unit-of-work`, `core-lib-extraction`, each created when its wave starts.                                                                                                                                                                                                                                                                                                                                                           |
+| D9  | Records                                                               | ADR 0014 and 0015 `proposed` now, `accepted` by the merging PR of their wave. CONTEXT.md terms written now.                                                                                                                                                                                                                                                                                                                                                                                               |
+| D10 | What runtime does core promise?                                       | **`runtime:isomorphic`.** Core imports `@wbs/domain`, `@wbs/contracts`, `@wbs/validation` and the `StandardSchemaV1` type, and **nothing with a runtime**. Every Node, Bun or third-party runtime concern arrives through `composeServices(ports)`: `PasswordHasher`, `TokenCodec`, `Digest`, `AsyncContext`, `Timers`, `PushTransport`, `Scheduler`. §3.4 has the table.                                                                                                                                 |
+| D11 | Who coordinates writes?                                               | The **source** owns a re-entrant **write coordinator**. Every mutating adapter method enters it; `UnitOfWork.run` enters it for the whole batch. In SQLite it is today's `WriteLock`, moved inside the adapter; in memory it is a promise queue. `WriteLock` leaves core.                                                                                                                                                                                                                                 |
+| D12 | Saved plans and the unit of work                                      | Saved-plan capture and write are **independent operations** of the source, never enlisted in a command batch. Their kit cases say so.                                                                                                                                                                                                                                                                                                                                                                     |
+| D13 | **New.** What is the contract between fe-01 and be-01?                | **The endpoint table.** Request and response types live in `@wbs/contracts`; fe-01 calls through a typed client derived from the same `EndpointSpec` table be-01 mounts. A renamed field breaks fe-01's typecheck, not a screen. fe-01's four hand-written API modules are replaced.                                                                                                                                                                                                                      |
+| D14 | **New.** How is dependency direction stated across packages?          | **Rings**, as Nx tags: `ring:domain` (`libs/domain`, `libs/contracts`, `libs/validation`), `ring:application` (`libs/core`), `ring:adapter` (`store-*`, `be-01`, `fe-01`, `gw-01`). Each ring depends only inward; fe-01 additionally only on `ring:domain`. `libs/domain` and `libs/contracts` stay **separate Nx projects** because fe-01 and gw-01 import them and a boundary is per project.                                                                                                          |
+| D15 | **New.** Ambient batch context in the browser                         | `AsyncContext` is a port (Dany: option 1). Bun/Node adapt `AsyncLocalStorage`; the browser adapter is a single slot that **throws on overlap**. Correct only because of D11, and two kit cases prove that.                                                                                                                                                                                                                                                                                                |
+| D16 | **New.** Which validator, where?                                      | **ArkType everywhere, both ends of the wire.** Every schema in the repo is an ArkType type exposed as `StandardSchemaV1`; `@sinclair/typebox` is banned repo-wide by lint once Wave 1 deletes Elysia's `t`. The derived client validates **responses** against the spec's `R` type, replacing fe-01's thirteen `as` casts in `wbs-api.ts`. Config, WS frames and the internal contract already use it.                                                                                                    |
+| D17 | **New.** Can the whole product run in a browser?                      | **Yes, by construction, not by this plan's waves.** Core and the memory source are isomorphic (D10); `clientFromSpecs(table, transport)` takes an in-process transport that calls `spec.handle` directly; the broadcaster gets an in-tab adapter; persistence is a third source (`store-indexeddb`) the kit certifies. The Python solver is the one adapter a browser build lacks — `Scheduler` falls back to the TS engine. Widening fe-01's ring constraint to `ring:application` is the day it starts. |
+| D18 | **New.** One repo, several products                                   | **Namespace by directory, project name and tag; aliases stay.** `apps/wbs/*`, `libs/wbs/*`, project names `wbs-*`, tag `product:wbs`, rule `product:X → product:X \| product:shared`; `@wbs/*` aliases unchanged; `tools/*` is infra. Its own change after Wave 3, verified by a prod dry-run because Dockerfile build contexts move. Outside the apps only `.github/workflows/ci.yml` hard-codes an app path.                                                                                            |
+| D19 | **New.** Ring in the names?                                           | **In the directory, never in the name.** `libs/wbs/{domain,application,adapters}/…`, `apps/wbs/…`; project names and aliases stay short (`wbs-domain`, `@wbs/core`). The `ring:` tag is the enforced truth and a test asserts directory ring = tag, so the path cannot lie. Rejected: `wbs-adapter-01-fe-01` and `wbs-domain-contracts` — a ring is an attribute, a name is an identity; a lib that moves rings would churn every import; contracts' ring is still the open question.                     |
 
 ## 2 · Target shape
 
@@ -96,6 +100,20 @@ apps/fe-01                             ring:adapter      runtime:browser      th
 The **existing** guards move with the code: the drizzle rules and the `bun:sqlite` ban are
 re-aimed at `libs/store-sqlite/src` (with `db.ts` the one exemption), and `test:unit` in
 `package.json` names the new projects.
+
+**Directory layout (D18, D19), applied in the namespacing change after Wave 3:**
+
+```
+apps/wbs/{be-01,fe-01,gw-01,mcp-01}                    product:wbs  ring:adapter
+libs/wbs/domain/{domain,contracts,validation}          product:wbs  ring:domain
+libs/wbs/application/core                              product:wbs  ring:application
+libs/wbs/adapters/{store-sqlite,store-memory}          product:wbs  ring:adapter
+tools/*                                                scope:infra  (shared by every product)
+```
+
+Project names `wbs-be-01`, `wbs-domain`, `wbs-core`, …; import aliases stay `@wbs/*`. A test in
+the shape of `test-tiers.test.ts` walks `libs/` and `apps/` and fails when a project's directory
+ring disagrees with its `ring:` tag or its `product:` tag disagrees with its top directory.
 
 **Physical layout of the domain ring.** `libs/domain` and `libs/contracts` are conceptually
 the innermost ring of core, but they stay separate Nx projects: fe-01 imports one from 11
@@ -174,6 +192,15 @@ interface Refusal {
   two test fakes are replaced by it and by a fake built from the same table. `fe-01`'s
   ~15 `error ===` branches become `switch (refusal.error)` over `RefusalCode`. Negative: a
   response field renamed in one spec → fe-01 `typecheck` red at the screen that read it.
+- **Both ends validate (D16).** `clientFromSpecs` parses every response with the spec's `R`
+  type before handing it to a screen, so a be-01 that answers a shape the contract does not
+  declare is a typed client error at the boundary rather than an `undefined` three renders
+  later. Negative: a response field's type changed in be-01 only → the client refuses the
+  response in fe-01's tests.
+- **Transport is a parameter.** `clientFromSpecs(table, transport)` with `transport` being
+  `fetch` in production and an in-process `(spec, input) => spec.handle(input)` for tests and
+  for the browser-only mode (D17). The same fake serves fe-01's unit tests; the two hand-written
+  fakes are deleted.
 - **Deletion test:** with the adapter deleted, every endpoint is a typed function a unit test
   can call with a literal input.
 
@@ -271,6 +298,9 @@ every other file's knowledge of which library it was.
 6. `@wbs/be-01` imported from `libs/domain` → ring constraint.
 7. `new Database()` outside `store-sqlite/db.ts` → the relocated `bun:sqlite` ban.
 8. A deliberately failing test in each new lib → `bun run test:unit` red.
+9. `import { t } from '@sinclair/typebox'` anywhere → the repo-wide ban (D16).
+10. A project moved to `libs/wbs/adapters/` while tagged `ring:application` → the layout test (D19).
+11. A second product's lib importing `@wbs/core` → the `product:` constraint (D18).
 
 The 2026-08-09 gw-01 typecheck that compiled nothing for months is why these are watched
 rather than read off the config.
@@ -344,13 +374,25 @@ case fails through the adapter.
    refused actor, one replay and one retention sweep without HTTP.
 5. Docs: `LLM_README.md`, ADR 0014 / 0015 → `accepted`, refactoring plan cross-reference.
 
+### After Wave 3 — `repo-namespacing` (~1.5 days, own change)
+
+D18 and D19 together, because both are `git mv` of the same directories. Every `project.json`,
+`tsconfig.base.json` path, Dockerfile build context, Playwright and Vite config moves with its
+app; `.github/workflows/ci.yml` is the one file outside the apps that names a path. The Nx
+project renames (`be-01` → `wbs-be-01`) ripple into `package.json` scripts, `bin/*.sh`, lefthook
+and the deploy tools' `nx run` invocations — grep for every project name before the move.
+Verified by the workspace gate **and** a prod `--dry-run`, because the Dagger publish path
+builds from the Dockerfiles' contexts. The layout test and negatives 10–11 are written first.
+
 ## 5 · Non-goals
 
 - A second HTTP adapter, and an exported HTTP kit before one exists.
 - gw-01's services and mcp-01's code (D5). A shared `libs/http-elysia` is a later decision.
 - Isolation across a source's concurrent readers (D1).
-- An offline mode in fe-01. Core being isomorphic leaves that door open; nothing here walks
-  through it, and the fe-01 ring constraint stays at `ring:domain` until something does.
+- Building the browser-only mode (D17). This plan makes it possible and names what it
+  needs; nothing here builds it, and the fe-01 ring constraint stays at `ring:domain` until
+  something does. Running the Python solver in a browser is out for good.
+- A second product. D18 prepares the namespace; no other product's code is part of this plan.
 - Moving `apps/be-01/drizzle/` or the migrate CLIs; a generic migration port. Additive-only
   migrations stay: blue and green share one SQLite file mid-swap, which is deploy
   compatibility, not API compatibility.
@@ -380,7 +422,13 @@ case fails through the adapter.
    decided at Wave 0 by which lands first.
 5. Whether `@wbs/auth` becomes isomorphic or is absorbed behind `TokenCodec` — decided at
    Wave 2 by what it holds.
-6. Whether to nest `libs/{domain,contracts}` under `libs/core/` in Wave 3 (cosmetic).
+6. ~~Whether to nest `libs/{domain,contracts}` under `libs/core/`~~ — settled by D19: the
+   directory is `libs/wbs/domain/…`, applied in the namespacing change.
+7. Whether `store-indexeddb` or "memory source + JSON export" is the browser mode's persistence.
+   Not this plan's to decide; the kit is the same either way.
+8. Where `contracts` sits once the endpoint types join it: `ring:domain` today because fe-01
+   and gw-01 import it; an `interface` ring between domain and application is the alternative
+   if HTTP shapes in the domain ring start to grate.
 
 ## 8 · Review disposition (2026-09-05, first revision)
 
@@ -462,3 +510,13 @@ should arrive by injection. What that changed, in the order it was discussed:
    impurities found while listing: `canonical-schedule-input.ts` imports `node:crypto`
    (→ `Digest` or `crypto.subtle`), and `estimate.ts` imports `@wbs/validation` (legal; puts
    `@wbs/validation` in `ring:domain`).
+7. **Four more asks, added after "lgtm".** Universal ArkType is already true everywhere except
+   Elysia's `t`, which Wave 1 deletes; the gap was fe-01's thirteen unvalidated response casts,
+   now closed by the derived client validating against the spec's `R` type (D16). Running
+   entirely in the browser is possible by construction — in-process transport, in-tab
+   broadcaster, a third source the kit certifies, the TS engine as the only scheduler — and is
+   named but not built (D17). Hosting other products is a namespacing change after Wave 3 with
+   directory, project name and `product:` tag, aliases unchanged (D18). Ring terminology goes
+   into the **directory**, not the name, with a layout test binding directory to tag; the
+   proposed `wbs-adapter-01-fe-01` and `wbs-domain-contracts` were declined because a ring is
+   an attribute, a name is an identity (D19).
