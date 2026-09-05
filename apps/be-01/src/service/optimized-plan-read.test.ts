@@ -1,5 +1,5 @@
-import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { type Schedule, schedule, sliceKey } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';

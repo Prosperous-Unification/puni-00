@@ -1,5 +1,5 @@
-import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { Schedule } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { SolverObjectiveName } from '../repository';
 
