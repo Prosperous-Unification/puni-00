@@ -896,6 +896,13 @@ in both slices rather than implied by position.
       Enter on it opens no sheet and puts the refusal in the live region;
       **Space on it does the same**; and it carries neither `aria-haspopup` nor
       `aria-expanded`.
+      **The remaining two cases now wait on 6.5, not on 7.2.** Chunk 26 read
+      them as 7.2's because there was no refusal at all; chunk 27 built the
+      refusal and both keys reach it, so what is still missing is only the
+      _live region_ — which is 6.5's whole slice. Chunk 27's second case proves
+      Enter reaches the refusal; Space on the undated branch is still owed
+      here, and it is 6.4a's to write because 6.4a is the slice that promised
+      "the same Enter and Space handlers".
       **The role and the name are assertions, not preamble** — an
       implementation with the tab stop and both handlers but a missing or
       generic accessible name, and with no `role="button"` at all, passed every
@@ -987,6 +994,45 @@ in both slices rather than implied by position.
       branch intact: the refusal path also issuing a create for the clicked cell
       with today's date, watched failing the no-create assertion alone while the
       message and composer assertions stay green.
+      **TWO OF THE THREE ASSERTIONS SHIPPED IN CHUNK 27; 7.2 STAYS UNTICKED ON
+      THE THIRD**, which has no seam and cannot be given one inside this slice.
+      There is no calendar-marker writer anywhere on the client:
+      `ProjectApi` (`apps/fe-01/src/lib/wbs-api.ts:1155`) carries none, and
+      `CalendarMarker` appears in the whole of `apps/fe-01/src` only inside
+      `gantt-panel.tsx` and its test. So "the fake API received no create call"
+      has nothing to observe — and, which is the part that settles it, the fault
+      the assertion exists to catch cannot be written either: a refusal path
+      that "posted straight through" has no method to post through. An
+      assertion whose negative is uninjectable is the vacuous form this plan
+      rejects by name at 9.2b, so it is left out rather than written green.
+      **The first negative's predicted matrix is half wrong and the correction
+      is this slice's own**: "a composer opened" cannot fail, because the guard
+      that opens the composer is `day.date === null` and `setComposerAt(null)`
+      renders nothing whatever the refusal branch does. Watched at a 183 / 0
+      baseline: `setRefusal(UNDATED_REFUSAL)` neutered in **both** handlers →
+      **183 / 2**, the two new cases alone, on a `toMatch` that received
+      `undefined` instead of a string — the message half, never the composer
+      half.
+      A third negative, not in the plan before and the one that makes _naming_
+      the missing date load-bearing rather than merely _saying something_: the
+      message replaced by a generic "this day cannot carry a calendar marker"
+      → **183 / 2**, the same two cases, on that generic string failing to
+      match `/project start date/`.
+- [ ] 7.2a The client's calendar-marker **write seam** — `ProjectApi` gains the
+      marker methods be-01 has carried since section 4, so 7.2's third
+      assertion and 6.3's `PATCH`-body oracle have a call log to read. Its own
+      slice and not a line inside either of them, because the cost is not the
+      method: `ProjectApi` is implemented by object literals in roughly fifteen
+      test files (`plan-cards`, `plan-cells`, `plan-dependencies`,
+      `plan-estimates`, `plan-chart-seam`, `project-page`, `app-router` and
+      more), and a required method added to the interface reddens every one of
+      them at once. That is a mechanical change across files this task
+      otherwise never touches, and folding it into a refusal slice would put a
+      fifteen-file diff behind a two-assertion test.
+      **6.3 needs this before it can start**, not only 7.2: 6.3's rename and
+      recolour cases name "the fake API's recorded request" as their oracle and
+      there is no request to record. Whichever of the two runs first should
+      land this.
 - [ ] 7.3 Giving that project a start date turns the same cell live — test:
       same file, re-render with a start date and assert the click opens the
       composer. This is what proves 7.2 refused for the stated reason and not
@@ -2819,3 +2865,51 @@ those are weekends, which always carry a date and so never reach this branch.
 `fe-01:typecheck` rc 0; `fe-01:lint` rc 0 whole (the same pre-existing
 `react-hooks/exhaustive-deps` warning at `wbs-table.tsx:4628`); `prettier
 --check .` rc 0. Nothing outside `apps/fe-01` changed.
+
+## Chunk 27 — slice 7.2's two writable assertions (TASK-235 run 14, 2026-09-05)
+
+**Landed.** The undated axis cell now answers when it is operated, instead of
+returning in silence. **7.2 stays unticked** on its third assertion, and the
+reason is a missing seam rather than missing work — see 7.2a, filed above.
+
+**The refusal is state, not a derivation.** `startDate === null` is true for
+every cell on an undated axis, so a message rendered from it would be a
+standing complaint on a chart nobody has asked anything of. `refusal` is set by
+the two handlers that were already refusing — the click and the Enter/Space
+keydown — and cleared on the dated branch, so a refusal cannot outlive the plan
+gaining a start date.
+
+**It names the missing thing.** "This day cannot carry a calendar marker" is a
+dead control with a caption; the sentence has to say _project start date_
+because that is the only thing the reader can go and do. The test matches on
+`/project start date/` rather than the whole sentence, so the wording stays
+editable and the contract does not.
+
+**Drawn, not announced.** The message carries `data-marker-refusal` and no
+live-region role: 6.5 is the slice that puts it where a screen reader reaches
+it, and writing the role here would tick 6.5's box with nothing having proved
+it.
+
+**THREE NEGATIVES WATCHED**, baseline 183 → 185 pass / 0 fail on
+`gantt-panel.test.tsx`, restored after each:
+
+1. `setRefusal(UNDATED_REFUSAL)` neutered in **both** handlers → **183 / 2**,
+   the two new cases alone, `.toMatch() expects to receive a string, but got
+undefined`.
+2. The message replaced by the generic `This day cannot carry a calendar
+marker.` → **183 / 2**, the same two cases, `expected 'This day cannot carry
+a calendar mark…' to match /project start date/`. This is the one that makes
+   _naming_ the date load-bearing; negative 1 passes against any message at all.
+3. Not injectible, and recorded as such: 7.2's own second negative — the
+   refusal path also issuing a create — has no method to issue one.
+
+**The plan's predicted matrix for negative 1 was half wrong**, and the
+correction is in 7.2 above: "a composer opened" cannot fail, because
+`setComposerAt` is only reached on the dated branch and `composerAt === null`
+renders nothing regardless of what the refusal branch does.
+
+**GATES on h2puni** (`~/t235-gate`, `NX_DAEMON=false`): full `fe-01:test` rc 0 —
+**2234 pass / 0 fail across 86 files**, exactly +2 over chunk 26's 2232;
+`fe-01:typecheck` rc 0; scoped `bunx eslint` over both changed files rc 0 (the
+full-project target is the OOM-blocked one chunk 22 measured, and CI runs it);
+`prettier --write` over both files reported **unchanged**.

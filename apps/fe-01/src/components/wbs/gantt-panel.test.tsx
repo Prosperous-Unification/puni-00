@@ -5078,6 +5078,72 @@ describe('the undated axis cell announces which cell it is and why it is unavail
   });
 });
 
+describe('an undated plan refuses the mark and names the date it is missing', () => {
+  // Slice 7.2, **two of its three assertions**. The third — "the fake API
+  // received no create call" — has no seam at this head and is not written
+  // here, because writing it would be worse than leaving it out: there is no
+  // calendar-marker writer on `ProjectApi` at all (`wbs-api.ts:1155`, and
+  // `CalendarMarker` appears in fe-01 only inside this component and its
+  // tests), so the fault it exists to catch — a refusal path that synthesised
+  // an `IsoDate` and posted straight through — cannot be written either. An
+  // assertion whose negative is uninjectable is the vacuous form this plan
+  // rejects elsewhere by name (9.2b). Task 7.2a carries the seam; 7.2 stays
+  // unticked until it lands.
+  const drawUndated = () =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 8)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 8)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  itDom('clicking a cell renders the refusal and opens no composer', () => {
+    drawUndated();
+
+    fireEvent.click(cellAt(3));
+
+    // Named, not merely present: "this day cannot be marked" is a dead control
+    // with a caption, and the reader learns nothing to go and do. The match is
+    // on the missing thing itself rather than on the whole sentence, so the
+    // wording stays editable and the contract does not.
+    expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
+      /project start date/,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  itDom('the keyboard reaches the same refusal', () => {
+    // The cell has a tab stop and an Enter handler as of 6.4a, so the refusal
+    // has to be reachable the way that stop promises. Without this case the
+    // key handler's undated branch is an implemented path with no test, and
+    // the click case above stays green while a reader operating the axis by
+    // keyboard gets silence.
+    drawUndated();
+
+    fireEvent.keyDown(cellAt(3), { key: 'Enter' });
+
+    expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
+      /project start date/,
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
 describe('a calendar marker is a chip in the axis band, placed by its date', () => {
   /**
    * The colour the fixture marker is stored in — a `PALETTE` entry, so it is a

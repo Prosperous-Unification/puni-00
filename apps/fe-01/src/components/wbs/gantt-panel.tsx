@@ -1107,6 +1107,19 @@ export function markerFill(marker: CalendarMarkerView): string {
 const NO_MARKERS: readonly CalendarMarkerView[] = [];
 
 /**
+ * What an undated plan's axis cell says when it is operated.
+ *
+ * It names the **missing project start date** and not merely "this cannot be
+ * marked", because the refusal is only actionable if the reader learns which
+ * thing to go and set. A marker's date is absolute, so the marker itself is
+ * perfectly storable against an undated project (task 7.4) — what is missing
+ * is the calendar this axis would have to draw it on, and saying that is the
+ * difference between a dead control and a next step.
+ */
+const UNDATED_REFUSAL =
+  'This plan has no project start date, so its days are workday numbers rather than calendar days and cannot carry a calendar marker. Set a project start date first.';
+
+/**
  * The workday axis: one cell per whole workday the horizon reaches, printing
  * the offset itself.
  *
@@ -2553,6 +2566,19 @@ function GanttChart({
    * so the answer is carried and never recomputed.
    */
   const [composerAt, setComposerAt] = useState<IsoDate | null>(null);
+  /**
+   * Why the cell that was just operated refuses to open a composer, or `null`
+   * when nothing has been refused.
+   *
+   * Separate state from {@link composerAt} rather than a derived
+   * `startDate === null`, because the refusal is an **answer to an action**:
+   * a plan with no start date draws a whole axis of cells that cannot be
+   * marked, and rendering the sentence merely because the plan is undated
+   * would put a standing complaint on a chart nobody has asked anything of.
+   * It is cleared on the dated branch so a refusal does not outlive the plan
+   * gaining a start date and a cell then opening normally.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
   /**
    * Escape closes the composer, which is the only way it closes at all.
    *
@@ -4114,7 +4140,11 @@ function GanttChart({
                   // is this, versus mark this day) and the pointer that clicked
                   // is by definition still over the cell that opened it.
                   onClick={() => {
-                    if (day.date === null) return;
+                    if (day.date === null) {
+                      setRefusal(UNDATED_REFUSAL);
+                      return;
+                    }
+                    setRefusal(null);
                     setComposerAt(day.date);
                   }}
                   // The control contract, and it ships **with** the click
@@ -4170,7 +4200,11 @@ function GanttChart({
                   onKeyDown={(key) => {
                     if (key.key !== 'Enter' && key.key !== ' ') return;
                     key.preventDefault();
-                    if (day.date === null) return;
+                    if (day.date === null) {
+                      setRefusal(UNDATED_REFUSAL);
+                      return;
+                    }
+                    setRefusal(null);
                     setComposerAt(day.date);
                   }}
                   // The first day of each week reads as the heading it is, over
@@ -4446,6 +4480,25 @@ function GanttChart({
         3.5 and 6.3. What is here is what 6.1 is about: the click surface
         reaching a composer bound to the right date.
       */}
+        {/*
+        The refusal, drawn where the composer it stands in for would have
+        opened, so a reader who clicked a cell finds the answer in the place
+        they were looking.
+
+        **Drawn only, not yet announced.** Task 6.5 is the slice that puts this
+        sentence into the live region a screen reader reaches; it is not here
+        yet, and the `data-marker-refusal` hook is what 6.5 will attach that
+        role to. Writing the role now would tick 6.5's box with nothing having
+        proved it.
+      */}
+        {refusal !== null && (
+          <p
+            data-marker-refusal
+            className="border-border bg-background text-muted-foreground fixed bottom-4 left-1/2 z-30 max-w-xs -translate-x-1/2 rounded-md border p-3 text-xs shadow-md"
+          >
+            {refusal}
+          </p>
+        )}
         {composerAt !== null && (
           <div
             role="dialog"
