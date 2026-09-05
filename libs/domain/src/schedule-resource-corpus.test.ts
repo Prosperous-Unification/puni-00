@@ -98,6 +98,15 @@ type Fact = 'people' | 'capacity' | 'priority' | 'dependency-reach' | 'manual-fl
  * built plan, because the two are not the same thing: dropping `poolIds` from
  * finished slices would leave the pool sizes behind, and a stripped plan has to
  * be the plan a generator that never knew the fact would have produced.
+ *
+ * **Every draw below is unconditional, and `strip` only ever discards a value
+ * that was already drawn.** Skipping the draw instead is the bug the first
+ * version of this file shipped: `strip === 'people' || random() > 0.55`
+ * short-circuits, the LCG stream diverges from that point on, and the "stripped"
+ * plan is a different plan rather than the same one missing a fact. It measured
+ * people and capacity at 1000/1000 — a difference count that would have stayed
+ * at 1000 against an engine that ignored people and pools entirely, which is the
+ * check-that-cannot-fail failure the counts exist to avoid.
  */
 function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
   const random = randomFrom(seed);
@@ -109,7 +118,8 @@ function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
     const rootId = `r${String(r)}`;
     // A priority on a parent reaches its leaves (`schedule.ts:1732`), so put
     // some up the tree and some on the leaf itself — the two paths differ.
-    const rootPriority = random() > 0.7 ? 1 + Math.floor(random() * 3) : null;
+    const hasRootPriority = random() > 0.7;
+    const rootPriority = hasRootPriority ? 1 + Math.floor(random() * 3) : null;
     rows.push({
       id: rootId,
       parentId: null,
@@ -152,11 +162,14 @@ function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
   // `schedule()` reserves nothing for a pool absent from this map, and a corpus
   // that carried unsized pools would be generating the no-capacity plan under a
   // capacity-shaped name.
-  const poolSizes = new Map<string, number>();
-  if (strip !== 'capacity') {
-    for (const pool of POOLS) if (random() > 0.35) poolSizes.set(pool, 1 + Math.floor(random() * 2));
+  const drawnSizes = new Map<string, number>();
+  for (const pool of POOLS) {
+    const sized = random() > 0.35;
+    const size = 1 + Math.floor(random() * 2);
+    if (sized) drawnSizes.set(pool, size);
   }
-  const sizedPools = [...poolSizes.keys()];
+  const sizedPools = [...drawnSizes.keys()];
+  const poolSizes = strip === 'capacity' ? new Map<string, number>() : drawnSizes;
 
   const slices: Slice[] = [];
   for (const leaf of leaves) {
@@ -164,8 +177,16 @@ function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
     // One person for the whole work item, which is the `assumedAssignee` reading
     // the caller is required to have already made (`schedule.ts:31`); a person
     // resolved per slice would be a second implementation of that rule.
-    const person = strip === 'people' || random() > 0.55 ? null : pick(PEOPLE);
-    const pool = sizedPools.length > 0 && random() > 0.4 ? pick(sizedPools) : null;
+    const assigned = random() <= 0.55;
+    const whom = pick(PEOPLE);
+    const person = strip === 'people' || !assigned ? null : whom;
+    const pooled = random() > 0.4;
+    // `pick` on an empty array is `undefined`, so draw against a fixed-length
+    // stand-in and resolve afterwards: the draw has to happen whether or not any
+    // pool was sized, or a seed that sized none would shift every later draw.
+    const which = POOLS[Math.floor(random() * POOLS.length)];
+    const pool =
+      strip === 'capacity' || !pooled || !sizedPools.includes(which) ? null : which;
     for (const stepId of steps) {
       slices.push({
         workItemId: leaf.id,
@@ -183,10 +204,10 @@ function generateResourcePlan(seed: number, strip?: Fact): ResourcePlan {
   }
 
   const notBefore = new Map<string, number>();
-  if (strip !== 'manual-floor') {
-    for (const leaf of leaves) {
-      if (random() > 0.75) notBefore.set(leaf.id, 1 + Math.floor(random() * 6));
-    }
+  for (const leaf of leaves) {
+    const floored = random() > 0.75;
+    const floor = 1 + Math.floor(random() * 6);
+    if (floored && strip !== 'manual-floor') notBefore.set(leaf.id, floor);
   }
 
   // `whole-item` is the column's default and therefore what a generator blind to
