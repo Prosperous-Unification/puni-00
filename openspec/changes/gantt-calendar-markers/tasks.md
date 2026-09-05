@@ -948,7 +948,7 @@ in both slices rather than implied by position.
       announce on the child's insertion — the same event — and would be one
       more element that can lose the role.
       This is also **6.4a's fifth case**, which is why that slice ticks with
-      it. The Enter case now locates the message *by the live-region role* and
+      it. The Enter case now locates the message _by the live-region role_ and
       asserts the region is the refusal element, not merely near it. Two
       negatives, against a 187 / 0 baseline on this file: `role="status"`
       removed → **185 / 2**, the Enter and Space cases and nothing else — the
