@@ -1845,3 +1845,84 @@ Two more needed a judgement rather than an entry:
   before the project-settings migration". It is now positional against
   `PROJECT_SETTINGS` itself, so it keeps meaning what it says as folders land
   above it. Its `ALSO_ROLLED_BACK` gained `calendar_marker` for the same reason.
+
+## Implementation notes — chunk 5 (TASK-235 run 3, 2026-09-05)
+
+**Slice 4.1's storage half.** `CalendarMarkerRepository`
+(`apps/be-01/src/repository/calendar-marker.ts`) with `listFor`, `create`,
+`rename`, `recolor` and `remove`, the `CalendarMarkerStore` contract in
+`repository/index.ts`, and `calendar-marker-repository.db.test.ts` — twelve
+cases against real SQLite. **4.1 stays unchecked**: the HTTP half — the
+controller, `buildApp` wiring and `calendar-marker.controller.db.test.ts` — is
+not written, and 4.1's checkbox is about the routes.
+
+**Why the storage half is its own chunk rather than the first half of a big
+one.** Two of 4.1's three named assertions are _database_ claims and nothing
+above SQLite can carry them: the total order's third key is the engine's own
+tie-break, and the absent-project refusal exists to keep a foreign key from
+throwing. Both are provable now, and both would have been proved through four
+more layers if they had waited for the routes.
+
+**The ordering case's two ids are pinned twice over.**
+`b1000000-0000-4000-8000-000000000001` and
+`f1000000-0000-4000-8000-000000000002` are inserted in the reverse of their
+lexical order, so insertion order and the asserted sequence disagree and the
+`id` key is the only thing that can produce it — which is this slice's own
+finding, that two reads of a tied pair can agree with the key gone. They also
+land in **different palette buckets** (7 `magenta`, 6 `violet`), which is what
+makes 3.1(c)'s same-date distinctness assertion a real oracle rather than a
+one-in-eight coin flip. The rename-stability marker is
+`c1000000-0000-4000-8000-000000000003`, bucket 0 `crimson`.
+
+**3.1(b) and 3.1(c) are housed here, as the round-7 Gemini review required** —
+`automaticColor(markerId)` sees neither a name nor a date, so their oracles have
+to live where a marker is really renamed and where two really share a date.
+Both are cases in this file. Their _mutations_ stay 3.1's.
+
+**FOUR NEGATIVES WATCHED FAILING, each in a different place, each exactly one
+case** (h2puni, the one file, 2026-09-05):
+
+1. `asc(calendarMarker.id)` struck from the `orderBy` → only `orders a tie on
+(date, created_at) by id`, on a `toEqual` diff of the two-id sequence. 11
+   pass, 1 fail.
+2. The project-existence read inside `create`'s transaction struck → only
+   `refuses a marker on a project nothing holds, and writes nothing`, with an
+   uncaught `SQLiteError: FOREIGN KEY constraint failed` where a modelled
+   `not_found` was owed. 11 pass, 1 fail.
+3. The duplicate-id read struck → only `refuses a repeated id and leaves the
+stored marker untouched`, `SQLiteError: UNIQUE constraint failed:
+calendar_marker.id`. 11 pass, 1 fail.
+4. `one()`'s `projectId` scope dropped from the `WHERE` → only `answers
+not_found for another project's marker, and never touches it`. 11 pass, 1
+   fail.
+
+**The audit guard caught this chunk before anything else did, and that is the
+trap worth recording.** `audit.test.ts` reads every non-test file in
+`repository/` for `.insert(x)` / `.update(x)` and requires each to stamp
+`auditOnCreate` / `auditOnUpdate`. A new repository over a table with no audit
+columns is therefore **two red cases on its first run** — `stamps every insert`
+and `stamps every update` — with nothing wrong with it. The answer is the
+`EXEMPT` set, and the set is itself guarded: `exempts only tables that carry no
+audit columns` re-reads `schema.ts` and fails an exemption for a table that does
+carry them, so the escape hatch cannot silence the guard on a table that should
+be stamped. `calendarMarker` is exempt because its `created_at` is an **ordering
+key, not a stamp**, and the change's spec forbids a per-marker role, so a
+`created_by` would name an author no later decision consults.
+
+**Lint's two rules to know here:** `noUncheckedIndexedAccess` is off, so
+`array[0]` is non-nullable and both `?.` and `!` on one are
+`no-unnecessary-condition` / `no-unnecessary-type-assertion` errors. Seven of
+them, all in the new file.
+
+**GATES on h2puni (`~/t235-gate`, `NX_DAEMON=false`).** `nx run-many -t test -p
+be-01 domain` rc 0: be-01 **1530 pass / 0 fail** across 125 files against a
+measured baseline of 1518 — exactly the twelve new cases, no regression — and
+domain 506 / 0 unchanged. `nx run-many -t lint typecheck -p be-01 domain` rc 0.
+`nx format:check --all` rc 0. `rm -rf dist` before each whole-directory run, per
+chunk 1's trap.
+
+**Next chunk:** 4.1's HTTP half — `calendar-marker.controller.ts`, a
+`CalendarMarkerService` seam if one is wanted, `buildApp` wiring and
+`calendar-marker.controller.db.test.ts`. 4.2 (write permission) and 4.5 (the
+eight-row refusal table) fall out of the same file, and 3.4's two server faults
+need the create and recolour handlers to exist before either can be removed.
