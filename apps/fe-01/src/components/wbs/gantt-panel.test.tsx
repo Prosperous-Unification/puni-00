@@ -5148,9 +5148,14 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
 
     fireEvent.keyDown(cellAt(3), { key: 'Enter' });
 
-    expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
-      /project start date/,
-    );
+    // 6.5, and 6.4a's fifth case with it: **located by the live-region role**,
+    // not by the test id and then checked for a role. A reader who operates
+    // this cell by keyboard is exactly the reader who cannot see the box the
+    // click case looks at, so a refusal outside the region is silence for the
+    // only person the tab stop was added for. Asserting the region's own text
+    // is what says the sentence is *in* it rather than beside it.
+    expect(screen.getByRole('status').textContent).toMatch(/project start date/);
+    expect(screen.getByRole('status')).toBe(document.querySelector('[data-marker-refusal]'));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -5168,9 +5173,7 @@ describe('an undated plan refuses the mark and names the date it is missing', ()
 
     fireEvent.keyDown(cellAt(3), { key: ' ' });
 
-    expect(document.querySelector('[data-marker-refusal]')?.textContent).toMatch(
-      /project start date/,
-    );
+    expect(screen.getByRole('status').textContent).toMatch(/project start date/);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 

@@ -885,7 +885,7 @@ in both slices rather than implied by position.
       **The visible focus ring is not in this slice** — jsdom computes no
       styles, so a focus-ring assertion here would pass against no ring at all.
       It moves to 9.2a's browser test.
-- [ ] 6.4a The **undated** cell is a keyboard-operable control announcing an
+- [x] 6.4a The **undated** cell is a keyboard-operable control announcing an
       unavailable state — `role="button"`, `tabIndex={0}`,
       `aria-disabled="true"`, the same Enter and Space handlers, an accessible
       name naming the missing project start date, and no `aria-haspopup` or
@@ -933,12 +933,30 @@ in both slices rather than implied by position.
       refusal was unreachable by exactly the users the live region serves. It
       is `aria-disabled`, not `disabled`, because a disabled control leaves the
       tab order and a user who cannot reach it is never told why it is dead.
-- [ ] 6.5 The refusal is announced, not only drawn — the undated-plan message
+- [x] 6.5 The refusal is announced, not only drawn — the undated-plan message
       from 7.2 rendered into a live region — test: same file, assert the
       message's container carries the live-region role the app already uses for
       transient status. Negative: the live-region attribute removed, watched
       failing. A message a screen reader never reaches is the silent absence
       `design.md` §1 refuses.
+      **Landed (chunk 31).** `role="status"` on the refusal paragraph itself —
+      not an alert, the same choice `gantt-panel.tsx`'s filter note makes,
+      because nothing is wrong: the plan simply has no start date yet. The
+      role carries `aria-live="polite"` implicitly, so the intent is not
+      spelled twice. The paragraph **is** the region rather than sitting
+      inside one: a wrapper kept mounted while its child came and went would
+      announce on the child's insertion — the same event — and would be one
+      more element that can lose the role.
+      This is also **6.4a's fifth case**, which is why that slice ticks with
+      it. The Enter case now locates the message *by the live-region role* and
+      asserts the region is the refusal element, not merely near it. Two
+      negatives, against a 187 / 0 baseline on this file: `role="status"`
+      removed → **185 / 2**, the Enter and Space cases and nothing else — the
+      click case, which still queries by `data-marker-refusal`, stayed green,
+      which is exactly why it could never have caught this; and the role moved
+      to a wrapper with the message in a nested `<span>` → **186 / 1**, the
+      Enter case alone, on the identity assertion. The second is the one that
+      makes "in the region" load-bearing rather than "somewhere on screen".
 
 ## 7. The undated-plan refusal
 

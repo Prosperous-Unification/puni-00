@@ -4485,14 +4485,22 @@ function GanttChart({
         opened, so a reader who clicked a cell finds the answer in the place
         they were looking.
 
-        **Drawn only, not yet announced.** Task 6.5 is the slice that puts this
-        sentence into the live region a screen reader reaches; it is not here
-        yet, and the `data-marker-refusal` hook is what 6.5 will attach that
-        role to. Writing the role now would tick 6.5's box with nothing having
-        proved it.
+        **Announced as well as drawn** (task 6.5). `role="status"` and not an
+        alert, the same choice the filter note below makes: nothing is wrong —
+        the plan simply has no start date yet — and an alert interrupts. The
+        role also carries `aria-live="polite"` implicitly, so the sentence is
+        not spelled twice.
+
+        The paragraph **is** the region rather than sitting inside one: a
+        wrapper that stayed mounted while its child came and went would
+        announce on the child's insertion, which is the same event, and the
+        extra element would be one more thing that can lose the role. Mounting
+        the region with its text already in it is what the panel does
+        everywhere else it says something transient.
       */}
         {refusal !== null && (
           <p
+            role="status"
             data-marker-refusal
             className="border-border bg-background text-muted-foreground fixed bottom-4 left-1/2 z-30 max-w-xs -translate-x-1/2 rounded-md border p-3 text-xs shadow-md"
           >
