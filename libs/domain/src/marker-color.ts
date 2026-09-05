@@ -59,6 +59,29 @@ export interface MarkerBackdrop {
 // --- colour arithmetic -----------------------------------------------------
 
 /**
+ * The one spelling of "a hex triple" in this codebase.
+ *
+ * Named once and read by both {@link parseHex} and {@link isHexTriple} on
+ * purpose: an API that refuses a shape `parseHex` would have thrown on, or
+ * accepts one it would not, is two rules wearing one name. Not exported —
+ * `isHexTriple` is the question callers have.
+ */
+const HEX_TRIPLE = /^#([0-9a-fA-F]{6})$/;
+
+/**
+ * Is this a well-formed `#rrggbb`?
+ *
+ * The **precondition** {@link validateCustomColor} states and does not check:
+ * that function throws through `parseHex` on a malformed colour, because a
+ * contrast verdict about a typo would be an answer to a question nobody asked.
+ * A boundary that takes colours from a client asks this first, answers
+ * `malformed`, and only then asks about contrast.
+ */
+export function isHexTriple(hex: string): boolean {
+  return HEX_TRIPLE.test(hex);
+}
+
+/**
  * `#rrggbb` to an sRGB triple. Throws on anything else.
  *
  * Six digits only, and the three-digit form is deliberately not accepted: every
@@ -66,7 +89,7 @@ export interface MarkerBackdrop {
  * `#f00` would be accepting a shape no stored marker uses.
  */
 export function parseHex(hex: string): Rgb {
-  const found = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  const found = HEX_TRIPLE.exec(hex);
   if (!found) throw new Error(`not a hex colour: ${hex}`);
   const n = parseInt(found[1], 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];

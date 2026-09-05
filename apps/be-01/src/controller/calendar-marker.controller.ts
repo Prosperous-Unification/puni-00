@@ -1,4 +1,4 @@
-import { isIsoDate } from '@wbs/domain';
+import { isHexTriple, isIsoDate, isMarkerName, validateCustomColor } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
 import { callerGuard } from '../middleware/caller';
@@ -48,7 +48,18 @@ const patchBody = () =>
  * request itself being wrong rather than a conflict with the project as it
  * stands (spec.md's refusal table; task 4.5 tests it row by row).
  */
-const statusFor = (reason: CalendarMarkerRefusal): number => statusForRefusal(reason, 422);
+const MARKER_ROUTE_DEFAULT = 422;
+
+/**
+ * Every refusal these routes answer goes through here, the body ones included.
+ *
+ * Not two ladders — a hard-coded 422 beside the shared one would make the
+ * default unfalsifiable: `taken`, `not_found` and `forbidden` all leave through
+ * their own arms, so changing {@link MARKER_ROUTE_DEFAULT} would move no status
+ * at all and task 4.5's first negative could not be watched failing anything.
+ */
+const statusFor = (reason: CalendarMarkerRefusal | BodyProblem['reason']): number =>
+  statusForRefusal(reason, MARKER_ROUTE_DEFAULT);
 
 /**
  * A v4 UUID and nothing else (task 4.6a).
@@ -67,8 +78,42 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 /** One row of the spec's refusal table: the code it answers with, and the field it blames. */
 interface BodyProblem {
-  reason: 'malformed';
-  field: 'id' | 'date';
+  reason: 'malformed' | 'contrast';
+  field: 'id' | 'date' | 'name' | 'color';
+}
+
+/**
+ * The `name` rows of the table, which are one row: empty and over
+ * `MARKER_NAME_MAX` are the same refusal at the two ends of one bound.
+ *
+ * `isMarkerName` from the domain rather than a length check here, and the
+ * difference is not stylistic: the cap is counted in **code points** so an
+ * emoji costs one, and `name.length` counts UTF-16 units. The composer refuses
+ * over-long names before sending, so a second spelling here would be a second
+ * rule free to refuse a name the composer offered.
+ */
+function nameProblem(name: string): BodyProblem | null {
+  return isMarkerName(name) ? null : { reason: 'malformed', field: 'name' };
+}
+
+/**
+ * The two `color` rows, in the order the table has to answer them.
+ *
+ * **Shape first, contrast second, and they are different codes.** A typo is
+ * `malformed`; a well-formed fill too dark to sit on some backdrop is
+ * `contrast`. Folding them together would answer a mistyped colour with a
+ * contrast measurement, and `validateCustomColor` states the shape as a
+ * precondition it does not check — handed `#f0` it throws, which at a
+ * boundary is a 500 blaming the server for the client's typo.
+ *
+ * Absent and `null` are both **automatic** and neither is a colour, so neither
+ * has anything to measure.
+ */
+function colorProblem(color: string | null | undefined): BodyProblem | null {
+  if (color === undefined || color === null) return null;
+  if (!isHexTriple(color)) return { reason: 'malformed', field: 'color' };
+  if (!validateCustomColor(color).ok) return { reason: 'contrast', field: 'color' };
+  return null;
 }
 
 /**
@@ -84,7 +129,12 @@ interface BodyProblem {
  * nothing — "refused" and "unchanged" are two claims, and the second is the one
  * a validate-after-write breaks.
  */
-function createProblem(body: { id?: string; date: string }): BodyProblem | null {
+function createProblem(body: {
+  id?: string;
+  date: string;
+  name: string;
+  color?: string | null;
+}): BodyProblem | null {
   if (body.id !== undefined && !UUID_V4.test(body.id)) return { reason: 'malformed', field: 'id' };
   // `isIsoDate` rather than a regexp of this file's own: it rejects
   // `2026-02-31`, which matches the shape and is not a day, and it is what
@@ -92,8 +142,20 @@ function createProblem(body: { id?: string; date: string }): BodyProblem | null 
   // spelling would be a second rule free to disagree with the one the rest of
   // the API applies.
   if (!isIsoDate(body.date)) return { reason: 'malformed', field: 'date' };
-  return null;
+  return nameProblem(body.name) ?? colorProblem(body.color);
 }
+
+/**
+ * The refusal body for a state the **service** decided, with the field its row
+ * of the table names.
+ *
+ * `forbidden` is the one row whose field is absent, and that absence is part of
+ * the contract rather than an omission: the refusal is about the caller, not
+ * about a member of the body. `taken` and `not_found` both blame the `id` — the
+ * one already stored, or the one that resolves to nothing this project owns.
+ */
+const refusalBody = (reason: CalendarMarkerRefusal) =>
+  reason === 'forbidden' ? { error: reason } : { error: reason, field: 'id' as const };
 
 /**
  * A project's calendar markers.
@@ -120,7 +182,7 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
         const outcome = await markers.list(params.id);
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+          return refusalBody(outcome.reason);
         }
         return { markers: outcome.value };
       },
@@ -131,13 +193,13 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
       async ({ params, body, user, set }) => {
         const problem = createProblem(body);
         if (problem !== null) {
-          set.status = 422;
+          set.status = statusFor(problem.reason);
           return { error: problem.reason, field: problem.field };
         }
         const outcome = await markers.create(params.id, user.id, body);
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+          return refusalBody(outcome.reason);
         }
         set.status = 201;
         return { marker: outcome.value };
@@ -159,16 +221,30 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
         const { name, color } = body;
         let outcome;
         if (name !== undefined && color === undefined) {
+          // Validated **before** the write, not after it. The spec's
+          // "SHALL NOT partially apply" is about exactly this: a rename that
+          // stores the new name and then refuses it has answered 422 and left
+          // the name behind, and "refused" and "unchanged" are two claims.
+          const problem = nameProblem(name);
+          if (problem !== null) {
+            set.status = statusFor(problem.reason);
+            return { error: problem.reason, field: problem.field };
+          }
           outcome = await markers.rename(params.id, params.markerId, user.id, name);
         } else if (color !== undefined && name === undefined) {
+          const problem = colorProblem(color);
+          if (problem !== null) {
+            set.status = statusFor(problem.reason);
+            return { error: problem.reason, field: problem.field };
+          }
           outcome = await markers.recolor(params.id, params.markerId, user.id, color);
         } else {
-          set.status = 422;
+          set.status = statusFor('malformed');
           return { error: 'malformed' as const, field: 'body' };
         }
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+          return refusalBody(outcome.reason);
         }
         return { marker: outcome.value };
       },
@@ -180,7 +256,7 @@ export function calendarMarkerController(auth: AuthService, markers: CalendarMar
         const outcome = await markers.remove(params.id, params.markerId, user.id);
         if (!outcome.ok) {
           set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+          return refusalBody(outcome.reason);
         }
         set.status = 204;
         return null;

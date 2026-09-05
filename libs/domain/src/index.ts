@@ -34,6 +34,10 @@ export * from './leaf-constraints';
 // over hex strings — the fills it measures live in fe-01's theme, and this
 // module reads none of them at run time.
 export * from './marker-color';
+// The marker name cap, counted in code points so an emoji costs one. Its own
+// module rather than a member of the colour one: the composer imports both and
+// they share nothing but the object they describe.
+export * from './marker-name';
 export * from './not-before';
 export * from './place-sibling';
 export * from './priority-band';

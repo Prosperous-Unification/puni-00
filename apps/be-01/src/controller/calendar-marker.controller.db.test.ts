@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MARKER_NAME_MAX } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -50,6 +51,38 @@ const TIED = ['f1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-0
  * create that ignored the clock entirely would also satisfy.
  */
 const MINTED = '01000000-0000-4000-8000-0000000000ff';
+
+/**
+ * U+1D11E, a **surrogate pair**: one code point, two UTF-16 units.
+ *
+ * The two name-boundary fixtures are built from it and nothing else, and that
+ * is what makes them boundary fixtures at all. `MARKER_NAME_MAX` is counted in
+ * code points so an emoji costs one, and 120 ASCII characters are 120 units
+ * too — an ASCII fixture is accepted and refused in exactly the same places by
+ * a correct implementation and by one counting `name.length`, so both boundary
+ * cases pass over the fault (round-7 Sol review).
+ */
+const ASTRAL = '𝄞';
+
+/** 120 code points, and `name.length` 240. Accepted: the cap is tested *at* its value. */
+const NAME_AT_CAP = ASTRAL.repeat(MARKER_NAME_MAX);
+
+/** 121 code points, and `name.length` 242. Refused by the same row an empty name is. */
+const NAME_OVER_CAP = ASTRAL.repeat(MARKER_NAME_MAX + 1);
+
+/**
+ * The custom fill every case that is **not** about colour sends — `azure` from
+ * `PALETTE`, which clears the 3:1 bar over all twenty backdrops.
+ *
+ * Named rather than inlined because of what task 4.5 found. These cases were
+ * written against `#4c3a86` while nothing measured a custom colour, and the
+ * moment the contrast row shipped they went red: that purple fails **ten** of
+ * the twenty backdrops (`dark:base` at 2.166 down to `dark:base+weekend+zebra+today`
+ * at 1.419) and was never a fill the API could have accepted. A permission case
+ * whose body is independently refusable is not a permission case, so the
+ * colour these send has to be one the bar passes.
+ */
+const CUSTOM_FILL = '#5d6afe';
 
 /**
  * The five marker routes, over HTTP and against real SQLite (task 4.1's HTTP
@@ -197,11 +230,11 @@ describe('the calendar-marker routes', () => {
     ]);
 
     const recoloured = await patch('owner', 'a1000000-0000-4000-8000-000000000001', {
-      color: '#4c3a86',
+      color: CUSTOM_FILL,
     });
     expect(recoloured.status).toBe(200);
     expect(await list('owner')).toMatchObject([
-      { name: 'Site visit, rescheduled', color: '#4c3a86' },
+      { name: 'Site visit, rescheduled', color: CUSTOM_FILL },
     ]);
 
     const removed = await as(
@@ -303,12 +336,17 @@ describe('the calendar-marker routes', () => {
       name: 'Not mine to add',
     });
     expect(created.status).toBe(403);
-    expect(((await created.json()) as { error: string }).error).toBe('forbidden');
+    // Task 4.5's `forbidden` row, and `toEqual` rather than a field read is the
+    // assertion: it is the one row whose `field` is **absent**, and that
+    // absence is part of the contract — the refusal is about the caller, not
+    // about a member of the body. Only an exact-shape assertion can fail when
+    // a field appears.
+    expect(await created.json()).toEqual({ error: 'forbidden' });
 
     const renamed = await patch('mallory', SEEDED, { name: 'Not mine to rename' });
     expect(renamed.status).toBe(403);
 
-    const recoloured = await patch('mallory', SEEDED, { color: '#4c3a86' });
+    const recoloured = await patch('mallory', SEEDED, { color: CUSTOM_FILL });
     expect(recoloured.status).toBe(403);
 
     const removed = await as(
@@ -431,7 +469,7 @@ describe('the calendar-marker routes', () => {
           id: SEEDED,
           date: '2026-09-14',
           name: 'Site visit',
-          color: '#4c3a86',
+          color: CUSTOM_FILL,
         })
       ).status,
     ).toBe(201);
@@ -443,7 +481,166 @@ describe('the calendar-marker routes', () => {
       name: 'A different day entirely',
     });
     expect(refused.status).toBe(409);
-    expect(((await refused.json()) as { error: string }).error).toBe('taken');
+    // Task 4.5's `taken` row, asserted where the collision already lives rather
+    // than in a second case of its own: the row names a status, a code **and**
+    // the field it blames, and two homes for one row would be two oracles free
+    // to disagree about it.
+    expect(await refused.json()).toEqual({ error: 'taken', field: 'id' });
+    expect(await list('owner')).toEqual(before);
+  });
+
+  /**
+   * Task 4.5: a `color` that is not a hex triple is `malformed`, not
+   * `contrast`.
+   *
+   * `rebeccapurple` is a real CSS colour and not a triple, and `#f00` is the
+   * three-digit form the domain's `parseHex` deliberately refuses — the shape
+   * a validator that silently widened it would accept and then store as
+   * something no other marker is written as.
+   *
+   * The two codes are kept apart because `validateCustomColor` states
+   * well-formedness as a **precondition it does not check**: handed either of
+   * these it throws, which at a boundary is a 500 blaming the server for the
+   * client's typo.
+   */
+  for (const color of ['rebeccapurple', '#f00']) {
+    it(`refuses the color ${color} as malformed, and writes nothing`, async () => {
+      const refused = await create('owner', {
+        id: 'e1000000-0000-4000-8000-000000000005',
+        date: '2026-09-14',
+        name: 'Site visit',
+        color,
+      });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error: 'malformed', field: 'color' });
+      expect(await list('owner')).toEqual([]);
+    });
+  }
+
+  /**
+   * Task 4.5: a well-formed fill that fails the 3:1 bar is `contrast` — a
+   * different code from the shape rows, over the same field.
+   *
+   * `#ff0000` is the fixture because it fails **exactly one** of the twenty
+   * backdrops — `light:pointed+today`, at 2.943:1 — so it also proves the
+   * server runs the whole loop rather than a sample of it. A colour failing ten
+   * backdrops would be refused by a validator that measured two.
+   */
+  it('refuses a fill under the 3:1 bar with `contrast`, and writes nothing', async () => {
+    const refused = await create('owner', {
+      id: 'e1000000-0000-4000-8000-000000000005',
+      date: '2026-09-14',
+      name: 'Site visit',
+      color: '#ff0000',
+    });
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toEqual({ error: 'contrast', field: 'color' });
+    expect(await list('owner')).toEqual([]);
+  });
+
+  /**
+   * Task 4.5: the `name` row, at both ends of one bound.
+   *
+   * Empty and over-cap are the same row of the table and the same refusal: the
+   * bound is 1 to `MARKER_NAME_MAX` code points, so "unnamed" is not a state a
+   * stored marker can be in either.
+   *
+   * Negative for the pair, and it is watched by the **acceptance** case below
+   * rather than by these: code-point counting replaced with `name.length`.
+   */
+  for (const [label, name] of [
+    ['an empty name', ''],
+    [`a name of ${String(MARKER_NAME_MAX + 1)} code points`, NAME_OVER_CAP],
+  ] as const) {
+    it(`refuses ${label}, naming the field, and writes nothing`, async () => {
+      const refused = await create('owner', {
+        id: 'e1000000-0000-4000-8000-000000000005',
+        date: '2026-09-14',
+        name,
+      });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error: 'malformed', field: 'name' });
+      expect(await list('owner')).toEqual([]);
+    });
+  }
+
+  /**
+   * Task 4.5: a name of exactly `MARKER_NAME_MAX` **code points** is accepted
+   * and stored whole.
+   *
+   * This is the case the astral fixtures exist for, and the direction that
+   * matters: a user refused a name the spec allows. `NAME_AT_CAP` is 120 code
+   * points and 240 UTF-16 units, so an implementation counting `name.length`
+   * refuses it — and refuses it while every rejection case above stays green,
+   * because those are wrong at both counts.
+   *
+   * Negative: `[...name].length` in `isMarkerName` replaced with `name.length`.
+   * Watched failing **only** this case, `422` where `201` was owed and no row
+   * written, with both refusal cases above and the refused-rename case below
+   * still green. Watched 2026-09-05.
+   */
+  it('accepts a name of exactly MARKER_NAME_MAX code points', async () => {
+    const made = await create('owner', {
+      id: 'e1000000-0000-4000-8000-000000000005',
+      date: '2026-09-14',
+      name: NAME_AT_CAP,
+    });
+    expect(made.status).toBe(201);
+    // Read back through the list rather than only from the create's answer:
+    // the assertion is that the whole name was *stored*, and a column that
+    // truncated it would answer the create with what it was handed.
+    expect(await list('owner')).toMatchObject([{ name: NAME_AT_CAP }]);
+    // The fixture's own invariant, asserted rather than trusted: 120 code
+    // points and 240 UTF-16 units, which is what makes the negative reachable.
+    // eslint-disable-next-line @typescript-eslint/no-misused-spread -- code points are the unit under test
+    expect([...NAME_AT_CAP].length).toBe(MARKER_NAME_MAX);
+    expect(NAME_AT_CAP.length).toBe(MARKER_NAME_MAX * 2);
+  });
+
+  /**
+   * Task 4.5: a refused rename applies nothing — the spec's "SHALL NOT
+   * partially apply", which is the second of two claims.
+   *
+   * "Refused" is the status. "Unchanged" is the row, and only this assertion
+   * reaches it: a rename that wrote the new name and then refused it answers
+   * exactly the same 422 as one that refused first.
+   *
+   * Negative: `nameProblem(name)` moved to **after** the
+   * `markers.rename(…)` call in the `PATCH` handler. Watched failing this case
+   * with the marker carrying `NAME_OVER_CAP` while the status stayed 422 and
+   * every other case in the file stayed green. Watched 2026-09-05.
+   */
+  it('refuses an over-cap rename and leaves the stored name behind', async () => {
+    expect(
+      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+    ).toBe(201);
+    const before = await list('owner');
+
+    const refused = await patch('owner', SEEDED, { name: NAME_OVER_CAP });
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toEqual({ error: 'malformed', field: 'name' });
+    expect(await list('owner')).toEqual(before);
+  });
+
+  /**
+   * Task 4.5: the `not_found` row — 404, and it blames the `id`.
+   *
+   * A marker id that resolves to nothing this project owns. The row covers "the
+   * marker is absent, or another project's" and answers the same code for both,
+   * because the caller may not learn that another project's marker exists;
+   * task 4.6 is where the second half of that sentence is driven.
+   */
+  it('refuses a rename of an absent marker with not_found, naming the field', async () => {
+    expect(
+      (await create('owner', { id: SEEDED, date: '2026-09-14', name: 'Site visit' })).status,
+    ).toBe(201);
+    const before = await list('owner');
+
+    const refused = await patch('owner', 'f9000000-0000-4000-8000-00000000000f', {
+      name: 'Nothing to rename',
+    });
+    expect(refused.status).toBe(404);
+    expect(await refused.json()).toEqual({ error: 'not_found', field: 'id' });
     expect(await list('owner')).toEqual(before);
   });
 });
