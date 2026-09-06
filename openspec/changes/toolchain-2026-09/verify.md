@@ -130,6 +130,29 @@ The browser gate is not part of `bin/h2puni-gate.sh`; its run is §4's Chromium 
 (`bun run e2e` on this box: 288 passed, 1 skipped, 5 failed before §7.3; deps-cell + hover-cards
 38/38 after; the 1268px pin pre-existing).
 
+### After merging `origin/main` (56 commits) into the branch — head `59359d2a`
+
+Four conflicts (be-01's Dockerfile, `tsconfig.base.json`, the calendar marker service,
+`work-item-deadline/tasks.md`) and main's new code under this branch's rules — nine
+`() => void (x += 1)` callbacks, one `void exhaustive;`, one caught error without its cause — are
+in the merge commit's message. Thirteen module-boundary errors on the first whole-tree lint were a
+stale Nx project graph that predated main's new `solver-supervisor-protocol` library; rebuilt, none.
+
+- [x] Local: `nx run-many -t test lint typecheck build --parallel=2` — 81 of 82 tasks green;
+      `solver-py:test` red for want of OR-Tools on this box, which CI installs from
+      `libs/solver-py/requirements.lock`; with that lock in a scratch venv on `PATH` the target
+      answers `Ran 193 tests … OK`. `nx format:check --all` clean, OpenSpec 40/40.
+- [x] Browser, this box: `292 passed, 1 skipped, 1 failed` — the same `project-settings.spec.ts`
+      pin (`1268.46875` against main's new `1265 + 2` allowance).
+- [x] GitHub CI on `59359d2a`: `gate` pass (12m31s), `pixels` pass (21m21s) — the pin passes
+      on the runner's fonts, which settles it as this box's.
+- [x] h2puni: `bin/h2puni-gate.sh` at `59359d2a` — `Successfully ran targets test, lint, typecheck, build for 24 projects`, 6m 42s, with the solver venv on the driver's `PATH` (the run before it was red on `solver-py:test` alone).
+
+Host note for main, not this change: h2puni's `python3` is PEP 668 externally managed and had no
+OR-Tools, so `solver-py:test` — main's new target — is red in the canonical gate there for
+everyone. A user venv at `/home/puni1/solver-venv` now carries the lock; `bin/h2puni-gate.sh`
+itself does not put it on `PATH`.
+
 ---
 
 ## 6. Implementation Signal
@@ -137,7 +160,7 @@ The browser gate is not part of `bin/h2puni-gate.sh`; its run is §4's Chromium 
 - [x] No unstaged files in the worktree (after this report's own commit)
 - [x] Relevant commits pushed to `origin/toolchain-2026-09`
 
-**Commit range**: `a91f831b..HEAD` — sixteen commits, one per slice of `tasks.md`, this report last
+**Commit range**: `a91f831b..HEAD` — sixteen slice commits, the merge of main, and this report
 
 ---
 
