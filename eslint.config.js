@@ -106,6 +106,26 @@ export default [
       ...react.configs.flat.recommended.rules,
       ...react.configs.flat['jsx-runtime'].rules,
       ...reactHooks.configs['recommended-latest'].rules,
+      // eslint-plugin-react-hooks 7 ships the React Compiler's own rules in
+      // `recommended-latest`. Four of them describe what the *compiler* needs
+      // in order to memoize a component, and this app does not run the
+      // compiler: `refs` refuses a `ref.current` read during render, which is
+      // the `live` seam every cell in `wbs-table.tsx` reads its live state
+      // through on purpose (LLM_README's first landmine); `set-state-in-effect`
+      // refuses the per-project re-reads of remembered layout that happen in
+      // effects by design; `immutability` refuses a test harness that captures
+      // a hook's API during render because reading it out of an effect would
+      // be one render stale (`toasts.test.tsx`); and
+      // `preserve-manual-memoization` reports "Compilation Skipped", which is
+      // about a compilation that never runs. Measured on 2026-09-06 with all
+      // four on: 41 + 15 + 2 + 1 findings, every one at a site that is
+      // deliberate and documented where it stands. The other compiler rules
+      // (`purity`, `set-state-in-render`, `error-boundaries`, `globals`, …)
+      // stay on: they name faults regardless of the compiler.
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
       ...jsxA11y.flatConfigs.recommended.rules,
       ...tanstackRouter.configs['flat/recommended'].rules,
       ...tanstackQuery.configs['flat/recommended'].rules,
