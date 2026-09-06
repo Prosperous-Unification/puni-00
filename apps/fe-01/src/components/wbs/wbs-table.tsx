@@ -1,11 +1,14 @@
 import {
+  type CellData,
   createColumnHelper,
+  createExpandedRowModel,
   type ExpandedState,
   flexRender,
-  getCoreRowModel,
-  getExpandedRowModel,
   type RowData,
-  useReactTable,
+  rowExpandingFeature,
+  type TableFeatures,
+  tableFeatures,
+  useTable,
 } from '@tanstack/react-table';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { effectiveServicesOf } from '@wbs/domain/effective-service';
@@ -2096,9 +2099,21 @@ const NO_CHART_READ: ChartRead = {
  */
 const NO_MARKERS: readonly CalendarMarkerView[] = [];
 
-const column = createColumnHelper<TreeRow>();
+/**
+ * The table's features, named once: rows that expand, and the row model that
+ * honours the expansion. TanStack Table 9 builds a table from exactly the
+ * features it is handed — nothing else is on the instance or in its types —
+ * so this is also the list of what `wbs-table.tsx` may call on a row.
+ */
+const PLAN_TABLE_FEATURES = tableFeatures({
+  rowExpandingFeature,
+  expandedRowModel: createExpandedRowModel(),
+});
+type PlanTableFeatures = typeof PLAN_TABLE_FEATURES;
 
-declare module '@tanstack/react-table' {
+const column = createColumnHelper<PlanTableFeatures, TreeRow>();
+
+declare module '@tanstack/table-core' {
   /**
    * What a column is called out loud, where that is not what its heading
    * shows.
@@ -2116,12 +2131,19 @@ declare module '@tanstack/react-table' {
    * fault this went through: `getByRole('columnheader', { name: 'Number' })`
    * found nothing with the label a level down.
    */
-  // The generic parameters are TanStack's own; this interface is merged into
-  // its declaration, so they are named to match rather than used here.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends RowData, TValue> {
+  // The generic parameters — variance annotations included — are TanStack's
+  // own; this interface is merged into its declaration in `@tanstack/table-core`
+  // (what `@tanstack/react-table` re-exports), so they are spelled to match
+  // rather than used here.
+  /* eslint-disable @typescript-eslint/no-unused-vars -- the merged declaration's own parameters, unused by this member */
+  interface ColumnMeta<
+    in out TFeatures extends TableFeatures,
+    in out TData extends RowData,
+    TValue extends CellData = CellData,
+  > {
     spokenHeading?: string;
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
 /** One tickable value of one facet: what to filter by, and what to call it. */
@@ -10320,7 +10342,8 @@ export function WbsTable({
     [steps, unfoldedSteps, hiddenColumnIds],
   );
 
-  const table = useReactTable({
+  const table = useTable({
+    features: PLAN_TABLE_FEATURES,
     data: workItems,
     columns,
     // While a search is on, the expansion in force is the search's overlay:
@@ -10336,10 +10359,20 @@ export function WbsTable({
     // back` failed with the whole plan open. Both watched, 2026-08-06.
     state: { expanded: search.expandedOverlay ?? expanded },
     onExpandedChange: setExpanded,
+    // The expansion is this component's — remembered per project, opened on
+    // a drop and on a gap visit, never the table's to reset. TanStack Table 9
+    // resets it to `{}` after every row-structure change unless told not to,
+    // and every write here refetches the tree, so without this line the plan
+    // folded shut on its own first edit.
+    //
+    // Proof: with this line removed, 69 jsdom tests failed, `types a
+    // three-level breakdown without touching the mouse` among them on
+    // `expected [ '010' ] to deeply equal [ '010', '010.1' ]` — the table's
+    // `expanded` read back as `{}` on the render after the indent's refetch.
+    // Observed 2026-09-06.
+    autoResetExpanded: false,
     getSubRows: (row) => row.subRows,
     getRowId: (row) => row.id,
-    getCoreRowModel: getCoreRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
   });
 
   /**
@@ -10813,7 +10846,12 @@ export function WbsTable({
    * table model rather than listed here, so unfolding a step cannot leave the
    * declared widths describing the columns of a moment ago.
    */
-  const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
+  // `getAllLeafColumns`, not `getVisibleLeafColumns`: a hidden column is left
+  // out of `columns` (see `hiddenColumnIds`) rather than hidden through table
+  // state, so every column the table has is a shown one and the visibility
+  // feature is not among {@link PLAN_TABLE_FEATURES}. Same for `getAllCells`
+  // on the rows below.
+  const leafColumnIds = table.getAllLeafColumns().map((column) => column.id);
 
   /**
    * Every width this render declares, resolved once.
@@ -12056,7 +12094,7 @@ export function WbsTable({
                       );
                     }}
                   >
-                    {row.getVisibleCells().map((cell) => (
+                    {row.getAllCells().map((cell) => (
                       <td
                         key={cell.id}
                         // See the `th` above: the layout gate measures these boxes
