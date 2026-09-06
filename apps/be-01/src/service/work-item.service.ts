@@ -1,5 +1,6 @@
 import {
   addWorkdays,
+  deadlineOffsetOf,
   type DependencyReach,
   deriveNumbers,
   effectiveTeamsOf,
@@ -11,6 +12,7 @@ import {
   type IsoDate,
   isWithin,
   lastWorkdayOf,
+  nextWorkday,
   NOT_STARTED,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -685,9 +687,46 @@ export type WorkItemRefusal =
    * sentence, and a write that silently deletes them is the worse of the two
    * answers.
    */
-  | 'not_before_reason_needs_a_date';
+  | 'not_before_reason_needs_a_date'
+  /**
+   * A deadline that falls before the project's day zero, so no placement of
+   * the work could ever meet it.
+   *
+   * **The only deadline-specific refusal** (`work-item-deadline` 6.1). The shape
+   * of the value is the controller's — a non-`IsoDate` is a malformed payload —
+   * and everything else about a deadline is legal here, including one in the
+   * past relative to today and one earlier than an ancestor's.
+   *
+   * It refuses the **write** and nothing else. A project start later moved past
+   * a deadline already stored does not become this: that is resolved at read
+   * time and reported as late by the whole span, and the request that moved the
+   * project is not rejected. See the column's JSDoc in `schema.ts`, which is
+   * where that asymmetry is argued.
+   */
+  | 'deadline_before_project_start';
 
-export type WorkItemOutcome<T> = { ok: true; value: T } | { ok: false; reason: WorkItemRefusal };
+export type WorkItemOutcome<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      reason: WorkItemRefusal;
+      /**
+       * Which row was refused, on `deadline_before_project_start` alone.
+       *
+       * Optional rather than a fourth arm of the union so that every existing
+       * `{ ok: false, reason }` still assigns, and read by the batch runner's
+       * `detailOf`, which spreads whatever a refusal carries beside its code
+       * into the answer's `detail` — the same road `taken`'s `name` travels.
+       */
+      workItemId?: string;
+      /**
+       * The project's **day zero** — the first workday on or after its start
+       * date, which is what `deadlineOffsetOf` compares against — so the client
+       * can say what the earliest legal deadline is rather than only that this
+       * one was wrong.
+       */
+      projectDayZero?: IsoDate;
+    };
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -939,6 +978,12 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // screen and the press is refused. The parallelism line's own red, one field
   // over. Watched 2026-08-18.
   if (patch.startNoEarlierThanReason !== undefined) named.push('startNoEarlierThanReason');
+  // Proof: this line deleted, so a patch naming only the deadline journals
+  // nothing, and `puts a cleared deadline back` failed at its `expectDone` on
+  // `refused: stale_undo`: the undo reached past the unjournalled write to an
+  // entry that write had already made stale. The reason line's own red, one
+  // column over.
+  if (patch.deadline !== undefined) named.push('deadline');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -1016,6 +1061,14 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   if (patch.startNoEarlierThanReason !== undefined) {
     out.startNoEarlierThanReason = before.startNoEarlierThanReason;
   }
+  // No pair to reconstruct — the deadline has no reason column beside it — so
+  // this is the scalar rule the priority below it keeps: name the field the
+  // forward named, restore the value it had, and leave every other field alone.
+  // `before.deadline` is whichever of the two the row actually held, so the
+  // inverse of a set is the prior date or `null` and the inverse of a clear is
+  // the date. **Redo does not come through here at all** — it replays the
+  // journalled `forward` patch — which is why 6.3's case presses both.
+  if (patch.deadline !== undefined) out.deadline = before.deadline;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   if (patch.teamIds !== undefined) out.teamIds = before.teamIds;
@@ -1720,6 +1773,12 @@ export class WorkItemService {
       startNoEarlierThan: null,
       // No floor, so no words about one — the only pair a new row can be in.
       startNoEarlierThanReason: null,
+      // No ceiling either. A new row states nothing about when it must finish,
+      // and inheriting the parent's deadline would be the stored-versus-effective
+      // bug the service comment below names: the fold over the ancestors is what
+      // makes a parent's deadline bind its children, and it reads the stored
+      // nulls to do it.
+      deadline: null,
       priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
@@ -1890,6 +1949,39 @@ export class WorkItemService {
     // watched 2026-08-12.
     if (patch.maxParallel !== undefined && context.value.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
+    }
+    // The one deadline-specific refusal, and it is here rather than at the
+    // controller for the reason the not-before pair is decided in the store:
+    // this is the first layer that has the **project** as well as the payload,
+    // and day zero is the project's. `null` clears the deadline and is asked
+    // nothing — there is no date to be before anything.
+    //
+    // `deadlineOffsetOf` is the same function the fold and Fast read, so the
+    // boundary a write is refused at is by construction the boundary a plan
+    // would have placed it against. Duplicating the comparison here with a
+    // plain `<` is what would let the two drift.
+    //
+    // Proof: this refusal deleted, and `refuses a deadline before the project
+    // starts, naming the row and day zero` fails on `Expected: 422, Received:
+    // 200` — the
+    // row takes a date that no placement of the work can meet and every later
+    // read of the project reports it late by a span nobody asked for.
+    //
+    // A project with no start date is asked nothing, for the reason the plan
+    // read gives one screen down about the not-before floors: there is nothing
+    // to count from, so there is no day zero for a date to fall before. A plan
+    // off the calendar takes any deadline and applies none of them.
+    const projectStart = context.value.project.startDate;
+    if (projectStart !== null && patch.deadline !== undefined && patch.deadline !== null) {
+      const offset = deadlineOffsetOf(projectStart, patch.deadline);
+      if (offset.kind === 'before-project-start') {
+        return {
+          ok: false,
+          reason: 'deadline_before_project_start',
+          workItemId: id,
+          projectDayZero: nextWorkday(projectStart),
+        };
+      }
     }
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.workItems.patch(id, patch, stamp);
