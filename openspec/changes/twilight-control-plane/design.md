@@ -24,7 +24,10 @@ flowchart TD
   Graph --> Restore[Workflow restore]
   Graph --> Authority
   Graph --> Effects[Effect execution: admit, dispatch, reconcile, settle]
-  Effects --> Worker[Isolated worker and ACP adapter]
+  Effects --> Provisioning[Worker provisioner]
+  Provisioning --> K3s[K3s API and Job controller]
+  K3s --> Worker[Isolated worker and ACP adapter]
+  K3s -- observed node, Pod and Job state --> Provisioning
   Worker -- brokered tool request --> Effects
   Effects --> External[Models, MCP servers, build and browser tools]
   API --> Knowledge[Repo-scoped wiki and source operations]
@@ -64,14 +67,15 @@ pattern, not permission to reuse a process-wide token.
 
 ### Invariant ownership
 
-Three deep modules own the ordering that makes the runtime safe. They are internal
+Four deep modules own the ordering that makes the runtime safe. They are internal
 boundaries in `twilight-runtime`, not services:
 
-| Module           | Public operation                                                      | Invariants hidden from callers                                                                                                                                                |
-| ---------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Workflow restore | `restoreRun(runId)`                                                   | Resolve retained executable closure, check checkpoint/store compatibility, load state, reconcile revisions, then permit resume.                                               |
-| Authority        | `authorizeAction(request)`                                            | Intersect pinned scope and approval with current identity, grants and safety floors; return a revision-bound decision consumed inside admission/dispatch.                     |
-| Effect execution | `admitActivity`, `dispatchEffect`, `reconcileEffect`, `settleAttempt` | Reserve resources, validate authority and attempt fence at dispatch, persist intent/outcome, reconcile uncertainty and release each resource only with its terminal evidence. |
+| Module              | Public operation                                                       | Invariants hidden from callers                                                                                                                                                                                                                          |
+| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workflow restore    | `restoreRun(runId)`                                                    | Resolve retained executable closure, check checkpoint/store compatibility, load state, reconcile revisions, then permit resume.                                                                                                                         |
+| Authority           | `authorizeAction(request)`                                             | Intersect pinned scope and approval with current identity, grants and safety floors; return a revision-bound decision consumed inside admission/dispatch.                                                                                               |
+| Effect execution    | `admitActivity`, `dispatchEffect`, `reconcileEffect`, `settleAttempt`  | Reserve resources, validate authority and attempt fence at dispatch, persist intent/outcome, reconcile uncertainty and release each resource only with its terminal evidence.                                                                           |
+| Worker provisioning | `launchAttempt`, `observeAttempt`, `stopAttempt`, `readWorkerCapacity` | Convert an admitted attempt to one immutable execution request, constrain placement and credentials, correlate scheduler observations, and never treat scheduler state as authority, effect outcome, workspace release or accepted completion evidence. |
 
 BE routes, graph nodes, workers and hooks call these operations. They cannot load a
 checkpoint and decide compatibility themselves, assemble policy predicates, invoke
@@ -319,6 +323,64 @@ that node timeouts and cooperative drain need, and chooses synchronous
 checkpointing unless the driver's crash tests justify otherwise. Never use an
 in-memory saver in acceptance. Horizontal coordinators wait for leases and
 transactional admission to pass races.
+
+### K3s worker topology
+
+[ADR 0016](../../../docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+selects K3s as the M1 worker substrate. The dogfood acceptance topology is one
+dedicated K3s server, tainted so it schedules no Twilight attempt Pods, and at
+least two K3s agent nodes. `h3mon` remains outside the cluster and observes it;
+`h4claw` hosts OpenClaw and Twilight's interactive control services and application
+deployment, but is not a worker node. K3s server and agent identities, versions,
+container runtimes, host capacity and network endpoints are captured in acceptance
+evidence. M1 joins and drains existing nodes manually. Provisioning or removing a
+VPS through a cloud API belongs to the later Terragrunt scope.
+
+`WorkerProvisionerPort` has four operations:
+
+- `launchAttempt(request: WorkerLaunchRequest): Promise<WorkerLaunchReceipt>`
+- `observeAttempt(attemptId: AttemptId): Promise<WorkerObservation>`
+- `stopAttempt(request: WorkerStopRequest): Promise<WorkerObservation>`
+- `readWorkerCapacity(): Promise<WorkerCapacityObservation>`
+
+The K3s adapter creates one immutable-digest Job per admitted attempt in the
+installation's worker namespace. A launch request carries the run, activity,
+attempt and fence identities; requested capability pool; image digest; command;
+CPU, memory, ephemeral-storage and deadline bounds; workspace identity; network
+profile; and opaque credential-mount reference. Jobs carry those non-secret
+identities as labels or annotations. The Pod has no Kubernetes API token, Docker
+socket, host path, host namespace, privileged mode, control-plane credential or
+production deployment credential. It runs without privilege escalation, drops
+capabilities, declares all resources and uses the capability pool's tested runtime
+class and node labels. A build activity reaches a separately registered Dagger
+executor through the effect broker; an agent Pod never receives the engine socket.
+
+The provisioner's Kubernetes identity can create, inspect, stop and read logs for
+the bounded worker resources in that namespace. It cannot change nodes, RBAC,
+cluster policy, application workloads or secrets. The trusted launcher resolves
+A34's short-lived credential reference into an ephemeral read-only mount through
+the selected and tested injection boundary; a raw credential is absent from the
+Job document, Pod metadata, environment, log and event stream. If the runtime,
+network or injection boundary cannot enforce a compiled capability, admission
+refuses before Job creation.
+
+K3s placement is an observation, not admission or completion. Kubernetes documents
+that one-completion Jobs can start the program twice. Every worker therefore opens
+with the persisted attempt and fence, and effect execution refuses a duplicate or
+stale process before it writes the workspace or requests a new effect. `Succeeded`,
+`Failed`, Pod deletion, node `NotReady` and API unavailability are reconciled with
+the worker protocol, workspace access, provider sessions, usage and effect receipts;
+none alone frees every reservation. Unknown cluster state is `unknown`, never an
+empty pool or a clean exit.
+
+Cluster state is replaceable execution state. Durable workflow, authority, ledger,
+evidence, source and artifact records live outside K3s. Losing the K3s server pauses
+new launch/stop commands visibly; after declarative rebootstrap, Twilight reconciles
+recorded attempts before it admits replacements. Node readiness, allocatable and
+reserved resources, capability labels, Job/Pod state, reasoned scheduling failures,
+logs and telemetry gaps are correlated to run and attempt IDs and exported to
+`h3mon`. OpenSandbox stays behind the same port as a later option if direct Jobs
+cannot meet a measured interactive-workspace need.
 
 Persist request, run, stage and activity attempts, decisions, findings and
 verdicts, reservations, effect intents, ledger entries, evidence metadata and

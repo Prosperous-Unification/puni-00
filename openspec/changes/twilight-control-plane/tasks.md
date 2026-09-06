@@ -18,13 +18,13 @@ The repository gate (`bunx nx format:check --all`, `bunx nx run-many -t test lin
 
 ## Milestones and ordering
 
-| Milestone                            | Tasks                                          | Observable exit                                                                                                                                                                                                          | Dependency                              |
-| ------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| M0 — repository SDLC trial           | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                           | None                                    |
-| M1 — usable factory core             | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
-| M2 — client planning backend         | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                             | WBS refactor closure + M1 planning port |
-| M3 — full workflow operations        | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                            | M1; M2 for accepting WBS-origin plans   |
-| M4 — client delivery and self-growth | 13–14                                          | Real cloud-browser acceptance, controlled release, tested client template upgrades, and factory self-change use the same workflow                                                                                        | M1–M3 and deployment/recovery proofs    |
+| Milestone                            | Tasks                                          | Observable exit                                                                                                                                                                                                                                                              | Dependency                              |
+| ------------------------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| M0 — repository SDLC trial           | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                                                                               | None                                    |
+| M1 — usable factory core             | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, executes through a real multi-host K3s worker pool, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
+| M2 — client planning backend         | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                                                                                 | WBS refactor closure + M1 planning port |
+| M3 — full workflow operations        | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                                                                                | M1; M2 for accepting WBS-origin plans   |
+| M4 — client delivery and self-growth | 13–14                                          | Real cloud-browser acceptance, controlled release, tested client template upgrades, and factory self-change use the same workflow                                                                                                                                            | M1–M3 and deployment/recovery proofs    |
 
 M1 and the WBS refactor can proceed independently. M2 must not alter WBS storage
 before its entry criteria hold. Tasks 9–14 are bounded follow-on increments: create
@@ -335,8 +335,8 @@ outbox reconciliation preserves one transition.
 ## Task 4: Admit resources, keep the ledger and recover uncertain effects
 
 Proves: Capacity and budget admission; Durable stage and activity lifecycle;
-Levers are configurable and their effects are measured (ledger and rate card
-halves) (A41, A46).
+K3s provides an expandable worker substrate (port half); Levers are configurable
+and their effects are measured (ledger and rate card halves) (A41, A46, A49–A50).
 
 - [ ] 4.1 Reserve resource vectors before launch and fence owners.
 - [ ] 4.2 Persist effect intent, dispatch through the fence, reconcile and settle.
@@ -346,6 +346,7 @@ halves) (A41, A46).
 
 **Owns:** `libs/twilight-domain/src/admission.ts`, `ledger.ts`,
 `libs/twilight-runtime/src/execution/admit.ts`, `lease.ts`, `effects.ts`,
+`worker-provisioner.ts`,
 `libs/twilight-runtime/src/ledger/ledger.ts`, `rate-card.ts`,
 `apps/twilight-be/src/effects.ts`, `capacity.ts`, `rate-card.ts`, `ledger.ts`,
 `apps/twilight-be/src/admission-race.db.test.ts`,
@@ -356,7 +357,8 @@ halves) (A41, A46).
 `admitActivity(command: AdmissionRequest): Promise<AdmissionDecision>`,
 `dispatchEffect(request: EffectRequest): Promise<EffectOutcome>`,
 `reconcileEffect(effectId: string): Promise<EffectOutcome>`, `settleAttempt`,
-one run-scoped `BudgetAccount`, `recordLedgerEntry`, and the `get_capacity`,
+`WorkerProvisionerPort` with `launchAttempt`, `observeAttempt`, `stopAttempt` and
+`readWorkerCapacity`, one run-scoped `BudgetAccount`, `recordLedgerEntry`, and the `get_capacity`,
 `set_capacity`, `publish_rate_card`,
 `read_ledger` and `resolve_effect` operations. Intent persistence, provider
 transport, fence/authority validation and resource release are private to effect
@@ -435,11 +437,16 @@ Current rates re-evaluate new holds without repricing settled attempts.
 **Estimate:** 12–22 human hours; 3–7 agent hours; 200k–560k tokens, one build slot
 and two lightweight child-process slots for race tests.
 
-4.4 owns `libs/twilight-runtime/src/scheduling/ready.ts`, `capacity.ts` and
+4.4 owns `libs/twilight-runtime/src/scheduling/ready.ts`, `capacity.ts`,
+`libs/twilight-runtime/src/execution/worker-provisioner.ts` and
 `scheduling.db.test.ts`; consumes Task 2's `WorkPlan`, Task 3's execution envelope
 and `admitActivity`. It produces `selectReady` (selected IDs, scores and blocked
 reasons) and `requestCapacity` (requested/granted/refused with pool and reason),
-using a registered provisioner rather than organization-administrator credentials.
+using a registered `WorkerProvisionerPort` rather than
+organization-administrator credentials. The port signatures and validated request,
+receipt, observation and capacity types are those in the design's K3s topology;
+Task 6 implements them. A provisioner observation cannot mint a reservation,
+increase a grant, authorize a launch or settle an effect.
 First hold a browser task and observe independent backend work launch; inject
 head-of-queue-only selection and observe no backend launch while the barrier holds.
 Pin two explicit duration chains below the aging window and observe critical-path selection; inject reversed
@@ -526,6 +533,15 @@ non-administrator is refused and a tightened floor constrains a queued run. Remo
 the snapshot pin or merge arrays by index and watch digest parity or resolved-plan
 equality fail.
 
+The capacity view and `get_capacity` MCP result show the registered provisioner,
+identified K3s server and agent nodes, readiness/drain state, tested capability
+labels, allocatable/reserved resources, queued placement reason and correlated
+Job/Pod identity. Cluster API or telemetry loss is unavailable with its source and
+reason, never zero capacity or a healthy worker. The UI links the pinned manual
+join/drain runbook but exposes no inert node-autoscaling switch in M1. Hold a stale
+ready observation after a node disappears and remove the unknown state separately;
+the UI/MCP capacity and queued-reason assertions must fail on those faults.
+
 **Tests (5.4):** the focus brief carries the same failure and decision as the full
 view, offers one next action, retains full evidence access, and resumes after
 reload; the focus profile is a per-actor preference that changes no obligation.
@@ -546,18 +562,25 @@ new work starts only after acknowledgement. An expansion shows the changed bound
 and admits nothing before its human decision. Tests read the pending window; a
 later settled UI cannot prove absence of optimistic authority.
 
-## Task 6: Execute one real ACP activity inside its authority
+## Task 6: Execute one real ACP activity on the K3s worker pool
 
 Proves: Capacity and budget admission (egress and lease halves); Levers are
-configurable and their effects are measured (serving model and escalation) (A34, A41).
+configurable and their effects are measured (serving model and escalation); K3s
+provides an expandable worker substrate (runtime half) (A34, A41, A49–A50).
 
 - [ ] 6.1 Deliver the ACP adapter contract, capability document and deterministic protocol tests.
-- [ ] 6.2 Run one live activity inside the effect boundary with scoped credentials, cancellation and escalation.
+- [ ] 6.2 Deliver the restricted K3s Job provisioner and real three-node acceptance cluster.
+- [ ] 6.3 Run one live activity inside the effect boundary with scoped credentials, cancellation and escalation.
 
 **Owns:** `apps/twilight-worker/src/main.ts`,
 `libs/twilight-runtime/src/agents/acp.ts`, `capabilities.ts`, `escalation.ts`,
 `libs/twilight-runtime/src/agents/acp-contract.test.ts`,
-`apps/twilight-worker/src/containment.test.ts` and versioned integration fixtures.
+`libs/twilight-runtime/src/execution/k3s-worker-provisioner.ts`,
+`k3s-worker-provisioner.test.ts`, `job-spec.ts`, `job-spec.test.ts`,
+`apps/twilight-worker/src/containment.test.ts`,
+`tools/tool-twilight/src/k3s-preflight.ts`, `k3s-preflight.test.ts`,
+`deploy/twilight/k3s/`, `docs/runbook-twilight-worker-pool.md` and versioned
+integration fixtures.
 
 **Depends on:** Tasks 3–4. **Produces:** `AgentSessionPort` for start/stream/cancel/
 reconcile plus an explicit capability document. Discover and pin the actual ACP
@@ -584,7 +607,56 @@ document reports (spec scenario "Capability cannot be enforced"). Record each
 optional telemetry gap in the ledger as unavailable with its reason, and assert the
 client shows it.
 
-6.2: run a live low-risk fixture task in an isolated scratch repository. Test
+6.2: pin the K3s release and artifact digest after reading its current compatibility
+and security documentation. Provision one dedicated server with attempt scheduling
+disabled and two agent nodes on identified hosts. Do not install on `h3mon` or
+`h4claw`: `h3mon` remains the external observer, while `h4claw` runs OpenClaw,
+Twilight's control services and application deployment. `k3s-preflight` validates
+unique node identity, supported architecture/kernel/cgroups/container runtime,
+CPU/memory/disk, clock, required ports, private reachability, conflicting CNI or
+firewall state, and the absence of a worker label on the server. Missing or
+unreadable evidence refuses installation; the runbook records the exact reversible
+bootstrap, join, drain, upgrade, pinned-manifest reapply and rebootstrap commands.
+
+Implement the four `WorkerProvisionerPort` operations through a namespace-scoped
+Kubernetes identity. Generate one immutable Job spec per attempt with digest-pinned
+image, attempt/fence labels, capability/node constraints, resource requests and
+limits, active deadline, cleanup TTL, restricted security context, tested runtime
+class, network profile, ephemeral workspace and opaque credential-mount reference.
+The Pod automounts no service-account token and receives no raw credential, host
+namespace/path, Docker/Dagger socket, privileged capability or production route.
+The provisioner cannot mutate nodes, RBAC, cluster policy, application namespaces
+or stored credentials. Apply namespace, quota, RBAC and network policy from
+`deploy/twilight/k3s/` through an Nx-owned tool target; direct unrecorded `kubectl`
+mutation is not the product contract.
+
+Prove each control on the real cluster. Deliberately request the cluster API,
+Docker socket, host path, deployment endpoint, forbidden egress and another
+attempt's credential reference; independent canary endpoints and host inspection
+must observe denial. Remove each effective production-path control separately and
+watch its named assertion fail. A manifest-only assertion cannot prove kernel,
+runtime or network enforcement. Stop if no supported runtime class contains the
+live ACP, Bun, Git and filesystem fixture; default `runc` alone does not satisfy the
+hostile-code claim. Probe gVisor for the coding pool first and Kata second; record
+the pinned runtime and failure evidence, and stop the hostile-code claim if neither
+passes. Build and browser activity classes use separately labeled
+nodes/adapters when their runtime requirements differ; agent Pods never gain a
+build-engine socket.
+
+Exercise duplicate Job program start, scheduler retry, unschedulable resources,
+Pod eviction, node drain, abrupt agent-node loss, K3s API loss and server
+rebootstrap. The independent worker/effect/workspace oracles must show one current
+writer and no duplicate external effect. API or node loss retains reservations and
+reports unknown until worker, workspace, provider and usage evidence reconciles.
+After server rebootstrap from pinned deployment inputs, reconcile every recorded
+attempt before launching a replacement. Join and drain nodes manually in M1; do
+not call a VPS provider. Stream correlated logs, scheduler reasons, node/Pod/Job
+state and telemetry gaps to Twilight and `h3mon`, then stop that export and require
+both surfaces to show the gap. OpenSandbox remains uninstalled unless this slice
+records a missing interactive-workspace contract and a separate accepted adapter
+change.
+
+6.3: run a live low-risk fixture task in an isolated scratch repository. Test
 permissions at the actual tool/egress boundary: forbidden network target and
 credential lookup cannot be performed even when prompt text asks for them. Replace
 the enforcement boundary with an allow path and observe the controlled
@@ -613,8 +685,9 @@ reapproval. Remove the `maxSteps` check, reset spend on retry, and silently down
 the model separately; watch the no-third-step, account-total and serving-model
 assertions fail. No real client secrets in this fixture.
 
-**Estimate:** 10–22 human hours; 3–7 agent hours; 170k–500k tokens plus separately
-admitted live-provider spend; one provider slot and isolated workspace.
+**Estimate:** 24–48 human hours; 6–14 agent hours; 320k–900k tokens plus separately
+admitted live-provider and VPS spend; one provider slot, one dedicated K3s server
+and two isolated worker nodes. Infrastructure spending needs an explicit allowance.
 
 ## Task 7: Join evidence, hooks, review and the outcome record
 
@@ -775,8 +848,9 @@ browser gate on the owned stack. The repository's Playwright server-reuse landmi
 applies to every browser test in this plan: own ports and databases, verify the
 served build identity, and run the whole browser gate when shared UI or CSS
 changes. Run the repository-wide gate on the correct host/lock before integration.
-M1 acceptance is a working local/development core; cloud-browser deployment and
-production machinery are Task 13's.
+M1 acceptance is a working local/development control plane with the real K3s worker
+topology; cloud-browser deployment and production application machinery are Task
+13's.
 
 8.2: at M1 acceptance, set `schema: twilight-v1` in puni-00 and the generated
 client template. Before switching, pin every existing change's current schema in
@@ -831,6 +905,17 @@ a synthetic scheduler test or two-profile comparison cannot substitute for this
 acceptance. Five samples establish the proposed milestone budget, not mature defect
 rates or a universal scaling law. Re-estimate the remaining tasks from measured M1
 costs and elapsed times. M1 duration remains unmeasured until those ledgers exist.
+
+Run the matrix on Task 6's identified one-server/two-agent-node cluster. Before
+timing, prove both agent nodes execute a labeled fixture and the server executes
+none. During the contended workload, drain one agent node; assert no new Job lands
+there, current work reaches the modeled draining or unknown outcome, and feasible
+work continues on the other node without increasing authority. Rejoin it and
+observe capacity only after readiness and capability probes pass. Abruptly lose the
+other node during a brokered effect, inject the documented duplicate-program
+condition, and use independent receiver and workspace counters to prove no repeated
+effect or second writer. Advertised node count, fake Pods on one host or local child
+processes cannot satisfy multi-host acceptance.
 
 ## Task 9: Prove the Backlog/WBS storage adapter after refactors
 
@@ -1066,6 +1151,7 @@ Spec requirement to task:
 | Revision-bound human decisions                                 | 3, 5          |
 | Caller identity and human-decision provenance                  | 3, 5          |
 | Capacity and budget admission                                  | 4, 6          |
+| K3s provides an expandable worker substrate                    | 4, 6, 8       |
 | Levers are configurable and their effects are measured         | 4, 6, 7, 8    |
 | Hooks, critics and judges preserve authority                   | 7             |
 | Observable evidence with focus access                          | 5, 7          |
@@ -1092,6 +1178,7 @@ User requirement to delivery location:
 | TS-26: autonomous assumptions and Claude Fable 5.1 review                     | M0 assumption ledger and review/evidence record                       |
 | TS-27: cost, model, review-depth and parallelism levers with quality tracking | Execution profile; Tasks 4, 6–8, 11                                   |
 | TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for planning contention                             |
+| TS-29–30: operated client installations and expandable K3s worker pool        | Discovery/ADR 0016; Tasks 4, 6, 8                                     |
 
 All future failure experiments above are planned tests. None is an observed R5
 proof until implementation runs the test with its fault and records actual output.

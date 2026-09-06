@@ -452,6 +452,73 @@ trigger producers MUST submit to the single admission authority.
 - **THEN** at most one hold commits and the other attempt stays queued or is denied
   with the constrained budget dimension named
 
+### Requirement: K3s provides an expandable worker substrate
+
+M1 MUST run admitted activity attempts through a K3s-backed worker provisioner on
+an identified cluster with one dedicated server node that schedules no Twilight
+attempt Pods and at least two distinct agent nodes. Direct Kubernetes Jobs are the
+first provisioner implementation. Joining and draining existing nodes MUST be
+supported and observed in M1; creating or deleting VPS infrastructure is outside
+M1 and MUST NOT be implied by a K3s capacity change.
+
+The worker provisioner MUST expose launch, observe, stop and capacity operations
+without acquiring organization-administrator authority. Each Job MUST bind the
+run, activity, attempt and fence identities; immutable image digest; capability
+pool and node constraints; CPU, memory and ephemeral-storage requests and limits;
+deadline; workspace; network profile; and an opaque credential-mount reference.
+The Job MUST NOT carry a raw credential. Attempt Pods MUST have no cluster API
+token, Docker socket, host path or namespace, privileged mode, control-plane secret
+or production credential. The selected runtime, network and credential-injection
+boundaries MUST be proved against the activity capability document; an unavailable
+control MUST refuse admission before Job creation.
+
+K3s Job, Pod and node states MUST be observations rather than Twilight admission,
+effect, workspace-release or completion authority. Duplicate program starts MUST
+be tolerated through attempt fencing and idempotent reconciliation. A missing or
+unreadable K3s observation MUST remain unknown and retain affected holds. Cluster
+state MUST be reconstructible without losing Twilight's durable workflow,
+authority, ledger, source, artifact or evidence records. Node and workload state,
+scheduling reasons, logs and telemetry gaps MUST be correlated to run and attempt
+identity and visible through FE, MCP and the configured external monitoring sink.
+
+#### Scenario: A worker node is added and drained
+
+- **WHEN** a second agent node joins with the required capability labels and later
+  one agent node is drained while work is queued and running
+- **THEN** only observed ready capacity increases, no new attempt lands on the
+  drained node, running work is reconciled, and feasible work may start on the
+  remaining node without enlarging its execution envelope
+
+#### Scenario: Kubernetes starts one attempt program twice
+
+- **WHEN** the Job controller starts two Pods for one completion and both present
+  the same attempt identity and fence
+- **THEN** at most one process obtains writable workspace ownership or dispatches
+  a new external effect, and the duplicate is recorded and terminated
+
+#### Scenario: A node disappears during an effect
+
+- **WHEN** an agent node becomes unreachable after a worker requests an external
+  effect but before terminal worker and provider evidence arrives
+- **THEN** the attempt remains draining or unknown, its reservations are retained,
+  and a replacement cannot repeat the effect or reuse the workspace
+
+#### Scenario: A worker asks for host or cluster authority
+
+- **WHEN** a worker attempts to use a Kubernetes API token, Docker socket, host
+  mount, cluster control endpoint or application deployment credential
+- **THEN** the production boundary denies it and the controlled denial is recorded
+  without exposing a credential value
+
+#### Scenario: The K3s server is lost and reconstructed
+
+- **WHEN** the single M1 K3s server becomes unavailable while Twilight retains
+  nonterminal attempts, then the cluster is rebuilt from the pinned deployment
+  inputs
+- **THEN** Twilight remains inspectable, visibly blocks new provisioning while the
+  cluster is unavailable, reconciles every recorded attempt before replacement,
+  and loses no accepted decision, effect, ledger or evidence record
+
 ### Requirement: Run clocks preserve distinct time quantities
 
 Agent time MUST be the additive active duration of agent sessions across attempts,

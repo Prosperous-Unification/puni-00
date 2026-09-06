@@ -58,6 +58,8 @@ each client, with WBS planning backed by per-repo Backlog.md after WBS refactors
 | TS-27 | Measure cost in money and time, with tokens as the money proxy. Make model choice (better or cheaper), removing validation, review or QA steps, and parallelism tunable levers, and track their effect on quality. Added 2026-09-06. |
 
 | TS-28 | Make spending buy shorter accepted delivery time: pipeline independent deliverables, automate integration, scale constrained resources, and measure speedup at fixed quality. Human decisions authorize bounded execution choices rather than every scheduling adjustment. |
+| TS-29 | The first iteration is operated and primarily used by Dany. Future installations run on client-owned infrastructure maintained by Dany under an explicit agreement with revocable access and defined support and recovery terms. |
+| TS-30 | Use K3s for an expandable worker pool. Prove a real multi-host pool in M1; adding and draining existing VPS workers is in scope, while automatic cloud/VPS provisioning through the planned Terragrunt tool is later work. |
 
 These requirements record the brief. They do not imply that every feature is
 in the first release or that any integration has already been implemented.

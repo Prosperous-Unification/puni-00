@@ -11,7 +11,8 @@ time to accepted, integrated outcomes within authorized spending and fixed quali
 The first increment provides a configurable FE/BE/MCP loop: submit a request under
 a named delivery profile, inspect a versioned workflow and plan, approve the specified plan and execution envelope, pipeline isolated deliverables,
 automatically compose and verify integration candidates, recover from interruption,
-and inspect evidence, the run ledger and scaling measurements. It
+and inspect evidence, the run ledger and scaling measurements. K3s places M1
+activity attempts across a real, manually expandable multi-host worker pool. It
 introduces the versioned client-repository contract used by `puni-00` itself and
 the execution profile that carries every lever a person tunes.
 
@@ -58,7 +59,8 @@ Use the [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
 The requirements/wiki authority split is recorded in
 [knowledge maintenance](../../../docs/twilight-structure/knowledge.md);
 the [proposed planning transaction boundary](../../../docs/adr/0015-planning-commits-are-the-transaction-boundary.md)
-is an ADR because it is hard to reverse and had real alternatives.
+and the [accepted K3s worker-pool boundary](../../../docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+are ADRs because they are hard to reverse and had real alternatives.
 
 ## Impact
 

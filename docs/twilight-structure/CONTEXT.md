@@ -134,6 +134,11 @@ An isolated process that performs one activity attempt with no access to
 control-plane credentials or policy writes.
 _Avoid_: Agent, sandbox
 
+**Worker provisioner**:
+The trusted adapter that places an admitted attempt on registered execution
+capacity and reports its observed lifecycle. It grants no authority of its own.
+_Avoid_: Scheduler, autoscaler, worker
+
 **Compiled workflow**:
 The immutable, digest-identified result of compiling a workflow definition,
 execution profile, repository manifest, and organization snapshot for a run.
@@ -275,6 +280,11 @@ _Avoid_: Bug, regression
 The owning party for repositories, members, and policy floors; one is configured
 at bootstrap.
 _Avoid_: Tenant, account
+
+**Installation operator**:
+The party responsible for maintaining and restoring a Twilight installation on
+behalf of its owner. The operator and owner may be the same party.
+_Avoid_: Organization, user
 
 **Safety floor**:
 A mandatory policy at platform, organization, or repository level that lower-level

@@ -6,8 +6,9 @@ backend and full factory capabilities in dependency order.
 
 Current objective: minimize elapsed time to accepted, integrated outcomes within
 approved spending and fixed quality. M1 includes pipelined deliverables, execution
-envelopes, automated integration and a measured scaling gate. Product code is not
-implemented. The [current verification record](../../openspec/changes/twilight-control-plane/verify.md)
+envelopes, automated integration, a real multi-host K3s worker pool and a measured
+scaling gate. Product code is not implemented. The
+[current verification record](../../openspec/changes/twilight-control-plane/verify.md)
 separates document checks from future runtime proofs.
 
 The subsequent [branch-review hardening](../../openspec/changes/twilight-review-hardening/proposal.md)
@@ -41,6 +42,7 @@ note links to it rather than restating it.
 | Question                                                       | Source findings                                                                                                                 |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | OpenHands, OpenClaw, LangGraph/LangChain and durable workflows | [Runtime patterns](research/runtime-patterns.md)                                                                                |
+| Expandable execution pools and agent sandboxes                 | [Worker-pool candidates](research/worker-pools.md)                                                                              |
 | i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol        | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
 | Backlog.md and WBS storage requirements                        | [Backlog patterns](research/backlog-patterns.md)                                                                                |
 | Claire and the first source inspection                         | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
