@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 
 import { describe, expect, it } from 'bun:test';
 
@@ -62,5 +63,40 @@ describe('the Bun version', () => {
     const fromFile = workflow.match(/^\s*bun-version-file: \.bun-version$/gm) ?? [];
     // Both jobs set Bun up; one reading the file and one floating is the drift this exists to stop.
     expect(fromFile.length).toBe((workflow.match(/uses: oven-sh\/setup-bun@/g) ?? []).length);
+  });
+});
+
+/**
+ * TypeScript wears two hats here, and each is pinned to its own major.
+ *
+ * `tsc` on the workspace path is TypeScript 7 — the native compiler, ten
+ * times faster and the one every `typecheck` target runs. TypeScript 7 ships
+ * no compiler API, and typescript-eslint needs one (`>=4.8.4 <6.1.0`), so the
+ * package that answers `require('typescript')` is `@typescript/typescript6`,
+ * installed under the `typescript` name; its only bin is `tsc6`, which is why
+ * the two do not collide. The arrangement lives in `package.json`'s two
+ * `npm:` aliases and nothing else says which role is which — a swap would
+ * leave every typecheck target compiling with TS 6 and ESLint parsing with a
+ * package that has no API, and both would still exit 0 on a clean tree.
+ *
+ * Proof: with no alias at all, both failed — `Expected: "6" · Received: "5"`
+ * and `Received: "Version 5.9.3"`. With the two aliases swapped, both failed
+ * again on `Expected: "6" · Received: "7"` and `Received: "Version 6.0.3"` —
+ * the 6.0.3 being a transitive TypeScript that owned `.bin/tsc` once the
+ * TS 7 package no longer did (2026-09-06).
+ */
+describe('the two TypeScripts', () => {
+  const require = createRequire(import.meta.url);
+
+  it('the typescript package is the TS 6 API build', () => {
+    const { version } = require('typescript/package.json') as { version: string };
+    expect(version.split('.')[0]).toBe('6');
+  });
+
+  it('tsc on the workspace path is TypeScript 7', () => {
+    const tsc = new URL('node_modules/.bin/tsc', WORKSPACE).pathname;
+    const { stdout, exitCode } = Bun.spawnSync([tsc, '--version']);
+    expect(exitCode).toBe(0);
+    expect(stdout.toString().trim()).toMatch(/^Version 7\./);
   });
 });
